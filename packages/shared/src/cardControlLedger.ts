@@ -39,7 +39,6 @@ export const cardMutationSchema = z.object({
   id: z.string().uuid(),
   intent: z.enum(CARD_MUTATION_INTENTS),
   status: z.enum(CARD_MUTATION_STATUSES),
-  reason: z.string(),
   requestedBy: z.string().uuid().nullable(),
   requestedByName: z.string().nullable(),
   createdAt: z.string(),

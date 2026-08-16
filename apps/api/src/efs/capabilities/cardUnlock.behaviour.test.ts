@@ -96,7 +96,6 @@ const recorder = (): SupabaseRecorder =>
 const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, xml: string, stepUp: boolean): CardMutationContext => ({
   admin: rec.client, env, creds, orgId: ORG, fetchImpl,
   efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-  reason: "Card recovered",
   expectedVersion: versionOf(xml),
   idempotencyKey: null,
   stepUp,
@@ -105,7 +104,7 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, xml: string, ste
 const unlock = (xml: string, stepUp: boolean, rec: SupabaseRecorder) =>
   executeCapability(
     ctxFor(rec, stub(loginOk, xml, soap(""), ACTIVE), xml, stepUp),
-    resolveCapability(cardUnlockContract, cardUnlockBehaviour, { expectedVersion: versionOf(xml), reason: "Card recovered" }),
+    resolveCapability(cardUnlockContract, cardUnlockBehaviour, { expectedVersion: versionOf(xml) }),
   );
 
 const inserted = (rec: SupabaseRecorder) =>

@@ -88,7 +88,6 @@ describe("card mutation orchestration deadline", () => {
       efsCardId: CARD_ID,
       cardNumber: CARD,
       userId: "user-1",
-      reason: "test",
       expectedVersion: before.version,
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
       fetchImpl,
@@ -97,7 +96,7 @@ describe("card mutation orchestration deadline", () => {
     // The shipped lock capability. Step 3.7 deleted CardMutationIntentSpec, and pointing this at
     // the real descriptor means the deadline is proven against the write that actually ships.
     const outcome = await executeCapability(ctx, resolveCapability(cardLockContract, cardLockBehaviour, {
-      expectedVersion: ctx.expectedVersion, reason: ctx.reason, status: "Hold" as const,
+      expectedVersion: ctx.expectedVersion, status: "Hold" as const,
     }));
 
     expect(outcome.status).toBe("sent");

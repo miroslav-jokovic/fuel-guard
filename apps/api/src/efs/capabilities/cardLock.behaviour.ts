@@ -50,7 +50,7 @@ export const cardLockBehaviour = defineBehaviour(cardLockContract, {
    */
   proof: {
     precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Hold"),
-    sample: (): CardLockBody => ({ status: "Hold", expectedVersion: "", reason: "Capability proof run" }),
+    sample: (): CardLockBody => ({ status: "Hold", expectedVersion: "" }),
     revert: (snap) => ({
       // Never assume `Active`: a card proved from INACTIVE must go back to INACTIVE, and `card_lock`
       // can write it because Inactive is one of its own statuses. A card that started Active is
@@ -58,8 +58,8 @@ export const cardLockBehaviour = defineBehaviour(cardLockContract, {
       // `card_lock` cannot write — see prove.ts.
       capability: efsStatusEquals(snap.doc?.card.status ?? null, "Active") ? "card_unlock" : "card_lock",
       body: efsStatusEquals(snap.doc?.card.status ?? null, "Active")
-        ? { expectedVersion: "", reason: "Capability proof revert" }
-        : { status: snap.doc?.card.status ?? "Inactive", expectedVersion: "", reason: "Capability proof revert" },
+        ? { expectedVersion: "" }
+        : { status: snap.doc?.card.status ?? "Inactive", expectedVersion: "" },
     }),
   },
 

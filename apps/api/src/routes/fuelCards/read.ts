@@ -270,7 +270,7 @@ export function fuelCardsRouter(): Router {
       .from("efs_card_mutations")
       // Explicit columns: the ledger carries before/after documents and redacted vendor XML, and
       // neither belongs in a page render. `select("*")` here would ship both.
-      .select("id, intent, status, reason, requested_by, step_up, created_at, completed_at, efs_fault_code, efs_fault_message, drift")
+      .select("id, intent, status, requested_by, step_up, created_at, completed_at, efs_fault_code, efs_fault_message, drift")
       .eq("org_id", orgId)
       .eq("efs_card_id", String(req.params.id))
       .order("created_at", { ascending: false })
@@ -385,7 +385,7 @@ export function fuelCardsRouter(): Router {
 // ─── The mutation ledger's view shape ──────────────────────────────────────────────────────────
 
 interface MutationRow {
-  id: string; intent: string; status: string; reason: string;
+  id: string; intent: string; status: string;
   requested_by: string | null; step_up: boolean;
   created_at: string; completed_at: string | null;
   efs_fault_code: string | null; efs_fault_message: string | null;
@@ -398,7 +398,6 @@ const toMutationView = (row: unknown) => {
     id: r.id,
     intent: r.intent,
     status: r.status,
-    reason: r.reason,
     requestedBy: r.requested_by,
     stepUp: r.step_up,
     createdAt: r.created_at,

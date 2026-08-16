@@ -87,7 +87,7 @@ async function dispatch(
     throw new Error(`proof: ${capabilityKey} refused its own proof body: ${accepted.error.issues[0]?.message}`);
   }
 
-  const outcome = await accepted.run({ ...ctx, expectedVersion: doc.version, reason: accepted.reason });
+  const outcome = await accepted.run({ ...ctx, expectedVersion: doc.version });
   // `applyLatencyMs` is carried out of the orchestrator rather than timed here (Step 4.7) — only
   // `verifyStep` knows which re-read saw the change.
   return {

@@ -93,7 +93,6 @@ async function run(
   try {
     const outcome = await accepted.run({
       ...ctx,
-      reason: accepted.reason,
       expectedVersion: accepted.expectedVersion,
       requestFingerprint: mutationFingerprint(intent, efsCardId, accepted.fingerprintBody),
     });

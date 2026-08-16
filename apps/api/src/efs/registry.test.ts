@@ -223,9 +223,14 @@ describe("the capability registries agree with each other", () => {
     }
   });
 
-  it("declares a reason rule, so a capability cannot default into silence", () => {
+  /**
+   * Phase 6.5 deleted `ReasonRule`. Decision B1 (Miki, 2026-08-12) removed `reason`; a session
+   * reinstated it per-capability the next day, logging the change as its own authority. This asserts
+   * the field is gone from every contract, so it cannot creep back one capability at a time.
+   */
+  it("declares no reason rule — the write path does not collect one", () => {
     for (const contract of Object.values(CARD_CAPABILITY_CONTRACTS)) {
-      expect(["optional", "required"], `${contract.key} reason`).toContain(contract.reason);
+      expect(contract, `${contract.key} reason`).not.toHaveProperty("reason");
     }
   });
 

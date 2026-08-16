@@ -4,8 +4,9 @@ import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
-import type { CardOperationId, OperationDraft } from "./cardOperations";
+import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
 
 /**
  * The controls for whichever operation the drawer is showing — its third region.
@@ -31,6 +32,12 @@ const props = defineProps<{
   busy: boolean;
   /** Editable prompt records this product does not touch, listed so nobody thinks they vanished. */
   readOnlyPrompts: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
+  /** The three writable statuses, each already carrying the capability it writes through. */
+  statusRows?: StatusRow[];
+  /** Why a given status row is out of reach for this operator, keyed by status value. */
+  statusBlocked?: Record<string, string | null>;
+  /** Set when the card sits at Fraud or Deleted — neither is writable and neither has a row. */
+  unwritableStatus?: string | null;
 }>();
 
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
@@ -64,7 +71,37 @@ function patchPrompt(index: number, over: Partial<PromptInput>): void {
 </script>
 
 <template>
-  <div v-if="props.operation === 'grant'" class="space-y-4">
+  <!--
+    Three statuses, one tick, one Save — the vendor's own model (Cards → View Cards → Select →
+    Change Status → New Status). Checkboxes rather than a select because the whole list is three
+    items: seeing all three at once, with the card's own state already ticked, IS the diff.
+
+    Only one may be ticked. Ticking a row REPLACES the selection rather than adding to it, which is
+    radio behaviour wearing a checkbox — deliberate, and the reason each row is `readonly` to the
+    keyboard's space bar only in the sense that unticking the current row does nothing: a card
+    always has exactly one status, and "no status" is not a state anybody can save.
+  -->
+  <div v-if="props.operation === 'status'" class="space-y-1">
+    <p v-if="props.unwritableStatus" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
+      This card is <strong>{{ props.unwritableStatus }}</strong>, which is not one of the three below.
+      Choosing one will move it out of that state.
+    </p>
+    <div v-for="row in props.statusRows ?? []" :key="row.value" class="flex flex-wrap items-center gap-x-3">
+      <AppCheckbox
+        :model-value="props.draft.targetStatus === row.value"
+        :disabled="props.busy || props.statusBlocked?.[row.value] != null"
+        :label="row.label"
+        @update:model-value="(on: boolean) => on && patch({ targetStatus: row.value })"
+      />
+      <span v-if="row.current" class="text-xs text-ink-tertiary">Current</span>
+      <!-- Invariant 6: a row nobody can reach says which permission is missing, never just grey. -->
+      <span v-if="props.statusBlocked?.[row.value]" class="text-sm text-ink-muted">
+        {{ blockedSentence(props.statusBlocked[row.value]!) }}
+      </span>
+    </div>
+  </div>
+
+  <div v-else-if="props.operation === 'grant'" class="space-y-4">
     <FormField label="How many purchases" hint="The exception is used up automatically — it does not need to be revoked.">
       <template #default="{ id }">
         <ComboSelect

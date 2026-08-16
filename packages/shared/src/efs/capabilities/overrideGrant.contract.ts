@@ -19,12 +19,6 @@ export const overrideGrantContract = defineContract({
   writeBucket: "card_override",
   auditAction: "card.override_granted",
   schema: grantOverrideSchema,
-  /**
-   * Required, per the 2026-08-13 decision. This is the discretionary end of the range: nobody is
-   * stranded at a pump at 2am because a dispatcher had to type why they were granting free fuel, and
-   * "Why" is the first column an auditor reads on this intent.
-   */
-  reason: "required",
   carriesSecret: false,
   /**
    * `overrideAllLocations` is the field the p194 recipe turns on, and the one whose spelling the

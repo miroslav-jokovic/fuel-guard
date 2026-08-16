@@ -401,7 +401,6 @@ async function audit(
     meta: {
       mutationId: plan.mutationId,
       intent: plan.intent,
-      reason: ctx.reason,
       stepUp: ctx.stepUp === true,
       expectedVersion: ctx.expectedVersion,
       resultVersion: after?.version ?? null,

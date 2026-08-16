@@ -32,13 +32,6 @@ const shared = {
    */
   writeBucket: "card_override",
   auditAction: "card.override_cleared",
-  /**
-   * Optional — and the 2026-08-13 `reason` decision does not name this capability either way, so
-   * this is the call: clearing is the SAFE direction, it takes fuel away rather than handing it out,
-   * and "cancel that exception now" should not stop for prose. The grant it reverses is `required`,
-   * which is where the audit trail actually needs the sentence.
-   */
-  reason: "optional",
   carriesSecret: false,
 } as const;
 

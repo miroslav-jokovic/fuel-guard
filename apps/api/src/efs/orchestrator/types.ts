@@ -44,7 +44,6 @@ export interface CardMutationContext {
    * the entire point of putting the column in 0177 ahead of the feature.
    */
   approvedBy?: string | null;
-  reason: string;
   expectedVersion: string;
   idempotencyKey?: string | null;
   /** True when the caller re-authenticated for this action. Recorded as evidence. */

@@ -69,7 +69,7 @@ const sentRow = (over: RowOverrides = {}) => ({
   created_at: OLD,
   edits: over.edits ?? [],
   capability_key: over.capability_key === undefined ? "delete_override" : over.capability_key,
-  request_body: over.request_body ?? { expectedVersion: "x".repeat(16), reason: "done" },
+  request_body: over.request_body ?? { expectedVersion: "x".repeat(16) },
 });
 
 function recorder(row: Record<string, unknown>): SupabaseRecorder {
@@ -193,7 +193,7 @@ describe("a pending mutation whose process died is condemned, and nobody approve
     created_at: OLD,
     edits: [],
     capability_key: "delete_override",
-    request_body: { expectedVersion: "x".repeat(16), reason: "done" },
+    request_body: { expectedVersion: "x".repeat(16) },
   });
 
   it("settles it `failed` with efs_fault_code 'abandoned', spending no vendor call", async () => {

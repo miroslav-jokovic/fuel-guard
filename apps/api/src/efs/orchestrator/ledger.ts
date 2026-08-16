@@ -133,7 +133,6 @@ async function insertPending(ctx: CardMutationContext, row: PendingRow): Promise
       capability_key: row.capabilityKey,
       request_body: row.requestBody,
       status: "pending",
-      reason: ctx.reason,
       requested_by: ctx.userId,
       step_up: ctx.stepUp === true,
       expected_version: ctx.expectedVersion,

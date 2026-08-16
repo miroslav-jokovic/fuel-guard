@@ -3,8 +3,6 @@ import { computed, ref, watch } from "vue";
 import type { CardCapabilities, PromptInput, WsCard } from "@fuelguard/shared";
 import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -25,7 +23,9 @@ import {
   operationDiff,
   operationStepUp,
   operationUi,
-  reasonRequired,
+  capabilityBlockedBy,
+  statusRows,
+  unwritableStatusLabel,
   toOperationCard,
 } from "./cardOperations";
 import {
@@ -43,8 +43,13 @@ import {
  *
  * The drawer it replaces stacked Lock, Exception and Prompts into one panel with three action
  * buttons, so "lock this card" meant reading past two forms that were not the decision. This opens
- * on the operation somebody chose and shows six regions: header · what this does · inputs ·
- * **what will change** · why · footer.
+ * on the operation somebody chose and shows five regions: header · what this does · inputs ·
+ * **what will change** · footer.
+ *
+ * There is no "Why" field. Decision B1 removed it on 2026-08-12; a session reinstated it
+ * per-capability on 2026-08-13 and Phase 6 shipped it as a REQUIRED box in front of the person who
+ * had deleted it. Phase 6.5 took it back out of the logic, not just the form — see the note on
+ * `cardControlContract.ts`. The ledger records time, person and action, which is the audit trail.
  *
  * ── The seven invariants, and the defect each one prevents ──────────────────────────────────────
  *
@@ -107,7 +112,7 @@ const busy = ref(false);
 const key = ref("");
 
 /** Invariant 1: frozen at the click, and what `dispatch` actually sends. */
-const committed = ref<{ body: Record<string, unknown>; reason: string } | null>(null);
+const committed = ref<{ body: Record<string, unknown> } | null>(null);
 /** Invariant 4: the recorded outcome, kept on screen rather than toasted away. */
 const settled = ref<CardMutationOutcome | null>(null);
 /** Invariant 5 / the fallback: set when the API asks, or when the view predicted and we ask first. */
@@ -130,7 +135,7 @@ function seed(): void {
   activeVersion.value = props.version;
   activePrompts.value = props.prompts;
   activeStatus.value = props.status;
-  draft.value = { ...emptyDraft(), prompts: promptDrafts(props.prompts) };
+  draft.value = { ...emptyDraft(props.status), prompts: promptDrafts(props.prompts) };
   committed.value = null;
   settled.value = null;
   stepUpFor.value = null;
@@ -147,7 +152,7 @@ function seed(): void {
  * click through.
  */
 const dirty = computed(() => {
-  const clean = { ...emptyDraft(), prompts: promptDrafts(activePrompts.value) };
+  const clean = { ...emptyDraft(activeStatus.value), prompts: promptDrafts(activePrompts.value) };
   return JSON.stringify(draft.value) !== JSON.stringify(clean);
 });
 
@@ -214,11 +219,22 @@ const body = computed<Record<string, unknown>>(() =>
 
 const ui = computed(() => (props.operation ? operationUi(props.operation) : null));
 const confirmation = computed(() =>
-  (props.operation ? operationConfirmation(props.operation, body.value, context.value) : null));
+  (props.operation ? operationConfirmation(props.operation, body.value, context.value, draft.value) : null));
 const diffRows = computed(() =>
-  (props.operation ? operationDiff(props.operation, card.value, body.value) : []));
+  (props.operation ? operationDiff(props.operation, card.value, body.value, draft.value) : []));
 const predictedStepUp = computed(() =>
-  (props.operation ? operationStepUp(props.operation, body.value, context.value) : null));
+  (props.operation ? operationStepUp(props.operation, body.value, context.value, draft.value) : null));
+
+/** The three rows, and why each is or is not reachable — see `capabilityFor` on the status spec. */
+const rows = computed(() => statusRows(activeStatus.value));
+const statusBlocked = computed<Record<string, string | null>>(() => Object.fromEntries(
+  rows.value.map((r) => [r.value, capabilityBlockedBy(r.capabilityKey, r.scope, props.capabilities, props.scopes)]),
+));
+const unwritable = computed(() => unwritableStatusLabel(activeStatus.value));
+
+/** Saving the status the card already has is a vendor call that changes nothing. */
+const statusUnchanged = computed(() =>
+  props.operation?.id === "status" && rows.value.some((r) => r.current && r.value === draft.value.targetStatus));
 
 const diffColumns: DataTableColumn[] = [
   { key: "label", label: "Setting", cellClass: "font-medium text-ink" },
@@ -227,9 +243,7 @@ const diffColumns: DataTableColumn[] = [
 ];
 
 const blockedBy = computed(() =>
-  (props.operation ? operationBlockedBy(props.operation, props.capabilities, props.scopes) : null));
-
-const needsReason = computed(() => (props.operation ? reasonRequired(props.operation) : false));
+  (props.operation ? operationBlockedBy(props.operation, props.capabilities, props.scopes, draft.value) : null));
 
 /** Invariant 6 — the SENTENCE, never a boolean. The footer renders it beside the disabled button. */
 const missing = computed<string | null>(() => {
@@ -238,11 +252,7 @@ const missing = computed<string | null>(() => {
   if (!props.operation.applies(card.value)) return "This card is not in a state where that applies.";
   const blocker = props.operation.blocker?.(draft.value);
   if (blocker) return blocker;
-  // 3–200 characters, the bound `efs_card_mutations.reason` itself enforces. Checked here so the
-  // operator is told before the round trip rather than by a 400 afterwards.
-  if (needsReason.value && draft.value.reason.trim().length < 3) {
-    return "Say why — an auditor reads this column first on this action.";
-  }
+  if (statusUnchanged.value) return "This card is already at that status.";
   return null;
 });
 
@@ -252,7 +262,7 @@ function confirm(): void {
   if (!props.operation || !canConfirm.value) return; // re-entrancy guard (web finding #5)
   // Invariant 1: freeze both halves NOW. Everything below reads `committed`, so a reseed arriving
   // mid-flight cannot change what was authorised.
-  committed.value = { body: props.operation.body(draft.value), reason: draft.value.reason.trim() };
+  committed.value = { body: props.operation.body(draft.value) };
   // Invariant 5: ask first when the rule says this will be asked, rather than spending a request to
   // be told. An unpredicted refusal still lands in `handleFailure`.
   if (predictedStepUp.value) {
@@ -289,16 +299,16 @@ function dispatch(): Promise<CardMutationOutcome> {
   const common = {
     cardId: props.cardId,
     expectedVersion: activeVersion.value,
-    reason: frozen.reason,
     idempotencyKey: key.value,
   };
   const b = frozen.body;
   switch (props.operation!.id) {
-    case "lock":
-    case "deactivate":
-      return lock.mutateAsync({ ...common, status: b.status as "Hold" | "Inactive" });
-    case "unlock":
-      return unlock.mutateAsync(common);
+    // Dispatched by the CHOSEN value, not by the operation: `card_unlock` is the only path to
+    // Active, and routing Active through the lock endpoint is audit P0-3.
+    case "status":
+      return b.status === undefined
+        ? unlock.mutateAsync(common)
+        : lock.mutateAsync({ ...common, status: b.status as "Hold" | "Inactive" });
     case "grant":
       return grant.mutateAsync({ ...common, uses: b.uses as number, scope: b.scope as never });
     case "clear":
@@ -320,8 +330,7 @@ function handleFailure(error: unknown): void {
       activeVersion.value = version;
       activePrompts.value = live.infos;
       activeStatus.value = live.status ?? props.status;
-      // The typed reason survives: the card moved, the operator's justification for changing it did not.
-      draft.value = { ...emptyDraft(), prompts: promptDrafts(live.infos), reason: draft.value.reason };
+      draft.value = { ...emptyDraft(live.status ?? props.status), prompts: promptDrafts(live.infos) };
       committed.value = null;
     },
     abandon: () => { committed.value = null; },
@@ -429,6 +438,9 @@ const environmentBadge = computed(() =>
           :draft="draft"
           :busy="busy"
           :read-only-prompts="readOnlyPrompts"
+          :status-rows="rows"
+          :status-blocked="statusBlocked"
+          :unwritable-status="unwritable"
           @update:draft="draft = $event"
         />
 
@@ -438,26 +450,6 @@ const environmentBadge = computed(() =>
           <DataTable :columns="diffColumns" :rows="diffRows" row-key="label" dense empty-text="" />
         </section>
 
-        <!-- ── Region 5: why ──────────────────────────────────────────────────────────────────── -->
-        <FormField
-          label="Why"
-          :required="needsReason"
-          :hint="needsReason
-            ? 'Recorded against this change. An auditor reads this column first on this action.'
-            : 'Optional, and worth it: this is the Why column in the card\'s history.'"
-        >
-          <template #default="{ id }">
-            <BaseInput
-              :id="id"
-              data-testid="reason"
-              type="text"
-              maxlength="200"
-              :model-value="draft.reason"
-              :disabled="busy"
-              @update:model-value="draft = { ...draft, reason: $event }"
-            />
-          </template>
-        </FormField>
 
         <!-- Invariant 5: said before the button, not after the request. -->
         <p v-if="predictedStepUp" class="rounded-control bg-surface-subtle px-3 py-2 text-sm text-ink-secondary">

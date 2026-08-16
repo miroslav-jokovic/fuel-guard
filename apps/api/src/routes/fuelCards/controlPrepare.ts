@@ -114,7 +114,6 @@ export async function prepare(
       efsCardId: String(req.params.id),
       cardNumber,
       userId: req.auth!.userId,
-      reason: "",
       expectedVersion: "",
       idempotencyKey: key.data ?? null,
       stepUp: hasFreshAuth(req),

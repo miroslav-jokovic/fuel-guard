@@ -48,13 +48,13 @@ export const overrideClearBehaviour = defineBehaviour(overrideClearContract, {
    */
   proof: {
     precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) > 0,
-    sample: (): OverrideClearBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    sample: (): OverrideClearBody => ({ expectedVersion: "" }),
     revert: (snap) => ({
       capability: "override_grant",
       body: {
         uses: snap.doc?.card.overrideUses ?? 1,
         scope: { kind: "all" },
-        expectedVersion: "", reason: "Capability proof revert",
+        expectedVersion: "",
       },
     }),
   },
@@ -103,13 +103,13 @@ export const deleteOverrideBehaviour = defineBehaviour(deleteOverrideContract, {
    */
   proof: {
     precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) > 0,
-    sample: (): OverrideClearBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    sample: (): OverrideClearBody => ({ expectedVersion: "" }),
     revert: (snap) => ({
       capability: "override_grant",
       body: {
         uses: snap.doc?.card.overrideUses ?? 1,
         scope: { kind: "all" },
-        expectedVersion: "", reason: "Capability proof revert",
+        expectedVersion: "",
       },
     }),
   },

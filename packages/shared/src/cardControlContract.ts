@@ -229,19 +229,22 @@ export {
 // ─── Write requests (one per intent) ───────────────────────────────────────────────────────────
 
 /**
- * Why every mutation carries a reason: it is the cheapest column in the schema and the most valuable
- * one six months later, when somebody asks why a card was locked on a Tuesday night.
+ * ── `reason` is GONE from the write path (Phase 6.5, 2026-08-16) ────────────────────────────────
+ *
+ * Decision B1 (2026-08-12, Miki) removed it. A session then reinstated it per-capability on
+ * 2026-08-13, logging the change as its own authority, and Phase 6 shipped a required `Why *` field
+ * in front of the person who had deleted it four days earlier. That row is vacated.
+ *
+ * What an audit trail is here: **time, person, action** — plus the before/after documents, the
+ * step-up flag and the vendor's own fault text, all of which the ledger already carries and none of
+ * which anybody has to type. A free-text box that every operator fills with "n/a" to get past it is
+ * not evidence; it is a toll.
+ *
+ * `efs_card_mutations.reason` STAYS in the database, nullable with a `''` default since migration
+ * 0180 and its CHECK relaxed by 0181 — so the schema has agreed with B1 all along and only these
+ * contracts drifted back. The column is not dropped: that is a one-way door for a field that costs
+ * nothing empty, and rule 12 forbids editing an applied migration.
  */
-/**
- * OPTIONAL as of 2026-08-12 (product decision B1): the mutation stands on actor, intent, step-up
- * flag and the before/after documents; the free-text why is welcome but no longer demanded. Kept
- * as a field (defaulting to empty) so an org that wants reasons back gets a UI change, not an API
- * change. min(3) applies only when a reason IS given — a one-letter reason is noise, not evidence.
- */
-export const cardReasonSchema = z.union([
-  z.string().trim().min(3).max(200),
-  z.string().trim().max(0),
-]).default("");
 
 /**
  * The optimistic-concurrency token, computed by us over the mutable part of the card document. EFS
@@ -253,7 +256,6 @@ export const cardVersionSchema = z.string().min(16);
 
 export const lockCardSchema = z.object({
   expectedVersion: cardVersionSchema,
-  reason: cardReasonSchema,
   /**
    * Hold is reversible and is what we default to; Inactive is offered for a card being retired.
    * EFS_LOCK_STATUSES, not EFS_WRITABLE_STATUSES: `Active` here was an unlock reachable through the
@@ -266,7 +268,6 @@ export type LockCardRequest = z.infer<typeof lockCardSchema>;
 
 export const unlockCardSchema = z.object({
   expectedVersion: cardVersionSchema,
-  reason: cardReasonSchema,
 });
 
 export const overrideScopeSchema = z.discriminatedUnion("kind", [
@@ -288,13 +289,11 @@ export const grantOverrideSchema = z.object({
   expectedVersion: cardVersionSchema,
   uses: z.coerce.number().int().min(EFS_OVERRIDE_MIN_USES).max(EFS_OVERRIDE_MAX_USES),
   scope: overrideScopeSchema,
-  reason: cardReasonSchema,
 });
 export type GrantOverrideRequest = z.infer<typeof grantOverrideSchema>;
 
 export const clearOverrideSchema = z.object({
   expectedVersion: cardVersionSchema,
-  reason: cardReasonSchema,
 });
 
 export const promptInputSchema = z.object({
@@ -335,7 +334,6 @@ export const setPromptsSchema = z.object({
    * clearing a text box.
    */
   allowRemoveDriverId: z.boolean().default(false),
-  reason: cardReasonSchema,
 });
 export type SetPromptsRequest = z.infer<typeof setPromptsSchema>;
 

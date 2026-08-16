@@ -31,12 +31,6 @@ export const cardLockContract = defineContract({
   writeBucket: "card_status",
   auditAction: "card.locked",
   schema: lockCardSchema,
-  /**
-   * Optional, per the 2026-08-13 decision. This is the 2am action after a truck has been broken
-   * into; demanding prose before a card can be stopped is friction with a cost measured in stolen
-   * fuel. The drawer sends one anyway, so in practice the Why column fills.
-   */
-  reason: "optional",
   carriesSecret: false,
   /**
    * The one vendor string this capability sends. The Phase 4 config scanner compares these against

@@ -103,7 +103,6 @@ function recorder(overrides: Record<string, unknown> = {}): SupabaseRecorder {
 const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion: string): CardMutationContext => ({
   admin: rec.client, env, creds, orgId: ORG, fetchImpl,
   efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-  reason: "Truck broken into overnight",
   expectedVersion,
   idempotencyKey: null,
   stepUp: false,
@@ -118,7 +117,7 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion:
  * what a reconciliation-matrix suite is for.
  */
 const lockCapability = resolveCapability(cardLockContract, cardLockBehaviour, {
-  expectedVersion: "", reason: "", status: "Hold" as const,
+  expectedVersion: "", status: "Hold" as const,
 });
 
 const executeLock = (ctx: CardMutationContext) => executeCapability(ctx, lockCapability);
@@ -141,14 +140,14 @@ describe("a mutation that lands", () => {
     // that started dialing the vendor again.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
     const outcome = await executeLock(
-      { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), reason: "Truck broken into overnight" }
+      { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)) }
     );
 
     expect(outcome.status).toBe("succeeded");
     const rows = rec.writtenRows("efs_card_mutations");
     // The FIRST write is the pending row, before anything was dispatched. That ordering is the whole
     // reason a crash mid-write leaves evidence instead of silence.
-    expect(rows[0]).toMatchObject({ status: "pending", intent: "lock", reason: "Truck broken into overnight" });
+    expect(rows[0]).toMatchObject({ status: "pending", intent: "lock" });
     expect(settled(rec)).toMatchObject({ status: "succeeded" });
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.locked");
   });
@@ -457,7 +456,7 @@ describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () =>
         snapshot: deleteOverrideBehaviour.verify.snapshot,
         judge: (_before, after) => (after.doc ? (landed(after.doc) ? "landed" : "not_landed") : "indeterminate"),
       } satisfies VerifyPlan<{ expectedVersion: string; reason: string }>,
-    }, { expectedVersion: "", reason: "" });
+    }, { expectedVersion: "" });
 
   it("dispatches deleteOverride — two parts, no document — and succeeds via the predicate", async () => {
     // The production predicate must accept the fixture's no-override state; if this precondition

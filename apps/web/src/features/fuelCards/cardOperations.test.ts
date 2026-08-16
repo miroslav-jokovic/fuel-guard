@@ -99,8 +99,7 @@ describe("every operation is renderable end to end", () => {
       const body = op.body({
         lockStatus: "Hold", uses: 1, scopeKind: "all", location: null,
         prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }],
-        reason: "why",
-      });
+      } as never);
       expect(operationConfirmation(op, body, { maskedRef: "••••7671", card }), `${op.id} confirmation`).not.toBeNull();
       expect(Array.isArray(operationDiff(op, card, body)), `${op.id} diff`).toBe(true);
     }
