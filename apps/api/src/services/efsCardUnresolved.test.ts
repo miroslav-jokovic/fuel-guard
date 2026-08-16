@@ -169,3 +169,52 @@ describe("rows the sweep must leave alone", () => {
     expect(rec.writtenRows("audit_logs").at(-1)?.meta).toMatchObject({ judgedBy: "edits_landed" });
   });
 });
+
+/**
+ * The abandonment path had no test before Step 5.3, and it is the one that nearly broke migration
+ * 0197.
+ *
+ * A `pending` row whose process died before `ledger.markSent` ran has no `approved_by`, because
+ * nothing got far enough to record one. 0197's first draft forbade ANY row leaving `pending` without
+ * an approver, which would have made this sweep raise — and since
+ * `uq_efs_card_mutations_one_pending` lets a stuck `pending` row block every further mutation on that
+ * card, a trigger that refused the sweep would have wedged the card permanently. An audit control
+ * turned into an outage.
+ *
+ * So 0197 requires an approver only for the states that mean the vendor was contacted, and these
+ * cases pin the two facts that scoping depends on: this sweep settles to `failed`, and it does so
+ * WITHOUT inventing an approver.
+ */
+describe("a pending mutation whose process died is condemned, and nobody approved it", () => {
+  const abandoned = () => ({
+    id: "mutation-abandoned",
+    efs_card_id: CARD_ID,
+    status: "pending",
+    created_at: OLD,
+    edits: [],
+    capability_key: "delete_override",
+    request_body: { expectedVersion: "x".repeat(16), reason: "done" },
+  });
+
+  it("settles it `failed` with efs_fault_code 'abandoned', spending no vendor call", async () => {
+    const rec = recorder(abandoned());
+    // No scripted responses at all: reaching the vendor here would throw "ran out of scripted
+    // responses". An abandoned row is condemned on age, not on a read.
+    const s = stub();
+
+    const result = await resolveUnresolvedMutations(rec.client, env, creds, { fetchImpl: s.fetchImpl });
+
+    expect(result.abandonedPending).toBe(1);
+    expect(settled(rec)).toMatchObject({ status: "failed", efs_fault_code: "abandoned" });
+    expect(s.bodies).toEqual([]);
+  });
+
+  it("does NOT write approved_by — which is why 0197 exempts `failed`", async () => {
+    const rec = recorder(abandoned());
+
+    await resolveUnresolvedMutations(rec.client, env, creds, { fetchImpl: stub().fetchImpl });
+
+    // Inventing an approver here would manufacture the exact evidence Step 5.3 exists to protect.
+    expect(settled(rec)).not.toHaveProperty("approved_by");
+  });
+});

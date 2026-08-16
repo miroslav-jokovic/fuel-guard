@@ -14,10 +14,23 @@
 --
 -- THE RULE, AND WHY IT IS SCOPED THE WAY IT IS. A row may be created `pending` with no approver —
 -- that is the maker's half, and Phase C's approval route depends on that state existing. What it may
--- NOT do is leave `pending` without one. By the time a mutation is `sent` the write has gone to the
--- vendor, and an unattributable write to a customer's fuel card is exactly the thing being
--- prevented. Terminal states are covered by the same clause because they are all reached through
--- `sent`.
+-- not do is reach a state that means THE VENDOR WAS CONTACTED without one. By the time a mutation is
+-- `sent` the write has gone to EFS, and an unattributable write to a customer's fuel card is exactly
+-- the thing being prevented. `succeeded`, `drift_detected` and `partial` are all reached through
+-- `sent`, so they carry the same requirement.
+--
+-- `failed` IS reachable without an approver, and excluding it is not a loophole — it is the only way
+-- the constraint can be satisfied at all. `services/efsCardUnresolved.ts` settles ABANDONED rows: a
+-- `pending` mutation whose process died before `ledger.markSent` ever ran, which it condemns to
+-- `failed` with `efs_fault_code = 'abandoned'`. Nobody approved that mutation, because nothing got
+-- far enough to record an approval, and making the sweep invent one would be manufacturing the exact
+-- evidence this migration exists to protect.
+--
+-- Forbidding it instead would be worse than useless: `uq_efs_card_mutations_one_pending` means a
+-- stuck `pending` row blocks every further mutation on that card, so a trigger that refused the
+-- abandonment sweep would wedge the card permanently — turning an audit control into an outage. A
+-- real failure, one that happened after dispatch, still goes through `markSent` and still carries its
+-- approver, so the constraint keeps its meaning where it matters.
 --
 -- WHAT THIS DOES NOT DO. It does not require the approver to be a DIFFERENT person from the
 -- requester. Plan and apply are one request today, so demanding a second principal would refuse
@@ -39,9 +52,11 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.status is distinct from 'pending' and new.approved_by is null then
+  -- The states that mean the write reached EFS. `pending` is the maker's half; `failed` is reachable
+  -- without dispatch when the abandonment sweep condemns a row whose process died. See the header.
+  if new.status in ('sent', 'succeeded', 'drift_detected', 'partial') and new.approved_by is null then
     raise exception
-      'not_ready: a card mutation that leaves pending must record who approved it (status %)', new.status
+      'not_ready: a card mutation that reached the vendor must record who approved it (status %)', new.status
       using errcode = 'FG011';
   end if;
   return new;
@@ -49,10 +64,10 @@ end;
 $$;
 
 comment on function efs_card_mutation_requires_approver() is
-  'Step 5.3: efs_card_mutations.approved_by must be set by the time a mutation leaves pending. '
-  'A row may be created pending with no approver — that is the maker half, and Phase C''s approval '
-  'route needs that state — but once status is sent the write has reached the vendor, and an '
-  'unattributable write to a customer''s fuel card is what this prevents.';
+  'Step 5.3: efs_card_mutations.approved_by must be set by the time a mutation reaches a state that '
+  'means the vendor was contacted (sent, succeeded, drift_detected, partial). pending is the maker '
+  'half, and failed is reachable without dispatch — the abandonment sweep in efsCardUnresolved.ts '
+  'condemns rows whose process died before markSent, and nobody approved those.';
 
 drop trigger if exists efs_card_mutation_requires_approver on efs_card_mutations;
 
