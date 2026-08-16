@@ -162,7 +162,6 @@ export function fuelCardProveRouter(): Router {
           {
             admin, env, creds, orgId, efsCardId, cardNumber,
             userId: req.auth!.userId!,
-            reason: `Capability proof: ${capabilityKey}`,
             expectedVersion: "", idempotencyKey: null, stepUp: true,
           },
           capabilityKey,

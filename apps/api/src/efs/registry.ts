@@ -83,16 +83,14 @@ export interface AcceptedRequest {
    */
   stepUpMessage: string | null;
   expectedVersion: string;
-  reason: string;
   /** The sanitized body the Idempotency-Key fingerprint is taken over. */
   fingerprintBody: Record<string, unknown>;
   run: (ctx: CardMutationContext) => Promise<CardMutationOutcome>;
 }
 
-/** Every card contract's schema produces these two; the route reads them without knowing the rest. */
+/** Every card contract's schema produces this; the route reads it without knowing the rest. */
 interface CardMutationRequestFields {
   expectedVersion: string;
-  reason: string;
 }
 
 export const mount = <TBody extends CardMutationRequestFields>(
@@ -110,7 +108,6 @@ export const mount = <TBody extends CardMutationRequestFields>(
       ok: true,
       stepUpMessage: behaviour.preflightStepUp?.(body) ?? null,
       expectedVersion: body.expectedVersion,
-      reason: body.reason,
       fingerprintBody: Object.fromEntries(Object.entries(body)),
       run: (ctx) => executeCapability(ctx, resolveCapability(contract, behaviour, body)),
     };

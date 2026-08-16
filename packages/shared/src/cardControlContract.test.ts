@@ -161,15 +161,27 @@ describe("grantOverrideSchema locationId (audit P1-6c)", () => {
   });
 });
 
-describe("reason is optional (product decision B1)", () => {
-  it("a mutation without a reason parses, defaulting to empty", () => {
-    const parsed = unlockCardSchema.parse({ expectedVersion: "0123456789abcdef0123456789abcdef" });
-    expect(parsed.reason).toBe("");
+describe("reason is gone from the write path (decision B1, restated 2026-08-16)", () => {
+  const version = "0123456789abcdef0123456789abcdef";
+
+  it("parses a mutation that carries no reason, and produces no reason field", () => {
+    const parsed = unlockCardSchema.parse({ expectedVersion: version });
+    expect(parsed).not.toHaveProperty("reason");
   });
 
-  it("a reason that IS given still has to say something", () => {
-    expect(unlockCardSchema.safeParse({
-      expectedVersion: "0123456789abcdef0123456789abcdef", reason: "ab",
-    }).success).toBe(false);
+  /**
+   * A browser cached from before this change still sends one. Zod strips unknown keys rather than
+   * rejecting, so the old client keeps working and simply stops being listened to — which is the
+   * behaviour that lets this ship without a coordinated deploy.
+   */
+  it("ignores a reason an older client still sends, rather than refusing the write", () => {
+    const parsed = unlockCardSchema.safeParse({ expectedVersion: version, reason: "stolen from the yard" });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).not.toHaveProperty("reason");
+  });
+
+  it("no longer rejects a short reason, because there is no reason to reject", () => {
+    // The old rule refused fewer than three characters. Nothing should now care.
+    expect(unlockCardSchema.safeParse({ expectedVersion: version, reason: "ab" }).success).toBe(true);
   });
 });

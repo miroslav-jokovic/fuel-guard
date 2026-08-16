@@ -3,7 +3,13 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import type { CardCapabilities } from "@fuelguard/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
-import { operationById, type OperationDraft } from "./cardOperations";
+import {
+  currentWritableStatus,
+  operationById,
+  statusRows,
+  unwritableStatusLabel,
+  type OperationDraft,
+} from "./cardOperations";
 
 /**
  * One case per invariant from plan Step 6.1, each named for the defect it prevents.
@@ -154,7 +160,6 @@ describe("invariant 1 — the payload is frozen when Confirm is pressed", () => 
     mutations.grant.mutateAsync.mockReturnValue(new Promise((r) => { resolve = r; }));
 
     const wrapper = render("grant");
-    await wrapper.find("[data-testid=reason]").setValue("Fuel for the Effingham run");
     await setDraft(wrapper, { uses: 2 });
 
     await button(wrapper, "Grant exception").trigger("click");
@@ -175,18 +180,18 @@ describe("invariant 2 — reseeding pauses while the draft is dirty", () => {
   it("keeps a half-typed reason when a fresh version arrives, and offers the reload instead", async () => {
     // The defect: the page polls every 60 seconds, so an unguarded reseed wipes whatever the
     // operator was typing at a moment they did not choose.
-    const wrapper = render("lock");
-    await wrapper.find("[data-testid=reason]").setValue("Stolen from the yard");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Inactive" });
 
     await wrapper.setProps({ version: "9999999999999999abcdef9999999999" });
     await flushPromises();
 
-    expect((wrapper.find("[data-testid=reason]").element as HTMLInputElement).value).toBe("Stolen from the yard");
+    expect((wrapper.findComponent(CardOperationInputs).props("draft") as OperationDraft).targetStatus).toBe("Inactive");
     expect(hasButton(wrapper, "Reload the card")).toBe(true);
   });
 
   it("does reseed when nothing has been typed — the pause is for work, not for every refetch", async () => {
-    const wrapper = render("lock");
+    const wrapper = render("status");
     await wrapper.setProps({ version: "9999999999999999abcdef9999999999" });
     await flushPromises();
 
@@ -201,13 +206,13 @@ describe("invariant 2 — reseeding pauses while the draft is dirty", () => {
    * work worth preserving across that, so this is the one case where dirty loses.
    */
   it("still reseeds when the CARD changes, dirty or not — a draft must never cross cards", async () => {
-    const wrapper = render("lock");
-    await wrapper.find("[data-testid=reason]").setValue("Stolen from the yard");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Inactive" });
 
     await wrapper.setProps({ cardId: "card-2", version: "abcdefabcdefabcdefabcdefabcdef99" });
     await flushPromises();
 
-    expect((wrapper.find("[data-testid=reason]").element as HTMLInputElement).value).toBe("");
+    expect((wrapper.findComponent(CardOperationInputs).props("draft") as OperationDraft).targetStatus).toBe("Active");
     expect(hasButton(wrapper, "Reload the card")).toBe(false);
   });
 
@@ -217,7 +222,9 @@ describe("invariant 2 — reseeding pauses while the draft is dirty", () => {
     // its own first seed and the first write went out with `Idempotency-Key: ""` — which makes the
     // replay guard inert exactly where a double-submit happens.
     mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -231,7 +238,7 @@ describe("invariant 3 — the dirty guard", () => {
   it("does not close on Cancel when there is work to lose", async () => {
     // The defect: one accidental Escape and a carefully-worded exception is gone.
     const wrapper = render("grant");
-    await wrapper.find("[data-testid=reason]").setValue("Approved by dispatch");
+    await setDraft(wrapper, { uses: 5 });
 
     await button(wrapper, "Cancel").trigger("click");
     await flushPromises();
@@ -241,7 +248,7 @@ describe("invariant 3 — the dirty guard", () => {
   });
 
   it("closes immediately when there is nothing to lose", async () => {
-    const wrapper = render("lock");
+    const wrapper = render("status");
     await button(wrapper, "Cancel").trigger("click");
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
@@ -253,7 +260,8 @@ describe("invariant 4 — the result stays in the drawer", () => {
     // it. A retry could apply it twice — a second exception is a second free tank.
     mutations.lock.mutateAsync.mockResolvedValue({ status: "sent", mutationId: "m1" });
 
-    const wrapper = render("lock");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Hold" });
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
@@ -267,7 +275,8 @@ describe("invariant 4 — the result stays in the drawer", () => {
     // for the wrong reason.
     mutations.lock.mutateAsync.mockResolvedValue({ status: "failed", mutationId: "m1", faultMessage: "EFS said no" });
 
-    const wrapper = render("lock");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Hold" });
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
@@ -280,7 +289,6 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
     // The defect the shared rule exists for: the drawer promising no password and the server asking
     // for one. Four uses is over CARD_OVERRIDE_STEP_UP_ABOVE_USES.
     const wrapper = render("grant");
-    await wrapper.find("[data-testid=reason]").setValue("Breakdown, needs four fills");
     await setDraft(wrapper, { uses: 4 });
 
     expect(wrapper.text()).toContain("Confirm your password");
@@ -301,7 +309,8 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
       new FakeApiError("This card is flagged for fraud. Confirm your password to unlock it.", "step_up_required", 401),
     );
 
-    const wrapper = render("unlock", { status: "Hold" });
+    const wrapper = render("status", { status: "Hold" });
+    await setDraft(wrapper, { targetStatus: "Active" });
     expect(wrapper.text()).not.toContain("flagged for fraud");
 
     await button(wrapper, "Unlock card").trigger("click");
@@ -317,7 +326,6 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
     mutations.grant.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
 
     const wrapper = render("grant");
-    await wrapper.find("[data-testid=reason]").setValue("Four fills approved");
     await setDraft(wrapper, { uses: 4 });
     await button(wrapper, "Grant exception").trigger("click");
     await flushPromises();
@@ -340,29 +348,35 @@ describe("invariant 5 — step-up is predicted, not discovered", () => {
 describe("invariant 6 — a disabled button names what is missing", () => {
   it("names the missing location rather than just refusing", async () => {
     const wrapper = render("grant");
-    await wrapper.find("[data-testid=reason]").setValue("Single stop exception");
     await setDraft(wrapper, { scopeKind: "location" });
 
     expect(button(wrapper, "Grant exception").attributes("disabled")).toBeDefined();
     expect(wrapper.text()).toContain("Choose the location");
   });
 
-  it("names the missing reason on the one operation that demands one", async () => {
-    // `override_grant` is `reason: "required"` — the discretionary end of the range, and "Why" is
-    // the first column an auditor reads on it.
+  /**
+   * Phase 6.5. Decision B1 (Miki, 2026-08-12) removed `reason`; a session reinstated it
+   * per-capability the next day, logging the change as its own authority, and Phase 6 shipped it as
+   * a REQUIRED box in front of the person who had deleted it. There is no Why field on any operation
+   * now, and nothing may gate Confirm on one.
+   */
+  it("has no Why field, and never gates Confirm on one", () => {
     const wrapper = render("grant");
-    expect(button(wrapper, "Grant exception").attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("Say why");
+    expect(wrapper.find("[data-testid=reason]").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Say why");
+    expect(button(wrapper, "Grant exception").attributes("disabled")).toBeUndefined();
   });
 
   it("never demands a reason for a lock — nobody is stranded at a pump over a text box", async () => {
     mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     expect(button(wrapper, "Lock card").attributes("disabled")).toBeUndefined();
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
     expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.lock.mutateAsync.mock.calls[0]![0]).not.toHaveProperty("reason");
   });
 
   it("says who to ask when this company has never approved the action", async () => {
@@ -379,12 +393,15 @@ describe("invariant 6 — a disabled button names what is missing", () => {
 
 describe("invariant 7 — the header says where the write is going", () => {
   it("badges sandbox, so nobody learns it from a card that did not change", async () => {
-    const wrapper = render("lock", { capabilities: caps({ environment: "sandbox" }) });
+    const wrapper = render("status", { capabilities: caps({ environment: "sandbox" }) });
     expect(wrapper.text()).toContain("Sandbox");
   });
 
   it("says nothing on production — a badge on every screen is a badge nobody reads", async () => {
-    const wrapper = render("lock", { capabilities: caps({ environment: "production" }) });
+    const wrapper = render("status", { capabilities: caps({ environment: "production" }) });
+    // Positive control first: without it this passes on an empty drawer, which is how the sibling
+    // above silently stopped rendering anything at all when the operation ids changed.
+    expect(wrapper.text()).toContain("Active");
     expect(wrapper.text()).not.toContain("Sandbox");
   });
 });
@@ -392,12 +409,16 @@ describe("invariant 7 — the header says where the write is going", () => {
 describe("carried over from the old drawer, because they were right", () => {
   it("re-mints the idempotency key after a settled outcome, so a second attempt is not a replay", async () => {
     mutations.lock.mutateAsync.mockResolvedValue({ status: "failed", mutationId: "m1", faultMessage: "no" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
     await button(wrapper, "Try again").trigger("click");
     await flushPromises();
+    // `Try again` re-seeds, so the target returns to the card's own status and must be picked again.
+    await setDraft(wrapper, { targetStatus: "Hold" });
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
@@ -408,7 +429,9 @@ describe("carried over from the old drawer, because they were right", () => {
 
   it("KEEPS the key after `sent`, because a replay is the only safe repeat", async () => {
     mutations.lock.mutateAsync.mockResolvedValue({ status: "sent", mutationId: "m1" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -421,7 +444,9 @@ describe("carried over from the old drawer, because they were right", () => {
 
   it("sends the version the screen was DRAWN from, never a fresher one", async () => {
     mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -432,7 +457,9 @@ describe("carried over from the old drawer, because they were right", () => {
 
   it("reads the outcome from `status`, not from the fact the request resolved", async () => {
     mutations.lock.mutateAsync.mockResolvedValue({ status: "failed", mutationId: "m1", faultMessage: "EFS refused" });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -457,8 +484,6 @@ describe("re-homed from the drawer this replaced", () => {
       prompts: [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182" }],
     });
 
-    // `prompts_set` is `reason: "required"` — the contract's own rule, and the drawer enforces it.
-    await wrapper.find("[data-testid=reason]").setValue("Unit number corrected");
     await button(wrapper, "Save prompts").trigger("click");
     await flushPromises();
 
@@ -472,7 +497,9 @@ describe("re-homed from the drawer this replaced", () => {
     // The operator clicked twice and deserves to know the second click matched the first. Reporting
     // it as a new success claims a write that never happened.
     mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1", idempotent: true });
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -484,7 +511,9 @@ describe("re-homed from the drawer this replaced", () => {
     // Web finding #5. A slow vendor call and an impatient click is how one override becomes two.
     let resolve: (v: unknown) => void = () => {};
     mutations.lock.mutateAsync.mockReturnValue(new Promise((r) => { resolve = r; }));
-    const wrapper = render("lock");
+    const wrapper = render("status");
+
+    await setDraft(wrapper, { targetStatus: "Hold" });
 
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
@@ -504,9 +533,12 @@ describe("re-homed from the drawer this replaced", () => {
       .mockRejectedValueOnce(new FakeApiError("moved", "card_state_changed", 409, { currentVersion: "f".repeat(32), card: live }))
       .mockResolvedValueOnce({ status: "succeeded", mutationId: "m2" });
 
-    const wrapper = render("lock");
+    const wrapper = render("status");
+    await setDraft(wrapper, { targetStatus: "Hold" });
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
+    // The 409 reseeds from the live document EFS attached, so pick the target again.
+    await setDraft(wrapper, { targetStatus: "Hold" });
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
@@ -516,13 +548,43 @@ describe("re-homed from the drawer this replaced", () => {
 });
 
 describe("the operation catalogue decides what is worth offering", () => {
-  it("offers Deactivate on a card that is already on Hold — the Step 6.2 correction", () => {
-    // The old drawer offered Inactive only inside the Lock control, so a held card could not be
-    // retired without unlocking it first: two writes, and a window where it works again.
-    expect(operationById("deactivate")!.applies({
-      status: "HOLD", infos: [], limits: [], overrideUses: 0,
-      overrideAllLocations: false, locationOverrideId: null,
-    })).toBe(true);
+  /**
+   * Phase 6.5 replaced the Lock / Deactivate / Unlock trio with ONE control over the three writable
+   * statuses. A held card being retirable without unlocking first — the Step 6.2 correction — is now
+   * a property of the list rather than of a second button: every row is offered, and which ones are
+   * REACHABLE is a permission question, not a card-state one.
+   */
+  it("offers all three writable statuses whatever state the card is in", () => {
+    for (const status of ["ACTIVE", "HOLD", "INACTIVE"]) {
+      expect(statusRows(status).map((r) => r.value)).toEqual(["Active", "Inactive", "Hold"]);
+    }
+  });
+
+  it("ticks the card's own status, whatever casing this account sent", () => {
+    // This account returns HOLD upper-cased. An exact compare would tick nothing and leave the
+    // operator to guess which row describes the card in front of them.
+    expect(statusRows("HOLD").find((r) => r.current)?.value).toBe("Hold");
+    expect(statusRows("Active").find((r) => r.current)?.value).toBe("Active");
+  });
+
+  /**
+   * Audit P0-3, expressed as data. `card_unlock` is the ONLY path to Active; routing it through the
+   * lock route let a lock-only approver reactivate a Fraud-held card while the audit row said
+   * `card.locked`. If this pairing ever flattens, the UI puts that hole back.
+   */
+  it("routes Active through card_unlock and the other two through card_lock", () => {
+    const byValue = Object.fromEntries(statusRows("Active").map((r) => [r.value, r]));
+    expect(byValue.Active!.capabilityKey).toBe("card_unlock");
+    expect(byValue.Active!.scope).toBe("unlock");
+    expect(byValue.Hold!.capabilityKey).toBe("card_lock");
+    expect(byValue.Inactive!.capabilityKey).toBe("card_lock");
+  });
+
+  it("names a state that is not one of the three, rather than ticking nothing in silence", () => {
+    // Fraud and Deleted are real statuses EFS reports and neither is writable here.
+    expect(unwritableStatusLabel("FRAUD")).toBe("Fraud hold");
+    expect(unwritableStatusLabel("Active")).toBeNull();
+    expect(statusRows("FRAUD").some((r) => r.current)).toBe(false);
   });
 
   it("offers Remove exception on residue with zero uses left — the other Step 6.2 correction", () => {
@@ -534,10 +596,8 @@ describe("the operation catalogue decides what is worth offering", () => {
     })).toBe(true);
   });
 
-  it("does not offer Lock on a card that is already held — a write that changes nothing still costs a slot", () => {
-    expect(operationById("lock")!.applies({
-      status: "HOLD", infos: [], limits: [], overrideUses: 0,
-      overrideAllLocations: false, locationOverrideId: null,
-    })).toBe(false);
+  it("does not let Save write the status the card already has", () => {
+    // A write that changes nothing still spends a vendor call and an hourly-cap slot.
+    expect(currentWritableStatus("HOLD")).toBe("Hold");
   });
 });

@@ -104,7 +104,6 @@ function recorder(overrides: Record<string, unknown> = {}): SupabaseRecorder {
 const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion: string): CardMutationContext => ({
   admin: rec.client, env, creds, orgId: ORG, fetchImpl,
   efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-  reason: "Truck broken into overnight",
   expectedVersion,
   idempotencyKey: null,
   stepUp: false,

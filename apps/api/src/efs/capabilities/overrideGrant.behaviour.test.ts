@@ -110,7 +110,6 @@ const grant = (afterXml: string, rec: SupabaseRecorder) =>
       admin: rec.client, env, creds, orgId: ORG,
       fetchImpl: stub(loginOk, NO_OVERRIDE, soap(""), afterXml),
       efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-      reason: "Driver stranded, fuel authorised",
       expectedVersion: versionOf(NO_OVERRIDE),
       idempotencyKey: null,
       stepUp: false,
@@ -118,7 +117,6 @@ const grant = (afterXml: string, rec: SupabaseRecorder) =>
     resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
       uses: 1,
       scope: { kind: "all" },
-      reason: "Driver stranded, fuel authorised",
       expectedVersion: versionOf(NO_OVERRIDE),
     }),
   );

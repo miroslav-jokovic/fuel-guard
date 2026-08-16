@@ -46,7 +46,6 @@ export interface CardMutationHistoryRow {
   id: string;
   intent: CardMutationIntent;
   status: CardMutationStatus;
-  reason: string;
   requestedBy: string | null;
   stepUp: boolean;
   createdAt: string;
@@ -105,8 +104,6 @@ export const newIdempotencyKey = (): string => crypto.randomUUID();
 interface WriteArgs {
   cardId: string;
   expectedVersion: string;
-  /** Optional as of the B1 product decision — omitted bodies default to "" server-side. */
-  reason?: string;
   idempotencyKey: string;
 }
 
@@ -124,7 +121,7 @@ export function useLockCard() {
     mutationFn: (args: WriteArgs & { status: "Hold" | "Inactive" }) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/lock`, "POST",
-        { expectedVersion: args.expectedVersion, ...(args.reason ? { reason: args.reason } : {}), status: args.status },
+        { expectedVersion: args.expectedVersion, status: args.status },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
@@ -137,7 +134,7 @@ export function useUnlockCard() {
     mutationFn: (args: WriteArgs) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/unlock`, "POST",
-        { expectedVersion: args.expectedVersion, ...(args.reason ? { reason: args.reason } : {}) },
+        { expectedVersion: args.expectedVersion },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
@@ -150,7 +147,7 @@ export function useGrantOverride() {
     mutationFn: (args: WriteArgs & { uses: number; scope: OverrideScope }) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/override`, "POST",
-        { expectedVersion: args.expectedVersion, ...(args.reason ? { reason: args.reason } : {}), uses: args.uses, scope: args.scope },
+        { expectedVersion: args.expectedVersion, uses: args.uses, scope: args.scope },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
@@ -163,7 +160,7 @@ export function useClearOverride() {
     mutationFn: (args: WriteArgs) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/override`, "DELETE",
-        { expectedVersion: args.expectedVersion, ...(args.reason ? { reason: args.reason } : {}) },
+        { expectedVersion: args.expectedVersion },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
@@ -178,7 +175,6 @@ export function useSetPrompts() {
         `/api/fuel-cards/${args.cardId}/prompts`, "POST",
         {
           expectedVersion: args.expectedVersion,
-          ...(args.reason ? { reason: args.reason } : {}),
           // Always the literal `true`. Full replace is the EFS semantic and the API refuses anything
           // else; sending it explicitly means the client can never arrive at it by omission either.
           replaceAll: true,

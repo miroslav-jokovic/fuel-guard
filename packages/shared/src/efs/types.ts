@@ -50,16 +50,6 @@ export interface CapabilityUi {
   diffRows: readonly string[];
 }
 
-/**
- * Whether this capability requires a written reason.
- *
- * DECIDED 2026-08-13 (plan Step 3.5): per-capability, not API-wide. Decision B1 made `reason`
- * optional everywhere, which is right for the 2am stolen-card path and wrong for discretionary
- * writes. `"required"` means 3–200 characters, the same bound `efs_card_mutations.reason` enforces.
- *
- * There is no default. A new capability must say which it is, so it cannot default into silence.
- */
-export type ReasonRule = "optional" | "required";
 
 export interface CapabilityContract<TSchema extends z.ZodTypeAny> {
   /** The FINE key, persisted to `efs_card_mutations.capability_key` and unique across the registry. */
@@ -77,7 +67,6 @@ export interface CapabilityContract<TSchema extends z.ZodTypeAny> {
   writeBucket: CardWriteBucket;
   auditAction: string;
   schema: TSchema;
-  reason: ReasonRule;
   /**
    * True when the request or response can contain a secret the default redaction does not cover — a
    * PIN, a password. Forces `redactResponse` to be overridden; the fitness test checks the pair.

@@ -19,15 +19,6 @@ export const promptsSetContract = defineContract({
   writeBucket: "card_prompts",
   auditAction: "card.prompts_changed",
   schema: setPromptsSchema,
-  /**
-   * Required. The 2026-08-13 decision names this capability "required when it removes a prompt",
-   * which the contract cannot express — a `reason` rule is a property of the capability, not of one
-   * request. Required for all of them is the resolvable reading and the safe one: every prompt
-   * change alters what the pump demands of a driver, and the removal case is the one that most needs
-   * the sentence. **If the drawer's copy makes this feel heavy on a routine unit-number edit, split
-   * the capability rather than loosening the rule.**
-   */
-  reason: "required",
   carriesSecret: false,
   /**
    * `validationType` is the field whose spelling decides whether the pump CHECKS a value or merely

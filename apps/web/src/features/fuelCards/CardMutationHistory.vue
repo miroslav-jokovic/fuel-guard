@@ -30,7 +30,6 @@ const query = useCardMutations(toRef(props, "cardId"));
 const columns: DataTableColumn[] = [
   { key: "createdAt", label: "When" },
   { key: "intent", label: "What" },
-  { key: "reason", label: "Why" },
   { key: "status", label: "Outcome" },
 ];
 

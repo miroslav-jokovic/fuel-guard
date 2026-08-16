@@ -97,7 +97,6 @@ const recorder = (): SupabaseRecorder =>
 const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, xml: string, stepUp: boolean): CardMutationContext => ({
   admin: rec.client, env, creds, orgId: ORG, fetchImpl,
   efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-  reason: "New driver on this truck",
   expectedVersion: versionOf(xml),
   idempotencyKey: null,
   stepUp,
@@ -121,7 +120,6 @@ const setPrompts = (
     // `replaceAll: true` is narrower than the contract's `boolean`. Type-only — the value is unchanged.
     resolveCapability(promptsSetContract, promptsSetBehaviour, {
       expectedVersion: versionOf(CARD_XML),
-      reason: "New driver on this truck",
       replaceAll: true,
       allowRemoveDriverId: opts.allowRemoveDriverId,
       prompts,

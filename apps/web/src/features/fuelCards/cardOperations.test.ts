@@ -4,6 +4,8 @@ import {
   CARD_OPERATIONS,
   blockedSentence,
   operationBlockedBy,
+  editableInfoIds,
+  missingEditableInfoIds,
   operationById,
   operationConfirmation,
   operationDiff,
@@ -99,10 +101,82 @@ describe("every operation is renderable end to end", () => {
       const body = op.body({
         lockStatus: "Hold", uses: 1, scopeKind: "all", location: null,
         prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }],
-        reason: "why",
-      });
+      } as never);
       expect(operationConfirmation(op, body, { maskedRef: "••••7671", card }), `${op.id} confirmation`).not.toBeNull();
       expect(Array.isArray(operationDiff(op, card, body)), `${op.id} diff`).toBe(true);
+    }
+  });
+});
+
+describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
+  const bare = { ...card, infos: [] };
+  const withBoth = { ...card, infos: [
+    { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null },
+    { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182" },
+  ] } as never;
+
+  /**
+   * The gap Miki found. Every prompt path this product had EDITED or REMOVED records the card
+   * already carried, so a card with an empty `<infos>` could never be given a Driver ID prompt —
+   * which is the whole of FuelGuard's attribution signal for an unassigned card.
+   */
+  it("offers Add on a card with no prompts, and Edit on one that has some", () => {
+    expect(operationById("promptAdd")!.applies(bare)).toBe(true);
+    expect(operationById("prompts")!.applies(bare)).toBe(false);
+    expect(operationById("prompts")!.applies(withBoth)).toBe(true);
+  });
+
+  it("stops offering Add once the card carries every prompt this product can set", () => {
+    expect(operationById("promptAdd")!.applies(withBoth)).toBe(false);
+    expect(missingEditableInfoIds(withBoth)).toEqual([]);
+  });
+
+  it("offers only the prompts the card is missing", () => {
+    const onlyDrid = { ...card, infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null }] } as never;
+    expect(missingEditableInfoIds(onlyDrid)).toEqual(["UNIT"]);
+    expect(editableInfoIds(onlyDrid)).toEqual(["DRID"]);
+  });
+
+  /**
+   * `replaceAll` means the array in the request IS the card's prompts afterwards (guide p137). An
+   * add that sent only the new record would DELETE every other prompt — the deletion the whole
+   * characterisation suite exists to catch.
+   */
+  it("sends every existing record back alongside the new one", () => {
+    const draft = {
+      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      addInfoId: "UNIT" as const,
+      prompts: [
+        { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false },
+        { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false },
+      ],
+    };
+    const body = operationById("promptAdd")!.body(draft) as { prompts: unknown[]; allowRemoveDriverId: boolean };
+    expect(body.prompts).toHaveLength(2);
+    // An add can never remove anything, so the DRID opt-in must never be asserted from here.
+    expect(body.allowRemoveDriverId).toBe(false);
+  });
+
+  it("refuses an EXACT_MATCH with no value — a prompt that validates nothing stops nobody", () => {
+    const draft = {
+      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      addInfoId: "UNIT" as const,
+      prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false }],
+    };
+    expect(operationById("promptAdd")!.blocker!(draft)).toContain("value the driver must type");
+  });
+});
+
+describe("the two sections the card page renders (Step 6.5.3)", () => {
+  it("puts every operation in one of exactly two sections", () => {
+    for (const op of CARD_OPERATIONS) {
+      expect(["Current card", "Prompts"], op.id).toContain(op.group);
+    }
+  });
+
+  it("gives each section at least one operation, so neither renders an empty menu", () => {
+    for (const group of ["Current card", "Prompts"]) {
+      expect(CARD_OPERATIONS.filter((op) => op.group === group).length, group).toBeGreaterThan(0);
     }
   });
 });

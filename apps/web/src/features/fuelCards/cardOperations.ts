@@ -1,5 +1,14 @@
 import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
-import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, efsStatusEquals } from "@fuelguard/shared";
+import {
+  CARD_CAPABILITY_CONTRACTS,
+  EFS_CARD_STATUS_LABELS,
+  EFS_EDITABLE_INFO_IDS,
+  type EfsEditableInfoId,
+  EFS_WRITABLE_STATUSES,
+  type EfsWritableStatus,
+  canonicalEfsStatus,
+  efsStatusEquals,
+} from "@fuelguard/shared";
 import { CARD_CAPABILITY_VIEWS } from "./capabilities/registry.js";
 import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow } from "./capabilities/types.js";
 
@@ -22,10 +31,16 @@ import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow }
  * registry Phase 3 built and nothing consumed until now.
  */
 
-export type CardOperationId = "lock" | "deactivate" | "unlock" | "grant" | "clear" | "prompts";
+export type CardOperationId = "status" | "grant" | "clear" | "promptAdd" | "prompts";
 
-/** The three questions an operator is actually asking, and the grouping the detail page renders. */
-export type CardOperationGroup = "Card status" | "Fuel access" | "At the pump";
+/**
+ * The two SECTIONS of the card page, each with its own `⋮`.
+ *
+ * Not three groups of buttons — Miki, 2026-08-16, on seeing the stacked action card Phase 6 shipped:
+ * *"Action section is completely out of flow, bad looking and UX nightmare."* An operation belongs to
+ * the thing it changes, and there are two of those: the card itself, and what the pump asks for.
+ */
+export type CardOperationGroup = "Current card" | "Prompts";
 
 /** The scope names `capabilities.scopes` uses — the approver-list vocabulary, not the capability key. */
 export type CardOperationScope = "lock" | "unlock" | "override" | "prompts";
@@ -35,12 +50,14 @@ export type OperationCard = CapabilityCardContext["card"];
 
 /** Everything the six operations can collect between them. One object, so the drawer has one dirty check. */
 export interface OperationDraft {
-  lockStatus: "Hold" | "Inactive";
+  /** The status the operator has ticked. Seeded from the card, so an untouched draft is a no-op. */
+  targetStatus: EfsWritableStatus;
   uses: number;
   scopeKind: "all" | "location";
   location: EfsLocation | null;
   prompts: PromptInput[];
-  reason: string;
+  /** Which prompt `promptAdd` is adding. Seeded to the first the card lacks. */
+  addInfoId: EfsEditableInfoId | null;
 }
 
 export interface CardOperationSpec {
@@ -48,6 +65,17 @@ export interface CardOperationSpec {
   /** The contract this operation writes through — the key `capabilityStates` is keyed by. */
   capabilityKey: string;
   scope: CardOperationScope;
+  /**
+   * For an operation that spans capabilities, the one this DRAFT would write through.
+   *
+   * Only `status` has this, and the reason is audit **P0-3**: three statuses, two capabilities, two
+   * approver scopes. `card_lock` may write `Hold` and `Inactive`; `card_unlock` is the only path to
+   * `Active`. `Active` in the lock schema was an unlock reachable through the lock route — a
+   * `lock`-only approver could reactivate a Fraud-held card and the audit row would say
+   * `card.locked`. One flat control that ignored the split would put that hole back in the UI, so
+   * the capability, the scope, the confirmation and the dispatch all resolve from the ticked value.
+   */
+  capabilityFor?: (draft: OperationDraft) => { key: string; scope: CardOperationScope };
   group: CardOperationGroup;
   /** Trailing ellipsis on every one: they open a drawer rather than doing something immediately. */
   menuLabel: string;
@@ -59,7 +87,7 @@ export interface CardOperationSpec {
    * the card is already locked.
    */
   applies: (card: OperationCard) => boolean;
-  /** The operation-specific half of the request body. The drawer adds version, reason and the key. */
+  /** The operation-specific half of the request body. The drawer adds the version and the key. */
   body: (draft: OperationDraft) => Record<string, unknown>;
   /**
    * What is still missing before Confirm can be pressed, in words — invariant 6.
@@ -72,51 +100,41 @@ export interface CardOperationSpec {
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
 
+/** The editable prompts the card HAS. */
+export const editableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
+  EFS_EDITABLE_INFO_IDS.filter((id) => (card.infos ?? []).some((info) => info.infoId === id));
+
+/** The editable prompts the card LACKS — what `promptAdd` can offer. */
+export const missingEditableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
+  EFS_EDITABLE_INFO_IDS.filter((id) => !(card.infos ?? []).some((info) => info.infoId === id));
+
 export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
   {
-    id: "lock",
+    id: "status",
     capabilityKey: "card_lock",
     scope: "lock",
-    group: "Card status",
-    menuLabel: "Lock card…",
-    // Only a working card can be paused. Offering Lock on a held card invites a write that changes
-    // nothing and still spends a vendor call and an hourly-cap slot.
-    applies: (card) => efsStatusEquals(card.status, "Active"),
-    body: () => ({ status: "Hold" }),
-  },
-  {
-    id: "deactivate",
-    capabilityKey: "card_lock",
-    scope: "lock",
-    group: "Card status",
-    menuLabel: "Deactivate card…",
+    group: "Current card",
+    menuLabel: "Change status…",
     /**
-     * On Active AND Hold — the Step 6.2 correction.
+     * One control for all three writable statuses, mirroring WEX's own portal — *Cards → View Cards
+     * → Select → Change Status → New Status*, a menu of exactly Active / Inactive / Hold.
      *
-     * Retiring a card is a decision about the card's future, not about whether somebody paused it
-     * first. The old drawer offered Inactive only as a second choice inside the Lock control, so a
-     * card already on Hold could not be retired here at all and an operator had to unlock it first
-     * — two writes, and a window where a card nobody wants working is working.
+     * It replaces the Lock / Deactivate / Unlock trio Phase 6 shipped. Three buttons for three values
+     * of one field made the operator pick the VERB when the decision is the STATE, and it could not
+     * express "this card is on Hold and should be retired" without unlocking first.
      */
-    applies: (card) => efsStatusEquals(card.status, "Active") || efsStatusEquals(card.status, "Hold"),
-    body: () => ({ status: "Inactive" }),
-  },
-  {
-    id: "unlock",
-    capabilityKey: "card_unlock",
-    scope: "unlock",
-    group: "Card status",
-    menuLabel: "Unlock card…",
-    // `efsStatusEquals`, never `!==`: this account returns ACTIVE upper-cased, and an exact
-    // comparison read every working card as locked and offered Unlock on all of them.
-    applies: (card) => !efsStatusEquals(card.status, "Active"),
-    body: () => ({}),
+    applies: () => true,
+    capabilityFor: (draft) => (draft.targetStatus === "Active"
+      ? { key: "card_unlock", scope: "unlock" as const }
+      : { key: "card_lock", scope: "lock" as const }),
+    body: (draft) => (draft.targetStatus === "Active" ? {} : { status: draft.targetStatus }),
+    blocker: () => null,
   },
   {
     id: "grant",
     capabilityKey: "override_grant",
     scope: "override",
-    group: "Fuel access",
+    group: "Current card",
     menuLabel: "Grant exception…",
     // Always offerable: granting a new exception replaces whatever is there, which is the vendor's
     // own semantic (guide p194) and is what an operator means by "let him fuel once more".
@@ -136,7 +154,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     id: "clear",
     capabilityKey: "override_clear",
     scope: "override",
-    group: "Fuel access",
+    group: "Current card",
     menuLabel: "Remove exception…",
     /**
      * Uses > 0 **or** a scope field armed — the Step 6.2 correction.
@@ -152,12 +170,50 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     body: () => ({}),
   },
   {
+    id: "promptAdd",
+    capabilityKey: "prompts_set",
+    scope: "prompts",
+    group: "Prompts",
+    menuLabel: "Add prompt…",
+    /**
+     * ⚠️ The gap Miki found, and it is not cosmetic.
+     *
+     * *"unassigned cards dont have any prompts and we dont even have option to add them."* Correct:
+     * every prompt path this product had edited or REMOVED records the card already carried, so a
+     * card with an empty `<infos>` could never be given a Driver ID prompt — which is the whole of
+     * FuelGuard's attribution signal for that card. Unreachable, silently, since the feature shipped.
+     */
+    applies: (card) => missingEditableInfoIds(card).length > 0,
+    /**
+     * `replaceAll` means the array in the request IS the card's prompts afterwards (guide p137), so
+     * an ADD has to send every existing record back alongside the new one. Sending only the new one
+     * would delete the rest — the exact deletion the characterisation suite exists to catch.
+     */
+    body: (draft) => ({
+      replaceAll: true,
+      prompts: draft.prompts,
+      // An add never removes anything, so the DRID opt-in can never be needed here.
+      allowRemoveDriverId: false,
+    }),
+    blocker: (draft) => {
+      if (!draft.addInfoId) return "This card already has every prompt this product can set.";
+      const added = draft.prompts.find((p) => p.infoId === draft.addInfoId);
+      if (added?.validationType === "EXACT_MATCH" && !(added.matchValue ?? "").trim()) {
+        // EXACT_MATCH is what makes the pump VALIDATE the entry. An empty one validates nothing and
+        // is a prompt that stops nobody.
+        return "Enter the value the driver must type at the pump.";
+      }
+      return null;
+    },
+  },
+  {
     id: "prompts",
     capabilityKey: "prompts_set",
     scope: "prompts",
-    group: "At the pump",
+    group: "Prompts",
     menuLabel: "Edit prompts…",
-    applies: () => true,
+    // Nothing to edit on a card with no editable record — that is `promptAdd`'s job.
+    applies: (card) => editableInfoIds(card).length > 0,
     body: (draft) => ({
       // Always the literal `true`: full replace is the EFS semantic, and sending it explicitly means
       // the client can never arrive at it by omission.
@@ -171,8 +227,59 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
 ];
 
 /** A draft with nothing entered. The baseline the drawer's dirty check compares against. */
-export const emptyDraft = (): OperationDraft =>
-  ({ lockStatus: "Hold", uses: 1, scopeKind: "all", location: null, prompts: [], reason: "" });
+export const emptyDraft = (current: string | null = null): OperationDraft =>
+  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null });
+
+/**
+ * The card's status as one of the three the operator may write, or `Active` when it is neither.
+ *
+ * A card sitting at `Fraud` or `Deleted` has no row in the list — those are not writable states —
+ * so the draft has to start SOMEWHERE. It starts at Active, and `statusRows` marks the real state
+ * separately, because silently pre-ticking a value the card is not at is how somebody presses Save
+ * and changes a card they only meant to look at.
+ */
+export const currentWritableStatus = (status: string | null): EfsWritableStatus =>
+  EFS_WRITABLE_STATUSES.find((s) => efsStatusEquals(s, status)) ?? "Active";
+
+export interface StatusRow {
+  value: EfsWritableStatus;
+  label: string;
+  /** True when this is the card's status right now — the row that opens ticked. */
+  current: boolean;
+  /** The capability this row would write through, so the drawer can gate it per row. */
+  capabilityKey: string;
+  scope: CardOperationScope;
+}
+
+/**
+ * The three rows the status control renders, in the vendor's own order.
+ *
+ * Each row carries the capability it would write through, because they are NOT all the same one —
+ * see `capabilityFor`. The drawer disables a row whose capability this operator cannot reach and
+ * says which, rather than hiding it: a missing row reads as "not a thing you can do to a card",
+ * which is a different and wrong message.
+ */
+export const statusRows = (cardStatus: string | null): StatusRow[] =>
+  EFS_WRITABLE_STATUSES.map((value) => ({
+    value,
+    label: EFS_CARD_STATUS_LABELS[value],
+    current: efsStatusEquals(value, cardStatus),
+    capabilityKey: value === "Active" ? "card_unlock" : "card_lock",
+    scope: value === "Active" ? ("unlock" as const) : ("lock" as const),
+  }));
+
+/**
+ * The card's state when it is NOT one of the three, in words — or null when it is.
+ *
+ * `Fraud` and `Deleted` are real statuses EFS reports and neither can be written here. Showing the
+ * three rows with nothing ticked and no explanation would leave an operator hunting for the row
+ * that describes the card in front of them.
+ */
+export const unwritableStatusLabel = (cardStatus: string | null): string | null => {
+  if (EFS_WRITABLE_STATUSES.some((s) => efsStatusEquals(s, cardStatus))) return null;
+  const known = canonicalEfsStatus(cardStatus);
+  return cardStatus ? (EFS_CARD_STATUS_LABELS[known as never] ?? cardStatus) : "Unknown";
+};
 
 /**
  * The card's prompts as editable drafts.
@@ -193,6 +300,50 @@ export const promptDrafts = (
       reportValue: p.reportValue,
       remove: false,
     }));
+
+/** The capability and scope THIS draft would write through — see `capabilityFor`. */
+export const resolveCapability = (
+  spec: CardOperationSpec, draft: OperationDraft,
+): { key: string; scope: CardOperationScope } =>
+  spec.capabilityFor?.(draft) ?? { key: spec.capabilityKey, scope: spec.scope };
+
+/**
+ * A draft seeded from the card, including `promptAdd`'s new blank record.
+ *
+ * The new record joins `prompts` rather than sitting beside it, so the body is a plain `replaceAll`
+ * of the whole array and nothing has to remember to merge the two — which is how an add turns into
+ * a delete of everything else (guide p137).
+ *
+ * Pure, and out here rather than in the drawer, because the drawer calls it three times — on seed,
+ * inside the dirty comparison, and on a 409 reseed — and a `dirty` check computing its baseline
+ * differently from `seed()` reads TRUE on an untouched drawer. That is exactly the defect Step 6.1
+ * shipped and `seededFor` had to paper over.
+ */
+export const seedDraftFor = (
+  operation: CardOperationSpec | null,
+  status: string,
+  prompts: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
+): OperationDraft => {
+  const base = { ...emptyDraft(status), prompts: promptDrafts(prompts) };
+  if (operation?.id !== "promptAdd") return base;
+  const addInfoId = missingEditableInfoIds({
+    status, infos: prompts as OperationCard["infos"], limits: [],
+    overrideUses: null, overrideAllLocations: null, locationOverrideId: null,
+  })[0] ?? null;
+  return addInfoId === null ? base : {
+    ...base,
+    addInfoId,
+    prompts: [...base.prompts, {
+      infoId: addInfoId,
+      // EXACT_MATCH by default: a prompt the pump only RECORDS stops nobody, and the operator can
+      // downgrade it deliberately. Defaulting the other way makes the weaker choice the silent one.
+      validationType: "EXACT_MATCH",
+      matchValue: "",
+      reportValue: null,
+      remove: false,
+    }],
+  };
+};
 
 export const operationById = (id: CardOperationId): CardOperationSpec | null =>
   CARD_OPERATIONS.find((op) => op.id === id) ?? null;
@@ -221,16 +372,6 @@ export const operationFromQuery = (action: unknown): CardOperationSpec | null =>
 export const operationUi = (spec: CardOperationSpec) => CARD_CAPABILITY_CONTRACTS[spec.capabilityKey]?.ui ?? null;
 
 /**
- * Whether this operation demands a WRITTEN reason.
- *
- * Per-capability, per the 2026-08-13 decision: `override_grant` is the discretionary end of the
- * range and "Why" is the first column an auditor reads on it, while nobody should be stranded at a
- * pump at 2am because a dispatcher had to type a sentence to lock a stolen card.
- */
-export const reasonRequired = (spec: CardOperationSpec): boolean =>
-  CARD_CAPABILITY_CONTRACTS[spec.capabilityKey]?.reason === "required";
-
-/**
  * Bridge to the view registry, which is typed `CapabilityView<never>`.
  *
  * The cast is the one the registry's own docblock predicts and is confined to these three functions:
@@ -243,21 +384,26 @@ type AnyView = { confirmation: (body: unknown, card: CapabilityCardContext) => C
   diff: (before: OperationCard, body: unknown) => CapabilityDiffRow[];
   stepUp?: (body: unknown, card: CapabilityCardContext) => string | null };
 
-const viewFor = (spec: CardOperationSpec): AnyView | null =>
-  (CARD_CAPABILITY_VIEWS[spec.capabilityKey] as AnyView | undefined) ?? null;
+const viewFor = (spec: CardOperationSpec, draft?: OperationDraft): AnyView | null => {
+  const key = draft ? resolveCapability(spec, draft).key : spec.capabilityKey;
+  return (CARD_CAPABILITY_VIEWS[key] as AnyView | undefined) ?? null;
+};
 
 export const operationConfirmation = (
   spec: CardOperationSpec, body: Record<string, unknown>, card: CapabilityCardContext,
-): CapabilityConfirmation | null => viewFor(spec)?.confirmation(body, card) ?? null;
+  draft?: OperationDraft,
+): CapabilityConfirmation | null => viewFor(spec, draft)?.confirmation(body, card) ?? null;
 
 export const operationDiff = (
   spec: CardOperationSpec, before: OperationCard, body: Record<string, unknown>,
-): CapabilityDiffRow[] => viewFor(spec)?.diff(before, body) ?? [];
+  draft?: OperationDraft,
+): CapabilityDiffRow[] => viewFor(spec, draft)?.diff(before, body) ?? [];
 
 /** Null when this operation has no step-up gate — see `CAPABILITIES_WITH_STEP_UP_GATE`. */
 export const operationStepUp = (
   spec: CardOperationSpec, body: Record<string, unknown>, card: CapabilityCardContext,
-): string | null => viewFor(spec)?.stepUp?.(body, card) ?? null;
+  draft?: OperationDraft,
+): string | null => viewFor(spec, draft)?.stepUp?.(body, card) ?? null;
 
 /**
  * Why this operation is unavailable, or null — invariant 6, and the reason `capabilityStates` was
@@ -272,10 +418,22 @@ export const operationBlockedBy = (
   spec: CardOperationSpec,
   capabilities: CardCapabilities,
   scopes: readonly string[],
+  draft?: OperationDraft,
 ): string | null => {
-  const state = capabilities.capabilityStates?.[spec.capabilityKey];
+  const { key, scope } = draft ? resolveCapability(spec, draft) : { key: spec.capabilityKey, scope: spec.scope };
+  return capabilityBlockedBy(key, scope, capabilities, scopes);
+};
+
+/** The same test for ONE capability — what the status control gates each of its three rows on. */
+export const capabilityBlockedBy = (
+  capabilityKey: string,
+  scope: string,
+  capabilities: CardCapabilities,
+  scopes: readonly string[],
+): string | null => {
+  const state = capabilities.capabilityStates?.[capabilityKey];
   if (state) return state;
-  return scopes.includes(spec.scope) ? null : "not_approver";
+  return scopes.includes(scope) ? null : "not_approver";
 };
 
 /** One sentence per reason, each naming who to ask or what to run — never a bare "forbidden". */

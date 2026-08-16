@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { EFS_MATCH_VALUE_MAX, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
-import type { CardOperationId, OperationDraft } from "./cardOperations";
+import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
 
 /**
  * The controls for whichever operation the drawer is showing — its third region.
@@ -31,6 +33,14 @@ const props = defineProps<{
   busy: boolean;
   /** Editable prompt records this product does not touch, listed so nobody thinks they vanished. */
   readOnlyPrompts: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
+  /** The three writable statuses, each already carrying the capability it writes through. */
+  statusRows?: StatusRow[];
+  /** Why a given status row is out of reach for this operator, keyed by status value. */
+  statusBlocked?: Record<string, string | null>;
+  /** Set when the card sits at Fraud or Deleted — neither is writable and neither has a row. */
+  unwritableStatus?: string | null;
+  /** The prompts the card does not yet carry — what `promptAdd` may offer. */
+  addOptions?: readonly string[];
 }>();
 
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
@@ -61,10 +71,58 @@ const validationOptions = [
 function patchPrompt(index: number, over: Partial<PromptInput>): void {
   patch({ prompts: props.draft.prompts.map((p, i) => (i === index ? { ...p, ...over } : p)) });
 }
+
+/** The record being ADDED, which lives in `prompts` alongside the card's own — see `seededDraft`. */
+const added = computed(() => props.draft.prompts.find((p) => p.infoId === props.draft.addInfoId) ?? null);
+
+const patchAdded = (over: Partial<PromptInput>): void =>
+  patch({ prompts: props.draft.prompts.map((p) => (p.infoId === props.draft.addInfoId ? { ...p, ...over } : p)) });
+
+/** Swapping which prompt is being added replaces the pending record rather than keeping both. */
+function chooseAdded(infoId: string): void {
+  const keep = props.draft.prompts.filter((p) => p.infoId !== props.draft.addInfoId);
+  patch({
+    addInfoId: infoId as PromptInput["infoId"],
+    prompts: [...keep, {
+      infoId: infoId as PromptInput["infoId"],
+      validationType: "EXACT_MATCH", matchValue: "", reportValue: null, remove: false,
+    }],
+  });
+}
 </script>
 
 <template>
-  <div v-if="props.operation === 'grant'" class="space-y-4">
+  <!--
+    Three statuses, one tick, one Save — the vendor's own model (Cards → View Cards → Select →
+    Change Status → New Status). Checkboxes rather than a select because the whole list is three
+    items: seeing all three at once, with the card's own state already ticked, IS the diff.
+
+    Only one may be ticked. Ticking a row REPLACES the selection rather than adding to it, which is
+    radio behaviour wearing a checkbox — deliberate, and the reason each row is `readonly` to the
+    keyboard's space bar only in the sense that unticking the current row does nothing: a card
+    always has exactly one status, and "no status" is not a state anybody can save.
+  -->
+  <div v-if="props.operation === 'status'" class="space-y-1">
+    <p v-if="props.unwritableStatus" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
+      This card is <strong>{{ props.unwritableStatus }}</strong>, which is not one of the three below.
+      Choosing one will move it out of that state.
+    </p>
+    <div v-for="row in props.statusRows ?? []" :key="row.value" class="flex flex-wrap items-center gap-x-3">
+      <AppCheckbox
+        :model-value="props.draft.targetStatus === row.value"
+        :disabled="props.busy || props.statusBlocked?.[row.value] != null"
+        :label="row.label"
+        @update:model-value="(on: boolean) => on && patch({ targetStatus: row.value })"
+      />
+      <span v-if="row.current" class="text-xs text-ink-tertiary">Current</span>
+      <!-- Invariant 6: a row nobody can reach says which permission is missing, never just grey. -->
+      <span v-if="props.statusBlocked?.[row.value]" class="text-sm text-ink-muted">
+        {{ blockedSentence(props.statusBlocked[row.value]!) }}
+      </span>
+    </div>
+  </div>
+
+  <div v-else-if="props.operation === 'grant'" class="space-y-4">
     <FormField label="How many purchases" hint="The exception is used up automatically — it does not need to be revoked.">
       <template #default="{ id }">
         <ComboSelect
@@ -95,6 +153,59 @@ function patchPrompt(index: number, over: Partial<PromptInput>): void {
       :disabled="props.busy"
       @update:model-value="patch({ location: $event as EfsLocation | null })"
     />
+  </div>
+
+  <!--
+    Adding a prompt to a card that has none — the gap that made an unassigned card unattributable.
+    The picker only appears when the card lacks BOTH editable prompts; with one missing there is
+    nothing to choose and a select of one item is a question with one answer.
+  -->
+  <div v-else-if="props.operation === 'promptAdd'" class="space-y-4">
+    <FormField
+      v-if="(props.addOptions?.length ?? 0) > 1"
+      label="Which prompt"
+      hint="Driver ID is what ties a fill to a person; Unit ties it to a truck."
+    >
+      <template #default="{ id }">
+        <ComboSelect
+          :id="id"
+          :model-value="props.draft.addInfoId ?? ''"
+          :options="(props.addOptions ?? []).map((v) => ({ value: v, label: infoLabel(v) }))"
+          :disabled="props.busy"
+          @update:model-value="chooseAdded($event)"
+        />
+      </template>
+    </FormField>
+
+    <div v-if="added" class="space-y-3 rounded-control border border-edge p-3">
+      <p class="text-sm font-medium text-ink">{{ infoLabel(added.infoId) }}</p>
+      <FormField
+        :label="added.validationType === 'REPORT_ONLY' ? 'Value to report' : 'Value the driver must enter'"
+        :hint="`Maximum ${EFS_MATCH_VALUE_MAX} characters.`"
+      >
+        <template #default="{ id }">
+          <BaseInput
+            :id="id"
+            type="text"
+            :maxlength="EFS_MATCH_VALUE_MAX"
+            :model-value="added.validationType === 'REPORT_ONLY' ? added.reportValue ?? '' : added.matchValue ?? ''"
+            :disabled="props.busy"
+            @update:model-value="patchAdded(added.validationType === 'REPORT_ONLY' ? { reportValue: $event } : { matchValue: $event })"
+          />
+        </template>
+      </FormField>
+      <FormField label="How the pump treats it">
+        <template #default="{ id }">
+          <ComboSelect
+            :id="id"
+            :model-value="added.validationType"
+            :options="validationOptions"
+            :disabled="props.busy"
+            @update:model-value="patchAdded({ validationType: $event as PromptInput['validationType'] })"
+          />
+        </template>
+      </FormField>
+    </div>
   </div>
 
   <div v-else-if="props.operation === 'prompts'" class="space-y-4">

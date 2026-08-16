@@ -60,10 +60,10 @@ export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
    */
   proof: {
     precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Active"),
-    sample: (): CardUnlockBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    sample: (): CardUnlockBody => ({ expectedVersion: "" }),
     revert: (snap) => ({
       capability: "card_lock",
-      body: { status: snap.doc?.card.status ?? "Hold", expectedVersion: "", reason: "Capability proof revert" },
+      body: { status: snap.doc?.card.status ?? "Hold", expectedVersion: "" },
     }),
   },
 

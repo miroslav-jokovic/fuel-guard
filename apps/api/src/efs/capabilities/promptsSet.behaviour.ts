@@ -70,7 +70,6 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
     precondition: (snap) => proofPrompts(snap).length > 0,
     sample: (snap): PromptsSetBody => ({
       expectedVersion: "",
-      reason: "Capability proof run",
       replaceAll: true,
       allowRemoveDriverId: false,
       prompts: proofPrompts(snap).map((p, i) => (i === 0
@@ -80,7 +79,7 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
     revert: (snap) => ({
       capability: "prompts_set",
       body: {
-        expectedVersion: "", reason: "Capability proof revert",
+        expectedVersion: "",
         replaceAll: true, allowRemoveDriverId: false,
         prompts: proofPrompts(snap),
       },

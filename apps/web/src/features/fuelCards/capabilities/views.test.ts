@@ -35,14 +35,14 @@ describe("granting an exception names the numbers", () => {
   it("says how many purchases and where, rather than 'grant an override?'", () => {
     // A generic confirmation is how somebody grants nine when they meant one.
     const one = overrideGrantView.confirmation(
-      { uses: 1, scope: { kind: "location", locationId: "442" }, expectedVersion: "", reason: "" },
+      { uses: 1, scope: { kind: "location", locationId: "442" }, expectedVersion: "" },
       context(),
     );
     expect(one.body).toContain("1 purchase");
     expect(one.body).toContain("Loves station 442, Effingham IL");
 
     const three = overrideGrantView.confirmation(
-      { uses: 3, scope: { kind: "all" }, expectedVersion: "", reason: "" },
+      { uses: 3, scope: { kind: "all" }, expectedVersion: "" },
       context(),
     );
     expect(three.body).toContain("3 purchases");
@@ -51,7 +51,7 @@ describe("granting an exception names the numbers", () => {
 
   it("falls back to the location ID it cannot name — that is what a driver is declined at", () => {
     const unknown = overrideGrantView.confirmation(
-      { uses: 2, scope: { kind: "location", locationId: "999" }, expectedVersion: "", reason: "" },
+      { uses: 2, scope: { kind: "location", locationId: "999" }, expectedVersion: "" },
       context(),
     );
     expect(unknown.body).toContain("999");
@@ -60,7 +60,7 @@ describe("granting an exception names the numbers", () => {
   it("shows the scope change, not only the count — 'anywhere' vs 'one station' is the decision", () => {
     const rows = overrideGrantView.diff(
       cardWith({ overrideUses: 0 }),
-      { uses: 2, scope: { kind: "location", locationId: "442" }, expectedVersion: "", reason: "" },
+      { uses: 2, scope: { kind: "location", locationId: "442" }, expectedVersion: "" },
     );
     expect(rows.map((r) => r.label)).toContain("Where");
     expect(rows.find((r) => r.label === "Exception")?.after).toBe("2 purchases");
@@ -69,15 +69,15 @@ describe("granting an exception names the numbers", () => {
 
 describe("locking says what happens to the DRIVER", () => {
   it("describes the consequence at the pump, never the field name", () => {
-    const lock = cardLockView.confirmation({ status: "Hold", expectedVersion: "", reason: "" }, context());
+    const lock = cardLockView.confirmation({ status: "Hold", expectedVersion: "" }, context());
     expect(lock.body).toMatch(/stops working/i);
     expect(lock.body).not.toMatch(/status/i);
   });
 
   it("treats deactivating as a different, heavier act than holding", () => {
-    expect(cardLockView.confirmation({ status: "Inactive", expectedVersion: "", reason: "" }, context()).title)
+    expect(cardLockView.confirmation({ status: "Inactive", expectedVersion: "" }, context()).title)
       .toMatch(/deactivate/i);
-    expect(cardLockView.confirmation({ status: "Hold", expectedVersion: "", reason: "" }, context()).title)
+    expect(cardLockView.confirmation({ status: "Hold", expectedVersion: "" }, context()).title)
       .toMatch(/lock/i);
   });
 
@@ -88,23 +88,23 @@ describe("locking says what happens to the DRIVER", () => {
    * what would hide the next mismatch of that kind.
    */
   it("labels a status it recognises, whatever casing this account sent", () => {
-    const rows = cardLockView.diff(cardWith({ status: "ACTIVE" }), { status: "Hold", expectedVersion: "", reason: "" });
+    const rows = cardLockView.diff(cardWith({ status: "ACTIVE" }), { status: "Hold", expectedVersion: "" });
     expect(rows[0]!.before).toBe("Active");
     expect(rows[0]!.after).toBe("On hold");
   });
 
   it("shows a status it does NOT recognise verbatim, never blanked", () => {
-    const rows = cardLockView.diff(cardWith({ status: "PENDING_REVIEW" }), { status: "Hold", expectedVersion: "", reason: "" });
+    const rows = cardLockView.diff(cardWith({ status: "PENDING_REVIEW" }), { status: "Hold", expectedVersion: "" });
     expect(rows[0]!.before).toBe("PENDING_REVIEW");
   });
 });
 
 describe("unlocking escalates when EFS has flagged the card", () => {
   it("warns for an ordinary unlock and alarms for a fraud flag", () => {
-    expect(cardUnlockView.confirmation({ expectedVersion: "", reason: "" }, context({ status: "Hold" })).tone)
+    expect(cardUnlockView.confirmation({ expectedVersion: "" }, context({ status: "Hold" })).tone)
       .toBe("warning");
 
-    const fraud = cardUnlockView.confirmation({ expectedVersion: "", reason: "" }, context({ status: "FRAUD" }));
+    const fraud = cardUnlockView.confirmation({ expectedVersion: "" }, context({ status: "FRAUD" }));
     expect(fraud.tone).toBe("danger");
     expect(fraud.body).toMatch(/password/i);
   });
@@ -112,14 +112,14 @@ describe("unlocking escalates when EFS has flagged the card", () => {
   it("recognises the flag through this account's own casing", () => {
     // `efsStatusEquals`, never `===`: an exact comparison shows the mild copy for the one case that
     // most needs the stronger wording.
-    expect(cardUnlockView.confirmation({ expectedVersion: "", reason: "" }, context({ status: "FRAUD" })).title)
+    expect(cardUnlockView.confirmation({ expectedVersion: "" }, context({ status: "FRAUD" })).title)
       .toMatch(/fraud/i);
   });
 });
 
 describe("prompts spell out what a removal costs", () => {
   const body = (remove: boolean) => ({
-    expectedVersion: "", reason: "", replaceAll: true as const, allowRemoveDriverId: remove,
+    expectedVersion: "", replaceAll: true as const, allowRemoveDriverId: remove,
     prompts: [{ infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove }],
   });
 
@@ -149,13 +149,13 @@ describe("prompts spell out what a removal costs", () => {
 
 describe("removing an exception says the same thing whichever mechanism sends it", () => {
   it("describes the operator's decision, not our plumbing", () => {
-    const copy = overrideClearView.confirmation({ expectedVersion: "", reason: "" }, context({ overrideUses: 2 }));
+    const copy = overrideClearView.confirmation({ expectedVersion: "" }, context({ overrideUses: 2 }));
     expect(copy.title).toMatch(/remove the exception/i);
     expect(copy.body).toMatch(/normal limits/i);
   });
 
   it("shows the uses being cancelled", () => {
-    const rows = overrideClearView.diff(cardWith({ overrideUses: 2 }), { expectedVersion: "", reason: "" });
+    const rows = overrideClearView.diff(cardWith({ overrideUses: 2 }), { expectedVersion: "" });
     expect(rows[0]!.before).toBe("2 purchases");
     expect(rows[0]!.after).toBe("None");
   });

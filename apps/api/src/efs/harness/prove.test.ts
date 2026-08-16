@@ -76,8 +76,7 @@ function harness(fetchImpl: typeof fetch) {
   let settled: ProofOutcome | null = null;
   const ctx: CardMutationContext = {
     admin: rec.client, env, creds, orgId: ORG, fetchImpl,
-    efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
-    reason: "Capability proof run", expectedVersion: "", idempotencyKey: null, stepUp: false,
+    efsCardId: CARD_ID, cardNumber: CARD, userId: USER, expectedVersion: "", idempotencyKey: null, stepUp: false,
   };
   const deps = {
     capabilities,

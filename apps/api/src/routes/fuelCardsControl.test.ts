@@ -88,7 +88,7 @@ const send = (
     ...(opts.body === undefined ? {} : { body: JSON.stringify(opts.body) }),
   });
 
-const base = { expectedVersion: VERSION, reason: "Truck broken into overnight" };
+const base = { expectedVersion: VERSION };
 
 /** The five write routes with a body each would otherwise accept, so only the GATE can refuse them. */
 /**
@@ -160,19 +160,29 @@ describe("write routes — authentication and role", () => {
 describe("write routes — the contract", () => {
   const s = withServer(); // 7 + 5 + 1 + 2 + 1 + 1 = 17 requests
 
-  it("accepts a missing reason, but refuses a malformed one (B1)", async () => {
+  /**
+   * Phase 6.5. Decision B1 (Miki, 2026-08-12) removed `reason`; a session reinstated it
+   * per-capability the next day and Phase 6 shipped it as a required field. It is gone from the
+   * write path entirely — and, just as importantly, a browser cached from before that change must
+   * not be broken by it. Zod strips unknown keys, so an old client's `reason` is ignored rather than
+   * refused, which is what lets this ship without a coordinated deploy.
+   */
+  it("ignores a reason an older client still sends, and never rejects one for its shape", async () => {
     for (const [path, method, body] of WRITE_ROUTES) {
       const res = await send(s.url(), path, method, {
         token: "admin", body: { ...(body as object), reason: undefined },
       });
+      // Still the kill-switch refusal these contract cases all assert — the point is that the
+      // request got PAST schema validation to reach it.
       expect(res.status).toBe(403);
       expect((await errorBody(res)).error.code).toBe("card_control_disabled");
     }
+    // Both of these used to be 400s. Nothing should now care what a stray `reason` looks like.
     for (const reason of ["x", "x".repeat(201)]) {
       const res = await send(s.url(), WRITE_ROUTES[0]![0], "POST", {
         token: "admin", body: { ...base, reason },
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
     }
   });
 

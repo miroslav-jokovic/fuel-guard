@@ -20,12 +20,6 @@ export const cardUnlockContract = defineContract({
   writeBucket: "card_status",
   auditAction: "card.unlocked",
   schema: unlockCardSchema,
-  /**
-   * Optional, matching `card_lock`. Unlocking is the other half of the 2am sequence — the card was
-   * recovered, the driver is waiting — and the gate that matters on this capability is the fraud
-   * step-up, not a text box.
-   */
-  reason: "optional",
   carriesSecret: false,
   vocabularyFields: ["status"],
   /**

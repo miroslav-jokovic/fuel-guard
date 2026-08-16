@@ -68,7 +68,6 @@ const gatedContract = defineContract({
     reason: z.string().default(""),
     uses: z.number().int().default(1),
   }),
-  reason: "optional",
   carriesSecret: false,
   vocabularyFields: [],
   emittableValues: {},
@@ -181,7 +180,7 @@ const post = (uses: number): Promise<Response> => {
       Authorization: "Bearer admin",
       "Idempotency-Key": IDEMPOTENCY,
     },
-    body: JSON.stringify({ expectedVersion: "0123456789abcdef0123456789abcdef", reason: "why", uses }),
+    body: JSON.stringify({ expectedVersion: "0123456789abcdef0123456789abcdef", uses }),
   });
 };
 

@@ -108,11 +108,11 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
   proof: {
     precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) === 0,
     sample: (): OverrideGrantBody => ({
-      uses: 1, scope: { kind: "all" }, expectedVersion: "", reason: "Capability proof run",
+      uses: 1, scope: { kind: "all" }, expectedVersion: "",
     }),
     revert: () => ({
       capability: "override_clear",
-      body: { expectedVersion: "", reason: "Capability proof revert" },
+      body: { expectedVersion: "" },
     }),
   },
 
