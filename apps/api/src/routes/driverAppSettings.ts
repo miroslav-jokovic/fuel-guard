@@ -89,8 +89,10 @@ export function driverAppSettingsRouter(): Router {
         actorId: req.auth!.userId,
         action: result.enabled ? "driver_app.feature_enabled" : "driver_app.feature_disabled",
         entity: "driver_app_features",
-        entityId: result.featureKey,
-        meta: { enabled: result.enabled, config: result.config },
+        // Step 5.11: no entityId. This row is keyed by (org_id, feature_key) and has no uuid of its
+        // own, and `entity_id` is a uuid column — passing the slug lost the ENTIRE audit row on every
+        // toggle. The key belongs in meta, where a text value can actually be stored.
+        meta: { featureKey: result.featureKey, enabled: result.enabled, config: result.config },
       });
       res.json({ featureKey: result.featureKey, enabled: result.enabled, config: result.config });
     }),
@@ -133,7 +135,9 @@ export function driverAppSettingsRouter(): Router {
         actorId: req.auth!.userId,
         action: "driver_app.override_set",
         entity: "driver_app_feature_overrides",
-        entityId: `${driverId}:${result.featureKey}`,
+        // Step 5.11: the driver, not `${driverId}:${featureKey}`. That composite is not a uuid, so
+        // it lost the whole row; the driver id is one, and featureKey is already in meta below.
+        entityId: driverId,
         meta: { driverId, featureKey: result.featureKey, enabled: body.enabled, note: body.note ?? null },
       });
       res.json({ featureKey: result.featureKey });
@@ -159,7 +163,7 @@ export function driverAppSettingsRouter(): Router {
         actorId: req.auth!.userId,
         action: "driver_app.override_cleared",
         entity: "driver_app_feature_overrides",
-        entityId: `${driverId}:${result.featureKey}`,
+        entityId: driverId, // Step 5.11 — see override_set above.
         meta: { driverId, featureKey: result.featureKey },
       });
       res.json({ featureKey: result.featureKey });

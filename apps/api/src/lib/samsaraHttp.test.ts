@@ -6,17 +6,17 @@ import {
   laneRps,
   __resetSamsaraPacing,
 } from "./samsaraHttp.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 describe("laneRps — two-tier rate split (F5)", () => {
-  const e = { SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 0.6 } as unknown as Env;
+  const e = testEnv({ SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 0.6 });
   it("reserves the live fraction for live and gives backfill the remainder; combined ≤ cap", () => {
     expect(laneRps(e, "live")).toBeCloseTo(12, 6); // 60% of 20
     expect(laneRps(e, "backfill")).toBeCloseTo(8, 6); // remaining 40%
     expect(laneRps(e, "live") + laneRps(e, "backfill")).toBeCloseTo(20, 6); // never exceeds the token cap
   });
   it("never drops a lane to zero even at extreme fractions", () => {
-    const hot = { SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 1 } as unknown as Env;
+    const hot = testEnv({ SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 1 });
     expect(laneRps(hot, "backfill")).toBeGreaterThanOrEqual(0.1);
   });
 
@@ -47,7 +47,7 @@ describe("laneRps — two-tier rate split (F5)", () => {
   });
 });
 
-const env = { SAMSARA_MAX_RPS: 1000, SAMSARA_MAX_RETRIES: 4 } as unknown as Env; // high rps → no pacing waits
+const env = testEnv({ SAMSARA_MAX_RPS: 1000, SAMSARA_MAX_RETRIES: 4 }); // high rps → no pacing waits
 
 describe("samsaraFetch — per-attempt deadline (incident 2026-08-10)", () => {
   beforeEach(() => __resetSamsaraPacing());
@@ -58,7 +58,7 @@ describe("samsaraFetch — per-attempt deadline (incident 2026-08-10)", () => {
       signals.push((init as RequestInit | undefined)?.signal);
       return jsonRes(200);
     });
-    await samsaraFetch({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 120_000 } as unknown as Env, "tok", "https://api.samsara.test/x", { fetchImpl });
+    await samsaraFetch(testEnv({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 120_000 }), "tok", "https://api.samsara.test/x", { fetchImpl });
     expect(signals).toHaveLength(1);
     expect(signals[0]).toBeInstanceOf(AbortSignal);
   });
@@ -69,7 +69,7 @@ describe("samsaraFetch — per-attempt deadline (incident 2026-08-10)", () => {
       .mockRejectedValueOnce(Object.assign(new Error("The operation was aborted"), { name: "TimeoutError" }))
       .mockResolvedValueOnce(jsonRes(200));
     const res = await samsaraFetch(
-      { ...env, SAMSARA_REQUEST_TIMEOUT_MS: 50 } as unknown as Env,
+      testEnv({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 50 }),
       "tok",
       "https://api.samsara.test/x",
       { fetchImpl },
@@ -84,7 +84,7 @@ describe("samsaraFetch — per-attempt deadline (incident 2026-08-10)", () => {
       signals.push((init as RequestInit | undefined)?.signal);
       return jsonRes(200);
     });
-    await samsaraFetch({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 0 } as unknown as Env, "tok", "https://api.samsara.test/x", { fetchImpl });
+    await samsaraFetch(testEnv({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 0 }), "tok", "https://api.samsara.test/x", { fetchImpl });
     expect(signals[0]).toBeUndefined();
   });
 });

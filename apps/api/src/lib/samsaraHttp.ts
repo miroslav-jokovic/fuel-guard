@@ -67,7 +67,7 @@ export interface SamsaraFetchOpts {
  *  rest. The two lanes are paced on SEPARATE slots, so combined they never exceed the cap and live is
  *  always guaranteed its share regardless of backfill load. */
 export function laneRps(env: Env, priority: "live" | "backfill"): number {
-  const frac = env.SAMSARA_LIVE_RPS_FRACTION ?? 0.6; // default guards partial test envs
+  const frac = env.SAMSARA_LIVE_RPS_FRACTION;
   const live = env.SAMSARA_MAX_RPS * frac;
   return Math.max(0.1, priority === "backfill" ? env.SAMSARA_MAX_RPS - live : live);
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { syncIdleEvents } from "./idleSync.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). Attribution is the whole
@@ -58,7 +58,7 @@ describe("syncIdleEvents (end-to-end pipeline)", () => {
       ],
     };
 
-    const env = { WEATHER_BACKFILL_ENABLED: false } as unknown as Env;
+    const env = testEnv({ WEATHER_BACKFILL_ENABLED: false });
     const res = await syncIdleEvents(rec.client, env, ORG, { idlingFetcher: async () => raw });
 
     expect(res.fetched).toBe(2);

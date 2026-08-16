@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
@@ -10,6 +9,7 @@ import { cardLockContract } from "@fuelguard/shared";
 import { executeCapability, type CardMutationContext } from "./efsCardControl.js";
 import { cardLockBehaviour } from "../efs/capabilities/cardLock.behaviour.js";
 import { resolveCapability } from "../efs/orchestrator/resolve.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const ORG = "org-1";
 const CARD_ID = "card-1";
@@ -21,7 +21,7 @@ const CARD_ACTIVE = readFileSync(
 const soap = (body: string) =>
   `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;
 const loginOk = soap("<loginResponse><result>session-1</result></loginResponse>");
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
@@ -31,7 +31,7 @@ const env = {
   EFS_CARD_MAX_MUTATIONS_PER_HOUR: 50,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 const creds = {
   orgId: ORG,
   environment: "sandbox" as const,

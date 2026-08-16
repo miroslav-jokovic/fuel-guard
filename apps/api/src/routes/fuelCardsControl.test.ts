@@ -5,6 +5,7 @@ import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { mountedCapabilities } from "../efs/registry.js";
 import type { AuthContext } from "@fuelguard/shared";
+import { closeTestServer } from "../testing/httpServer.js";
 
 /**
  * Phase B write gates. House style: the real app on port 0, an injected token verifier, no Supabase
@@ -63,7 +64,7 @@ function withServer(): { url: () => string } {
   });
   afterAll(async () => {
     vi.restoreAllMocks();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await closeTestServer(server);
   });
   return { url: () => baseUrl };
 }

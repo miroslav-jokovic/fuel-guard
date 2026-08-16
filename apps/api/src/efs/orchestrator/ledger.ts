@@ -1,4 +1,4 @@
-import { CARD_MUTATIONS_PER_HOUR_DEFAULT, type CardMutationIntent, type Target } from "@fuelguard/shared";
+import { type CardMutationIntent, type Target } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { CardControlError } from "../../services/efsCardControlErrors.js";
 import { mutationLedgerEvidence } from "../../services/efsCardMutationEvidence.js";
@@ -58,6 +58,18 @@ export interface PendingRow {
   edits: readonly CardEdit[];
 }
 
+/**
+ * Who approved this apply (Step 5.3).
+ *
+ * Falls back to the requester because plan and apply are one request today, and a recorded
+ * self-approval is the truthful record of that — migration 0142 takes the same position for loads.
+ * `?? null` rather than `?? ctx.userId` would leave the column empty and lose the fact that anyone
+ * authorised it at all, which is the hole this step exists to close.
+ */
+function approverOf(ctx: CardMutationContext): string {
+  return ctx.approvedBy ?? ctx.userId;
+}
+
 export const cardLedger = (): LedgerAdapter => ({
   assertOrgCapacity,
   assertNoneInFlight,
@@ -68,7 +80,19 @@ export const cardLedger = (): LedgerAdapter => ({
       // `attempts: 1` counts DISPATCH attempts of the row, and a sequence is still one attempt at one
       // mutation — a step is not a retry. `step_index` stays null for a single-step capability, so a
       // reader can tell "step 0 of a sequence" from "not a sequence at all".
-      .update({ status: "sent", attempts: 1, ...(stepIndex === null ? {} : { step_index: stepIndex }) })
+      //
+      // `approved_by` is stamped HERE and not in `insertPending` (Step 5.3). The plan phase records
+      // who ASKED; this is the apply phase, the moment the write actually leaves for the vendor, and
+      // therefore the moment something was approved. Writing it at insert would have made the column
+      // a duplicate of `requested_by` by construction and destroyed the distinction before Phase C
+      // could use it. Only on the first step of a sequence: one approval covers the sequence, and
+      // re-stamping per step would suggest a decision per step that nobody made.
+      .update({
+        status: "sent",
+        attempts: 1,
+        ...(stepIndex === null || stepIndex === 0 ? { approved_by: approverOf(ctx) } : {}),
+        ...(stepIndex === null ? {} : { step_index: stepIndex }),
+      })
       .eq("id", mutationId)
       .eq("org_id", ctx.orgId);
   },
@@ -226,7 +250,7 @@ async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
   // this, and every row it sets names the proof that exempted it.
   if (ctx.proofRunId) return;
 
-  const limit = ctx.env.EFS_CARD_MAX_MUTATIONS_PER_HOUR ?? CARD_MUTATIONS_PER_HOUR_DEFAULT;
+  const limit = ctx.env.EFS_CARD_MAX_MUTATIONS_PER_HOUR;
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await ctx.admin
     .from("efs_card_mutations")
@@ -261,8 +285,8 @@ async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
 /** Everything one orchestration can legitimately take: read + write + two verify reads, each on its
  *  own interactive deadline, plus the second-look pause, plus pacing margin. */
 function inFlightWindowMs(env: Env): number {
-  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS ?? 10_000;
-  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS;
+  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS;
   return 4 * perCall + secondLook + 15_000;
 }
 

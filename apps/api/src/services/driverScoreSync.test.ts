@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). The roster read here decides
@@ -11,7 +11,7 @@ import type { Env } from "../env.js";
  */
 const ORG = "org1";
 const NOW = Date.UTC(2026, 6, 15, 17, 0, 0); // Wed 2026-07-15 12:00 CDT → week starts Mon 2026-07-13
-const env = { SAMSARA_API_URL: "https://api.samsara.com" } as unknown as Env;
+const env = testEnv({ SAMSARA_API_URL: "https://api.samsara.com" });
 
 const baseFixtures = () => ({
   driver_performance_settings: { data: null },

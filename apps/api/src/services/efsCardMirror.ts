@@ -8,6 +8,7 @@ import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib
 import { preserveAttribution } from "./efsCardAttribution.js";
 import { linkFuelCards } from "./efsCardLinking.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
+import { signalMirrorSweepCompleted } from "../lib/cardControlSignals.js";
 
 /**
  * Mirror the EFS card inventory into `efs_cards` — vendor truth, refreshed on a schedule.
@@ -177,6 +178,37 @@ export async function syncEfsCards(
 
   result.linked = await linkFuelCards(admin, env, creds.orgId);
   result.tombstoned = await tombstoneAbsentCards(admin, env, creds.orgId, summaries);
+
+  /**
+   * Step 5.1's sweep signal.
+   *
+   * `cardsWithoutDetail` is counted against the mirror AFTER the sweep rather than derived from
+   * `cardsSeen - detailed`: the detail pass is budgeted (`EFS_CARD_SYNC_MAX_DETAIL`) and works oldest
+   * first, so most sweeps legitimately detail only a slice of the fleet. The arithmetic would report
+   * a large number every single run and mean nothing. The question worth alerting on is how many
+   * cards have NEVER been detailed — those are the rows the product cannot answer questions about,
+   * because a badge renders the mirror and a mirror row only says what EFS said at
+   * `detail_synced_at`.
+   *
+   * A clean sweep still emits, at `info`. This is the heartbeat: the scheduler runs every 24h and a
+   * scheduler that has stopped produces silence, not an error, so the absence of this signal is
+   * itself the thing to alert on.
+   */
+  const { count: withoutDetail } = await admin
+    .from("efs_cards")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", creds.orgId)
+    .is("detail_synced_at", null);
+
+  signalMirrorSweepCompleted({
+    orgId: creds.orgId,
+    cardsSeen: result.cardsSeen,
+    detailed: result.detailed,
+    linked: result.linked,
+    tombstoned: result.tombstoned,
+    failed: result.failed,
+    cardsWithoutDetail: withoutDetail ?? 0,
+  });
   return result;
 }
 

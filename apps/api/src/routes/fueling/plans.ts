@@ -110,7 +110,10 @@ export function registerPlanRoutes(router: Router): void {
         res.status(500).json(apiError("db_error", "Could not delete the selected plans"));
         return;
       }
-      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "fuel_plan.bulk_deleted", entity: "fuel_plans", entityId: ids.join(","), meta: { count: ids.length } });
+      // Step 5.11: no entityId. A bulk delete has no single entity, and `ids.join(",")` is not a
+      // uuid — it lost the whole audit row, so a bulk deletion of fuel plans left no trace at all.
+      // The ids go in meta, which is the only place that can hold more than one of them.
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "fuel_plan.bulk_deleted", entity: "fuel_plans", meta: { count: ids.length, ids } });
       res.json({ ok: true, deleted: ids.length });
     }),
   );

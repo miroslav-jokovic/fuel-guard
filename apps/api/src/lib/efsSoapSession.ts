@@ -8,6 +8,7 @@ import { EfsSoapError, parseSoap, responseResult } from "./efsSoapFaults.js";
 export { EfsSoapError, parseSoap, responseResult, responseValues } from "./efsSoapFaults.js";
 import { classifyTlsError, soapFetch, type SoapPriority } from "./soapClient.js";
 import { BlockedEndpointError } from "./ssrfGuard.js";
+import { signalEfsBreakerOpened } from "./cardControlSignals.js";
 
 /**
  * EFS `CardManagementWS` session handling and fault classification — everything true of *any*
@@ -143,9 +144,10 @@ export interface EfsSession {
 }
 
 const SESSION_OPS = { login: "login", logout: "logout" } as const;
-/** Fallback session lifetime when nothing shorter applies. Well under EFS's daily reset. */
-const DEFAULT_SESSION_TTL_MS = 20 * 60 * 1000;
-const DEFAULT_BREAKER_MS = 30 * 60 * 1000;
+// Step 5.9: the session-lifetime and breaker fallbacks used to live here as literals behind
+// `env.X ?? …`. Both keys carry a zod `.default()` (env.ts), so the fallbacks were unreachable and
+// only ever a second place for the number to disagree with the first. `EFS_SOAP_SESSION_TTL_MS`
+// (20m, well under EFS's daily reset) and `EFS_LOGIN_BREAKER_MS` (30m) are the single source now.
 /** EFS expires clientIds "around 3:00 AM CT" (p11). Stop five minutes short of the stated boundary. */
 const CT_RESET_HOUR = 2;
 const CT_RESET_MINUTE = 55;
@@ -234,16 +236,23 @@ function recordLoginFailure(env: Env, key: string, error: EfsSoapError): void {
   const failures = locked ? LOGIN_FAILURE_THRESHOLD : (consecutiveAuthFailures.get(key) ?? 0) + 1;
   consecutiveAuthFailures.set(key, failures);
   if (failures < LOGIN_FAILURE_THRESHOLD) return;
-  const ms = env.EFS_LOGIN_BREAKER_MS ?? DEFAULT_BREAKER_MS;
+  const ms = env.EFS_LOGIN_BREAKER_MS;
   breakers.set(key, { openUntil: Date.now() + ms, reason: error.message });
   sessions.delete(key);
   // Loud on purpose: this also stops transaction ingestion, and nobody should have to infer that from
   // a quiet feed. routes/integrations.ts surfaces it on the settings page via efsSessionDiagnostics.
   console.error(`[efs-soap] login breaker OPEN for ${ms}ms (org ${key.split(":")[0]}): ${error.code} — ${error.message}`);
+  // Step 5.1. The console line above predates this and stays: it carries the breaker window, which
+  // is what an operator reads in the Railway log. The signal is what pages.
+  signalEfsBreakerOpened({
+    orgId: key.split(":")[0] ?? "unknown",
+    reason: `${error.code}: ${error.message}`,
+    openUntilIso: new Date(Date.now() + ms).toISOString(),
+  });
 }
 
 function sessionExpiry(env: Env, now: Date): number {
-  const ttl = env.EFS_SOAP_SESSION_TTL_MS ?? DEFAULT_SESSION_TTL_MS;
+  const ttl = env.EFS_SOAP_SESSION_TTL_MS;
   return Math.min(now.getTime() + ttl, nextEfsWallClock(now, CT_RESET_HOUR, CT_RESET_MINUTE));
 }
 

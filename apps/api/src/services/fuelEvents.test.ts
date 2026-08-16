@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import crypto from "node:crypto";
 import { verifySamsaraSignature, parseSamsaraFuelEvent } from "./fuelEvents.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const SECRET_B64 = Buffer.from("super-secret-key").toString("base64");
-const env = { SAMSARA_WEBHOOK_SECRET: SECRET_B64 } as unknown as Env;
+const env = testEnv({ SAMSARA_WEBHOOK_SECRET: SECRET_B64 });
 
 function sign(ts: string, body: string): string {
   const mac = crypto
@@ -29,7 +29,7 @@ describe("verifySamsaraSignature", () => {
     expect(verifySamsaraSignature(env, tampered, { signature, timestamp: ts })).toBe(false);
   });
   it("fails closed with no secret / no headers", () => {
-    expect(verifySamsaraSignature({} as Env, body, { signature: "v1=x", timestamp: ts })).toBe(false);
+    expect(verifySamsaraSignature(testEnv(), body, { signature: "v1=x", timestamp: ts })).toBe(false);
     expect(verifySamsaraSignature(env, body, {})).toBe(false);
   });
 });

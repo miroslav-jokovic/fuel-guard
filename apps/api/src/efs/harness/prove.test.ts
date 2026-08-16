@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../../env.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";
 import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
@@ -9,6 +8,7 @@ import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import type { CardMutationContext } from "../orchestrator/types.js";
 import { capabilityRegistry } from "../registry.js";
 import { proveCapability, type ProofOutcome } from "./prove.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Step 4.5's three named cases, and each is a way the harness could lie.
@@ -23,13 +23,13 @@ const CARD_ID = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const USER = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const CARD = "70830000000000000";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100, EFS_SOAP_INTERACTIVE_RPS: 100, EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90, EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_SOAP_INTERACTIVE_TIMEOUT_MS: 10_000, EFS_CARD_WRITE_TIMEOUT_MS: 25_000,
   EFS_CARD_MAX_MUTATIONS_PER_HOUR: 50, EFS_CARD_VERIFY_RETRY_MS: 0,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG, environment: "sandbox",

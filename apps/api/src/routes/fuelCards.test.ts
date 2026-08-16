@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import type { AuthContext } from "@fuelguard/shared";
+import { closeTestServer } from "../testing/httpServer.js";
 
 /**
  * Gate-and-contract tests, house style: the real app on port 0, an injected token verifier, and no
@@ -49,7 +50,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.restoreAllMocks();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 type ApiErrorBody = { error: { code: string; message: string } };

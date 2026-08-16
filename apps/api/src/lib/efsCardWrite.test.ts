@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { parseCardDocument } from "./efsCardXml.js";
 import { classifySetCardResponse, deleteOverrideOp, editsLanded, isDecline, setCardV2 } from "./efsCardWrite.js";
 import { EfsSoapError, __resetEfsSessions } from "./efsSoapSession.js";
 import { childElements, collectElements, localName } from "./efsXml.js";
 import { __resetSoapPacing } from "./soapClient.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * The write operation. Four properties are load-bearing and each has a test that fails loudly if it
@@ -19,7 +19,7 @@ import { __resetSoapPacing } from "./soapClient.js";
  *   4. "No news is good news": an empty 200 is success; a decline is a decline.
  */
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   // The interactive lane defaults to 1 rps. Left at the default these suites spend most of their
   // wall clock inside the pacer proving nothing.
@@ -27,7 +27,7 @@ const env = {
   EFS_SOAP_MAX_RETRIES: 4, // deliberately non-zero: the retry:false test must prove OUR flag, not this
   EFS_SOAP_BACKFILL_DAYS: 90,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: "org-1",

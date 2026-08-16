@@ -14,6 +14,7 @@ import { cardEchoVerify } from "./cardEchoVerify.js";
 import { defineBehaviour } from "./types.js";
 import { mount } from "./registry.js";
 import { fuelCardCapabilityRouter } from "./router.js";
+import { closeTestServer } from "../testing/httpServer.js";
 
 /**
  * Step 3.5b: a body-only refusal must not spend a rate-limit slot.
@@ -154,7 +155,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.restoreAllMocks();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 afterEach(() => { vi.unstubAllGlobals(); });

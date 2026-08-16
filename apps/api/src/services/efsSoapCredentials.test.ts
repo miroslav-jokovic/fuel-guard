@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { getPolicyCached, __resetPolicyCache } from "../lib/efsPolicyCache.js";
 import { seal, secretAad } from "../lib/secretBox.js";
 import {
@@ -12,20 +11,23 @@ import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import {
   disableEfsSoapCredentials,
   getEfsSoapCredentials,
+  recordFeedFailure,
+  recordFeedSuccess,
   upsertEfsSoapCredentials,
   type EfsSoapCredentials,
 } from "./efsSoapCredentials.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_POLICY_CACHE_MS: 60_000,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds = (orgId = ORG): EfsSoapCredentials => ({
   orgId,
@@ -106,6 +108,45 @@ describe("EFS credential password sealing", () => {
     const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("legacy-password", null)] } });
     const loaded = await getEfsSoapCredentials(db.client, env, ORG);
     expect(loaded?.soapPassword).toBe("legacy-password");
+  });
+});
+
+/**
+ * Step 5.7. `updated_at` answers "when was this credential last CHANGED" — the question asked after
+ * a security incident. A poller bumping it every hour destroyed that answer, so polls must not touch
+ * it. These assert the application half; migration 0196 carries the other half, because 0091's
+ * `before update` trigger re-stamped the column unconditionally and would have made these pass while
+ * the database kept doing the wrong thing. Both halves are needed and neither is sufficient.
+ */
+describe("EFS credential updated_at means a configuration change, not a poll", () => {
+  it.each(["posted", "rejected"] as const)("a successful %s poll does not patch updated_at", async (feed) => {
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("", "sealed")] } });
+
+    await recordFeedSuccess(db.client, ORG, feed, "2026-08-15T00:00:00Z");
+
+    const written = db.writtenRows("efs_soap_credentials")[0]!;
+    expect(written).not.toHaveProperty("updated_at");
+    // …and it still records the poll where poll timing belongs.
+    expect(written).toHaveProperty(`${feed}_last_success_at`);
+    expect(written).toHaveProperty(`${feed}_last_polled_at`);
+  });
+
+  it.each(["posted", "rejected"] as const)("a failed %s poll does not patch updated_at", async (feed) => {
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("", "sealed")] } });
+
+    await recordFeedFailure(db.client, ORG, feed, "connection reset");
+
+    const written = db.writtenRows("efs_soap_credentials")[0]!;
+    expect(written).not.toHaveProperty("updated_at");
+    expect(written).toHaveProperty(`${feed}_last_error`);
+  });
+
+  it("a credential rotation does patch updated_at", async () => {
+    const db = createSupabaseRecorder();
+
+    await upsertEfsSoapCredentials(db.client, env, ORG, input);
+
+    expect(db.writtenRows("efs_soap_credentials")[0]).toHaveProperty("updated_at");
   });
 });
 

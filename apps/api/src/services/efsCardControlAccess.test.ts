@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 import { loadCardControlAccess } from "./efsCardControlAccess.js";
+import { testEnv } from "../testing/testEnv.js";
 
-const env = {
+const env = testEnv({
   EFS_CARD_CONTROL_ENABLED: true,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
-const envWithoutSecretsKey = { EFS_CARD_CONTROL_ENABLED: true } as unknown as Env;
+});
+const envWithoutSecretsKey = testEnv({ EFS_CARD_CONTROL_ENABLED: true });
 
 const baseIdentity = {
   endpointUrl: "https://qa.efsllc.com/axis2/services/CardManagementWS/",

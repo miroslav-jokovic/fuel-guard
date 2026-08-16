@@ -8,7 +8,7 @@ import {
 } from "./samsaraToken.js";
 import { seal, secretAad, SecretBoxError } from "./secretBox.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5): its fallthrough discarded
@@ -17,9 +17,9 @@ import type { Env } from "../env.js";
  * the same write capture and lets `expectOrgScoped` assert the tenant filter itself.
  */
 const KEY = Buffer.alloc(32, 7).toString("base64");
-const env = { SECRETS_ENCRYPTION_KEY: KEY } as Env;
-const envNoKey = {} as Env;
-const envWithFallback = { SECRETS_ENCRYPTION_KEY: KEY, SAMSARA_API_TOKEN: "env-fallback" } as Env;
+const env = testEnv({ SECRETS_ENCRYPTION_KEY: KEY });
+const envNoKey = testEnv();
+const envWithFallback = testEnv({ SECRETS_ENCRYPTION_KEY: KEY, SAMSARA_API_TOKEN: "env-fallback" });
 const ORG = "org1";
 
 /** The one table this module touches; `data` is what a read of it returns. */

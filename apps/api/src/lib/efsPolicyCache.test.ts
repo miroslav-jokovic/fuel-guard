@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { __resetEfsSessions } from "./efsSoapSession.js";
 import { __resetSoapPacing } from "./soapClient.js";
 import { __resetPolicyCache, getPolicyCached } from "./efsPolicyCache.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * The property (audit P1-1, second half): one vendor round-trip serves every card page that asks
@@ -11,13 +11,13 @@ import { __resetPolicyCache, getPolicyCached } from "./efsPolicyCache.js";
  * NOT entitled to read, which used to re-dial (with retries) on every single view.
  */
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_POLICY_CACHE_MS: 60_000,
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",

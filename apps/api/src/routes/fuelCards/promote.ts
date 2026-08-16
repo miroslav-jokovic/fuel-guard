@@ -9,6 +9,7 @@ import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { decidePromotion, type OrgObservation, type ProofEvidence } from "../../efs/harness/promote.js";
 import { judgeField, observeField } from "../../efs/harness/configScan.js";
+import { signalPromotionStateChanged } from "../../lib/cardControlSignals.js";
 
 /**
  * `POST /api/fuel-cards/promote/:capability` — the only way a capability becomes `enabled` (Step 4.6).
@@ -130,6 +131,12 @@ export function fuelCardPromoteRouter(): Router {
           rowId: (suspendedRow as { id: string } | null)?.id ?? null,
           meta: { capability: capabilityKey, reason },
         });
+        // Step 5.1. A suspension is `warning`, not `info`: somebody believed this capability was
+        // doing harm, which is at least as worth waking up for as enabling it.
+        signalPromotionStateChanged({
+          orgId, capability: capabilityKey, state: "suspended",
+          actorId: req.auth!.userId, environment: "unknown", reason,
+        });
         // No cache anywhere in the gate, so the next card write already sees this.
         res.json({ ok: true, capability: capabilityKey, state: "suspended" });
         return;
@@ -140,13 +147,18 @@ export function fuelCardPromoteRouter(): Router {
         return;
       }
 
-      const [{ data: proofRow }, { data: settings }] = await Promise.all([
+      const [{ data: proofRow }, { data: settings }, { data: credsRow }] = await Promise.all([
+        // `run_by` joins the select for Step 5.3: separation of duties needs to know who produced the
+        // evidence being cited, and that is the only place it is recorded.
         admin.from("efs_capability_proofs")
-          .select("outcome, oeg1_entitled, oeg2b_noop_stable, oeg3_change_landed, oeg4_vocabulary, oeg5_revert_landed, document_shape, vocabulary, capability_key")
+          .select("outcome, oeg1_entitled, oeg2b_noop_stable, oeg3_change_landed, oeg4_vocabulary, oeg5_revert_landed, document_shape, vocabulary, capability_key, run_by")
           .eq("id", proofId).eq("org_id", orgId).maybeSingle(),
         admin.from("efs_card_control_settings")
           .select("observed_document_shape, observed_vocabulary")
           .eq("org_id", orgId).maybeSingle(),
+        // Which EFS this org's writes actually reach. Read as a bare column rather than through
+        // `getEfsSoapCredentials`, which unseals a password this route has no business holding.
+        admin.from("efs_soap_credentials").select("environment").eq("org_id", orgId).maybeSingle(),
       ]);
 
       const row = proofRow as Record<string, unknown> | null;
@@ -174,10 +186,24 @@ export function fuelCardPromoteRouter(): Router {
         : null;
 
       const observedVocabulary = (settings as { observed_vocabulary?: Record<string, string[]> } | null)?.observed_vocabulary ?? null;
-      const decision = decidePromotion(capabilityKey, proof, {
-        observedDocumentShape: (settings as { observed_document_shape?: string | null } | null)?.observed_document_shape ?? null,
-        scanVerdicts: scanVerdicts(capabilityKey, observedVocabulary),
-      });
+      // An org with no credential row cannot reach EFS at all, but "unknown" must not read as
+      // "sandbox" — that is the direction in which a mistake hands someone an unchecked production
+      // promotion. Absent means production for this rule.
+      const environment =
+        (credsRow as { environment?: string } | null)?.environment === "sandbox" ? "sandbox" : "production";
+      const decision = decidePromotion(
+        capabilityKey,
+        proof,
+        {
+          observedDocumentShape: (settings as { observed_document_shape?: string | null } | null)?.observed_document_shape ?? null,
+          scanVerdicts: scanVerdicts(capabilityKey, observedVocabulary),
+        },
+        {
+          promoterId: req.auth!.userId,
+          proofRunBy: (row?.run_by as string | null) ?? null,
+          environment,
+        },
+      );
 
       if (!decision.allowed) {
         // 409, not 403: the caller is permitted to ask, and the evidence is what is missing. Every
@@ -202,7 +228,18 @@ export function fuelCardPromoteRouter(): Router {
         rowId: (promotedRow as { id: string } | null)?.id ?? null,
         // The residual risks ride ON the audit row, not just the response: "what did we know we did
         // not know when we allowed this" is the question asked after an incident, not before.
-        meta: { capability: capabilityKey, reason, proofId, residualRisks: decision.residualRisks },
+        meta: {
+          capability: capabilityKey, reason, proofId, residualRisks: decision.residualRisks,
+          // Step 5.3: the separation facts ride on the audit row. "Who produced the evidence, who
+          // accepted it, and against which EFS" is the question asked after an incident.
+          environment, proofRunBy: (row?.run_by as string | null) ?? null, promotedBy: req.auth!.userId,
+        },
+      });
+
+      // Step 5.1. The act that lets code touch a customer's fuel cards does not happen quietly.
+      signalPromotionStateChanged({
+        orgId, capability: capabilityKey, state: "enabled",
+        actorId: req.auth!.userId, environment, reason,
       });
 
       res.json({

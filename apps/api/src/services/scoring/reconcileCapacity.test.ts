@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { resolveCapacity, type TxnView, type VehicleView } from "@fuelguard/shared";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
-import type { Env } from "../../env.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Regression test for audit 2026-08-09 finding A — the capacity SOURCE mismatch.
@@ -30,7 +30,7 @@ vi.mock("../samsaraRecon.js", () => ({
 const { resolveReconciliation } = await import("./reconcile.js");
 
 const ORG = "org1";
-const env = {} as Env;
+const env = testEnv();
 
 /** A real 240-gal truck whose nameplate was typed as 120 — the case the resolver exists to rescue. */
 const misEntered: VehicleView = {

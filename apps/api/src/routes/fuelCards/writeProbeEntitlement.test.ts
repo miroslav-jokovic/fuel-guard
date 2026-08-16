@@ -7,6 +7,7 @@ import type { AuthContext } from "@fuelguard/shared";
 import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../testing/httpServer.js";
 
 /**
  * Step 2.7 — what a READ-ONLY entitlement probe is allowed to change.
@@ -111,7 +112,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.restoreAllMocks();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 afterEach(() => {

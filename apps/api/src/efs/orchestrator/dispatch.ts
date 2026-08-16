@@ -15,6 +15,7 @@ import { sleepWithAbort } from "../../services/efsCardWriteDeadline.js";
 import type { Landing, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
 import { isSequenced, stepsOf } from "./steps.js";
+import { signalEchoUnfaithful } from "../../lib/cardControlSignals.js";
 import type {
   CardMutationContext,
   CardMutationOutcome,
@@ -95,6 +96,15 @@ export async function applyCardMutation<TBody>(
     // `echo_unfaithful` is the exception: the request was never sent, so there is nothing to
     // reconcile and no reason to spend a vendor call proving it. Our bug, recorded as ours.
     if (sent.writeError?.code === "echo_unfaithful") {
+      // Step 5.1: this count must be identically zero, so any occurrence pages. Emitted at the
+      // handling site rather than where the error is thrown — `efsCardEcho.ts` raises it from four
+      // places and the harness raises it deliberately in CI (`efs/harness/local.ts`), where it is a
+      // passing test rather than an incident.
+      signalEchoUnfaithful({
+        orgId: ctx.orgId,
+        capability: capability.capabilityKey,
+        detail: sent.writeError.message,
+      });
       return landedSteps === 0
         ? await finalizeUnsent(ctx, ledger, facts, sent.writeError)
         : await finalizePartial(ctx, ledger, facts, null, sent);
@@ -260,7 +270,7 @@ async function verifyStep<TBody>(
   // the quantity that made the old number unreadable.
   if (landing === "landed") applyLatencyMs = Date.now() - verifyStartedAt;
 
-  const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS;
   if (landing !== "landed" && verifyRetryMs > 0) {
     await sleepWithAbort(verifyRetryMs, ctx.signal);
     try {

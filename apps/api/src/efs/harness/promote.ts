@@ -32,6 +32,27 @@ export interface OrgObservation {
   scanVerdicts: Record<string, "match" | "mismatch" | "unobserved">;
 }
 
+/**
+ * Who is asking, and whether they are allowed to be the one asking (Step 5.3).
+ *
+ * Separation of duties, applied where it can actually bite today. Card mutations run plan and apply
+ * in one request, so demanding a second principal there would refuse every write in the product.
+ * A promotion is different: the proof run and the promotion are already two endpoints, two rows and
+ * two moments, so a second person can exist without building anything.
+ *
+ * And it is the act worth protecting. A promotion is what lets code touch a customer's fuel cards;
+ * a proof run is the evidence cited to justify it. One person producing the evidence and then
+ * accepting their own evidence is the definition of an unchecked decision.
+ */
+export interface PromotionAuthority {
+  /** The principal calling `POST /promote/:capability`. */
+  promoterId: string;
+  /** `efs_capability_proofs.run_by` for the cited proof. Null when the account has been deleted. */
+  proofRunBy: string | null;
+  /** From `efs_soap_credentials.environment` — which EFS this org's writes actually reach. */
+  environment: "sandbox" | "production";
+}
+
 export interface PromotionDecision {
   allowed: boolean;
   refusals: string[];
@@ -64,6 +85,7 @@ export function decidePromotion(
   capabilityKey: string,
   proof: ProofEvidence | null,
   org: OrgObservation,
+  authority: PromotionAuthority,
 ): PromotionDecision {
   const refusals: string[] = [];
   const residualRisks: string[] = [];
@@ -160,6 +182,38 @@ export function decidePromotion(
     refusals.push(
       `The config scan reports "${field}" as UNOBSERVED and the proof run did not observe it either. `
         + "No evidence is not evidence.",
+    );
+  }
+
+  // ── Separation of duties (Step 5.3) ───────────────────────────────────────────────────────────
+  // Last, and deliberately so: it is about WHO is asking rather than whether the evidence holds, and
+  // an operator reading the refusal list should see the evidence problems first. It is still a
+  // refusal like any other, so one round trip reports it alongside everything else.
+  //
+  // Production only. QA is where one person legitimately runs the proof and promotes it, and this
+  // rule there would stop the work it exists to make safe. On production the two acts are a fortnight
+  // and a customer apart.
+  if (authority.environment === "production") {
+    if (proof && authority.proofRunBy === null) {
+      // Fail closed. `run_by` is `on delete set null`, so a null means the account that produced the
+      // evidence is gone and separation cannot be established either way. Naming the fix matters:
+      // this is otherwise an unexplained permanent refusal.
+      refusals.push(
+        "The cited proof no longer records who ran it, so a second pair of eyes cannot be established. "
+          + "Run a fresh proof and cite that one.",
+      );
+    } else if (proof && authority.proofRunBy === authority.promoterId) {
+      refusals.push(
+        "You ran the proof you are citing. Promoting a capability to PRODUCTION needs a second person: "
+          + "one to produce the evidence, another to accept it.",
+      );
+    }
+  } else if (proof && authority.proofRunBy === authority.promoterId) {
+    // Allowed, and recorded. The audit question after an incident is "was anyone else involved",
+    // and a silent yes is the answer nobody can check later.
+    residualRisks.push(
+      "Self-approved: the same person ran the proof and promoted it. Permitted outside production, "
+        + "and recorded here so the promotion says so.",
     );
   }
 

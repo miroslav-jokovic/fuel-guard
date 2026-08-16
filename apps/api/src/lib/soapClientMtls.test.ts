@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import type { TLSSocket } from "node:tls";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
+import { closeTestServer } from "../testing/httpServer.js";
 import {
   __resetSoapPacing,
   assertTlsPolicy,
@@ -16,6 +16,7 @@ import {
   soapFetch,
   type EfsTlsMaterial,
 } from "./soapClient.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * END-TO-END MUTUAL TLS.
@@ -49,7 +50,7 @@ const ROGUE_CERT = fixture("rogue-client.crt");
 const ROGUE_KEY = fixture("rogue-client.key");
 const CLIENT_PFX = Buffer.from(fixture("client.p12.b64").trim(), "base64");
 
-const env = {
+const env = testEnv({
   NODE_ENV: "test",
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
@@ -57,7 +58,7 @@ const env = {
   // soapFetch (audit 2026-08-09 §3.8) blocks by design. Same escape hatch a developer running a local
   // mock endpoint uses; it cannot be set in production. lib/ssrfGuard.test.ts covers the gate itself.
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+});
 
 const SOAP_OK = '<?xml version="1.0"?><ok/>';
 
@@ -109,7 +110,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   invalidateTlsAgents();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 afterEach(() => {
@@ -246,18 +247,18 @@ describe("plain TLS is untouched", () => {
 describe("policy + configuration", () => {
   it("refuses to disable certificate verification in production", () => {
     const insecure: EfsTlsMaterial = { source: "env", rejectUnauthorized: false };
-    expect(() => assertTlsPolicy({ ...env, NODE_ENV: "production" } as Env, insecure)).toThrow(/refused in production/);
+    expect(() => assertTlsPolicy(testEnv({ ...env, NODE_ENV: "production" }), insecure)).toThrow(/refused in production/);
     // …but allows it outside production, where a self-signed staging endpoint is a real situation.
     expect(() => assertTlsPolicy(env, insecure)).not.toThrow();
   });
 
   it("reads deploy-wide material from env and fingerprints it", () => {
-    const material = envTlsMaterial({
+    const material = envTlsMaterial(testEnv({
       ...env,
       EFS_SOAP_CLIENT_CERT_PEM: CLIENT_CERT,
       EFS_SOAP_CLIENT_KEY_PEM: CLIENT_KEY,
       EFS_SOAP_CA_PEM: CA,
-    } as Env)!;
+    }))!;
     expect(material.source).toBe("env");
     expect(material.fingerprintSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(material.subject).toContain("fuelguard-efs-client");
@@ -267,39 +268,39 @@ describe("policy + configuration", () => {
   });
 
   it("rejects a half-configured client identity rather than falling back to anonymous TLS", () => {
-    expect(() => envTlsMaterial({ ...env, EFS_SOAP_CLIENT_CERT_PEM: CLIENT_CERT } as Env)).toThrow(/half-configured/);
-    expect(() => envTlsMaterial({ ...env, EFS_SOAP_CLIENT_KEY_PEM: CLIENT_KEY } as Env)).toThrow(/half-configured/);
+    expect(() => envTlsMaterial(testEnv({ ...env, EFS_SOAP_CLIENT_CERT_PEM: CLIENT_CERT }))).toThrow(/half-configured/);
+    expect(() => envTlsMaterial(testEnv({ ...env, EFS_SOAP_CLIENT_KEY_PEM: CLIENT_KEY }))).toThrow(/half-configured/);
   });
 
   it("rejects unparseable certificate material at configuration time", () => {
     expect(() =>
-      envTlsMaterial({ ...env, EFS_SOAP_CLIENT_CERT_PEM: "not a certificate", EFS_SOAP_CLIENT_KEY_PEM: CLIENT_KEY } as Env),
+      envTlsMaterial(testEnv({ ...env, EFS_SOAP_CLIENT_CERT_PEM: "not a certificate", EFS_SOAP_CLIENT_KEY_PEM: CLIENT_KEY })),
     ).toThrow(/not a parseable PEM certificate/);
   });
 
   it("accepts escaped newlines and base64 (Railway/Docker single-line env editors)", () => {
-    const material = envTlsMaterial({
+    const material = envTlsMaterial(testEnv({
       ...env,
       EFS_SOAP_CLIENT_CERT_PEM: CLIENT_CERT.replace(/\n/g, "\\n"),
       EFS_SOAP_CLIENT_KEY_B64: Buffer.from(CLIENT_KEY).toString("base64"),
-    } as Env)!;
+    }))!;
     expect(material.cert).toBe(CLIENT_CERT);
     expect(material.key).toBe(CLIENT_KEY);
   });
 
   it("accepts a PKCS#12 bundle from env, for issuers that only hand out a .pfx", () => {
-    const material = envTlsMaterial({
+    const material = envTlsMaterial(testEnv({
       ...env,
       EFS_SOAP_CLIENT_PFX_B64: CLIENT_PFX.toString("base64"),
       EFS_SOAP_CLIENT_PFX_PASSPHRASE: "testpfx",
-    } as Env)!;
+    }))!;
     expect(material.pfx?.equals(CLIENT_PFX)).toBe(true);
     expect(material.passphrase).toBe("testpfx");
     expect(describeTlsMaterial(material)).toContain("PKCS#12");
   });
 
   it("says so loudly when certificate verification is disabled", () => {
-    const material = envTlsMaterial({ ...env, EFS_SOAP_TLS_INSECURE: true } as Env)!;
+    const material = envTlsMaterial(testEnv({ ...env, EFS_SOAP_TLS_INSECURE: true }))!;
     expect(material.rejectUnauthorized).toBe(false);
     expect(describeTlsMaterial(material)).toContain("CERTIFICATE VERIFICATION DISABLED");
   });

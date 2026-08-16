@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import {
   BlockedEndpointError,
   allowPrivateEndpoints,
@@ -7,6 +6,7 @@ import {
   checkOutboundUrl,
   type OutboundDnsLookup,
 } from "./ssrfGuard.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Coverage for audit finding 3.8 (2026-08-09): an org admin could store any URL as the EFS SOAP
@@ -200,16 +200,16 @@ describe("assertOutboundUrlAllowed", () => {
 });
 
 describe("the development escape hatch", () => {
-  const dev = { NODE_ENV: "development", EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true } as Env;
+  const dev = testEnv({ NODE_ENV: "development", EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true });
 
   it("is off unless explicitly enabled", () => {
-    expect(allowPrivateEndpoints({ NODE_ENV: "development" } as Env)).toBe(false);
-    expect(allowPrivateEndpoints({ NODE_ENV: "production" } as Env)).toBe(false);
+    expect(allowPrivateEndpoints(testEnv({ NODE_ENV: "development" }))).toBe(false);
+    expect(allowPrivateEndpoints(testEnv({ NODE_ENV: "production" }))).toBe(false);
   });
 
   it("is refused in production — a bypass that ships is not a bypass", () => {
     expect(() =>
-      allowPrivateEndpoints({ NODE_ENV: "production", EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true } as Env),
+      allowPrivateEndpoints(testEnv({ NODE_ENV: "production", EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true })),
     ).toThrow(/refused in production/);
   });
 

@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncVehicleStatsFromSamsara } from "./samsaraVehicleSync.js";
-import type { Env } from "../env.js";
 
-const env = {} as Env; // override fetcher is supplied, so no token/HTTP needed
+const env = testEnv(); // override fetcher is supplied, so no token/HTTP needed
 
 /** Fake admin covering: from().select().eq().not() (read) and from().update().eq().eq() (write). */
 function makeAdmin(rows: { id: string; samsara_vehicle_id: string }[]) {
@@ -79,6 +78,7 @@ describe("syncVehicleStatsFromSamsara (live-stats tier)", () => {
 // ── Replacement lifecycle (identity check 2026-08-12) ───────────────────────────────────────────
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { syncVehiclesFromSamsara } from "./samsaraVehicleSync.js";
+import { testEnv } from "../testing/testEnv.js";
 
 describe("syncVehiclesFromSamsara — samsara_missing_since lifecycle", () => {
   const ORG = "org-1";

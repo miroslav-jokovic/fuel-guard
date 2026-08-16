@@ -4,6 +4,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
+import { closeTestServer } from "./testing/httpServer.js";
 
 /**
  * Fitness function — tenant safety by construction.
@@ -53,7 +54,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  await closeTestServer(server);
 });
 
 describe("route auth coverage", () => {

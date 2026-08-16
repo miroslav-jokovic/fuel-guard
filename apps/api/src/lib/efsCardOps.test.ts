@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import {
   getCardSummaries,
@@ -11,13 +10,14 @@ import {
 } from "./efsCardOps.js";
 import { __resetEfsSessions } from "./efsSoapSession.js";
 import { __resetSoapPacing } from "./soapClient.js";
+import { testEnv } from "../testing/testEnv.js";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: "org-1",

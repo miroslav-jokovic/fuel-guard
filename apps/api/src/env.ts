@@ -181,6 +181,22 @@ const EnvSchema = z.object({
     .string()
     .default("false")
     .transform((s) => s.toLowerCase() === "true"),
+  // Does THIS host serve the fuel-card routes at all? (Step 5.10)
+  //
+  // Two Railway services run this same image: `fleetguardapi` is whitelisted by WEX and is where the
+  // pollers run, and `fleetguardweb` serves the SPA plus a full, identical copy of the API whose
+  // egress WEX's firewall refuses. So every fuel-card route exists on the web host and every one of
+  // them fails there — as a vendor `NotAllowed`, which reads like an entitlement problem with the
+  // ACCOUNT rather than a request that arrived at the wrong building.
+  //
+  // Set to false on the web service. A route that cannot succeed should not exist rather than fail
+  // politely, and this is preferred over whitelisting a second egress IP: fewer whitelisted addresses
+  // is the stronger position with WEX.
+  //
+  // Defaults TRUE, deliberately. The default has to be the behaviour of the host that matters, so a
+  // forgotten variable degrades to "the API host serves its routes" rather than to a silent, total
+  // outage of card control that every gate would report as healthy.
+  EFS_ROUTES_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
   EFS_SOAP_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   EFS_SOAP_ENDPOINT_URL: z.string().url().optional(),        // SOAP endpoint URL (not the ?wsdl document URL)
   EFS_SOAP_USERNAME: z.string().optional(),                  // fallback if per-org row not set

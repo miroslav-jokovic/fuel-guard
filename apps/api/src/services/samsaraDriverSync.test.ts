@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /** Fake admin: select → existing fixture; update/insert captured. Distinguishes the deactivation update
  *  (status:inactive + .in(ids)) from the per-driver identity updates. */
@@ -38,7 +38,7 @@ function makeAdmin(existing: unknown[]) {
   return { admin: { from: () => builder() } as unknown as SupabaseClient, captured };
 }
 
-const env = {} as Env;
+const env = testEnv();
 // Samsara active roster returned by the "fetch": only S2 is active.
 const lister = async () => [{ id: "S2", name: "Active Two", driverActivationStatus: "active" }];
 

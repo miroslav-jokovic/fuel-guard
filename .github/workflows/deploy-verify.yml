@@ -5,8 +5,20 @@ name: Verify deployment
 # commit expects. Without this, a failed deploy is silent — the repository looks shipped, the app
 # behaves as if nothing changed, and the only way to find out is to probe by hand.
 #
-# Requires one repository variable (not a secret — it is a public URL):
-#   API_URL   e.g. https://fleetguardweb-production.up.railway.app
+# ── Step 5.10: BOTH hosts, because there are two ────────────────────────────────────────────────
+# Two Railway services deploy independently from this repository: `fleetguardapi` (whitelisted by
+# WEX, reaches EFS, the pollers run there) and `fleetguardweb` (the SPA plus a full copy of the API).
+# This workflow polled only API_URL, so on 2026-08-14 it reported success for 34f7336 while the web
+# host was two commits behind — a green deploy check on a half-deployed system, which is worse than
+# no check at all because it is believed.
+#
+# Both are polled now, and either one lagging fails the job. They are polled CONCURRENTLY rather
+# than one after the other: sequentially, a slow first host eats the second one's budget and the
+# failure message blames whichever host happened to be checked second.
+#
+# Requires two repository variables (not secrets — they are public URLs):
+#   API_URL   e.g. https://fleetguardapi-production.up.railway.app
+#   WEB_URL   e.g. https://fleetguardweb-production.up.railway.app
 
 on:
   push:
@@ -17,37 +29,52 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      # Report on every host rather than stopping at the first one that lags. "The API is behind" and
+      # "the web host is behind" are different problems with different fixes, and learning them one
+      # deploy at a time is the same two-round-trips mistake the promotion gate was fixed for.
+      fail-fast: false
+      matrix:
+        include:
+          - host: api
+            url_var: API_URL
+          - host: web
+            url_var: WEB_URL
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the API URL is configured
+      - name: Check the URL is configured
+        env:
+          TARGET_URL: ${{ vars[matrix.url_var] }}
         run: |
-          if [ -z "${{ vars.API_URL }}" ]; then
-            echo "::error::Repository variable API_URL is not set — cannot verify the deployment."
+          if [ -z "$TARGET_URL" ]; then
+            echo "::error::Repository variable ${{ matrix.url_var }} is not set — cannot verify the ${{ matrix.host }} host."
+            echo "Both hosts must be verifiable. A missing variable is an unverified deployment, not a skip."
             exit 1
           fi
 
       # Railway builds and migrations both take a few minutes; poll rather than guess a sleep.
-      - name: Wait for Railway to serve this commit
+      - name: Wait for the ${{ matrix.host }} host to serve this commit
         env:
-          API_URL: ${{ vars.API_URL }}
+          TARGET_URL: ${{ vars[matrix.url_var] }}
           EXPECTED: ${{ github.sha }}
+          HOST: ${{ matrix.host }}
         run: |
           deadline=$(( $(date +%s) + 900 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            body=$(curl -sS --max-time 15 "${API_URL%/}/api/version" || echo '{}')
+            body=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" || echo '{}')
             live=$(echo "$body" | jq -r '.commit // empty')
             schema=$(echo "$body" | jq -r '.schema.state // "unknown"')
-            echo "live=${live:-none} schema=${schema}"
+            echo "[$HOST] live=${live:-none} schema=${schema}"
             if [ "$live" = "$EXPECTED" ]; then
               if [ "$schema" = "current" ]; then
-                echo "✓ ${API_URL} is serving ${EXPECTED::7} with a matching schema."
+                echo "✓ ${TARGET_URL} is serving ${EXPECTED::7} with a matching schema."
                 exit 0
               fi
               echo "  commit matches; waiting for migrations (schema=${schema})"
             fi
             sleep 20
           done
-          echo "::error::Timed out. The deployed commit or schema never caught up with ${EXPECTED::7}."
-          echo "Check the Railway deploy log and the 'Apply Supabase migrations' workflow run for this commit."
+          echo "::error::Timed out. The ${HOST} host never caught up with ${EXPECTED::7}."
+          echo "Check the Railway deploy log for ${HOST} and the 'Apply Supabase migrations' workflow run for this commit."
           exit 1

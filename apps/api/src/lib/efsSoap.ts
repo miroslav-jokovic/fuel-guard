@@ -125,7 +125,7 @@ const SOAP_ACTIONS = {
 } as const;
 
 function maxRequestDays(env: Env): number {
-  return env.EFS_SOAP_MAX_DAYS_PER_REQUEST ?? 30;
+  return env.EFS_SOAP_MAX_DAYS_PER_REQUEST;
 }
 
 function dateWindow(env: Env, cursor: string | null): { start: Date; end: Date } {
@@ -233,10 +233,10 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
   // Fall back to single-page / unbounded rather than NaN if a caller hands us a partial Env (tests,
   // or an older deploy that predates these keys). Degrading to the previous behaviour is safe;
   // arithmetic on undefined silently disables the loop, which is not.
-  const catchUpPages = env.EFS_SOAP_BACKFILL_MAX_PAGES ?? 1;
+  const catchUpPages = env.EFS_SOAP_BACKFILL_MAX_PAGES;
   const maxPages = Math.max(1, opts.maxPages ?? (windowsOutstanding > 1 ? catchUpPages : 1));
   const deadline = env.EFS_SOAP_BACKFILL_MAX_MS ? Date.now() + env.EFS_SOAP_BACKFILL_MAX_MS : Infinity;
-  const rowBudget = env.EFS_SOAP_MAX_ROWS_PER_POLL ?? Infinity;
+  const rowBudget = env.EFS_SOAP_MAX_ROWS_PER_POLL;
 
   // The feeds keep login-per-poll rather than moving to withEfsSession(). Deliberate: a poller runs
   // every 5–15 minutes, so a session buys it nothing, and changing when it logs out would be a real

@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { makeSamsaraFetcher } from "./samsara.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
-const env = { SAMSARA_API_URL: "https://api.samsara.test" } as Env;
+// SAMSARA_MAX_RETRIES pinned to 0 (Step 5.9). The old `as Env` cast left it undefined, which
+// disabled retries by accident; a real env restores them, and then a 429 goes down the backoff path
+// and reads `res.headers.get("retry-after")` — which these bare `{ ok, status }` stubs do not have.
+// The retry path has its own coverage in samsaraHttp.test.ts. These cases are about what a caller
+// sees, so they turn retries off deliberately instead of relying on a fixture gap to do it.
+const env = testEnv({ SAMSARA_API_URL: "https://api.samsara.test", SAMSARA_MAX_RETRIES: 0 });
 
 const page = (
   gps: { time: string }[],

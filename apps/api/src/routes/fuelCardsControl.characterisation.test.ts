@@ -10,6 +10,7 @@ import { seal, secretAad } from "../lib/secretBox.js";
 import { credentialIdentityHash } from "../services/efsSoapCredentialIdentity.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
+import { closeTestServer } from "../testing/httpServer.js";
 
 /**
  * CHARACTERISATION. These tests do not say the behaviour is right — they say what it currently IS.
@@ -199,7 +200,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.restoreAllMocks();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 afterEach(() => {

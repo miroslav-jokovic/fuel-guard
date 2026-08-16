@@ -1,11 +1,11 @@
 import { detectReportKind } from "@fuelguard/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { __resetSoapPacing } from "./soapClient.js";
 import { fetchPostedTransactions, fetchRejectedTransactions, pingEfsSoap } from "./efsSoap.js";
+import { testEnv } from "../testing/testEnv.js";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
@@ -13,7 +13,12 @@ const env = {
   // 2026-08-09 §3.8) would still try to RESOLVE ws.efsllc.com — a network call this offline suite
   // must not make. The address checks are skipped here; lib/ssrfGuard.test.ts is where they are tested.
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+  // Step 5.9: pinned, not inherited. These cases assert single-page behaviour, and they used to get
+  // it by accident — the fixture was an `as unknown as Env` cast with no paging keys at all, so the
+  // call site's `?? 1` fallback answered. The real schema default is 12. Saying 1 out loud here is
+  // the difference between a test that means "one page" and one that means "whatever undefined did".
+  EFS_SOAP_BACKFILL_MAX_PAGES: 1,
+});
 
 const creds: EfsSoapCredentials = {
   orgId: "org-1",
@@ -124,7 +129,7 @@ describe("EFS SOAP operations", () => {
 // cadence is 6.5 hours of waiting on timers, not on EFS. These tests pin the behaviour that makes a
 // catch-up drain in minutes while leaving steady state at exactly one window per poll.
 
-const pagingEnv = {
+const pagingEnv = testEnv({
   EFS_SOAP_MAX_RPS: 1000,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
@@ -132,7 +137,7 @@ const pagingEnv = {
   EFS_SOAP_BACKFILL_MAX_PAGES: 5,
   EFS_SOAP_BACKFILL_MAX_MS: 60_000,
   EFS_SOAP_MAX_ROWS_PER_POLL: 5_000,
-} as Env;
+});
 
 /** A posted response carrying `n` single-line-item transactions. */
 const postedPage = (n: number, tag: string): string =>
@@ -188,7 +193,7 @@ describe("catch-up paging", () => {
   });
 
   it("stops on the row budget so one poll never builds an unbounded upsert", async () => {
-    const tight = { ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 3 } as Env;
+    const tight = testEnv({ ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 3 });
     const seq = pagedSequence([2, 2, 2, 2, 2]);
     const r = await fetchPostedTransactions(tight, creds, null, { fetchImpl: seq.fetchImpl });
     // Page 1 → 2 rows (under budget, continue). Page 2 → 4 rows (at/over budget, stop).
@@ -198,7 +203,7 @@ describe("catch-up paging", () => {
   });
 
   it("always fetches at least one page, even with the budgets already exhausted", async () => {
-    const zero = { ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 1, EFS_SOAP_BACKFILL_MAX_MS: 1 } as Env;
+    const zero = testEnv({ ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 1, EFS_SOAP_BACKFILL_MAX_MS: 1 });
     const seq = pagedSequence([2]);
     const r = await fetchPostedTransactions(zero, creds, null, { fetchImpl: seq.fetchImpl });
     // Budgets are checked only after the first page — a poll must never be a no-op that still
@@ -213,11 +218,20 @@ describe("catch-up paging", () => {
     expect(r.pagesFetched).toBe(2);
   });
 
-  it("degrades to single-page when the env predates these keys (no NaN loop)", async () => {
-    const legacy = { EFS_SOAP_MAX_RPS: 1000, EFS_SOAP_MAX_RETRIES: 0, EFS_SOAP_BACKFILL_DAYS: 90 } as Env;
-    const seq = pagedSequence([1, 1]);
-    const r = await fetchPostedTransactions(legacy, creds, null, { fetchImpl: seq.fetchImpl });
-    expect(r.pagesFetched).toBe(1);
-    expect(r.rows).toHaveLength(1);
+  // Rewritten in Step 5.9. This case used to be titled "degrades to single-page when the env predates
+  // these keys (no NaN loop)" and built an Env with the paging keys missing, to prove the call site's
+  // `?? 1` fallback stopped a NaN loop. That state is not reachable: the defaults live in the zod
+  // schema (env.ts), compiled into the binary, so `loadEnv` cannot return an Env without them — no
+  // deployment, however old its Railway variables, produces one. The test was guarding an input the
+  // program cannot receive, and the fallback it guarded was the duplicated default Step 5.9 removes.
+  //
+  // The property it was really protecting — the pager cannot spin on a non-number — is now the
+  // schema's job, so it is asserted where it actually lives, against a real parsed env.
+  it("gets its paging bounds from the schema, so the pager can never loop on a non-number", () => {
+    const parsed = testEnv();
+    for (const key of ["EFS_SOAP_BACKFILL_MAX_PAGES", "EFS_SOAP_MAX_ROWS_PER_POLL", "EFS_SOAP_MAX_DAYS_PER_REQUEST"] as const) {
+      expect(Number.isFinite(parsed[key]), `${key} must be a finite number`).toBe(true);
+      expect(parsed[key]).toBeGreaterThan(0);
+    }
   });
 });

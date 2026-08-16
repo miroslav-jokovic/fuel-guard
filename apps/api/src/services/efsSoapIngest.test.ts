@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { runEfsSoapIngest } from "./efsSoapIngest.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * `runEfsSoapIngest` promises, in its own doc comment, that it never throws — every failure lands on
@@ -18,10 +18,10 @@ import { runEfsSoapIngest } from "./efsSoapIngest.js";
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_ENABLED: true,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 /** Well-formed enough to be attempted, and cryptographically impossible to open. */
 const UNOPENABLE_SEAL = "v1.deadbeef.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBB.CCCCCCCCCCCCCCCCCCCCCC";

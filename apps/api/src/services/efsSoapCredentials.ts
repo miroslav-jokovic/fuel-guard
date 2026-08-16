@@ -432,8 +432,16 @@ async function tlsStatus(
 
 export type FeedName = "posted" | "rejected";
 
-/** Advance the cursor + stamp success on the row. Never throws — errors log and no-op so a
- *  successful ingest is never rolled back by a stats-write failure. */
+/**
+ * Advance the cursor + stamp success on the row. Never throws — errors log and no-op so a
+ * successful ingest is never rolled back by a stats-write failure.
+ *
+ * Step 5.7: deliberately does NOT patch `updated_at`. That column answers "when was this credential
+ * last CHANGED", which is the question asked after a security incident, and a poller bumping it
+ * every hour destroyed the answer. Poll timing lives in `*_last_polled_at` / `*_last_success_at`,
+ * which this function already writes. Migration 0196 enforces the same rule in the trigger, because
+ * removing the field here is not enough on its own — 0091's trigger re-stamped it regardless.
+ */
 export async function recordFeedSuccess(
   admin: SupabaseClient,
   orgId: string,
@@ -448,20 +456,21 @@ export async function recordFeedSuccess(
           posted_last_polled_at: now,
           posted_last_success_at: now,
           posted_last_error: null,
-          updated_at: now,
         }
       : {
           rejected_last_cursor: nextCursor,
           rejected_last_polled_at: now,
           rejected_last_success_at: now,
           rejected_last_error: null,
-          updated_at: now,
         };
   const { error } = await admin.from("efs_soap_credentials").update(patch).eq("org_id", orgId);
   if (error) console.error(`[efs-soap] recordFeedSuccess(${feed}) failed for org ${orgId}: ${error.message}`);
 }
 
-/** Stamp the polled-at + error text for the feed. Cursor is NOT advanced on failure. Best-effort. */
+/**
+ * Stamp the polled-at + error text for the feed. Cursor is NOT advanced on failure. Best-effort.
+ * Leaves `updated_at` alone for the same reason as `recordFeedSuccess` — see Step 5.7.
+ */
 export async function recordFeedFailure(
   admin: SupabaseClient,
   orgId: string,
@@ -471,8 +480,8 @@ export async function recordFeedFailure(
   const now = new Date().toISOString();
   const patch =
     feed === "posted"
-      ? { posted_last_polled_at: now, posted_last_error: errorMessage, updated_at: now }
-      : { rejected_last_polled_at: now, rejected_last_error: errorMessage, updated_at: now };
+      ? { posted_last_polled_at: now, posted_last_error: errorMessage }
+      : { rejected_last_polled_at: now, rejected_last_error: errorMessage };
   const { error } = await admin.from("efs_soap_credentials").update(patch).eq("org_id", orgId);
   if (error) console.error(`[efs-soap] recordFeedFailure(${feed}) failed for org ${orgId}: ${error.message}`);
 }

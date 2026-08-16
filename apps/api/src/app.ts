@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -9,7 +9,7 @@ import * as Sentry from "@sentry/node";
 import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
-import { asyncHandler } from "./lib/http.js";
+import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -33,7 +33,7 @@ import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
 import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
-import { skipFuelCardVendorRateLimit } from "./routes/fuelCards/vendorRateLimit.js";
+import { fuelCardVendorRateLimitKey, skipFuelCardVendorRateLimit } from "./routes/fuelCards/vendorRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
 import { aiRouter } from "./routes/ai.js";
@@ -83,6 +83,44 @@ function securityMiddleware(env: Env) {
       },
     },
   });
+}
+
+/**
+ * Everything that guards `/api/fuel-cards`, before the routers on that prefix run.
+ *
+ * ── Step 5.10: the web host stops pretending it can reach EFS ───────────────────────────────────
+ * Two Railway services run this same image. Only `fleetguardapi` is whitelisted by WEX; the web
+ * service serves the SPA plus a full, identical copy of the API whose egress WEX's firewall refuses.
+ * Every fuel-card route therefore EXISTS on the web host and every one fails there — as a vendor
+ * `NotAllowed`, which reads like an entitlement problem with the account rather than a request that
+ * arrived at the wrong building.
+ *
+ * With `EFS_ROUTES_ENABLED=false` the whole prefix answers a routing refusal and the routers below
+ * are never reached (this handler terminates; it never calls `next()`). Their mount line is left
+ * exactly as it is on purpose — `apps/api/src/routeAuth.test.ts` discovers mounts by scanning this
+ * file's source, and making that line conditional would hide ten routers from the fitness function
+ * that exists to prove they are authenticated, case by case, in
+ * "rejects unauthenticated %s with 401".
+ *
+ * 503 and not 404: the route is real and the caller is not wrong about it existing, the deployment
+ * is wrong about where they sent it. The message names the host that can serve it.
+ *
+ * ── Step 5.6: `requireAuth` before the limiter ──────────────────────────────────────────────────
+ * The vendor budget is keyed on the org whose EFS account it protects, so the key needs `req.auth`.
+ * See `fuelCardVendorRateLimitKey`.
+ */
+function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandler): void {
+  if (!env.EFS_ROUTES_ENABLED) {
+    app.use("/api/fuel-cards", (_req: Request, res: Response) => {
+      res.status(503).json(apiError(
+        "efs_routes_not_served_here",
+        "Fuel-card operations are served only by the API host, which is the address WEX has whitelisted. "
+          + "This host cannot reach EFS.",
+      ));
+    });
+    return;
+  }
+  app.use("/api/fuel-cards", requireAuth, vendorLimiter);
 }
 
 /**
@@ -152,6 +190,8 @@ export function createApp(env: Env): Express {
     standardHeaders: "draft-7",
     legacyHeaders: false,
     skip: skipFuelCardVendorRateLimit,
+    // Step 5.6: the bucket is the ORG whose EFS account the budget protects, never the caller's IP.
+    keyGenerator: fuelCardVendorRateLimitKey,
   });
   // M7: the public calculator is unauthenticated → its own tighter limiter on the abuse surface.
   const calcLimiter = rateLimit({
@@ -164,7 +204,7 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
-  app.use("/api/fuel-cards", fuelCardVendorLimiter);
+  mountFuelCardPrefix(app, env, fuelCardVendorLimiter);
   app.use("/api/ai", strictLimiter);
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 

@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 import { isSecretBoxConfigured, open, safeEqual, seal, sealingKeyId, SecretBoxError, secretAad } from "./secretBox.js";
 
 const KEY_A = randomBytes(32).toString("base64");
 const KEY_B = randomBytes(32).toString("base64");
-const envWith = (key?: string): Env => ({ SECRETS_ENCRYPTION_KEY: key }) as Env;
+const envWith = (key?: string): Env => testEnv({ SECRETS_ENCRYPTION_KEY: key });
 
 const ORG = "86d6b3ea-4361-4f71-877f-e8373615769b";
 const OTHER_ORG = "11111111-2222-3333-4444-555555555555";

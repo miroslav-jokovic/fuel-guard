@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
 
 const idleEvents = vi.hoisted(() => ({ syncIdleEvents: vi.fn() }));
 const idleCapabilities = vi.hoisted(() => ({ syncIdleCapabilities: vi.fn() }));
@@ -16,6 +15,7 @@ vi.mock("./idleEquipmentEvidenceSync.js", () => idleEquipmentEvidence);
 vi.mock("./idleLearnedEnvelopeSync.js", () => idleLearnedEnvelopes);
 
 import { syncIdleFoundation } from "./idleFoundationSync.js";
+import { testEnv } from "../testing/testEnv.js";
 
 describe("syncIdleFoundation", () => {
   it("runs events before capability learning and forwards the same window", async () => {
@@ -63,15 +63,16 @@ describe("syncIdleFoundation", () => {
       rowsWritten: 3,
     });
 
-    const result = await syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {
+    const env = testEnv();
+    const result = await syncIdleFoundation({} as SupabaseClient, env, "org-1", {
       sinceDays: 14,
     });
 
-    expect(idleEvents.syncIdleEvents).toHaveBeenCalledWith({}, {}, "org-1", { sinceDays: 14 });
-    expect(idleCapabilities.syncIdleCapabilities).toHaveBeenCalledWith({}, {}, "org-1", {
+    expect(idleEvents.syncIdleEvents).toHaveBeenCalledWith({}, env, "org-1", { sinceDays: 14 });
+    expect(idleCapabilities.syncIdleCapabilities).toHaveBeenCalledWith({}, env, "org-1", {
       sinceDays: 14,
     });
-    expect(idleTelemetry.syncIdleTelemetry).toHaveBeenCalledWith({}, {}, "org-1", {
+    expect(idleTelemetry.syncIdleTelemetry).toHaveBeenCalledWith({}, env, "org-1", {
       sinceDays: 14,
     });
     expect(idleDutyEvidence.syncIdleDutyEvidence).toHaveBeenCalledWith({}, "org-1", {
@@ -145,10 +146,10 @@ describe("syncIdleFoundation", () => {
     );
     idleLearnedEnvelopes.syncIdleLearnedEnvelopes.mockRejectedValue(cause);
 
-    await expect(syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {})).rejects.toThrow(
+    await expect(syncIdleFoundation({} as SupabaseClient, testEnv(), "org-1", {})).rejects.toThrow(
       /idle foundation stage "idleLearnedEnvelopes" failed after \d+s/,
     );
-    await expect(syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {})).rejects.toThrow(
+    await expect(syncIdleFoundation({} as SupabaseClient, testEnv(), "org-1", {})).rejects.toThrow(
       /unit_number/,
     );
   });
@@ -203,7 +204,7 @@ describe("syncIdleFoundation — chunked backfill (sinceDays beyond one window)"
       rowsWritten: 3,
     });
 
-    const result = await syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {
+    const result = await syncIdleFoundation({} as SupabaseClient, testEnv(), "org-1", {
       sinceDays: 120,
     });
 
@@ -273,7 +274,7 @@ describe("syncIdleFoundation — chunked backfill (sinceDays beyond one window)"
       rowsWritten: 1,
     });
 
-    await syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", { sinceDays: 75 });
+    await syncIdleFoundation({} as SupabaseClient, testEnv(), "org-1", { sinceDays: 75 });
 
     const sliceDays = idleEvents.syncIdleEvents.mock.calls.map(
       (c: unknown[]) => (c[3] as { sinceDays: number }).sinceDays,
