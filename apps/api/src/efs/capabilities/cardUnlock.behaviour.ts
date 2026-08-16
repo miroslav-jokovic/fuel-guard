@@ -1,10 +1,23 @@
-import { type CardUnlockBody, cardUnlockContract, efsStatusEquals } from "@fuelguard/shared";
+import {
+  CARD_UNLOCK_STEP_UP,
+  type CardUnlockBody,
+  cardUnlockContract,
+  cardUnlockNeedsStepUp,
+  efsStatusEquals,
+} from "@fuelguard/shared";
 import { unlockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
 
-/** The one sentence this gate may say. Shared so the refusal and its test cannot drift apart. */
-export const FRAUD_STEP_UP = "This card is flagged for fraud. Confirm your password to unlock it.";
+/**
+ * The one sentence this gate may say. Shared so the refusal and its test cannot drift apart.
+ *
+ * An ALIAS as of Step 6.1: sentence and predicate moved together to `efs/stepUp.ts`, where the
+ * drawer reads both to warn before an operator presses Confirm. Kept under this name because the
+ * behaviour test asserts against it, and re-exported rather than re-declared so there is still
+ * exactly one string.
+ */
+export const FRAUD_STEP_UP = CARD_UNLOCK_STEP_UP;
 
 /**
  * Releasing a card, and the one status change that is not the safe direction.
@@ -58,10 +71,13 @@ export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
    * Runs after the fresh read and before the ledger row opens, so a refusal leaves nothing behind.
    *
    * `efsStatusEquals`, never `===`: this account reports `FRAUD` upper-cased, and an exact
-   * comparison waved the unlock straight past the gate it exists to demand.
+   * comparison waved the unlock straight past the gate it exists to demand. That comparison is now
+   * `cardUnlockNeedsStepUp` (Step 6.1) — the SAME predicate the drawer warns from, differing only in
+   * what it is handed. This one gets the document EFS just returned; the drawer only has the mirror,
+   * which is why its warning is a courtesy and this remains the decision.
    */
   planStepUp: (ctx, snap) =>
-    (!ctx.stepUp && efsStatusEquals(snap.doc?.card.status ?? null, "Fraud") ? FRAUD_STEP_UP : null),
+    (!ctx.stepUp && cardUnlockNeedsStepUp(snap.doc?.card.status ?? null) ? CARD_UNLOCK_STEP_UP : null),
 
   auditMeta: (snap) => ({
     statusBefore: snap.doc?.card.status ?? null,

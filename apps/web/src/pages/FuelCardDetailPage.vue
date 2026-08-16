@@ -9,7 +9,7 @@
  * look like a dead end and generates tickets asking for a feature that is already built. When the
  * person's ROLE will never allow it, they are hidden instead. See availability() in cardControlModel.
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { } from "@fuelguard/ui/icons";
 import { AppButton as BaseButton } from "@fuelguard/ui";
@@ -18,10 +18,19 @@ import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
-import CardControlDrawer from "@/features/fuelCards/CardControlDrawer.vue";
+import CardOperationDrawer from "@/features/fuelCards/CardOperationDrawer.vue";
 import CardEffectiveConfig from "@/features/fuelCards/CardEffectiveConfig.vue";
 import CardMutationHistory from "@/features/fuelCards/CardMutationHistory.vue";
 import { availability, cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
+import {
+  CARD_OPERATIONS,
+  type CardOperationSpec,
+  blockedSentence,
+  operationBlockedBy,
+  operationById,
+  operationFromQuery,
+  toOperationCard,
+} from "@/features/fuelCards/cardOperations";
 import { useEfsCard } from "@/features/fuelCards/useEfsCards";
 
 const route = useRoute();
@@ -37,7 +46,59 @@ const notice = computed(() =>
 );
 const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null, new Date(), query.data.value?.staleAfterMinutes));
 
-const drawerOpen = ref(false);
+const openOperation = ref<CardOperationSpec | null>(null);
+
+/** The Edit… link on the prompts table appears only when this person can actually reach that write. */
+const promptsEditable = computed(() => {
+  const caps = capabilities.value;
+  const spec = operationById("prompts");
+  if (!caps || !spec) return false;
+  return operationBlockedBy(spec, caps, caps.scopes ?? []) === null;
+});
+
+/**
+ * The Actions card — one button per operation, grouped by the question an operator is asking.
+ *
+ * ── Why unavailable operations are SHOWN, greyed, with a reason ─────────────────────────────────
+ * Hiding them makes the page look like a dead end and generates tickets for a feature that is
+ * already built (the same argument `availability()` makes for the whole panel). The exception is an
+ * operation the card's own state makes meaningless — Unlock on a working card — which is filtered
+ * out entirely: that is not a permission problem and greying it would invite somebody to hunt for a
+ * permission that would not have helped.
+ *
+ * The Step 6.3 verify in words: a yard manager without the override scope sees Grant exception
+ * greyed with "You are not on this company's approver list for this action. Ask an admin to add
+ * you." — not a missing button.
+ */
+const actionGroups = computed(() => {
+  const c = card.value;
+  const caps = capabilities.value;
+  if (!c || !caps) return [];
+  const context = toOperationCard(c);
+  const scopes = caps.scopes ?? [];
+  const rows = CARD_OPERATIONS
+    .filter((op) => op.applies(context))
+    .map((op) => {
+      const blocked = operationBlockedBy(op, caps, scopes);
+      return { op, blocked, reason: blocked ? blockedSentence(blocked) : null };
+    });
+  return (["Card status", "Fuel access", "At the pump"] as const)
+    .map((group) => ({ group, rows: rows.filter((r) => r.op.group === group) }))
+    .filter((g) => g.rows.length > 0);
+});
+
+/**
+ * `?action=lock` opens straight onto that operation — what the list page's kebab links to, so
+ * "lock this card" is two interactions from the inventory rather than four.
+ *
+ * Waits for the card to load: the drawer needs the version the screen was drawn from, and opening
+ * it against `undefined` would show an operation whose diff has nothing to compare against.
+ */
+watch([() => route.query.action, card], ([action, loaded]) => {
+  if (!loaded || openOperation.value) return;
+  const spec = operationFromQuery(action);
+  if (spec && spec.applies(toOperationCard(loaded))) openOperation.value = spec;
+}, { immediate: true });
 
 /** The card-level prompts, which are what the drawer edits. Policy-level records are not editable. */
 const cardPrompts = computed(() =>
@@ -80,10 +141,8 @@ const facts = computed(() => {
 <template>
   <div class="space-y-6">
     <PageHeader :description="card ? `${card.maskedRef} — settings EFS reports right now.` : 'Loading the card…'">
-      <template #actions>
-        <!-- Trailing ellipsis because it opens a drawer rather than doing something immediately. -->
-        <BaseButton v-if="canAct" variant="primary" @click="drawerOpen = true">Card actions…</BaseButton>
-      </template>
+      <!-- No single "Card actions…" button: Phase 6's whole point is one button per operation, and
+           the Actions card below is where they live. A header button would be a seventh way in. -->
     </PageHeader>
 
     <ErrorState
@@ -122,7 +181,7 @@ const facts = computed(() => {
         </p>
       </BaseCard>
 
-      <!-- The honest answer to "why can't I lock it?", shown instead of the actions button. -->
+      <!-- The honest answer to "why can't I lock it?", shown instead of the actions. -->
       <BaseCard v-if="notice && notice.mode === 'disabled'">
         <div class="space-y-2">
           <h2 class="text-sm font-medium text-ink">Card actions</h2>
@@ -138,10 +197,34 @@ const facts = computed(() => {
         </div>
       </BaseCard>
 
+      <!-- One button per operation, grouped by the question being asked (Step 6.3). -->
+      <BaseCard v-else-if="canAct && actionGroups.length > 0">
+        <div class="space-y-5">
+          <h2 class="text-sm font-medium text-ink">Card actions</h2>
+          <div v-for="group in actionGroups" :key="group.group" class="space-y-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{{ group.group }}</h3>
+            <div v-for="row in group.rows" :key="row.op.id" class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                :disabled="row.blocked !== null"
+                @click="openOperation = row.op"
+              >
+                {{ row.op.menuLabel }}
+              </BaseButton>
+              <!-- Invariant 6 on the page as well as in the drawer: never a bare greyed button. -->
+              <span v-if="row.reason" class="text-sm text-ink-muted">{{ row.reason }}</span>
+            </div>
+          </div>
+        </div>
+      </BaseCard>
+
       <CardEffectiveConfig
         v-if="query.data.value"
         :effective="query.data.value.effective"
         :policy-number="card.policyNumber"
+        :card-id="id"
+        :can-edit-prompts="promptsEditable"
       />
 
       <BaseCard>
@@ -151,22 +234,21 @@ const facts = computed(() => {
         </div>
       </BaseCard>
 
-      <CardControlDrawer
+      <CardOperationDrawer
         v-if="capabilities"
-        :open="drawerOpen"
+        :open="openOperation !== null"
+        :operation="openOperation"
         :card-id="id"
         :masked-ref="card.maskedRef"
         :version="card.version"
         :status="card.status"
-        :last-used-date="card.lastUsedDate"
-        :driver-name="card.driverName"
-        :unit-prompt="card.unitPrompt"
         :override-uses="card.overrideUses"
         :override-all-locations="card.overrideAllLocations"
         :location-override-id="card.locationOverrideId"
         :prompts="cardPrompts"
         :capabilities="capabilities"
-        @close="drawerOpen = false"
+        :scopes="capabilities.scopes ?? []"
+        @close="openOperation = null"
         @changed="query.refetch()"
       />
     </template>

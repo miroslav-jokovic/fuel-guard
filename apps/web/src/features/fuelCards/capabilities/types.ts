@@ -11,9 +11,8 @@ import type { CapabilityContract, WsCard } from "@fuelguard/shared";
  *
  * Web-side only. Nothing here may import from the API, and the contract it binds to is browser-safe.
  *
- * Nothing consumes these yet. Step 3.6 moves the per-intent confirmation builders out of
- * `cardControlModel.ts` and into views; until then that file remains the source of the five
- * confirmations the drawer renders.
+ * `CardOperationDrawer.vue` renders from these (Step 6.1). `cardControlModel.ts` no longer holds any
+ * confirmation copy.
  */
 
 /**
@@ -66,6 +65,22 @@ export interface CapabilityView<TBody> {
   confirmation: (body: TBody, card: CapabilityCardContext) => CapabilityConfirmation;
   /** Rendered above the confirm button. Empty is legitimate — a lock changes one field. */
   diff: (before: CapabilityCardContext["card"], body: TBody) => CapabilityDiffRow[];
+  /**
+   * The sentence warning that this request will ask for a password, or null (Step 6.1, invariant 5).
+   *
+   * Every implementation MUST delegate to `@fuelguard/shared`'s `efs/stepUp.ts`, never restate the
+   * rule: the API's gates read the same predicates, and a second copy of a security threshold fails
+   * silently — the drawer promises no password, the server asks for one. The registry's fitness test
+   * asserts that every capability whose API behaviour declares a gate has a view that predicts it.
+   *
+   * Absent means "this capability has no step-up gate", which is a claim: `card_lock` is the 2am
+   * safety action and deliberately has none.
+   *
+   * A prediction, not a guarantee. Two of the three gates decide against the document EFS returns at
+   * write time and this only has the mirror, so the drawer must still handle a `step_up_required`
+   * refusal it did not foresee. `efs/stepUp.ts` has the table of which is which.
+   */
+  stepUp?: (body: TBody, card: CapabilityCardContext) => string | null;
 }
 
 /**

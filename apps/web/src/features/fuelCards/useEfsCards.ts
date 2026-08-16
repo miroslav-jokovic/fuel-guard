@@ -45,6 +45,16 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
   return res.data as T;
 }
 
+/**
+ * `capabilities` as the API actually sends it.
+ *
+ * `CardControlAccess` extends the shared contract with the approver `scopes` this user holds, and
+ * the drawer reads them as a second line behind `capabilityStates` — which already folds them in
+ * server-side. Optional because an older API sends neither, and in that case the drawer refuses
+ * rather than opening every operation at once.
+ */
+export type CardCapabilitiesWithScopes = CardCapabilities & { scopes?: string[] };
+
 export interface EfsCardRow {
   id: string;
   last4: string;
@@ -70,7 +80,7 @@ export interface EfsCardRow {
 export interface EfsCardListResponse {
   cards: EfsCardRow[];
   total: number;
-  capabilities: CardCapabilities;
+  capabilities: CardCapabilitiesWithScopes;
   /** The sweep cadence plus a grace margin — see freshness(). Absent on an older API. */
   staleAfterMinutes?: number;
 }
@@ -100,7 +110,7 @@ export interface EfsCardDetailResponse {
     /** The policy read is best-effort: a slow vendor must not blank a page of card-level truth. */
     policyError: string | null;
   };
-  capabilities: CardCapabilities;
+  capabilities: CardCapabilitiesWithScopes;
 }
 
 /**

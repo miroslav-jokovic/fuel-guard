@@ -9,20 +9,19 @@ import {
   compareCardValues,
   freshness,
   limitRows,
-  lockConfirmation,
   outcomeNotice,
-  overrideConfirmation,
   overrideScopeLabel,
   promptRows,
-  promptsConfirmation,
-  unlockConfirmation,
   sourceSentence,
   timeRows,
 } from "./cardControlModel.js";
 
+// `availability()` answers from the ACCOUNT-level facts only, so the per-capability map is empty
+// here on purpose rather than mirrored from `blockedBy` — a fixture that agreed with itself by
+// construction would hide a reader that had started using the wrong one of the two.
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: false, canUnlock: false, canOverride: false, canSetPrompts: false,
-  writeEntitlement: "unknown", blockedBy: null, ...over,
+  writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null, ...over,
 });
 
 describe("card status", () => {
@@ -201,44 +200,6 @@ describe("write availability", () => {
     expect(availability(caps({ blockedBy: "kill_switch" }), true)).toMatchObject({
       mode: "disabled", message: "Card actions are paused.",
     });
-  });
-});
-
-describe("confirmation copy — the last thing between a person and a pump", () => {
-  it("names the numbers in an override confirmation", () => {
-    // A generic "grant an override?" is how somebody grants nine when they meant one.
-    const one = overrideConfirmation(1, "Loves #442, Effingham IL");
-    expect(one.body).toContain("1 purchase");
-    expect(one.body).toContain("Loves #442, Effingham IL");
-
-    const three = overrideConfirmation(3, null);
-    expect(three.body).toContain("3 purchases");
-    expect(three.body).toContain("at any location");
-  });
-
-  it("says what happens to the DRIVER, not what happens to the record", () => {
-    const lock = lockConfirmation("Hold");
-    expect(lock.body).toMatch(/stops working/i);
-    expect(lock.body).not.toMatch(/status/i);
-  });
-
-  it("treats deactivating as a different, heavier act than holding", () => {
-    expect(lockConfirmation("Inactive").title).toMatch(/deactivate/i);
-    expect(lockConfirmation("Hold").title).toMatch(/lock/i);
-  });
-
-  it("escalates an unlock when EFS has flagged the card for fraud", () => {
-    expect(unlockConfirmation(false).tone).toBe("warning");
-    const fraud = unlockConfirmation(true);
-    expect(fraud.tone).toBe("danger");
-    expect(fraud.body).toMatch(/password/i);
-  });
-
-  it("spells out what removing the Driver ID prompt costs", () => {
-    const removing = promptsConfirmation(true);
-    expect(removing.tone).toBe("danger");
-    expect(removing.body).toMatch(/anyone holding it can fuel/i);
-    expect(promptsConfirmation(false).tone).toBe("warning");
   });
 });
 

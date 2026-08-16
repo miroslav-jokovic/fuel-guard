@@ -1,0 +1,92 @@
+import { CARD_OVERRIDE_STEP_UP_ABOVE_USES } from "../cardWriteLimits.js";
+import { efsStatusEquals } from "../efsCardCatalog.js";
+
+/**
+ * WHICH card changes demand a fresh sign-in — one definition, read by the gate that enforces it and
+ * the drawer that warns about it.
+ *
+ * ── Why this had to move out of the API (plan Step 6.1, invariant 5) ────────────────────────────
+ * The invariant asks the drawer to PREDICT step-up rather than discover it from a `step_up_required`
+ * refusal. The obvious two ways to do that are both wrong:
+ *
+ *   • Re-writing the rule in the web view is a second implementation of a security rule — standing
+ *     rule 5. The two copies disagree the first time a threshold moves, and the failure is silent: a
+ *     drawer that promises no password and then gets asked for one.
+ *   • A preflight endpoint costs a round trip per keystroke and puts a network call between an
+ *     operator and a label that is a pure function of what they just typed.
+ *
+ * So the rules live here, where both halves read the SAME function. `packages/shared` is already
+ * browser-safe and already holds the contracts these bind to; nothing here does I/O, touches a
+ * credential, or knows a card number. The API's `preflightStepUp` / `planStepUp` / `precondition`
+ * hooks keep their different TIMINGS — that split is deliberate and documented in `efs/types.ts` —
+ * and now delegate their PREDICATES here.
+ *
+ * ── The drawer's prediction is not always the server's answer, and that is fine ──────────────────
+ * Only `override_grant` decides from the request body alone. The other two decide from the card EFS
+ * returns at write time:
+ *
+ *   | capability       | server hook       | decides from                    | drawer predicts from |
+ *   |------------------|-------------------|---------------------------------|----------------------|
+ *   | `override_grant` | `preflightStepUp` | the body                        | the body — EXACT     |
+ *   | `card_unlock`    | `planStepUp`      | the fresh document's status     | the mirror's status  |
+ *   | `prompts_set`    | `precondition`    | records the write would remove  | the operator's edits |
+ *
+ * So a card flagged for fraud since the last sweep is one the drawer will not warn about. The
+ * warning is therefore a courtesy, never a guarantee, and **the drawer must keep handling a
+ * `step_up_required` refusal it did not predict** — removing that fallback in the name of this
+ * invariant would turn a stale mirror into a dead end. What the shared rule buys is that the two can
+ * only ever disagree about their INPUT, never about the rule.
+ */
+
+/** Vendor range is 1–9 (guide p194); above three is a decision somebody should have to prove. */
+export const overrideGrantNeedsStepUp = (uses: number): boolean =>
+  uses > CARD_OVERRIDE_STEP_UP_ABOVE_USES;
+
+/** Exported so the gate, its test and the drawer's warning cannot drift apart. */
+export const OVERRIDE_GRANT_STEP_UP =
+  `Confirm your password to grant more than ${CARD_OVERRIDE_STEP_UP_ABOVE_USES} uses.`;
+
+/**
+ * `efsStatusEquals`, never `===`: this account reports `FRAUD` upper-cased, and an exact comparison
+ * waved the unlock straight past the gate it exists to demand (audit P1-7).
+ */
+export const cardUnlockNeedsStepUp = (status: string | null): boolean =>
+  efsStatusEquals(status, "Fraud");
+
+export const CARD_UNLOCK_STEP_UP =
+  "This card is flagged for fraud. Confirm your password to unlock it.";
+
+/**
+ * EVERY explicit prompt removal is destructive, not only `DRID` — dropping any record stops the pump
+ * asking for it. `DRID` additionally needs its named opt-in, which is a different refusal and stays
+ * in `assertPromptRemovalAllowed`: a missing flag is `invalid_request`, a missing password is
+ * `step_up_required`, and collapsing them tells somebody to re-authenticate when what they need is a
+ * checkbox.
+ */
+export const promptRemovalNeedsStepUp = (removedInfoIds: readonly string[]): boolean =>
+  removedInfoIds.length > 0;
+
+export const PROMPT_REMOVAL_STEP_UP = "Confirm your password to remove a prompt.";
+
+/**
+ * WHICH capabilities have a step-up gate at all — the pin two independent derivations check against.
+ *
+ * A hand-written list, and deliberately so, for the same reason the API fitness test's
+ * `EXPECTED_KEYS` is: it is the thing being compared, not a shortcut around comparing. What makes it
+ * safe is that NEITHER side owns it. `apps/api` cannot import `apps/web`, so no single test can pair
+ * a behaviour's gate with a view's warning; instead each side derives its own set from its own
+ * registry and asserts equality with this one.
+ *
+ * Both halves: `apps/api/src/efs/registry.test.ts` derives from the behaviours' governance hooks,
+ * and `apps/web/src/features/fuelCards/capabilities/registry.test.ts` from the view registry. Adding
+ * a gate to a behaviour without teaching the view to warn turns the web's red; teaching the view
+ * without the gate turns the API's red. Either way somebody has to come here and say what they meant.
+ *
+ * `card_lock` is absent and that is an assertion: locking is the 2am safety action, friction there
+ * has a cost measured in stolen fuel, and it must never demand a password.
+ */
+export const CAPABILITIES_WITH_STEP_UP_GATE: readonly string[] = [
+  "card_unlock",
+  "override_grant",
+  "prompts_set",
+];

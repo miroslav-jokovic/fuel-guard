@@ -1,10 +1,16 @@
-import { EFS_CARD_STATUS_LABELS, cardUnlockContract, efsStatusEquals } from "@fuelguard/shared";
+import {
+  CARD_UNLOCK_STEP_UP,
+  EFS_CARD_STATUS_LABELS,
+  cardUnlockContract,
+  cardUnlockNeedsStepUp,
+  efsStatusEquals,
+} from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
 /**
  * Releasing a card, said two ways because it is two different decisions.
  *
- * Prose lifted word for word from `unlockConfirmation` in `cardControlModel.ts`. What changed is
+ * Prose lifted word for word from `unlockConfirmation`, which Step 6.4 deleted. What changed is
  * where `wasFraud` comes from: the model took it as an argument the caller computed, and the view
  * derives it from the card the drawer is already showing. One less thing a call site can get wrong,
  * and the tone, title and body then cannot disagree with each other.
@@ -30,6 +36,13 @@ export const cardUnlockView = defineView(cardUnlockContract, {
   },
 
   diff: (before) => [row("Status", statusLabel(before.status), statusLabel("Active"))],
+
+  /**
+   * Predicted from the MIRROR's status; `planStepUp` decides from the document EFS returns at write
+   * time. A card flagged since the last sweep is therefore one this will not warn about — the
+   * drawer's `step_up_required` fallback is what covers that, and it stays.
+   */
+  stepUp: (_body, card) => (cardUnlockNeedsStepUp(card.card.status) ? CARD_UNLOCK_STEP_UP : null),
 });
 
 const statusLabel = (status: string | null): string => {

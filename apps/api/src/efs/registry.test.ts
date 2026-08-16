@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  CAPABILITIES_WITH_STEP_UP_GATE,
   CARD_CAPABILITY_CONTRACTS,
   CARD_MUTATION_INTENTS,
   CARD_MUTATION_STATUSES,
@@ -226,6 +227,31 @@ describe("the capability registries agree with each other", () => {
     for (const contract of Object.values(CARD_CAPABILITY_CONTRACTS)) {
       expect(["optional", "required"], `${contract.key} reason`).toContain(contract.reason);
     }
+  });
+
+  /**
+   * Step 6.1, invariant 5 — the API half of the pin.
+   *
+   * `lint:boundaries` keeps `apps/api` from importing `apps/web`, so no single test can pair a
+   * behaviour's gate with the drawer's warning. Instead each side derives its own set and compares
+   * it to `CAPABILITIES_WITH_STEP_UP_GATE` in `@fuelguard/shared`; the web's
+   * `capabilities/registry.test.ts` holds the other half. Adding a gate here without teaching the
+   * view to warn turns THAT test red, and the operator never meets a password prompt the drawer
+   * promised would not come.
+   *
+   * `precondition` counts as a gate. It is not only a step-up hook — `prompts_set` uses it to raise
+   * `invalid_request` for the missing DRID opt-in as well — but it is also the only hook that can
+   * raise `step_up_required` from state computed after the fresh read, so a capability declaring one
+   * is a capability that may ask for a password.
+   */
+  it("gates step-up on exactly the capabilities the shared pin names", () => {
+    const gated = Object.entries(behaviours)
+      .filter(([, behaviour]) =>
+        behaviour.preflightStepUp !== undefined
+        || behaviour.planStepUp !== undefined
+        || behaviour.precondition !== undefined)
+      .map(([key]) => key);
+    expect(gated.sort()).toEqual([...CAPABILITIES_WITH_STEP_UP_GATE].sort());
   });
 });
 

@@ -7,7 +7,7 @@ import { defineView, row } from "./types.js";
  * Whether the write goes out as a full-document echo or the vendor's dedicated op is an
  * implementation detail of ours — the operator is removing an exception either way, and a
  * confirmation that changed wording when a flag flipped would be describing our plumbing rather than
- * their decision. Prose lifted word for word from `clearOverrideConfirmation`.
+ * their decision. Prose lifted word for word from `clearOverrideConfirmation`, deleted in Step 6.4.
  */
 const clearView = {
   confirmation: () => ({

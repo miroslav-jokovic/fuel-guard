@@ -16,6 +16,8 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
+import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
@@ -174,7 +176,36 @@ const columns: DataTableColumn[] = [
   { key: "driverIdPrompt", label: "Driver ID", sortable: true, headerClass: "min-w-[8rem]" },
   { key: "policyNumber", label: "Policy", sortable: true, numeric: true, headerClass: "min-w-[5rem]" },
   { key: "overrideUses", label: "Override", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
 ];
+
+/**
+ * The operations worth offering for one row (Step 6.3).
+ *
+ * ── The kebab NAVIGATES; it never opens a drawer here ────────────────────────────────────────────
+ * `EfsCardRow` carries no `card_version` and no prompt records, and both matter. The version is the
+ * optimistic-concurrency token every write must carry — the whole defence against two dispatchers
+ * editing one card — and a drawer opened without it could only send a stale one or fetch a fresh
+ * one, which defeats the check by construction. The prompts matter more sharply still: `prompts_set`
+ * is a full `replaceAll`, so an editor opened with no records is a write that DELETES the driver
+ * assignment (guide p137).
+ *
+ * So the menu links to the card with the operation preselected. That is still the two interactions
+ * Step 6.3 asks for — kebab item, then Confirm — and everything the write needs is on screen before
+ * anybody can press it.
+ */
+const rowOperations = (row: EfsCardRow) => {
+  const caps = query.data.value?.capabilities;
+  if (!caps) return [];
+  const context = toOperationCard(row);
+  const scopes = caps.scopes ?? [];
+  return CARD_OPERATIONS
+    .filter((op) => op.applies(context))
+    // Unavailable operations are omitted HERE, unlike on the detail page: a dropdown has no room
+    // for the sentence explaining each one, and a greyed item with no reason is the thing invariant
+    // 6 exists to prevent. The detail page shows them all, with reasons.
+    .filter((op) => operationBlockedBy(op, caps, scopes) === null);
+};
 
 /** Every active facet gets a chip, so nothing narrows the list invisibly. */
 const chips = computed(() => [
@@ -321,6 +352,21 @@ function clearAll(): void {
           {{ (row as EfsCardRow).overrideUses }} left
         </span>
         <span v-else class="text-ink-tertiary">—</span>
+      </template>
+      <template #cell-actions="{ row }">
+        <KebabMenu
+          v-if="rowOperations(row as EfsCardRow).length > 0"
+          :trigger-label="`Actions for ${(row as EfsCardRow).maskedRef}`"
+        >
+          <RouterLink
+            v-for="op in rowOperations(row as EfsCardRow)"
+            :key="op.id"
+            class="kebab-item"
+            :to="operationLink((row as EfsCardRow).id, op)"
+          >
+            {{ op.menuLabel }}
+          </RouterLink>
+        </KebabMenu>
       </template>
       <template #footer>
         <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="rows.length" />

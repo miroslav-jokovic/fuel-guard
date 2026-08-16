@@ -1,10 +1,15 @@
-import { type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import {
+  PROMPT_REMOVAL_STEP_UP,
+  type PromptsSetBody,
+  promptRemovalNeedsStepUp,
+  promptsSetContract,
+} from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
 /**
  * Changing what the pump asks for, said two ways because one of them is not reversible in effect.
  *
- * Prose lifted word for word from `promptsConfirmation` in `cardControlModel.ts`. What changed is
+ * Prose lifted word for word from `promptsConfirmation`, which Step 6.4 deleted. What changed is
  * where `removesDriverId` comes from: the model took it as an argument, and the view derives it from
  * the request. A caller that computed it wrongly would have shown the mild copy for the destructive
  * case, which is the one screen where that matters most.
@@ -48,7 +53,21 @@ export const promptsSetView = defineView(promptsSetContract, {
         prompt.remove ? "Removed — the pump stops asking" : promptLabel(prompt.matchValue, prompt.reportValue),
       );
     }),
+
+  /**
+   * ANY removal, not just `DRID` — `assertPromptRemovalAllowed` demands a password for all of them,
+   * and warning only about the driver-ID case would surprise somebody dropping a unit prompt.
+   *
+   * The server diffs the request against the fresh document; this reads the operator's own `remove`
+   * flags, which is the same set unless the prompt was already gone in EFS. In that direction the
+   * warning is over-cautious rather than wrong, which is the safe way round.
+   */
+  stepUp: (body: PromptsSetBody) =>
+    (promptRemovalNeedsStepUp(removedInfoIds(body)) ? PROMPT_REMOVAL_STEP_UP : null),
 });
+
+const removedInfoIds = (body: PromptsSetBody): string[] =>
+  body.prompts.filter((prompt) => prompt.remove).map((prompt) => prompt.infoId);
 
 /** A prompt carries its value in one of TWO fields, and reading only one left a header stale twice. */
 const promptLabel = (matchValue: string | null, reportValue: string | null): string => {

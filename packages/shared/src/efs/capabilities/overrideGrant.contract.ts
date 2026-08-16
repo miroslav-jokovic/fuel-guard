@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import { CARD_OVERRIDE_STEP_UP_ABOVE_USES } from "../../cardWriteLimits.js";
 import { EFS_OVERRIDE_MAX_USES, EFS_OVERRIDE_MIN_USES } from "../../efsCardCatalog.js";
+import { OVERRIDE_GRANT_STEP_UP } from "../stepUp.js";
 import { grantOverrideSchema } from "../../cardControlContract.js";
 import { defineContract } from "../types.js";
 
@@ -52,5 +52,12 @@ export const overrideGrantContract = defineContract({
 
 export type OverrideGrantBody = z.infer<typeof grantOverrideSchema>;
 
-/** Vendor-capped at 9; we demand a fresh sign-in above three. Exported so the gate and its test agree. */
-export const overrideStepUpMessage = `Confirm your password to grant more than ${CARD_OVERRIDE_STEP_UP_ABOVE_USES} uses.`;
+/**
+ * Vendor-capped at 9; we demand a fresh sign-in above three. Exported so the gate and its test agree.
+ *
+ * An ALIAS as of Step 6.1: the sentence and the threshold test now live together in `efs/stepUp.ts`,
+ * where the drawer reads the same pair to warn before the operator presses Confirm. Kept under this
+ * name so every existing import keeps working, and re-exported rather than re-declared so there is
+ * still exactly one string.
+ */
+export const overrideStepUpMessage = OVERRIDE_GRANT_STEP_UP;

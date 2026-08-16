@@ -1,8 +1,8 @@
 import {
-  CARD_OVERRIDE_STEP_UP_ABOVE_USES,
+  OVERRIDE_GRANT_STEP_UP,
   type OverrideGrantBody,
   overrideGrantContract,
-  overrideStepUpMessage,
+  overrideGrantNeedsStepUp,
 } from "@fuelguard/shared";
 import { overrideGrantEdits } from "../../services/efsCardEdits.js";
 import { unlandedEditNames } from "../../services/efsCardReconcile.js";
@@ -116,9 +116,15 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
     }),
   },
 
-  /** One free tank is an exception; four is a decision somebody should have to prove they made. */
+  /**
+   * One free tank is an exception; four is a decision somebody should have to prove they made.
+   *
+   * The threshold test moved to `efs/stepUp.ts` in Step 6.1 so the drawer can WARN with the same
+   * predicate this gate REFUSES with. The timing is unchanged and still the point: this runs before
+   * `prepare()`, so a refusal never spends a slot against the daily override budget.
+   */
   preflightStepUp: (body: OverrideGrantBody) =>
-    (body.uses > CARD_OVERRIDE_STEP_UP_ABOVE_USES ? overrideStepUpMessage : null),
+    (overrideGrantNeedsStepUp(body.uses) ? OVERRIDE_GRANT_STEP_UP : null),
 
   auditMeta: (snap, body: OverrideGrantBody) => ({
     overrideUsesBefore: snap.doc?.card.overrideUses ?? null,

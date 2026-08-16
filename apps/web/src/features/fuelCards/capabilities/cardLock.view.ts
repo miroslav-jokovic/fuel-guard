@@ -5,15 +5,13 @@ import { defineView, row } from "./types.js";
 /**
  * What an operator reads before a card stops working.
  *
- * The prose is lifted WORD FOR WORD from `lockConfirmation` in `cardControlModel.ts`. Step 3.5 moves
- * where it lives, not what it says: a pilot that reworded the confirmation would make "did the
- * migration change anything?" unanswerable, and this is the last screen between a dispatcher and a
- * driver stranded at a pump.
+ * The prose was lifted WORD FOR WORD from `lockConfirmation` in `cardControlModel.ts`. Step 3.5
+ * moved where it lives, not what it says: a pilot that reworded the confirmation would have made
+ * "did the migration change anything?" unanswerable, and this is the last screen between a
+ * dispatcher and a driver stranded at a pump.
  *
- * `cardControlModel.ts` keeps `lockConfirmation` until Step 3.6 moves the remaining four and the
- * drawer switches to reading views. Two copies of one sentence is a real cost, and it is bounded and
- * deliberate — the alternative is rewiring the drawer in the same commit that migrates the first
- * capability, which is exactly the ambiguity the pilot exists to avoid.
+ * Step 6.4 deleted the copy in `cardControlModel.ts` once `CardOperationDrawer.vue` began reading
+ * views. This is now the only place the sentence exists; `capabilities/views.test.ts` asserts it.
  */
 export const cardLockView = defineView(cardLockContract, {
   confirmation: (body: CardLockBody) =>

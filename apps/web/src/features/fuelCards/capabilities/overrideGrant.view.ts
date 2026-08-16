@@ -1,4 +1,9 @@
-import { type OverrideGrantBody, overrideGrantContract } from "@fuelguard/shared";
+import {
+  OVERRIDE_GRANT_STEP_UP,
+  type OverrideGrantBody,
+  overrideGrantContract,
+  overrideGrantNeedsStepUp,
+} from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
 /**
@@ -6,7 +11,7 @@ import { defineView, row } from "./types.js";
  *
  * "This card will be allowed 2 purchases outside its normal limits at Loves station 442,
  * Effingham IL." A generic "grant an override?" is how somebody grants nine when they meant one.
- * Prose lifted word for word from `overrideConfirmation` in `cardControlModel.ts`.
+ * Prose lifted word for word from `overrideConfirmation`, which Step 6.4 deleted.
  */
 export const overrideGrantView = defineView(overrideGrantContract, {
   confirmation: (body: OverrideGrantBody, card) => {
@@ -33,6 +38,13 @@ export const overrideGrantView = defineView(overrideGrantContract, {
     row("Where", scopeLabel(before.overrideAllLocations === true, before.locationOverrideId ?? null),
       scopeLabel(body.scope.kind === "all", body.scope.kind === "location" ? body.scope.locationId : null)),
   ],
+
+  /**
+   * The one gate that is EXACT here: `preflightStepUp` decides from the body alone, and this has the
+   * same body. Turning the stepper past three re-renders this warning with no round trip.
+   */
+  stepUp: (body: OverrideGrantBody) =>
+    (overrideGrantNeedsStepUp(body.uses) ? OVERRIDE_GRANT_STEP_UP : null),
 });
 
 const usesLabel = (uses: number): string =>

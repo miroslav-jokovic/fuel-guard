@@ -48,6 +48,7 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 const RLS_MATRIX = ["node", ["supabase/tests/rls.test.mjs"]];
 const HAZMAT_MATRIX = ["node", ["supabase/tests/hazmat_rls.test.mjs"]];
 const apiTest = (f) => ["pnpm", ["--filter", "@fuelguard/api", "exec", "vitest", "run", f]];
+const sharedTest = (f) => ["pnpm", ["--filter", "@fuelguard/shared", "exec", "vitest", "run", f]];
 
 const MUTATIONS = [
   // ── tenant isolation in the database ────────────────────────────────────────
@@ -155,11 +156,11 @@ const MUTATIONS = [
   },
   {
     id: "efs-fraud-stepup-exact-match",
-    why: "The fraud gate compares statuses with === instead of efsStatusEquals. This account reports FRAUD upper-cased, so the unlock walks straight past the step-up — the 2026-08-12 casing incident, applied to the field that decides whether a password is demanded.",
-    file: "apps/api/src/efs/capabilities/cardUnlock.behaviour.ts",
-    find: "(!ctx.stepUp && efsStatusEquals(snap.doc?.card.status ?? null, \"Fraud\") ? FRAUD_STEP_UP : null)",
-    replace: "(!ctx.stepUp && (snap.doc?.card.status ?? null) === \"Fraud\" ? FRAUD_STEP_UP : null)",
-    detect: apiTest("src/efs/capabilities/cardUnlock.behaviour.test.ts"),
+    why: "The fraud gate compares statuses with === instead of efsStatusEquals. This account reports FRAUD upper-cased, so the unlock walks straight past the step-up — the 2026-08-12 casing incident, applied to the field that decides whether a password is demanded.\n\nMoved to packages/shared in Step 6.1, where the API gate and the drawer's warning read ONE predicate. Mutating it there is strictly stronger than mutating the old call site: it is now the only place the rule exists, so a survivor means neither half notices.",
+    file: "packages/shared/src/efs/stepUp.ts",
+    find: "export const cardUnlockNeedsStepUp = (status: string | null): boolean =>\n  efsStatusEquals(status, \"Fraud\");",
+    replace: "export const cardUnlockNeedsStepUp = (status: string | null): boolean =>\n  status === \"Fraud\";",
+    detect: sharedTest("src/efs/stepUp.test.ts"),
   },
   {
     id: "efs-prompts-optin-bypassed",
