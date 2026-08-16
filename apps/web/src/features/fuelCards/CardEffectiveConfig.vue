@@ -19,6 +19,8 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   type EffectiveDisplayRow,
   limitRows,
+  locationRows,
+  payrollRows,
   promptRows,
   sourceSentence,
   timeRows,
@@ -57,6 +59,28 @@ const sections = computed(() => [
     sentence: sourceSentence("Time restrictions", props.effective.sources.timeSource, props.policyNumber),
     rows: timeRows(props.effective.timeRestrictions),
     empty: "No time restrictions. The card works at any hour.",
+  },
+  /**
+   * Step 7.4. Both of these have been parsed since Phase 1 and reached no screen, so an operator
+   * could not see that a card was banned from a truck stop, or which group allowed it at one.
+   */
+  {
+    id: "locations",
+    title: "Where this card may fuel",
+    sentence: sourceSentence("Location rules", props.effective.sources.locationSource ?? null, props.policyNumber),
+    rows: locationRows(props.effective.locationGroups ?? [], props.effective.blockedLocations ?? []),
+    empty: "No location groups and no blocked locations. EFS reports no location rules on this card.",
+  },
+  /**
+   * Step 7.3 parsed these; this is where they surface. Five ways to take MONEY off a fuel card,
+   * none of them fuel — and until now nothing in the product could say whether any were open.
+   */
+  {
+    id: "payroll",
+    title: "Cash and payroll",
+    sentence: "What this card can do besides buy fuel, as EFS reports it.",
+    rows: props.effective.payroll ? payrollRows(props.effective.payroll) : [],
+    empty: "EFS reports no payroll or cash capabilities on this card.",
   },
 ]);
 
