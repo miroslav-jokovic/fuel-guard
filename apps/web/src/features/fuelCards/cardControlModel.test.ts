@@ -491,11 +491,11 @@ describe("override staleness (Step 7.8)", () => {
      * ever as fresh as this. Feeding the roster clock in here would report a fresh page over a
      * document from last week.
      */
-    const state = overrideFreshness(
-      { detailSyncedAt: "2026-08-01T02:02:00.000Z", syncedAt: NOW.toISOString() } as { detailSyncedAt: string },
-      NOW,
-      CYCLE,
-    );
+    // Bound to a variable rather than cast: TypeScript's excess-property check only fires on a fresh
+    // object literal, so this passes BOTH clocks in with no `as` anywhere — which is the point, since
+    // a cast here would be hiding the very shape the case is about.
+    const row = { detailSyncedAt: "2026-08-01T02:02:00.000Z", syncedAt: NOW.toISOString() };
+    const state = overrideFreshness(row, NOW, CYCLE);
 
     expect(state.known).toBe(false);
   });
