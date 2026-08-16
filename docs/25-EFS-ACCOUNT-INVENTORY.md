@@ -224,6 +224,78 @@ What IS still open is narrower: Step 7.5's *"after one sweep, every production c
 
 ---
 
+## Production account inventory — 2026-08-16, partial reading
+
+**Only the TAIL of `docs/efs/account-inventory-production.json` has been read into this document so
+far** (products, location groups, site policies, server time). `ok`, `truncated`, `carrierInfo`,
+`promptTypes`, `contracts`, `creditLimits` and `policies` are in the head of that file and are **still
+unread** — so questions 1, 3, 5, 6, 7, 8 and 10 stay ⛔ below. Commit the file and they can be read
+directly rather than transcribed.
+
+### Q8 (partial) — location groups: 18, and **every one is vendor-managed**
+
+```
+grpId 1 "All" · 1276 "Pacific Pride" · 1278 "CANADA" · 1380 "IDLEAIRE" · 2085 "WILCO"
+2135 "All Irving Locations" · 2137 "ESSO" · 2138 "PETRO CANADA" · 2165 "All Loves"
+2188 "US Locations" · 2254 "CAT SCALES" · 2612 "All Pilot & Flying J" · 2613 "TA & Petro"
+2614 "PDCA / B2B" · 3223 "Ambest" · 10342 "ROADSYNC" · 10343 "UCHAIN GROUP" · 10887 "EXXONMOBIL"
+```
+
+**All eighteen are `ruleBased: true` and `editable: false`.** That is a Phase 12 scoping fact, not a
+detail:
+
+- **Rule-based membership is computed by EFS**, so `getLocGrpLocs` cannot enumerate what is in one.
+  Any UI that promises "which stations does this group cover" cannot be built from this account.
+- **None is editable**, so creating or amending a group is a WEX-portal action, not something this
+  product can offer. Phase 12 is a READ surface on this account unless that changes.
+
+They are recognisable brands and networks (Pilot/Flying J, TA & Petro, Loves, Ambest, ExxonMobil,
+Irving, Esso, Petro-Canada), which is consistent with WEX maintaining them centrally rather than per
+carrier.
+
+### A site policy really does come back with no policy behind it
+
+```json
+{ "sitePolicy": 501, "siteDescription": "PFJ",
+  "sitePolicyPolicy": { "contractId": 0, "description": "All Policies", "policyNumber": 0 } },
+{ "sitePolicy": 502, "siteDescription": "All TA PETRO", "sitePolicyPolicy": null }
+```
+
+`502` carries `sitePolicyPolicy: null` — the nillable case Step 7.1's WSDL-derived fixture predicted
+and `efsAccountOps.test.ts` → *"getSitePolicyDescriptions keeps a site policy with no policy behind
+it"* asserts. **The fixture was written from the WSDL with no production data available, and
+production produced exactly that shape.** One small piece of evidence that the WSDL-derived approach
+was not merely convenient.
+
+Note also `policyNumber: 0` with description `All Policies` — a SENTINEL, not a real policy. Step
+7.2's walk guards `n < 1 || n > 99` before calling `getPolicy`, so it will not ask EFS about policy 0
+and earn the "Invalid policy number" false alarm `/diagnose` has already recorded once.
+
+### `serverTime` confirms the guide's Central-Time note, in production
+
+```
+"serverTime": "2026-08-16T13:01:57.000-05:00"   ==  18:01:57Z
+```
+
+An explicit `-05:00` offset — Central Time, exactly as p10-11 describes, and the reason
+`parseEfsDateTime` exists rather than a bare `new Date()`. Read minutes before our own 18:07:30Z
+sweep, so **EFS's clock and ours agree to within minutes**; there is no gross skew to account for.
+
+### ⚠ Seven product groups have no label in this product
+
+`getProducts` returns the account's full catalog. Cross-referencing the `group` values against
+`EFS_LIMIT_LABELS` (60 entries):
+
+```
+ACCE · CWAS · HOTL · HYDR · PARK · TCHN · TWAS
+```
+
+`limitLabel()` falls back to the raw code, so a limit set on any of these renders as `HYDR` rather
+than "Hydrogen". Cosmetic today — none of the seven is known to carry a limit on this fleet — and a
+Phase 11 input: hydrogen, EV charging and parking are the ones a fleet is most likely to start using.
+
+---
+
 ## What to do with the answers
 
 1. **Fill in the table above**, quoting the raw evidence and naming the source operation, per the
