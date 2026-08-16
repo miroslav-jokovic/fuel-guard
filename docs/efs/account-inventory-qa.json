@@ -1,0 +1,1933 @@
+
+{
+  "ok": true,
+  "operations": 17,
+  "requestBudget": 28,
+  "truncated": [],
+  "steps": [
+    {
+      "operation": "getCarrierInfo",
+      "ok": true,
+      "ms": 1274,
+      "count": 1
+    },
+    {
+      "operation": "getPromptTypes",
+      "ok": true,
+      "ms": 1406,
+      "count": 41
+    },
+    {
+      "operation": "getContracts",
+      "ok": true,
+      "ms": 1350,
+      "count": 2
+    },
+    {
+      "operation": "getCreditLimits(870634)",
+      "ok": true,
+      "ms": 11544,
+      "count": 1
+    },
+    {
+      "operation": "getCreditLimits(870635)",
+      "ok": true,
+      "ms": 12406,
+      "count": 1
+    },
+    {
+      "operation": "getPolicyDescriptions",
+      "ok": true,
+      "ms": 3588,
+      "count": 3
+    },
+    {
+      "operation": "getPolicy(1)",
+      "ok": true,
+      "ms": 3869,
+      "count": 1
+    },
+    {
+      "operation": "getPolicyRefreshingLimits(1)",
+      "ok": true,
+      "ms": 424,
+      "count": 1
+    },
+    {
+      "operation": "getPolicy(2)",
+      "ok": true,
+      "ms": 5878,
+      "count": 1
+    },
+    {
+      "operation": "getPolicyRefreshingLimits(2)",
+      "ok": true,
+      "ms": 2483,
+      "count": 1
+    },
+    {
+      "operation": "getPolicy(3)",
+      "ok": true,
+      "ms": 4640,
+      "count": 1
+    },
+    {
+      "operation": "getPolicyRefreshingLimits(3)",
+      "ok": true,
+      "ms": 388,
+      "count": 1
+    },
+    {
+      "operation": "getProductGroups",
+      "ok": true,
+      "ms": 1830,
+      "count": 77
+    },
+    {
+      "operation": "getProducts",
+      "ok": true,
+      "ms": 1507,
+      "count": 93
+    },
+    {
+      "operation": "getLocationGroupDescriptions",
+      "ok": true,
+      "ms": 1908,
+      "count": 9
+    },
+    {
+      "operation": "getSitePolicyDescriptions",
+      "ok": true,
+      "ms": 8527,
+      "count": 0
+    },
+    {
+      "operation": "serverTime",
+      "ok": true,
+      "ms": 337,
+      "count": 1
+    }
+  ],
+  "inventory": {
+    "carrierInfo": {
+      "name": "TEST ACCOUNT",
+      "carrierId": 5821160,
+      "locationGroups": false
+    },
+    "promptTypes": [
+      "CRDR",
+      "EXPT",
+      "GLCD",
+      "TLOC",
+      "DSCD",
+      "DMLC",
+      "LSNB",
+      "CUNB",
+      "VHTP",
+      "PDLN",
+      "CLCD",
+      "VHNB",
+      "CVNM",
+      "LCCD",
+      "PLDS",
+      "SPLN",
+      "SLDS",
+      "CVNB",
+      "DLIC",
+      "DLST",
+      "DRID",
+      "HBRD",
+      "HRRD",
+      "LCST",
+      "LICN",
+      "ODRD",
+      "PONB",
+      "TRIP",
+      "TRLR",
+      "UNIT",
+      "FSTI",
+      "LSTN",
+      "CNTN",
+      "BDAY",
+      "RTMP",
+      "NAME",
+      "PPIN",
+      "SSUB",
+      "BLID",
+      "VEHN",
+      "CARR"
+    ],
+    "contracts": [
+      {
+        "checkFee": 0,
+        "contractId": 870634,
+        "country": "U",
+        "currency": "USD",
+        "description": "TEST ACCOUNT",
+        "issuerId": 105757,
+        "limitMethod": 51,
+        "masterContract": false,
+        "status": "ACTIVE"
+      },
+      {
+        "checkFee": 0,
+        "contractId": 870635,
+        "country": "U",
+        "currency": "USD",
+        "description": "TEST ACCOUNT",
+        "issuerId": 105757,
+        "limitMethod": 51,
+        "masterContract": false,
+        "status": "ACTIVE"
+      }
+    ],
+    "creditLimits": [
+      {
+        "contractId": 870634,
+        "limits": {
+          "contractStatus": "ACTIVE",
+          "transLimit": 1500,
+          "origLimit": 500000,
+          "creditAvailable": 499548,
+          "dailyLimit": 500000,
+          "dailyAvailable": 500000,
+          "totalAvailable": 499548,
+          "maxMoneyCode": 10000,
+          "uom": "USD"
+        }
+      },
+      {
+        "contractId": 870635,
+        "limits": {
+          "contractStatus": "ACTIVE",
+          "transLimit": 1500,
+          "origLimit": 500000,
+          "creditAvailable": 500000,
+          "dailyLimit": 500000,
+          "dailyAvailable": 500000,
+          "totalAvailable": 500000,
+          "maxMoneyCode": 10000,
+          "uom": "USD"
+        }
+      }
+    ],
+    "policies": [
+      {
+        "policyNumber": 1,
+        "policy": {
+          "policyNumber": 1,
+          "description": null,
+          "handEnter": null,
+          "infos": [],
+          "limits": [
+            {
+              "limitId": "DEF",
+              "limit": 500,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "DSL",
+              "limit": 500,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "RFR",
+              "limit": 500,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "ULSD",
+              "limit": 250,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ],
+          "locationGroups": [
+            "1"
+          ],
+          "locations": [],
+          "timeRestrictions": []
+        },
+        "refreshingLimits": {
+          "dayCntLimit": null,
+          "dayAmtLimit": null,
+          "weekCntLimit": null,
+          "weekAmtLimit": null,
+          "monCntLimit": null,
+          "monAmtLimit": null
+        }
+      },
+      {
+        "policyNumber": 2,
+        "policy": {
+          "policyNumber": 2,
+          "description": null,
+          "handEnter": null,
+          "infos": [],
+          "limits": [
+            {
+              "limitId": "DEF",
+              "limit": 50,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "DSL",
+              "limit": 250,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "RFR",
+              "limit": 50,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "ULSD",
+              "limit": 250,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ],
+          "locationGroups": [
+            "1"
+          ],
+          "locations": [],
+          "timeRestrictions": []
+        },
+        "refreshingLimits": {
+          "dayCntLimit": null,
+          "dayAmtLimit": null,
+          "weekCntLimit": null,
+          "weekAmtLimit": null,
+          "monCntLimit": null,
+          "monAmtLimit": null
+        }
+      },
+      {
+        "policyNumber": 3,
+        "policy": {
+          "policyNumber": 3,
+          "description": null,
+          "handEnter": null,
+          "infos": [],
+          "limits": [
+            {
+              "limitId": "DEF",
+              "limit": 50,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "DSL",
+              "limit": 250,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "RFR",
+              "limit": 50,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            },
+            {
+              "limitId": "ULSD",
+              "limit": 250,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ],
+          "locationGroups": [
+            "1"
+          ],
+          "locations": [],
+          "timeRestrictions": []
+        },
+        "refreshingLimits": {
+          "dayCntLimit": null,
+          "dayAmtLimit": null,
+          "weekCntLimit": null,
+          "weekAmtLimit": null,
+          "monCntLimit": null,
+          "monAmtLimit": null
+        }
+      }
+    ],
+    "productGroups": [
+      {
+        "description": "ADDITIVES",
+        "groupId": "ADD",
+        "groupNumber": 20,
+        "isFuel": false
+      },
+      {
+        "description": "CLOTHING",
+        "groupId": "CLTH",
+        "groupNumber": 30,
+        "isFuel": false
+      },
+      {
+        "description": "OTHER METHOD OF PAYMENT",
+        "groupId": "SPLT",
+        "groupNumber": 59,
+        "isFuel": false
+      },
+      {
+        "description": "BIO DIESEL",
+        "groupId": "BDSL",
+        "groupNumber": 43,
+        "isFuel": true
+      },
+      {
+        "description": "LNG",
+        "groupId": "LNG",
+        "groupNumber": 77,
+        "isFuel": true
+      },
+      {
+        "description": "WINDSHIELD WASHER FLUID",
+        "groupId": "WWFL",
+        "groupNumber": 37,
+        "isFuel": false
+      },
+      {
+        "description": "TRAILER",
+        "groupId": "TRAL",
+        "groupNumber": 57,
+        "isFuel": false
+      },
+      {
+        "description": "NATURAL GAS",
+        "groupId": "NGAS",
+        "groupNumber": 5,
+        "isFuel": true
+      },
+      {
+        "description": "ULTRA LOW SULFUR DIESEL",
+        "groupId": "ULSD",
+        "groupNumber": 73,
+        "isFuel": true
+      },
+      {
+        "description": "OIL CHANGE",
+        "groupId": "OLIC",
+        "groupNumber": 72,
+        "isFuel": false
+      },
+      {
+        "description": "TIRE CHAINS",
+        "groupId": "TCHN",
+        "groupNumber": 75,
+        "isFuel": false
+      },
+      {
+        "description": "MISC PROPANE",
+        "groupId": "BPRP",
+        "groupNumber": 90,
+        "isFuel": false
+      },
+      {
+        "description": "TAX EXEMPT DIESEL",
+        "groupId": "MDSL",
+        "groupNumber": 10,
+        "isFuel": true
+      },
+      {
+        "description": "MEXICO GAS MAGNA",
+        "groupId": "GASM",
+        "groupNumber": 45,
+        "isFuel": true
+      },
+      {
+        "description": "MARKED RFR",
+        "groupId": "MRFR",
+        "groupNumber": 65,
+        "isFuel": true
+      },
+      {
+        "description": "Premium Gas Mexico",
+        "groupId": "GASP",
+        "groupNumber": 53,
+        "isFuel": true
+      },
+      {
+        "description": "PAINT",
+        "groupId": "PNT",
+        "groupNumber": 55,
+        "isFuel": false
+      },
+      {
+        "description": "COUPON",
+        "groupId": "COUP",
+        "groupNumber": 51,
+        "isFuel": false
+      },
+      {
+        "description": "ACCESSORIAL",
+        "groupId": "ACCE",
+        "groupNumber": 81,
+        "isFuel": false
+      },
+      {
+        "description": "DIESEL",
+        "groupId": "DSL",
+        "groupNumber": 1,
+        "isFuel": true
+      },
+      {
+        "description": "BRIDGE TOLL",
+        "groupId": "TOLL",
+        "groupNumber": 70,
+        "isFuel": false
+      },
+      {
+        "description": "HOTEL",
+        "groupId": "HOTL",
+        "groupNumber": 80,
+        "isFuel": false
+      },
+      {
+        "description": "REEFER",
+        "groupId": "RFR",
+        "groupNumber": 3,
+        "isFuel": true
+      },
+      {
+        "description": "BEVERAGE",
+        "groupId": "BEVR",
+        "groupNumber": 93,
+        "isFuel": false
+      },
+      {
+        "description": "RESTAURANT/DELI",
+        "groupId": "DELI",
+        "groupNumber": 23,
+        "isFuel": false
+      },
+      {
+        "description": "AVIATION MERCHANDISE",
+        "groupId": "AMDS",
+        "groupNumber": 25,
+        "isFuel": false
+      },
+      {
+        "description": "ELECTRONICS",
+        "groupId": "ELEC",
+        "groupNumber": 29,
+        "isFuel": false
+      },
+      {
+        "description": "LABOR",
+        "groupId": "LABR",
+        "groupNumber": 35,
+        "isFuel": false
+      },
+      {
+        "description": "ANTI-FREEZE",
+        "groupId": "ANFR",
+        "groupNumber": 21,
+        "isFuel": false
+      },
+      {
+        "description": "AUTO PROPANE",
+        "groupId": "APRO",
+        "groupNumber": 92,
+        "isFuel": true
+      },
+      {
+        "description": "OIL",
+        "groupId": "OIL",
+        "groupNumber": 16,
+        "isFuel": false
+      },
+      {
+        "description": "KEROSENE",
+        "groupId": "KERO",
+        "groupNumber": 6,
+        "isFuel": true
+      },
+      {
+        "description": "CAR WASH",
+        "groupId": "WASH",
+        "groupNumber": 33,
+        "isFuel": false
+      },
+      {
+        "description": "GASOLINE",
+        "groupId": "GAS",
+        "groupNumber": 2,
+        "isFuel": true
+      },
+      {
+        "description": "CAR WASH",
+        "groupId": "CWAS",
+        "groupNumber": 123,
+        "isFuel": false
+      },
+      {
+        "description": "FLEET WIFI BILLING",
+        "groupId": "WIFI",
+        "groupNumber": 41,
+        "isFuel": false
+      },
+      {
+        "description": "CNG",
+        "groupId": "CNG",
+        "groupNumber": 76,
+        "isFuel": true
+      },
+      {
+        "description": "PROPANE",
+        "groupId": "PROP",
+        "groupNumber": 4,
+        "isFuel": true
+      },
+      {
+        "description": "RECAP",
+        "groupId": "RECP",
+        "groupNumber": 56,
+        "isFuel": false
+      },
+      {
+        "description": "THERMO",
+        "groupId": "RFRM",
+        "groupNumber": 44,
+        "isFuel": true
+      },
+      {
+        "description": "HARDWARE/ACCESSORIES",
+        "groupId": "HARD",
+        "groupNumber": 19,
+        "isFuel": false
+      },
+      {
+        "description": "REFUND",
+        "groupId": "RFND",
+        "groupNumber": 36,
+        "isFuel": false
+      },
+      {
+        "description": "TIRES/TIRE REPAIR",
+        "groupId": "TIRE",
+        "groupNumber": 31,
+        "isFuel": false
+      },
+      {
+        "description": "Parking",
+        "groupId": "PARK",
+        "groupNumber": 78,
+        "isFuel": false
+      },
+      {
+        "description": "AUTOMOTIVE",
+        "groupId": "ATOM",
+        "groupNumber": 91,
+        "isFuel": false
+      },
+      {
+        "description": "WASHROOM",
+        "groupId": "WROM",
+        "groupNumber": 108,
+        "isFuel": false
+      },
+      {
+        "description": "TRAILER WASHOUT",
+        "groupId": "TWAS",
+        "groupNumber": 122,
+        "isFuel": false
+      },
+      {
+        "description": "REPAIR SERVICE",
+        "groupId": "REPR",
+        "groupNumber": 32,
+        "isFuel": false
+      },
+      {
+        "description": "PARTS",
+        "groupId": "PART",
+        "groupNumber": 17,
+        "isFuel": false
+      },
+      {
+        "description": "SHOWER",
+        "groupId": "SHWR",
+        "groupNumber": 27,
+        "isFuel": false
+      },
+      {
+        "description": "TRIP PERMIT",
+        "groupId": "TRPP",
+        "groupNumber": 28,
+        "isFuel": false
+      },
+      {
+        "description": "TONS IMAGING",
+        "groupId": "SCAN",
+        "groupNumber": 42,
+        "isFuel": false
+      },
+      {
+        "description": "C-STORE/GROCERIES",
+        "groupId": "GROC",
+        "groupNumber": 24,
+        "isFuel": false
+      },
+      {
+        "description": "LUMPER",
+        "groupId": "LMPR",
+        "groupNumber": 71,
+        "isFuel": false
+      },
+      {
+        "description": "DEF CONTAINER",
+        "groupId": "DEFC",
+        "groupNumber": 66,
+        "isFuel": false
+      },
+      {
+        "description": "ADDONS",
+        "groupId": "WADD",
+        "groupNumber": 126,
+        "isFuel": false
+      },
+      {
+        "description": "DIESEL EXHAUST FLUID UREA",
+        "groupId": "DEF",
+        "groupNumber": 68,
+        "isFuel": true
+      },
+      {
+        "description": "BRAKES AND WHEELS",
+        "groupId": "BRAK",
+        "groupNumber": 58,
+        "isFuel": false
+      },
+      {
+        "description": "TAX EXEMPT GAS",
+        "groupId": "MGAS",
+        "groupNumber": 11,
+        "isFuel": true
+      },
+      {
+        "description": "FURNACE OIL",
+        "groupId": "FURN",
+        "groupNumber": 61,
+        "isFuel": true
+      },
+      {
+        "description": "MISCELLANEOUS MERCHANDISE",
+        "groupId": "MERC",
+        "groupNumber": 22,
+        "isFuel": false
+      },
+      {
+        "description": "TRUCK AND TRAILER WASH",
+        "groupId": "TTWA",
+        "groupNumber": 124,
+        "isFuel": false
+      },
+      {
+        "description": "CASH ADVANCE",
+        "groupId": "CADV",
+        "groupNumber": 15,
+        "isFuel": false
+      },
+      {
+        "description": "WEIGH SCALE FEE",
+        "groupId": "SCLE",
+        "groupNumber": 34,
+        "isFuel": false
+      },
+      {
+        "description": "MEXICO DIESEL",
+        "groupId": "DSLM",
+        "groupNumber": 46,
+        "isFuel": true
+      },
+      {
+        "description": "PHONE TIME",
+        "groupId": "PHON",
+        "groupNumber": 18,
+        "isFuel": false
+      },
+      {
+        "description": "RESTAURANT",
+        "groupId": "REST",
+        "groupNumber": 54,
+        "isFuel": false
+      },
+      {
+        "description": "OIL CHANGE",
+        "groupId": "OILC",
+        "groupNumber": 26,
+        "isFuel": false
+      },
+      {
+        "description": "IDLEAIRE",
+        "groupId": "IDLE",
+        "groupNumber": 40,
+        "isFuel": false
+      },
+      {
+        "description": "EV CHARGING",
+        "groupId": "EVCH",
+        "groupNumber": 121,
+        "isFuel": false
+      },
+      {
+        "description": "JET FUEL",
+        "groupId": "JET",
+        "groupNumber": 8,
+        "isFuel": true
+      },
+      {
+        "description": "ATM",
+        "groupId": "ATM",
+        "groupNumber": 79,
+        "isFuel": false
+      },
+      {
+        "description": "FAX",
+        "groupId": "FAX",
+        "groupNumber": 74,
+        "isFuel": false
+      },
+      {
+        "description": "HYDROGEN FUEL",
+        "groupId": "HYDR",
+        "groupNumber": 120,
+        "isFuel": true
+      },
+      {
+        "description": "TRAILER WASH",
+        "groupId": "TRWS",
+        "groupNumber": 125,
+        "isFuel": false
+      },
+      {
+        "description": "SALES TAX",
+        "groupId": "STAX",
+        "groupNumber": 52,
+        "isFuel": false
+      },
+      {
+        "description": "AVIATION GAS",
+        "groupId": "AVGS",
+        "groupNumber": 9,
+        "isFuel": true
+      }
+    ],
+    "products": [
+      {
+        "code": "AVGS",
+        "description": "AVIATION GAS",
+        "fuelType": 16384,
+        "fuelUse": 1,
+        "group": "AVGS",
+        "phraseId": 920,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TTWA",
+        "description": "TRUCK AND TRAILER WASH",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TTWA",
+        "phraseId": 2204,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ANFR",
+        "description": "ANTI-FREEZE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "ANFR",
+        "phraseId": 921,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TRWS",
+        "description": "TRAILER WASH",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TRWS",
+        "phraseId": 2205,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "WWFL",
+        "description": "WINDSHIELD WASHER FLUID",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "WWFL",
+        "phraseId": 922,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "WADD",
+        "description": "ADDONS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "WADD",
+        "phraseId": 2208,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ATMD",
+        "description": "STAR NETWORK DENIAL",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "CADV",
+        "phraseId": 930,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "AGFL",
+        "description": "AG FUEL",
+        "fuelType": 2,
+        "fuelUse": 8,
+        "group": "MDSL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "AGCD",
+        "description": "AGRICULTURAL CAR DIESEL",
+        "fuelType": 512,
+        "fuelUse": 8,
+        "group": "MDSL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "HPRO",
+        "description": "HEATING PROPANE",
+        "fuelType": 32,
+        "fuelUse": 16,
+        "group": "PROP",
+        "phraseId": 931,
+        "shellClProduct": 0,
+        "shellFuelType": 32,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "IDLE",
+        "description": "IDLEAIRE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "IDLE",
+        "phraseId": 909,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "WIFI",
+        "description": "FLEET WIFI BILLING",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "WIFI",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "SCAN",
+        "description": "TONS IMAGING",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "SCAN",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "MGAS",
+        "description": "TAX EXEMPT GAS",
+        "fuelType": 4,
+        "fuelUse": 32,
+        "group": "MGAS",
+        "phraseId": 934,
+        "shellClProduct": 0,
+        "shellFuelType": 90,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "EVC1",
+        "description": "CHARGING LEVEL 1",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "EVCH",
+        "phraseId": 1100,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "EVC2",
+        "description": "CHARGING LEVEL 2",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "EVCH",
+        "phraseId": 1101,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ETAX",
+        "description": "EXEMPT TAX AMOUNT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "MERC",
+        "phraseId": 939,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "EVC3",
+        "description": "CHARGING LEVEL 3",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "EVCH",
+        "phraseId": 1102,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ULSD",
+        "description": "ULTRA LOW SULFUR DIESEL",
+        "fuelType": 8192,
+        "fuelUse": 1,
+        "group": "ULSD",
+        "phraseId": 935,
+        "shellClProduct": 32,
+        "shellFuelType": 68,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ULSR",
+        "description": "REEFER ULTRA LOW SULFUR",
+        "fuelType": 8192,
+        "fuelUse": 2,
+        "group": "RFR",
+        "phraseId": 943,
+        "shellClProduct": 32,
+        "shellFuelType": 82,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CNG",
+        "description": "COMPRESSED NATURAL GAS",
+        "fuelType": 8388608,
+        "fuelUse": 1,
+        "group": "NGAS",
+        "phraseId": 824,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "LNG",
+        "description": "LIQUID NATURAL GAS",
+        "fuelType": 16777216,
+        "fuelUse": 1,
+        "group": "NGAS",
+        "phraseId": 824,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "LCNG",
+        "description": "RECOVERED LNG",
+        "fuelType": 33554432,
+        "fuelUse": 1,
+        "group": "NGAS",
+        "phraseId": 824,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "BDSR",
+        "description": "BIO DIESEL REEFER",
+        "fuelType": 256,
+        "fuelUse": 2,
+        "group": "RFR",
+        "phraseId": 918,
+        "shellClProduct": 0,
+        "shellFuelType": 82,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "MULD",
+        "description": "MARKED ULTRA LOW DIESEL",
+        "fuelType": 8192,
+        "fuelUse": 32,
+        "group": "MDSL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 120,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "COUP",
+        "description": "SHELL COUPON",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "COUP",
+        "phraseId": 963,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "MRFR",
+        "description": "MARKED RFR",
+        "fuelType": 128,
+        "fuelUse": 2,
+        "group": "MRFR",
+        "phraseId": 942,
+        "shellClProduct": 0,
+        "shellFuelType": 88,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "DISC",
+        "description": "DISC COUPON",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "COUP",
+        "phraseId": 963,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "STAX",
+        "description": "SALES TAX",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "STAX",
+        "phraseId": 903,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "SPLT",
+        "description": "OTHER METHOD OF PAYMENT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "SPLT",
+        "phraseId": 969,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "REST",
+        "description": "RESTAURANT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "REST",
+        "phraseId": 970,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "OIL",
+        "description": "OIL",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "OIL",
+        "phraseId": 802,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "WASH",
+        "description": "TRUCK/CAR WASH",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "WASH",
+        "phraseId": 803,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "SCLE",
+        "description": "SCALES",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "SCLE",
+        "phraseId": 804,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "PART",
+        "description": "TRUCK PARTS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "PART",
+        "phraseId": 805,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "HARD",
+        "description": "HARDWARE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "HARD",
+        "phraseId": 806,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "REPR",
+        "description": "TRUCK REPAIR",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "REPR",
+        "phraseId": 807,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "SHWR",
+        "description": "SHOWER",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "SHWR",
+        "phraseId": 808,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TIRE",
+        "description": "TIRES",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TIRE",
+        "phraseId": 809,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TRPP",
+        "description": "TRIP PERMIT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TRPP",
+        "phraseId": 810,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "DELI",
+        "description": "DELI FOODS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "DELI",
+        "phraseId": 811,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ELEC",
+        "description": "ELECTRONICS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "ELEC",
+        "phraseId": 812,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "GROC",
+        "description": "GROCERIES",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "GROC",
+        "phraseId": 813,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CLTH",
+        "description": "CLOTHING",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "CLTH",
+        "phraseId": 814,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UNRG",
+        "description": "UNLEADED REGULAR",
+        "fuelType": 4,
+        "fuelUse": 1,
+        "group": "GAS",
+        "phraseId": 815,
+        "shellClProduct": 0,
+        "shellFuelType": 71,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UNPL",
+        "description": "UNLEADED PLUS",
+        "fuelType": 8,
+        "fuelUse": 1,
+        "group": "GAS",
+        "phraseId": 816,
+        "shellClProduct": 0,
+        "shellFuelType": 77,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UNPR",
+        "description": "UNLEADED PREMIUM",
+        "fuelType": 16,
+        "fuelUse": 1,
+        "group": "GAS",
+        "phraseId": 817,
+        "shellClProduct": 0,
+        "shellFuelType": 80,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "DSL1",
+        "description": "DIESEL #1",
+        "fuelType": 1,
+        "fuelUse": 1,
+        "group": "DSL",
+        "phraseId": 818,
+        "shellClProduct": 0,
+        "shellFuelType": 70,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CDSL",
+        "description": "CAR DIESEL",
+        "fuelType": 512,
+        "fuelUse": 1,
+        "group": "DSL",
+        "phraseId": 819,
+        "shellClProduct": 0,
+        "shellFuelType": 71,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "PROP",
+        "description": "PROPANE",
+        "fuelType": 32,
+        "fuelUse": 1,
+        "group": "PROP",
+        "phraseId": 820,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "FARM",
+        "description": "AGRICULTURAL FUEL",
+        "fuelType": 1024,
+        "fuelUse": 8,
+        "group": "MDSL",
+        "phraseId": 821,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "PHON",
+        "description": "PHONE TIME",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "PHON",
+        "phraseId": 822,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "GASO",
+        "description": "GASOHOL",
+        "fuelType": 2048,
+        "fuelUse": 1,
+        "group": "GAS",
+        "phraseId": 823,
+        "shellClProduct": 0,
+        "shellFuelType": 32,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "NGAS",
+        "description": "NATURAL GAS",
+        "fuelType": 4096,
+        "fuelUse": 1,
+        "group": "NGAS",
+        "phraseId": 824,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "IPRO",
+        "description": "INDUSTRIAL PROPANE",
+        "fuelType": 32,
+        "fuelUse": 4,
+        "group": "PROP",
+        "phraseId": 825,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "IDS2",
+        "description": "INDUSTRIAL DIESEL #2",
+        "fuelType": 2,
+        "fuelUse": 4,
+        "group": "MDSL",
+        "phraseId": 826,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "KERO",
+        "description": "KEROSENE",
+        "fuelType": 64,
+        "fuelUse": 16,
+        "group": "KERO",
+        "phraseId": 827,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "OILC",
+        "description": "OIL CHANGE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "OILC",
+        "phraseId": 828,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "RFR1",
+        "description": "REEFER #1",
+        "fuelType": 1,
+        "fuelUse": 2,
+        "group": "RFR",
+        "phraseId": 831,
+        "shellClProduct": 0,
+        "shellFuelType": 82,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "MDSL",
+        "description": "MARKED DIESEL",
+        "fuelType": 128,
+        "fuelUse": 1,
+        "group": "MDSL",
+        "phraseId": 942,
+        "shellClProduct": 0,
+        "shellFuelType": 88,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "LABR",
+        "description": "LABOR",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "LABR",
+        "phraseId": 928,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "BDSL",
+        "description": "BIO DIESEL",
+        "fuelType": 256,
+        "fuelUse": 1,
+        "group": "DSL",
+        "phraseId": 918,
+        "shellClProduct": 0,
+        "shellFuelType": 68,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TWAS",
+        "description": "TRAILER WASHOUT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TWAS",
+        "phraseId": 2207,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UNCL",
+        "description": "UNLEADED CARD LOCK GAS",
+        "fuelType": 65536,
+        "fuelUse": 1,
+        "group": "GAS",
+        "phraseId": 919,
+        "shellClProduct": 0,
+        "shellFuelType": 71,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CWAS",
+        "description": "CAR WASH",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "CWAS",
+        "phraseId": 2206,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TCHN",
+        "description": "TIRE CHAINS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TCHN",
+        "phraseId": 976,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "RFND",
+        "description": "REFUND",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "RFND",
+        "phraseId": 1032,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "H35",
+        "description": "Hydrogen Fuel H35",
+        "fuelType": 134217728,
+        "fuelUse": 1,
+        "group": "HYDR",
+        "phraseId": 1103,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "EUPR",
+        "description": "ETHANOL UNLEADED PREMIUM",
+        "fuelType": 4,
+        "fuelUse": 16,
+        "group": "GAS",
+        "phraseId": 1035,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "H70",
+        "description": "Hydrogen Fuel H70",
+        "fuelType": 268435456,
+        "fuelUse": 1,
+        "group": "HYDR",
+        "phraseId": 1104,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "BPRP",
+        "description": "BOTTLED PROPANE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "MERC",
+        "phraseId": 1041,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "PARK",
+        "description": "PARKING",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "PARK",
+        "phraseId": 0,
+        "shellClProduct": 32,
+        "shellFuelType": 32,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CBDL",
+        "description": "CAR BIO DIESEL",
+        "fuelType": 67108864,
+        "fuelUse": 1,
+        "group": "DSL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 71,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UNKN",
+        "description": "UNKNOWN",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": null,
+        "phraseId": 916,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "FUEL",
+        "description": "FUEL",
+        "fuelType": 2,
+        "fuelUse": 1,
+        "group": "DSL",
+        "phraseId": 923,
+        "shellClProduct": 32,
+        "shellFuelType": 68,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "MERC",
+        "description": "MERCHANDISE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "MERC",
+        "phraseId": 924,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "HOTL",
+        "description": "HOTEL",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "HOTL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "RFR",
+        "description": "REEFER",
+        "fuelType": 2,
+        "fuelUse": 2,
+        "group": "RFR",
+        "phraseId": 940,
+        "shellClProduct": 0,
+        "shellFuelType": 82,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ACCE",
+        "description": "ACCESSORIAL",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "ACCE",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "CADV",
+        "description": "CASH ADVANCE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "CADV",
+        "phraseId": 926,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ADD",
+        "description": "ADDITIVES",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "ADD",
+        "phraseId": 801,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "PNT",
+        "description": "PAINT",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "PNT",
+        "phraseId": 972,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "RECP",
+        "description": "RECAP",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "RECP",
+        "phraseId": 968,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TRAL",
+        "description": "TRAILER",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TRAL",
+        "phraseId": 967,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "BRAK",
+        "description": "BRAKES AND WHEELS",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "BRAK",
+        "phraseId": 971,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "FURN",
+        "description": "FURNACE OIL",
+        "fuelType": 2097152,
+        "fuelUse": 16,
+        "group": "FURN",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "UREA",
+        "description": "UREA CONTAINER",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "DEFC",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "DEF",
+        "description": "DIESEL EXHAUST FLUID",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "DEFC",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "DEFD",
+        "description": "DIESEL EXHAUST FLUID UREA",
+        "fuelType": 4194304,
+        "fuelUse": 1,
+        "group": "DEF",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "TOLL",
+        "description": "BRIDGE TOLL",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "TOLL",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "ATMB",
+        "description": "STAR NETWORK INQUIRY",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "CADV",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "LMPR",
+        "description": "LUMPER FEE",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "LMPR",
+        "phraseId": 975,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      },
+      {
+        "code": "FAX",
+        "description": "FAX",
+        "fuelType": 0,
+        "fuelUse": 0,
+        "group": "FAX",
+        "phraseId": 0,
+        "shellClProduct": 0,
+        "shellFuelType": 0,
+        "shellPriceGroup": null
+      }
+    ],
+    "locationGroups": [
+      {
+        "grpId": 1276,
+        "name": "Pacific Pride",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 1278,
+        "name": "CANADA",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 1380,
+        "name": "IDLEAIRE",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 1736,
+        "name": "All Loves",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 2200,
+        "name": "ALL US LOCATIONS",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 2201,
+        "name": "ALL IMPERIAL CARDLOCK SITES",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 2203,
+        "name": "NON IOL CARDLOCK SITES",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 2612,
+        "name": "All Pilot & Flying J",
+        "ruleBased": true,
+        "editable": false
+      },
+      {
+        "grpId": 2807,
+        "name": "All Loves in IN",
+        "ruleBased": true,
+        "editable": false
+      }
+    ],
+    "sitePolicies": [],
+    "serverTime": "2026-08-16T13:01:04.000-05:00",
+    "sampledCards": []
+  }
+}
