@@ -2,6 +2,7 @@ import { type CardLockBody, cardLockContract, efsStatusEquals } from "@fuelguard
 import { lockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
+import { statusIsRevertible, statusRevert } from "./statusRevert.js";
 
 /**
  * How a lock is written, and how we decide it landed.
@@ -44,23 +45,25 @@ export const cardLockBehaviour = defineBehaviour(cardLockContract, {
    * One of the two capabilities that genuinely undoes itself (Step 4.5).
    *
    * `Hold` rather than `Inactive`: it is the reversible one, and the revert writes back the status
-   * EFS itself reported — byte-for-byte, so the way home also exercises this account's own casing on
-   * the write path, which is the H1 hypothesis. A card already held would prove nothing, hence the
-   * precondition; `efsStatusEquals` rather than `===`, because this account reports `HOLD`.
+   * EFS itself reported, so the way home also exercises this account's own casing on the write path,
+   * which is the H1 hypothesis. A card already held would prove nothing, hence the precondition;
+   * `efsStatusEquals` rather than `===`, because this account reports `HOLD`.
+   *
+   * The revert routing moved to `statusRevert.ts` on 2026-08-16. It used to send the observed status
+   * VERBATIM — `INACTIVE` into a case-sensitive enum — which the capability's own schema refused,
+   * leaving the card changed. Its header has the full account.
    */
   proof: {
-    precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Hold"),
+    precondition: (snap) =>
+      !efsStatusEquals(snap.doc?.card.status ?? null, "Hold")
+      // A card at Fraud or Deleted can be locked and then never put back, because no capability
+      // writes either status. Void beats a proof that strands a real card (standing rule 14).
+      && statusIsRevertible(snap.doc?.card.status ?? null),
     sample: (): CardLockBody => ({ status: "Hold", expectedVersion: "" }),
-    revert: (snap) => ({
-      // Never assume `Active`: a card proved from INACTIVE must go back to INACTIVE, and `card_lock`
-      // can write it because Inactive is one of its own statuses. A card that started Active is
-      // handled by the harness, which reverts through `card_unlock` when this returns a status
-      // `card_lock` cannot write — see prove.ts.
-      capability: efsStatusEquals(snap.doc?.card.status ?? null, "Active") ? "card_unlock" : "card_lock",
-      body: efsStatusEquals(snap.doc?.card.status ?? null, "Active")
-        ? { expectedVersion: "" }
-        : { status: snap.doc?.card.status ?? "Inactive", expectedVersion: "" },
-    }),
+    revert: (snap) => {
+      const { capability, body } = statusRevert(snap);
+      return { capability, body: { ...body, expectedVersion: "" } };
+    },
   },
 
   auditMeta: (snap, body: CardLockBody) => ({

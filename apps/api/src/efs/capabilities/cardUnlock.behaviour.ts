@@ -8,6 +8,7 @@ import {
 import { unlockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
+import { statusIsRevertible, statusRevert } from "./statusRevert.js";
 
 /**
  * The one sentence this gate may say. Shared so the refusal and its test cannot drift apart.
@@ -57,14 +58,23 @@ export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
    * OEG-3 voids the run rather than pretending, because unlocking an active card reports success
    * without any write ever having landed. The revert restores the exact status observed, so a card
    * proved from `HOLD` goes back to HOLD and not to Inactive.
+   *
+   * The routing moved to `statusRevert.ts` on 2026-08-16, which also fixed what it SENT: the observed
+   * spelling went verbatim into a case-sensitive enum, so `HOLD` was refused by `card_lock`'s own
+   * schema and the card stayed unlocked. This capability had never been proved, so Step 8.2 would
+   * have been the first run to hit it. See that file's header.
    */
   proof: {
-    precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Active"),
+    precondition: (snap) =>
+      !efsStatusEquals(snap.doc?.card.status ?? null, "Active")
+      // Fraud and Deleted pass the test above and cannot be written back by anything, so a run
+      // starting there would unlock a real card and have no way home (standing rule 14).
+      && statusIsRevertible(snap.doc?.card.status ?? null),
     sample: (): CardUnlockBody => ({ expectedVersion: "" }),
-    revert: (snap) => ({
-      capability: "card_lock",
-      body: { status: snap.doc?.card.status ?? "Hold", expectedVersion: "" },
-    }),
+    revert: (snap) => {
+      const { capability, body } = statusRevert(snap);
+      return { capability, body: { ...body, expectedVersion: "" } };
+    },
   },
 
   /**
