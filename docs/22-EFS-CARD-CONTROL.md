@@ -1050,6 +1050,60 @@ point of running it is that the comment is now a measurement instead of a claim.
 
 ---
 
+## H12 — the production vocabulary, at fleet scale: eight prompt types, 32 cards at HOLD, nothing unmodelled (2026-08-16)
+
+`node scripts/efs.mjs scan --expect-org production`, org `86d6b3ea…`, **199 of 199 cards carrying a
+stored document, 0 unparseable**. The first time this account's production vocabulary has been read
+as a whole.
+
+| Field | Production | QA (same day) |
+|---|---|---|
+| `infoId` | **8**: `DRID` 162 · `NAME` 162 · `TRIP` 162 · `TRLR` 162 · `UNIT` 162 · `CNTN` 161 · `DLIC` 128 · `DLST` 128 | **3**: `DRID` 7 · `UNIT` 6 · `NAME` 5 |
+| `validationType` | `REPORT_ONLY` 904 · `EXACT_MATCH` 323 | `EXACT_MATCH` 9 · `REPORT_ONLY` 9 |
+| `status` | `ACTIVE` 129 · `INACTIVE` 38 · **`HOLD` 32** | `ACTIVE` 33 · `INACTIVE` 2 |
+| `overrideAllLocations` | `false` ×199 | `false` ×35 |
+| document shape | `nested:header` | `nested:header` |
+
+### Four things it settles
+
+**1. Production sends NOTHING this product does not model.** The scan is built to refuse with 422 on
+an unmodelled field (Step 7.3); it returned **200** across all 199 documents. That answers Step 7.3's
+substance at fleet scale, and more completely than the single redacted `getCardV2.production.xml`
+fixture the step asks for — one card can only carry the fields that card has.
+
+**2. The two orgs share a document shape.** `nested:header` on both, so the Phase 4 promotion gate's
+shape comparison finally has both sides.
+
+**3. `card_lock` is `match` on production: 32 cards rest at `HOLD`.** QA reports `unobserved` for the
+same capability purely because no QA card is at Hold — Step 0.13's fixture gap. The two are not in
+conflict and neither says anything about whether `card_lock` WORKS; `efs:prove card_lock` answered
+that on 2026-08-15 (proof `40b88b75`).
+
+**4. `overrideAllLocations` is `false` on all 199**, confirming H2/H3 at fleet scale rather than on a
+sample.
+
+### And the finding that is not about vocabulary
+
+**Production uses eight prompt types; `EFS_EDITABLE_INFO_IDS` is `["DRID", "UNIT"]`.** On 162 of 199
+cards EFS carries `NAME`, `TRIP`, `TRLR`, `CNTN`, and on 128 of them `DLIC`/`DLST` — driver's licence
+number and state.
+
+Not a data-loss risk: `promptsEdits` passes non-editable records through *"EXACTLY as EFS sent
+them"*, its docblock names `ODRD, TRIP, TRLR, NAME, PPIN, CNTN`, and `efsCardEdits.test.ts` →
+*"passes non-editable records through untouched"* holds it. Checked, not assumed. It is a **Phase 9
+scope fact**: six of the eight can be read in this product and changed only in the WEX portal.
+`DLIC`/`DLST` are absent from that docblock's list and are licence data — they deserve a deliberate
+decision, not an automatic inclusion, if the editable list widens.
+
+### Provenance, and one thing it exposes
+
+`oldestSyncedAt 2026-08-13T16:35Z`, `newestSyncedAt 2026-08-15T19:37Z` — the newest is the manual
+sweep from Step 7.7's linking run. **`EFS_CARD_SYNC_HOURS` is 24 and nothing has swept production
+since.** A day-old corpus is fine for a vocabulary question, which is why this scan reads the mirror;
+it does mean Step 7.5's *"after one sweep, every production card has `detail_synced_at`"* is still
+unproven, and that a scheduled sweep is not visibly running.
+
+
 ## H11 — the production echo scan, re-run and paged (2026-08-15 night, CONFIRMED)
 
 Phase 4's last exit-gate item. The scan reads every card the account returns, builds the zero-edit

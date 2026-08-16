@@ -1,11 +1,12 @@
 # EFS account inventory — Step 7.6
 
-> ## ⛔ THIS DOCUMENT IS NOT YET THE INVENTORY. Four of twelve questions are answered, for QA only.
+> ## 🟡 PARTIAL. Four of twelve questions answered, for BOTH orgs. The other eight are captured but unread.
 >
-> **Status: 🟡 QA partial · ⛔ production nothing.** Miki ran `efs.mjs scan` against QA on
-> 2026-08-16, which answers questions 2, 4, 11 and 12 — for QA. The other eight need
-> `efs.mjs inventory`, and **every production answer is still missing**, including the half of
-> question 11 that makes it a comparison at all.
+> **Status: config scan run against QA and production on 2026-08-16** — questions 2, 4, 11 and 12 are
+> answered for both, and question 11 is now a real comparison rather than half of one. The account
+> inventory ran against both orgs too, into
+> `docs/efs/account-inventory-{qa,production}.json`; **those files answer the remaining eight and
+> have not yet been read into this document.**
 >
 > The instrument was built in a session with no credentials and no route to the vendor — verified,
 > not assumed: `env | grep -c "^EFS_\|^SUPABASE_"` → 0, and the proxy answers 403 to `CONNECT` for
@@ -81,17 +82,17 @@ inventory JSON, so filling this in is transcription rather than interpretation.
 | # | Question | Answered by | JSON path | Answer |
 |---|---|---|---|---|
 | 1 | Which Info IDs does the account **have**? | `getPromptTypes` | `inventory.promptTypes` | ⛔ UNANSWERED |
-| 2 | Which Info IDs does it **use**? | `config-scan` over the mirror | scan `fields[]` | 🟡 **QA: `DRID`, `UNIT`, `NAME` — and only on 7 of 35 cards.** Production ⛔ |
+| 2 | Which Info IDs does it **use**? | `config-scan` over the mirror | scan `fields[]` | ✅ **QA: 3** (`DRID`,`UNIT`,`NAME`) on 7/35. **Production: 8** (`DRID`,`NAME`,`TRIP`,`TRLR`,`UNIT`,`CNTN`,`DLIC`,`DLST`) on 162/199 |
 | 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ⛔ UNANSWERED |
-| 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | 🟡 **QA: recorded below.** Production ⛔ |
+| 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | ✅ **Both recorded below** |
 | 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ⛔ UNANSWERED |
 | 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | ⛔ UNANSWERED |
 | 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ⛔ UNANSWERED |
 | 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ⛔ UNANSWERED |
 | 9 | Are **time restrictions** in use? | `getPolicy` per policy; sample cards | `inventory.policies[].policy.timeRestrictions` | ⛔ UNANSWERED |
 | 10 | What does **each policy** set? | `getPolicyDescriptions` + `getPolicy` | `inventory.policies[]` | ⛔ UNANSWERED |
-| 11 | **Production's document shape**, and does it match QA's? | `config-scan` `observedDocumentShape` | scan `recorded.observedDocumentShape` | 🟡 **QA: `nested:header`.** Production ⛔ — this question is a COMPARISON and half of it is missing |
-| 12 | Any field **production sends that we do not model** | `config-scan` — **refuses with 422** | `unmodelledFields[]` | 🟡 **QA: NONE — the scan returned 200 over 35 of 35 documents.** Production ⛔ |
+| 11 | **Production's document shape**, and does it match QA's? | `config-scan` `observedDocumentShape` | scan `recorded.observedDocumentShape` | ✅ **`nested:header` on BOTH — they match** |
+| 12 | Any field **production sends that we do not model** | `config-scan` — **refuses with 422** | `unmodelledFields[]` | ✅ **NONE on either.** Production returned **200 over 199/199 documents**, 0 unparseable |
 
 > **Question 8 gates several others.** `getCarrierInfo.locationGroups` is an account-level capability
 > flag, not a list. If it is false, the whole location-group mechanism is off for this carrier and
@@ -161,6 +162,60 @@ The genuine gap Step 0.13 records is narrower and is about FIXTURES, not capabil
 *rests* at Hold, so a test that needs to observe one without creating it has nothing to look at.
 Phases 9–12 need those resting fixtures made in the WEX portal; `card_lock` itself is not waiting on
 them.
+
+---
+
+## Production config scan — 2026-08-16, run by Miki
+
+**Org `86d6b3ea-4361-4f71-877f-e8373615769b`, announced by the CLI as "NOT the known QA org — treat
+as production". 199 of 199 cards carrying a stored document, `cardsWithoutStoredDocument: 0`,
+`documentsUnparseable: 0`.** Shape `nested:header`.
+
+| Field | Values observed | Coverage |
+|---|---|---|
+| `infoId` | `DRID` 162 · `NAME` 162 · `TRIP` 162 · `TRLR` 162 · `UNIT` 162 · `CNTN` 161 · `DLIC` 128 · `DLST` 128 | 1227 records across **162 of 199**; 37 absent |
+| `validationType` | `REPORT_ONLY` 904 · `EXACT_MATCH` 323 | same 162 cards |
+| `status` | `ACTIVE` 129 · `INACTIVE` 38 · **`HOLD` 32** | all 199 |
+| `overrideAllLocations` | `false` ×199 | all 199 |
+
+### What production settles that QA could not
+
+**1. Production sends nothing we do not model.** The scan returned **200, not 422**, across 199 of
+199 documents with none unparseable. That is Step 7.3's substance answered at fleet scale — and it is
+a stronger answer than the `getCardV2.production.xml` fixture the step asks for, which could only
+ever cover the fields one card happened to carry.
+
+**2. The document shape matches QA.** `nested:header` on both, so question 11 is answered rather than
+half-answered, and the Phase 4 promotion gate's shape comparison has both sides.
+
+**3. `card_lock` is `match` on production — 32 cards are at `HOLD`.** This is the direct answer to
+the QA `unobserved` I misreported as a blocker: QA has no card resting at Hold, production has 32.
+`Hold` → `HOLD` and `Inactive` → `INACTIVE`, both `observed_differently_cased`, which is exactly what
+`canonicalEfsStatus` exists for.
+
+**4. `overrideAllLocations` is `false` on all 199**, at fleet scale, confirming `docs/22` H2/H3.
+`override_grant` and `override_clear` stay correctly `unobserved` for `true`, and unpromotable.
+
+### ⚠ Two findings that are NOT answers to the twelve questions
+
+**Production uses EIGHT prompt types; the product may EDIT two.** `EFS_EDITABLE_INFO_IDS` is
+`["DRID", "UNIT"]`. On 162 of 199 production cards EFS also carries `NAME`, `TRIP`, `TRLR`, `CNTN`,
+and on 128 of them `DLIC` and `DLST` (driver's licence number and state).
+
+**This is a Phase 9 SCOPE fact, not a data-loss risk, and I checked rather than assumed.**
+`promptsEdits` passes non-editable records through *"EXACTLY as EFS sent them"* — its docblock names
+`ODRD, TRIP, TRLR, NAME, PPIN, CNTN` specifically, and `efsCardEdits.test.ts` →
+*"passes non-editable records through untouched"* holds it. So a `replaceAll` on one of those 162
+cards preserves the six it cannot edit. What an operator cannot do is CHANGE them here; that stays in
+the WEX portal until Phase 9 widens the list. `DLIC`/`DLST` were not in that docblock's list and are
+licence data — worth a deliberate decision before they become editable.
+
+**The production mirror has not been swept since 2026-08-15 19:37Z.** `newestSyncedAt` is
+`2026-08-15T19:37:11Z` — the manual sweep from Step 7.7's linking run — and `oldestSyncedAt` is
+`2026-08-13T16:35Z`. `EFS_CARD_SYNC_HOURS` is 24, so a scheduled sweep should have run since. Two
+consequences: this corpus is a day old (fine for a vocabulary question, which is why the scan is
+built on it), and Step 7.5's *"after one sweep, every production card has `detail_synced_at`"* cannot
+be checked until a sweep actually runs — `node scripts/efs.mjs sync` then `job efs_card_sync`.
 
 ---
 
