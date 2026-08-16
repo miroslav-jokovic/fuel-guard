@@ -1267,3 +1267,62 @@ Fixed with `cardinality(scopes) >= 1`, in the same constraint migration 0199 was
 for the new `deactivate` scope. If 0199 fails on that line in a real project, an empty-scoped row
 already exists — it grants nothing and never has; delete it or give it the scopes it was meant to
 have, then re-run.
+
+---
+
+## H16 — the first live proofs of Phase 8: `card_deactivate` proven on its first run, and what the runs did NOT test (2026-08-16 night, QA, CONFIRMED)
+
+Step 8.2, run from Miki's Mac against the QA org after `EFS_CARD_CONTROL_PROBE_ENABLED=true` was set on `@fleetguard/api` and the redeploy completed (deployment `2e7c1aa4`, `/api/version` reporting `46ee6cf`).
+
+All three runs used **••••7671**, which was resting at **ACTIVE**.
+
+| Capability | Proof id | Outcome | Apply latency | Vocabulary observed |
+|---|---|---|---|---|
+| `card_unlock` | `7cedf66c-eb3e-446b-8171-cfffc098a268` | **void** | — | — |
+| `card_lock` | `88576345-a60b-4eee-b64d-017635065ada` | **proven** | **514 ms** | `status: ["HOLD"]` |
+| `card_deactivate` | `6f28e05d-2560-4803-a360-dbd168511211` | **proven** | **717 ms** | `status: ["INACTIVE"]` |
+
+`documentShape: nested:header` on both proven runs, matching every other read from this account.
+`cardStillChanged: false` on all three — **standing rule 14 held**, the card is back at ACTIVE.
+`oeg2bNoopStable: null` on all three, by construction: no capability can express a zero-edit dispatch,
+which `prove.ts` documents rather than fakes.
+
+**`card_deactivate` was proven on its first ever live run.** A capability built entirely offline —
+contract, behaviour, view, a new ledger intent and a new approver scope — composed and landed against
+real EFS with no correction. OEG-4 confirms it wrote the account's own `INACTIVE` casing, which is
+the H1 hypothesis holding on a brand-new write path.
+
+### ⚠ What these runs did NOT test, and it is the thing that mattered
+
+**H14's fix is still unexercised.** All three runs started from an **ACTIVE** card, so every revert
+resolved to `card_unlock`, whose body carries **no status field at all**. The branch H14 repaired —
+a revert that CARRIES a status into `lockCardSchema`'s case-sensitive enum — was never reached.
+
+`oeg5RevertLanded: true` twice is therefore evidence that the revert routing works, and is **not**
+evidence that the canonicalisation works. Two different claims; only the first was proved.
+
+**`card_unlock` remains unproven.** Its own run voided correctly — OEG-3 refuses to report success
+for a write into the state the card is already in, which is the H1 failure exactly — but that means
+the one capability the Phase 8 handoff flagged as never-proved is *still* never-proved.
+
+### The run that closes both gaps, and it is available today
+
+**Prove `card_unlock` against `14df9dc9…` ••••7675, which rests at INACTIVE.** That single run:
+
+- gives `card_unlock` its first proof (precondition passes: not Active, and revertible), and
+- reverts through `statusRevert`'s **INACTIVE → `card_deactivate`** branch — which before 2026-08-16
+  was `card_lock` with `{status: "INACTIVE"}`, refused by that capability's own schema, leaving the
+  card unlocked. It is the exact scenario H14 describes, on the exact card class that would have hit it.
+
+The remaining untested branch after that is **HOLD → `card_lock` `{status: "Hold"}`**, the one revert
+that still carries a status. It needs a card resting at Hold, which QA does not have (§0.6, finding F).
+Until that fixture exists, `canonicalEfsStatus` in `statusRevert.ts` is proved by unit test and by
+mutation, and not by a live run.
+
+### An operator-error refusal worth keeping
+
+One `card_deactivate` attempt was refused with `{"error":{"code":"unauthorized","message":"Invalid or
+expired token"}}` followed by *"Step-up refused. The password must be the one for the account whose
+token you pasted."* Miki confirms he entered mismatched credentials. Recorded because the refusal
+behaved correctly and **named the actual cause** rather than reporting a generic auth failure — the
+operator knew what to fix without reading any code. No card was touched.
