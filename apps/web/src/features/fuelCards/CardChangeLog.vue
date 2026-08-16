@@ -33,6 +33,17 @@ import { useCardMutationLog, type CardMutationLogFilters } from "./useCardContro
  *     (`drift_detected`)     Somebody was in the portal, and this is where that shows up.
  */
 
+const props = defineProps<{
+  /**
+   * Narrow to one card — what the card page's "Change history" links to.
+   *
+   * This is the per-card question 6.5.5 took off the card page and 6.6 left homeless: the tab could
+   * answer it, but nothing could ASK it, so the endpoint's `cardId` filter was a field no caller
+   * ever set. A speculative filter is exactly what standing rule 7 forbids; this is the caller.
+   */
+  cardId?: string;
+}>();
+
 const PAGE_SIZE = 25;
 
 const search = ref("");
@@ -41,6 +52,7 @@ const to = ref<string | undefined>(undefined);
 const page = ref(1);
 
 const filters = computed<CardMutationLogFilters>(() => ({
+  ...(props.cardId ? { cardId: props.cardId } : {}),
   ...(search.value.trim() ? { search: search.value.trim() } : {}),
   ...(from.value ? { from: from.value } : {}),
   ...(to.value ? { to: to.value } : {}),
@@ -141,6 +153,17 @@ const columns: DataTableColumn[] = [
         <p v-if="(row as { efsFaultMessage: string | null }).efsFaultMessage" class="mt-1 text-xs text-ink-muted">
           {{ (row as { efsFaultMessage: string }).efsFaultMessage }}
         </p>
+      </template>
+      <!-- A row names a card; it should also reach it. -->
+      <template #cell-maskedRef="{ row }">
+        <RouterLink
+          v-if="(row as { cardId: string | null }).cardId"
+          :to="`/fuel-cards/${(row as { cardId: string }).cardId}`"
+          class="font-medium text-brand-700 hover:underline"
+        >
+          {{ (row as { maskedRef: string }).maskedRef }}
+        </RouterLink>
+        <span v-else>{{ (row as { maskedRef: string }).maskedRef }}</span>
       </template>
       <template #cell-who="{ row }">
         <span v-if="(row as { who: string }).who">{{ (row as { who: string }).who }}</span>

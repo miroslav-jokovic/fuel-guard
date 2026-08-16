@@ -13,18 +13,18 @@ import { type CardOperationId, type OperationDraft, type StatusRow, blockedSente
  * The controls for whichever operation the drawer is showing — its third region.
  *
  * ── Why these are hand-written and not generated from `ui.inputs` ────────────────────────────────
- * The contract's `CapabilityInput` describes a stepper, a radio, a text box, a select — and two of
- * the six operations need neither: a location scope needs `EfsLocationPicker`, which searches EFS's
- * own location list, and prompts need per-record removal with its own danger button and its own
- * "this will be removed" line. A generic factory would therefore render four of six operations and
- * special-case the rest, which is a second and weaker UI vocabulary sitting next to the components
- * that already do the job (standing rule 5).
+ * The contract's `CapabilityInput` describes a stepper, a radio, a text box, a select — and three of
+ * the five operations need something it cannot express: a location scope needs `EfsLocationPicker`,
+ * which searches EFS's own location list; prompts need per-record removal with its own danger button;
+ * and the status list needs one tick across three rows that write through TWO capabilities. A generic
+ * factory would render two of five and special-case the rest, which is a second and weaker UI
+ * vocabulary sitting next to components that already do the job (standing rule 5).
  *
  * What IS read from the contract is the frame — title, verb, tone, and the diff rows — which is the
  * part two surfaces could disagree about. The drawer does that; this renders controls.
  *
- * Lock, Deactivate and Unlock have no inputs at all. That is not an omission: a lock is one field,
- * the confirmation and the diff say which, and a form with nothing in it would imply otherwise.
+ * `clear` has no inputs at all. That is not an omission: removing an exception takes no decision
+ * beyond the one already made, and a form with nothing in it would imply otherwise.
  */
 
 const props = defineProps<{

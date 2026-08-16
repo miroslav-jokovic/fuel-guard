@@ -36,7 +36,6 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   { method: "POST", path: "/:id/override", opensSoap: true },
   { method: "DELETE", path: "/:id/override", opensSoap: true },
   { method: "POST", path: "/:id/prompts", opensSoap: true },
-  { method: "GET", path: "/:id/history", opensSoap: false },
   { method: "POST", path: "/diagnose", opensSoap: true },
   { method: "POST", path: "/write-check", opensSoap: true },
   // Reads the WHOLE account — one getCardSummaries plus one getCardv2 per card in the batch. The

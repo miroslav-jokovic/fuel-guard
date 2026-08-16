@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useAuditQuery, type AuditFilters } from "@/features/audit/useAudit";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -22,7 +23,15 @@ const TABS: { value: AuditTab; label: string }[] = [
   { value: "activity", label: "Activity" },
   { value: "cards", label: "Card changes" },
 ];
-const tab = ref<AuditTab>("activity");
+const route = useRoute();
+
+/**
+ * `?tab=cards&cardId=…` is what the card page's "Change history" links to — the per-card question
+ * 6.5.5 took off the card page. Read once at mount rather than watched: this is an entry point, not
+ * a two-way binding, and re-reading it would fight the operator every time they clicked the tab.
+ */
+const tab = ref<AuditTab>(route.query.tab === "cards" ? "cards" : "activity");
+const cardFilter = computed(() => (typeof route.query.cardId === "string" ? route.query.cardId : undefined));
 
 const PAGE_SIZE = 50;
 const filters = ref<AuditFilters>({});
@@ -84,7 +93,7 @@ const columns: DataTableColumn[] = [
       own fault text. See CardChangeLog.vue.
     -->
     <div v-if="tab === 'cards'" id="audit-panel-cards" role="tabpanel" aria-labelledby="audit-tab-cards">
-      <CardChangeLog />
+      <CardChangeLog :card-id="cardFilter" />
     </div>
 
     <div v-else id="audit-panel-activity" role="tabpanel" aria-labelledby="audit-tab-activity" class="space-y-6">

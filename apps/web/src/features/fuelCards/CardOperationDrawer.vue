@@ -95,7 +95,6 @@ const props = defineProps<{
   overrideAllLocations: boolean | null;
   locationOverrideId: string | null;
   prompts: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
-  limits?: WsCard["limits"];
   capabilities: CardCapabilities;
   scopes: readonly string[];
 }>();
@@ -198,7 +197,8 @@ watch(
 const card = computed(() => toOperationCard({
   status: activeStatus.value,
   infos: activePrompts.value as WsCard["infos"],
-  limits: props.limits ?? [],
+  // The card's limits are not editable by any capability yet, so the views never read them.
+  limits: [],
   overrideUses: props.overrideUses,
   overrideAllLocations: props.overrideAllLocations,
   locationOverrideId: props.locationOverrideId,
