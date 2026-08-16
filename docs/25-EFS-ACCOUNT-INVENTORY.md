@@ -42,6 +42,15 @@ node scripts/efs.mjs inventory --cards <efs_cards.id>,<efs_cards.id>
 node scripts/efs.mjs scan
 ```
 
+> ⚠️ **Never paste a token where it can be echoed.** The prompt is raw-mode and does not echo, but a
+> token pasted into a shell that is NOT at that prompt lands in scrollback and in shell history. If
+> one is exposed, sign that session out — an admin token is an hour of full org access.
+>
+> **Each account-wide command now names the org it resolved from the SERVER before it acts.** On
+> 2026-08-16 a run intended for production used a QA token, read QA, and returned output identical to
+> the previous QA scan — the mistake was invisible in the result. `docs/22` H10 is the same shape with
+> teeth. If the banner does not say `QA / sandbox`, you are on production.
+>
 > **The redirect works because the CLI keeps its streams apart** — human-facing lines (the token
 > prompt, the instructions, progress) go to **stderr**, and only the JSON result goes to **stdout**.
 > That was not true until 2026-08-16: the prompt was written to stdout, so this exact documented

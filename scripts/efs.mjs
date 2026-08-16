@@ -204,8 +204,44 @@ async function call(path, body, opts = {}) {
   if (!res.ok) process.exit(2);
 }
 
+/**
+ * Which org does this token belong to? Resolved from the SERVER, never from intent.
+ *
+ * ── Why every account-wide command announces this before it acts ────────────────────────────────
+ * `docs/22` H10: a suspension drill was "told to use a QA token and was given a PRODUCTION one.
+ * Nothing checked." On 2026-08-16 the same shape recurred harmlessly — a run intended for production
+ * used a QA token, read QA, and returned output identical to the previous QA scan. Nothing in the
+ * transcript said which account had been read, so the only way to tell was decoding the JWT by hand.
+ *
+ * A token carries its org in its own payload, but this asks the SERVER: a token is a claim, and the
+ * question is which account the API will actually act on with it.
+ */
+const KNOWN_ORGS = {
+  "07fe4058-cc72-4a69-b3e9-29b4cf1c6a44": "QA / sandbox",
+};
+
+async function resolveOrg(bearer) {
+  const probe = await fetch(`${api}/api/jobs/latest?kind=efs_card_sync`, {
+    headers: { Authorization: `Bearer ${bearer}` },
+  }).catch(() => null);
+  if (!probe?.ok) return null;
+  const body = await probe.json().catch(() => null);
+  return body?.latest?.org_id ?? body?.lastDone?.org_id ?? null;
+}
+
+/** Say which account is about to be read, on stderr, so a redirected run still shows it. */
+async function announceOrg(label) {
+  const org = await resolveOrg(await getToken());
+  const named = org ? (KNOWN_ORGS[org] ? `${org}  (${KNOWN_ORGS[org]})` : `${org}  (NOT the known QA org — treat as production)`) : "(could not determine)";
+  console.error(`\n${label} — org ${named}. Read-only: nothing is dispatched.\n`);
+  return org;
+}
+
 switch (command) {
   case "scan":
+    // Announce first. This command's output is nearly identical between the two orgs, so a run
+    // against the wrong one is invisible in the result — see resolveOrg.
+    await announceOrg("Config scan");
     await call("/api/fuel-cards/config-scan", {});
     break;
 
@@ -238,6 +274,7 @@ switch (command) {
     if (cards.some((c) => /^[0-9]{8,}$/.test(c))) {
       die("--cards takes efs_cards UUIDs, never card numbers. Rule 13: no PAN in a shell argument.");
     }
+    await announceOrg("Account inventory");
     await call("/api/fuel-cards/account-inventory", cards.length > 0 ? { sampleCards: cards } : {});
     break;
   }
