@@ -229,11 +229,43 @@ async function resolveOrg(bearer) {
   return body?.latest?.org_id ?? body?.lastDone?.org_id ?? null;
 }
 
-/** Say which account is about to be read, on stderr, so a redirected run still shows it. */
+/**
+ * Say which account is about to be read — and REFUSE when it is not the one asked for.
+ *
+ * ── Announcing is not enough, and 2026-08-16 proved it twice in one sitting ──────────────────────
+ * The banner was added after a run intended for production silently read QA. With the banner in
+ * place the very next attempt did it AGAIN: three commands, three QA tokens, and the second one
+ * redirected into a file named `account-inventory-production.json`. A banner tells you afterwards;
+ * it cannot stop a wrong-org artefact being written under a right-org name, and a mislabelled
+ * inventory is worse than a missing one — it becomes the record.
+ *
+ * `--expect-org` is the same guard `suspend-drill` already carries, for the same reason: "a tool
+ * must confirm WHICH COMPANY it is about to act on, and must refuse rather than assume when it
+ * cannot tell." Accepts `qa`, `production`, or a literal uuid.
+ */
 async function announceOrg(label) {
+  // Validated first: a malformed flag must not cost a token prompt and a round trip to find out.
+  if (flags["expect-org"] === true) die("--expect-org needs a value: qa, production, or an org uuid.");
   const org = await resolveOrg(await getToken());
-  const named = org ? (KNOWN_ORGS[org] ? `${org}  (${KNOWN_ORGS[org]})` : `${org}  (NOT the known QA org — treat as production)`) : "(could not determine)";
+  const named = org
+    ? (KNOWN_ORGS[org] ? `${org}  (${KNOWN_ORGS[org]})` : `${org}  (NOT the known QA org — treat as production)`)
+    : "(could not determine)";
   console.error(`\n${label} — org ${named}. Read-only: nothing is dispatched.\n`);
+
+  const expected = flags["expect-org"];
+  if (expected === undefined) return org;
+  if (!org) die("--expect-org was given but this token's org could not be resolved — refusing rather than assuming.");
+
+  const isQa = KNOWN_ORGS[org] !== undefined;
+  const want = String(expected).toLowerCase();
+  const ok = want === "qa" ? isQa : want === "production" ? !isQa : want === org.toLowerCase();
+  if (!ok) {
+    die(
+      `--expect-org ${expected}, but this token belongs to ${named}.\n`
+        + "Refusing. Nothing was read, and no file was written — a wrong-org artefact under a\n"
+        + "right-org filename is worse than no artefact at all.",
+    );
+  }
   return org;
 }
 

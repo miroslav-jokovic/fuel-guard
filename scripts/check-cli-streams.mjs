@@ -37,6 +37,9 @@ const CASES = [
   { name: "no command at all prints usage", args: [] },
   { name: "a card number passed where a uuid belongs is refused", args: ["inventory", "--cards", "70830000000000001"] },
   { name: "--token-from-env without FG_TOKEN is refused", args: ["scan", "--token-from-env"] },
+  // Added after --expect-org shipped: its argument validation must also stay off stdout, and must
+  // happen before the token prompt rather than after a round trip.
+  { name: "--expect-org with no value is refused", args: ["scan", "--expect-org"] },
 ];
 
 const failures = [];

@@ -32,14 +32,23 @@ fallback), so this cannot be run headless without `--token-from-env`.
 # Copy an admin token from the browser console of the org you mean to scan — the CLI prints the
 # snippet. Getting this wrong is not theoretical: docs/22 H10 is a drill that suspended the wrong org.
 
-node scripts/efs.mjs inventory > docs/efs/account-inventory-qa.json          # with a QA token
-node scripts/efs.mjs inventory > docs/efs/account-inventory-production.json  # with a production token
+# --expect-org REFUSES if the token is not the org you named, before reading anything and before
+# writing a byte. Use it every time: on 2026-08-16 three consecutive runs used a QA token, and the
+# second wrote QA data into a file called `account-inventory-production.json`. A mislabelled
+# inventory is worse than a missing one, because it becomes the record.
+
+node scripts/efs.mjs inventory --expect-org qa         > docs/efs/account-inventory-qa.json
+node scripts/efs.mjs inventory --expect-org production > docs/efs/account-inventory-production.json
+
+# ⚠ A PRODUCTION token comes from being signed into the PRODUCTION app. The browser-console snippet
+# copies the token for whichever org that tab is signed into — so if you are signed into QA, you get
+# a QA token no matter which file you redirect it to. Sign into production first.
 
 # Optional, and charged separately — three vendor calls per card, UUIDs only, never card numbers:
 node scripts/efs.mjs inventory --cards <efs_cards.id>,<efs_cards.id>
 
 # The unmodelled-field check, which REFUSES rather than reporting a partial answer (Step 7.3):
-node scripts/efs.mjs scan
+node scripts/efs.mjs scan --expect-org production
 ```
 
 > ⚠️ **Never paste a token where it can be echoed.** The prompt is raw-mode and does not echo, but a
