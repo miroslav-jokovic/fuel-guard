@@ -340,7 +340,7 @@
 @layer components {
   /* Items inside <KebabMenu> — kept as classes so feature code stays terse. */
   .kebab-item {
-    @apply block w-full px-3 py-1.5 text-left text-sm text-ink-secondary;
+    @apply block w-full !border-0 px-3 py-1.5 text-left text-sm text-ink-secondary !shadow-none !ring-0;
   }
   .kebab-item:hover {
     @apply bg-surface-subtle;

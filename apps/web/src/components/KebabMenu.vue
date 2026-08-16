@@ -66,7 +66,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
           :class="
             tone === 'sidebar'
               ? 'sidebar-glass-popover rounded-dialog'
-              : 'rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle'
+              : 'rounded-control bg-surface shadow-overlay'
           "
           class="z-[9999] w-48 origin-top-right py-1"
           @click="open = false"

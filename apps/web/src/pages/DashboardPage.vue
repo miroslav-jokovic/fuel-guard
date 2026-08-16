@@ -279,7 +279,7 @@ const EXPORTS = [
             leave-from-class="scale-100 opacity-100"
             leave-to-class="scale-95 opacity-0"
           >
-            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right overflow-hidden rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle focus:outline-none">
+            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right overflow-hidden rounded-control bg-surface py-1 text-sm shadow-overlay focus:outline-none">
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
                 <BaseButton
                   type="button"
