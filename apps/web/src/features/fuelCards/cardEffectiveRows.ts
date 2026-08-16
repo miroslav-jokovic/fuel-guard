@@ -123,6 +123,19 @@ export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRo
 }
 
 /**
+ * How many blocked locations to draw before summarising the rest.
+ *
+ * ⚠ MEASURED, not guessed. The 2026-08-16 production inventory found **7,948 blocked locations on
+ * policy 1** (`docs/25` — "7,948 blocked locations, and the defect it found in today's code"). The
+ * QA account has none, and no fixture had more than a handful, which is why this shipped uncapped in
+ * the first place. The first version of `locationRows` rendered one row per entry with no
+ * cap, so a card carrying that blocklist would have put eight thousand rows into a `DataTable` on
+ * the card page. A blocklist is a set an operator checks membership of, never a list they read, so
+ * the rows past this point cost a hung browser and buy nothing.
+ */
+const MAX_BLOCKED_ROWS = 25;
+
+/**
  * Where this card may and may not fuel (Step 7.4).
  *
  * Both halves have been parsed since Phase 1 and reached no surface. They are NOT symmetrical and
@@ -134,6 +147,8 @@ export function locationRows(
   groups: readonly string[],
   blocked: readonly string[],
 ): EffectiveDisplayRow[] {
+  const shown = blocked.slice(0, MAX_BLOCKED_ROWS);
+  const hidden = blocked.length - shown.length;
   return [
     ...groups.map((id, i) => ({
       key: `grp-${id}-${i}`,
@@ -141,12 +156,22 @@ export function locationRows(
       detail: "This card may fuel at locations in this group.",
       ...describeOrigin("card" as EffectiveOrigin),
     })),
-    ...blocked.map((id, i) => ({
+    ...shown.map((id, i) => ({
       key: `blk-${id}-${i}`,
       label: `Location #${id}`,
       detail: "BLOCKED — this card is refused here.",
       ...describeOrigin("card" as EffectiveOrigin),
     })),
+    // Never a silent truncation: the count is the fact worth having, and a table that quietly showed
+    // 25 of 7,948 would read as "this card is blocked from 25 places".
+    ...(hidden > 0
+      ? [{
+          key: "blk-more",
+          label: `+ ${hidden.toLocaleString()} more blocked locations`,
+          detail: `${blocked.length.toLocaleString()} in total. Too many to list — check a specific location in the WEX portal.`,
+          ...describeOrigin("card" as EffectiveOrigin),
+        }]
+      : []),
   ];
 }
 

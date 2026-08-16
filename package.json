@@ -52,6 +52,8 @@
     "lint:boundaries": "node scripts/check-feature-boundaries.mjs && node scripts/check-feature-catalog-parity.mjs",
     "lint:comment-claims": "node scripts/check-comment-claims.mjs",
     "lint:wsdl": "node scripts/check-wsdl-ops.mjs",
+    "//lint:cli-streams": "efs.mjs must put ONLY a JSON result on stdout — a prompt there makes `efs.mjs <cmd> > file.json` hang, which it did on 2026-08-16.",
+    "lint:cli-streams": "node scripts/check-cli-streams.mjs",
     "lint:codegen": "node scripts/gen-rule-catalog.mjs && git diff --exit-code -- 'packages/**/*.generated.ts'",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

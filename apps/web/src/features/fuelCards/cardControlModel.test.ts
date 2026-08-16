@@ -605,6 +605,32 @@ describe("the parity gate (Step 7.4) — every parsed field is reachable by exac
     expect(autoRollClause({ limitId: "X", limit: 1, hours: null, minHours: null })).toBe("");
   });
 
+  it("caps a fleet-sized blocklist and SAYS how many it hid", () => {
+    /**
+     * Measured, not hypothetical: the production inventory found **7,948 blocked locations on policy
+     * 1**. The first version of this renderer had no cap, so a card carrying that list would have put
+     * eight thousand rows into the card page's table.
+     *
+     * The count is the fact worth having. A table that quietly showed 25 of 7,948 would read as
+     * "this card is blocked from 25 places", which is the silent-truncation failure the plan's own
+     * "no silent caps" rule exists for.
+     */
+    const many = Array.from({ length: 7948 }, (_, i) => String(500000 + i));
+    const rows = locationRows([], many);
+
+    expect(rows.length).toBeLessThan(30);
+    const last = rows.at(-1)!;
+    expect(last.label).toContain("7,923 more");
+    expect(last.detail).toContain("7,948");
+  });
+
+  it("does not add a summary row when everything fits", () => {
+    // The positive control. A "+0 more" row on every card is noise that trains people to skip the
+    // one time the number matters.
+    const rows = locationRows(["41"], ["442013", "442014"]);
+    expect(rows.map((r) => r.key)).not.toContain("blk-more");
+  });
+
   it("keeps the blocklist and the allowlist apart, because they mean opposite things", () => {
     // `locations` is "a list of locations that this card is BLOCKED from using" (p36). One table
     // labelled "Locations" would be read as "where this card works" and be wrong for half its rows.

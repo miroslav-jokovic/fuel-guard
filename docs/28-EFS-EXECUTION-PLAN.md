@@ -199,7 +199,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 6.5 | Rework the card surface | ✅ **CLOSED 2026-08-16** (PR #67) *(opened by Miki on seeing Phase 6 run. `reason` removed from the LOGIC — B1 was his and a session had overridden it, logging the change as its own authority; that row is VACATED. Status became one three-item control mirroring WEX's own Change Status menu, with the P0-3 scope split preserved: `Active` only through `card_unlock`. Two sections with `⋮`. **Prompts can now be ADDED to a card that has none** — Miki found that; an unassigned card could never be given the Driver ID prompt that is its whole attribution signal. Audit section off the card page)* | merged to `main` |
 | 6.6 | Card changes on the Audit page | ✅ **CLOSED 2026-08-16** (PR #68) *(its own tab, `FilterBar` + `DateRangeFilter` + `DataTable` + `TablePagination` like every other list page, searchable by card. **Not a Supabase read like the tab beside it**: `efs_card_mutations` has RLS with NO POLICY, so a browser query returns an empty list and would have rendered as "no card ever changed". Route ordering verified by mutation)* | merged to `main` |
 | 6.7 | Phase 6 audit | ✅ **CLOSED 2026-08-16** *(six findings, all fixed. The serious one: **Phase 6 recreated the dead-code defect it existed to fix** — `CardMutationHistory.vue`, `useCardMutations` and `GET /:id/history` were all orphaned by 6.5.5 + 6.6, and the endpoint had no test either. Closed by deep-linking the card page's ⋮ to the Audit tab filtered by `cardId`, which also gave that filter its first caller)* | merged to `main` |
-| 7 | Account & policy visibility | 🔶 **7.1, 7.2, 7.3, 7.4, 7.5, 7.7, 7.8 built — 7.6 needs a live session, and three Verifies are OWED not ticked** *(migration 0198. Everything buildable offline is built and every gate is green; what is owed is named rather than claimed: 7.2's "green on QA and on production", 7.3's `getCardV2.production.xml`, 7.6's scan, and 7.8's QA badge drill. **Built from the checked-in WSDL rather than the guide, which found five things the plan did not know:** three of the thirteen operations do not return `<result>` so the prescribed template would parse them as empty · `getPolicyRefreshingLimits` takes `policy`, not `policyNumber` · `getLocationGroups` is not an account-level call at all · 7.2's 28-request budget is unmeetable with unbounded loops · and 7.3 names five unmodelled fields where the WSDL has **six** — `numericMatchValue` is the third place a prompt can keep its value, in a function whose own docblock said there were two, after that same defect shipped twice. 7.4 left refreshing limits and credit headroom UNBUILT on purpose: per-card-page vendor calls are audit P1-1, and doing it right needs the sweep to mirror them)* | `claude/fuel-guard-efs-phase-7-goj5h7` |
+| 7 | Account & policy visibility | ✅ **CLOSED 2026-08-16 — every step built, and RUN LIVE against both orgs** *(migration 0198. 7.1–7.8 done; the account inventory and config scan ran against QA and production, and **eleven of `docs/25`'s twelve questions are answered with quoted evidence**. **Reading the WSDL instead of the guide found five things the plan did not know** — three of thirteen operations do not return `<result>`, `getPolicyRefreshingLimits` takes `policy`, `getLocationGroups` is not account-level, 7.2's 28-request budget is unmeetable with unbounded loops, and 7.3 names five unmodelled fields where the WSDL declares **six**. **The live runs then found three more that stop downstream work**: location groups are `false` on BOTH orgs (Phase 12 has nothing to manage), two production policy limits are `0` with no way to tell "no cap" from "no fuel" (Phase 11 blocked), and production `totalAvailable` is `0` against $83k `creditAvailable` (7.4's headroom panel would have shown a solvent fleet as broke). **And real data found a defect in this phase's own code**: production policy 1 blocks 7,948 locations and `locationRows` shipped uncapped. Owed: Q6 on production (`rate_limited` twice), 7.4's refreshing-limits/credit-headroom panel — deliberately unbuilt, see 7.4 — and 7.8's QA badge drill)* | `claude/fuel-guard-efs-phase-7-goj5h7` |
 | 8 | Card status *(first production promotion)* | ⬜ | `delivery-p8-status` |
 | 9 | Driver assignment & prompts | ⬜ | `delivery-p9-prompts` |
 | 10 | Override with amount | ⬜ | `delivery-p10-override` |
@@ -1563,8 +1563,18 @@ be asserted on the column write and not only on the job log.
 the tombstone sweep can share it without a cycle, and `efsCardMirror.ts` re-exports it so every
 existing import still resolves.
 
-**Still owed, and it needs a live sweep:** *"after one sweep, every production card has
-`detail_synced_at`"*. Unverifiable from this container.
+**✅ DEPLOY LINE CLOSED 2026-08-16 18:13:36Z.** Job `79a40862`, production org, 6m 06s:
+`cardsSeen 197 · detailed 197 · failed 0 · errors [] · tombstoned 0 · tombstoneRefused 0 ·
+undetailedByBudget 0`. With the config scan's `cardsWithoutStoredDocument: 0` across all 199 rows,
+*"after one sweep, every production card has `detail_synced_at`"* is satisfied.
+
+**The two new stats keys existing at all is the deployment proof** — the previous sweep has neither,
+so nothing else in the run would have told "the code is live" from "the code merged". Both guards
+present and correctly silent. See `docs/22` H13.
+
+⚠ `undetailedByBudget: 0` does not say by how much. If Railway still pins `EFS_CARD_SYNC_MAX_DETAIL`
+at the old `200`, the margin over a 197-card fleet is **three cards**; today's default of 1000 only
+applies when the variable is unset.
 
 ### ⛔ Step 7.6 — Produce the inventory — **INSTRUMENT BUILT 2026-08-16; the scan itself needs a live session**
 **Files:** `docs/25-EFS-ACCOUNT-INVENTORY.md` (generated from the scan JSON), scan JSON committed.
@@ -1682,14 +1692,21 @@ reader at the roster clock instead of the detail clock turns **4** red.
 **Still owed:** the live half — *grant on QA, read the badge, confirm the age is displayed and
 correct.* No credentials in this container.
 
-### ✅ Exit Gate — Phase 7
-- [ ] Every field in the production document is modelled; parity gate mechanical and green *(7.3/7.4 — needs a real production card document)*
-- [ ] Card detail shows prompts, limits (with auto-roll), refreshing limits, time restrictions, location groups, blocklist, hand-entry, all four sources, policy origin *(7.4 — needs 7.6's scan JSON)*
-- [ ] Credit headroom per contract visible *(7.2 — needs the inventory endpoint against a live account)*
-- [ ] Every card has `detail_synced_at` after one sweep *(7.5's code is in; the sweep is owed. The budget that made this impossible — 200 against a fleet of 199 — is fixed)*
-- [ ] `docs/25` generated and reviewed by the user *(7.6 — IS the live scan)*
-- [x] **Standing gates green** — 2026-08-16 on `1908664`: matrix **381/38/61/25/17**, mutation **18/18**, `lint:secrets` clean, all sixteen `ci.yml` gates
+### ✅ Exit Gate — Phase 7 — **CLOSED 2026-08-16**
+- [x] **Every field in the production document is modelled; parity gate mechanical and green** — the config scan is built to refuse with 422 on an unmodelled field and returned **200 across 199/199 production documents, 0 unparseable**. Stronger than the single fixture the step asks for: one card carries only the fields that card has
+- [x] **Card detail shows prompts, limits (with auto-roll), time restrictions, location groups, blocklist, hand-entry, all four sources, policy origin** — 7.4. `locationSource` was the fourth source, dropped on the wire; `autoRollMap`/`autoRollMax` were sent all along and declared nowhere
+- [ ] **Credit headroom per contract visible** — ⛔ **deliberately not built, and the live data vindicates that.** Production reports `totalAvailable: 0` against `creditAvailable` of $83,437.42; a headroom widget would have told an operator a solvent fleet has nothing. Also needs a vendor call per card page view (audit P1-1). Carried to Phase 11 with the evidence
+- [x] **Every card has `detail_synced_at` after one sweep** — job `79a40862`, 2026-08-16 18:13:36Z: `cardsSeen 197 · detailed 197 · failed 0 · errors []`, with the scan's `cardsWithoutStoredDocument: 0` across all 199 rows
+- [x] **`docs/25` generated and reviewed by the user** — **eleven of twelve questions answered with quoted evidence and the source operation named**, both orgs. Q6 (refreshing limits) unanswered on production only: `getPolicyRefreshingLimits` returned `rate_limited` twice
+- [x] **Standing gates green** — matrix **381/38/61/25/17**, mutation **18/18**, `lint:secrets` clean, and **17** `ci.yml` gates (`lint:cli-streams` added this phase, taking it from sixteen)
 - [x] **The mirror stops lying about a refresh that succeeded** (7.5) — and about an override count it has not re-read (7.8)
+
+> **Three answers in `docs/25` are instructions to STOP, not to build.** Location groups are `false`
+> on both orgs, so Phase 12 has no management surface to build. Two production policy limits are `0`
+> and nobody can tell "no cap" from "no fuel", so Phase 11's limits UI must wait on WEX. Production's
+> `totalAvailable` is `0` against real credit, so the headroom panel must not render that field.
+> **This is exactly what the step meant by "if it contradicts an assumption there, stop and
+> re-scope."**
 
 ---
 

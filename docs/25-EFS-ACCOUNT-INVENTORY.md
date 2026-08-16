@@ -1,11 +1,20 @@
 # EFS account inventory — Step 7.6
 
-> ## ⛔ THIS DOCUMENT IS NOT YET THE INVENTORY. It is the instrument for producing one.
+> ## ✅ ELEVEN of twelve answered, for both orgs. One is blocked by a vendor rate limit.
 >
-> **Every answer below is UNANSWERED.** Step 7.6 is a live scan of a real EFS account, and the
-> session that built the instrument (2026-08-16) had no credentials and no network route to the
-> vendor — verified, not assumed: `env | grep -c "^EFS_\|^SUPABASE_"` → 0, and the proxy answers 403
-> to `CONNECT` for `*.up.railway.app`.
+> **Status: config scan AND account inventory run against QA and production on 2026-08-16.** Eleven
+> of the twelve questions are answered with the raw evidence quoted below and the source operation
+> named. **Question 6 (refreshing limits) is unanswered for production only** — both
+> `getPolicyRefreshingLimits` calls came back `rate_limited`; QA answered it (all six counters null).
+>
+> **Three answers should stop work rather than start it**, and they are called out where they sit:
+> location groups are `false` on both orgs (Phase 12), two policy limits are `0` and nobody knows
+> whether that means "no cap" or "no fuel" (Phase 11), and production's `totalAvailable` is `0`
+> against $83k of `creditAvailable` (Step 7.4's headroom panel).
+>
+> The instrument was built in a session with no credentials and no route to the vendor — verified,
+> not assumed: `env | grep -c "^EFS_\|^SUPABASE_"` → 0, and the proxy answers 403 to `CONNECT` for
+> `*.up.railway.app`.
 >
 > **Nothing here may be filled in from the WSDL, the integration guide, or reasoning.** The whole
 > point of Step 7.6 is what THIS ACCOUNT actually says, and the plan is explicit about what happens
@@ -28,15 +37,39 @@ fallback), so this cannot be run headless without `--token-from-env`.
 # Copy an admin token from the browser console of the org you mean to scan — the CLI prints the
 # snippet. Getting this wrong is not theoretical: docs/22 H10 is a drill that suspended the wrong org.
 
-node scripts/efs.mjs inventory > docs/efs/account-inventory-qa.json          # with a QA token
-node scripts/efs.mjs inventory > docs/efs/account-inventory-production.json  # with a production token
+# --expect-org REFUSES if the token is not the org you named, before reading anything and before
+# writing a byte. Use it every time: on 2026-08-16 three consecutive runs used a QA token, and the
+# second wrote QA data into a file called `account-inventory-production.json`. A mislabelled
+# inventory is worse than a missing one, because it becomes the record.
+
+node scripts/efs.mjs inventory --expect-org qa         > docs/efs/account-inventory-qa.json
+node scripts/efs.mjs inventory --expect-org production > docs/efs/account-inventory-production.json
+
+# ⚠ A PRODUCTION token comes from being signed into the PRODUCTION app. The browser-console snippet
+# copies the token for whichever org that tab is signed into — so if you are signed into QA, you get
+# a QA token no matter which file you redirect it to. Sign into production first.
 
 # Optional, and charged separately — three vendor calls per card, UUIDs only, never card numbers:
 node scripts/efs.mjs inventory --cards <efs_cards.id>,<efs_cards.id>
 
 # The unmodelled-field check, which REFUSES rather than reporting a partial answer (Step 7.3):
-node scripts/efs.mjs scan
+node scripts/efs.mjs scan --expect-org production
 ```
+
+> ⚠️ **Never paste a token where it can be echoed.** The prompt is raw-mode and does not echo, but a
+> token pasted into a shell that is NOT at that prompt lands in scrollback and in shell history. If
+> one is exposed, sign that session out — an admin token is an hour of full org access.
+>
+> **Each account-wide command now names the org it resolved from the SERVER before it acts.** On
+> 2026-08-16 a run intended for production used a QA token, read QA, and returned output identical to
+> the previous QA scan — the mistake was invisible in the result. `docs/22` H10 is the same shape with
+> teeth. If the banner does not say `QA / sandbox`, you are on production.
+>
+> **The redirect works because the CLI keeps its streams apart** — human-facing lines (the token
+> prompt, the instructions, progress) go to **stderr**, and only the JSON result goes to **stdout**.
+> That was not true until 2026-08-16: the prompt was written to stdout, so this exact documented
+> command swallowed it and sat waiting on stdin, indistinguishable from a hang. `pnpm lint:cli-streams`
+> is the gate that keeps it true.
 
 Commit both JSON files. `truncated` in each response names anything the 28-request budget left out —
 if it is non-empty, raise `MAX_CONTRACTS` / `MAX_POLICIES` and `INVENTORY_REQUEST_BUDGET` in
@@ -52,18 +85,18 @@ inventory JSON, so filling this in is transcription rather than interpretation.
 
 | # | Question | Answered by | JSON path | Answer |
 |---|---|---|---|---|
-| 1 | Which Info IDs does the account **have**? | `getPromptTypes` | `inventory.promptTypes` | ⛔ UNANSWERED |
-| 2 | Which Info IDs does it **use**? | `config-scan` over the mirror | scan `fields[]` | ⛔ UNANSWERED |
-| 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ⛔ UNANSWERED |
-| 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | ⛔ UNANSWERED |
-| 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ⛔ UNANSWERED |
-| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | ⛔ UNANSWERED |
-| 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ⛔ UNANSWERED |
-| 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ⛔ UNANSWERED |
+| 1 | Which Info IDs does the account **have**? | `getPromptTypes` | `inventory.promptTypes` | ✅ **Production 40 · QA 41** (QA adds `VEHN`). Uses 8, may edit **2** |
+| 2 | Which Info IDs does it **use**? | `config-scan` over the mirror | scan `fields[]` | ✅ **QA: 3** (`DRID`,`UNIT`,`NAME`) on 7/35. **Production: 8** (`DRID`,`NAME`,`TRIP`,`TRLR`,`UNIT`,`CNTN`,`DLIC`,`DLST`) on 162/199 |
+| 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ✅ **YES — production policy 1, `ODRD` with `ACCRUAL_CHECK`, min 1 max 1800, value "0"** |
+| 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | ✅ **Both recorded below** |
+| 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ✅ **Recorded below — and two are `0`** |
+| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | 🟡 **QA: all six counters null on all 3 policies.** Production: **`rate_limited`, unanswered** |
+| 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ✅ **Production: $85,900 / $64,400 original; $83,437.42 / $48,804.17 available** |
+| 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ✅ **`locationGroups: false` on BOTH orgs** — see below |
 | 9 | Are **time restrictions** in use? | `getPolicy` per policy; sample cards | `inventory.policies[].policy.timeRestrictions` | ⛔ UNANSWERED |
-| 10 | What does **each policy** set? | `getPolicyDescriptions` + `getPolicy` | `inventory.policies[]` | ⛔ UNANSWERED |
-| 11 | **Production's document shape**, and does it match QA's? | `config-scan` `observedDocumentShape` | scan `recorded.observedDocumentShape` | ⛔ UNANSWERED |
-| 12 | Any field **production sends that we do not model** | `config-scan` — **refuses with 422** | `unmodelledFields[]` | ⛔ UNANSWERED |
+| 10 | What does **each policy** set? | `getPolicyDescriptions` + `getPolicy` | `inventory.policies[]` | ✅ **Production 2 policies · QA 3 — recorded below** |
+| 11 | **Production's document shape**, and does it match QA's? | `config-scan` `observedDocumentShape` | scan `recorded.observedDocumentShape` | ✅ **`nested:header` on BOTH — they match** |
+| 12 | Any field **production sends that we do not model** | `config-scan` — **refuses with 422** | `unmodelledFields[]` | ✅ **NONE on either.** Production returned **200 over 199/199 documents**, 0 unparseable |
 
 > **Question 8 gates several others.** `getCarrierInfo.locationGroups` is an account-level capability
 > flag, not a list. If it is false, the whole location-group mechanism is off for this carrier and
@@ -74,6 +107,310 @@ inventory JSON, so filling this in is transcription rather than interpretation.
 > field the WSDL declares (`efsCardFields.test.ts`), so anything it reports is a field EFS sends
 > **undeclared** — which this account has already done twice, with a `status` outside the documented
 > enum and an unrecognised `infosrc`.
+
+---
+
+## QA config scan — 2026-08-16, run by Miki
+
+**Org: QA `07fe4058-cc72-4a69-b3e9-29b4cf1c6a44`. Source: `mirror.last_response_xml_redacted`, 35 of
+35 cards carrying a stored document, `cardsWithoutStoredDocument: 0`, synced 01:58:52Z → 17:22:53Z
+the same day.** A complete, fresh corpus — so `unobserved` here means "this account does not emit
+that value", not "we did not look properly".
+
+This is the CONFIG SCAN, which answers four of the twelve questions. **The other eight need
+`efs.mjs inventory`**, which is still unrun.
+
+| Field | Values observed | Coverage |
+|---|---|---|
+| `infoId` | `DRID` ×7 · `UNIT` ×6 · `NAME` ×5 | 18 records across **7 of 35 cards**; 28 absent |
+| `validationType` | `EXACT_MATCH` ×9 · `REPORT_ONLY` ×9 | same 7 cards |
+| `status` | `ACTIVE` ×33 · `INACTIVE` ×2 | all 35 |
+| `overrideAllLocations` | `false` ×35 | all 35 |
+
+**Document shape: `nested:header`.** Whether production matches is question 11 and is still open —
+the question is a comparison, and one side of it does not exist yet.
+
+### Four things this settles, and one it does not
+
+**1. No unmodelled fields on QA.** The scan returned 200, not the 422 it is built to return when a
+document carries a field `MODELLED_CARD_FIELDS` does not know (Step 7.3). Across 35 of 35 documents,
+QA sends nothing undeclared. **This says nothing about production**, which is the org that has
+produced undeclared fields twice.
+
+**2. Three Info IDs in use, on a fifth of the fleet.** `EFS_EDITABLE_INFO_IDS` is a list this
+codebase chose; this is what QA actually carries. 28 of 35 cards have **no card-level prompts at
+all** — consistent with `infoSource: BOTH` and the prompts living on the policy. Question 1 (what the
+account HAS, via `getPromptTypes`) is the other half and is still unrun; the difference between the
+two is what scopes Phase 9.
+
+**3. The case mismatch is confirmed as account-wide, not a one-card oddity.** `card_unlock` verdicts
+`Active` → `observed_differently_cased` as `ACTIVE`, and `card_lock`'s `Inactive` → `INACTIVE`. This
+is why `canonicalEfsStatus` exists and why the list route filters with `ilike` rather than `eq`.
+
+**4. `overrideAllLocations` is `false` on all 35, exactly as `docs/22` H2/H3 recorded.** So
+`override_grant` remains correctly unpromotable on QA, and `override_clear` with it.
+
+**And one reading to be careful about, because I got it wrong first: `card_lock: unobserved` is NOT
+a statement that card_lock is unproven.**
+
+It is a VOCABULARY observation. The scan reads stored documents and reports which spellings this
+account emits; no QA card is currently *sitting* at `Hold`, so the string never appears in the
+corpus. That is all it says.
+
+**`card_lock` is proven live and has been since 2026-08-15**: `pnpm efs:prove card_lock` ran green
+end to end against QA ••••7671, proof `40b88b75`, OEG-1/3/4/5 true, card restored to ACTIVE (`docs/28`
+Phase 4 exit gate). That test *sets* a card to Hold and reverts it — it manufactures the state the
+scan cannot see, which is exactly why the two instruments exist side by side.
+
+The genuine gap Step 0.13 records is narrower and is about FIXTURES, not capability: no QA card
+*rests* at Hold, so a test that needs to observe one without creating it has nothing to look at.
+Phases 9–12 need those resting fixtures made in the WEX portal; `card_lock` itself is not waiting on
+them.
+
+---
+
+## Production config scan — 2026-08-16, run by Miki
+
+**Org `86d6b3ea-4361-4f71-877f-e8373615769b`, announced by the CLI as "NOT the known QA org — treat
+as production". 199 of 199 cards carrying a stored document, `cardsWithoutStoredDocument: 0`,
+`documentsUnparseable: 0`.** Shape `nested:header`.
+
+| Field | Values observed | Coverage |
+|---|---|---|
+| `infoId` | `DRID` 162 · `NAME` 162 · `TRIP` 162 · `TRLR` 162 · `UNIT` 162 · `CNTN` 161 · `DLIC` 128 · `DLST` 128 | 1227 records across **162 of 199**; 37 absent |
+| `validationType` | `REPORT_ONLY` 904 · `EXACT_MATCH` 323 | same 162 cards |
+| `status` | `ACTIVE` 129 · `INACTIVE` 38 · **`HOLD` 32** | all 199 |
+| `overrideAllLocations` | `false` ×199 | all 199 |
+
+### What production settles that QA could not
+
+**1. Production sends nothing we do not model.** The scan returned **200, not 422**, across 199 of
+199 documents with none unparseable. That is Step 7.3's substance answered at fleet scale — and it is
+a stronger answer than the `getCardV2.production.xml` fixture the step asks for, which could only
+ever cover the fields one card happened to carry.
+
+**2. The document shape matches QA.** `nested:header` on both, so question 11 is answered rather than
+half-answered, and the Phase 4 promotion gate's shape comparison has both sides.
+
+**3. `card_lock` is `match` on production — 32 cards are at `HOLD`.** This is the direct answer to
+the QA `unobserved` I misreported as a blocker: QA has no card resting at Hold, production has 32.
+`Hold` → `HOLD` and `Inactive` → `INACTIVE`, both `observed_differently_cased`, which is exactly what
+`canonicalEfsStatus` exists for.
+
+**4. `overrideAllLocations` is `false` on all 199**, at fleet scale, confirming `docs/22` H2/H3.
+`override_grant` and `override_clear` stay correctly `unobserved` for `true`, and unpromotable.
+
+### ⚠ Two findings that are NOT answers to the twelve questions
+
+**Production uses EIGHT prompt types; the product may EDIT two.** `EFS_EDITABLE_INFO_IDS` is
+`["DRID", "UNIT"]`. On 162 of 199 production cards EFS also carries `NAME`, `TRIP`, `TRLR`, `CNTN`,
+and on 128 of them `DLIC` and `DLST` (driver's licence number and state).
+
+**This is a Phase 9 SCOPE fact, not a data-loss risk, and I checked rather than assumed.**
+`promptsEdits` passes non-editable records through *"EXACTLY as EFS sent them"* — its docblock names
+`ODRD, TRIP, TRLR, NAME, PPIN, CNTN` specifically, and `efsCardEdits.test.ts` →
+*"passes non-editable records through untouched"* holds it. So a `replaceAll` on one of those 162
+cards preserves the six it cannot edit. What an operator cannot do is CHANGE them here; that stays in
+the WEX portal until Phase 9 widens the list. `DLIC`/`DLST` were not in that docblock's list and are
+licence data — worth a deliberate decision before they become editable.
+
+**The production corpus is a day old, and that is not a defect.** `newestSyncedAt` is
+`2026-08-15T19:37:11Z` — the manual sweep from Step 7.7's linking run.
+
+> **⚠ I first read this as a scheduler that had stopped, and the arithmetic says otherwise.** That
+> sweep finished `2026-08-15T19:37:19Z`; the next reading was `2026-08-16T18:07:30Z`. **22h 30m
+> against a 24h `EFS_CARD_SYNC_HOURS`** — not overdue, just not yet due. A finding I could have
+> checked with a subtraction and did not.
+
+What IS still open is narrower: Step 7.5's *"after one sweep, every production card has
+`detail_synced_at`"* needs a sweep running the code that shipped today. One was triggered by hand at
+`2026-08-16T18:07:30Z` (job `79a40862`); its stats are the check.
+
+---
+
+## Account inventory — 2026-08-16, both orgs, read in full
+
+Both files are committed: `docs/efs/account-inventory-{qa,production}.json`. **Scanned for card
+numbers before anything else — zero 10-digit-or-longer runs in either, and `lint:secrets` green.**
+
+| | QA | Production |
+|---|---|---|
+| `ok` | **true** | **false** — two steps `rate_limited` |
+| operations / budget | 17 / 28 | 15 / 28 |
+| `truncated` | `[]` | `[]` — **the caps were never reached** |
+| carrier | `TEST ACCOUNT` (5821160) | `SILVICOM INC` (139445) |
+
+**`truncated: []` on both is the Step 7.2 budget design confirmed against real accounts.** 17 and 15
+operations against a ceiling of 28, so `MAX_CONTRACTS(4)`/`MAX_POLICIES(7)` never bound anything —
+the caps exist for an account larger than either of these, and neither is close.
+
+### ⚠ Production `ok: false` — the vendor rate-limited two steps
+
+```
+getPolicyRefreshingLimits(1)  -> rate_limited
+getPolicyRefreshingLimits(2)  -> rate_limited
+```
+
+Thirteen of fifteen operations succeeded and the walk carried on, which is exactly the "never fails
+whole" design — a walk that aborted on the first refusal could not answer "which of these does this
+account refuse". But it means **question 6 is unanswered for production**, and it is a real
+operational finding: fifteen paced calls in sequence is enough to trip this vendor's limiter, and it
+tripped on the same operation twice rather than randomly. Re-run just that leg, or space the walk.
+
+### Q8 — **location groups are OFF for both orgs**, and that outranks the 18 below
+
+```
+QA         carrierInfo.locationGroups = false
+Production carrierInfo.locationGroups = false
+```
+
+`getCarrierInfo.locationGroups` is the account-level capability flag, and it is **false on both**.
+The 18 groups `getLocationGroupDescriptions` returns are therefore the vendor's global network
+groups, not this carrier's — consistent with every one of them being `ruleBased: true,
+editable: false`, and with policies referencing exactly one (`locationGroups: ["1"]` = "All").
+
+**Phase 12 is scoped by this line.** Location groups are not enabled for this account; there is
+nothing here to build a management surface on, and the read surface is one group per policy.
+
+### The 18 groups themselves — vendor-global, all rule-based
+
+```
+grpId 1 "All" · 1276 "Pacific Pride" · 1278 "CANADA" · 1380 "IDLEAIRE" · 2085 "WILCO"
+2135 "All Irving Locations" · 2137 "ESSO" · 2138 "PETRO CANADA" · 2165 "All Loves"
+2188 "US Locations" · 2254 "CAT SCALES" · 2612 "All Pilot & Flying J" · 2613 "TA & Petro"
+2614 "PDCA / B2B" · 3223 "Ambest" · 10342 "ROADSYNC" · 10343 "UCHAIN GROUP" · 10887 "EXXONMOBIL"
+```
+
+**All eighteen are `ruleBased: true` and `editable: false`.** That is a Phase 12 scoping fact, not a
+detail:
+
+- **Rule-based membership is computed by EFS**, so `getLocGrpLocs` cannot enumerate what is in one.
+  Any UI that promises "which stations does this group cover" cannot be built from this account.
+- **None is editable**, so creating or amending a group is a WEX-portal action, not something this
+  product can offer. Phase 12 is a READ surface on this account unless that changes.
+
+They are recognisable brands and networks (Pilot/Flying J, TA & Petro, Loves, Ambest, ExxonMobil,
+Irving, Esso, Petro-Canada), which is consistent with WEX maintaining them centrally rather than per
+carrier.
+
+### A site policy really does come back with no policy behind it
+
+```json
+{ "sitePolicy": 501, "siteDescription": "PFJ",
+  "sitePolicyPolicy": { "contractId": 0, "description": "All Policies", "policyNumber": 0 } },
+{ "sitePolicy": 502, "siteDescription": "All TA PETRO", "sitePolicyPolicy": null }
+```
+
+`502` carries `sitePolicyPolicy: null` — the nillable case Step 7.1's WSDL-derived fixture predicted
+and `efsAccountOps.test.ts` → *"getSitePolicyDescriptions keeps a site policy with no policy behind
+it"* asserts. **The fixture was written from the WSDL with no production data available, and
+production produced exactly that shape.** One small piece of evidence that the WSDL-derived approach
+was not merely convenient.
+
+Note also `policyNumber: 0` with description `All Policies` — a SENTINEL, not a real policy. Step
+7.2's walk guards `n < 1 || n > 99` before calling `getPolicy`, so it will not ask EFS about policy 0
+and earn the "Invalid policy number" false alarm `/diagnose` has already recorded once.
+
+### `serverTime` confirms the guide's Central-Time note, in production
+
+```
+"serverTime": "2026-08-16T13:01:57.000-05:00"   ==  18:01:57Z
+```
+
+An explicit `-05:00` offset — Central Time, exactly as p10-11 describes, and the reason
+`parseEfsDateTime` exists rather than a bare `new Date()`. Read minutes before our own 18:07:30Z
+sweep, so **EFS's clock and ours agree to within minutes**; there is no gross skew to account for.
+
+### ⚠ Seven product groups have no label in this product
+
+`getProducts` returns the account's full catalog. Cross-referencing the `group` values against
+`EFS_LIMIT_LABELS` (60 entries):
+
+```
+ACCE · CWAS · HOTL · HYDR · PARK · TCHN · TWAS
+```
+
+`limitLabel()` falls back to the raw code, so a limit set on any of these renders as `HYDR` rather
+than "Hydrogen". Cosmetic today — none of the seven is known to carry a limit on this fleet — and a
+Phase 11 input: hydrogen, EV charging and parking are the ones a fleet is most likely to start using.
+
+### Q1 — the account HAS 40 prompt types, USES 8, and this product may EDIT 2
+
+| | count |
+|---|---|
+| `getPromptTypes` on production | **40** (QA 41 — QA alone has `VEHN`) |
+| in use on production cards | **8** — `DRID NAME TRIP TRLR UNIT CNTN DLIC DLST` |
+| `EFS_EDITABLE_INFO_IDS` | **2** — `DRID`, `UNIT` |
+
+Every prompt in use is in the account's list, so nothing is being used that EFS does not advertise.
+**This is Phase 9's scope in one row: 40 available, 8 in use, 2 editable.**
+
+### Q3 — odometer following IS configured, and it uses a validation type nothing else does
+
+```json
+{ "infoId": "ODRD", "validationType": "ACCRUAL_CHECK",
+  "minimum": 1, "maximum": 1800, "value": "0",
+  "matchValue": null, "reportValue": null, "numericMatchValue": null }
+```
+
+Production policy 1. `ODRD` is the odometer prompt and **`ACCRUAL_CHECK`** is its validation type —
+the mode where the pump checks the reading against an expected accrual rather than a fixed value.
+`minimum 1 / maximum 1800` bound the accepted reading; `value` is `"0"`.
+
+`ACCRUAL_CHECK` is in `EFS_VALIDATION_TYPES` and `wsCardInfoSchema` reads it, so it parses. It is NOT
+in `promptInputSchema`'s writable enum (`EXACT_MATCH | REPORT_ONLY`) — correctly, since `ODRD` is not
+in `EFS_EDITABLE_INFO_IDS` either and `promptsEdits` passes it through untouched. **Read yes, write
+no**, which is the right posture for a rule the pump enforces on every fill.
+
+### Q5 — the limits each policy sets, and two of them are `0`
+
+**Production policy 1** — `ADD 30 · ANFR 30 · DEF 20 · DSL 200 · OIL 50 · RFR 50 · SCLE 31 ·
+ULSD 200 · WWFL 16`
+**Production policy 2** — `DEF 50 · DEFC 50 · **DSL 0** · RFR 120 · SCLE 30 · **ULSD 0**`
+
+> ⚠ **`DSL 0` and `ULSD 0` on policy 2 need a human answer before anything renders them.** This is
+> the `autoRollMax = 0` trap in a second field: zero could mean "no diesel permitted" or "no cap
+> set", and those are opposite. Policy 2 caps reefer at 120 and DEF at 50 while zeroing the two main
+> diesel products, which reads more like "no cap" than "no fuel" — but that is an inference, not an
+> answer, and `formatLimit` currently renders it as `0 gal`. **Do not build the Phase 11 limits UI
+> until this is settled with WEX.**
+
+### Q7 — the real credit ceilings
+
+| contract | original | available | daily limit | total available | max money code |
+|---|---|---|---|---|---|
+| 69949 | $85,900 | **$83,437.42** | 0 | 0 | 0 |
+| 260246 | $64,400 | **$48,804.17** | 0 | 0 | 2,000 |
+
+Both `ACTIVE`, both `USD`, `transLimit` $1,500 each.
+
+> ⚠ **`dailyLimit`, `dailyAvailable` and `totalAvailable` are all `0` on both production contracts**
+> while `creditAvailable` is $83k and $48k. On QA the same fields carry real numbers
+> (`totalAvailable` 499,548 = `creditAvailable`). So on production these almost certainly mean "no
+> daily cap configured" rather than "nothing available" — **and a headroom widget that rendered
+> `totalAvailable` would tell an operator a fleet with $83,437 of credit has zero.** This is the
+> second reason Step 7.4's credit-headroom panel was not built today, and it is a better reason than
+> the first.
+
+### Q10 — what each policy sets
+
+| org | policy | infos | limits | time restrictions | location groups | blocked locations |
+|---|---|---|---|---|---|---|
+| production | 1 | 1 (`ODRD`) | 9 | 0 | 1 (`"1"` = All) | **7,948** |
+| production | 2 | 1 | 6 | 0 | 1 | 0 |
+| QA | 1, 2, 3 | 0 | 4 each | 0 | 1 each | 0 |
+
+**No time restrictions anywhere, on either org** — so Phase 12's time-restriction work has no live
+example to build against, and Step 0.13's missing QA fixture is now known to be missing on production
+too.
+
+### ⚠ 7,948 blocked locations, and the defect it found in today's code
+
+Production policy 1 blocks **7,948** locations. Step 7.4's `locationRows` was shipped this morning
+with **no cap** — one row per entry — so a card carrying that list would have put eight thousand rows
+into the card page's table. Capped at 25 with an explicit `+ 7,923 more blocked locations` summary
+row, because the plan's own rule is that a bounded view must say what it bounded. Test:
+*"caps a fleet-sized blocklist and SAYS how many it hid"*.
 
 ---
 

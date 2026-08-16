@@ -1050,6 +1050,112 @@ point of running it is that the comment is now a measurement instead of a claim.
 
 ---
 
+## H13 — the first production sweep on the Phase 7 code: 197/197, and the new invariants report clean (2026-08-16)
+
+Job `79a40862`, org `86d6b3ea…`, triggered by hand at **18:07:30Z**, finished **18:13:36Z — 6m 06s**.
+The first sweep to run the Step 7.5 code, and the run that closes that step's deploy line.
+
+```
+cardsSeen 197 · upserted 197 · detailed 197 · failed 0 · errors []
+tombstoned 0 · tombstoneRefused 0 · undetailedByBudget 0 · linked 1
+```
+
+### What each number proves
+
+**`tombstoneRefused` and `undetailedByBudget` EXIST in the stats at all.** Both keys were added by
+Step 7.5 today. Their presence is the deployment proof — the previous sweep (`bc5ca6a8`,
+2026-08-15) has neither. Nothing else in this run would have distinguished "the new code is live"
+from "the new code merged"; a missing key would have meant the API still predated PR #70.
+
+**`undetailedByBudget: 0`** — `EFS_CARD_SYNC_MAX_DETAIL` exceeds the 197-card fleet, so the
+`budget > fleetSize` invariant holds and `mirror_detail_budget_short` correctly did not fire.
+⚠ It does NOT say by how much. If Railway still pins the old `200`, the margin is **three cards**;
+the new default of 1000 only applies if the variable is unset. Worth a `grep` — the signal fires at
+`error` the first time a fleet crosses it.
+
+**`tombstoneRefused: 0` with `tombstoned: 0`** — the roster came back complete, so the ratio guard
+had nothing to refuse. Guard present, correctly silent, which is the state it should spend its life
+in.
+
+**`detailed: 197`, `failed: 0`, `errors: []`** — every live card re-read in one sweep. Together with
+the config scan's `cardsWithoutStoredDocument: 0` across all 199 rows (the 197 live plus the two WEX
+de-listed on 2026-08-14), this is **Step 7.5's "after one sweep, every production card has
+`detail_synced_at`"**, closed.
+
+### The number I did not predict: `linked` went 103 → 1
+
+Not a regression, and worth stating because a falling count looks like one. `linked` is **new links
+this sweep**, not a total: the 2026-08-15 run linked 103 previously-unlinked cards and they stay
+linked, so this run had only the leftovers to attempt and resolved **one more**.
+
+That one card is the interesting part. Step 7.7 recorded the remaining 40 as a **DATA ceiling, not a
+code one** — 29 with no `unit_prompt`, 5 with no `fuel_cards` counterpart. A card crossing from
+unlinkable to linked without a code change means its DATA changed: a unit prompt added, or a missing
+`fuel_cards` row imported. The linker re-runs every sweep and improves as the data does, which is
+what the tiered design was for.
+
+## H12 — the production vocabulary, at fleet scale: eight prompt types, 32 cards at HOLD, nothing unmodelled (2026-08-16)
+
+`node scripts/efs.mjs scan --expect-org production`, org `86d6b3ea…`, **199 of 199 cards carrying a
+stored document, 0 unparseable**. The first time this account's production vocabulary has been read
+as a whole.
+
+| Field | Production | QA (same day) |
+|---|---|---|
+| `infoId` | **8**: `DRID` 162 · `NAME` 162 · `TRIP` 162 · `TRLR` 162 · `UNIT` 162 · `CNTN` 161 · `DLIC` 128 · `DLST` 128 | **3**: `DRID` 7 · `UNIT` 6 · `NAME` 5 |
+| `validationType` | `REPORT_ONLY` 904 · `EXACT_MATCH` 323 | `EXACT_MATCH` 9 · `REPORT_ONLY` 9 |
+| `status` | `ACTIVE` 129 · `INACTIVE` 38 · **`HOLD` 32** | `ACTIVE` 33 · `INACTIVE` 2 |
+| `overrideAllLocations` | `false` ×199 | `false` ×35 |
+| document shape | `nested:header` | `nested:header` |
+
+### Four things it settles
+
+**1. Production sends NOTHING this product does not model.** The scan is built to refuse with 422 on
+an unmodelled field (Step 7.3); it returned **200** across all 199 documents. That answers Step 7.3's
+substance at fleet scale, and more completely than the single redacted `getCardV2.production.xml`
+fixture the step asks for — one card can only carry the fields that card has.
+
+**2. The two orgs share a document shape.** `nested:header` on both, so the Phase 4 promotion gate's
+shape comparison finally has both sides.
+
+**3. `card_lock` is `match` on production: 32 cards rest at `HOLD`.** QA reports `unobserved` for the
+same capability purely because no QA card is at Hold — Step 0.13's fixture gap. The two are not in
+conflict and neither says anything about whether `card_lock` WORKS; `efs:prove card_lock` answered
+that on 2026-08-15 (proof `40b88b75`).
+
+**4. `overrideAllLocations` is `false` on all 199**, confirming H2/H3 at fleet scale rather than on a
+sample.
+
+### And the finding that is not about vocabulary
+
+**Production uses eight prompt types; `EFS_EDITABLE_INFO_IDS` is `["DRID", "UNIT"]`.** On 162 of 199
+cards EFS carries `NAME`, `TRIP`, `TRLR`, `CNTN`, and on 128 of them `DLIC`/`DLST` — driver's licence
+number and state.
+
+Not a data-loss risk: `promptsEdits` passes non-editable records through *"EXACTLY as EFS sent
+them"*, its docblock names `ODRD, TRIP, TRLR, NAME, PPIN, CNTN`, and `efsCardEdits.test.ts` →
+*"passes non-editable records through untouched"* holds it. Checked, not assumed. It is a **Phase 9
+scope fact**: six of the eight can be read in this product and changed only in the WEX portal.
+`DLIC`/`DLST` are absent from that docblock's list and are licence data — they deserve a deliberate
+decision, not an automatic inclusion, if the editable list widens.
+
+### Provenance, and one thing it exposes
+
+`oldestSyncedAt 2026-08-13T16:35Z`, `newestSyncedAt 2026-08-15T19:37Z` — the newest is the manual
+sweep from Step 7.7's linking run. A day-old corpus is fine for a vocabulary question, which is why
+this scan reads the mirror rather than the vendor.
+
+> **⚠ CORRECTION, same day, before this entry was an hour old.** I first wrote that "nothing has
+> swept production since" and read it as a scheduler that was not running. **It was not overdue.**
+> The manual sweep finished `2026-08-15T19:37:19Z` and the next reading was taken at
+> `2026-08-16T18:07:30Z` — **22h 30m**, against `EFS_CARD_SYNC_HOURS` of 24. The interval had simply
+> not elapsed. Arithmetic I could have done at the time and did not.
+>
+> Nothing here shows a scheduler problem. What remains true is narrower: Step 7.5's *"after one
+> sweep, every production card has `detail_synced_at`"* had not been proven, because the only sweep
+> since that code shipped is the one triggered by hand on 2026-08-16 at 18:07:30Z.
+
+
 ## H11 — the production echo scan, re-run and paged (2026-08-15 night, CONFIRMED)
 
 Phase 4's last exit-gate item. The scan reads every card the account returns, builds the zero-edit

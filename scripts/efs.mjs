@@ -69,7 +69,10 @@ function promptHidden(prompt, what = "value") {
     if (!process.stdin.isTTY) {
       die(`No terminal available to prompt for the ${what}. Run this in an interactive shell — this never falls back to an echoing read.`);
     }
-    process.stdout.write(prompt);
+    // STDERR, not stdout. A prompt on stdout is swallowed by `> file.json`, so the command
+    // sits waiting on stdin for a token it appeared never to ask for — which is exactly how
+    // `inventory > docs/efs/...json` read as hung for five minutes on 2026-08-16.
+    process.stderr.write(prompt);
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.setEncoding("utf8");
@@ -111,7 +114,7 @@ async function getToken() {
     cachedToken = process.env.FG_TOKEN;
     return cachedToken;
   }
-  console.log(
+  console.error(
     "Copy an admin token from the browser console on the app you are signed into:\n"
       + '  copy(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("sb-")&&k.endsWith("-auth-token")))).access_token)\n',
   );
@@ -201,8 +204,76 @@ async function call(path, body, opts = {}) {
   if (!res.ok) process.exit(2);
 }
 
+/**
+ * Which org does this token belong to? Resolved from the SERVER, never from intent.
+ *
+ * ── Why every account-wide command announces this before it acts ────────────────────────────────
+ * `docs/22` H10: a suspension drill was "told to use a QA token and was given a PRODUCTION one.
+ * Nothing checked." On 2026-08-16 the same shape recurred harmlessly — a run intended for production
+ * used a QA token, read QA, and returned output identical to the previous QA scan. Nothing in the
+ * transcript said which account had been read, so the only way to tell was decoding the JWT by hand.
+ *
+ * A token carries its org in its own payload, but this asks the SERVER: a token is a claim, and the
+ * question is which account the API will actually act on with it.
+ */
+const KNOWN_ORGS = {
+  "07fe4058-cc72-4a69-b3e9-29b4cf1c6a44": "QA / sandbox",
+};
+
+async function resolveOrg(bearer) {
+  const probe = await fetch(`${api}/api/jobs/latest?kind=efs_card_sync`, {
+    headers: { Authorization: `Bearer ${bearer}` },
+  }).catch(() => null);
+  if (!probe?.ok) return null;
+  const body = await probe.json().catch(() => null);
+  return body?.latest?.org_id ?? body?.lastDone?.org_id ?? null;
+}
+
+/**
+ * Say which account is about to be read — and REFUSE when it is not the one asked for.
+ *
+ * ── Announcing is not enough, and 2026-08-16 proved it twice in one sitting ──────────────────────
+ * The banner was added after a run intended for production silently read QA. With the banner in
+ * place the very next attempt did it AGAIN: three commands, three QA tokens, and the second one
+ * redirected into a file named `account-inventory-production.json`. A banner tells you afterwards;
+ * it cannot stop a wrong-org artefact being written under a right-org name, and a mislabelled
+ * inventory is worse than a missing one — it becomes the record.
+ *
+ * `--expect-org` is the same guard `suspend-drill` already carries, for the same reason: "a tool
+ * must confirm WHICH COMPANY it is about to act on, and must refuse rather than assume when it
+ * cannot tell." Accepts `qa`, `production`, or a literal uuid.
+ */
+async function announceOrg(label) {
+  // Validated first: a malformed flag must not cost a token prompt and a round trip to find out.
+  if (flags["expect-org"] === true) die("--expect-org needs a value: qa, production, or an org uuid.");
+  const org = await resolveOrg(await getToken());
+  const named = org
+    ? (KNOWN_ORGS[org] ? `${org}  (${KNOWN_ORGS[org]})` : `${org}  (NOT the known QA org — treat as production)`)
+    : "(could not determine)";
+  console.error(`\n${label} — org ${named}. Read-only: nothing is dispatched.\n`);
+
+  const expected = flags["expect-org"];
+  if (expected === undefined) return org;
+  if (!org) die("--expect-org was given but this token's org could not be resolved — refusing rather than assuming.");
+
+  const isQa = KNOWN_ORGS[org] !== undefined;
+  const want = String(expected).toLowerCase();
+  const ok = want === "qa" ? isQa : want === "production" ? !isQa : want === org.toLowerCase();
+  if (!ok) {
+    die(
+      `--expect-org ${expected}, but this token belongs to ${named}.\n`
+        + "Refusing. Nothing was read, and no file was written — a wrong-org artefact under a\n"
+        + "right-org filename is worse than no artefact at all.",
+    );
+  }
+  return org;
+}
+
 switch (command) {
   case "scan":
+    // Announce first. This command's output is nearly identical between the two orgs, so a run
+    // against the wrong one is invisible in the result — see resolveOrg.
+    await announceOrg("Config scan");
     await call("/api/fuel-cards/config-scan", {});
     break;
 
@@ -235,6 +306,7 @@ switch (command) {
     if (cards.some((c) => /^[0-9]{8,}$/.test(c))) {
       die("--cards takes efs_cards UUIDs, never card numbers. Rule 13: no PAN in a shell argument.");
     }
+    await announceOrg("Account inventory");
     await call("/api/fuel-cards/account-inventory", cards.length > 0 ? { sampleCards: cards } : {});
     break;
   }
@@ -264,7 +336,7 @@ switch (command) {
     });
     const probeBody = probe.ok ? await probe.json() : null;
     const org = probeBody?.latest?.org_id ?? probeBody?.lastDone?.org_id ?? "(could not determine)";
-    console.log(`\nEcho scan — org ${org}. Read-only: nothing is dispatched.\n`);
+    console.error(`\nEcho scan — org ${org}. Read-only: nothing is dispatched.\n`);
 
     const limit = Number(flags.limit ?? 50);
     let offset = Number(flags.offset ?? 0);
@@ -290,7 +362,7 @@ switch (command) {
       } catch (error) {
         if (attempt >= 3) throw error;
         const waitMs = attempt * 3000;
-        console.log(`    (network error: ${error?.cause?.code ?? error?.message ?? error} — retrying in ${waitMs / 1000}s)`);
+        console.error(`    (network error: ${error?.cause?.code ?? error?.message ?? error} — retrying in ${waitMs / 1000}s)`);
         await new Promise((r) => setTimeout(r, waitMs));
         return attemptBatch(attempt + 1);
       }
@@ -315,7 +387,7 @@ switch (command) {
       scanned += b.scanned ?? 0;
       passed += b.passed ?? 0;
       for (const r of b.results ?? []) if (!r.ok) failures.push(r);
-      console.log(
+      console.error(
         `  batch ${batch}: offset ${String(b.offset).padStart(3)}  scanned ${String(b.scanned).padStart(3)}`
           + `  passed ${String(b.passed).padStart(3)}  failed ${b.failed}   (total ${b.total})`,
       );
@@ -323,19 +395,19 @@ switch (command) {
       offset = b.nextOffset;
     }
 
-    console.log(`\n=== echo scan complete — org ${org} ===`);
-    console.log(`  the account returns : ${total}`);
-    console.log(`  scanned            : ${scanned}`);
-    console.log(`  passed             : ${passed}`);
-    console.log(`  failed             : ${failures.length}`);
+    console.error(`\n=== echo scan complete — org ${org} ===`);
+    console.error(`  the account returns : ${total}`);
+    console.error(`  scanned            : ${scanned}`);
+    console.error(`  passed             : ${passed}`);
+    console.error(`  failed             : ${failures.length}`);
     if (failures.length > 0) {
-      console.log("\n  FAILURES — each is a card whose own document we cannot reproduce faithfully:");
-      for (const f of failures) console.log(`    ••••${f.last4}: ${JSON.stringify(f.diff ?? f.error ?? f)}`);
+      console.error("\n  FAILURES — each is a card whose own document we cannot reproduce faithfully:");
+      for (const f of failures) console.error(`    ••••${f.last4}: ${JSON.stringify(f.diff ?? f.error ?? f)}`);
       process.exit(2);
     }
     // Says what it covered, not just that it was green: a pass over a SHORT list is the failure mode
     // this line exists to make visible.
-    console.log(
+    console.error(
       scanned === total
         ? `\n✓ every card the account returns round-trips byte-for-byte (${scanned}/${total}).`
         : `\n⚠ scanned ${scanned} of ${total} — the sweep did NOT cover the whole account.`,
@@ -356,7 +428,7 @@ switch (command) {
     await getStepUpToken();
     const card = await promptHidden("Card number (hidden): ", "card number");
     if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
-    console.log(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
+    console.error(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
     await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` }, { stepUp: true });
     break;
   }
@@ -394,7 +466,7 @@ switch (command) {
       // Step 2.7 removed the hazard this warning used to carry: a read-only run no longer touches
       // `write_entitlement` at all, so it can no longer revoke an org's card control. It still
       // refreshes the credential identity binding, which is the reason to run one.
-      console.log(
+      console.error(
         "\nREAD-ONLY run. It proves the echo against real vendor XML, refreshes the credential\n"
           + "identity binding, and touches no card. It does NOT change write_entitlement in either\n"
           + "direction — a run that attempted no write has no standing to.\n",
@@ -405,7 +477,7 @@ switch (command) {
     if (!/^[0-9]{10,25}$/.test(card)) die("That does not look like a card number.");
     const last4 = card.slice(-4);
     if (!readOnly) {
-      console.log(
+      console.error(
         `\nFULL run against ••••${last4}. It will set the card to `
           + `${flags.status ?? "Hold"} and revert it.\nRun this only against a card WEX has confirmed is disposable.\n`,
       );
@@ -442,12 +514,12 @@ switch (command) {
    * second place for the two to disagree.
    */
   case "sync": {
-    console.log(
+    console.error(
       "\nQueues a full card-mirror refresh for the org your token belongs to.\n"
         + "Reads the vendor's card list and details; writes only to our mirror; safe to repeat.\n",
     );
     await call("/api/fuel-cards/sync", {});
-    console.log(
+    console.error(
       "\nQueued. The sweep runs server-side — watch it with:\n"
         + "  node scripts/efs.mjs job efs_card_sync\n",
     );
@@ -537,7 +609,7 @@ switch (command) {
       );
     }
 
-    console.log(
+    console.error(
       `\nSuspension drill for ${capabilityKey}, org ${actualOrg}.\n`
         + "Suspends it, immediately attempts a real write, measures the gap, then re-enables it.\n"
         + "The write carries a stale expectedVersion, so it cannot change the card either way.\n",
@@ -555,7 +627,7 @@ switch (command) {
         die("The suspend call failed — nothing was suspended, so there is nothing to restore.");
       }
       const suspendedAt = Date.now();
-      console.log(`suspended at t+0ms`);
+      console.error(`suspended at t+0ms`);
 
       const attempt = await callRaw(`/api/fuel-cards/${cardId}/lock`, {
         // 16+ chars to satisfy cardVersionSchema, and deliberately not any real version.
@@ -569,20 +641,20 @@ switch (command) {
       const elapsed = Date.now() - suspendedAt;
       const code = attempt.body?.error?.code ?? "(none)";
 
-      console.log(`write attempted and answered at t+${elapsed}ms  ->  ${attempt.status} ${code}`);
-      console.log(
+      console.error(`write attempted and answered at t+${elapsed}ms  ->  ${attempt.status} ${code}`);
+      console.error(
         code === "card_control_suspended"
           ? `\n✓ SUSPENSION PROPAGATED. Upper bound: ${elapsed}ms — the very next call saw it.`
           : `\n✗ NOT the suspension refusal. Got "${code}". If this is a version conflict, the gate did`
             + " NOT stop the write and the card was saved only by optimistic concurrency.",
       );
-      console.log(JSON.stringify(attempt.body, null, 2));
+      console.error(JSON.stringify(attempt.body, null, 2));
     } finally {
       const restore = await callRaw(`/api/fuel-cards/promote/${capabilityKey}`, {
         action: "enable", proofId, reason: "Restoring after the suspension propagation drill",
       }, { stepUp: true });
       restored = restore.ok;
-      console.log(
+      console.error(
         restored
           ? `\n${capabilityKey} re-enabled — state restored.`
           : `\n*** ${capabilityKey} IS STILL SUSPENDED. Re-enable it by hand: ***\n`
@@ -609,7 +681,8 @@ switch (command) {
 
   default:
     die(
-      "commands: scan · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · write-check [--read-only] [--status Hold|Inactive] · "
+      "commands: scan · inventory [--cards <uuid,uuid>] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
+        + "write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)",
     );
