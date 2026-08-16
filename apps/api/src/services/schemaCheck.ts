@@ -86,7 +86,11 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "efs_cards", column: "card_ref_hmac", migration: "0171" },
   { table: "efs_card_control_settings", column: "write_entitlement", migration: "0173" },
   { table: "efs_card_control_settings", column: "probed_identity_hash", migration: "0187" },
-  { table: "efs_card_mutations", column: "endpoint_host", migration: "0187" }
+  { table: "efs_card_mutations", column: "endpoint_host", migration: "0187" },
+  // Step 9.1. Missing here does not break a prompt edit — `resolveEditableInfoIds` falls back to
+  // DRID/UNIT — which is exactly why it is worth a boot warning: the failure is a QUIET narrowing of
+  // the editable set from 24 ids back to 2, with a working screen and no error anywhere.
+  { table: "efs_card_control_settings", column: "prompt_types", migration: "0200" }
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

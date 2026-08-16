@@ -219,6 +219,18 @@ const MUTATIONS = [
     replace: "    new.updated_at = old.updated_at;\n  else",
     detect: TRIGGERS_MATRIX,
   },
+  {
+    id: "efs-prompt-types-empty-allowed",
+    why:
+      "Reintroduces H15 verbatim: `array_length('{}', 1)` is NULL, `NULL >= 1` is NULL, and a CHECK " +
+      "rejects only on FALSE — so the non-empty rule accepts every empty array. That exact mistake " +
+      "shipped in 0173's scopes constraint and held for weeks. This is the one mutation whose real " +
+      "counterpart is already in this repository's history.",
+    file: "supabase/migrations/0200_efs_account_prompt_types.sql",
+    find: "cardinality(prompt_types) >= 1",
+    replace: "array_length(prompt_types, 1) >= 1",
+    detect: TRIGGERS_MATRIX,
+  },
   // ── the fitness functions themselves ────────────────────────────────────────
   {
     id: "waiver-growth-unchecked",
