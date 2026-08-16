@@ -8,6 +8,8 @@ import { getPolicy } from "../../lib/efsCardOps.js";
 import { searchLocation } from "../../lib/efsLocationSearch.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
+import { handleMutationLog } from "./mutationLog.js";
+import { toMutationView } from "./mutationView.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import {
   EFS_CARD_DETAIL_COLS,
@@ -262,6 +264,9 @@ export function fuelCardsRouter(): Router {
    * is exactly the person who needs to see what changed — and a driver, whose fueling this surface
    * exists to scrutinise, is exactly who must not browse it (audit P1-4).
    */
+  // Step 6.6 — see `mutationLog.ts` for why this is an API route and why it is mounted HERE.
+  router.get("/mutations", requireOrg, canView, asyncHandler(handleMutationLog));
+
   router.get("/:id/history", requireOrg, canView, asyncHandler(async (req, res) => {
     const { env } = getAppLocals(req);
     const admin = getSupabaseAdmin(env);
@@ -384,26 +389,3 @@ export function fuelCardsRouter(): Router {
 
 // ─── The mutation ledger's view shape ──────────────────────────────────────────────────────────
 
-interface MutationRow {
-  id: string; intent: string; status: string;
-  requested_by: string | null; step_up: boolean;
-  created_at: string; completed_at: string | null;
-  efs_fault_code: string | null; efs_fault_message: string | null;
-  drift: { unexplained?: { path: string }[] } | null;
-}
-
-const toMutationView = (row: unknown) => {
-  const r = row as MutationRow;
-  return {
-    id: r.id,
-    intent: r.intent,
-    status: r.status,
-    requestedBy: r.requested_by,
-    stepUp: r.step_up,
-    createdAt: r.created_at,
-    completedAt: r.completed_at,
-    efsFaultCode: r.efs_fault_code,
-    efsFaultMessage: r.efs_fault_message,
-    driftFields: r.drift?.unexplained?.map((d) => d.path) ?? null,
-  };
-};
