@@ -1563,8 +1563,18 @@ be asserted on the column write and not only on the job log.
 the tombstone sweep can share it without a cycle, and `efsCardMirror.ts` re-exports it so every
 existing import still resolves.
 
-**Still owed, and it needs a live sweep:** *"after one sweep, every production card has
-`detail_synced_at`"*. Unverifiable from this container.
+**✅ DEPLOY LINE CLOSED 2026-08-16 18:13:36Z.** Job `79a40862`, production org, 6m 06s:
+`cardsSeen 197 · detailed 197 · failed 0 · errors [] · tombstoned 0 · tombstoneRefused 0 ·
+undetailedByBudget 0`. With the config scan's `cardsWithoutStoredDocument: 0` across all 199 rows,
+*"after one sweep, every production card has `detail_synced_at`"* is satisfied.
+
+**The two new stats keys existing at all is the deployment proof** — the previous sweep has neither,
+so nothing else in the run would have told "the code is live" from "the code merged". Both guards
+present and correctly silent. See `docs/22` H13.
+
+⚠ `undetailedByBudget: 0` does not say by how much. If Railway still pins `EFS_CARD_SYNC_MAX_DETAIL`
+at the old `200`, the margin over a 197-card fleet is **three cards**; today's default of 1000 only
+applies when the variable is unset.
 
 ### ⛔ Step 7.6 — Produce the inventory — **INSTRUMENT BUILT 2026-08-16; the scan itself needs a live session**
 **Files:** `docs/25-EFS-ACCOUNT-INVENTORY.md` (generated from the scan JSON), scan JSON committed.

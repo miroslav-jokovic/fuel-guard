@@ -1050,6 +1050,50 @@ point of running it is that the comment is now a measurement instead of a claim.
 
 ---
 
+## H13 — the first production sweep on the Phase 7 code: 197/197, and the new invariants report clean (2026-08-16)
+
+Job `79a40862`, org `86d6b3ea…`, triggered by hand at **18:07:30Z**, finished **18:13:36Z — 6m 06s**.
+The first sweep to run the Step 7.5 code, and the run that closes that step's deploy line.
+
+```
+cardsSeen 197 · upserted 197 · detailed 197 · failed 0 · errors []
+tombstoned 0 · tombstoneRefused 0 · undetailedByBudget 0 · linked 1
+```
+
+### What each number proves
+
+**`tombstoneRefused` and `undetailedByBudget` EXIST in the stats at all.** Both keys were added by
+Step 7.5 today. Their presence is the deployment proof — the previous sweep (`bc5ca6a8`,
+2026-08-15) has neither. Nothing else in this run would have distinguished "the new code is live"
+from "the new code merged"; a missing key would have meant the API still predated PR #70.
+
+**`undetailedByBudget: 0`** — `EFS_CARD_SYNC_MAX_DETAIL` exceeds the 197-card fleet, so the
+`budget > fleetSize` invariant holds and `mirror_detail_budget_short` correctly did not fire.
+⚠ It does NOT say by how much. If Railway still pins the old `200`, the margin is **three cards**;
+the new default of 1000 only applies if the variable is unset. Worth a `grep` — the signal fires at
+`error` the first time a fleet crosses it.
+
+**`tombstoneRefused: 0` with `tombstoned: 0`** — the roster came back complete, so the ratio guard
+had nothing to refuse. Guard present, correctly silent, which is the state it should spend its life
+in.
+
+**`detailed: 197`, `failed: 0`, `errors: []`** — every live card re-read in one sweep. Together with
+the config scan's `cardsWithoutStoredDocument: 0` across all 199 rows (the 197 live plus the two WEX
+de-listed on 2026-08-14), this is **Step 7.5's "after one sweep, every production card has
+`detail_synced_at`"**, closed.
+
+### The number I did not predict: `linked` went 103 → 1
+
+Not a regression, and worth stating because a falling count looks like one. `linked` is **new links
+this sweep**, not a total: the 2026-08-15 run linked 103 previously-unlinked cards and they stay
+linked, so this run had only the leftovers to attempt and resolved **one more**.
+
+That one card is the interesting part. Step 7.7 recorded the remaining 40 as a **DATA ceiling, not a
+code one** — 29 with no `unit_prompt`, 5 with no `fuel_cards` counterpart. A card crossing from
+unlinkable to linked without a code change means its DATA changed: a unit prompt added, or a missing
+`fuel_cards` row imported. The linker re-runs every sweep and improves as the data does, which is
+what the tiered design was for.
+
 ## H12 — the production vocabulary, at fleet scale: eight prompt types, 32 cards at HOLD, nothing unmodelled (2026-08-16)
 
 `node scripts/efs.mjs scan --expect-org production`, org `86d6b3ea…`, **199 of 199 cards carrying a
