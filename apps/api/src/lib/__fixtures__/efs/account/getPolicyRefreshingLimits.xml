@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getPolicyRefreshingLimitsResponse>
+      <policyRefreshingLimitsData>
+        <dayCntLimit>3</dayCntLimit>
+        <dayAmtLimit>750</dayAmtLimit>
+        <weekCntLimit>12</weekCntLimit>
+        <weekAmtLimit>3000</weekAmtLimit>
+        <monCntLimit xsi:nil="true"/>
+        <monAmtLimit xsi:nil="true"/>
+      </policyRefreshingLimitsData>
+    </getPolicyRefreshingLimitsResponse>
+  </soap:Body>
+</soap:Envelope>

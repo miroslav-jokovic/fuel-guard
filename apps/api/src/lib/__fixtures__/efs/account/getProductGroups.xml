@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getProductGroupsResponse>
+      <result>
+        <value>
+          <description>FUEL PRODUCTS</description>
+          <groupId>FUEL</groupId>
+          <groupNumber>1</groupNumber>
+          <isFuel>true</isFuel>
+        </value>
+        <value>
+          <description>CASH ADVANCE</description>
+          <groupId>CADV</groupId>
+          <groupNumber>7</groupNumber>
+          <isFuel>false</isFuel>
+        </value>
+      </result>
+    </getProductGroupsResponse>
+  </soap:Body>
+</soap:Envelope>

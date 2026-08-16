@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getContractsResponse>
+      <result>
+        <value>
+          <checkFee>2.5</checkFee>
+          <contractId>5501</contractId>
+          <country>USA</country>
+          <currency>USD</currency>
+          <description>PRIMARY CONTRACT</description>
+          <issuerId>13</issuerId>
+          <limitMethod>2</limitMethod>
+          <masterContract>true</masterContract>
+          <status>A</status>
+        </value>
+      </result>
+    </getContractsResponse>
+  </soap:Body>
+</soap:Envelope>

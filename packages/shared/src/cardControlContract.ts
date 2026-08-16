@@ -60,7 +60,15 @@ const vendorEnum = (known: readonly string[]): z.ZodNullable<z.ZodString> => {
  * make an entire card unreadable. Range checks belong on the write schemas, where we choose the
  * value.
  */
-const vendorInt = z.coerce.number().int().nullable().catch(null);
+/**
+ * An integer EFS handed US. Read-tolerantly: a value outside the documented range is news about the
+ * account, not a reason to make the card unreadable.
+ *
+ * Exported for `efsAccountContract.ts` (Step 7.1), which parses thirteen more vendor documents and
+ * needs the identical tolerance. A second copy of this one-liner is exactly the drift that ends with
+ * two schemas disagreeing about what EFS is allowed to say.
+ */
+export const vendorInt = z.coerce.number().int().nullable().catch(null);
 
 /**
  * A policy number WE choose — a route parameter or a probe input, not something EFS handed us. Strict
@@ -75,6 +83,13 @@ export const wsCardInfoSchema = z.object({
   validationType: vendorEnum(EFS_VALIDATION_TYPES),
   matchValue: z.string().nullable(),
   reportValue: z.string().nullable(),
+  /**
+   * The THIRD field a prompt can carry its value in (Step 7.3), declared on `WSCardInfo` and never
+   * read until now. `UNIT` and `DRID` are the two prompts most likely to hold a number, and they are
+   * exactly the two the attribution columns are built from — see `efsCardAttribution.ts`, whose own
+   * docblock said there were two places and has now been corrected.
+   */
+  numericMatchValue: z.string().nullable(),
   lengthCheck: z.boolean().nullable(),
   minimum: z.coerce.number().nullable(),
   maximum: z.coerce.number().nullable(),
@@ -115,6 +130,17 @@ export const wsCardSchema = z.object({
   originalStatus: z.string().nullable(),
   payrollStatus: z.string().nullable(),
   payrollUse: z.string().nullable(),
+  /**
+   * Five separate ways to take MONEY off a fuel card, none of them fuel (Step 7.3). Declared on
+   * `WSCardHeader` and unparsed until now, so nothing in the product could say whether a card may
+   * draw at an ATM, write a check, or move money by ACH, wire or debit. Strings, not booleans: EFS
+   * types them `string` and this account's vocabulary for them is one of the questions Step 7.6 asks.
+   */
+  payrollAtm: z.string().nullable(),
+  payrollChk: z.string().nullable(),
+  payrollAch: z.string().nullable(),
+  payrollWire: z.string().nullable(),
+  payrollDebit: z.string().nullable(),
   /** Documented 1–99 (EFS_POLICY_MIN/MAX); read tolerantly — see vendorInt. */
   policyNumber: vendorInt,
   companyXRef: z.string().nullable(),

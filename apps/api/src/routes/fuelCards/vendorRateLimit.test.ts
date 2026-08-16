@@ -10,6 +10,7 @@ import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardConfigScanRouter } from "./scan.js";
 import { fuelCardProveRouter } from "./prove.js";
 import { fuelCardPromoteRouter } from "./promote.js";
+import { fuelCardInventoryRouter } from "./inventory.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
 import { fuelCardProbeRouter } from "./probe.js";
 import { fuelCardSettingsRouter } from "./settings.js";
@@ -228,6 +229,9 @@ describe("fuel-card vendor rate budget", () => {
       fuelCardConfigScanRouter(),
       fuelCardProveRouter(),
       fuelCardPromoteRouter(),
+      // Step 7.2. Read-only, and therefore needs no probe flag — but "read-only" says nothing about
+      // vendor budget: it is up to 28 paced calls in one request, and up to 75 more with sampleCards.
+      fuelCardInventoryRouter(),
     ];
     const actual = routers.flatMap(routeTable).map((route) => `${route.method} ${route.path}`).sort();
     const configured = FUEL_CARD_ROUTE_TABLE.map((route) => `${route.method} ${route.path}`).sort();

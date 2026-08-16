@@ -1,10 +1,6 @@
 import {
-  type EffectiveOrigin,
   EFS_CARD_STATUS_LABELS,
   type EfsCardStatus,
-  formatLimit,
-  infoLabel,
-  limitLabel,
   canonicalEfsStatus,
 } from "@fuelguard/shared";
 
@@ -294,103 +290,25 @@ export function activeOverrides(
     }));
 }
 
-// ─── Effective configuration ───────────────────────────────────────────────────────────────────
-
-export interface EffectiveDisplayRow {
-  key: string;
-  label: string;
-  detail: string;
-  origin: EffectiveOrigin;
-  originLabel: string;
-  originTone: string;
-  /** False when the row is shown for context but the pump will not apply it. */
-  enforced: boolean;
-}
-
-const ORIGIN_LABEL: Record<EffectiveOrigin, string> = {
-  card: "Card",
-  policy: "Policy",
-  "policy-overridden": "Overridden by card",
-  "policy-ignored": "Not applied",
-};
-
-const ORIGIN_TONE: Record<EffectiveOrigin, string> = {
-  card: "brand",
-  policy: "info",
-  "policy-overridden": "neutral",
-  "policy-ignored": "neutral",
-};
-
-const describeOrigin = (origin: EffectiveOrigin) => ({
-  origin,
-  originLabel: ORIGIN_LABEL[origin],
-  originTone: ORIGIN_TONE[origin],
-  enforced: origin === "card" || origin === "policy",
-});
-
-export interface RawInfo { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }
-export interface RawLimit { limitId: string; limit: number; hours: number | null; minHours: number | null }
-export interface RawTime { day: number; beginTime: string | null; endTime: string | null }
-export interface Merged<T> { value: T; origin: EffectiveOrigin }
-
-export function promptRows(rows: readonly Merged<RawInfo>[]): EffectiveDisplayRow[] {
-  return rows.map((row, index) => ({
-    key: `${row.value.infoId}-${row.origin}-${index}`,
-    label: infoLabel(row.value.infoId),
-    // EXACT_MATCH is the one that makes the pump VALIDATE the entry rather than just record it —
-    // the difference between a prompt that stops the wrong driver and one that only reports him.
-    detail: row.value.validationType === "EXACT_MATCH"
-      ? `Must match ${row.value.matchValue || "—"}`
-      : row.value.validationType === "REPORT_ONLY"
-        ? `Recorded only${row.value.reportValue ? `: ${row.value.reportValue}` : ""}`
-        : (row.value.validationType ?? "—"),
-    ...describeOrigin(row.origin),
-  }));
-}
-
-export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRow[] {
-  return rows.map((row, index) => {
-    const window = row.value.hours ? ` per ${row.value.hours}h` : "";
-    const gap = row.value.minHours ? `, ${row.value.minHours}h between uses` : "";
-    return {
-      key: `${row.value.limitId}-${row.origin}-${index}`,
-      label: limitLabel(row.value.limitId),
-      // formatLimit carries the unit the limit ID implies. See the note at the top of this file.
-      detail: `${formatLimit(row.value.limitId, row.value.limit)}${window}${gap}`,
-      ...describeOrigin(row.origin),
-    };
-  });
-}
-
-const DAY_NAMES = ["", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-/** Only the time-of-day part of a restriction applies; the date reads 1970-01-01 (p37). */
-const clockTime = (value: string | null): string => {
-  if (!value) return "—";
-  const match = /T(\d{2}):(\d{2})/.exec(value);
-  return match ? `${match[1]}:${match[2]}` : value;
-};
-
-export function timeRows(rows: readonly Merged<RawTime>[]): EffectiveDisplayRow[] {
-  return rows.map((row, index) => ({
-    key: `${row.value.day}-${row.origin}-${index}`,
-    // 1 = Sunday, not 0 = Sunday (p37). Off by one here mislabels every restriction on the card.
-    label: DAY_NAMES[row.value.day] ?? `Day ${row.value.day}`,
-    detail: `Blocked ${clockTime(row.value.beginTime)} to ${clockTime(row.value.endTime)}`,
-    ...describeOrigin(row.origin),
-  }));
-}
-
-/** One plain sentence above each table, so the source mode is never something to infer from badges. */
-export function sourceSentence(noun: string, source: string | null, policyNumber: number | null): string {
-  const policy = policyNumber ? `policy ${policyNumber}` : "the policy";
-  switch (source) {
-    case "CARD": return `${noun} come from the card only.`;
-    case "POLICY": return `${noun} come from ${policy}.`;
-    case "BOTH": return `${noun} come from both the card and ${policy}. Card settings win where they overlap.`;
-    default: return `${noun} source is not reported by EFS.`;
-  }
-}
+/**
+ * The effective-configuration renderers live in `cardEffectiveRows.ts` (split at the 500-line budget
+ * by Step 7.4) and are re-exported here so every existing import keeps resolving.
+ */
+export {
+  autoRollClause,
+  limitRows,
+  locationRows,
+  payrollRows,
+  promptRows,
+  sourceSentence,
+  timeRows,
+  type EffectiveDisplayRow,
+  type Merged,
+  type PayrollFlags,
+  type RawInfo,
+  type RawLimit,
+  type RawTime,
+} from "./cardEffectiveRows.js";
 
 export { availability, type AvailabilityNotice } from "./cardAvailability.js";
 

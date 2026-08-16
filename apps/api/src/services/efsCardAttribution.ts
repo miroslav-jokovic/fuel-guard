@@ -13,6 +13,12 @@
  * and in `reportValue` when the entry is merely recorded (`REPORT_ONLY`). EFS returns the unused one
  * as nil — see `getCardV2.reportOnly.xml`, where `matchValue` is nil and `reportValue` is `T001`.
  *
+ * ⚠ CORRECTED 2026-08-16 (Step 7.3): there are THREE, not two. `WSCardInfo` also declares
+ * `numericMatchValue`, and this function read only the first two — so the very same defect this
+ * docblock describes was still present for a prompt whose value is numeric, which `UNIT` and `DRID`
+ * both plausibly are. Found by diffing the parser against the checked-in WSDL rather than by
+ * another live report.
+ *
  * This read looked at `matchValue` alone, so after ANY change to a REPORT_ONLY prompt the attribution
  * columns were simply not written and the Cards page and drawer header kept the previous value.
  * Reported from live QA on 2026-08-14: the Unit Number changed in the prompts panel and did not
@@ -24,11 +30,18 @@
  * attribution when the card carries its own record, and clearing one stays the roster pass's job.
  */
 export const infoValue = (
-  document: { infos?: { infoId: string; matchValue: string | null; reportValue?: string | null }[] },
+  document: {
+    infos?: {
+      infoId: string;
+      matchValue: string | null;
+      reportValue?: string | null;
+      numericMatchValue?: string | null;
+    }[];
+  },
   id: string,
 ): string | null => {
   const info = document.infos?.find((i) => i.infoId === id);
-  for (const value of [info?.matchValue, info?.reportValue]) {
+  for (const value of [info?.matchValue, info?.reportValue, info?.numericMatchValue]) {
     if (value != null && value.trim() !== "") return value;
   }
   return null;

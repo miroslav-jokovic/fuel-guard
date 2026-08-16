@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getCardRefreshingLimitsResponse>
+      <cardRefreshingLimitsData>
+        <refreshingLimitSource>POLICY</refreshingLimitSource>
+        <dayCntLimit>2</dayCntLimit>
+        <dayAmtLimit>500</dayAmtLimit>
+        <weekCntLimit xsi:nil="true"/>
+        <weekAmtLimit xsi:nil="true"/>
+        <monCntLimit>20</monCntLimit>
+        <monAmtLimit>6000</monAmtLimit>
+      </cardRefreshingLimitsData>
+    </getCardRefreshingLimitsResponse>
+  </soap:Body>
+</soap:Envelope>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getLocationGroupDescriptionsResponse>
+      <result>
+        <value>
+          <grpId>41</grpId>
+          <name>APPROVED TRUCK STOPS</name>
+          <ruleBased>false</ruleBased>
+          <editable>true</editable>
+        </value>
+        <value>
+          <grpId>42</grpId>
+          <name>IN NETWORK BY RULE</name>
+          <ruleBased>true</ruleBased>
+          <editable>false</editable>
+        </value>
+      </result>
+    </getLocationGroupDescriptionsResponse>
+  </soap:Body>
+</soap:Envelope>

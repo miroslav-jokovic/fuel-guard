@@ -9,8 +9,11 @@ import {
   compareCardValues,
   freshness,
   limitRows,
+  autoRollClause,
+  locationRows,
   outcomeNotice,
   overrideFreshness,
+  payrollRows,
   overrideScopeLabel,
   relativeAge,
   promptRows,
@@ -541,5 +544,100 @@ describe("relativeAge", () => {
 
   it("does not report a negative age for a clock that is ahead", () => {
     expect(relativeAge("2026-08-15T12:05:00.000Z", NOW)).toBe("just now");
+  });
+});
+
+describe("the parity gate (Step 7.4) — every parsed field is reachable by exactly one row", () => {
+  /**
+   * Step 7.4's Verify, in its own words: *"feed the scan JSON into the pure renderers and assert
+   * every observed field is reachable by exactly one row and no row renders `undefined` or `—`.
+   * This is the parity gate — mechanical, not eyeballed."*
+   *
+   * ── The one substitution I had to make, said out loud ────────────────────────────────────────
+   * The scan JSON comes from Step 7.6, which needs a live account. So the input here is a card
+   * document built from the FIELDS THE WSDL DECLARES, every one populated. That is the same
+   * substitution Step 7.3 makes and it has the same shape of limitation: it proves no DECLARED field
+   * is dropped between the parser and the screen, and it cannot prove anything about a field
+   * production sends undeclared. When `docs/25` exists, this fixture should be replaced by it.
+   */
+  const merged = <T>(value: T) => ({ value, origin: "card" as const });
+
+  it("renders every prompt field, with no placeholder standing in for a value that exists", () => {
+    const rows = promptRows([
+      merged({ infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null }),
+      merged({ infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-4471" }),
+    ]);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.detail, `${row.label} rendered a placeholder`).not.toMatch(/undefined|^—$/);
+      expect(row.label).not.toBe("");
+    }
+    expect(rows[0]!.detail).toContain("3182");
+    expect(rows[1]!.detail).toContain("D-4471");
+  });
+
+  it("renders auto-roll, which the API has always sent and nothing displayed", () => {
+    const [row] = limitRows([merged({
+      limitId: "ULSD", limit: 500, hours: 24, minHours: null, autoRollMap: 100, autoRollMax: 3,
+    })]);
+    expect(row!.detail).toContain("auto-roll 100");
+    expect(row!.detail).toContain("daily max 3");
+  });
+
+  it("says `autoRollMax = 0` means NO DAILY MAXIMUM, never the number zero", () => {
+    /**
+     * The trap this clause exists for (guide p138). "Daily max 0" reads as a card that can buy
+     * nothing — the safest-sounding wrong answer, and the one an operator acts on by raising a limit
+     * that was never set.
+     */
+    const [row] = limitRows([merged({
+      limitId: "ULSD", limit: 500, hours: null, minHours: null, autoRollMap: 100, autoRollMax: 0,
+    })]);
+    expect(row!.detail).toContain("no daily maximum");
+    expect(row!.detail).not.toMatch(/daily max 0/);
+  });
+
+  it("says nothing about auto-roll when EFS reported neither field", () => {
+    // Null is "EFS did not report it", which is different from zero and must not be rendered as one.
+    const [row] = limitRows([merged({ limitId: "ULSD", limit: 500, hours: null, minHours: null })]);
+    expect(row!.detail).not.toContain("auto-roll");
+    expect(row!.detail).not.toContain("daily max");
+    expect(autoRollClause({ limitId: "X", limit: 1, hours: null, minHours: null })).toBe("");
+  });
+
+  it("keeps the blocklist and the allowlist apart, because they mean opposite things", () => {
+    // `locations` is "a list of locations that this card is BLOCKED from using" (p36). One table
+    // labelled "Locations" would be read as "where this card works" and be wrong for half its rows.
+    const rows = locationRows(["41"], ["442013"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.detail).toMatch(/may fuel/i);
+    expect(rows[1]!.detail).toMatch(/BLOCKED/);
+    for (const row of rows) expect(row.detail).not.toMatch(/undefined|^—$/);
+  });
+
+  it("shows only the payroll capabilities EFS actually reported", () => {
+    // A null is "EFS said nothing", NOT "not allowed" — rendering it as a denial would be a
+    // confident wrong answer about whether a card can draw cash.
+    const rows = payrollRows({
+      status: "ACTIVE", use: "BOTH", atm: "ALLOW", check: null, ach: null, wire: null, debit: "DISALLOW",
+    });
+    expect(rows.map((r) => r.label)).toEqual(["Payroll status", "Payroll use", "ATM cash", "Debit"]);
+    for (const row of rows) expect(row.detail).not.toMatch(/undefined|^—$/);
+  });
+
+  it("renders NO rows at all when EFS reported no payroll capability", () => {
+    // The positive control: an empty table with its own sentence beats seven rows of "—".
+    expect(payrollRows({
+      status: null, use: null, atm: null, check: null, ach: null, wire: null, debit: null,
+    })).toEqual([]);
+  });
+
+  it("names all FOUR sources, including the one the payload used to drop", () => {
+    // `locationSource` was parsed, stored and selected — and the payload carried three of four, so
+    // the page could say where prompts, limits and time rules came from and not location rules.
+    for (const source of ["CARD", "POLICY", "BOTH"]) {
+      expect(sourceSentence("Location rules", source, 14)).not.toMatch(/not reported/);
+    }
+    expect(sourceSentence("Location rules", null, 14)).toMatch(/not reported/);
   });
 });

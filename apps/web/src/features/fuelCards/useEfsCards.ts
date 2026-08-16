@@ -114,9 +114,26 @@ export interface EfsCardDetailResponse {
   staleAfterMinutes?: number;
   effective: {
     infos: EffectiveSection<{ infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }>[];
-    limits: EffectiveSection<{ limitId: string; limit: number; hours: number | null; minHours: number | null }>[];
+    limits: EffectiveSection<{
+      limitId: string; limit: number; hours: number | null; minHours: number | null;
+      /** Step 7.4 — sent all along, declared nowhere, so nothing rendered them. */
+      autoRollMap?: number | null; autoRollMax?: number | null;
+    }>[];
     timeRestrictions: EffectiveSection<{ day: number; beginTime: string | null; endTime: string | null }>[];
-    sources: { infoSource: string | null; limitSource: string | null; timeSource: string | null };
+    /** All FOUR (Step 7.4). `locationSource` was the dropped one. */
+    sources: {
+      infoSource: string | null; limitSource: string | null;
+      locationSource?: string | null; timeSource: string | null;
+    };
+    /** Allowlist of groups. Optional — an older API sends neither this nor the blocklist. */
+    locationGroups?: string[];
+    /** A BLOCKLIST: locations this card is REFUSED at (guide p36), not where it works. */
+    blockedLocations?: string[];
+    /** Step 7.3's payroll capability flags. */
+    payroll?: {
+      status: string | null; use: string | null; atm: string | null;
+      check: string | null; ach: string | null; wire: string | null; debit: string | null;
+    };
     policyDescription: string | null;
     /** The policy read is best-effort: a slow vendor must not blank a page of card-level truth. */
     policyError: string | null;

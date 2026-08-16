@@ -50,7 +50,14 @@ const OPS = {
   getPolicy: "getPolicy",
 } as const;
 
-const el = (name: string, value: string | number | null | undefined): string =>
+/**
+ * Emit the element only when the value is present.
+ *
+ * Exported alongside `elAlways` for `efsAccountOps.ts` (Step 7.1) — same arrangement as
+ * `callCardOp` / `resultRecords` / `text`: the canonical home stays here and the split operation
+ * modules import. A second copy would be a second place for the escaping to go wrong.
+ */
+export const el = (name: string, value: string | number | null | undefined): string =>
   value === null || value === undefined || value === "" ? "" : `<${name}>${xmlEscape(String(value))}</${name}>`;
 
 /**
@@ -349,6 +356,10 @@ export async function getPolicy(
       validationType: text(e, "validationType"),
       matchValue: text(e, "matchValue"),
       reportValue: text(e, "reportValue"),
+      // Step 7.3. `WSPolicy.infos` is the same `WSCardInfo` type as a card's, so a POLICY-level
+      // prompt carries this field too — and on this account every card is `infoSource: BOTH`, so
+      // policy prompts are in force fleet-wide. Caught by the schema, not by review.
+      numericMatchValue: text(e, "numericMatchValue"),
       lengthCheck: parseBool(text(e, "lengthCheck")),
       minimum: toInt(text(e, "minimum") ?? text(e, "Minimum")),
       maximum: toInt(text(e, "maximum")),

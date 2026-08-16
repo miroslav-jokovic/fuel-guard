@@ -18,6 +18,7 @@
  * silently and fail as "Invalid or expired token", which reads like a vendor problem and is not one.
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
+ *   node scripts/efs.mjs inventory       # the ACCOUNT inventory (Step 7.2); --cards <uuid,uuid>
  *   node scripts/efs.mjs sync            # force a card-mirror sweep now
  *   node scripts/efs.mjs job efs_card_sync   # watch it
  *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
@@ -204,6 +205,39 @@ switch (command) {
   case "scan":
     await call("/api/fuel-cards/config-scan", {});
     break;
+
+  /**
+   * The ACCOUNT inventory (Step 7.2), and the command Step 7.6 is run with.
+   *
+   * READ-ONLY, every one of its thirteen operations, which is why it needs no probe flag and is safe
+   * against the production org — the same posture as `echo-scan` and the linking sweep. It is the
+   * heaviest READ in the product: up to 28 paced calls for the account walk, and three more per card
+   * named in `--cards`.
+   *
+   * ── It exists because the endpoint had no caller ─────────────────────────────────────────────
+   * Step 7.2 built the route and nothing in the browser or this CLI could reach it. A component, a
+   * hook and an endpoint with no caller is the shape the Phase 6.7 audit spent a day closing, and
+   * `POST /:id/refresh` had sat unreachable since the read routes were written. Building an operator
+   * surface for an operator endpoint is the fix, not a follow-up.
+   *
+   * ── Cards are UUIDs, never card numbers ─────────────────────────────────────────────────────
+   * `--cards <uuid,uuid>` takes `efs_cards.id`. The route resolves the PAN itself, org-scoped, so no
+   * card number reaches a shell history, a process table or an access log. Standing rule 13, and the
+   * same reason `prove` prompts for a card number instead of taking a flag.
+   *
+   * Redirect it to a file to produce the artefact Step 7.6 commits:
+   *   node scripts/efs.mjs inventory > docs/efs/account-inventory-production.json
+   */
+  case "inventory": {
+    const cards = typeof flags.cards === "string"
+      ? flags.cards.split(",").map((c) => c.trim()).filter(Boolean)
+      : [];
+    if (cards.some((c) => /^[0-9]{8,}$/.test(c))) {
+      die("--cards takes efs_cards UUIDs, never card numbers. Rule 13: no PAN in a shell argument.");
+    }
+    await call("/api/fuel-cards/account-inventory", cards.length > 0 ? { sampleCards: cards } : {});
+    break;
+  }
 
   /**
    * Echo fidelity across the whole account, paged to the end (Phase 2 / Phase 4 exit gate).

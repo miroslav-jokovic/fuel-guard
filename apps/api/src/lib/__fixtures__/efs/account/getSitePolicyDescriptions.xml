@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getSitePolicyDescriptionsResponse>
+      <result>
+        <value>
+          <sitePolicy>7</sitePolicy>
+          <siteDescription>YARD PUMP</siteDescription>
+          <sitePolicyPolicy>
+            <contractId>5501</contractId>
+            <description>OVER THE ROAD</description>
+            <policyNumber>1</policyNumber>
+          </sitePolicyPolicy>
+        </value>
+        <value>
+          <sitePolicy>9</sitePolicy>
+          <siteDescription>NO POLICY BEHIND IT</siteDescription>
+        </value>
+      </result>
+    </getSitePolicyDescriptionsResponse>
+  </soap:Body>
+</soap:Envelope>

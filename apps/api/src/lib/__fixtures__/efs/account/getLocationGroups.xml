@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getLocationGroupsResponse>
+      <result>
+        <value>
+          <grpId>41</grpId>
+          <name>APPROVED TRUCK STOPS</name>
+          <carrierId>884412</carrierId>
+        </value>
+      </result>
+    </getLocationGroupsResponse>
+  </soap:Body>
+</soap:Envelope>

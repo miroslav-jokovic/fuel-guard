@@ -53,6 +53,10 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   // evidence already gathered, which is exactly why it is a separate endpoint from the proof.
   { method: "POST", path: "/promote/:capability", opensSoap: false },
   { method: "POST", path: "/experiment", opensSoap: true },
+  // Step 7.2. Reads the whole ACCOUNT — up to 28 paced calls in one request, and up to 75 more when
+  // `sampleCards` is used. Read-only throughout, which is why it needs no probe flag; charged
+  // because "read-only" says nothing about vendor budget.
+  { method: "POST", path: "/account-inventory", opensSoap: true },
 ];
 
 const PREFIX = "/api/fuel-cards";

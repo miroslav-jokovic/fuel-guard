@@ -314,6 +314,9 @@ export function fuelCardsRouter(): Router {
       document: Record<string, unknown>;
       card_version: string;
       info_source: string | null; limit_source: string | null; time_source: string | null;
+      // Step 7.4: selected by EFS_CARD_DETAIL_COLS and written by the mirror all along —
+      // just never declared here, which is why the payload carried three sources of four.
+      location_source: string | null;
       hand_enter: string | null; company_xref: string | null;
       payroll_status: string | null; payroll_use: string | null; last_transaction: string | null;
     };
@@ -334,6 +337,8 @@ export function fuelCardsRouter(): Router {
     const document = row.document as {
       infos?: { infoId: string }[]; limits?: { limitId: string }[];
       timeRestrictions?: { day: number }[];
+      /** Step 7.4 — parsed since Phase 1 and never sent to a browser. */
+      locationGroups?: string[]; locations?: string[];
     };
     const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
 
@@ -349,7 +354,42 @@ export function fuelCardsRouter(): Router {
         timeRestrictions: mergeEffectiveConfig(
           document.timeRestrictions ?? [], policy?.timeRestrictions ?? [], row.time_source, (t) => String(t.day),
         ),
-        sources: { infoSource: row.info_source, limitSource: row.limit_source, timeSource: row.time_source },
+        /**
+         * Step 7.4 — the location half, parsed into `document` since Phase 1 and never sent anywhere.
+         *
+         * `locations` is a BLOCKLIST, not an allowlist: "a list of locations that this card is
+         * BLOCKED from using" (guide p36). Naming it `blockedLocations` on the wire because a field
+         * called `locations` next to `locationGroups` reads as "where this card works", which is the
+         * exact opposite of what it means, and a UI built on that reading would tell an operator a
+         * card is restricted to the truck stops it is banned from.
+         */
+        locationGroups: document.locationGroups ?? [],
+        blockedLocations: document.locations ?? [],
+        /**
+         * All FOUR sources (Step 7.4). `locationSource` was the one dropped: the column is in
+         * `EFS_CARD_DETAIL_COLS`, the mirror writes it, and the payload carried three of the four —
+         * so the card page could say where prompts, limits and time rules come from, and not where
+         * the location rules do.
+         */
+        sources: {
+          infoSource: row.info_source,
+          limitSource: row.limit_source,
+          locationSource: row.location_source,
+          timeSource: row.time_source,
+        },
+        /**
+         * Step 7.3's five payroll capability flags, reaching a surface for the first time. Five ways
+         * to take MONEY off a fuel card, none of them fuel.
+         */
+        payroll: {
+          status: row.payroll_status,
+          use: row.payroll_use,
+          atm: (row.document as Record<string, unknown>).payrollAtm ?? null,
+          check: (row.document as Record<string, unknown>).payrollChk ?? null,
+          ach: (row.document as Record<string, unknown>).payrollAch ?? null,
+          wire: (row.document as Record<string, unknown>).payrollWire ?? null,
+          debit: (row.document as Record<string, unknown>).payrollDebit ?? null,
+        },
         policyDescription: policy?.description ?? null,
         policyError,
       },
