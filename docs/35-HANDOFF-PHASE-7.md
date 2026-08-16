@@ -9,6 +9,32 @@ Read this, then `docs/28-EFS-EXECUTION-PLAN.md` §0 and §1, then Phase 7.
 
 ---
 
+> ## ⏱ Status update — 2026-08-16, later that day
+>
+> **The two offline steps this document told you to start with are DONE and merged into
+> `claude/fuel-guard-efs-phase-7-goj5h7`: Steps 7.5 and 7.8, plus migration 0198.** Their full write-ups
+> are in `docs/28` Phase 7; §1's status row and §14's session log carry the record. Everything else in
+> this handoff still stands.
+>
+> **§1's table is right that nothing live is reachable — re-verified, not assumed.** `env | grep -c
+> "^EFS_\|^SUPABASE_"` → 0, `curl https://example.supabase.co` → 000.
+>
+> **One correction to §1's table, and it matters more than the tick.** This document (and the plan)
+> describe 7.5's roster-only-card item as *"a 409 that claims the card changed"*. It is not. Every
+> capability body is parsed by `cardVersionSchema = z.string().min(16)` **before** the orchestrator
+> runs, so an empty `expectedVersion` never reaches `assertUnmoved`'s version comparison at all — the
+> place a fix naturally goes is unreachable. The real symptom was **"Could not change the card —
+> String must contain at least 16 character(s)"**. Fixed in `efs/router.ts`. This is §4.1's rule
+> arriving for the third time in this workstream: *a prediction is usually wrong about the MECHANISM
+> even when right about the symptom*, and only following the value finds it.
+>
+> **What is left of Phase 7 is exactly the live-EFS set: 7.1, 7.2, 7.3, 7.4, 7.6.** Per §1's own
+> instruction, the session stopped there rather than building three unverifiable steps, and asked
+> Miki whether to build 7.1/7.2 blind or wait for credentials. **That question is still open — do not
+> answer it yourself.**
+
+---
+
 ## 1. ⚠️ Read this before planning anything: **Phase 7 cannot be completed in this container**
 
 Phase 7 is read-only, which makes it *sound* like the safe offline phase. It is not. Three of its
