@@ -52,9 +52,15 @@ mechanism, do not build a second one.
 `env | grep -c "^EFS_\|^SUPABASE_"` → 0, `curl https://fleetguardapi-production.up.railway.app` → 000.
 
 **Live work runs from Miki's Mac** — local Postgres, Railway CLI, `apps/api/.env`, a terminal
-(`docs/32` §123: *"this session he told me to run it and I did, twice"*). `scripts/efs.mjs:68` dies on
-`!process.stdin.isTTY`, so **even a container with full network could not run it**. Do not ask for a
-firewall change; ask Miki to run the command.
+(`docs/32` §123: *"this session he told me to run it and I did, twice"*). `promptHidden()` in
+`scripts/efs.mjs` dies on `!process.stdin.isTTY`, so **even a container with full network could not
+run it**. Do not ask for a firewall change; ask Miki to run the command.
+
+> Cited by symbol, not by line: this said `efs.mjs:68` and the check had already moved to 69 —
+> shifted by *this phase's own* stdout fix, within a day of being written. **Cite live code by
+> symbol; a line number into a file that is still changing rots silently and reads as verified.**
+> The `§N` citations into `docs/29`/`31`/`32` are line numbers too, but those are frozen handoffs —
+> they are fine, leave them alone.
 
 ### The operator CLI, and what this phase added to it
 
