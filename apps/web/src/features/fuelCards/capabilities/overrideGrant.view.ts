@@ -1,4 +1,9 @@
-import { type OverrideGrantBody, overrideGrantContract } from "@fuelguard/shared";
+import {
+  OVERRIDE_GRANT_STEP_UP,
+  type OverrideGrantBody,
+  overrideGrantContract,
+  overrideGrantNeedsStepUp,
+} from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
 /**
@@ -33,6 +38,13 @@ export const overrideGrantView = defineView(overrideGrantContract, {
     row("Where", scopeLabel(before.overrideAllLocations === true, before.locationOverrideId ?? null),
       scopeLabel(body.scope.kind === "all", body.scope.kind === "location" ? body.scope.locationId : null)),
   ],
+
+  /**
+   * The one gate that is EXACT here: `preflightStepUp` decides from the body alone, and this has the
+   * same body. Turning the stepper past three re-renders this warning with no round trip.
+   */
+  stepUp: (body: OverrideGrantBody) =>
+    (overrideGrantNeedsStepUp(body.uses) ? OVERRIDE_GRANT_STEP_UP : null),
 });
 
 const usesLabel = (uses: number): string =>

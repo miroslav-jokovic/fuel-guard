@@ -1,4 +1,10 @@
-import { EFS_CARD_STATUS_LABELS, cardUnlockContract, efsStatusEquals } from "@fuelguard/shared";
+import {
+  CARD_UNLOCK_STEP_UP,
+  EFS_CARD_STATUS_LABELS,
+  cardUnlockContract,
+  cardUnlockNeedsStepUp,
+  efsStatusEquals,
+} from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
 /**
@@ -30,6 +36,13 @@ export const cardUnlockView = defineView(cardUnlockContract, {
   },
 
   diff: (before) => [row("Status", statusLabel(before.status), statusLabel("Active"))],
+
+  /**
+   * Predicted from the MIRROR's status; `planStepUp` decides from the document EFS returns at write
+   * time. A card flagged since the last sweep is therefore one this will not warn about — the
+   * drawer's `step_up_required` fallback is what covers that, and it stays.
+   */
+  stepUp: (_body, card) => (cardUnlockNeedsStepUp(card.card.status) ? CARD_UNLOCK_STEP_UP : null),
 });
 
 const statusLabel = (status: string | null): string => {

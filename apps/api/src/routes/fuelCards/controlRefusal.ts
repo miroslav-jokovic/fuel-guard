@@ -1,3 +1,4 @@
+import { PROMPT_REMOVAL_STEP_UP, promptRemovalNeedsStepUp } from "@fuelguard/shared";
 import type { CardScope } from "../../services/efsCardControlAccess.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 
@@ -6,14 +7,22 @@ import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 // `ActionRefusalError` from this module keeps working.
 export { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 
-/** Every explicit prompt removal is destructive; DRID additionally needs its named opt-in. */
+/**
+ * Every explicit prompt removal is destructive; DRID additionally needs its named opt-in.
+ *
+ * The step-up half is `promptRemovalNeedsStepUp` as of Step 6.1 — the same predicate and the same
+ * sentence the drawer warns from, so an operator staging a removal is told a password is coming
+ * before they press Confirm rather than after. Only the step-up half is shared: the DRID opt-in
+ * raises `invalid_request`, not `step_up_required`, and a UI that conflated them would offer a
+ * password box to somebody who needs a checkbox.
+ */
 export function assertPromptRemovalAllowed(
   removedInfoIds: readonly string[],
   allowRemoveDriverId: boolean,
   freshAuth: boolean,
 ): void {
-  if (removedInfoIds.length === 0) return;
-  if (!freshAuth) throw new ActionRefusalError("Confirm your password to remove a prompt.", "step_up_required");
+  if (!promptRemovalNeedsStepUp(removedInfoIds)) return;
+  if (!freshAuth) throw new ActionRefusalError(PROMPT_REMOVAL_STEP_UP, "step_up_required");
   if (removedInfoIds.includes("DRID") && !allowRemoveDriverId) {
     // Dropping the driver-ID record stops the pump asking who is fuelling, and every downstream
     // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
