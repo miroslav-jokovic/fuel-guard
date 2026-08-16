@@ -424,7 +424,9 @@ Rules encoded in the component and honoured by the good pages:
   </KebabMenu>
 </template>
 ```
-`.kebab-item` / `.kebab-item-danger` are global classes in `style.css` — never re-style menu items locally. Destructive last, `kebab-item-danger`. Gate on `session.canManage`. Single-action rows may use a `<BaseButton variant="ghost" size="sm" @click.stop>` instead (`DispatchLoadsPage.vue:365`).
+`.kebab-item` / `.kebab-item-danger` are global classes in `style.css` — never re-style menu items locally. Destructive last, `kebab-item-danger`. Gate on `session.canManage`.
+
+> **Corrected 2026-08-16.** The snippet above and §1.2 both said the children must be a bare `button` element. They must NOT be: `lint:ui-adoption` counts raw buttons in `pages/` and `features/` with **zero tolerance**, so a literal element there is a red CI gate. Every real kebab in this codebase uses `<BaseButton class="kebab-item">` — `TrailersPage.vue:254`, `DriverQualificationPage.vue:403`, `PlanHistory.vue:205` — and the doc was the side that had drifted. Two further traps found the same day: `CompliancePage.vue:460` uses a `RouterLink.kebab-item`, which is a third pattern nobody documented, and the gate is a plain regex over file TEXT, so naming the element in a comment trips it too. Single-action rows may use a `<BaseButton variant="ghost" size="sm" @click.stop>` instead (`DispatchLoadsPage.vue:365`).
 
 ### 5.7 Row → drawer
 

@@ -16,6 +16,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
@@ -358,14 +359,24 @@ function clearAll(): void {
           v-if="rowOperations(row as EfsCardRow).length > 0"
           :trigger-label="`Actions for ${(row as EfsCardRow).maskedRef}`"
         >
-          <RouterLink
+          <!--
+            `BaseButton class="kebab-item"`, not a RouterLink: KebabMenu children must be buttons, and the
+            Phase 6 version used a link. BaseButton rather than a bare element because
+            `lint:ui-adoption` forbids raw buttons in pages/ and features/ with zero tolerance, and
+            every other kebab in this codebase does the same — see TrailersPage. NB that gate is a
+            plain regex over the file text, so naming the element in prose trips it too. It still
+            NAVIGATES — `EfsCardRow` carries no card_version and no prompt records, and opening a
+            drawer without them would send a stale concurrency token or a `replaceAll` with an empty
+            prompt array, which deletes the driver assignment (guide p137).
+          -->
+          <BaseButton
             v-for="op in rowOperations(row as EfsCardRow)"
             :key="op.id"
             class="kebab-item"
-            :to="operationLink((row as EfsCardRow).id, op)"
+            @click="router.push(operationLink((row as EfsCardRow).id, op))"
           >
             {{ op.menuLabel }}
-          </RouterLink>
+          </BaseButton>
         </KebabMenu>
       </template>
       <template #footer>

@@ -19,15 +19,15 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import CardOperationDrawer from "@/features/fuelCards/CardOperationDrawer.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import CardEffectiveConfig from "@/features/fuelCards/CardEffectiveConfig.vue";
-import CardMutationHistory from "@/features/fuelCards/CardMutationHistory.vue";
 import { availability, cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
 import {
   CARD_OPERATIONS,
+  type CardOperationGroup,
   type CardOperationSpec,
   blockedSentence,
   operationBlockedBy,
-  operationById,
   operationFromQuery,
   toOperationCard,
 } from "@/features/fuelCards/cardOperations";
@@ -48,44 +48,34 @@ const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null, new
 
 const openOperation = ref<CardOperationSpec | null>(null);
 
-/** The Edit… link on the prompts table appears only when this person can actually reach that write. */
-const promptsEditable = computed(() => {
-  const caps = capabilities.value;
-  const spec = operationById("prompts");
-  if (!caps || !spec) return false;
-  return operationBlockedBy(spec, caps, caps.scopes ?? []) === null;
-});
-
 /**
- * The Actions card — one button per operation, grouped by the question an operator is asking.
+ * The operations for one section's `⋮`, with the reason any of them is out of reach.
  *
- * ── Why unavailable operations are SHOWN, greyed, with a reason ─────────────────────────────────
- * Hiding them makes the page look like a dead end and generates tickets for a feature that is
- * already built (the same argument `availability()` makes for the whole panel). The exception is an
- * operation the card's own state makes meaningless — Unlock on a working card — which is filtered
- * out entirely: that is not a permission problem and greying it would invite somebody to hunt for a
- * permission that would not have helped.
+ * ── Shown-and-disabled, not hidden ───────────────────────────────────────────────────────────────
+ * Hiding an operation somebody lacks the scope for makes the menu look like the product cannot do
+ * it at all, and generates tickets for a feature that is already built. An operation the CARD's own
+ * state makes meaningless is a different case and IS filtered — `applies` — because that is not a
+ * permission problem and greying it would send somebody hunting a permission that would not help.
  *
  * The Step 6.3 verify in words: a yard manager without the override scope sees Grant exception
- * greyed with "You are not on this company's approver list for this action. Ask an admin to add
- * you." — not a missing button.
+ * greyed, and is told to ask an admin to add them.
  */
-const actionGroups = computed(() => {
+const sectionOperations = (group: CardOperationGroup) => {
   const c = card.value;
   const caps = capabilities.value;
   if (!c || !caps) return [];
   const context = toOperationCard(c);
   const scopes = caps.scopes ?? [];
-  const rows = CARD_OPERATIONS
-    .filter((op) => op.applies(context))
+  return CARD_OPERATIONS
+    .filter((op) => op.group === group && op.applies(context))
     .map((op) => {
       const blocked = operationBlockedBy(op, caps, scopes);
       return { op, blocked, reason: blocked ? blockedSentence(blocked) : null };
     });
-  return (["Card status", "Fuel access", "At the pump"] as const)
-    .map((group) => ({ group, rows: rows.filter((r) => r.op.group === group) }))
-    .filter((g) => g.rows.length > 0);
-});
+};
+
+const cardOperations = computed(() => sectionOperations("Current card"));
+const promptOperations = computed(() => sectionOperations("Prompts"));
 
 /**
  * `?action=lock` opens straight onto that operation — what the list page's kebab links to, so
@@ -152,9 +142,11 @@ const facts = computed(() => {
     />
 
     <template v-else-if="card">
+      <!-- Section 1 — the card itself, with its own ⋮ (Step 6.5.3). -->
       <BaseCard>
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="text-lg font-medium text-ink">{{ card.maskedRef }}</span>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-lg font-medium text-ink">{{ card.maskedRef }}</span>
           <span :class="[BADGE_BASE, toneClass(cardStatusTone(card.status))]">
             {{ cardStatusLabel(card.status) }}
           </span>
@@ -164,6 +156,19 @@ const facts = computed(() => {
           >
             Override: {{ card.overrideUses }} use{{ card.overrideUses === 1 ? "" : "s" }} left
           </span>
+          </div>
+          <KebabMenu v-if="canAct && cardOperations.length > 0" trigger-label="Card actions">
+            <BaseButton
+              v-for="row in cardOperations"
+              :key="row.op.id"
+              class="kebab-item"
+              :disabled="row.blocked !== null"
+              :title="row.reason ?? undefined"
+              @click="openOperation = row.op"
+            >
+              {{ row.op.menuLabel }}
+            </BaseButton>
+          </KebabMenu>
         </div>
 
         <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,42 +202,40 @@ const facts = computed(() => {
         </div>
       </BaseCard>
 
-      <!-- One button per operation, grouped by the question being asked (Step 6.3). -->
-      <BaseCard v-else-if="canAct && actionGroups.length > 0">
-        <div class="space-y-5">
-          <h2 class="text-sm font-medium text-ink">Card actions</h2>
-          <div v-for="group in actionGroups" :key="group.group" class="space-y-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{{ group.group }}</h3>
-            <div v-for="row in group.rows" :key="row.op.id" class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <BaseButton
-                variant="secondary"
-                size="sm"
-                :disabled="row.blocked !== null"
-                @click="openOperation = row.op"
-              >
-                {{ row.op.menuLabel }}
-              </BaseButton>
-              <!-- Invariant 6 on the page as well as in the drawer: never a bare greyed button. -->
-              <span v-if="row.reason" class="text-sm text-ink-muted">{{ row.reason }}</span>
-            </div>
-          </div>
-        </div>
-      </BaseCard>
-
+      <!-- Section 2 — what the pump asks for, with its own ⋮. Limits and time restrictions render
+           alongside it and carry no menu: neither has a capability behind it yet. -->
       <CardEffectiveConfig
         v-if="query.data.value"
         :effective="query.data.value.effective"
         :policy-number="card.policyNumber"
-        :card-id="id"
-        :can-edit-prompts="promptsEditable"
-      />
+      >
+        <template #actions="{ section }">
+          <KebabMenu
+            v-if="section === 'prompts' && canAct && promptOperations.length > 0"
+            trigger-label="Prompt actions"
+          >
+            <BaseButton
+              v-for="row in promptOperations"
+              :key="row.op.id"
+              class="kebab-item"
+              :disabled="row.blocked !== null"
+              :title="row.reason ?? undefined"
+              @click="openOperation = row.op"
+            >
+              {{ row.op.menuLabel }}
+            </BaseButton>
+          </KebabMenu>
+        </template>
+      </CardEffectiveConfig>
 
-      <BaseCard>
-        <div class="space-y-3">
-          <h2 class="text-sm font-medium text-ink">Change history</h2>
-          <CardMutationHistory :card-id="id" />
-        </div>
-      </BaseCard>
+      <!--
+        Step 6.5.5 — no change-history section here.
+
+        Miki, 2026-08-16: "audit log section should belong on Audit Log page we have in settings and
+        not on this page." A per-card audit table on the operating screen is a second place to look
+        for something the Settings page already owns, and it pushed the card's own settings below
+        the fold. `CardMutationHistory.vue` is kept: it is the component that page will render.
+      -->
 
       <CardOperationDrawer
         v-if="capabilities"

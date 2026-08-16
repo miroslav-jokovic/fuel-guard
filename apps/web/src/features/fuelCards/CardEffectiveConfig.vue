@@ -13,7 +13,6 @@
  * the enforced row reads normally, the superseded one sits beneath it in muted text.
  */
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -24,19 +23,12 @@ import {
   sourceSentence,
   timeRows,
 } from "./cardControlModel";
-import { operationById, operationLink } from "./cardOperations";
 import type { EfsCardDetailResponse } from "./useEfsCards";
 
 const props = defineProps<{
   effective: EfsCardDetailResponse["effective"];
   policyNumber: number | null;
-  /** Absent on a card nobody may change, which is how the Edit link stays off that page. */
-  cardId?: string;
-  canEditPrompts?: boolean;
 }>();
-
-/** Non-null by construction — `operationById` is exhaustive over `CARD_OPERATIONS`. */
-const promptsOperation = operationById("prompts")!;
 
 const columns: DataTableColumn[] = [
   { key: "label", label: "Setting", headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
@@ -51,14 +43,6 @@ const sections = computed(() => [
     sentence: sourceSentence("Prompts", props.effective.sources.infoSource, props.policyNumber),
     rows: promptRows(props.effective.infos),
     empty: "No prompts on this card. Drivers are not asked for anything at the pump.",
-    /**
-     * Step 6.3. Section-level, not per row, and that is the shape of the operation rather than a
-     * shortcut: `prompts_set` is a full `replaceAll` over the card's records, so "edit this one row"
-     * would name a granularity the write does not have. Prompts only — a limit or a time
-     * restriction has no capability behind it yet, and a policy-level row is not editable here at
-     * all (card level always trumps policy, guide p37, but the policy is changed in the WEX portal).
-     */
-    editAction: props.canEditPrompts && props.cardId ? operationLink(props.cardId, promptsOperation) : null,
   },
   {
     id: "limits",
@@ -66,7 +50,6 @@ const sections = computed(() => [
     sentence: sourceSentence("Limits", props.effective.sources.limitSource, props.policyNumber),
     rows: limitRows(props.effective.limits),
     empty: "No product limits. Spending is bounded only by the account.",
-    editAction: null,
   },
   {
     id: "times",
@@ -74,7 +57,6 @@ const sections = computed(() => [
     sentence: sourceSentence("Time restrictions", props.effective.sources.timeSource, props.policyNumber),
     rows: timeRows(props.effective.timeRestrictions),
     empty: "No time restrictions. The card works at any hour.",
-    editAction: null,
   },
 ]);
 
@@ -94,9 +76,8 @@ const rowClass = (row: EffectiveDisplayRow): string => (row.enforced ? "" : "tex
           <h2 class="text-sm font-medium text-ink">{{ section.title }}</h2>
           <p class="text-sm text-ink-muted">{{ section.sentence }}</p>
         </div>
-        <BaseButton v-if="section.editAction" variant="soft" size="sm" :to="section.editAction">
-          Edit…
-        </BaseButton>
+        <!-- The page supplies the section's ⋮; this component knows the data, not the actions. -->
+        <slot name="actions" :section="section.id" />
       </div>
       <DataTable
         :columns="columns"

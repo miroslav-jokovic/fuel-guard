@@ -3,6 +3,7 @@ import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
   EFS_EDITABLE_INFO_IDS,
+  type EfsEditableInfoId,
   EFS_WRITABLE_STATUSES,
   type EfsWritableStatus,
   canonicalEfsStatus,
@@ -30,10 +31,16 @@ import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow }
  * registry Phase 3 built and nothing consumed until now.
  */
 
-export type CardOperationId = "status" | "grant" | "clear" | "prompts";
+export type CardOperationId = "status" | "grant" | "clear" | "promptAdd" | "prompts";
 
-/** The three questions an operator is actually asking, and the grouping the detail page renders. */
-export type CardOperationGroup = "Card status" | "Fuel access" | "At the pump";
+/**
+ * The two SECTIONS of the card page, each with its own `⋮`.
+ *
+ * Not three groups of buttons — Miki, 2026-08-16, on seeing the stacked action card Phase 6 shipped:
+ * *"Action section is completely out of flow, bad looking and UX nightmare."* An operation belongs to
+ * the thing it changes, and there are two of those: the card itself, and what the pump asks for.
+ */
+export type CardOperationGroup = "Current card" | "Prompts";
 
 /** The scope names `capabilities.scopes` uses — the approver-list vocabulary, not the capability key. */
 export type CardOperationScope = "lock" | "unlock" | "override" | "prompts";
@@ -49,6 +56,8 @@ export interface OperationDraft {
   scopeKind: "all" | "location";
   location: EfsLocation | null;
   prompts: PromptInput[];
+  /** Which prompt `promptAdd` is adding. Seeded to the first the card lacks. */
+  addInfoId: EfsEditableInfoId | null;
 }
 
 export interface CardOperationSpec {
@@ -91,12 +100,20 @@ export interface CardOperationSpec {
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
 
+/** The editable prompts the card HAS. */
+export const editableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
+  EFS_EDITABLE_INFO_IDS.filter((id) => (card.infos ?? []).some((info) => info.infoId === id));
+
+/** The editable prompts the card LACKS — what `promptAdd` can offer. */
+export const missingEditableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
+  EFS_EDITABLE_INFO_IDS.filter((id) => !(card.infos ?? []).some((info) => info.infoId === id));
+
 export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
   {
     id: "status",
     capabilityKey: "card_lock",
     scope: "lock",
-    group: "Card status",
+    group: "Current card",
     menuLabel: "Change status…",
     /**
      * One control for all three writable statuses, mirroring WEX's own portal — *Cards → View Cards
@@ -117,7 +134,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     id: "grant",
     capabilityKey: "override_grant",
     scope: "override",
-    group: "Fuel access",
+    group: "Current card",
     menuLabel: "Grant exception…",
     // Always offerable: granting a new exception replaces whatever is there, which is the vendor's
     // own semantic (guide p194) and is what an operator means by "let him fuel once more".
@@ -137,7 +154,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     id: "clear",
     capabilityKey: "override_clear",
     scope: "override",
-    group: "Fuel access",
+    group: "Current card",
     menuLabel: "Remove exception…",
     /**
      * Uses > 0 **or** a scope field armed — the Step 6.2 correction.
@@ -153,12 +170,50 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     body: () => ({}),
   },
   {
+    id: "promptAdd",
+    capabilityKey: "prompts_set",
+    scope: "prompts",
+    group: "Prompts",
+    menuLabel: "Add prompt…",
+    /**
+     * ⚠️ The gap Miki found, and it is not cosmetic.
+     *
+     * *"unassigned cards dont have any prompts and we dont even have option to add them."* Correct:
+     * every prompt path this product had edited or REMOVED records the card already carried, so a
+     * card with an empty `<infos>` could never be given a Driver ID prompt — which is the whole of
+     * FuelGuard's attribution signal for that card. Unreachable, silently, since the feature shipped.
+     */
+    applies: (card) => missingEditableInfoIds(card).length > 0,
+    /**
+     * `replaceAll` means the array in the request IS the card's prompts afterwards (guide p137), so
+     * an ADD has to send every existing record back alongside the new one. Sending only the new one
+     * would delete the rest — the exact deletion the characterisation suite exists to catch.
+     */
+    body: (draft) => ({
+      replaceAll: true,
+      prompts: draft.prompts,
+      // An add never removes anything, so the DRID opt-in can never be needed here.
+      allowRemoveDriverId: false,
+    }),
+    blocker: (draft) => {
+      if (!draft.addInfoId) return "This card already has every prompt this product can set.";
+      const added = draft.prompts.find((p) => p.infoId === draft.addInfoId);
+      if (added?.validationType === "EXACT_MATCH" && !(added.matchValue ?? "").trim()) {
+        // EXACT_MATCH is what makes the pump VALIDATE the entry. An empty one validates nothing and
+        // is a prompt that stops nobody.
+        return "Enter the value the driver must type at the pump.";
+      }
+      return null;
+    },
+  },
+  {
     id: "prompts",
     capabilityKey: "prompts_set",
     scope: "prompts",
-    group: "At the pump",
+    group: "Prompts",
     menuLabel: "Edit prompts…",
-    applies: () => true,
+    // Nothing to edit on a card with no editable record — that is `promptAdd`'s job.
+    applies: (card) => editableInfoIds(card).length > 0,
     body: (draft) => ({
       // Always the literal `true`: full replace is the EFS semantic, and sending it explicitly means
       // the client can never arrive at it by omission.
@@ -173,7 +228,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
 
 /** A draft with nothing entered. The baseline the drawer's dirty check compares against. */
 export const emptyDraft = (current: string | null = null): OperationDraft =>
-  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [] });
+  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null });
 
 /**
  * The card's status as one of the three the operator may write, or `Active` when it is neither.
@@ -251,6 +306,44 @@ export const resolveCapability = (
   spec: CardOperationSpec, draft: OperationDraft,
 ): { key: string; scope: CardOperationScope } =>
   spec.capabilityFor?.(draft) ?? { key: spec.capabilityKey, scope: spec.scope };
+
+/**
+ * A draft seeded from the card, including `promptAdd`'s new blank record.
+ *
+ * The new record joins `prompts` rather than sitting beside it, so the body is a plain `replaceAll`
+ * of the whole array and nothing has to remember to merge the two — which is how an add turns into
+ * a delete of everything else (guide p137).
+ *
+ * Pure, and out here rather than in the drawer, because the drawer calls it three times — on seed,
+ * inside the dirty comparison, and on a 409 reseed — and a `dirty` check computing its baseline
+ * differently from `seed()` reads TRUE on an untouched drawer. That is exactly the defect Step 6.1
+ * shipped and `seededFor` had to paper over.
+ */
+export const seedDraftFor = (
+  operation: CardOperationSpec | null,
+  status: string,
+  prompts: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
+): OperationDraft => {
+  const base = { ...emptyDraft(status), prompts: promptDrafts(prompts) };
+  if (operation?.id !== "promptAdd") return base;
+  const addInfoId = missingEditableInfoIds({
+    status, infos: prompts as OperationCard["infos"], limits: [],
+    overrideUses: null, overrideAllLocations: null, locationOverrideId: null,
+  })[0] ?? null;
+  return addInfoId === null ? base : {
+    ...base,
+    addInfoId,
+    prompts: [...base.prompts, {
+      infoId: addInfoId,
+      // EXACT_MATCH by default: a prompt the pump only RECORDS stops nobody, and the operator can
+      // downgrade it deliberately. Defaulting the other way makes the weaker choice the silent one.
+      validationType: "EXACT_MATCH",
+      matchValue: "",
+      reportValue: null,
+      remove: false,
+    }],
+  };
+};
 
 export const operationById = (id: CardOperationId): CardOperationSpec | null =>
   CARD_OPERATIONS.find((op) => op.id === id) ?? null;

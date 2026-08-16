@@ -1291,13 +1291,26 @@ delete the card history until the Settings page can answer the same question.
 some will have gallons and some miles … we will need to plan better later."* Phase 10 owns it. Do not
 leave a disabled field or a placeholder column for it.
 
-### ✅ Exit Gate — Phase 6.5
-- [ ] No `reason` anywhere in the card-control request path; writes succeed without it
-- [ ] Status is one three-item control; `Active` gated on the `unlock` scope; Fraud/Deleted visible
-- [ ] Two sections, two `⋮` menus, `.kebab-item` buttons; no stacked action card
-- [ ] A card with no prompts can be given one
-- [ ] Card page carries no audit section
-- [ ] Standing gates green, matrix 381/38/61/25/17, mutation 18/18
+### ✅ Exit Gate — Phase 6.5 — **CLOSED 2026-08-16**
+- [x] No `reason` anywhere in the card-control request path; writes succeed without it — and an older client still sending one is IGNORED, not refused, so this needed no coordinated deploy
+- [x] Status is one three-item control; `Active` gated on the `unlock` scope; Fraud/Deleted named rather than silently absent. Verified by mutation: flattening the capability pairing turns exactly one test red
+- [x] Two sections, two `⋮` menus; no stacked action card
+- [x] A card with no prompts can be given one
+- [x] Card page carries no audit section
+- [x] Standing gates green, matrix 381/38/61/25/17, mutation 18/18
+
+**A doc correction fell out of 6.5.3, and it had bitten twice.** `DESIGN-SYSTEM-CONTRACT.md` §1.2 and its
+snippet both said `KebabMenu` children must be a bare `button` element. They must not: `lint:ui-adoption`
+counts raw buttons in `pages/` and `features/` with **zero tolerance**, and every real kebab in the
+codebase uses `<BaseButton class="kebab-item">`. Phase 6 shipped a `RouterLink.kebab-item` — off-pattern
+both ways — and following the doc literally in 6.5.3 turned the gate red. Corrected in place, with the
+two further traps recorded: `CompliancePage.vue:460` is a third undocumented pattern, and the gate is a
+regex over file TEXT, so naming the element in a comment trips it too.
+
+**Left for a later step, deliberately:** the Audit Log page in Settings does not yet filter by card.
+`CardMutationHistory.vue` is kept — it is what that page will render — but until it can answer "what
+changed on THIS card", the question has no home. Do not treat 6.5.5 as complete for the auditor's
+workflow; it is complete for the card page.
 
 ---
 

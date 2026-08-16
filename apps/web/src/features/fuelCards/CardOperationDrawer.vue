@@ -16,8 +16,7 @@ import {
   type CardOperationSpec,
   type OperationDraft,
   blockedSentence,
-  emptyDraft,
-  promptDrafts,
+  seedDraftFor,
   operationBlockedBy,
   operationConfirmation,
   operationDiff,
@@ -25,6 +24,7 @@ import {
   operationUi,
   capabilityBlockedBy,
   statusRows,
+  missingEditableInfoIds,
   unwritableStatusLabel,
   toOperationCard,
 } from "./cardOperations";
@@ -104,7 +104,7 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 
 const toast = useToastStore();
 
-const draft = ref<OperationDraft>(emptyDraft());
+const draft = ref<OperationDraft>(seedDraftFor(null, props.status, []));
 const activeVersion = ref(props.version);
 const activePrompts = ref(props.prompts);
 const activeStatus = ref(props.status);
@@ -135,7 +135,7 @@ function seed(): void {
   activeVersion.value = props.version;
   activePrompts.value = props.prompts;
   activeStatus.value = props.status;
-  draft.value = { ...emptyDraft(props.status), prompts: promptDrafts(props.prompts) };
+  draft.value = seedDraftFor(props.operation, props.status, props.prompts);
   committed.value = null;
   settled.value = null;
   stepUpFor.value = null;
@@ -152,7 +152,7 @@ function seed(): void {
  * click through.
  */
 const dirty = computed(() => {
-  const clean = { ...emptyDraft(activeStatus.value), prompts: promptDrafts(activePrompts.value) };
+  const clean = seedDraftFor(props.operation, activeStatus.value, activePrompts.value);
   return JSON.stringify(draft.value) !== JSON.stringify(clean);
 });
 
@@ -231,6 +231,9 @@ const statusBlocked = computed<Record<string, string | null>>(() => Object.fromE
   rows.value.map((r) => [r.value, capabilityBlockedBy(r.capabilityKey, r.scope, props.capabilities, props.scopes)]),
 ));
 const unwritable = computed(() => unwritableStatusLabel(activeStatus.value));
+
+/** The prompts this card does not yet carry — what `promptAdd` may offer. */
+const addOptions = computed(() => missingEditableInfoIds(card.value));
 
 /** Saving the status the card already has is a vendor call that changes nothing. */
 const statusUnchanged = computed(() =>
@@ -313,6 +316,7 @@ function dispatch(): Promise<CardMutationOutcome> {
       return grant.mutateAsync({ ...common, uses: b.uses as number, scope: b.scope as never });
     case "clear":
       return clear.mutateAsync(common);
+    case "promptAdd":
     case "prompts":
       return setPrompts.mutateAsync({
         ...common,
@@ -330,7 +334,7 @@ function handleFailure(error: unknown): void {
       activeVersion.value = version;
       activePrompts.value = live.infos;
       activeStatus.value = live.status ?? props.status;
-      draft.value = { ...emptyDraft(live.status ?? props.status), prompts: promptDrafts(live.infos) };
+      draft.value = seedDraftFor(props.operation, live.status ?? props.status, live.infos);
       committed.value = null;
     },
     abandon: () => { committed.value = null; },
@@ -438,6 +442,7 @@ const environmentBadge = computed(() =>
           :draft="draft"
           :busy="busy"
           :read-only-prompts="readOnlyPrompts"
+          :add-options="addOptions"
           :status-rows="rows"
           :status-blocked="statusBlocked"
           :unwritable-status="unwritable"

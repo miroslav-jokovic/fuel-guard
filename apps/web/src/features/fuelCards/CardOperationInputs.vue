@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { EFS_MATCH_VALUE_MAX, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
@@ -38,6 +39,8 @@ const props = defineProps<{
   statusBlocked?: Record<string, string | null>;
   /** Set when the card sits at Fraud or Deleted — neither is writable and neither has a row. */
   unwritableStatus?: string | null;
+  /** The prompts the card does not yet carry — what `promptAdd` may offer. */
+  addOptions?: readonly string[];
 }>();
 
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
@@ -67,6 +70,24 @@ const validationOptions = [
 
 function patchPrompt(index: number, over: Partial<PromptInput>): void {
   patch({ prompts: props.draft.prompts.map((p, i) => (i === index ? { ...p, ...over } : p)) });
+}
+
+/** The record being ADDED, which lives in `prompts` alongside the card's own — see `seededDraft`. */
+const added = computed(() => props.draft.prompts.find((p) => p.infoId === props.draft.addInfoId) ?? null);
+
+const patchAdded = (over: Partial<PromptInput>): void =>
+  patch({ prompts: props.draft.prompts.map((p) => (p.infoId === props.draft.addInfoId ? { ...p, ...over } : p)) });
+
+/** Swapping which prompt is being added replaces the pending record rather than keeping both. */
+function chooseAdded(infoId: string): void {
+  const keep = props.draft.prompts.filter((p) => p.infoId !== props.draft.addInfoId);
+  patch({
+    addInfoId: infoId as PromptInput["infoId"],
+    prompts: [...keep, {
+      infoId: infoId as PromptInput["infoId"],
+      validationType: "EXACT_MATCH", matchValue: "", reportValue: null, remove: false,
+    }],
+  });
 }
 </script>
 
@@ -132,6 +153,59 @@ function patchPrompt(index: number, over: Partial<PromptInput>): void {
       :disabled="props.busy"
       @update:model-value="patch({ location: $event as EfsLocation | null })"
     />
+  </div>
+
+  <!--
+    Adding a prompt to a card that has none — the gap that made an unassigned card unattributable.
+    The picker only appears when the card lacks BOTH editable prompts; with one missing there is
+    nothing to choose and a select of one item is a question with one answer.
+  -->
+  <div v-else-if="props.operation === 'promptAdd'" class="space-y-4">
+    <FormField
+      v-if="(props.addOptions?.length ?? 0) > 1"
+      label="Which prompt"
+      hint="Driver ID is what ties a fill to a person; Unit ties it to a truck."
+    >
+      <template #default="{ id }">
+        <ComboSelect
+          :id="id"
+          :model-value="props.draft.addInfoId ?? ''"
+          :options="(props.addOptions ?? []).map((v) => ({ value: v, label: infoLabel(v) }))"
+          :disabled="props.busy"
+          @update:model-value="chooseAdded($event)"
+        />
+      </template>
+    </FormField>
+
+    <div v-if="added" class="space-y-3 rounded-control border border-edge p-3">
+      <p class="text-sm font-medium text-ink">{{ infoLabel(added.infoId) }}</p>
+      <FormField
+        :label="added.validationType === 'REPORT_ONLY' ? 'Value to report' : 'Value the driver must enter'"
+        :hint="`Maximum ${EFS_MATCH_VALUE_MAX} characters.`"
+      >
+        <template #default="{ id }">
+          <BaseInput
+            :id="id"
+            type="text"
+            :maxlength="EFS_MATCH_VALUE_MAX"
+            :model-value="added.validationType === 'REPORT_ONLY' ? added.reportValue ?? '' : added.matchValue ?? ''"
+            :disabled="props.busy"
+            @update:model-value="patchAdded(added.validationType === 'REPORT_ONLY' ? { reportValue: $event } : { matchValue: $event })"
+          />
+        </template>
+      </FormField>
+      <FormField label="How the pump treats it">
+        <template #default="{ id }">
+          <ComboSelect
+            :id="id"
+            :model-value="added.validationType"
+            :options="validationOptions"
+            :disabled="props.busy"
+            @update:model-value="patchAdded({ validationType: $event as PromptInput['validationType'] })"
+          />
+        </template>
+      </FormField>
+    </div>
   </div>
 
   <div v-else-if="props.operation === 'prompts'" class="space-y-4">
