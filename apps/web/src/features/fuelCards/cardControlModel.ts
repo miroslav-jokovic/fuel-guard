@@ -62,6 +62,34 @@ export interface Freshness {
 const DEFAULT_STALE_AFTER_MINUTES = 26 * 60;
 
 /**
+ * How long ago, in words. The ONE age formatter on this surface.
+ *
+ * Extracted so `freshness()` and `overrideState()` cannot drift apart: the card page would otherwise
+ * say "Checked 9 hours ago" in one line and "read 9 hrs ago" in the next, from two implementations
+ * that round differently. Returns null for a timestamp that is missing or unparseable — the caller
+ * decides what "we have no clock for this" reads as, because it is a different sentence in each.
+ */
+export function relativeAge(at: string | null | undefined, now: Date = new Date()): string | null {
+  if (!at) return null;
+  const ms = now.getTime() - new Date(at).getTime();
+  if (Number.isNaN(ms)) return null;
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? "an hour ago" : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** Whole minutes between `at` and `now`, or null when there is no usable timestamp. */
+const ageMinutes = (at: string | null | undefined, now: Date): number | null => {
+  if (!at) return null;
+  const ms = now.getTime() - new Date(at).getTime();
+  return Number.isNaN(ms) ? null : Math.max(0, Math.floor(ms / 60_000));
+};
+
+/**
  * How old the mirror row is, in words.
  *
  * ── Why the threshold comes from the server ─────────────────────────────────────────────────────
@@ -84,22 +112,15 @@ export function freshness(
   now: Date = new Date(),
   staleAfterMinutes: number = DEFAULT_STALE_AFTER_MINUTES,
 ): Freshness {
-  if (!syncedAt) return { text: "Never checked.", stale: true };
-  const ms = now.getTime() - new Date(syncedAt).getTime();
-  if (Number.isNaN(ms)) return { text: "Never checked.", stale: true };
-  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  const minutes = ageMinutes(syncedAt, now);
+  const age = relativeAge(syncedAt, now);
+  if (minutes === null || age === null) return { text: "Never checked.", stale: true };
   const stale = minutes >= staleAfterMinutes;
   // Past the cadence the sentence earns a next action. Inside it, it is just how old the row is.
   const suffix = stale ? " Refresh to see current settings." : "";
-
-  if (minutes < 1) return { text: "Checked just now.", stale: false };
-  if (minutes < 60) return { text: `Checked ${minutes} minute${minutes === 1 ? "" : "s"} ago.${suffix}`, stale };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return { text: `Checked ${hours === 1 ? "an hour" : `${hours} hours`} ago.${suffix}`, stale };
-  }
-  const days = Math.floor(hours / 24);
-  return { text: `Checked ${days} day${days === 1 ? "" : "s"} ago.${suffix}`, stale };
+  // `just now` is never stale by construction; keeping the branch explicit avoids a "Checked just
+  // now. Refresh to see current settings." from a threshold somebody sets to zero.
+  return minutes < 1 ? { text: "Checked just now.", stale: false } : { text: `Checked ${age}.${suffix}`, stale };
 }
 
 /**
@@ -167,6 +188,62 @@ export function overrideScopeLabel(allLocations: boolean | null, locationId: str
   return "Scope not reported";
 }
 
+/**
+ * An override state, WITH the age of the read it came from (Step 7.8).
+ *
+ * ── The incident this shape exists for (`docs/22` H4) ───────────────────────────────────────────
+ * Production card ••••7550 / unit 651 showed *"Override: 1 use left"* for NINE HOURS after EFS had
+ * retired it. The exception was consumed 38 minutes after the sync that recorded it, and nothing
+ * re-read the card until somebody refreshed by hand. The badge was not wrong when it was written; it
+ * was wrong when it was read, and nothing on the screen said which of those it was.
+ *
+ * ── Why this field and not `syncedAt` ───────────────────────────────────────────────────────────
+ * The override state is split across two clocks, and only one of them is honest about it:
+ *   • `override_uses` is written by BOTH mirror passes, so it tracks `synced_at`.
+ *   • `override_all_locations` and `location_override_id` — the SCOPE, i.e. whether this is a free
+ *     tank anywhere or one at a single truck stop — have no writer but the detail pass.
+ * So the statement "N uses left, at X" is only ever as fresh as `detailSyncedAt`, and that clock is
+ * never newer than `syncedAt`, which makes reading it the conservative direction. Step 7.5's
+ * `budget > fleetSize` invariant is what keeps the two clocks within a sweep of each other; without
+ * it this would report a count as days old when it was hours old.
+ *
+ * ── Why a stale count must not be asserted at all ───────────────────────────────────────────────
+ * A stale `status` is tolerable — the card page is not the authority on whether a card is locked,
+ * and locking is idempotent. A stale override count is not: it is the number that says whether a
+ * driver can take another free tank, it decrements without us, and it is the one field on this card
+ * whose staleness has a dollar value. Past a full sync cycle the honest answer is "we do not know".
+ *
+ * ── This carries no count of its own, deliberately ──────────────────────────────────────────────
+ * `known` is a verdict ABOUT the count, not a second copy of it. Returning a nullable `uses` beside
+ * the caller's own `overrideUses` would leave two numbers for the same fact and a rule about when
+ * they may disagree — and every surface would eventually pick the wrong one. One flag, one number,
+ * one place it lives.
+ */
+export interface OverrideFreshness {
+  /** False when the count must not be asserted: never read, or older than a sync cycle. */
+  known: boolean;
+  /** "read 9 hours ago" / "never read from EFS". Always present, always shown beside the state. */
+  ageText: string;
+  stale: boolean;
+  neverRead: boolean;
+}
+
+export function overrideFreshness(
+  card: { detailSyncedAt?: string | null },
+  now: Date = new Date(),
+  staleAfterMinutes: number = DEFAULT_STALE_AFTER_MINUTES,
+): OverrideFreshness {
+  const minutes = ageMinutes(card.detailSyncedAt, now);
+  const age = relativeAge(card.detailSyncedAt, now);
+  if (minutes === null || age === null) {
+    // The roster has seen this card; nothing has read it. Distinct from stale, and it is also the
+    // state Step 7.5's `card_never_read` refuses a write against.
+    return { known: false, ageText: "never read from EFS", stale: true, neverRead: true };
+  }
+  const stale = minutes >= staleAfterMinutes;
+  return { known: !stale, ageText: `read ${age}`, stale, neverRead: false };
+}
+
 export interface ActiveOverrideRow {
   id: string;
   maskedRef: string;
@@ -175,6 +252,8 @@ export interface ActiveOverrideRow {
   status: string;
   uses: number;
   scopeLabel: string;
+  /** Step 7.8 — how old the read behind this row is. See OverrideFreshness. */
+  freshness: OverrideFreshness;
 }
 
 /**
@@ -187,11 +266,15 @@ export interface ActiveOverrideRow {
  * distrust the panel. Sorted by card order — the same order as the inventory below it, so a reader
  * can find the row again.
  */
-export function activeOverrides(rows: readonly {
-  id: string; maskedRef: string; driverName: string | null; unitPrompt: string | null;
-  status: string; overrideUses: number | null; overrideAllLocations: boolean | null;
-  locationOverrideId: string | null; last4: string;
-}[]): ActiveOverrideRow[] {
+export function activeOverrides(
+  rows: readonly {
+    id: string; maskedRef: string; driverName: string | null; unitPrompt: string | null;
+    status: string; overrideUses: number | null; overrideAllLocations: boolean | null;
+    locationOverrideId: string | null; last4: string; detailSyncedAt?: string | null;
+  }[],
+  now: Date = new Date(),
+  staleAfterMinutes: number = DEFAULT_STALE_AFTER_MINUTES,
+): ActiveOverrideRow[] {
   return rows
     .filter((r) => (r.overrideUses ?? 0) > 0)
     .sort((a, b) => compareCardValues(a.last4, b.last4, "asc"))
@@ -201,8 +284,13 @@ export function activeOverrides(rows: readonly {
       driverName: r.driverName,
       unitPrompt: r.unitPrompt,
       status: r.status,
+      /** The LAST KNOWN count. Only assert it where `freshness.known` — see OverrideFreshness. */
       uses: r.overrideUses ?? 0,
       scopeLabel: overrideScopeLabel(r.overrideAllLocations, r.locationOverrideId),
+      // A STALE row is annotated, never dropped (Step 7.8). This panel answers "who can currently buy
+      // outside their limits", and "we last read this two days ago" is not the same answer as "no".
+      // Filtering stale rows out would make the panel quietest exactly when the mirror is worst.
+      freshness: overrideFreshness(r, now, staleAfterMinutes),
     }));
 }
 

@@ -65,6 +65,13 @@ function stub(...responses: string[]): typeof fetch {
   return (async () => new Response(responses[i++] ?? cardDetail, { status: 200 })) as typeof fetch;
 }
 
+/** Every `{code, source, at}` record this sweep wrote, in order (Step 7.5 / migration 0198). */
+const syncErrorWrites = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+  rec
+    .writtenRows("efs_cards")
+    .map((r) => r.sync_error as { code?: string; source?: string; at?: string } | null)
+    .filter((v): v is { code: string; source: string; at: string } => !!v && typeof v === "object");
+
 afterEach(() => {
   __resetEfsSessions();
   __resetSoapPacing();
@@ -155,8 +162,127 @@ describe("syncEfsCards", () => {
     // One unreadable card must not abandon the other 399.
     expect(result.detailed).toBe(1);
     expect(result.failed).toBe(1);
-    const errored = rec.forTable("efs_cards").find((q) => (q.write?.payload as { sync_error?: string })?.sync_error);
-    expect(errored).toBeTruthy();
+    // Step 7.5: the structured record migration 0198 enforces, not the bare string it replaced. The
+    // old assertion — "some write carried a truthy sync_error" — is satisfied by BOTH shapes, which
+    // is the definition of a test that cannot tell the fix from the bug.
+    const errored = syncErrorWrites(rec).at(-1);
+    expect(errored).toMatchObject({ source: "detail", code: expect.stringContaining("InvalidParameterNameID") });
+    expect(typeof errored?.at).toBe("string");
+  });
+
+  it("records a ROSTER-pass failure on the card's own row, not only in the job's stats", async () => {
+    // A roster write that fails for one card used to exist exclusively in `result.errors` — the job
+    // ledger's stats blob, which is not what somebody looking at that card sees. `source` is what
+    // makes the column able to carry both passes at all.
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_cards: (q) => (q.write?.method === "upsert" ? { writeError: { message: "policy_number out of range" } } : []),
+        fuel_cards: [],
+      },
+    });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    const roster = syncErrorWrites(rec).filter((r) => r.source === "roster");
+    expect(roster.length).toBeGreaterThan(0);
+    expect(roster[0]!.code).toContain("policy_number");
+  });
+
+  it("masks card numbers on the way into the sync_error COLUMN, not just into the job's log", async () => {
+    /**
+     * A new surface, and it is the one this file's header exists for. Before Step 7.5 the vendor's
+     * words only ever reached `result.errors` — a stats blob — and the masking test below asserts
+     * that path. `recordSyncError` now writes them into a DATABASE COLUMN that a page renders, so a
+     * PAN in a Postgres error message would be persisted and displayed. Same `errorText`, second
+     * consumer, and the assertion has to follow it there.
+     */
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_cards: (q) =>
+          q.write?.method === "upsert" ? { writeError: { message: `card ${PAN_A} rejected` } } : [],
+        fuel_cards: [],
+      },
+    });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    const written = JSON.stringify(syncErrorWrites(rec));
+    expect(written).not.toContain(PAN_A);
+    expect(written).toContain("••••0001");
+  });
+
+  it("does NOT let the roster pass clear an error the detail pass recorded", async () => {
+    /**
+     * Step 7.5, and the whole behavioural half of it.
+     *
+     * `sync_error` had one WRITER (the detail pass) and two CLEARERS, the second being the roster
+     * pass — which runs FIRST and set the column to null for every card on every sweep, before the
+     * budgeted detail pass had a chance to re-record anything. A card whose detail read failed on
+     * Monday was reported clean on Tuesday whether or not anything had managed to re-read it.
+     *
+     * Reverting the omission in `rosterFields` turns this red.
+     */
+    const rec = createSupabaseRecorder({
+      tables: { efs_cards: [{ card_ref_hmac: cardRefHmac(env, ORG, PAN_A) }], fuel_cards: [] },
+    });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    // The roster pass touches every card. Not one of its writes may carry the column at all — an
+    // explicit null is exactly the erasure, and omission is the only way to leave the value alone.
+    const rosterWrites = rec
+      .forTable("efs_cards")
+      .filter((q) => (q.write?.payload as Record<string, unknown> | undefined)?.status !== undefined)
+      .filter((q) => (q.write?.payload as Record<string, unknown>).document === undefined);
+    expect(rosterWrites.length).toBeGreaterThan(0);
+    for (const write of rosterWrites) expect(write.write!.payload).not.toHaveProperty("sync_error");
+  });
+
+  it("clears the error on the pass that read the whole document, which is the only one entitled to", async () => {
+    // The other half of the rule: if NOTHING cleared it, an error would outlive its own cause. A
+    // successful `getCardv2` is the evidence that the card reads cleanly — including over a roster
+    // failure, which it has just disproved.
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    // Keyed on `detail_synced_at`, not on `document`: the roster pass's FIRST-sighting upsert also
+    // carries a document (`{}`, so the not-null column is never half-formed) and would be counted as
+    // a detail write. `detail_synced_at` is the detail pass's own clock and nothing else writes it.
+    const detailWrites = rec
+      .writtenRows("efs_cards")
+      .filter((r) => r.detail_synced_at !== undefined);
+    expect(detailWrites.length).toBeGreaterThan(0);
+    for (const row of detailWrites) expect(row.sync_error).toBeNull();
+  });
+
+  it("reports the cards its detail budget cannot reach, instead of quietly never reaching them", async () => {
+    /**
+     * Step 7.5's invariant, `budget > fleetSize`.
+     *
+     * Below it, no sweep ever holds a current document for the whole fleet — so `staleAfterMinutes`
+     * and Step 7.8's override badge are both measuring rows against a cadence the sweep is
+     * configured not to meet. Production shipped 199 cards against a budget of 200, one card away,
+     * with nothing anywhere that would have said so.
+     */
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    const result = await syncEfsCards(rec.client, env, creds, {
+      maxDetail: 1,
+      fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail),
+    });
+
+    expect(result.cardsSeen).toBe(2);
+    expect(result.detailed).toBe(1);
+    expect(result.undetailedByBudget).toBe(1);
+  });
+
+  it("says nothing about the budget when it covers the fleet", async () => {
+    // The positive control. An invariant that reports every run is one nobody reads — and this one
+    // is emitted at `error`, so a false positive costs more than the signal is worth.
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    const result = await syncEfsCards(rec.client, env, creds, {
+      maxDetail: 2,
+      fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail),
+    });
+
+    expect(result.cardsSeen).toBe(2);
+    expect(result.undetailedByBudget).toBe(0);
   });
 
   it("keeps card numbers out of its error messages", async () => {

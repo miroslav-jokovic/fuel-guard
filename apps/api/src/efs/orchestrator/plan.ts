@@ -105,6 +105,9 @@ async function assertUnmoved<TBody>(
     throw new Error(`capability ${capability.capabilityKey ?? capability.intent} named a card target with no document`);
   }
 
+  // The roster-only card (`card_version: ""`) never reaches this comparison — `cardVersionSchema` is
+  // `min(16)`, so an empty expectation is refused by `accept()` before the vendor is dialled at all.
+  // That refusal is `refuseRosterOnlyVersion` in `efs/router.ts`; see Step 7.5's note there.
   if (doc.version !== ctx.expectedVersion) {
     // Nothing is sent. The operator gets the fresh card and decides again — the only defence
     // available, since the guide offers no ETag and no row version.

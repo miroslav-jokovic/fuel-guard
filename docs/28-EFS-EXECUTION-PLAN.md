@@ -199,7 +199,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 6.5 | Rework the card surface | ✅ **CLOSED 2026-08-16** (PR #67) *(opened by Miki on seeing Phase 6 run. `reason` removed from the LOGIC — B1 was his and a session had overridden it, logging the change as its own authority; that row is VACATED. Status became one three-item control mirroring WEX's own Change Status menu, with the P0-3 scope split preserved: `Active` only through `card_unlock`. Two sections with `⋮`. **Prompts can now be ADDED to a card that has none** — Miki found that; an unassigned card could never be given the Driver ID prompt that is its whole attribution signal. Audit section off the card page)* | merged to `main` |
 | 6.6 | Card changes on the Audit page | ✅ **CLOSED 2026-08-16** (PR #68) *(its own tab, `FilterBar` + `DateRangeFilter` + `DataTable` + `TablePagination` like every other list page, searchable by card. **Not a Supabase read like the tab beside it**: `efs_card_mutations` has RLS with NO POLICY, so a browser query returns an empty list and would have rendered as "no card ever changed". Route ordering verified by mutation)* | merged to `main` |
 | 6.7 | Phase 6 audit | ✅ **CLOSED 2026-08-16** *(six findings, all fixed. The serious one: **Phase 6 recreated the dead-code defect it existed to fix** — `CardMutationHistory.vue`, `useCardMutations` and `GET /:id/history` were all orphaned by 6.5.5 + 6.6, and the endpoint had no test either. Closed by deep-linking the card page's ⋮ to the Audit tab filtered by `cardId`, which also gave that filter its first caller)* | merged to `main` |
-| 7 | Account & policy visibility | 🔶 **← NEXT, but see `docs/35`: three of its seven steps need LIVE EFS and a container has none.** Start with **7.5** (fully offline, and 7.7 already removed its linking half) and **7.8**, then ask Miki before building 7.1/7.2 blind *(**7.7 DONE AND PROVEN LIVE 2026-08-15 night** — linking now runs on identity (full PAN, then PAN suffix, then last-4 + unit) instead of a last-4 compare that `cardRefsMatch`'s own doc comment forbade. Migration 0195 records WHY a row is unlinked, in four statuses that each name a different next action. Simulated resolution: the unit tier alone clears 100 of 143. **PROVEN LIVE:** 54 → **157 of 197** linked in one sweep, 103 by exact PAN; `sync_error='ambiguous_fuel_card_link'` 139 → 0. The remaining 40 are a data ceiling — 29 lack a unit prompt, 5 have no counterpart row. 7.8 override staleness still open)* | `delivery-p7-visibility` |
+| 7 | Account & policy visibility | 🔶 **7.5, 7.7, 7.8 DONE — the other four need live EFS and cannot be done in a remote container** *(migration 0198. 7.5 closed five defects and **found the plan wrong about one of them**: the roster-only card produces a 400 zod string-length message, not the 409 the step describes, because `cardVersionSchema` is `min(16)` and `assertUnmoved` is unreachable with an empty version. 7.8 built and unit-proven; its live QA drill is owed. **7.1, 7.2, 7.3, 7.4 and 7.6 are blocked on credentials, not on code** — 7.3 needs a real production card document, 7.6 IS the live scan, 7.4 consumes 7.6's output, and 7.2's Verify says "green on QA and on production". ⚠ USER DECISION: build 7.1/7.2 blind, or wait for a session with credentials)* | `claude/fuel-guard-efs-phase-7-goj5h7` |
 | 8 | Card status *(first production promotion)* | ⬜ | `delivery-p8-status` |
 | 9 | Driver assignment & prompts | ⬜ | `delivery-p9-prompts` |
 | 10 | Override with amount | ⬜ | `delivery-p10-override` |
@@ -1416,10 +1416,75 @@ differently).
 **Change:** include `locationGroups`, blocked `locations`, `locationSource`, and the payroll flags in the `effective` payload. Render `autoRollMap` / `autoRollMax` with copy stating **`autoRollMax = 0` means no daily maximum, not unlimited**. Add refreshing limits (cached, graceful null) and credit headroom per contract. Add a policy parity view showing what each policy sets and the four `*Source` fields.
 **Verify:** feed the scan JSON into the pure renderers (`promptRows`, `limitRows`, `timeRows`, `sourceSentence`, `activeOverrides`) and assert **every observed field is reachable by exactly one row and no row renders `undefined` or `—`**. This is the parity gate — mechanical, not eyeballed.
 
-### Step 7.5 — Mirror fixes
+### ✅ Step 7.5 — Mirror fixes — **DONE 2026-08-16, migration 0198**
 **Files:** `apps/api/src/services/efsCardMirror.ts`, `apps/api/src/env.ts`.
 **Change:** **split `sync_error`** — `linkFuelCards` runs LAST in `syncCards` and unconditionally overwrites the value both earlier passes set to null, so a linking outcome is displayed as *"Last refresh reported: ambiguous_fuel_card_link"* on a refresh that succeeded. One column, two unrelated meanings, and the UI reads the alarming one. A separate `link_status`, or a structured `{code, source, at}`. **Small enough to pull forward at any time.** · raise `EFS_CARD_SYNC_MAX_DETAIL` above the fleet count **and assert `budget > fleetSize` as an invariant** · add a **ratio guard on tombstoning** (today a partial roster of 40/199 stamps `absent_since` on 159 live cards) · surface `absent_since` in `EFS_CARD_LIST_COLS` · stop the roster-only `card_version: ""` case throwing a 409 that claims the card changed — show "not yet read from EFS".
 **Verify:** *"a partial roster does not tombstone"* · *"a card first seen by the roster reports not-yet-read, not card_state_changed"*. **Deployed:** after one sweep, every production card has `detail_synced_at`.
+
+**DONE 2026-08-16 — migration 0198, `efsCardTombstone.ts` (new), `efsCardRef.ts` (new), 11 new tests.**
+
+**The refresh half, precisely.** After 7.7 the column had ONE writer — the detail pass — and TWO
+clearers, the second being the ROSTER pass, which runs first and set it to null for every card on
+every sweep. A `getCardv2` failure recorded on Monday was gone by Tuesday whether or not anything had
+managed to re-read that card, and the page reported "clean" over a document however many days old it
+was. It is now `{code, source, at}` with a CHECK constraint, and **only a pass holding the whole
+document may clear it**. The roster pass records its own failures instead of erasing someone else's —
+a roster write failure for one card used to exist exclusively in the job's stats blob, which is not
+what somebody looking at that card sees.
+
+> **The CHECK needed `?&` and `coalesce`, and the obvious spelling was wrong.** A CHECK passes on
+> NULL as well as TRUE, and `jsonb_typeof(sync_error -> 'at')` is NULL when the key is ABSENT — so
+> the first draft accepted `{"code":…,"source":"detail"}` with no `at` at all, which is the field the
+> migration exists to add. Caught by trying it in PGlite, not by reading it.
+
+**The budget invariant.** `EFS_CARD_SYNC_MAX_DETAIL` shipped at **200 against a production fleet of
+199** — one card from the erasure above starting to bite. Default raised to 1000, and
+`mirror_detail_budget_short` fires at `error` when `budget < fleetSize`. It is `error` rather than
+`warning` because the symptom looks like nothing (a few older documents) while the meaning is that a
+number the product presents as current is guaranteed stale for part of the fleet, indefinitely, and
+it is fixed by editing one environment variable.
+
+**The ratio guard.** Capped at 20% of the LIVE mirror per sweep (measured against live rows, not the
+whole table — counting tombstoned rows would make the guard laxest on exactly the org that has been
+losing cards), with a floor of 5 so a small fleet can still lose its first card. **The recovery path
+is deliberately not rate-limited**: clearing the mark from a card that came back restores information,
+and a guard there would leave the mirror stuck in whatever wrong state a bad sweep put it in.
+
+**`absent_since` reaches a screen.** The mirror has maintained it since Phase 3 with no column in
+`EFS_CARD_LIST_COLS`, so the two cards WEX de-listed on 2026-08-14 rendered as ordinary live cards
+carrying whatever status EFS last reported.
+
+**⚠ The roster-only card: this step is WRONG about the mechanism, and the correction is the reusable
+part.** The step describes *"a 409 that claims the card changed"*. It is not one. `cardVersionSchema`
+is `z.string().min(16)`, so an empty `expectedVersion` is refused by `accept()` **before**
+`prepare()`, and `assertUnmoved`'s version comparison — where a fix would naturally have gone — is
+**unreachable with an empty version**. What the operator actually saw on Confirm was:
+
+> **"Could not change the card — String must contain at least 16 character(s)."**
+
+A schema message, about a field they never saw, describing a card the product simply had not read
+yet. Fixed as `refuseRosterOnlyVersion` in `efs/router.ts`, ahead of `accept()` so the honest message
+wins and ahead of `prepare()` so the refusal costs no rate-limit slot — the same ordering, and the
+same reason, as the step-up gate beside it. **A fix placed where this step said would have passed
+review and done nothing.** Same lesson as 7.7's prediction: right about the symptom, wrong about the
+mechanism, and only following the value found it.
+
+**Every guard verified by breaking it, and each turns exactly its own test red:** restoring
+`sync_error: null` to the roster fields → 1 · disabling the budget check → 1 · disabling the ratio
+guard → **3, with the three "must NOT refuse" cases staying green** · removing the roster-only gate
+→ 1, with the malformed-version control staying 400 · dropping `errorText` from the column write → 1.
+
+**That last mutation covers a NEW surface.** Vendor words now reach a database column that a page
+renders; before this step they only ever reached `result.errors`, a stats blob. The PAN mask had to
+be asserted on the column write and not only on the job log.
+
+**`efsCardTombstone.ts` and `efsCardRef.ts` are splits, not waivers.** The ratio guard took
+`efsCardMirror.ts` past the 500-line budget; `cardRefHmac` moved into its own module so the mirror and
+the tombstone sweep can share it without a cycle, and `efsCardMirror.ts` re-exports it so every
+existing import still resolves.
+
+**Still owed, and it needs a live sweep:** *"after one sweep, every production card has
+`detail_synced_at`"*. Unverifiable from this container.
 
 ### Step 7.6 — Produce the inventory
 **Files:** `docs/25-EFS-ACCOUNT-INVENTORY.md` (generated from the scan JSON), scan JSON committed.
@@ -1475,20 +1540,65 @@ differently).
 
 **The remaining 40 are a DATA ceiling, not a code one.** 29 carry no `unit_prompt`, so no tier below the PAN can reach them, and 5 have no `fuel_cards` counterpart at all. Each row now names its own blocker.
 
-### Step 7.8 — Override state has no staleness signal *(filed 2026-08-15, from the ••••7550 live read)*
+### ✅ Step 7.8 — Override state has no staleness signal — **DONE 2026-08-16 (offline half)** *(filed 2026-08-15, from the ••••7550 live read)*
 **Files:** `apps/web/src/features/fuelCards/` (card detail + the override badge), `apps/api/src/routes/fuelCards/read.ts`.
 **Why.** `EFS_CARD_SYNC_HOURS` defaults to 24, and the mirror is what the badge renders. Production card ••••7550 / unit 651 showed `Override: 1 use left` for **nine hours** after EFS had retired it — the override was consumed 38 minutes after the last sync, and nothing re-read the card until a manual refresh. The badge was not wrong when written; it was wrong when read, and nothing on the screen said which. Evidence: `docs/22` H4.
 **The distinction that makes this worth a step.** A stale `status` is tolerable — the card page is not the authority on whether a card is locked, and a lock is idempotent. A stale `override` count is not: it is the number that says whether a driver can take another free tank, it decrements without us, and it is the one field on this card whose staleness has a dollar value.
 **Change:** render `detail_synced_at` beside any override state, and treat a count older than one sync cycle as unknown rather than as zero-or-N — the UI must be able to say *"last read 9 hours ago"*. Offer refresh-on-view for the override panel specifically. Do NOT raise the global sync frequency to paper over it; that spends vendor budget on 234 cards to fix one field.
 **Verify:** a mirror row older than `EFS_CARD_SYNC_HOURS` renders as stale in the pure renderer, with the age shown · a fresh row renders the count. **Live:** grant on QA, read the badge, confirm the age is displayed and correct.
 
+**DONE 2026-08-16 — `overrideFreshness` + `relativeAge` in `cardControlModel.ts`, `useRefreshCard`, 8 new tests.**
+
+**The nine-hour case was never "stale" by the page's own threshold, and that is the point.**
+`staleAfterMinutes` is 26 hours; the ••••7550 read was nine hours old and inside it. So the fix is
+not a louder warning — **it is that the age is on screen at all.** "1 use left · read 9 hours ago" is
+a different fact from "1 use left", and the nine-hour version is the one that was on screen while the
+exception was being spent. Past a full cycle the count stops being asserted; the card stays listed,
+because *"we last read this two days ago"* is not the same answer as *"no"*, and filtering stale rows
+out of the account-wide panel would make it quietest exactly when the mirror is worst.
+
+**Which clock, and why it is not the one the page already shows.** The override state is split across
+two: `override_uses` is written by BOTH mirror passes and tracks `synced_at`, but the SCOPE
+(`override_all_locations` / `location_override_id` — a free tank anywhere, or one at a single truck
+stop) **has no writer but the detail pass**. So the statement as a whole is only ever as fresh as
+`detail_synced_at`, which is never newer than `synced_at` — making it the conservative direction.
+**Step 7.5's `budget > fleetSize` invariant is what keeps the two clocks within a sweep of each
+other**; without it this would report a count as days old when it was hours old.
+
+**`POST /:id/refresh` has a caller for the first time.** It has existed since the read routes were
+built and nothing in the browser has ever called it — the same component/hook/endpoint-with-no-caller
+shape the Phase 6 audit closed once already — while `freshness()` has been printing *"Refresh to see
+current settings."* on a page that offered no way to do it.
+
+> **"Refresh-on-view for the override panel" is read as an OFFER, not an automatic re-read**, and the
+> reading is worth recording. Re-reading every card on the panel whenever the panel renders would
+> fire one paced vendor call per exception on a page that already polls every 60s — the excessive
+> polling the guide warns can get the shared service account suspended (p11), and the opposite of
+> this step's own *"do not spend vendor budget on 234 cards to fix one field"*. It is a per-row
+> `Re-read` button and a `Refresh` on the card page: one card, one call, when a person asks.
+
+**`OverrideFreshness` carries no count of its own, deliberately.** `known` is a verdict ABOUT the
+count, not a second copy of it — two numbers for one fact, plus a rule for when they may disagree, is
+how a surface eventually renders the wrong one.
+
+**`relativeAge` extracted so the two renderers cannot drift** — the card page would otherwise say
+"Checked 9 hours ago" in one line and "read 9 hrs ago" in the next. Behaviour-preserving: **all 50
+pre-existing `cardControlModel` tests pass unedited** (audit protocol check 7).
+
+**Verified by breaking it:** making a stale row keep asserting its count turns **3** red; pointing the
+reader at the roster clock instead of the detail clock turns **4** red.
+
+**Still owed:** the live half — *grant on QA, read the badge, confirm the age is displayed and
+correct.* No credentials in this container.
+
 ### ✅ Exit Gate — Phase 7
-- [ ] Every field in the production document is modelled; parity gate mechanical and green
-- [ ] Card detail shows prompts, limits (with auto-roll), refreshing limits, time restrictions, location groups, blocklist, hand-entry, all four sources, policy origin
-- [ ] Credit headroom per contract visible
-- [ ] Every card has `detail_synced_at` after one sweep
-- [ ] `docs/25` generated and reviewed by the user
-- [ ] Standing gates green
+- [ ] Every field in the production document is modelled; parity gate mechanical and green *(7.3/7.4 — needs a real production card document)*
+- [ ] Card detail shows prompts, limits (with auto-roll), refreshing limits, time restrictions, location groups, blocklist, hand-entry, all four sources, policy origin *(7.4 — needs 7.6's scan JSON)*
+- [ ] Credit headroom per contract visible *(7.2 — needs the inventory endpoint against a live account)*
+- [ ] Every card has `detail_synced_at` after one sweep *(7.5's code is in; the sweep is owed. The budget that made this impossible — 200 against a fleet of 199 — is fixed)*
+- [ ] `docs/25` generated and reviewed by the user *(7.6 — IS the live scan)*
+- [x] **Standing gates green** — 2026-08-16 on `1908664`: matrix **381/38/61/25/17**, mutation **18/18**, `lint:secrets` clean, all sixteen `ci.yml` gates
+- [x] **The mirror stops lying about a refresh that succeeded** (7.5) — and about an override count it has not re-read (7.8)
 
 ---
 
@@ -1683,6 +1793,7 @@ from its two namesakes — by contents, not by number. Every past record of *"th
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-16 (Phase 7) | 7 | **Steps 7.5 and 7.8 DONE** · migration 0198 · `efsCardTombstone.ts` + `efsCardRef.ts` (splits, not waivers) · `useRefreshCard` | **No live access again** — `env | grep -c "^EFS_\|^SUPABASE_"` → 0 and `curl https://example.supabase.co` → 000, verified before planning rather than assumed, so only the two offline steps were attempted. **The plan is wrong about one of 7.5's five items, and the correction is the reusable part.** It says the roster-only card (`card_version: ""`) throws *"a 409 that claims the card changed"*. It does not: `cardVersionSchema` is `z.string().min(16)`, so `accept()` refuses an empty `expectedVersion` before `prepare()` and **`assertUnmoved`'s version comparison is unreachable** — a fix placed there, which is where it naturally goes, would have passed review and done nothing. **What the operator actually saw on Confirm was "Could not change the card — String must contain at least 16 character(s)."** Fixed at the boundary it really crosses, ahead of the rate limiter, as `card_never_read`. Same shape as 7.7's prediction: right about the symptom, wrong about the mechanism, and only following the value found it. **The refresh half of `sync_error` was one line.** After 7.7 the column had one WRITER (the detail pass) and two CLEARERS, the second being the ROSTER pass — which runs first and nulled it for every card on every sweep, so a `getCardv2` failure was erased by a pass that had not re-read the card. Now `{code, source, at}` with a CHECK, cleared only by a pass holding the whole document. **The CHECK's obvious spelling was wrong**: a CHECK passes on NULL as well as TRUE, and `jsonb_typeof(x -> 'at')` is NULL when the key is ABSENT, so the first draft accepted a record with no `at` — the field the migration exists to add. Caught in PGlite, not by reading it. **`EFS_CARD_SYNC_MAX_DETAIL` shipped at 200 against a fleet of 199** — one card from that erasure starting to bite, with nothing anywhere that would have said so; default now 1000 and `mirror_detail_budget_short` fires at `error`. **7.8's nine-hour badge was never "stale" by the page's own threshold** (26 hours), so the fix is not a louder warning — it is that the age is on screen at all. It hangs off `detail_synced_at`, not `synced_at`, because the override SCOPE has no writer but the detail pass; 7.5's budget invariant is what keeps the two clocks within a sweep of each other. **`POST /:id/refresh` got its first caller ever** — the component/hook/endpoint-with-no-caller shape the 6.7 audit closed once already, while `freshness()` printed "Refresh to see current settings." on a page with no refresh. Every guard mutated: roster-clear → 1 red, budget → 1, ratio guard → 3 (with its three "must not refuse" controls green), roster-only gate → 1 (malformed-version control stays 400), PAN mask on the new column write → 1, stale-count assertion → 3, wrong clock → 4. Matrix **381/38/61/25/17**, mutation **18/18**, `lint:secrets` clean, all sixteen gates. **Owed and named rather than ticked:** 7.5's *"after one sweep every production card has `detail_synced_at`"* and 7.8's QA badge drill. **Stopped rather than building blind: 7.1/7.2/7.3/7.4/7.6 are a USER DECISION.** **And a framing this session got wrong twice, corrected by Miki and then by reading the record.** Saying "needs live EFS" for "needs a vendor call" reads as "needs PRODUCTION": **QA is live EFS** — same vendor, `ws.partner.efsllc.com` — and Phase 7 is read-only throughout. Worse, it then proposed a NETWORK-POLICY change without checking how live work has actually been done here. It is not a firewall question. `docs/32` §123, `docs/29` §129-131, `docs/31` §153-155 and `docs/EFS-RECON-REPORT.md` §501 all show live runs happening **from a session on Miki's Mac** — local Postgres, Railway CLI, `apps/api/.env`, a terminal — *"this session he told me to run it and I did, twice."* Only the three 2026-08-16 remote-container sessions have lacked access, each verifying it rather than assuming. **And `scripts/efs.mjs:68` dies on `!process.stdin.isTTY`** — deliberately, so a hidden prompt can never degrade to an echoing read that puts a PAN in scrollback — **so opening the network would not have helped this session at all.** The tooling exists, is documented, and needs a terminal, not a firewall rule. |
 | 2026-08-16 | 5 | **5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.9, 5.10, 5.11 — ten of eleven. 5.8 BLOCKED by the plan's own instruction** | **No live access this session** (remote container: no Supabase credentials, and the network policy refuses Railway — `curl` to both hosts returns a 403 CONNECT from the proxy). So every step's CODE is complete and every gate is green, and the drills that need a live QA org are written down as OWED rather than claimed. **5.8 was not attempted on purpose**: the step says decide with Step 7.1's real output, "the same instrument, so do not guess ahead of it", and 7.1 is unrun. **Two steps were bigger than the plan thought.** 5.7's prescribed change does not work alone — migration 0091 puts a `before update` trigger on `efs_soap_credentials` running the unconditional `set_updated_at()`, so Postgres re-stamps the column whatever the patch contains; the code-only fix would have left behaviour identical and four new tests passing. Migration 0196 carries the other half. 5.9 was filed as "low severity, high tidiness" and deleting 19 unreachable fallbacks turned **62 tests red at once**: 88 fixtures across 42 files built their env as `{...} as unknown as Env`, a shape `loadEnv` can never return, so those tests were exercising `undefined` values no deployment can produce. The duplicated defaults were not protecting the product, they were propping up the fixtures. All 88 casts are gone. **Three call-site literals already DISAGREED with their schema default** (30 vs 7, 1 vs 12, Infinity vs 5000) — each one documentation of a value the process has never used. **5.11's sweep found four more silent audit losses** beyond the promotion one: a feature slug, two `${driverId}:${featureKey}` composites and a `ids.join(",")`. A bulk deletion of fuel plans left no trace at all. `writeAudit` now moves a non-uuid into `meta` and keeps the row rather than throwing — losing the row is the disaster, and a throw only moves the loss to the caller. **The soak found a pre-existing flake** unrelated to any step: orchestrator's apply-latency delta failed at 299>=300 and 295>=300 on the untouched tree, because the two latencies come from separate `executeCapability` calls. Given a named 25ms timer tolerance; the discriminating assertion beside it is untouched. **One signal of 5.1's six is deliberately NOT built** — the unknown-vendor-element digest. No "elements the product understands" set exists to subtract from, so "unknown" would have to be invented, and a digest full of false unknowns trains people to ignore it. Recorded, not guessed. Gates: all 18 `ci.yml` gates green including `lint:secrets` after committing, matrix **381/38/61/25**, mutation **7/7**. apps/api 1234 → 1287 tests. Every new assertion was verified by breaking the code it covers |
 | 2026-08-14 | 3 | **live QA — and it found a P0** | Four of five operations pass through the generated router: lock (Hold and Inactive), unlock, prompts on a card that has them, override clear. **Override grant lands and is recorded `failed`** — the badge shows the override because `updateMirror` is fed from the verifying re-read, while `intentLanded` condemns the write. Filed as **Step 3.11**, and it blocks Phase 4, whose Step 4.5 builds a live prover on the same `judge`. **Two findings sharpened by reading the WSDL:** `override` is `int` on `WSCardHeader`/`WSCardSummary` and `boolean` on every `WSTransaction*` — a card counter and a per-purchase flag, and we never read the transaction side; and `managedFuelAction` carries `qtyAllowed`/`effDt`/`locationId`, which is the semantics of the 50-gallon auto-closing override Miki granted in the portal, sitting unscoped in Phase 14.2. **`ambiguous_fuel_card_link` mechanism proven:** `linkFuelCards` runs last in `syncCards` and overwrites the `sync_error` both earlier passes set to null; a manual Refresh does not, so the message is from the sweep and the refresh succeeded. Filed into 7.5. **No UI to add a prompt to a card with none** — the API can (`appendRecord`), the drawer cannot; that is Step 9.6 and it needs a card from 0.13. **The lesson:** eleven steps of byte-level offline verification were structurally blind to all of this, because every test scripts its own after-document. |
 | 2026-08-14 | 3 | **3.10** | **Mutation score 18/18, 7 new.** The seven are the phase's own defects, written down: dropped `vendorMovesFields`, dropped `reconcile`, `===` instead of `efsStatusEquals` on the fraud gate, the DRID opt-in bypassed, a mismatched write bucket, the preflight moved after the limiter, `partial` collapsed into `failed`. Each had been hand-verified when its fix landed; the harness is what stops that from being a thing somebody once did. **`mutation-check.yml`'s path filter never followed the code** out of `services/` into `efs/`, so pushes touching a behaviour stopped triggering it — only the Monday cron would have. Fixed, and it is a workflow edit, which should be read as one. **Phase 3's exit gate now has exactly one open item: the live QA.** |

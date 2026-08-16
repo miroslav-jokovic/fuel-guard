@@ -9,6 +9,68 @@ Read this, then `docs/28-EFS-EXECUTION-PLAN.md` §0 and §1, then Phase 7.
 
 ---
 
+> ## ⏱ Status update — 2026-08-16, later that day
+>
+> **The two offline steps this document told you to start with are DONE and merged into
+> `claude/fuel-guard-efs-phase-7-goj5h7`: Steps 7.5 and 7.8, plus migration 0198.** Their full write-ups
+> are in `docs/28` Phase 7; §1's status row and §14's session log carry the record. Everything else in
+> this handoff still stands.
+>
+> **§1's table is right that nothing live is reachable — re-verified, not assumed.** `env | grep -c
+> "^EFS_\|^SUPABASE_"` → 0, `curl https://example.supabase.co` → 000.
+>
+> **One correction to §1's table, and it matters more than the tick.** This document (and the plan)
+> describe 7.5's roster-only-card item as *"a 409 that claims the card changed"*. It is not. Every
+> capability body is parsed by `cardVersionSchema = z.string().min(16)` **before** the orchestrator
+> runs, so an empty `expectedVersion` never reaches `assertUnmoved`'s version comparison at all — the
+> place a fix naturally goes is unreachable. The real symptom was **"Could not change the card —
+> String must contain at least 16 character(s)"**. Fixed in `efs/router.ts`. This is §4.1's rule
+> arriving for the third time in this workstream: *a prediction is usually wrong about the MECHANISM
+> even when right about the symptom*, and only following the value finds it.
+>
+> **What is left of Phase 7 is exactly the live-EFS set: 7.1, 7.2, 7.3, 7.4, 7.6.** Per §1's own
+> instruction, the session stopped there rather than building three unverifiable steps, and asked
+> Miki whether to build 7.1/7.2 blind or wait for credentials. **That question is still open — do not
+> answer it yourself.**
+>
+> ### ⚠️ And a correction I owe Miki, because I got the framing wrong twice
+>
+> **First:** I said "needs live EFS" and meant "needs a vendor call". Miki read it as "needs
+> PRODUCTION", and pushed back correctly — **QA is live EFS.** `ws.partner.efsllc.com` is the same
+> vendor, and Phase 7 is read-only throughout. The two steps that do want the *production org* (7.3,
+> 7.6) want it because their question **is** *"what does production send that QA does not"*, which QA
+> cannot answer by construction — and they are READS, of the same kind already run with his
+> authorisation (the 197-card echo scan, the 7.7 linking sweep, the ••••7550 re-read).
+>
+> **Second, and worse: I proposed a network-policy change without reading how live work is actually
+> done here.** It is not a firewall question. §6 of this document was already right and I under-read
+> it. The record (`docs/32` §123, `docs/29` §129-131, `docs/31` §153-155, `docs/EFS-RECON-REPORT.md`
+> §501) shows live work has always run **from a session on Miki's Mac**, where there is a local
+> Postgres, the Railway CLI, `apps/api/.env`, and a terminal — *"this session he told me to run it
+> and I did, twice."* Only the three **2026-08-16 remote-container sessions** have had no access, and
+> each verified it rather than assumed it (`docs/33` §17-19, `docs/34` §157-160, and §1 above).
+>
+> **The tooling already exists and is documented — nothing needs building or enabling:**
+>
+> ```bash
+> node scripts/efs.mjs scan | echo-scan | sync | job [kind]
+> node scripts/efs.mjs write-check [--read-only]
+> node scripts/efs.mjs prove <capability>
+> node scripts/efs.mjs promote <capability> --proof <uuid> --reason "why"
+> ```
+>
+> It prompts for the admin token (hidden; copy it from the browser console with the snippet in
+> `scripts/efs.mjs`), targets `fleetguardapi-production` by default — **never the web host, which WEX
+> refuses** — and works against whichever org the token belongs to. QA or production, no flag needed.
+>
+> **⚠ A structural fact nobody has written down, and it rules out the workaround I suggested.**
+> `scripts/efs.mjs:68` dies on `!process.stdin.isTTY` — deliberately, so a hidden prompt can never
+> silently degrade to an echoing read that would put a PAN in scrollback. **So even a remote container
+> with full network could not run it**, unless `--token-from-env` is passed. Opening the network would
+> not have given this session what I said it would. The answer is a Mac session, not a firewall rule.
+
+---
+
 ## 1. ⚠️ Read this before planning anything: **Phase 7 cannot be completed in this container**
 
 Phase 7 is read-only, which makes it *sound* like the safe offline phase. It is not. Three of its

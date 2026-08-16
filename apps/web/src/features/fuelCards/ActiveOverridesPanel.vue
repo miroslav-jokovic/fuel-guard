@@ -5,6 +5,8 @@ import { activeOverrides } from "./cardControlModel";
 import { operationById, operationLink } from "./cardOperations";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useEfsCards } from "./useEfsCards";
+import { useRefreshCard } from "./useCardControl";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 /** One rule for naming a card to a human, shared with the inventory — see cardIdentityLabel.ts. */
 const identity = cardIdentityLabel;
@@ -33,12 +35,29 @@ const identity = cardIdentityLabel;
  * the operation preselected — the drawer still opens, still shows the card's own identity and its
  * before/after diff, and still demands the confirmation. What it removes is the four clicks between
  * spotting the exception here and being able to act on it, which is the actual complaint.
+ *
+ * ── Step 7.8: every row carries the age of the read behind it ───────────────────────────────────
+ * "1 use left" is a claim about a moment, and this panel's whole promise is a claim about NOW.
+ * Production card ••••7550 sat here reading "1 use left" for nine hours after EFS had retired the
+ * exception (`docs/22` H4). A stale row is annotated rather than dropped — "we last read this two
+ * days ago" is not the same answer as "no", and filtering would make the panel quietest exactly when
+ * the mirror is worst — and `Re-read` spends one paced vendor call, on one card, when a person asks.
  */
 
 // Unfiltered on purpose — see the docblock. Refs are stable for the component's lifetime.
 const query = useEfsCards({ search: ref(""), status: ref("") });
 
-const rows = computed(() => activeOverrides(query.data.value?.cards ?? []));
+const rows = computed(() =>
+  activeOverrides(query.data.value?.cards ?? [], new Date(), query.data.value?.staleAfterMinutes),
+);
+
+const refresh = useRefreshCard();
+/** Which card's re-read is in flight — the button is per row, so `isPending` alone cannot say. */
+const refreshing = ref<string | null>(null);
+const onReRead = (id: string): void => {
+  refreshing.value = id;
+  refresh.mutate(id, { onSettled: () => { refreshing.value = null; } });
+};
 
 /** Non-null by construction — `operationById` is exhaustive over `CARD_OPERATIONS`. */
 const clearOperation = operationById("clear")!;
@@ -76,18 +95,41 @@ const loaded = computed(() => query.data.value !== undefined);
           -->
           <span v-if="!identity(row).unidentified" class="text-ink-muted">{{ identity(row).qualifier }}</span>
           <span v-else class="text-ink-muted italic">no unit or driver</span>
-          <span :class="[BADGE_BASE, toneClass('warning')]">
+          <!-- `known` gates the NUMBER, not the row. Past a sync cycle the count is what EFS said,
+               not what EFS says, and it decrements without us — so it stops being asserted while the
+               card stays listed. Same rule on the card page; one flag decides it in both. -->
+          <span v-if="row.freshness.known" :class="[BADGE_BASE, toneClass('warning')]">
             {{ row.uses }} use{{ row.uses === 1 ? "" : "s" }} left
           </span>
+          <span v-else :class="[BADGE_BASE, toneClass('caution')]">
+            uses unknown
+          </span>
           <span class="text-ink-muted">{{ row.scopeLabel }}</span>
+          <!-- Step 7.8. Muted while the read is current, cautioned once it is older than a sweep:
+               past that the count is what EFS said, not what EFS says, and the count decrements
+               without us. -->
+          <span class="text-xs" :class="row.freshness.known ? 'text-ink-tertiary' : 'text-caution-700'">
+            {{ row.freshness.ageText }}
+          </span>
         </RouterLink>
-        <!-- Opens the drawer on the card, with its confirmation and its diff. Not a one-click clear. -->
-        <RouterLink
-          :to="operationLink(row.id, clearOperation)"
-          class="shrink-0 text-sm font-medium text-brand-700 hover:underline"
-        >
-          Remove exception…
-        </RouterLink>
+        <div class="flex shrink-0 items-center gap-3 py-2">
+          <!-- One paced vendor call, on one card, when a person asks for it. See the docblock. -->
+          <BaseButton
+            variant="soft"
+            size="sm"
+            :disabled="refreshing === row.id"
+            @click="onReRead(row.id)"
+          >
+            {{ refreshing === row.id ? "Reading…" : "Re-read" }}
+          </BaseButton>
+          <!-- Opens the drawer on the card, with its confirmation and its diff. Not a one-click clear. -->
+          <RouterLink
+            :to="operationLink(row.id, clearOperation)"
+            class="text-sm font-medium text-brand-700 hover:underline"
+          >
+            Remove exception…
+          </RouterLink>
+        </div>
       </li>
     </ul>
   </section>
