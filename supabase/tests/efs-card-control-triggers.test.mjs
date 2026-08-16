@@ -84,25 +84,63 @@ await db.query(
   [ORG],
 );
 /**
- * Microsecond-precision text, NOT the driver's Date object.
+ * A PLANTED SENTINEL, not a comparison of two clock readings.
  *
- * The first version of this file compared `String(updated_at)`, and `String(new Date())` renders at
- * SECOND resolution — every write in this matrix lands inside the same second, so every comparison
- * said "equal". That produced three false failures AND, far worse, three false passes: the
- * "a poll does not move updated_at" cases would have passed identically against a trigger that did
- * nothing at all. Ask what the broken code would score before believing a green run.
+ * ── Why comparing timestamps cannot work here, measured rather than argued ───────────────────────
+ * This matrix runs on PGlite, whose clock has MILLISECOND resolution: `to_char(now(), '…US')` always
+ * renders `000` in the microsecond field, and eight consecutive transactions produce about three
+ * distinct values. So two updates that land inside the same millisecond read back identical no
+ * matter what the trigger did, and `after !== before` fails on a trigger that fired correctly.
+ *
+ * That is not hypothetical. On a fast machine all three "DOES move" assertions failed intermittently
+ * — five runs out of five had at least one red — while the same commit passed on CI, whose slower
+ * runners cross a millisecond boundary more often. A gate that grades the hardware is not a gate.
+ *
+ * ── This was previously mistaken for a precision problem, twice ──────────────────────────────────
+ * The first version compared `String(updated_at)`, which renders at SECOND resolution. The fix moved
+ * to microsecond text — but PGlite never had microseconds to give, so it shrank the flake window
+ * from a second to a millisecond instead of closing it.
+ *
+ * ── What the sentinel fixes that precision never could, mutated rather than argued ───────────────
+ * Restoring the Step 5.7 defect itself — `new.updated_at = now()` unconditionally — against the OLD
+ * clock-comparison test scored 4, 4 and 5 failures on three consecutive runs: a DIFFERENT set each
+ * time, including "a password rotation DOES move updated_at", which that mutation cannot break, and
+ * including genuine false passes where a "does not move" case went green against a trigger bumping
+ * every write. The signal and the noise were indistinguishable.
+ *
+ * Against the sentinel the same mutation scores exactly 3, every run — the three negative cases, the
+ * ones it actually breaks. Freezing the column instead (`new.updated_at = old.updated_at` in both
+ * branches) scores exactly the other 3. Planting the year 2000 first means only the trigger's `else`
+ * branch can leave it there, so the negative cases finally carry a positive control.
  */
+const SENTINEL_TS = "2000-01-01 00:00:00.000000";
+
 const credUpdatedAt = async () =>
   (await one(
     `select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.US') as ts from efs_soap_credentials where org_id=$1`,
     [ORG],
   )).ts;
 
+/**
+ * The trigger DISCARDS a write that touches `updated_at` alone — that is the no-op rule asserted at
+ * the bottom of this block — so the sentinel cannot be planted through it. Disabling the trigger for
+ * the one statement that plants it is the only way in, and it is also the honest one: the sentinel is
+ * setup, not a behaviour under test.
+ */
+const plantSentinel = async () => {
+  await db.query(`alter table efs_soap_credentials disable trigger trg_efs_soap_credentials_updated`);
+  await db.query(`update efs_soap_credentials set updated_at = $2 where org_id = $1`, [ORG, SENTINEL_TS]);
+  await db.query(`alter table efs_soap_credentials enable trigger trg_efs_soap_credentials_updated`);
+  if ((await credUpdatedAt()) !== SENTINEL_TS) throw new Error("sentinel did not plant — setup is broken");
+};
+
+const sentinelIntact = async () => (await credUpdatedAt()) === SENTINEL_TS;
+
 {
   // The whole point of Step 5.7. Every poll used to bump this column, so it could not answer "when
   // was this credential last CHANGED" — the question asked after a security incident — because a
   // poller overwrote the answer within the hour.
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(
     `update efs_soap_credentials
         set posted_last_polled_at = now(), posted_last_success_at = now(),
@@ -110,45 +148,45 @@ const credUpdatedAt = async () =>
       where org_id = $1`,
     [ORG],
   );
-  ok("a successful poll does not move updated_at", (await credUpdatedAt()) === before);
+  ok("a successful poll does not move updated_at", await sentinelIntact());
 }
 
 {
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(
     `update efs_soap_credentials set rejected_last_polled_at = now(), rejected_last_error = 'socket closed' where org_id=$1`,
     [ORG],
   );
-  ok("a failed poll does not move updated_at", (await credUpdatedAt()) === before);
+  ok("a failed poll does not move updated_at", await sentinelIntact());
 }
 
 {
   // The other half. If this regressed, the column would be frozen forever and the "fix" would have
   // destroyed the answer in the opposite direction — which is why it is asserted, not assumed.
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(`update efs_soap_credentials set soap_password = 'rotated' where org_id=$1`, [ORG]);
-  ok("a password rotation DOES move updated_at", (await credUpdatedAt()) !== before);
+  ok("a password rotation DOES move updated_at", !(await sentinelIntact()));
 }
 
 {
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(`update efs_soap_credentials set endpoint_url = endpoint_url || '?v=2' where org_id=$1`, [ORG]);
-  ok("repointing the endpoint DOES move updated_at", (await credUpdatedAt()) !== before);
+  ok("repointing the endpoint DOES move updated_at", !(await sentinelIntact()));
 }
 
 {
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(`update efs_soap_credentials set enabled = not enabled where org_id=$1`, [ORG]);
-  ok("flipping the kill switch DOES move updated_at", (await credUpdatedAt()) !== before);
+  ok("flipping the kill switch DOES move updated_at", !(await sentinelIntact()));
 }
 
 {
   // A write that changes nothing is not a configuration change. Without this the trigger would move
   // the column on any no-op UPDATE, which is how a poller that writes an unchanged cursor would
   // quietly reintroduce the whole defect.
-  const before = await credUpdatedAt();
+  await plantSentinel();
   await db.query(`update efs_soap_credentials set account_id = account_id where org_id=$1`, [ORG]);
-  ok("a no-op write moves nothing", (await credUpdatedAt()) === before);
+  ok("a no-op write moves nothing", await sentinelIntact());
 }
 
 console.log("\n-- 0197: a mutation that reached the vendor records who approved it --");

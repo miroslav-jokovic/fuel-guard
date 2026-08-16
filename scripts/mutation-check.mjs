@@ -47,6 +47,7 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 /** Detection commands. Each must EXIT NON-ZERO when the mutation is present. */
 const RLS_MATRIX = ["node", ["supabase/tests/rls.test.mjs"]];
 const HAZMAT_MATRIX = ["node", ["supabase/tests/hazmat_rls.test.mjs"]];
+const TRIGGERS_MATRIX = ["node", ["supabase/tests/efs-card-control-triggers.test.mjs"]];
 const apiTest = (f) => ["pnpm", ["--filter", "@fuelguard/api", "exec", "vitest", "run", f]];
 const sharedTest = (f) => ["pnpm", ["--filter", "@fuelguard/shared", "exec", "vitest", "run", f]];
 
@@ -193,6 +194,30 @@ const MUTATIONS = [
     find: "      if (landedSteps > 0) return await finalizePartial(ctx, ledger, facts, verified.after.doc, sent);\n",
     replace: "",
     detect: apiTest("src/efs/orchestrator/orchestrator.test.ts"),
+  },
+  {
+    id: "efs-cred-updated-at-always-bumps",
+    why:
+      "Restores the Step 5.7 defect: every poll bumps `updated_at`, so the column can no longer " +
+      "answer \"when was this credential last CHANGED\" — the question asked after a security " +
+      "incident — because a poller overwrites the answer within the hour.",
+    file: "supabase/migrations/0196_efs_soap_credentials_updated_at_is_config_only.sql",
+    find:
+      "  if (to_jsonb(new) - feed_columns) is distinct from (to_jsonb(old) - feed_columns) then\n" +
+      "    new.updated_at = now();\n  else\n    new.updated_at = old.updated_at;\n  end if;",
+    replace: "  new.updated_at = now();",
+    detect: TRIGGERS_MATRIX,
+  },
+  {
+    id: "efs-cred-updated-at-frozen",
+    why:
+      "The opposite-direction defect the matrix names but nothing enforced: the column never moves " +
+      "at all, so a rotation or an endpoint repoint leaves no trace and the incident question is " +
+      "answered with a stale date rather than a missing one.",
+    file: "supabase/migrations/0196_efs_soap_credentials_updated_at_is_config_only.sql",
+    find: "    new.updated_at = now();\n  else",
+    replace: "    new.updated_at = old.updated_at;\n  else",
+    detect: TRIGGERS_MATRIX,
   },
   // ── the fitness functions themselves ────────────────────────────────────────
   {
