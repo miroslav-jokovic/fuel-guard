@@ -5,6 +5,7 @@ import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCard
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import { preserveAttribution } from "./efsCardAttribution.js";
+import { unmodelledCardFields } from "../lib/efsCardFields.js";
 import { linkFuelCards } from "./efsCardLinking.js";
 import { cardRefHmac } from "./efsCardRef.js";
 import { tombstoneAbsentCards } from "./efsCardTombstone.js";
@@ -390,6 +391,23 @@ export async function upsertCardDetail(
 ): Promise<{ cardVersion: string }> {
   const last4 = cardLast4(cardNumber);
   if (!last4) throw new Error("card number had no usable last four");
+
+  /**
+   * Step 7.3: the sweep LOGS an unmodelled field; the config scan REFUSES on one.
+   *
+   * Deliberately asymmetric. This runs unattended against a live fleet, and refusing to mirror a card
+   * because WEX added a field would take the product offline over something harmless — the echo
+   * preserves unknown fields either way (`getCardV2.unknownField.xml`). The scan is the operator-run
+   * surface whose answer scopes Phases 9–12, so that one is entitled to stop. Names only, never
+   * values: a value could be anything the vendor put in the field, and this line reaches logs.
+   */
+  const unmodelled = unmodelledCardFields(doc.root);
+  if (unmodelled.length > 0) {
+    console.warn(
+      `[efs-cards] org ${orgId} card ••••${last4}: unmodelled field(s) ${unmodelled.join(", ")} — `
+        + "mirrored anyway; run the config scan and model them (Step 7.3)",
+    );
+  }
 
   const { error } = await admin.from("efs_cards").upsert(
     {

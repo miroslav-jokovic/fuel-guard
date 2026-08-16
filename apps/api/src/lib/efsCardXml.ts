@@ -217,6 +217,8 @@ function parseInfos(root: XmlElement): WsCard["infos"] {
     validationType: (firstText(el, "validationType") as WsCard["infos"][number]["validationType"]) ?? null,
     matchValue: firstText(el, "matchValue"),
     reportValue: firstText(el, "reportValue"),
+    // Step 7.3 — the third field a prompt can hold its value in. See efsCardFields.ts.
+    numericMatchValue: firstText(el, "numericMatchValue"),
     lengthCheck: boolOrNull(firstText(el, "lengthCheck")),
     minimum: numberOrNull(firstText(el, "minimum") ?? firstText(el, "Minimum")),
     maximum: numberOrNull(firstText(el, "maximum")),
@@ -280,6 +282,12 @@ export function parseCardDocument(xml: string): CardDocument {
     originalStatus: firstText(header, "originalStatus"),
     payrollStatus: firstText(header, "payrollStatus"),
     payrollUse: firstText(header, "payrollUse"),
+    // Step 7.3 — the five payroll capability flags, declared on WSCardHeader and never read.
+    payrollAtm: firstText(header, "payrollAtm"),
+    payrollChk: firstText(header, "payrollChk"),
+    payrollAch: firstText(header, "payrollAch"),
+    payrollWire: firstText(header, "payrollWire"),
+    payrollDebit: firstText(header, "payrollDebit"),
     policyNumber: numberOrNull(firstText(header, "policyNumber")),
     companyXRef: firstText(header, "companyXRef"),
     handEnter: firstText(header, "handEnter"),

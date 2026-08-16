@@ -356,6 +356,10 @@ export async function getPolicy(
       validationType: text(e, "validationType"),
       matchValue: text(e, "matchValue"),
       reportValue: text(e, "reportValue"),
+      // Step 7.3. `WSPolicy.infos` is the same `WSCardInfo` type as a card's, so a POLICY-level
+      // prompt carries this field too — and on this account every card is `infoSource: BOTH`, so
+      // policy prompts are in force fleet-wide. Caught by the schema, not by review.
+      numericMatchValue: text(e, "numericMatchValue"),
       lengthCheck: parseBool(text(e, "lengthCheck")),
       minimum: toInt(text(e, "minimum") ?? text(e, "Minimum")),
       maximum: toInt(text(e, "maximum")),

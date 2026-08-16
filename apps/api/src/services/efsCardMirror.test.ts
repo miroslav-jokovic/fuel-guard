@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
@@ -475,5 +475,51 @@ describe("attribution columns after a prompts change", () => {
     ]);
     expect(row.driver_id_prompt).toBe("D-9999");
     expect(row.driver_name).toBe("Dana");
+  });
+});
+
+describe("an unmodelled field (Step 7.3)", () => {
+  /**
+   * The asymmetry the step asks for: **the scan fails on an unmodelled field; the sweep only logs
+   * it.** This is the sweep half.
+   *
+   * It runs unattended against a live fleet, and refusing to mirror a card because WEX added a field
+   * would take the product offline over something the echo already preserves
+   * (`getCardV2.unknownField.xml` proves the write path keeps unknown fields, and a case throws when
+   * one is dropped). So the card is mirrored and the field is reported.
+   */
+  const unknownFieldDoc = readFileSync(
+    fileURLToPath(new URL("../lib/__fixtures__/efs/getCardV2.unknownField.xml", import.meta.url)), "utf8",
+  );
+
+  it("mirrors the card anyway, and names the field in a warning", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+
+    const result = await syncEfsCards(rec.client, env, creds, {
+      fetchImpl: stub(loginOk, summaries, unknownFieldDoc, unknownFieldDoc),
+    });
+
+    // Mirrored, not refused — the whole point of the asymmetry.
+    expect(result.detailed).toBe(2);
+    expect(result.failed).toBe(0);
+    const said = warn.mock.calls.map((c) => String(c[0])).join(" ");
+    expect(said).toContain("unmodelled field");
+    expect(said).toContain("futureFlag");
+    // Names, never values: this line reaches logs.
+    expect(said).not.toContain("keep-me");
+    warn.mockRestore();
+  });
+
+  it("says nothing at all for a document made entirely of modelled fields", async () => {
+    // The positive control. A warning on every sweep is a warning nobody reads by the time one
+    // matters — and this fires per card, on a fleet of 199.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    expect(warn.mock.calls.map((c) => String(c[0])).join(" ")).not.toContain("unmodelled");
+    warn.mockRestore();
   });
 });

@@ -4,6 +4,7 @@ import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { scanConfig } from "../../efs/harness/configScan.js";
 import { documentShape, parseCardDocument } from "../../lib/efsCardXml.js";
+import { unmodelledCardFields } from "../../lib/efsCardFields.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
@@ -108,6 +109,42 @@ export function fuelCardConfigScanRouter(): Router {
           // A corpus we cannot parse records no shape, which blocks promotion — the safe direction.
         }
       }
+      /**
+       * ⚠ Step 7.3: THE SCAN FAILS ON AN UNMODELLED FIELD. The mirror sweep only logs one.
+       *
+       * The asymmetry is the whole point and it is deliberate. The sweep runs unattended against a
+       * live fleet, and refusing to mirror a card because EFS added a field would take the product
+       * offline over something harmless — the echo preserves unknown fields either way
+       * (`getCardV2.unknownField.xml`). The scan is different: an operator ran it, its entire job is
+       * "what does this account actually emit", and it is the input that scopes Phases 9–12. A scan
+       * that quietly skipped a field it did not recognise would answer that question wrongly while
+       * looking authoritative, which is the same failure mode as `unobserved` from a stale corpus —
+       * the one this route's docblock already exists to prevent.
+       *
+       * 422, not 500: the corpus is real and the request was fine. What is missing is a model.
+       */
+      const unmodelled = [...new Set(documents.flatMap((xml) => {
+        try {
+          return unmodelledCardFields(parseCardDocument(xml).root);
+        } catch {
+          // A document that will not parse is already reported by the shape logic below; it is not
+          // evidence of an unmodelled field and must not be counted as one.
+          return [];
+        }
+      }))].sort();
+      if (unmodelled.length > 0) {
+        res.status(422).json({
+          ...apiError(
+            "unmodelled_card_fields",
+            `EFS sent ${unmodelled.length} field(s) this product does not model: ${unmodelled.join(", ")}. `
+              + "Model them (packages/shared cardControlContract.ts + efsCardFields.ts) before trusting a scan.",
+          ),
+          unmodelledFields: unmodelled,
+          cardsScanned: documents.length,
+        });
+        return;
+      }
+
       const observedVocabulary = Object.fromEntries(report.fields.map((f) => [f.field, f.rawSpellings]));
       const { error: writeError } = await admin
         .from("efs_card_control_settings")
