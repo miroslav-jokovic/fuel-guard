@@ -3,7 +3,7 @@ import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
-import type { PlanCtx, Snapshot } from "../types.js";
+import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
 
 /**
  * Changing a card's prompts, and the one refusal that needs a COMPUTED value rather than a body.
@@ -49,7 +49,7 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
 
   mutation: {
     kind: "echo",
-    buildEdits: (doc, body: PromptsSetBody) => promptsEdits(doc, body.prompts).edits,
+    buildEdits: (doc, body: PromptsSetBody, ctx) => promptsEdits(doc, body.prompts, ctx.editableInfoIds).edits,
   },
 
   verify: cardEchoVerify<PromptsSetBody>(),
@@ -87,12 +87,12 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   },
 
   precondition: (ctx: PlanCtx, snap: Snapshot, body: PromptsSetBody) => {
-    const plan = planFor(snap, body);
+    const plan = planFor(snap, body, ctx);
     assertPromptRemovalAllowed(plan.removedInfoIds, body.allowRemoveDriverId, ctx.stepUp);
   },
 
-  auditMeta: (snap: Snapshot, body: PromptsSetBody) => {
-    const plan = planFor(snap, body);
+  auditMeta: (snap: Snapshot, body: PromptsSetBody, ctx: EditsCtx) => {
+    const plan = planFor(snap, body, ctx);
     return { promptsBefore: plan.before, promptsAfter: plan.after, removedInfoIds: plan.removedInfoIds };
   },
 });
@@ -103,7 +103,7 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
  * call and no allocation worth naming, and the alternative is a cache on the snapshot that can go
  * stale between the gate and the write. Recomputing from the same document is the cheaper mistake.
  */
-const planFor = (snap: Snapshot, body: PromptsSetBody) => {
+const planFor = (snap: Snapshot, body: PromptsSetBody, ctx: EditsCtx) => {
   if (!snap.doc) throw new Error("prompts_set requires a card document");
-  return promptsEdits(snap.doc, body.prompts);
+  return promptsEdits(snap.doc, body.prompts, ctx.editableInfoIds);
 };

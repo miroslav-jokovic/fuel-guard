@@ -1,7 +1,8 @@
+import { resolveEditableInfoIds } from "@fuelguard/shared";
 import { ActionRefusalError, CardControlError } from "../../services/efsCardControlErrors.js";
 import { cardOpOptions } from "../../services/efsCardOperationOptions.js";
 import { updateMirror } from "../../services/efsCardReconcile.js";
-import type { ReadCtx, Snapshot } from "../types.js";
+import type { PlanCtx, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
 import { firstStep } from "./steps.js";
 import type { CardMutationContext, CardMutationPlan, ResolvedCapability } from "./types.js";
@@ -46,23 +47,27 @@ export async function planCardMutation<TBody>(
 
   const doc = await assertUnmoved(ctx, capability, before);
 
+  // Step 9.1: resolved ONCE per request and handed to every hook that needs it, so step 0 and a
+  // later step of a sequence cannot build edits against two different editable sets.
+  const planCtx: PlanCtx = {
+    env: ctx.env,
+    stepUp: ctx.stepUp === true,
+    editableInfoIds: await resolveOrgEditableInfoIds(ctx),
+  };
+
   // AFTER the fresh read, and with the snapshot in hand: the mirror-based prompt a route gives early
   // is a courtesy, and this is the decision that counts. A card flagged Fraud since the last sweep
   // must not unlock without step-up because our copy was stale (audit P1-7).
-  const planStepUp = capability.governance.planStepUp?.(
-    { env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body,
-  );
+  const planStepUp = capability.governance.planStepUp?.(planCtx, before, capability.body);
   if (planStepUp) throw new ActionRefusalError(planStepUp, "step_up_required");
-  capability.governance.precondition?.(
-    { env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body,
-  );
+  capability.governance.precondition?.(planCtx, before, capability.body);
 
   // Only the FIRST step's edits are built here, because only they can be judged before the ledger row
   // exists — a refusal thrown from `buildEdits` leaves no row and dispatches nothing. Later steps of a
   // sequence build theirs at dispatch time against the document the previous step left behind, which
   // is the only document that can be right by then.
   const step = firstStep(capability);
-  const edits = step.mutation.kind === "echo" ? step.mutation.buildEdits(doc, capability.body) : [];
+  const edits = step.mutation.kind === "echo" ? step.mutation.buildEdits(doc, capability.body, planCtx) : [];
 
   const { id } = await ledger.insertPending(ctx, {
     intent: capability.intent,
@@ -78,8 +83,9 @@ export async function planCardMutation<TBody>(
     capability,
     before: doc,
     beforeSnapshot: before,
+    planCtx,
     edits,
-    auditMeta: capability.governance.auditMeta?.(before, capability.body) ?? {},
+    auditMeta: capability.governance.auditMeta?.(before, capability.body, planCtx) ?? {},
   };
 }
 
@@ -120,4 +126,27 @@ async function assertUnmoved<TBody>(
     );
   }
   return doc;
+}
+
+/**
+ * The org's editable prompt ids (Step 9.1), read from our own table rather than from the vendor.
+ *
+ * `getPromptTypes` on the write path would spend a rate-limit budget keyed on IP rather than on the
+ * account it protects (Step 5.6), and would make a rate-limited account one whose prompts cannot be
+ * edited at all. The account-inventory walk fills `prompt_types`; this reads it.
+ *
+ * A missing row resolves to the DRID/UNIT fallback rather than failing the write, and that is a
+ * decision rather than an oversight: a missing row is the state EVERY org is in until its first
+ * inventory walk, and it is the exact behaviour this product had before Phase 9. Turning it into an
+ * outage on a surface that worked yesterday would be the worse failure. The narrowing is not silent
+ * either — `schemaCheck` warns at boot if the column is absent, and the inventory walk reports
+ * whether its own cache write landed.
+ */
+async function resolveOrgEditableInfoIds(ctx: CardMutationContext): Promise<readonly string[]> {
+  const { data } = await ctx.admin
+    .from("efs_card_control_settings")
+    .select("prompt_types")
+    .eq("org_id", ctx.orgId)
+    .maybeSingle();
+  return resolveEditableInfoIds((data as { prompt_types?: string[] } | null)?.prompt_types ?? null);
 }

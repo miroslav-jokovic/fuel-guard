@@ -87,7 +87,7 @@ export async function applyCardMutation<TBody>(
     // previous step actually left behind — the only document that can be right by then.
     const edits = index === 0
       ? plan.edits
-      : step.mutation.kind === "echo" ? step.mutation.buildEdits(beforeDoc, capability.body) : [];
+      : step.mutation.kind === "echo" ? step.mutation.buildEdits(beforeDoc, capability.body, plan.planCtx) : [];
     if (index > 0) allEdits.push(...edits);
 
     const facts = settleFacts(plan, allEdits, sequenced ? { index, label: step.label } : null);
