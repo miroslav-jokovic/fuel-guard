@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidePromotion, type OrgObservation, type ProofEvidence } from "./promote.js";
+import { decidePromotion, type OrgObservation, type ProofEvidence, type PromotionAuthority } from "./promote.js";
 
 /**
  * Step 4.6's rule, tested as data.
@@ -26,9 +26,24 @@ const org = (over: Partial<OrgObservation> = {}): OrgObservation => ({
   ...over,
 });
 
+const MAKER = "11111111-2222-4333-8444-555555555555";
+const CHECKER = "66666666-7777-4888-8999-aaaaaaaaaaaa";
+
+/**
+ * Default: sandbox, and two different people. Chosen so Step 5.3's rule is SILENT here — it adds no
+ * refusal and no residual risk — and every case below still tests exactly what it was written to
+ * test. The separation rule has its own describe block at the end.
+ */
+const authority = (over: Partial<PromotionAuthority> = {}): PromotionAuthority => ({
+  promoterId: CHECKER,
+  proofRunBy: MAKER,
+  environment: "sandbox",
+  ...over,
+});
+
 describe("the three refusals Step 4.6 names", () => {
   it("refuses when the document shape differs", () => {
-    const decision = decidePromotion("card_lock", greenProof({ documentShape: "flat" }), org());
+    const decision = decidePromotion("card_lock", greenProof({ documentShape: "flat" }), org(), authority());
 
     // A proof is evidence for the environment that produced it. Promoting a flat-document proof onto
     // a nested org means the serializer paths that were exercised are not the ones that will run.
@@ -41,6 +56,7 @@ describe("the three refusals Step 4.6 names", () => {
       "card_lock",
       greenProof({ vocabulary: {} }),
       org({ scanVerdicts: { status: "unobserved" } }),
+      authority(),
     );
 
     expect(decision.allowed).toBe(false);
@@ -48,7 +64,7 @@ describe("the three refusals Step 4.6 names", () => {
   });
 
   it("allows a fully green proof — the pair, so the refusals above cannot pass for the wrong reason", () => {
-    const decision = decidePromotion("card_lock", greenProof(), org());
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority());
 
     expect(decision.allowed).toBe(true);
     expect(decision.refusals).toEqual([]);
@@ -64,6 +80,7 @@ describe("the amendment Step 4.4 forced", () => {
       "card_lock",
       greenProof({ vocabulary: { status: ["HOLD"] } }),
       org({ scanVerdicts: { status: "unobserved" } }),
+      authority(),
     );
 
     expect(decision.allowed).toBe(true);
@@ -78,6 +95,7 @@ describe("the amendment Step 4.4 forced", () => {
       "card_lock",
       greenProof({ vocabulary: { status: ["HOLD"] } }),
       org({ scanVerdicts: { status: "mismatch" } }),
+      authority(),
     );
 
     expect(decision.allowed).toBe(false);
@@ -88,7 +106,7 @@ describe("the amendment Step 4.4 forced", () => {
 describe("a gate that was never reached is not a gate that passed", () => {
   for (const gate of ["oeg1Entitled", "oeg3ChangeLanded", "oeg4Vocabulary", "oeg5RevertLanded"] as const) {
     it(`refuses when ${gate} is null`, () => {
-      const decision = decidePromotion("card_lock", greenProof({ [gate]: null }), org());
+      const decision = decidePromotion("card_lock", greenProof({ [gate]: null }), org(), authority());
 
       // The columns are nullable precisely so "not reached" and "false" stay distinguishable. Reading
       // a null as a pass is the single most expensive mistake this function could make.
@@ -98,7 +116,7 @@ describe("a gate that was never reached is not a gate that passed", () => {
   }
 
   it("carries a null OEG-2b as a recorded risk instead of blocking", () => {
-    const decision = decidePromotion("card_lock", greenProof({ oeg2bNoopStable: null }), org());
+    const decision = decidePromotion("card_lock", greenProof({ oeg2bNoopStable: null }), org(), authority());
 
     // OEG-2b needs a no-op DISPATCH, which the capability model cannot express and which docs/24
     // §3.2 says is never obtainable on production at all. Blocking on it would block every
@@ -108,21 +126,21 @@ describe("a gate that was never reached is not a gate that passed", () => {
   });
 
   it("refuses a proof that did not settle `proven`", () => {
-    const decision = decidePromotion("card_lock", greenProof({ outcome: "void" }), org());
+    const decision = decidePromotion("card_lock", greenProof({ outcome: "void" }), org(), authority());
 
     expect(decision.allowed).toBe(false);
     expect(decision.refusals.join(" ")).toMatch(/settled "void"/);
   });
 
   it("refuses when no proof exists at all", () => {
-    const decision = decidePromotion("card_lock", null, org());
+    const decision = decidePromotion("card_lock", null, org(), authority());
 
     expect(decision.allowed).toBe(false);
     expect(decision.refusals[0]).toMatch(/No proof run exists/);
   });
 
   it("refuses when the company's own shape has never been scanned", () => {
-    const decision = decidePromotion("card_lock", greenProof(), org({ observedDocumentShape: null }));
+    const decision = decidePromotion("card_lock", greenProof(), org({ observedDocumentShape: null }), authority());
 
     // Refused rather than defaulted. A guessed shape is a proof matched against a fiction.
     expect(decision.allowed).toBe(false);
@@ -136,6 +154,7 @@ describe("what it reports", () => {
       "card_lock",
       greenProof({ documentShape: "flat", oeg3ChangeLanded: false }),
       org({ scanVerdicts: { status: "mismatch" } }),
+      authority(),
     );
 
     // An operator who fixes the shape, re-runs, and is then told about OEG-3 has done the work
@@ -151,6 +170,7 @@ describe("what it reports", () => {
       "override_grant",
       greenProof({ oeg3ChangeLanded: null, vocabulary: {} }),
       org({ scanVerdicts: { overrideAllLocations: "unobserved" } }),
+      authority(),
     );
 
     expect(decision.allowed).toBe(false);
@@ -172,7 +192,7 @@ describe("a refusal names EVERY blocker, not the first one (observed live 2026-0
   const virgin = { observedDocumentShape: null, scanVerdicts: {} };
 
   it("reports the missing document shape even when there is no proof", () => {
-    const decision = decidePromotion("card_lock", null, virgin);
+    const decision = decidePromotion("card_lock", null, virgin, authority());
 
     expect(decision.allowed).toBe(false);
     // THREE, and the live run returned one. Each has a DIFFERENT fix: run a proof, run a config
@@ -189,7 +209,7 @@ describe("a refusal names EVERY blocker, not the first one (observed live 2026-0
   it("does not pad the list with proof gates it could not have evaluated", () => {
     // "OEG-1 is not obtained" adds nothing to "there is no proof", and four of them would bury the
     // one refusal that carries an independent fix. Skipped as noise, not reported as findings.
-    const decision = decidePromotion("card_lock", null, virgin);
+    const decision = decidePromotion("card_lock", null, virgin, authority());
 
     expect(decision.refusals.join(" ")).not.toContain("OEG-1");
     expect(decision.refusals.join(" ")).not.toContain("OEG-5");
@@ -199,7 +219,9 @@ describe("a refusal names EVERY blocker, not the first one (observed live 2026-0
     const decision = decidePromotion("card_lock", null, {
       observedDocumentShape: "nested:header",
       scanVerdicts: { status: "match" },
-    });
+    },
+      authority(),
+    );
 
     // The list grows and shrinks with what is actually wrong — it is not "always report everything".
     expect(decision.refusals).toHaveLength(1);
@@ -212,9 +234,89 @@ describe("a refusal names EVERY blocker, not the first one (observed live 2026-0
     const decision = decidePromotion("card_lock", null, {
       observedDocumentShape: "nested:header",
       scanVerdicts: { status: "unobserved" },
-    });
+    },
+      authority(),
+    );
 
     expect(decision.allowed).toBe(false);
     expect(decision.refusals.join(" ")).toContain("No proof run exists");
+  });
+});
+
+/**
+ * Step 5.3 — separation of duties on the act that matters.
+ *
+ * `approved_by` had existed on the mutation ledger since 0177 with nothing writing it, and the plan
+ * asks who may promote a capability to production. Card mutations cannot answer it yet — plan and
+ * apply are one request, so a second principal does not exist to demand. A promotion can: the proof
+ * run and the promotion are already two endpoints, two rows and two moments.
+ */
+describe("who may promote a capability to production", () => {
+  it("refuses on production when the promoter ran the proof they are citing", () => {
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "production",
+      promoterId: MAKER,
+      proofRunBy: MAKER,
+    }));
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.refusals.join(" ")).toMatch(/needs a second person/);
+  });
+
+  it("allows it on production when a different person produced the evidence", () => {
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "production",
+      promoterId: CHECKER,
+      proofRunBy: MAKER,
+    }));
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.refusals).toEqual([]);
+  });
+
+  it("refuses on production when the proof no longer records who ran it, and names the fix", () => {
+    // `run_by` is `on delete set null`. A null means separation cannot be established either way, and
+    // this is the highest-privilege act in the product — so it fails closed rather than open. The
+    // refusal has to name the way out or it reads as an unexplained permanent block.
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "production",
+      proofRunBy: null,
+    }));
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.refusals.join(" ")).toMatch(/Run a fresh proof and cite that one/);
+  });
+
+  it("permits self-promotion outside production, and records it as a residual risk", () => {
+    // QA is where one person legitimately runs the proof and promotes it. Blocking that would stop
+    // the work this rule exists to make safe — but a silent yes is the answer nobody can check later.
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "sandbox",
+      promoterId: MAKER,
+      proofRunBy: MAKER,
+    }));
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.residualRisks.join(" ")).toMatch(/Self-approved/);
+  });
+
+  it("says nothing at all when two different people are involved outside production", () => {
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority());
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.residualRisks.join(" ")).not.toMatch(/Self-approved/);
+  });
+
+  it("reports the separation refusal ALONGSIDE the evidence refusals, not instead of them", () => {
+    // One round trip tells the operator everything they have to fix — the property the whole
+    // function is built around. A `return` in the separation branch would have broken it.
+    const decision = decidePromotion("card_lock", greenProof({ documentShape: "flat" }), org(), authority({
+      environment: "production",
+      promoterId: MAKER,
+      proofRunBy: MAKER,
+    }));
+
+    expect(decision.refusals.join(" ")).toMatch(/"flat" document/);
+    expect(decision.refusals.join(" ")).toMatch(/needs a second person/);
   });
 });

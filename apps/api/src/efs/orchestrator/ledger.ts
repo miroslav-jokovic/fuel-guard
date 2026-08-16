@@ -58,6 +58,18 @@ export interface PendingRow {
   edits: readonly CardEdit[];
 }
 
+/**
+ * Who approved this apply (Step 5.3).
+ *
+ * Falls back to the requester because plan and apply are one request today, and a recorded
+ * self-approval is the truthful record of that — migration 0142 takes the same position for loads.
+ * `?? null` rather than `?? ctx.userId` would leave the column empty and lose the fact that anyone
+ * authorised it at all, which is the hole this step exists to close.
+ */
+function approverOf(ctx: CardMutationContext): string {
+  return ctx.approvedBy ?? ctx.userId;
+}
+
 export const cardLedger = (): LedgerAdapter => ({
   assertOrgCapacity,
   assertNoneInFlight,
@@ -68,7 +80,19 @@ export const cardLedger = (): LedgerAdapter => ({
       // `attempts: 1` counts DISPATCH attempts of the row, and a sequence is still one attempt at one
       // mutation — a step is not a retry. `step_index` stays null for a single-step capability, so a
       // reader can tell "step 0 of a sequence" from "not a sequence at all".
-      .update({ status: "sent", attempts: 1, ...(stepIndex === null ? {} : { step_index: stepIndex }) })
+      //
+      // `approved_by` is stamped HERE and not in `insertPending` (Step 5.3). The plan phase records
+      // who ASKED; this is the apply phase, the moment the write actually leaves for the vendor, and
+      // therefore the moment something was approved. Writing it at insert would have made the column
+      // a duplicate of `requested_by` by construction and destroyed the distinction before Phase C
+      // could use it. Only on the first step of a sequence: one approval covers the sequence, and
+      // re-stamping per step would suggest a decision per step that nobody made.
+      .update({
+        status: "sent",
+        attempts: 1,
+        ...(stepIndex === null || stepIndex === 0 ? { approved_by: approverOf(ctx) } : {}),
+        ...(stepIndex === null ? {} : { step_index: stepIndex }),
+      })
       .eq("id", mutationId)
       .eq("org_id", ctx.orgId);
   },

@@ -174,6 +174,63 @@ describe("a mutation that lands", () => {
     });
   });
 
+  /**
+   * Step 5.3. `approved_by` existed on `efs_card_mutations` from migration 0177 with nothing writing
+   * it, so no card write in the product's history could answer "who said yes" — only "who asked".
+   */
+  describe("a mutation records who approved it", () => {
+    const updates = (rec: SupabaseRecorder) =>
+      rec.forTable("efs_card_mutations").filter((query) => query.write?.method === "update");
+
+    it("stamps approved_by when the write is dispatched, not when the row is opened", async () => {
+      const rec = recorder();
+      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+
+      await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
+
+      // Not at insert: the plan phase records who ASKED. Stamping there would make the column a copy
+      // of requested_by by construction and destroy the distinction before Phase C can use it.
+      const insert = rec.forTable("efs_card_mutations").find((q) => q.write?.method === "insert");
+      expect(insert?.write?.payload).not.toHaveProperty("approved_by");
+
+      // At markSent: the moment the write actually leaves for the vendor is the moment something
+      // was approved.
+      const sent = updates(rec).map((q) => q.write?.payload as Record<string, unknown>)
+        .find((payload) => payload.status === "sent");
+      expect(sent).toMatchObject({ status: "sent", approved_by: USER });
+    });
+
+    it("records a self-approval as the requester, rather than leaving the column empty", async () => {
+      // Plan and apply are one request today, so the approver IS the requester. Migration 0142 takes
+      // the same position for loads: a recorded self-approval is a legitimate outcome, and a null
+      // would lose the fact that anyone authorised it at all — the hole Step 5.3 closes.
+      const rec = recorder();
+      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+
+      await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
+
+      const sent = updates(rec).map((q) => q.write?.payload as Record<string, unknown>)
+        .find((payload) => payload.status === "sent");
+      expect(sent?.approved_by).toBe(USER);
+    });
+
+    it("uses the approver the seam was given, when one is supplied", async () => {
+      // What Phase C's approval route will do. Proving the seam carries a DIFFERENT principal is the
+      // whole reason 0177 added the column ahead of the feature — otherwise the claim that
+      // maker-checker is "a route and a UI, not a migration" is untested.
+      const APPROVER = "3d4e5f6a-7b8c-4d9e-8f1a-2b3c4d5e6f7a";
+      const rec = recorder();
+      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+
+      await executeLock({ ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), approvedBy: APPROVER });
+
+      const sent = updates(rec).map((q) => q.write?.payload as Record<string, unknown>)
+        .find((payload) => payload.status === "sent");
+      expect(sent?.approved_by).toBe(APPROVER);
+      expect(sent?.approved_by).not.toBe(USER);
+    });
+  });
+
   it("TRIPWIRE (H1): on an account that spells ACTIVE, the dispatched write says HOLD — and succeeds", async () => {
     // The live 2026-08-12 failure, end to end: production account reads `ACTIVE`, we asked for
     // `Hold`, EFS returned void success and changed nothing. The fix spells the write from the

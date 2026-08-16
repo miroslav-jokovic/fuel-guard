@@ -28,6 +28,22 @@ export interface CardMutationContext {
   /** Unsealed inside the route, held only for the duration of the operation. */
   cardNumber: string;
   userId: string;
+  /**
+   * Who authorised the APPLY, as distinct from who requested it (Step 5.3).
+   *
+   * `approved_by` has existed on `efs_card_mutations` since migration 0177 with nothing writing it,
+   * so every card write in the product's history is unattributable on the question "who said yes".
+   * The seam reserved for this — `planCardMutation` / `applyCardMutation` — is already two functions
+   * with a re-validated `expected_version` between them, and this is the field that crosses it.
+   *
+   * Today plan and apply run back to back in one request, so this defaults to `userId` and the
+   * mutation is a recorded SELF-approval. That is the honest record of what happened, and it follows
+   * migration 0142's precedent for loads, where an org that wants two people sets a flag and
+   * `approved_by = created_by` is otherwise a legitimate, recorded outcome. When Phase C adds the
+   * approval route, it supplies a different principal here and nothing else has to move — which was
+   * the entire point of putting the column in 0177 ahead of the feature.
+   */
+  approvedBy?: string | null;
   reason: string;
   expectedVersion: string;
   idempotencyKey?: string | null;

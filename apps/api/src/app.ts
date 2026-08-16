@@ -166,13 +166,7 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
-  // ⚠ `requireAuth` FIRST, and that order is the point (Step 5.6). The limiter keys on the org whose
-  // EFS account it protects, so it needs `req.auth`, which the routers below used to be the first
-  // thing to establish. Hoisting it here also means an unauthenticated request is refused with a 401
-  // WITHOUT spending a slot of a real org's vendor budget. Every router on this prefix already begins
-  // with its own `router.use(requireAuth)`, so this adds a check rather than moving one — the routers
-  // keep theirs, which is what `routeAuth.test.ts` discovers and what makes each router safe to mount
-  // anywhere. See `fuelCardVendorRateLimitKey`.
+  // ⚠ `requireAuth` FIRST, and that order IS the fix (Step 5.6) — see `fuelCardVendorRateLimitKey`.
   app.use("/api/fuel-cards", requireAuth, fuelCardVendorLimiter);
   app.use("/api/ai", strictLimiter);
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
