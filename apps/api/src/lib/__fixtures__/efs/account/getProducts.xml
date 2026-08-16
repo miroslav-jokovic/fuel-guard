@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getProductsResponse>
+      <result>
+        <value>
+          <code>ULSD</code>
+          <description>ULTRA LOW SULFUR DIESEL</description>
+          <fuelType>1</fuelType>
+          <fuelUse>1</fuelUse>
+          <group>FUEL</group>
+          <phraseId>102</phraseId>
+          <shellClProduct>21</shellClProduct>
+          <shellFuelType>2</shellFuelType>
+          <shellPriceGroup>D</shellPriceGroup>
+        </value>
+        <value>
+          <code>RFR</code>
+          <description>REEFER FUEL</description>
+          <fuelType>1</fuelType>
+          <fuelUse>2</fuelUse>
+          <group>FUEL</group>
+          <phraseId xsi:nil="true"/>
+          <shellClProduct xsi:nil="true"/>
+          <shellFuelType xsi:nil="true"/>
+          <shellPriceGroup xsi:nil="true"/>
+        </value>
+      </result>
+    </getProductsResponse>
+  </soap:Body>
+</soap:Envelope>

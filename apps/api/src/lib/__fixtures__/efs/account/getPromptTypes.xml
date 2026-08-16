@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getPromptTypesResponse>
+      <result>
+        <value>DRID</value>
+        <value>UNIT</value>
+        <value>ODOM</value>
+        <value>NAME</value>
+        <value>TRIP</value>
+      </result>
+    </getPromptTypesResponse>
+  </soap:Body>
+</soap:Envelope>

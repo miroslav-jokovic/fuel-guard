@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getPolicyDescriptionsResponse>
+      <result>
+        <value>
+          <contractId>5501</contractId>
+          <description>OVER THE ROAD</description>
+          <policyNumber>1</policyNumber>
+        </value>
+        <value>
+          <contractId>5501</contractId>
+          <description xsi:nil="true"/>
+          <policyNumber>14</policyNumber>
+        </value>
+      </result>
+    </getPolicyDescriptionsResponse>
+  </soap:Body>
+</soap:Envelope>

@@ -50,7 +50,14 @@ const OPS = {
   getPolicy: "getPolicy",
 } as const;
 
-const el = (name: string, value: string | number | null | undefined): string =>
+/**
+ * Emit the element only when the value is present.
+ *
+ * Exported alongside `elAlways` for `efsAccountOps.ts` (Step 7.1) — same arrangement as
+ * `callCardOp` / `resultRecords` / `text`: the canonical home stays here and the split operation
+ * modules import. A second copy would be a second place for the escaping to go wrong.
+ */
+export const el = (name: string, value: string | number | null | undefined): string =>
   value === null || value === undefined || value === "" ? "" : `<${name}>${xmlEscape(String(value))}</${name}>`;
 
 /**

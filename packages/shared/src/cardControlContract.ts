@@ -60,7 +60,15 @@ const vendorEnum = (known: readonly string[]): z.ZodNullable<z.ZodString> => {
  * make an entire card unreadable. Range checks belong on the write schemas, where we choose the
  * value.
  */
-const vendorInt = z.coerce.number().int().nullable().catch(null);
+/**
+ * An integer EFS handed US. Read-tolerantly: a value outside the documented range is news about the
+ * account, not a reason to make the card unreadable.
+ *
+ * Exported for `efsAccountContract.ts` (Step 7.1), which parses thirteen more vendor documents and
+ * needs the identical tolerance. A second copy of this one-liner is exactly the drift that ends with
+ * two schemas disagreeing about what EFS is allowed to say.
+ */
+export const vendorInt = z.coerce.number().int().nullable().catch(null);
 
 /**
  * A policy number WE choose — a route parameter or a probe input, not something EFS handed us. Strict
