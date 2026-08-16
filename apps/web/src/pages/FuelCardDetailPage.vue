@@ -21,7 +21,7 @@ import { useSessionStore } from "@/stores/session";
 import CardOperationDrawer from "@/features/fuelCards/CardOperationDrawer.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import CardEffectiveConfig from "@/features/fuelCards/CardEffectiveConfig.vue";
-import { availability, cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
+import { availability, cardStatusLabel, cardStatusTone, freshness, overrideFreshness, relativeAge } from "@/features/fuelCards/cardControlModel";
 import {
   CARD_OPERATIONS,
   type CardOperationGroup,
@@ -32,6 +32,7 @@ import {
   toOperationCard,
 } from "@/features/fuelCards/cardOperations";
 import { useEfsCard } from "@/features/fuelCards/useEfsCards";
+import { useRefreshCard } from "@/features/fuelCards/useCardControl";
 
 const route = useRoute();
 const session = useSessionStore();
@@ -45,6 +46,32 @@ const notice = computed(() =>
   capabilities.value ? availability(capabilities.value, session.admin) : null,
 );
 const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null, new Date(), query.data.value?.staleAfterMinutes));
+
+/**
+ * Step 7.8 — the override state, WITH the age of the read behind it.
+ *
+ * Production card ••••7550 showed "Override: 1 use left" for nine hours after EFS had retired it
+ * (`docs/22` H4). The badge was not wrong when written; it was wrong when read, and nothing said
+ * which. Past a sync cycle this reports no count at all rather than a confident stale one — see
+ * overrideFreshness for why this one field, and not `status`, is worth that.
+ */
+const override = computed(() =>
+  overrideFreshness(card.value ?? {}, new Date(), query.data.value?.staleAfterMinutes),
+);
+
+/**
+ * Step 7.5 — the card the mirror has only ever seen in the roster.
+ *
+ * Its `card_version` is `""`, so every write is refused (`card_never_read`). Hiding the menus is
+ * the honest shape here: this is a CARD-state problem, not a permission problem, and the sentence
+ * below says what to do about it. Greying the items with no way to act would be worse.
+ */
+const neverRead = computed(() => !!card.value && !card.value.detailSyncedAt);
+
+const refresh = useRefreshCard();
+
+/** The action `freshness()` has been telling operators to take on a page that never offered it. */
+const onRefresh = (): void => { if (card.value) refresh.mutate(card.value.id); };
 
 const openOperation = ref<CardOperationSpec | null>(null);
 
@@ -150,14 +177,26 @@ const facts = computed(() => {
           <span :class="[BADGE_BASE, toneClass(cardStatusTone(card.status))]">
             {{ cardStatusLabel(card.status) }}
           </span>
+          <!--
+            Step 7.8. The count and the age of the read that produced it are ONE statement, never two
+            things a reader has to join up: `1 use left` next to `read 9 hours ago` is a different
+            fact from `1 use left`, and the nine-hour version is the one that was on screen while a
+            driver spent the exception.
+          -->
           <span
-            v-if="(card.overrideUses ?? 0) > 0"
+            v-if="override.known && (card.overrideUses ?? 0) > 0"
             :class="[BADGE_BASE, toneClass('warning')]"
           >
-            Override: {{ card.overrideUses }} use{{ card.overrideUses === 1 ? "" : "s" }} left
+            Override: {{ card.overrideUses }} use{{ card.overrideUses === 1 ? "" : "s" }} left · {{ override.ageText }}
+          </span>
+          <span
+            v-else-if="!override.known && (card.overrideUses ?? 0) > 0"
+            :class="[BADGE_BASE, toneClass('caution')]"
+          >
+            Override: unknown · {{ override.ageText }}
           </span>
           </div>
-          <KebabMenu v-if="canAct && cardOperations.length > 0" trigger-label="Card actions">
+          <KebabMenu v-if="canAct && !neverRead && cardOperations.length > 0" trigger-label="Card actions">
             <BaseButton
               v-for="row in cardOperations"
               :key="row.op.id"
@@ -178,11 +217,34 @@ const facts = computed(() => {
           </div>
         </dl>
 
-        <p class="mt-4 text-sm" :class="cardFreshness.stale ? 'text-caution-700' : 'text-ink-muted'">
-          {{ cardFreshness.text }}
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <p class="text-sm" :class="cardFreshness.stale ? 'text-caution-700' : 'text-ink-muted'">
+            {{ cardFreshness.text }}
+          </p>
+          <!-- Step 7.8: the first caller `POST /:id/refresh` has ever had. The sentence beside it
+               has been saying "Refresh to see current settings." on a page with no refresh. -->
+          <BaseButton variant="soft" size="sm" :disabled="refresh.isPending.value" @click="onRefresh">
+            {{ refresh.isPending.value ? "Reading EFS…" : "Refresh" }}
+          </BaseButton>
+        </div>
+        <!--
+          Step 7.5. `absent_since` is maintained by the mirror and, until EFS_CARD_LIST_COLS carried
+          it, could not be rendered anywhere: two production cards WEX de-listed on 2026-08-14 read
+          as ordinary live cards showing whatever status EFS last reported.
+        -->
+        <p v-if="card.absentSince" class="mt-1 text-sm text-caution-700">
+          EFS stopped listing this card {{ relativeAge(card.absentSince) ?? "at an unknown time" }}. Its history is kept.
+        </p>
+        <p v-if="neverRead" class="mt-1 text-sm text-caution-700">
+          Not yet read from EFS — only the summary from the card list is available, so its settings
+          cannot be shown or changed. Press Refresh.
         </p>
         <p v-if="card.syncError" class="mt-1 text-sm text-caution-700">
-          Last refresh reported: {{ card.syncError }}
+          <!-- Step 7.5: WHICH pass failed, and WHEN. One column used to carry a bare string that the
+               roster pass then cleared on a card nothing had re-read. -->
+          {{ card.syncErrorSource === "roster" ? "The card list" : "The last full read" }} failed{{
+            relativeAge(card.syncErrorAt) ? ` ${relativeAge(card.syncErrorAt)}` : ""
+          }}: {{ card.syncError }}
         </p>
       </BaseCard>
 
@@ -211,7 +273,7 @@ const facts = computed(() => {
       >
         <template #actions="{ section }">
           <KebabMenu
-            v-if="section === 'prompts' && canAct && promptOperations.length > 0"
+            v-if="section === 'prompts' && canAct && !neverRead && promptOperations.length > 0"
             trigger-label="Prompt actions"
           >
             <BaseButton

@@ -232,6 +232,34 @@ export interface CardControlProbeResult {
  * real vendor XML and touches nothing. The write half needs a card WEX has confirmed is disposable,
  * a typed confirmation, and a sign-in from the last five minutes.
  */
+/**
+ * Re-read ONE card from EFS, now (Step 7.8).
+ *
+ * ── What this closes ────────────────────────────────────────────────────────────────────────────
+ * `POST /api/fuel-cards/:id/refresh` has existed since the read routes were built and NOTHING in the
+ * browser has ever called it — a component, a hook and an endpoint with no caller is the exact shape
+ * the Phase 6 audit found and closed once already. Meanwhile `freshness()` has been telling
+ * operators "Refresh to see current settings." on a page that offered no way to do it.
+ *
+ * ── Why per-card and not "refresh everything" ───────────────────────────────────────────────────
+ * One paced vendor call on the interactive lane, started by a person who is looking at that card.
+ * The alternative reading of Step 7.8 — re-read every card on the override panel whenever the panel
+ * is viewed — would fire one vendor call per exception on a page that already polls every 60s, which
+ * is the "excessive polling" the guide warns can get the shared service account suspended (p11), and
+ * the step itself says not to spend vendor budget on the whole fleet to fix one field.
+ *
+ * Not a card MUTATION: no idempotency key, no expectedVersion, no step-up. It writes to our mirror
+ * from what EFS reports and changes nothing at the vendor — which is why it is gated at `canView`.
+ */
+export function useRefreshCard() {
+  const invalidate = useCardInvalidation();
+  return useMutation({
+    mutationFn: (cardId: string) =>
+      call<{ ok: boolean; version: string }>(`/api/fuel-cards/${cardId}/refresh`, "POST"),
+    onSuccess: invalidate,
+  });
+}
+
 export function useCardControlProbe() {
   const qc = useQueryClient();
   return useMutation({

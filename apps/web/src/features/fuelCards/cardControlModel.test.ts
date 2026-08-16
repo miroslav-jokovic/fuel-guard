@@ -10,7 +10,9 @@ import {
   freshness,
   limitRows,
   outcomeNotice,
+  overrideFreshness,
   overrideScopeLabel,
+  relativeAge,
   promptRows,
   sourceSentence,
   timeRows,
@@ -434,5 +436,110 @@ describe("account-wide overrides (B3)", () => {
     // Uses remain but neither scope is armed: reported honestly, never guessed.
     expect(overrideScopeLabel(null, null)).toBe("Scope not reported");
     expect(overrideScopeLabel(false, null)).toBe("Scope not reported");
+  });
+});
+
+describe("override staleness (Step 7.8)", () => {
+  /**
+   * The incident, in one fixture (`docs/22` H4). Production card ••••7550 / unit 651 showed
+   * "Override: 1 use left" for NINE HOURS after EFS had retired it: the exception was consumed 38
+   * minutes after the sync that recorded it, and nothing re-read the card until a manual refresh.
+   *
+   * A stale `status` is tolerable; the card page is not the authority on whether a card is locked.
+   * A stale override count is the number that says whether a driver can take another free tank, and
+   * it decrements without us.
+   */
+  const NOW = new Date("2026-08-15T02:02:00.000Z");
+  const CYCLE = 26 * 60; // EFS_CARD_SYNC_HOURS 24, plus the two-hour grace the API sends
+
+  it("says how old the read is, on a row that is NOT stale — which is the nine-hour case", () => {
+    // 2026-08-14 17:12Z, the sync that recorded `override_uses = 1`. Nine hours old: well inside a
+    // 26-hour cycle, so nothing here was "stale" by the page's own threshold. The fix is not a
+    // louder warning — it is that the age is on screen at all.
+    const state = overrideFreshness({ detailSyncedAt: "2026-08-14T17:12:00.000Z" }, NOW, CYCLE);
+
+    expect(state.known).toBe(true);
+    expect(state.stale).toBe(false);
+    expect(state.ageText).toBe("read 8 hours ago");
+  });
+
+  it("stops asserting the count once the read is older than a sync cycle", () => {
+    const state = overrideFreshness({ detailSyncedAt: "2026-08-12T02:02:00.000Z" }, NOW, CYCLE);
+
+    expect(state.known).toBe(false);
+    expect(state.stale).toBe(true);
+    expect(state.ageText).toBe("read 3 days ago");
+  });
+
+  it("distinguishes a card nothing has ever read from a card read too long ago", () => {
+    // Different sentences because they send somebody to different places: one needs a refresh, the
+    // other needs the sweep looked at. Collapsing them into "stale" loses the actionable half — and
+    // the never-read case is also what Step 7.5's `card_never_read` refuses a write against.
+    const never = overrideFreshness({ detailSyncedAt: null }, NOW, CYCLE);
+
+    expect(never.neverRead).toBe(true);
+    expect(never.known).toBe(false);
+    expect(never.ageText).toBe("never read from EFS");
+    expect(overrideFreshness({ detailSyncedAt: "2026-08-12T02:02:00.000Z" }, NOW, CYCLE).neverRead).toBe(false);
+  });
+
+  it("hangs off the DETAIL clock, not the roster clock the page shows above it", () => {
+    /**
+     * `synced_at` moves on every sweep because the roster pass touches every row; `detail_synced_at`
+     * moves only when the card's document was re-read. The override SCOPE — any location, or one
+     * truck stop — has no writer but the detail pass, so the override statement as a whole is only
+     * ever as fresh as this. Feeding the roster clock in here would report a fresh page over a
+     * document from last week.
+     */
+    const state = overrideFreshness(
+      { detailSyncedAt: "2026-08-01T02:02:00.000Z", syncedAt: NOW.toISOString() } as { detailSyncedAt: string },
+      NOW,
+      CYCLE,
+    );
+
+    expect(state.known).toBe(false);
+  });
+
+  it("annotates a stale exception instead of dropping it from the account-wide panel", () => {
+    // "We last read this two days ago" is not the same answer as "no". Filtering stale rows out
+    // would make the panel quietest exactly when the mirror is worst — the opposite of what an
+    // auditor asking "who can currently buy outside their limits" needs from it.
+    const rows = activeOverrides(
+      [{
+        id: "a", maskedRef: "•••• 7550", last4: "7550", driverName: null, unitPrompt: "651",
+        status: "ACTIVE", overrideUses: 1, overrideAllLocations: true, locationOverrideId: null,
+        detailSyncedAt: "2026-08-12T02:02:00.000Z",
+      }],
+      NOW,
+      CYCLE,
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.uses).toBe(1); // the LAST KNOWN count is still the row's identity
+    expect(rows[0]!.freshness.known).toBe(false); // …and the panel must not assert it
+  });
+});
+
+describe("relativeAge", () => {
+  const NOW = new Date("2026-08-15T12:00:00.000Z");
+
+  it("is the ONE age formatter — freshness() reads the same words back", () => {
+    // The two used to be one implementation. Extracting it is what stops the card page saying
+    // "Checked 9 hours ago" in one line and "read 9 hrs ago" in the next.
+    const at = "2026-08-15T03:00:00.000Z";
+    expect(relativeAge(at, NOW)).toBe("9 hours ago");
+    expect(freshness(at, NOW, 26 * 60).text).toBe("Checked 9 hours ago.");
+  });
+
+  it("has no clock to report for a missing or unparseable timestamp", () => {
+    // Null rather than a guess: "we have no clock for this" is a different sentence on the card page
+    // ("Never checked.") than on the override badge ("never read from EFS"), so the caller decides.
+    expect(relativeAge(null, NOW)).toBeNull();
+    expect(relativeAge(undefined, NOW)).toBeNull();
+    expect(relativeAge("not a date", NOW)).toBeNull();
+  });
+
+  it("does not report a negative age for a clock that is ahead", () => {
+    expect(relativeAge("2026-08-15T12:05:00.000Z", NOW)).toBe("just now");
   });
 });
