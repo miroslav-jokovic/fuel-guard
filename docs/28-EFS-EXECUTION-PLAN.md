@@ -1955,9 +1955,22 @@ against a card number with `OVER` appended. That is not this phase.
 - [x] A product-limit override cannot be granted without a fresh sign-in, and is told why truthfully
 - [x] The limits the override deleted are recorded, so a failed vendor restore is recoverable
 - [x] ~~F3: does a card-level `<limits>` override apply when `limitSource` is `POLICY`?~~ **Downgraded to a confirming question by F12** — WEX's override flow never touches the field *(docs/37 §7 Q5)*
-- [ ] ⚠ **F9 answered**: does `setCardv2` work at all on a card that is currently in override? *(docs/37 §7 Q6 — a `card_lock` safety question before it is a Phase 10 question)*
-  - **Probed 2026-08-17 and the run was spoiled by its own drill** — it sent `Hold` to an account storing `ACTIVE`, reproducing H1 rather than measuring F9. docs/22 **H16**. Drill fixed (`matchAccountCasing` + a control run that proves the identical write lands with no override armed); **re-run owed**
-  - ✅ Two clean results from the same run: the **echo override-clear lands on a card in override**, so `setCardv2` is not wholesale frozen and the live clear path works; and **`deleteOverride` is entitled and lands — D1's entitlement half is CLOSED**, open since Phase 8.2
+- [x] ✅ **F9 ANSWERED 2026-08-17 — and the answer is yes, the freeze is real** *(docs/22 **H16**, docs/37 §7 Q6)*
+  - Two byte-identical `<status>HOLD</status>` writes, same session, same card ••••7671, same casing: **landed with `overrideUses: 0`, did NOT land with `overrideUses: 1`.** Three readings at 703/5179/11045 ms, `version` unchanged, `responseShape: empty`, no fault. The override was the only variable
+  - ⚠ **Narrower than WEX's wording — the freeze is FIELD-scoped.** In the same run with an override armed, the echo `clear_override` **landed** and `deleteOverride` **landed**. The override trio stays writable; `status` does not
+  - ✅ **`deleteOverride` is entitled on this account and lands — D1's entitlement half is CLOSED**, open since Phase 8.2
+  - *(The first run was invalid and said so: it sent `Hold` to an account storing `ACTIVE`, reproducing H1. The drill gained `matchAccountCasing` and a CONTROL run, which is what turned the second run into evidence. The lesson — `variant: "standard"` matches production's edit ALGEBRA, not its VALUES — is in H16)*
+- [ ] ⚠ **THE SAFETY FIX F9 CREATED, and it jumps this phase's queue.** No capability checks `overrideUses`. `card_lock` is the 2am stolen-card action, deliberately free of all friction (no reason — decision B1; no step-up — `CAPABILITIES_WITH_STEP_UP_GATE` omits it), and on a card carrying an exception it demonstrably does nothing while the vendor returns a void success. The operator is told only *"EFS accepted the request but the card is unchanged. Check the card in the WEX portal before retrying"* — which names neither the cause nor the remedy. `card_unlock`, `card_deactivate`, `prompts_set` and the mileage override are in the same position.
+
+  **Three options, and the trade-off is real because refusing is also bad at 2am:**
+
+  | | Behaviour | Against it |
+  |---|---|---|
+  | **A** | A precondition that REFUSES, naming the override and telling the operator to clear it first | Correct and honest, but it blocks the lock on a stolen card behind a second manual step |
+  | **B** *(recommended for `card_lock` only)* | Clear the override, then lock — one action | An armed override on a card being locked is free fuel, so clearing it is aligned with the operator's intent rather than contrary to it. Still destroys an exception, so it must be **stated in the confirmation and the audit row**, never silent |
+  | **C** | Refuse, but give the drawer a one-press "clear the exception and lock" affordance | Best UX; most work, and it leaves the API refusing a safety action |
+
+  **Recommendation: B for `card_lock`, A for the other four.** Locking is the one place where the exception is part of the risk being contained; everywhere else a refusal that names the cause is the honest answer and nothing is urgent. ⚠ Whichever way, the precondition must read `overrideUses` from the FRESH document at write time, not the mirror — a sweep-old zero would wave the write straight through into the silent-ignore. **Scope decision is Miki's.**
 - [ ] 10.3 states the amount as a TOTAL and pairs DSL with ULSD *(F10, F11)*
 - [ ] Product-limit override works end to end, proven live on QA
 - [ ] Restore-on-clear confirmed by observation, **on a card that has card-level limits**

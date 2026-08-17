@@ -3,7 +3,7 @@
   "question": "docs/37 §7 Q6",
   "org": "07fe4058-cc72-4a69-b3e9-29b4cf1c6a44",
   "cardLast4": "7671",
-  "verdict": "freeze_or_other_failure",
+  "verdict": "freeze_confirmed",
   "startStatus": "ACTIVE",
   "stillArmed": false,
   "statusRestored": true,
@@ -26,6 +26,72 @@
       }
     },
     {
+      "step": "1b-set_status(control)",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "set_status",
+        "variant": "standard",
+        "statusSent": "HOLD",
+        "setOriginalStatus": null,
+        "cardLast4": "7671",
+        "statusBefore": "ACTIVE",
+        "versionBefore": "30195819f2c68c442ff7ea2b8acb0332e8e9ed1acb0753ea3068a0e764d035af",
+        "documentShape": "nested:header",
+        "writeMs": 3015,
+        "writeErrorCode": null,
+        "writeErrorMessage": null,
+        "responseShape": "empty",
+        "resultText": null,
+        "readings": [
+          {
+            "atMsAfterWrite": 734,
+            "version": "0ac4110bfb027fc0d94b22f3216afddc625fb8b6dec1f9ac5726ecccd81c648f",
+            "status": "HOLD",
+            "overrideUses": 0,
+            "landed": true
+          }
+        ],
+        "landed": true,
+        "changedPaths": [],
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>HOLD</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
+      }
+    },
+    {
+      "step": "1c-set_status(control-undo)",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "set_status",
+        "variant": "standard",
+        "statusSent": "ACTIVE",
+        "setOriginalStatus": null,
+        "cardLast4": "7671",
+        "statusBefore": "HOLD",
+        "versionBefore": "0ac4110bfb027fc0d94b22f3216afddc625fb8b6dec1f9ac5726ecccd81c648f",
+        "documentShape": "nested:header",
+        "writeMs": 2283,
+        "writeErrorCode": null,
+        "writeErrorMessage": null,
+        "responseShape": "empty",
+        "resultText": null,
+        "readings": [
+          {
+            "atMsAfterWrite": 706,
+            "version": "30195819f2c68c442ff7ea2b8acb0332e8e9ed1acb0753ea3068a0e764d035af",
+            "status": "ACTIVE",
+            "overrideUses": 0,
+            "landed": true
+          }
+        ],
+        "landed": true,
+        "changedPaths": [],
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
+      }
+    },
+    {
       "step": "2-set_override",
       "http": 200,
       "ok": true,
@@ -40,12 +106,12 @@
           "overrideAllLocations": false,
           "locationOverrideId": null
         },
-        "writeMs": 3579,
+        "writeMs": 2062,
         "writeErrorCode": null,
         "writeErrorMessage": null,
         "readings": [
           {
-            "atMsAfterWrite": 1067,
+            "atMsAfterWrite": 850,
             "version": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
             "overrideUses": 1,
             "overrideAllLocations": false,
@@ -57,7 +123,7 @@
         "changedPaths": [
           "/header/overrideAllLocations"
         ],
-        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>CabWcRDW5JPeSkaRGwSHGzxbAL9gtpE5</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>true</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>true</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
         "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
       }
     },
@@ -75,7 +141,7 @@
         "overrideAllLocations": false,
         "locationOverrideId": null,
         "documentShape": "nested:header",
-        "document": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>"
+        "document": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>"
       }
     },
     {
@@ -85,34 +151,34 @@
       "body": {
         "experiment": "set_status",
         "variant": "standard",
-        "statusSent": "Hold",
+        "statusSent": "HOLD",
         "setOriginalStatus": null,
         "cardLast4": "7671",
         "statusBefore": "ACTIVE",
         "versionBefore": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
         "documentShape": "nested:header",
-        "writeMs": 3870,
+        "writeMs": 2696,
         "writeErrorCode": null,
         "writeErrorMessage": null,
         "responseShape": "empty",
         "resultText": null,
         "readings": [
           {
-            "atMsAfterWrite": 906,
+            "atMsAfterWrite": 703,
             "version": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
             "status": "ACTIVE",
             "overrideUses": 1,
             "landed": false
           },
           {
-            "atMsAfterWrite": 4600,
+            "atMsAfterWrite": 5179,
             "version": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
             "status": "ACTIVE",
             "overrideUses": 1,
             "landed": false
           },
           {
-            "atMsAfterWrite": 10209,
+            "atMsAfterWrite": 11045,
             "version": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
             "status": "ACTIVE",
             "overrideUses": 1,
@@ -123,7 +189,7 @@
         "changedPaths": [
           "/header/status"
         ],
-        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>CabWcRDW5JPeSkaRGwSHGzxbAL9gtpE5</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>Hold</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>HOLD</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
         "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
       }
     },
@@ -159,12 +225,12 @@
           "overrideAllLocations": false,
           "locationOverrideId": null
         },
-        "writeMs": 2539,
+        "writeMs": 3206,
         "writeErrorCode": null,
         "writeErrorMessage": null,
         "readings": [
           {
-            "atMsAfterWrite": 571,
+            "atMsAfterWrite": 874,
             "version": "30195819f2c68c442ff7ea2b8acb0332e8e9ed1acb0753ea3068a0e764d035af",
             "overrideUses": 0,
             "overrideAllLocations": false,
@@ -174,7 +240,7 @@
         ],
         "landed": true,
         "changedPaths": [],
-        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>CabWcRDW5JPeSkaRGwSHGzxbAL9gtpE5</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
         "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
       }
     },
@@ -192,7 +258,7 @@
         "overrideAllLocations": false,
         "locationOverrideId": null,
         "documentShape": "nested:header",
-        "document": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>"
+        "document": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>"
       }
     },
     {
@@ -210,12 +276,12 @@
           "overrideAllLocations": false,
           "locationOverrideId": null
         },
-        "writeMs": 6188,
+        "writeMs": 3010,
         "writeErrorCode": null,
         "writeErrorMessage": null,
         "readings": [
           {
-            "atMsAfterWrite": 606,
+            "atMsAfterWrite": 742,
             "version": "85197ebf9225574b180216d147c76014bca845e584dde68720671eaf2e8c2b51",
             "overrideUses": 1,
             "overrideAllLocations": false,
@@ -227,7 +293,7 @@
         "changedPaths": [
           "/header/overrideAllLocations"
         ],
-        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>CabWcRDW5JPeSkaRGwSHGzxbAL9gtpE5</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>true</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
+        "requestXmlRedacted": "<CardManagementEP_setCardv2 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><card><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>true</overrideAllLocations><originalStatus xsi:nil=\"true\"/><payrollStatus>FOLLOWS</payrollStatus><override>1</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></card></CardManagementEP_setCardv2>",
         "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:setCardv2Response xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
       }
     },
@@ -244,14 +310,14 @@
           "overrideAllLocations": false,
           "locationOverrideId": null
         },
-        "writeMs": 2332,
+        "writeMs": 2870,
         "writeErrorCode": null,
         "writeErrorMessage": null,
         "responseShape": "empty",
         "resultText": null,
         "readings": [
           {
-            "atMsAfterWrite": 658,
+            "atMsAfterWrite": 896,
             "version": "30195819f2c68c442ff7ea2b8acb0332e8e9ed1acb0753ea3068a0e764d035af",
             "overrideUses": 0,
             "overrideAllLocations": false,
@@ -263,8 +329,8 @@
         "changedPaths": [
           "/header/override"
         ],
-        "afterDocument": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>",
-        "requestXmlRedacted": "<CardManagementEP_deleteOverride><clientId>CabWcRDW5JPeSkaRGwSHGzxbAL9gtpE5</clientId><cardNumber>••••7671</cardNumber></CardManagementEP_deleteOverride>",
+        "afterDocument": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>••••7671</cardNumber><header><companyXRef>TEST-PAYEE-001</companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>POLICY</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>ACTIVE</status><timeSource>POLICY</timeSource><lastUsedDate>2026-08-11T12:43:00.000-05:00</lastUsedDate><lastTransaction>••••4524</lastTransaction><payrollUse>B</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>990</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>9900</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>Test Driver One</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>",
+        "requestXmlRedacted": "<CardManagementEP_deleteOverride><clientId>3QfVs99yJvtsrUFMGsx5jHj8gsNbMmjE</clientId><cardNumber>••••7671</cardNumber></CardManagementEP_deleteOverride>",
         "responseXmlRedacted": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:deleteOverrideResponse xmlns:ns5=\"http://com.tch.cards.service\" /></soapenv:Body></soapenv:Envelope>"
       }
     },

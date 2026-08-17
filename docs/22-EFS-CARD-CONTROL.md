@@ -1328,58 +1328,73 @@ be made to the card (i.e. status, add cash, etc.)"*, and nothing in the SOAP gui
 | **1** | **The echo override-clear LANDS on a card carrying an armed override.** `clear_override` at step 6, `landed: true`, with `overrideUses: 1` going in | `setCardv2` is therefore **not** wholesale frozen by an armed override, and our live production clear path — `overrideClearBehaviour`, the mechanism commented *"the one that is live today"* — works on the card state it actually runs against. It writes the override trio, which is numeric, so no casing question arises |
 | **2** | **`deleteOverride` is entitled on this account and lands.** Step 8, `http 200`, `landed: true`, no error code | **This closes D1's entitlement half, open since Phase 8.2.** The escape hatch is real. It takes only a card number, so again no casing exposure |
 
-### ⚠ And the third: the status write did not land, but the run cannot say why
+### ⚠ And the third: CONFIRMED on the second run — the freeze is real for the web service
 
-Step 4 sent `<status>Hold</status>` against a card reading `ACTIVE`, and got:
+**The first run could not answer this and said so.** It sent `<status>Hold</status>` to an account that
+stores `ACTIVE`, which is H1 exactly — this account answers a wrong-cased status with the identical
+void success and applies nothing, *"it is not slow, it is dead"* — so `landed: false` had two
+sufficient explanations. The drill was fixed (`matchAccountCasing`, so the write carries production's
+own bytes; plus a CONTROL run) and re-run the same day. The design error is written up below because
+it is the reusable part.
 
-| | |
-|---|---|
-| response | `<ns5:setCardv2Response/>` — `responseShape: "empty"`, `resultText: null`, **no fault** |
-| `writeErrorCode` / `writeErrorMessage` | `null` / `null` |
-| `changedPaths` | `["/header/status"]` — the request carried exactly one change and the echo was faithful |
-| three readings, 906 / 4600 / 10209 ms | `status: ACTIVE`, `overrideUses: 1`, **`version` identical to `versionBefore` on all three** |
+**The second run, `verdict: freeze_confirmed`. Two byte-identical writes, opposite outcomes:**
 
-**That is H1, not F9.** Compare the two rows directly:
+| step | sent | `overrideUses` going in | response | fault | landed |
+|---|---|---|---|---|---|
+| `1b` control | `<status>HOLD</status>` | **0** | `empty` | none | **true** |
+| `1c` control undo | `<status>ACTIVE</status>` | 0 | `empty` | none | true |
+| **`4` the test** | **`<status>HOLD</status>`** | **1** | `empty` | none | **false** |
 
-| | H1's revert, 2026-08-12 | This run, 2026-08-17 |
-|---|---|---|
-| wrote | `<status>Active</status>` — the guide's spelling, wrong casing for this account | `<status>Hold</status>` — the guide's spelling, wrong casing for this account |
-| read back | `HOLD`, `HOLD`, `HOLD` at ~0.7 / 4.4 / 10 s | `ACTIVE`, `ACTIVE`, `ACTIVE` at 0.9 / 4.6 / 10.2 s |
-| result | void success, silently ignored | void success, silently ignored |
+Same session, same card ••••7671, same casing — `HOLD`, matching the account's own vocabulary, which
+is what `matchStatusCasing` produces and what production's `card_lock` sends. The test's three
+verifying readings at **703 / 5179 / 11045 ms** all read `status: ACTIVE`, `overrideUses: 1`, and a
+`version` **identical to `versionBefore`**. The card did not move.
 
-H1's own conclusion — *"a wrong-cased write stays unapplied through at least three reads over ten
-seconds — it is not slow, it is dead"* — is a **sufficient explanation of this result on its own**, and
-this account stores `ACTIVE` upper-cased, so `matchStatusCasing("ACTIVE", "Hold")` returns `HOLD`.
-Production's `card_lock` would have sent `HOLD`. The drill sent `Hold`.
+**The override was the only variable.** That is the method H1 used on itself, and this is its answer:
 
-So the run has one uncontrolled variable, already proven able to produce exactly the observed outcome,
-and **Q6 remains open.** Not "leaning confirmed" — open.
+> **On this account, a card carrying an armed override silently ignores a `setCardv2` status change.**
+> WEX's portal sentence — *"when a card is in override no changes can be made to the card"* — is true
+> of the WEB SERVICE, not merely of the portal's screens.
 
-### The design error, because it is the reusable part
+### The shape of it, which is narrower than WEX's sentence
 
-The drill chose `variant: "standard"` and I argued that made it production-equivalent, on the grounds
-that `experimentEdits` uses the same `CardEdit` algebra as production. **That is true of the edit
-ALGEBRA and false of the VALUE.** The experiment endpoint sends the status verbatim on purpose — its
-own schema comment says *"Sent VERBATIM — casing is hypothesis H1"* — and the runbook quoted that
-comment while still claiming equivalence. Same algebra, different bytes.
+The freeze is **field-scoped, not card-scoped.** In the same run, with `overrideUses: 1` going in:
 
-It was caught only because the transcript recorded `statusSent`. A drill that had logged just
-`landed: false` would have produced a confident, wrong finding, and it is the second time in this
-workstream that "two sources agreeing about a third thing neither observed" has been the failure shape.
+- `6-clear_override` — the three-field echo clear, **landed**
+- `8-delete_override` — the dedicated op, **landed**
 
-**Two fixes, both shipped with this entry:**
+So `setCardv2` is not refused wholesale while an override is armed. The override trio remains writable
+— it must be, or no override could ever be cleared — and `status` does not. WEX's *"(i.e. status, add
+cash, etc.)"* names status first, and status is precisely what fails.
 
-1. `matchAccountCasing` on the `set_status` experiment — opts into production's own `matchStatusCasing`,
-   applied server-side from the document in hand so the rule is not reimplemented in a CLI. The
-   verbatim default is untouched: casing IS H1, and an endpoint that silently corrected it could never
-   have measured it. `statusSent` now reports the bytes **sent**, not the bytes requested.
-2. **A control run, which is the part that was actually missing.** The drill now writes the target
-   status with the account's casing and **no override armed**, proves it lands, undoes it, then arms the
-   override and repeats *the identical write*. That is the method H1 used on itself — *"same session,
-   same card, same request shape, same echo — the casing was the only variable"* — with the override as
-   the only variable this time. If the control fails, the verdict is `control_failed` and the run
-   asserts nothing about overrides.
+### ⚠ Why this is a safety finding and not a Phase 10 detail
 
-⚠ **Do not read result 1 as answering Q6 either.** The echo clear writes the override fields; a status
-write is what WEX's sentence actually names. That the vendor lets you clear an override on a card in
-override is unsurprising — otherwise no override could ever be cleared.
+**No capability checks `overrideUses` today.** `card_lock` is the 2am action for a stolen card and this
+codebase has deliberately kept it free of every kind of friction — no reason required (decision B1), no
+step-up (`CAPABILITIES_WITH_STEP_UP_GATE` omits it on purpose). On a card carrying an exception it now
+demonstrably does nothing, and the vendor gives **no signal at the response layer**: `responseShape:
+empty`, no fault, indistinguishable from success. Only the verifying re-read catches it, so the
+operator is told *"EFS accepted the request but the card is unchanged. Check the card in the WEX portal
+before retrying"* — which names neither the cause nor the remedy.
+
+`card_unlock`, `card_deactivate`, `prompts_set` and the mileage override are all in the same position.
+
+**The fix is owed and it jumps the Phase 10 queue.** Options and the trade-off are in
+`docs/28` §10; the one thing that is NOT acceptable is the current message, because at 2am it sends
+somebody to the portal to read a card rather than telling them to clear an exception.
+
+### The design error from the first run, because it is the reusable part
+
+The drill chose `variant: "standard"` and I argued that made the write production-equivalent, on the
+grounds that `experimentEdits` uses the same `CardEdit` algebra as production. **That is true of the
+edit ALGEBRA and false of the VALUE.** The experiment endpoint sends the status verbatim on purpose —
+its own schema comment says *"Sent VERBATIM — casing is hypothesis H1"* — and the runbook quoted that
+comment while claiming equivalence anyway. Same algebra, different bytes.
+
+It was caught only because the transcript records `statusSent`. A drill logging just `landed: false`
+would have produced a confident, correct-by-accident finding built on an invalid run — and the second
+run's control is what turned it into evidence.
+
+**Carry this:** an experiment is production-equivalent only if its VALUES are too. Pass
+`matchAccountCasing: true` for any status write meant to stand in for a real capability, and give a
+drill a CONTROL whenever its negative result has more than one available explanation.
