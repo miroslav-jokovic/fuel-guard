@@ -4,107 +4,110 @@
   "operations": 17,
   "requestBudget": 28,
   "truncated": [],
+  "promptTypesCached": {
+    "ok": true
+  },
   "steps": [
     {
       "operation": "getCarrierInfo",
       "ok": true,
-      "ms": 1274,
+      "ms": 345,
       "count": 1
     },
     {
       "operation": "getPromptTypes",
       "ok": true,
-      "ms": 1406,
+      "ms": 1707,
       "count": 41
     },
     {
       "operation": "getContracts",
       "ok": true,
-      "ms": 1350,
+      "ms": 1689,
       "count": 2
     },
     {
       "operation": "getCreditLimits(870634)",
       "ok": true,
-      "ms": 11544,
+      "ms": 2745,
       "count": 1
     },
     {
       "operation": "getCreditLimits(870635)",
       "ok": true,
-      "ms": 12406,
+      "ms": 2152,
       "count": 1
     },
     {
       "operation": "getPolicyDescriptions",
       "ok": true,
-      "ms": 3588,
+      "ms": 2331,
       "count": 3
     },
     {
       "operation": "getPolicy(1)",
       "ok": true,
-      "ms": 3869,
+      "ms": 1242,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(1)",
       "ok": true,
-      "ms": 424,
+      "ms": 752,
       "count": 1
     },
     {
       "operation": "getPolicy(2)",
       "ok": true,
-      "ms": 5878,
+      "ms": 2679,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(2)",
       "ok": true,
-      "ms": 2483,
+      "ms": 709,
       "count": 1
     },
     {
       "operation": "getPolicy(3)",
       "ok": true,
-      "ms": 4640,
+      "ms": 2362,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(3)",
       "ok": true,
-      "ms": 388,
+      "ms": 957,
       "count": 1
     },
     {
       "operation": "getProductGroups",
       "ok": true,
-      "ms": 1830,
+      "ms": 1705,
       "count": 77
     },
     {
       "operation": "getProducts",
       "ok": true,
-      "ms": 1507,
+      "ms": 1727,
       "count": 93
     },
     {
       "operation": "getLocationGroupDescriptions",
       "ok": true,
-      "ms": 1908,
+      "ms": 1542,
       "count": 9
     },
     {
       "operation": "getSitePolicyDescriptions",
       "ok": true,
-      "ms": 8527,
+      "ms": 2649,
       "count": 0
     },
     {
       "operation": "serverTime",
       "ok": true,
-      "ms": 337,
+      "ms": 687,
       "count": 1
     }
   ],
@@ -1927,7 +1930,7 @@
       }
     ],
     "sitePolicies": [],
-    "serverTime": "2026-08-16T13:01:04.000-05:00",
+    "serverTime": "2026-08-16T21:25:19.000-05:00",
     "sampledCards": []
   }
 }
