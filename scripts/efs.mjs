@@ -943,6 +943,40 @@ switch (command) {
         console.error(JSON.stringify(lock.body?.readings ?? lock.body, null, 2));
         record("5-read_state", await experiment({ experiment: "read_state" }));
 
+        /**
+         * ── 5b. The COMBINED write — what `card_lock` now sends for `clearException` ───────────────
+         *
+         * H16 answered the two halves separately: a status-only write is ignored while an override is
+         * armed, and an override-only clear lands. It never asked what happens when ONE request
+         * carries both, which is exactly what the shipped clear-and-lock does. If EFS evaluates the
+         * status against the card's PRE-clear state, the exception goes and the status does not, so
+         * Option B is two presses rather than one — recoverable and loud, but worth knowing.
+         *
+         * The edits are `overrideClearEdits()` itself, appended server-side, so these are the bytes
+         * production sends and not an imitation of them.
+         */
+        if (!lockLanded) {
+          console.error("\nTHE FOLLOW-UP: the same status change, this time WITH the override clear riding along…");
+          const combined = record("5b-set_status(combined)", await experiment({
+            experiment: "set_status", status: target, variant: "standard",
+            matchAccountCasing: true, clearOverride: true, confirm,
+          }));
+          const combinedLanded = combined.body?.landed === true;
+          const readAfter = record("5c-read_state", await experiment({ experiment: "read_state" }));
+          const exceptionGone = (readAfter.body?.overrideUses ?? 1) === 0;
+          if (exceptionGone) armed = false;
+          verdict = combinedLanded ? "freeze_confirmed_combined_works" : "freeze_confirmed_combined_needs_two";
+          console.error(
+            combinedLanded
+              ? "\n✓ ONE PRESS IS ENOUGH. The status landed in the same write that cleared the exception,\n"
+                + "  so card_lock's clearException does what its confirmation promises.\n"
+              : `\n✗ TWO PRESSES. The exception is ${exceptionGone ? "GONE" : "still armed"} and the status did not\n`
+                + "  land, so EFS judged the status against the card's state on ARRIVAL. clearException\n"
+                + "  still helps — the second press succeeds because the exception is no longer in the way —\n"
+                + "  but the confirmation currently implies one action and delivers two. Worth fixing.\n",
+          );
+        }
+
         // ── 6. The live production clear, on the card state it actually runs against ────────────────
         const echoClear = record("6-clear_override", await experiment({ experiment: "clear_override", confirm }));
         const echoCleared = echoClear.body?.landed === true;
