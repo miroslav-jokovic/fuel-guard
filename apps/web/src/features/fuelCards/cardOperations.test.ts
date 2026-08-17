@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
@@ -106,7 +106,7 @@ describe("every operation is renderable end to end", () => {
       // does not have is the only version of this that stays true.
       const body = op.body({
         ...emptyDraft("Hold"),
-        prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }],
+        prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }],
       });
       expect(operationConfirmation(op, body, { maskedRef: "••••7671", card }), `${op.id} confirmation`).not.toBeNull();
       expect(Array.isArray(operationDiff(op, card, body)), `${op.id} diff`).toBe(true);
@@ -153,8 +153,8 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
       targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
       addInfoId: "UNIT" as const,
       prompts: [
-        { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false },
-        { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false },
+        { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
+        { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
       ],
     };
     const body = operationById("promptAdd")!.body(draft) as { prompts: unknown[]; allowRemoveDriverId: boolean };
@@ -167,7 +167,7 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
     const draft = {
       targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
       addInfoId: "UNIT" as const,
-      prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false }],
+      prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }],
     };
     expect(operationById("promptAdd")!.blocker!(draft)).toContain("value the driver must type");
   });

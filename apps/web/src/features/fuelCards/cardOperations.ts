@@ -5,6 +5,7 @@ import {
   EFS_EDITABLE_INFO_IDS,
   type EfsEditableInfoId,
   EFS_WRITABLE_STATUSES,
+  PROMPT_INPUT_UNSET,
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
@@ -76,7 +77,13 @@ export interface OperationDraft {
   location: EfsLocation | null;
   prompts: PromptInput[];
   /** Which prompt `promptAdd` is adding. Seeded to the first the card lacks. */
-  addInfoId: EfsEditableInfoId | null;
+  /**
+   * Step 9.2 widened this from `EfsEditableInfoId` — the DRID/UNIT union — to a plain string, for the
+   * same reason `promptInputSchema.infoId` widened: which ids are addable is a per-ACCOUNT fact
+   * resolved at runtime, and a compile-time union can only ever be right for an account that happens
+   * to match it.
+   */
+  addInfoId: string | null;
 }
 
 export interface CardOperationSpec {
@@ -323,6 +330,7 @@ export const promptDrafts = (
       matchValue: p.matchValue,
       reportValue: p.reportValue,
       remove: false,
+      ...PROMPT_INPUT_UNSET,
     }));
 
 /** The capability and scope THIS draft would write through — see `capabilityFor`. */
@@ -362,6 +370,7 @@ export const seedDraftFor = (
       // EXACT_MATCH by default: a prompt the pump only RECORDS stops nobody, and the operator can
       // downgrade it deliberately. Defaulting the other way makes the weaker choice the silent one.
       validationType: "EXACT_MATCH",
+      ...PROMPT_INPUT_UNSET,
       matchValue: "",
       reportValue: null,
       remove: false,

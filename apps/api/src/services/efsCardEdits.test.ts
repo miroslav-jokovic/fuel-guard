@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../lib/efsCardEcho.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
-import type { PromptInput } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET, type PromptInput } from "@fuelguard/shared";
 import {
   lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits as promptsEditsFor, unlockEdits,
 } from "./efsCardEdits.js";
@@ -149,8 +149,8 @@ describe("prompts — full replace without collateral damage", () => {
     expect(drid.lengthCheck).not.toBeNull(); // the fixture carries fields the API never surfaces
 
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false, ...PROMPT_INPUT_UNSET },
     ]);
     const xml = request(before, plan.edits);
 
@@ -168,7 +168,7 @@ describe("prompts — full replace without collateral damage", () => {
     expect(before.card.infos.some((i) => i.infoId === "ODRD")).toBe(true); // the fixture must carry one
 
     const submitted: readonly PromptInput[] = [
-      { infoId: "ODRD" as PromptInput["infoId"], validationType: "REPORT_ONLY", matchValue: null, reportValue: "441022", remove: false },
+      { infoId: "ODRD", validationType: "REPORT_ONLY", matchValue: null, reportValue: "441022", remove: false, ...PROMPT_INPUT_UNSET },
     ];
     expect(request(before, promptsEditsFor(before, submitted, ["DRID", "UNIT", "ODRD"]).edits))
       .toContain("<reportValue>441022</reportValue>");
@@ -190,7 +190,7 @@ describe("prompts — full replace without collateral damage", () => {
     const others = before.card.infos.filter((i) => i.infoId !== "DRID" && i.infoId !== "UNIT");
     expect(others.length).toBeGreaterThan(0); // the fixture has to actually exercise this
 
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: false }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }]);
     const xml = request(before, plan.edits);
     for (const other of others) expect(xml).toContain(`<infoId>${other.infoId}</infoId>`);
   });
@@ -198,8 +198,8 @@ describe("prompts — full replace without collateral damage", () => {
   it("reports an explicit removal rather than performing one silently", () => {
     const before = doc();
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: true },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: true, ...PROMPT_INPUT_UNSET },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false, ...PROMPT_INPUT_UNSET },
     ]);
     expect(plan.removedInfoIds).toContain("DRID");
     const xml = request(before, plan.edits);
@@ -208,7 +208,7 @@ describe("prompts — full replace without collateral damage", () => {
 
   it("appends a prompt the card has never had", () => {
     const before = doc("getCardV2.empty.xml");
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }]);
     const xml = request(before, plan.edits);
     expect(xml).toContain("<infoId>DRID</infoId>");
     expect(xml).toContain("<matchValue>D-1</matchValue>");
@@ -217,8 +217,8 @@ describe("prompts — full replace without collateral damage", () => {
   it("does not remove a REPORT_ONLY prompt when the operator changes nothing", () => {
     const before = doc();
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false, ...PROMPT_INPUT_UNSET },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false, ...PROMPT_INPUT_UNSET },
     ]);
     const xml = request(before, plan.edits);
     expect(plan.removedInfoIds).toEqual([]);
@@ -230,8 +230,8 @@ describe("prompts — full replace without collateral damage", () => {
   it("writes reportValue, not matchValue, when switching EXACT_MATCH to REPORT_ONLY", () => {
     const before = doc();
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false, ...PROMPT_INPUT_UNSET },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false, ...PROMPT_INPUT_UNSET },
     ]);
     const xml = request(before, plan.edits);
     expect(xml).toContain("<matchValue></matchValue>");
@@ -242,6 +242,7 @@ describe("prompts — full replace without collateral damage", () => {
     const before = doc("getCardV2.empty.xml");
     const plan = promptsEdits(before, [{
       infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false,
+      ...PROMPT_INPUT_UNSET,
     }]);
     const xml = request(before, plan.edits);
     expect(xml).toContain("<validationType>REPORT_ONLY</validationType>");
@@ -250,7 +251,7 @@ describe("prompts — full replace without collateral damage", () => {
 
   it("records before and after for the audit trail", () => {
     const before = doc();
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }]);
     expect(plan.before.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-4471");
     expect(plan.after.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-9999");
   });
@@ -267,7 +268,7 @@ describe("prompts — full replace without collateral damage", () => {
     const before = parseCardDocument(nestedInfos);
 
     expect(() =>
-      promptsEdits(before, [{ infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "4242", reportValue: null, remove: false }]),
+      promptsEdits(before, [{ infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "4242", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }]),
     ).toThrow(/nested container/);
   });
 });

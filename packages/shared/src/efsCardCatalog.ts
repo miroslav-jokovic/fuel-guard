@@ -161,6 +161,18 @@ export const EFS_VALIDATION_TYPES = [
 ] as const;
 export type EfsValidationType = (typeof EFS_VALIDATION_TYPES)[number];
 
+/**
+ * Upper bound for an ACCRUAL_CHECK accrual value.
+ *
+ * The vendor gives no explicit ceiling: `WSCardInfo.value` is `int` in the WSDL, "String" on the
+ * guide's card pages (p36, p135, p138) and "int(24)" on setPolicy (p146). Production's own ODRD
+ * records carry `maximum: 1800` alongside the ACCRUAL_CHECK, so the account is working in the low
+ * thousands of miles. 9,999,999 is the widest value that still fits every one of those declarations
+ * and still refuses a fat-fingered nine-digit entry — chosen as a sanity bound on what WE send, in
+ * the same spirit as `EFS_LIMIT_MAX`, not as a claim about what EFS accepts.
+ */
+export const EFS_PROMPT_ACCRUAL_MAX = 9_999_999;
+
 /** The three info IDs DYNAMIC may be combined with (p36, p136). */
 export const EFS_DYNAMIC_INFO_IDS = ["CNTN", "PPIN", "DRID"] as const;
 

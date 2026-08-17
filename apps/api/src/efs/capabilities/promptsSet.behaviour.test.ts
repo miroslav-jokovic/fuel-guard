@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import { type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
@@ -127,9 +128,9 @@ const setPrompts = (
   );
 
 const keepUnit: PromptInput =
-  { infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null, remove: false };
+  { infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET };
 const dropDriverId: PromptInput =
-  { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: null, reportValue: null, remove: true };
+  { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: null, reportValue: null, remove: true, ...PROMPT_INPUT_UNSET };
 
 const inserted = (rec: SupabaseRecorder) =>
   rec.forTable("efs_card_mutations").filter((q) => q.write?.method === "insert");

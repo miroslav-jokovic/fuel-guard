@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { EFS_MATCH_VALUE_MAX, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
+import { EFS_MATCH_VALUE_MAX, PROMPT_INPUT_UNSET, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
@@ -86,6 +86,7 @@ function chooseAdded(infoId: string): void {
     prompts: [...keep, {
       infoId: infoId as PromptInput["infoId"],
       validationType: "EXACT_MATCH", matchValue: "", reportValue: null, remove: false,
+      ...PROMPT_INPUT_UNSET,
     }],
   });
 }

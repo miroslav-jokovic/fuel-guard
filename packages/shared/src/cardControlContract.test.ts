@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deactivateCardSchema, grantOverrideSchema, lockCardSchema, setPromptsSchema, unlockCardSchema } from "./cardControlContract.js";
+import { EFS_DYNAMIC_INFO_IDS, EFS_INFO_LABELS, EFS_VALIDATION_TYPES } from "./efsCardCatalog.js";
 // The permission vocabulary and the settings shapes moved here in Step 3.7's split. Imported from
 // the module rather than the package index, so this file keeps saying which one owns each symbol.
 import {
@@ -175,6 +176,80 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
         { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "222", reportValue: null },
       ],
     }).success).toBe(false);
+  });
+
+  // ─── Step 9.2: seven validation types, the accrual, and the bounds ──────────────────────────
+  const one = (prompt: Record<string, unknown>) =>
+    setPromptsSchema.safeParse({ ...base, prompts: [{ matchValue: null, reportValue: null, ...prompt }] });
+
+  it("accepts all SEVEN validation types the card pages list", () => {
+    // p36, p135, p138. The POLICY pages (p84, p146) list six and omit DYNAMIC — this is a card
+    // write, so seven is right here, and the asymmetry is the vendor's rather than a transcription
+    // slip. EXACT_MATCH and ACCRUAL_CHECK carry their own required companion field.
+    const companions: Record<string, Record<string, unknown>> = {
+      EXACT_MATCH: { matchValue: "D-1" },
+      ACCRUAL_CHECK: { value: 1800 },
+      DYNAMIC: { infoId: "CNTN" },
+    };
+    for (const validationType of EFS_VALIDATION_TYPES) {
+      const parsed = one({ infoId: "DRID", validationType, ...(companions[validationType] ?? {}) });
+      expect(parsed.success, `${validationType} should be accepted`).toBe(true);
+    }
+  });
+
+  it("refuses a validation type the guide does not name", () => {
+    expect(one({ infoId: "DRID", validationType: "FUZZY_MATCH" }).success).toBe(false);
+  });
+
+  it("refuses DYNAMIC on anything but CNTN, PPIN and DRID", () => {
+    // "DYNAMIC can only be used with CNTN, PPIN and DRID" (p36, p136).
+    for (const infoId of EFS_DYNAMIC_INFO_IDS) {
+      expect(one({ infoId, validationType: "DYNAMIC" }).success, `${infoId} pairs with DYNAMIC`).toBe(true);
+    }
+    for (const infoId of ["UNIT", "ODRD", "NAME"]) {
+      expect(one({ infoId, validationType: "DYNAMIC" }).success, `${infoId} does not`).toBe(false);
+    }
+  });
+
+  it("refuses ACCRUAL_CHECK without an accrual above zero", () => {
+    // A zero accrual is the guide's own "not configured" sentinel — production carries exactly that
+    // on both policies (docs/25 Q3). Accepting it from an operator who has just chosen odometer
+    // following would record a decision that does nothing.
+    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK" }).success).toBe(false);
+    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK", value: 0 }).success).toBe(false);
+    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK", value: 1800 }).success).toBe(true);
+  });
+
+  it("refuses bounds without the flag that makes EFS check them", () => {
+    // "Only checked if lengthCheck is true" (p36, p135). Sending bounds without it is not a weaker
+    // version of the feature — it is a no-op the vendor accepts and ignores (audit W3).
+    expect(one({ infoId: "UNIT", validationType: "NUMERIC", minimum: 4 }).success).toBe(false);
+    expect(one({ infoId: "UNIT", validationType: "NUMERIC", maximum: 8 }).success).toBe(false);
+    expect(one({ infoId: "UNIT", validationType: "NUMERIC", lengthCheck: true, minimum: 4, maximum: 8 }).success).toBe(true);
+    expect(one({ infoId: "UNIT", validationType: "NUMERIC", lengthCheck: true, minimum: 9, maximum: 8 }).success).toBe(false);
+  });
+
+  it("takes an infoId the OLD enum would have refused, and still refuses a malformed one", () => {
+    // The widening itself. `ODRD` is in the guide's table and in both accounts; whether THIS account
+    // offers it is a runtime fact, answered by the resolved set rather than at parse time.
+    expect(one({ infoId: "ODRD", validationType: "REPORT_ONLY" }).success).toBe(true);
+    for (const infoId of ["DR", "DRIDX", "dr1d", ""]) {
+      expect(one({ infoId, validationType: "REPORT_ONLY" }).success, `${infoId} is not an Info ID`).toBe(false);
+    }
+  });
+
+  it("no longer caps the array at two, and still refuses more than the vendor defines", () => {
+    // The old cap was EFS_EDITABLE_INFO_IDS.length — a compile-time guess at a per-account fact that
+    // would have refused a legitimate five-prompt card the moment Step 9.1 widened the set.
+    const five = ["DRID", "UNIT", "ODRD", "TRIP", "TRLR"].map((infoId) => ({
+      infoId, validationType: "REPORT_ONLY" as const, matchValue: null, reportValue: null,
+    }));
+    expect(setPromptsSchema.safeParse({ ...base, prompts: five }).success).toBe(true);
+
+    const tooMany = Object.keys(EFS_INFO_LABELS).concat("ZZZZ").map((infoId) => ({
+      infoId, validationType: "REPORT_ONLY" as const, matchValue: null, reportValue: null,
+    }));
+    expect(setPromptsSchema.safeParse({ ...base, prompts: tooMany }).success).toBe(false);
   });
 });
 
