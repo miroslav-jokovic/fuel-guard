@@ -113,7 +113,11 @@ compares the returned mileage is exactly right.
 
 ---
 
-## 4. ⚠ The override is the first NON-CARD write, and that is a real cost
+## 4. The override is the first non-card write — a cost only if we route it through the card ledger
+
+> ⚠ **Read §5a and §6 before acting on this section.** It originally concluded "its own phase", and
+> that estimate was written before anyone measured that `ODRD` never appears on a card. The costs
+> below are real but they are CONDITIONAL on routing the write through the card-mutation ledger.
 
 `overrideLastMileage` targets a **unit**. Today:
 
@@ -133,7 +137,13 @@ So "add the odometer override" is **not** a small feature. It needs, in order:
 4. A unit→card resolution story: our mirror links cards to units through the `UNIT` prompt
    (`docs/22` H13 notes 29 production cards lack one), so "which unit" is answerable but not free.
 
-Estimate this as its own phase, not a step inside Phase 9.
+**All four costs above apply only if this goes through the card-mutation ledger.** The alternative —
+a plain audited vendor write with `writeAudit` and a `getLastMileage` re-read, outside the capability
+registry — carries none of them and is proportionate to one operator correcting a GPS glitch. The
+re-read is required either way, because the operation returns nothing (§3).
+
+Decide between the two when building it, against §5a. Do not carry "its own phase" forward as
+settled: it was my estimate, made before the card-level measurement, and §6 withdraws it.
 
 ---
 
