@@ -150,17 +150,51 @@ is the only thing that can contradict a plausible misreading of the vendor's pro
 
 ---
 
+## 5a. ⚠ `ODRD` NEVER appears on a card — this is read-mostly integration
+
+Measured across every document both accounts have produced — 199 production, 35 QA:
+
+```
+Card-level info ids:  DRID  NAME  TRIP  TRLR  UNIT  CNTN  DLIC  DLST
+Policy-level:         ODRD / ACCRUAL_CHECK   (policy 1 AND policy 2)
+```
+
+**Not one card carries `ODRD`.** Odometer following is a POLICY setting applied fleet-wide and set
+automatically when a card is assigned — exactly as Miki described the product behaving.
+
+This kills the card-level accrual editor Step 9.3 specifies. It would be a control for a field
+nobody configures per card, on a surface where every extra control is a way to break a pump. The step
+was written from the guide's field list without asking where the field actually appears.
+
+**Miki's framing, and it is the right one:** *"we are not building an EFS system, we are just
+implementing it into ours — our system should pull the things set for our company by policy and then
+use them."* The data agrees. For odometer following we READ the policy's window and DISPLAY it. We do
+not write it.
+
+The one exception is §6's E′, and it earns its place for a reason specific to this product rather
+than to EFS: **we hold the GPS truth.** Samsara gives us the real odometer; EFS keeps a copy that
+goes stale. Correcting that copy is integration work, and it is the task Miki performs by hand today.
+
+---
+
 ## 6. Proposed scope
 
 | # | Change | Verify | Cost |
 |---|---|---|---|
 | **A** | `doesCardPosition` added to the account-inventory walk | The inventory reports it for both orgs; recorded in `docs/25` as a thirteenth question | one call, hours |
 | **B** | Model `gpsid` / `vin` / `zid` from `WSCardSummary`; surface on the card page | A card with a GPS ID shows it; `MODELLED_CARD_FIELDS` parity test still green | small |
-| **C** | Step 9.3 UI writes the odometer window to `minimum`/`maximum` | *"an ACCRUAL_CHECK prompt carries M and X onto the wire"*, asserting exact bytes, with production's record as the round-trip fixture | small |
-| **D** | `getLastMileage` as a read | The reading for a known unit matches the WEX portal | small |
-| **E** | `overrideLastMileage` as a capability | Full OEG. Needs §4's target kind, ledger adapter and migration first | **own phase** |
+| ~~**C**~~ | ~~Card-level accrual editor~~ | **DROPPED — see §5a. `ODRD` is policy-only; no card has ever carried it** | — |
+| **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | The reading for a known unit matches the WEX portal | small |
+| **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | The correction Miki does by hand. The op returns nothing (§3), so the re-read is not optional — without it the button reports success whether or not the vendor acted | small–medium |
 
-A–D are Phase 9-sized. **E is not.**
+A, B, D and E′ are read-mostly integration with a single write, which is the right shape.
+
+**§4's architecture cost applies only if E′ is routed through the card-mutation ledger.** It targets a
+unit and that ledger keys on a card, so the honest choice is: either accept a plain audited write
+(`writeAudit`, re-read verification, no capability triple) or pay for the second `LedgerAdapter`.
+The first is proportionate to one operator action correcting a GPS glitch. Decide it when building
+E′, not before — but do not let "it needs its own phase" stand unexamined, because that was written
+before §5a was measured.
 
 ## 7. Open questions for WEX
 
