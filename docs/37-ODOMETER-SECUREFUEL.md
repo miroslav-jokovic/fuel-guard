@@ -468,6 +468,52 @@ vocabulary would be a second mapping to keep correct for no gain.
 
 ---
 
+## 6d. First live read — and the number that turns this into a product
+
+**Production, unit 688, 2026-08-17.** One `getLastMileage`, read-only:
+
+```json
+{ "unit": "688", "code": "ODRD", "efsMileage": 258536, "knownVehicle": true,
+  "ourMileage": 258747.7, "odometerOffset": 0, "drift": 212 }
+```
+
+**`258536` is the value on the WEX portal screenshot taken 2026-08-16.** That is the first fact in
+this whole integration checked against something a human has seen the vendor display, rather than
+against a fixture written from the WSDL by the same person who wrote the parser. It proves the SOAP
+path end to end: the `<search>` wrapper read from the WSDL rather than guessed at, the `ODRD` wire
+code rather than the portal's "odometer" label, and the single-unit filter §3 could only assume.
+
+### ⚠ `drift` is the operational number, and 1800 is a ceiling
+
+EFS's copy is **212 miles behind** ours. Set that against §2's window — production's policies carry
+`minimum: 1, maximum: 1800` — and the shape of the whole feature falls out:
+
+- A driver entering the true odometer today shows an accrual of ~212 against EFS's stored reading.
+  Inside the 1–1800 band, so the pump accepts it. **The fleet is working, and now we can say why.**
+- A truck whose EFS copy falls more than **1800 miles** behind is a truck whose driver gets DECLINED
+  at the pump, for a reason no screen in this product currently explains — and Miki's "we sometimes
+  have to override the mileage" (§1) is the manual repair for exactly that state.
+- Which means **drift is monitorable and the threshold is knowable in advance.** This stops being an
+  integration and becomes a product the moment we read every unit's drift instead of one.
+
+⚠ The 1800 ceiling reading still depends on §7 Q1's unconfirmed DIRECTION. It is safe to MONITOR on
+that basis — a list of trucks sorted by drift is useful under any reading of the window — but no UI
+sentence should tell an operator *"this truck will be declined"* until WEX confirms it. Sorting by
+drift makes no claim; that sentence does.
+
+### The cheap next step, and it is still read-only
+
+`getLastMileage` takes empty criteria as "every unit" — the wire equivalent of the portal's **All**
+radio, already covered by the parser and its fixture. So **one call** plausibly returns the whole
+fleet's stored readings, which joined against `vehicles.current_odometer` gives fleet-wide drift for
+the cost of a single vendor request. It would also settle §7 Q3 in passing.
+
+That is the next thing to build, and it should come BEFORE the override write: knowing which trucks
+are drifting is what tells an operator which one to correct, and §6c has already established that the
+first override lands on production with no QA rehearsal behind it.
+
+---
+
 ## 7. Open questions for WEX
 
 > **A pass over the guide and the WSDL on 2026-08-17 tried to close 1, 2c and 2d without WEX.** It
