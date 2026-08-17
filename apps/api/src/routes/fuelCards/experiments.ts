@@ -200,7 +200,7 @@ export function fuelCardExperimentsRouter(): Router {
               before, grant.uses,
               grant.locationId !== undefined
                 ? { kind: "location" as const, locationId: grant.locationId }
-                : { kind: "all" as const },
+                : { kind: "all" as const }, [], // `[]`: a probe does not delete a card's limits
             )
           : overrideClearEdits();
         /** What the trio's count should read once the write lands. */

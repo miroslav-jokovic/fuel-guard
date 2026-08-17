@@ -6,7 +6,8 @@ import { parseCardDocument } from "../lib/efsCardXml.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { PROMPT_INPUT_UNSET, type PromptInput } from "@fuelguard/shared";
 import {
-  lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits as promptsEditsFor, unlockEdits,
+  lockEdits, overrideClearEdits, overrideGrantEdits, overrideLimitsBefore,
+  promptsEdits as promptsEditsFor, unlockEdits,
 } from "./efsCardEdits.js";
 
 /**
@@ -104,14 +105,14 @@ describe("H1 — the write is spelled in the account's own casing", () => {
 describe("override — the p194 recipes", () => {
   it("all locations: overrideAllLocations=true and override = uses", () => {
     const before = doc();
-    const xml = request(before, overrideGrantEdits(before, 2, { kind: "all" }));
+    const xml = request(before, overrideGrantEdits(before, 2, { kind: "all" }, []));
     expect(xml).toContain("<override>2</override>");
     expect(xml).toContain("<overrideAllLocations>true</overrideAllLocations>");
   });
 
   it("single location: the 6-digit id, all-locations false, override = uses", () => {
     const before = doc();
-    const xml = request(before, overrideGrantEdits(before, 1, { kind: "location", locationId: "442013" }));
+    const xml = request(before, overrideGrantEdits(before, 1, { kind: "location", locationId: "442013" }, []));
     expect(xml).toContain("<locationOverride>442013</locationOverride>");
     expect(xml).toContain("<overrideAllLocations>false</overrideAllLocations>");
     expect(xml).toContain("<override>1</override>");
@@ -122,15 +123,133 @@ describe("override — the p194 recipes", () => {
     // a card already carrying last week's truck stop must not end up asserting both scopes at once.
     const before = doc("getCardV2.overridden.xml");
     expect(before.card.locationOverrideId).not.toBeNull();
-    const xml = request(before, overrideGrantEdits(before, 3, { kind: "all" }));
+    const xml = request(before, overrideGrantEdits(before, 3, { kind: "all" }, []));
     expect(xml).toContain("<locationOverride>0</locationOverride>");
     expect(xml).toContain("<overrideAllLocations>true</overrideAllLocations>");
   });
 
   it("does not touch locationOverride on a card that never had one", () => {
     const before = doc(); // locationOverride is "0" — already the no-id value
-    const edits = overrideGrantEdits(before, 1, { kind: "all" });
+    const edits = overrideGrantEdits(before, 1, { kind: "all" }, []);
     expect(edits.some((e) => e.name === "locationOverride")).toBe(false);
+  });
+
+  it("a product-limit override sends the p194 limits array, in sequence position", () => {
+    // The guide's own worked example, verbatim: "if you want to allow ULSD for 1000 gallons, you would
+    // put <hours>1</hours><limit>1000</limit><limitId>ULSD</limitId><minHours>0</minHours>".
+    const before = doc();
+    const xml = request(before, overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+    ]));
+
+    // Exact bytes, in WSCardLimitv2's declared field order — not four separate contains().
+    expect(xml).toContain("<limits><hours>1</hours><limit>1000</limit><limitId>ULSD</limitId><minHours>0</minHours></limits>");
+    // Exactly one record: the override REPLACES the card's limits, it does not add to them.
+    expect(xml.match(/<limits>/g)).toHaveLength(1);
+    expect(xml).toContain("<override>1</override>");
+    expect(xml).toContain("<overrideAllLocations>true</overrideAllLocations>");
+    // In sequence: after <infos>, before <locationGroups>. WSCardv2's <sequence> is ordered, and this
+    // vendor answers a shape it did not expect with a void success (audit W3).
+    expect(xml.indexOf("<limits>")).toBeGreaterThan(xml.indexOf("<infos>"));
+    expect(xml.indexOf("<limits>")).toBeLessThan(xml.indexOf("<locationGroups>"));
+  });
+
+  it("names every pre-existing limit in removals — and the guard is what makes that necessary", () => {
+    // ⚠ THE STEP 10.1 PLAN ERROR. It specified `removals: []`, which passes on a card whose <limits>
+    // is already empty — the one card Step 10.4 proves on — and is refused on every card that has any.
+    //
+    // getCardV2.full.xml carries ULSD 250 and CADV 100. The override mentions only ULSD, so BOTH are
+    // omissions as far as the guard is concerned: CADV disappears entirely, and ULSD is rebuilt.
+    const before = doc();
+    const edits = overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+    ]);
+    const replace = edits.find((e) => e.op === "replaceAll" && e.name === "limits");
+    expect(replace?.op === "replaceAll" && replace.removals).toEqual(["ULSD", "CADV"]);
+
+    // The fix sends.
+    expect(() => request(before, edits)).not.toThrow();
+
+    // THE POSITIVE CONTROL: the same edit list with removals emptied — the plan as written — is
+    // refused. Without this assertion the one above passes whether or not removals does anything.
+    const asPlanned = edits.map((e) =>
+      (e.op === "replaceAll" && e.name === "limits" ? { ...e, removals: [] } : e));
+    expect(() => request(before, asPlanned)).toThrow(/drops <limits> record "CADV"/);
+  });
+
+  it("survives a card whose limit record carries the auto-roll fields the override omits", () => {
+    // The SECOND reason removals cannot be empty, independent of the first. getCardV2.autoRoll.xml's
+    // ULSD record has autoRollMap and autoRollMax; p194's override record has four fields and neither.
+    // The guard's field-drop branch reads an omitted field as a DELETED field, so "reuse the existing
+    // record and change the amount" is not a way round this — naming the id is.
+    const before = doc("getCardV2.autoRoll.xml");
+    const edits = overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+    ]);
+    expect(() => request(before, edits)).not.toThrow();
+    expect(request(before, edits)).not.toContain("autoRoll");
+
+    // POSITIVE CONTROL: unnamed, it is the field-drop refusal rather than the record-drop one.
+    const unnamed = edits.map((e) =>
+      (e.op === "replaceAll" && e.name === "limits" ? { ...e, removals: ["DEF"] } : e));
+    expect(() => request(before, unnamed)).toThrow(/<autoRollMap>.*from <limits> record "ULSD"/);
+  });
+
+  it("introduces the limits collection on a card that has none — Step 10.4's empty-limits card", () => {
+    // The case the reserved QA card exists to prove, run offline first because that card is consumed
+    // by its first use (docs/24 §3.3) and the sequence position cannot be re-proven on it afterwards.
+    //
+    // Built by stripping <limits> from a full card rather than using getCardV2.empty.xml: the QA card
+    // is a card with the OTHER collections and no limits, so a fixture with no collections at all
+    // cannot show where the new one lands. `empty.xml` has no <locationGroups> to land before.
+    const before = parseCardDocument(
+      fixture("getCardV2.full.xml").replace(/\s*<limits>[\s\S]*?<\/limits>/g, ""),
+    );
+    expect(before.card.limits).toHaveLength(0);
+    const xml = request(before, overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+    ]));
+    expect(xml).toContain("<limitId>ULSD</limitId>");
+    expect(xml.indexOf("<limits>")).toBeGreaterThan(xml.indexOf("<infos>"));
+    expect(xml.indexOf("<limits>")).toBeLessThan(xml.indexOf("<locationGroups>"));
+
+    // Nothing to remove, so nothing is named — the ONE shape the plan's `removals: []` was right for,
+    // and the reason the error would have passed 10.4 and failed on the first real card.
+    const replace = overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+    ]).find((e) => e.op === "replaceAll");
+    expect(replace?.op === "replaceAll" && replace.removals).toEqual([]);
+  });
+
+  it("multiple products in one override — the portal's Save and Add Another", () => {
+    const before = doc();
+    const xml = request(before, overrideGrantEdits(before, 2, { kind: "all" }, [
+      { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
+      { limitId: "DEF", limit: 50, hours: 24, minHours: 0 },
+    ]));
+    expect(xml.match(/<limits>/g)).toHaveLength(2);
+    expect(xml).toContain("<limitId>DEF</limitId>");
+  });
+
+  it("a scope-only override leaves the card's limits completely alone", () => {
+    // The ordinary case, and the boundary that matters: no limits submitted means no limits EDIT, so
+    // the records are echoed byte-identical rather than rebuilt from a typed view.
+    const before = doc();
+    const edits = overrideGrantEdits(before, 2, { kind: "all" }, []);
+    expect(edits.some((e) => e.name === "limits")).toBe(false);
+    const xml = request(before, edits);
+    expect(xml).toContain("<limitId>CADV</limitId>");
+    expect(xml).toContain("<limit>250</limit>"); // ULSD, untouched
+  });
+
+  it("records the limits the override deleted, so a failed restore is recoverable", () => {
+    // Step 10.1's half of the §1.2 question. Nothing in the guide promises EFS restores these when the
+    // override is cleared; this is what makes the answer survivable whichever way 10.4 goes.
+    expect(overrideLimitsBefore(doc())).toEqual([
+      { hours: "24", limit: "250", limitId: "ULSD", minHours: "4" },
+      { hours: "168", limit: "100", limitId: "CADV", minHours: "0" },
+    ]);
+    expect(overrideLimitsBefore(doc("getCardV2.empty.xml"))).toEqual([]);
   });
 
   it("clearing disarms all three fields unconditionally", () => {

@@ -201,6 +201,23 @@ export const EFS_OVERRIDE_MAX_USES = 9;
 export const EFS_MATCH_VALUE_MAX = 24;
 /** Limit values are numeric(4), 0–9999 (p36). */
 export const EFS_LIMIT_MAX = 9999;
+/**
+ * `hours` and `minHours` are both `int (3)` on the guide's limits table (p36) — so 0–999.
+ *
+ * Read from the FIELD TABLE, not from p194's recipe, which only ever shows `hours: 1`. 999 hours is
+ * about six weeks; the account's own records run to 168 (a week), so this bounds a typo rather than
+ * a legitimate window. Same spirit as `EFS_LIMIT_MAX`: a bound on what WE send.
+ */
+export const EFS_LIMIT_HOURS_MAX = 999;
+/**
+ * How many products one override may open at once.
+ *
+ * Not a vendor number — the guide states no ceiling and `WSCardv2.limits` is unbounded. It is a
+ * blast-radius bound: an override REPLACES the card's limits (p194), so a ten-product override is
+ * already a rewrite of the card's whole fuel policy, and anything larger is more likely a loop than
+ * an operator. The WEX portal's "Save and Add Another" is the flow this bounds.
+ */
+export const EFS_OVERRIDE_MAX_LIMITS = 10;
 /** Policy numbers are 1–99 (p35). */
 export const EFS_POLICY_MIN = 1;
 export const EFS_POLICY_MAX = 99;

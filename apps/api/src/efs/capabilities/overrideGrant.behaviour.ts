@@ -1,10 +1,9 @@
 import {
-  OVERRIDE_GRANT_STEP_UP,
   type OverrideGrantBody,
   overrideGrantContract,
-  overrideGrantNeedsStepUp,
+  overrideGrantStepUp,
 } from "@fuelguard/shared";
-import { overrideGrantEdits } from "../../services/efsCardEdits.js";
+import { overrideGrantEdits, overrideLimitsBefore } from "../../services/efsCardEdits.js";
 import { unlandedEditNames } from "../../services/efsCardReconcile.js";
 import { unlandedEditNamesFromAfter } from "../../lib/efsCardWrite.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
@@ -70,7 +69,7 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
      * scope of "0", the LOCATION_OVERRIDE_NONE sentinel that arms neither scope and declines the
      * driver everywhere while the ledger says they are covered (audit P1-6c).
      */
-    buildEdits: (doc, body: OverrideGrantBody) => overrideGrantEdits(doc, body.uses, body.scope),
+    buildEdits: (doc, body: OverrideGrantBody) => overrideGrantEdits(doc, body.uses, body.scope, body.limits),
   },
 
   /**
@@ -107,8 +106,14 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
    */
   proof: {
     precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) === 0,
+    /**
+     * `limits: []` deliberately. The proof run grants a SCOPE-only exception, so it needs no password
+     * (`overrideGrantStepUp` returns null) and the harness never has to hold one — the same reason
+     * `uses: 1` sits at or below the threshold. A product-limit proof deletes the card's limits and
+     * belongs to Step 10.4's supervised run against a named QA card, not to an automated probe.
+     */
     sample: (): OverrideGrantBody => ({
-      uses: 1, scope: { kind: "all" }, expectedVersion: "",
+      uses: 1, scope: { kind: "all" }, limits: [], expectedVersion: "",
     }),
     revert: () => ({
       capability: "override_clear",
@@ -123,13 +128,25 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
    * predicate this gate REFUSES with. The timing is unchanged and still the point: this runs before
    * `prepare()`, so a refusal never spends a slot against the daily override budget.
    */
-  preflightStepUp: (body: OverrideGrantBody) =>
-    (overrideGrantNeedsStepUp(body.uses) ? OVERRIDE_GRANT_STEP_UP : null),
+  preflightStepUp: (body: OverrideGrantBody) => overrideGrantStepUp(body),
 
+  /**
+   * `limitsBefore` is the recovery record, not decoration (Step 10.1).
+   *
+   * The override REPLACES the card's product limits (p194) and nothing in the guide promises EFS puts
+   * them back when the exception is cleared. Step 10.4 asks the vendor that question live; this line
+   * is what makes the answer survivable either way, because the records the write deleted are in the
+   * audit row whichever way it goes.
+   *
+   * Taken from `snap.doc` — the document EFS returned inside THIS operation — never from the mirror,
+   * which can be a sweep old. Same rule as `lockEdits`' status casing, and for the same reason.
+   */
   auditMeta: (snap, body: OverrideGrantBody) => ({
     overrideUsesBefore: snap.doc?.card.overrideUses ?? null,
     overrideUsesAfter: body.uses,
     overrideScope: body.scope.kind,
     locationId: body.scope.kind === "location" ? body.scope.locationId : null,
+    limitsBefore: snap.doc ? overrideLimitsBefore(snap.doc) : null,
+    limitsAfter: body.limits,
   }),
 });

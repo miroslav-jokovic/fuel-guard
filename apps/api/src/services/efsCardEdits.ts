@@ -2,10 +2,12 @@ import {
   infoLabel,
   matchStatusCasing,
   type EfsWritableStatus,
+  type OverrideLimit,
   type OverrideScope,
   type PromptInput,
 } from "@fuelguard/shared";
 import type { CardEdit } from "../lib/efsCardEcho.js";
+import { recordIdentity } from "../lib/efsCardCollections.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { childElements, collectElements, localName, type XmlElement } from "../lib/efsXml.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
@@ -106,7 +108,22 @@ export const unlockEdits = (observedStatus: string | null): CardEdit[] => [
  * out here, in the ledger's `edits` column, and in docs/22 so the pilot can confirm it against real
  * vendor behaviour.
  */
-export function overrideGrantEdits(doc: CardDocument, uses: number, scope: OverrideScope): CardEdit[] {
+export function overrideGrantEdits(
+  doc: CardDocument,
+  uses: number,
+  scope: OverrideScope,
+  /**
+   * The products this override opens up — p194's third recipe. REQUIRED with no default, and `[]`
+   * spelled out at every call site that has none.
+   *
+   * A default would be `[]`, and a caller who forgot to thread the operator's products would then
+   * send a scope-only override: the write succeeds, the ledger says the exception was granted, and
+   * the driver is still capped at the card's ordinary amount. Same reason `promptsEdits` refuses to
+   * default `editableInfoIds` — a forgotten argument that typechecks and silently narrows what the
+   * write does.
+   */
+  limits: readonly OverrideLimit[],
+): CardEdit[] {
   const edits: CardEdit[] = [{ op: "setField", name: "override", value: String(uses) }];
   if (scope.kind === "all") {
     edits.push({ op: "setField", name: "overrideAllLocations", value: "true" });
@@ -117,7 +134,76 @@ export function overrideGrantEdits(doc: CardDocument, uses: number, scope: Overr
     edits.push({ op: "setField", name: "locationOverride", value: scope.locationId });
     edits.push({ op: "setField", name: "overrideAllLocations", value: "false" });
   }
+  if (limits.length > 0) edits.push(overrideLimitsEdit(doc, limits));
   return edits;
+}
+
+/**
+ * The one edit in this file that DELETES, and the reason it has to say so out loud.
+ *
+ * p194, verbatim: *"echo back your data from the getCard response **except remove the limits** … Add
+ * back the limits array with the products and limits that you want for the override."* So the card's
+ * ordinary product limits are gone for the duration of the exception. That is the vendor's design,
+ * not our choice — an override that left the old caps in place would grant nothing, since the lower
+ * of the two is what declines the pump.
+ *
+ * ── Why `removals` is computed and never `[]` ────────────────────────────────────────────────────
+ * `assertCollectionsPreserved` refuses a request that omits any record the card arrived with unless
+ * the edit NAMES it, precisely so that losing a limit by accident and dropping one on purpose stop
+ * looking identical. This recipe drops them on purpose, so every pre-existing `limitId` is named.
+ *
+ * Two separate refusals are waiting for an edit that does not:
+ *
+ *   • the record-drop check, on every limit the card has that the override does not mention;
+ *   • the field-drop check, on a limit the override DOES mention, when the card's own record carries
+ *     `autoRollMap`/`autoRollMax` and the four-field override record does not. `getCardV2.autoRoll.xml`
+ *     is exactly that shape, so "reuse the existing record and change the amount" is not a way round
+ *     this — naming the id is.
+ *
+ * ── Identity comes from the DOM, not the typed view ──────────────────────────────────────────────
+ * `recordIdentity` over `collectElements(doc.root, …)` is the same function on the same nodes the
+ * guard will check against. Reading `doc.card.limits[].limitId` instead would be a second idea of
+ * which record is which, one parse removed from the bytes — the drift this workstream has now paid
+ * for four times.
+ *
+ * A record whose identity comes back null (children but no usable `<limitId>`) is deliberately NOT
+ * named: we cannot prove what we would be deleting, so the guard refuses the send with the precise
+ * reason. Fail-closed, and its message is better than one invented here.
+ */
+function overrideLimitsEdit(doc: CardDocument, limits: readonly OverrideLimit[]): CardEdit {
+  const removals: string[] = [];
+  for (const element of collectElements(doc.root, "limits")) {
+    const identity = recordIdentity("limits", element);
+    if (identity !== null && identity !== "") removals.push(identity);
+  }
+
+  return {
+    op: "replaceAll",
+    name: "limits",
+    // Four fields, in WSCardLimitv2's declared order — `orderRecordFields` enforces it either way,
+    // but writing them in order keeps the literal readable against p194's own example.
+    records: limits.map((limit) => ({
+      hours: String(limit.hours),
+      limit: String(limit.limit),
+      limitId: limit.limitId,
+      minHours: String(limit.minHours),
+    })),
+    removals,
+  };
+}
+
+/**
+ * The card's product limits as they stood BEFORE the override replaced them (Step 10.1).
+ *
+ * Recorded in the audit trail because of what p194 does not promise: nothing in the guide says EFS
+ * restores these when the override is cleared. Step 10.4 asks the vendor empirically. Either way the
+ * operator holds the exact records to put back, so a temporary exception cannot become a permanent
+ * change to a card just because the answer turned out to be "no".
+ *
+ * Read from the DOM for the same reason `overrideLimitsEdit` is: these are the bytes the card had.
+ */
+export function overrideLimitsBefore(doc: CardDocument): Record<string, string | null>[] {
+  return collectElements(doc.root, "limits").map(recordFromElement);
 }
 
 /**

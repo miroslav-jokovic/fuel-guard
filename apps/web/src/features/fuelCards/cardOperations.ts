@@ -179,6 +179,12 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       scope: draft.scopeKind === "all"
         ? { kind: "all" }
         : { kind: "location", locationId: draft.location?.locId ?? "" },
+      /**
+       * Scope-only until Step 10.3 builds the product picker. Sent EXPLICITLY rather than left absent
+       * even though the schema defaults it, because "this exception does not touch the card's product
+       * limits" is a claim this body should make out loud — the field's whole reason for existing.
+       */
+      limits: [],
     }),
     blocker: (draft) =>
       (draft.scopeKind === "location" && draft.location === null

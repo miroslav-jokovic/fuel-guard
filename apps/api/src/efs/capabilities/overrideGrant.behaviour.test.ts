@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { overrideGrantContract } from "@fuelguard/shared";
+import { OVERRIDE_LIMITS_STEP_UP, overrideGrantContract } from "@fuelguard/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";
@@ -117,6 +117,7 @@ const grant = (afterXml: string, rec: SupabaseRecorder) =>
     resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
       uses: 1,
       scope: { kind: "all" },
+      limits: [],
       expectedVersion: versionOf(NO_OVERRIDE),
     }),
   );
@@ -171,7 +172,7 @@ describe("an override grant whose scope this vendor does not report back", () =>
 
   it("is judged the same way by the background sweep, a cycle later", async () => {
     const after = parseCardDocument(COUNT_ONLY);
-    const edits = overrideGrantEdits(parseCardDocument(NO_OVERRIDE), 1, { kind: "all" });
+    const edits = overrideGrantEdits(parseCardDocument(NO_OVERRIDE), 1, { kind: "all" }, []);
 
     // `reconcile` is the sweep's predicate. Overriding only `judge` would leave the row un-condemned
     // for one sync cycle and then condemned by efsCardUnresolved.ts — the same wrong answer, late.
@@ -186,6 +187,51 @@ describe("an override grant whose scope this vendor does not report back", () =>
     // Without this the whole capability could resolve to "indeterminate" and every case above would
     // still pass. It also states the property Phase 4.4's scanner is expected to change.
     expect(outcome.status).toBe("succeeded");
+  });
+});
+
+describe("the product-limit override reaches the wire (Step 10.1)", () => {
+  const limits = [{ limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 }];
+  const body = { uses: 1, scope: { kind: "all" as const }, limits, expectedVersion: "" };
+
+  it("threads the operator's products into the edit list rather than dropping them", () => {
+    // The failure this pins is silent and in the expensive direction: an override that carried no
+    // limits still SUCCEEDS — override and overrideAllLocations both land — so the ledger and the
+    // confirmation both say a product limit was overridden while the driver is capped as before.
+    // getCardV2.full.xml carries ULSD 250 and CADV 100, so the recipe has real records to replace.
+    const doc = parseCardDocument(NO_OVERRIDE);
+    const mutation = overrideGrantBehaviour.mutation;
+    if (mutation.kind !== "echo") throw new Error("override_grant is an echo write");
+
+    const edit = mutation.buildEdits(doc, body, {} as never).find((e) => e.name === "limits");
+    expect(edit?.op).toBe("replaceAll");
+    expect(edit?.op === "replaceAll" && edit.records).toEqual([
+      { hours: "1", limit: "1000", limitId: "ULSD", minHours: "0" },
+    ]);
+    // And the removals the echo guard needs, or the write is refused before it is sent.
+    expect(edit?.op === "replaceAll" && edit.removals).toEqual(["ULSD", "CADV"]);
+  });
+
+  it("demands a fresh sign-in for it, at one use, before a slot is spent", () => {
+    // `preflightStepUp` runs before prepare(), so this refusal costs nothing against the daily
+    // override budget. One use is the point: the reason is the deleted limits, not the count.
+    expect(overrideGrantBehaviour.preflightStepUp?.(body))
+      .toBe(OVERRIDE_LIMITS_STEP_UP);
+    // POSITIVE CONTROL: the same grant without products asks for nothing.
+    expect(overrideGrantBehaviour.preflightStepUp?.({ ...body, limits: [] })).toBeNull();
+  });
+
+  it("records the limits it deleted, so a failed vendor restore is recoverable", () => {
+    // Step 10.4 asks WEX whether clearing an override restores the card's own limits. Nothing in the
+    // guide promises it does. This row is what makes either answer survivable.
+    const meta = overrideGrantBehaviour.auditMeta?.({ doc: parseCardDocument(NO_OVERRIDE) } as never, body, {} as never);
+    expect(meta).toMatchObject({
+      limitsBefore: [
+        { hours: "24", limit: "250", limitId: "ULSD", minHours: "4" },
+        { hours: "168", limit: "100", limitId: "CADV", minHours: "0" },
+      ],
+      limitsAfter: limits,
+    });
   });
 });
 

@@ -47,6 +47,40 @@ export const OVERRIDE_GRANT_STEP_UP =
   `Confirm your password to grant more than ${CARD_OVERRIDE_STEP_UP_ABOVE_USES} uses.`;
 
 /**
+ * A product-limit override needs a password however few uses it grants (Step 10.1).
+ *
+ * It is a destructive write in a way a scope-only grant is not: p194 replaces the card's product
+ * limits with the override's, so one use of this deletes the caps the card was carrying. Same
+ * reasoning as `promptRemovalNeedsStepUp` — EVERY explicit removal is destructive, not only a large
+ * one.
+ */
+export const overrideLimitsNeedStepUp = (limitCount: number): boolean => limitCount > 0;
+
+export const OVERRIDE_LIMITS_STEP_UP =
+  "Confirm your password to override a product limit — this replaces the card's own limits.";
+
+/**
+ * WHICH message an override grant needs, or null — the whole gate for this capability in one place.
+ *
+ * ── Why the two reasons cannot share `OVERRIDE_GRANT_STEP_UP` ────────────────────────────────────
+ * Until Step 10.1 there was one reason and therefore one string. Adding a second and reusing the
+ * first would tell an operator granting ONE use of a ULSD exception "confirm your password to grant
+ * more than 3 uses" — a sentence about a threshold they are nowhere near, for a rule they did not
+ * trip. This codebase already keeps `PROMPT_REMOVAL_STEP_UP` separate from `CARD_UNLOCK_STEP_UP` for
+ * exactly that reason: a step-up prompt has to say what actually demanded it, or the operator goes
+ * looking for the wrong thing.
+ *
+ * The limits reason wins when both apply, because it names the destructive half. Returning a SENTENCE
+ * rather than a boolean is what lets the drawer warn with the server's own words instead of guessing
+ * which rule fired — the Step 6.1 shape, extended rather than worked around.
+ */
+export const overrideGrantStepUp = (body: { uses: number; limits?: readonly unknown[] }): string | null => {
+  if (overrideLimitsNeedStepUp(body.limits?.length ?? 0)) return OVERRIDE_LIMITS_STEP_UP;
+  if (overrideGrantNeedsStepUp(body.uses)) return OVERRIDE_GRANT_STEP_UP;
+  return null;
+};
+
+/**
  * `efsStatusEquals`, never `===`: this account reports `FRAUD` upper-cased, and an exact comparison
  * waved the unlock straight past the gate it exists to demand (audit P1-7).
  */
