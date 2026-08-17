@@ -136,6 +136,36 @@ Re-baselined `rls` 375 → 377 on 2026-08-13: migration `0189_fuel_price_days` a
 15. **Unset `EFS_CARD_CONTROL_PROBE_ENABLED` and redeploy** after any session that needed it.
 16. **Every finding gets a fix or a numbered step — never a mention.** If something is wrong and it is small, fix it in the same task. If it is not small, it becomes a numbered step in a phase, with an owner, before the session ends. "Flagging it for later" is how it gets forgotten, and this plan has already produced two examples: a comment claiming a test that did not exist, and a gate list copied from a stale doc.
 
+### 0.8b How a push to `main` actually reaches the two hosts (measured 2026-08-17)
+
+Written down because a docs-only commit looks like a failed deploy and is not one.
+
+**Two Railway services, both auto-deploying from `main`:** `@fleetguard/api`
+(`fleetguardapi-production`, the host WEX allowlists — only this one can reach EFS) and
+`@fleetguard/web` (`fleetguardweb-production`, the SPA **plus a full copy of the API**, which is why
+it answers `/api/version` too).
+
+**`railway.json` `watchPatterns` deliberately exclude** `docs/**`, `**/*.md`, `.github/**`,
+`**/*.test.ts`, `__tests__/**` and `apps/driver/**`. So:
+
+| Commit touches | Redeploys? |
+|---|---|
+| `apps/`, `packages/`, `scripts/` | ✅ both services |
+| `docs/` or `*.md` only | ❌ **neither — by design** |
+| `supabase/migrations/**` | `migrate.yml` applies it, gated on CI green for that commit |
+| `.github/**` | ❌ |
+
+⚠ **So the deployed commit legitimately trails `main` whenever the last push was documentation.** On
+2026-08-17 both hosts sat at `7fecf3d` while `main` was `ad55b79` — a docs-only commit — and that is
+correct, not drift. `verify:live` compares HEAD against the deployed commit and will report a
+difference here; read what changed before treating it as a failure.
+
+⚠ **Deleting a Railway variable does NOT restart the service.** Removing
+`EFS_CARD_CONTROL_PROBE_ENABLED` updated the config while the running process kept it in its
+environment for a further fifteen minutes — config said off, `/prove` was still open. Standing rule
+15 therefore needs both halves: delete the variable **and** `railway redeploy`, then confirm the
+`deploymentId` changed. Setting a variable does trigger a deploy; deleting one does not.
+
 ### 0.9 Audit protocol — run after every executor update, before merge
 
 Never accept a summary. Read the diff.
