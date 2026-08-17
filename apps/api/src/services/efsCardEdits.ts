@@ -222,6 +222,29 @@ export interface PromptPlan {
  * and an empty one very differently. Removing the RECORD is a separate, explicit act (below), not
  * something that happens because a text box was emptied.
  */
+/**
+ * The `<value>` bytes for one prompt (Step 9.3).
+ *
+ * The guide's whole instruction, quoted because it is the only sentence the vendor gives on this
+ * field: *"For the accrual check method for odometer or hubometer, this is the accrual value. For
+ * all other info ids/validation type combos just leave as `<value/>` or `<value>0</value>`"*
+ * (p36, p135, p138).
+ *
+ * So: the accrual when the operator configured one, and `"0"` otherwise — the second half of the
+ * vendor's own sentence, not a default we chose. It is written for EVERY combination rather than
+ * only the accrual one, because `replaceAll` means a record's fields are whatever this request says
+ * they are; a card switched OFF `ACCRUAL_CHECK` while keeping a stale accrual would be a number the
+ * operator cannot see and did not ask for.
+ *
+ * ⚠ What this deliberately does NOT claim: how EFS APPLIES the accrual. The guide never says whether
+ * it is a floor, a ceiling or a tolerance against the unit's last mileage, and the vendor's own
+ * `getLastMileage` / `overrideLastMileage` pages (p122–123) describe the stored reading without
+ * describing the check. This function gets the number onto the wire exactly; the UI must not tell an
+ * operator a mechanism nobody has documented.
+ */
+const promptValue = (prompt: PromptInput): string =>
+  prompt.validationType === "ACCRUAL_CHECK" ? String(prompt.value ?? 0) : "0";
+
 export function promptsEdits(
   doc: CardDocument,
   prompts: readonly PromptInput[],
@@ -296,6 +319,7 @@ export function promptsEdits(
       validationType: update.validationType,
       matchValue: update.validationType === "EXACT_MATCH" ? update.matchValue ?? "" : "",
       reportValue: update.validationType === "REPORT_ONLY" ? update.reportValue ?? "" : "",
+      value: promptValue(update),
     });
   }
 
@@ -318,7 +342,7 @@ export function promptsEdits(
       minimum: "0",
       reportValue: prompt.validationType === "REPORT_ONLY" ? prompt.reportValue ?? "" : "",
       validationType: prompt.validationType,
-      value: "0",
+      value: promptValue(prompt),
     });
   }
 
