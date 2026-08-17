@@ -11,6 +11,8 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import UnitMileageDrawer from "@/features/fuelCards/UnitMileageDrawer.vue";
+import { useSessionStore } from "@/stores/session";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
@@ -238,11 +240,27 @@ function clearAll(): void {
   for (const facet of Object.values(FACETS)) facet.value = "";
 }
 
+
+/**
+ * Admin-only, matching the route: `POST /api/fuel-cards/unit-mileage` is behind `requireRole("admin")`,
+ * and an action that opens a drawer only to be refused on submit is worse than one that is absent.
+ */
+const session = useSessionStore();
+const mileageOpen = ref(false);
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports. This page refreshes itself." />
+    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports. This page refreshes itself.">
+      <template #actions>
+        <!-- Here rather than on a card page because the operation targets a UNIT, not a card. -->
+        <BaseButton v-if="session.admin" variant="secondary" @click="mileageOpen = true">
+          Override mileage
+        </BaseButton>
+      </template>
+    </PageHeader>
+
+    <UnitMileageDrawer :open="mileageOpen" @close="mileageOpen = false" />
 
     <p v-if="syncOutcome" class="text-sm" :class="syncOutcome.tone === 'danger' ? 'text-danger-700' : syncOutcome.tone === 'warning' ? 'text-caution-700' : 'text-ink-muted'">
       {{ syncOutcome.text }}
