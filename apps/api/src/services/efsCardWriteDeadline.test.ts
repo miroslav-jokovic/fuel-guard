@@ -96,7 +96,7 @@ describe("card mutation orchestration deadline", () => {
     // The shipped lock capability. Step 3.7 deleted CardMutationIntentSpec, and pointing this at
     // the real descriptor means the deadline is proven against the write that actually ships.
     const outcome = await executeCapability(ctx, resolveCapability(cardLockContract, cardLockBehaviour, {
-      expectedVersion: ctx.expectedVersion, status: "Hold" as const,
+      expectedVersion: ctx.expectedVersion, status: "Hold" as const, clearException: false,
     }));
 
     expect(outcome.status).toBe("sent");

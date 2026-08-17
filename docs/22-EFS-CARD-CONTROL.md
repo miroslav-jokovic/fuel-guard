@@ -1377,7 +1377,9 @@ empty`, no fault, indistinguishable from success. Only the verifying re-read cat
 operator is told *"EFS accepted the request but the card is unchanged. Check the card in the WEX portal
 before retrying"* — which names neither the cause nor the remedy.
 
-`card_unlock`, `card_deactivate`, `prompts_set` and the mileage override are all in the same position.
+`card_unlock`, `card_deactivate` and `prompts_set` are in the same position. ⚠ The MILEAGE override is
+not: it is `overrideLastMileage`, a unit-keyed operation that never touches `setCardv2`, so the freeze
+does not reach it. "Everything that writes" is the obvious generalisation of this finding and it is wrong.
 
 **The fix is owed and it jumps the Phase 10 queue.** Options and the trade-off are in
 `docs/28` §10; the one thing that is NOT acceptable is the current message, because at 2am it sends

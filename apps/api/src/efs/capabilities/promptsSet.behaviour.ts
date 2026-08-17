@@ -3,6 +3,7 @@ import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
+import { assertOverrideDoesNotBlock } from "./overrideFreezeGuard.js";
 import { defineBehaviour } from "../types.js";
 import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
 
@@ -93,6 +94,14 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   },
 
   precondition: (ctx: PlanCtx, snap: Snapshot, body: PromptsSetBody) => {
+    /**
+     * FIRST, before the prompt-source and removal checks (docs/22 H16).
+     *
+     * An armed override makes EFS silently ignore this write, so the other two refusals would be
+     * deciding whether to permit a change that cannot happen — and a `step_up_required` raised below
+     * would ask an operator for a password to authorise nothing.
+     */
+    assertOverrideDoesNotBlock("prompts_set", snap);
     assertCardPromptsAreWritable(snap);
     const plan = planFor(snap, body, ctx);
     assertPromptRemovalAllowed(plan.removedInfoIds, body.allowRemoveDriverId, ctx.stepUp);

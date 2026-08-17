@@ -705,8 +705,9 @@ first override lands on production with no QA rehearsal behind it.
    > **Consequence, and it is a safety one:** no capability checks `overrideUses` today, so `card_lock`
    > — the 2am stolen-card action, deliberately free of all friction — demonstrably does nothing on a
    > card with an exception, and the operator is told only *"EFS accepted the request but the card is
-   > unchanged."* `card_unlock`, `card_deactivate`, `prompts_set` and the mileage override are in the
-   > same position. The fix is owed and jumps the Phase 10 queue — see docs/28 §10.
+   > unchanged."* `card_unlock`, `card_deactivate` and `prompts_set` are in the same
+   > position — but NOT the mileage override, which is `overrideLastMileage`, unit-keyed, and never
+   > touches `setCardv2`. The fix is owed and jumps the Phase 10 queue — see docs/28 §10.
    >
    > **Also closed by the same run:** `deleteOverride` is entitled on this account and lands, which
    > answers D1's entitlement half, open since Phase 8.2.

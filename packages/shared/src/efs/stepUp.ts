@@ -124,3 +124,29 @@ export const CAPABILITIES_WITH_STEP_UP_GATE: readonly string[] = [
   "override_grant",
   "prompts_set",
 ];
+
+/**
+ * WHICH capabilities refuse from state read at write time — a SEPARATE pin from the one above, and the
+ * split is the point.
+ *
+ * `precondition` is not only a step-up hook. `prompts_set` uses it for both: a missing DRID opt-in is
+ * `invalid_request`, a missing password is `step_up_required`. `card_lock` gained one in H16 that can
+ * only ever raise the first — an armed override makes EFS silently ignore a status change, so the lock
+ * is refused rather than swallowed.
+ *
+ * Before this split, `registry.test.ts` derived "has a gate" from the presence of a `precondition` and
+ * compared it against the step-up pin, so adding lock's refusal demanded adding `card_lock` to that
+ * list. That would have asserted something FALSE and load-bearing: the list's own comment says lock is
+ * absent deliberately because *"locking is the 2am safety action … and it must never demand a
+ * password"*, and the web half would then have made the drawer promise a password prompt that never
+ * comes. A pin is only worth having if what it pins is true.
+ *
+ * So there are two pins now, both hand-written, and neither is weaker than the single one was: adding
+ * any precondition still forces an edit here, and adding a password demand still forces an edit above.
+ */
+export const CAPABILITIES_WITH_PRECONDITION: readonly string[] = [
+  "card_deactivate",
+  "card_lock",
+  "card_unlock",
+  "prompts_set",
+];

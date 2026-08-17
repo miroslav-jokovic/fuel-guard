@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  CAPABILITIES_WITH_PRECONDITION,
   CAPABILITIES_WITH_STEP_UP_GATE,
   CARD_CAPABILITY_CONTRACTS,
   CARD_MUTATION_INTENTS,
@@ -254,12 +255,28 @@ describe("the capability registries agree with each other", () => {
    */
   it("gates step-up on exactly the capabilities the shared pin names", () => {
     const gated = Object.entries(behaviours)
-      .filter(([, behaviour]) =>
+      .filter(([key, behaviour]) =>
         behaviour.preflightStepUp !== undefined
         || behaviour.planStepUp !== undefined
-        || behaviour.precondition !== undefined)
+        // `precondition` counts here only for the capabilities the OTHER pin names as able to demand
+        // a password. H16 gave `card_lock` a precondition that can only raise `invalid_request`, and
+        // folding it into this list would have asserted that locking may ask for one — which the
+        // step-up pin's own comment says it must never do. See CAPABILITIES_WITH_PRECONDITION.
+        || (behaviour.precondition !== undefined && CAPABILITIES_WITH_STEP_UP_GATE.includes(key)))
       .map(([key]) => key);
     expect(gated.sort()).toEqual([...CAPABILITIES_WITH_STEP_UP_GATE].sort());
+  });
+
+  /**
+   * The second half of the same split. Adding a `precondition` to any behaviour must be a decision
+   * somebody writes down in `@fuelguard/shared`, because a refusal computed from the fresh document is
+   * a refusal the drawer cannot predict from the body and must be ready to render.
+   */
+  it("declares a precondition on exactly the capabilities the shared pin names", () => {
+    const withPrecondition = Object.entries(behaviours)
+      .filter(([, behaviour]) => behaviour.precondition !== undefined)
+      .map(([key]) => key);
+    expect(withPrecondition.sort()).toEqual([...CAPABILITIES_WITH_PRECONDITION].sort());
   });
 });
 

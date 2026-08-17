@@ -286,6 +286,21 @@ export const lockCardSchema = z.object({
    * writable set remains what the PRODUCT may ever send; this schema is what LOCK may ask for.
    */
   status: z.enum(EFS_LOCK_STATUSES).default("Hold"),
+  /**
+   * Remove the card's fuel exception as part of locking it (docs/22 H16).
+   *
+   * An armed override makes EFS silently ignore a status change — proven live, and with no signal at
+   * the response layer — so without this the lock is refused rather than swallowed. Lock is the ONE
+   * capability that offers to clear the exception itself, because on a card somebody is locking an
+   * armed override is free fuel they are trying to stop; see `CARD_LOCK_OVERRIDE_BLOCKED` for why
+   * that reasoning does not extend to the other four.
+   *
+   * DEFAULT FALSE, and never inferred from the presence of an override. This is the
+   * `allowRemoveDriverId` pattern: destroying something the operator did not ask about is not made
+   * safe by it being the only way forward, so a missing flag is `invalid_request` and the operator
+   * sees what they are about to destroy in the confirmation.
+   */
+  clearException: z.boolean().default(false),
 });
 export type LockCardRequest = z.infer<typeof lockCardSchema>;
 

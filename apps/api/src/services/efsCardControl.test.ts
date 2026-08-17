@@ -117,7 +117,7 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion:
  * what a reconciliation-matrix suite is for.
  */
 const lockCapability = resolveCapability(cardLockContract, cardLockBehaviour, {
-  expectedVersion: "", status: "Hold" as const,
+  expectedVersion: "", status: "Hold" as const, clearException: false,
 });
 
 const executeLock = (ctx: CardMutationContext) => executeCapability(ctx, lockCapability);
