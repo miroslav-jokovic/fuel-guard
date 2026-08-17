@@ -1400,3 +1400,51 @@ run's control is what turned it into evidence.
 **Carry this:** an experiment is production-equivalent only if its VALUES are too. Pass
 `matchAccountCasing: true` for any status write meant to stand in for a real capability, and give a
 drill a CONTROL whenever its negative result has more than one available explanation.
+
+---
+
+## H17 — the combined write LANDS: clear-and-lock is one press (2026-08-17, QA ••••7671)
+
+The H16 follow-up. H16 answered the two halves separately and could not answer the combination
+`card_lock` actually sends for `clearException`. This run asked it, and the answer is the good one.
+
+**Three writes, one session, one card, one casing — the variable isolated twice over:**
+
+| step | sent | `overrideUses` going in | landed |
+|---|---|---|---|
+| `1b` control | `<status>HOLD</status>` | 0 | **true** |
+| `4` status alone | `<status>HOLD</status>` | 1 | **false** |
+| **`5b` status + override clear** | **`<status>HOLD</status>`** | **1** | **true** |
+
+`5c` read back `overrideUses: 0, status: HOLD`. **One request cleared the exception and applied the
+status.** The freeze reproduced (step 4, three readings, `version` unchanged), and then the same write
+with `overrideClearEdits()` riding along landed — so EFS judges the status against the request's own
+effect, not against the card's state on arrival.
+
+### What this settles
+
+**`card_lock`'s `clearException` does exactly what its confirmation promises.** Tick the box, press
+Lock once, and the card is locked with its exception removed. No second press, no copy change owed.
+
+The bytes were production's own: the experiment appends `overrideClearEdits()` itself, the function
+`cardLock.behaviour.ts` calls, rather than a hand-written trio — so this is evidence about the shipped
+path and not about a lookalike.
+
+**Also re-confirmed in the same run:** the echo `clear_override` lands on an armed card, and
+`deleteOverride` lands (D1's entitlement half, closed in H16, holds on a second run).
+
+### And a third thing, from a refusal rather than a result
+
+The first attempt refused: *"••••7670 already carries an override (1 use(s))."* That card had been
+granted an exception from the DASHBOARD minutes earlier, in a run the operator read as a failure
+because the drawer said *"Sent, but not confirmed."*
+
+**It was not a failure.** The count had landed. What the drawer could not confirm was the SCOPE, which
+this account has never echoed back (H2/H3 — 234 mirror rows read `false`, none `true`), and Step 3.11
+deliberately refuses to claim a scope it cannot observe. The drill's own precondition is what proved
+the grant had worked, which is a nice accident: a guard written to protect a starting state ended up
+being the instrument that read one.
+
+Worth carrying into any conversation about that message: `sent` / "could not confirm" on an override
+grant means **the exception is probably armed**. The honest sentence is doing its job; it just reads
+like a failure to somebody who has not met H2/H3.
