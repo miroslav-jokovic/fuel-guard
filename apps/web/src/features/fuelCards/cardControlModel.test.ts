@@ -435,11 +435,16 @@ describe("account-wide overrides (B3)", () => {
   });
 
   it("says WHERE the exception applies, and prefers the location id when both scopes are armed", () => {
-    expect(overrideScopeLabel(false, "442013")).toBe("Location #442013");
+    /**
+     * "Network plus", not "Location #" — guide p194 says `locationOverride` is the id "you want to
+     * open the card up to", and the portal calls the option "Network Plus Optional Location". The
+     * label WIDENS; it does not confine. Corrected 2026-08-17 after reading the two together.
+     */
+    expect(overrideScopeLabel(false, "442013")).toBe("Network plus #442013");
     expect(overrideScopeLabel(true, null)).toBe("Any location");
     // The conflicting state a WEX-portal edit can leave behind. The pump honours the id (see
     // overrideGrantEdits' docblock) — claiming "any location" here is the lie that strands a driver.
-    expect(overrideScopeLabel(true, "442013")).toBe("Location #442013");
+    expect(overrideScopeLabel(true, "442013")).toBe("Network plus #442013");
     // Uses remain but neither scope is armed: reported honestly, never guessed.
     expect(overrideScopeLabel(null, null)).toBe("Scope not reported");
     expect(overrideScopeLabel(false, null)).toBe("Scope not reported");

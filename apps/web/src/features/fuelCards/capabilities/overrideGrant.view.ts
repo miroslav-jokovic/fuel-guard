@@ -53,7 +53,7 @@ const usesLabel = (uses: number): string =>
 const scopeLabel = (allLocations: boolean, locationId: string | null): string => {
   if (allLocations) return "Any location";
   if (!locationId) return "None";
-  return `Location ${locationId}`;
+  return `Network plus ${locationId}`;
 };
 
 /** Falls back to the id when the drawer cannot name the station: the id is what a driver is declined at. */
@@ -62,5 +62,6 @@ const whereLabel = (
   resolve: ((locationId: string) => string | null) | undefined,
 ): string => {
   if (body.scope.kind !== "location") return "at any location";
-  return `at ${resolve?.(body.scope.locationId) ?? `location ${body.scope.locationId}`}`;
+  // "as well as" — guide p194 opens the card UP TO this location; it does not restrict it to one.
+  return `on its usual network, as well as at ${resolve?.(body.scope.locationId) ?? `location ${body.scope.locationId}`}`;
 };

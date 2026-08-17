@@ -178,7 +178,8 @@ export function cardAssignmentRank(card: {
  * Claiming "any location" on such a card would repeat the exact lie that function exists to prevent.
  */
 export function overrideScopeLabel(allLocations: boolean | null, locationId: string | null): string {
-  if (locationId) return `Location #${locationId}`;
+  // "Plus" because the card keeps its network and gains this site (guide p194).
+  if (locationId) return `Network plus #${locationId}`;
   if (allLocations) return "Any location";
   // Uses remain but neither scope field is armed — a state EFS can report and we will not guess at.
   return "Scope not reported";

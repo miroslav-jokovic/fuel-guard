@@ -1788,6 +1788,45 @@ correct.* No credentials in this container.
 > emit the same `handEnter: ALLOW` field, in which case the portal's framing is the misleading one
 > and 12.1 is right. Read the wire, not the label (§5a's lesson).
 >
+> ### ✅ Answered by the guide, p194 — 2026-08-17
+>
+> **ONE `setCard` write carries the override AND its limits.** The portal's two screens are its own
+> convenience, not a SOAP requirement. Verbatim:
+>
+> > *"Do a getCard … then call setCard and echo back your data from the getCard response **except
+> > remove the limits** … overrideAllLocations set to True … override will be set from 1 to 9 … **Add
+> > back the limits array** with the products and limits that you want for the override."*
+>
+> So **10.1 is one atomic echo write, not a sequence** — there is no `partial` outcome to design for
+> and Phase 11.3's half-failure machinery is not needed here. The limits edit is a `replaceAll`,
+> exactly as 10.1 already specifies.
+>
+> ⚠ **And that is why 10.4's restore check is not optional.** "Except remove the limits … add back
+> the limits you want for the override" means the override REPLACES the card's normal product limits
+> outright. If EFS does not restore them when the override is cleared, the card is left permanently
+> altered by what an operator understood to be a temporary exception. 10.4's *"clear the override and
+> re-read — the card's original limits must be restored"* is therefore a test of the VENDOR, not of
+> our code, and it must run before this ships.
+>
+> Also on p194, and not previously recorded: `Override Refreshing Limits` needs a SECOND call —
+> `setCardRefreshingLimits` against the card number **with `OVER` appended**. That is Phase 11.3's
+> `…OVER` recipe, and p194 is its source.
+>
+> ### ✅ Decided — `Allow Hand Enter` goes to SETTINGS (Miki, 2026-08-17)
+>
+> Not onto the override screen, despite the portal putting it there. It stays a card-level setting,
+> which keeps Step 12.1's scoping correct and leaves the override screen to the thing an operator is
+> actually granting. Recorded so the portal comparison above is not re-litigated later.
+>
+> ### 🔧 Fixed on the spot — our location wording said the opposite of what the write does
+>
+> p194: `locationOverride` is the id *"that you want to **open the card up to**"*. The portal names
+> the option *"Network Plus Optional Location"*. Both mean the exception WIDENS where the card works.
+> Ours read **"One location only"**, with a confirmation sentence of "at location 442013" — telling
+> an operator trying to CONTAIN a card that this narrows it. It does not. Now "Network plus one
+> location", "Network plus #442013", and *"on its usual network, as well as at …"*. Standing rule 16;
+> the assertion moved with it.
+
 > **2. The flow is TWO phases, and the first one lands on its own.** The banner after step 2 reads
 > *"Card …7560 has been overridden for 1 time(s) for all locations"* — the override is committed
 > BEFORE any limit is chosen. So a failure while adding limits leaves a card that is already

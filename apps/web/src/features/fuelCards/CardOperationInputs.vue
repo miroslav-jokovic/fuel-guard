@@ -60,7 +60,15 @@ const useOptions = Array.from({ length: 9 }, (_, i) => ({
  */
 const scopeOptions = [
   { value: "all", label: "Any location" },
-  { value: "location", label: "One location only" },
+  /**
+   * "Network plus one", NOT "one only" — and the difference is the whole point.
+   *
+   * Guide p194: `locationOverride` is the id "that you want to **open the card up to**", and the WEX
+   * portal names this option "Network Plus Optional Location". It WIDENS where the exception applies;
+   * it does not confine the card. This read "One location only" until 2026-08-17, which told an
+   * operator trying to contain a card that picking it would narrow access. It does the opposite.
+   */
+  { value: "location", label: "Network plus one location" },
 ];
 
 const validationOptions = [
