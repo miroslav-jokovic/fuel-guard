@@ -44,17 +44,18 @@ import { landingNotice, useUnitMileage } from "./useUnitMileage";
  * it; this reads our own vehicle list to answer "which truck", which is the question the portal's
  * own Card Lookup screen asks first. Choosing an entity is not displaying vendor data.
  *
- * ── It shows NO reading before the write, and that was a correction ─────────────────────────────
- * The first version looked the unit up first and displayed what EFS held, on the argument that it is
- * the value being overwritten rather than a comparison. Miki's ruling, 2026-08-17: *"we dont need to
- * display this data, we are mirroring features not recreating EFS SecureFuel."* The distinction that
- * matters is not comparison-vs-state, it is that an operator here already knows the number they
- * intend to set — they are correcting a reading they got from Samsara or from the truck, not
- * browsing EFS. A lookup step made them wait for a value they were about to replace.
+ * ── ⚠ EFS's current reading IS shown. Settled 2026-08-17 after three rounds ─────────────────────
+ * Built, removed, removed again, reinstated. **Do not remove it a fourth time** citing "we mirror
+ * features, we do not rebuild EFS reporting" — that rule stands, and this is not an instance of it.
+ * Miki: *"what we are missing is displaying currant data from EFS on odometer so we can see is it
+ * correct and manually override it."*
  *
- * What survives is the OUTCOME, which is not a data display: `overrideLastMileage` returns nothing,
- * so `before → after` is the only evidence the write landed, and it comes from the API's verifying
- * re-read after the fact rather than from a screen the operator had to drive first.
+ * The distinction the first two attempts missed: an operator correcting a drifted odometer does not
+ * arrive knowing EFS's value — they arrive knowing the TRUCK's. Seeing what EFS holds is how they
+ * decide whether a correction is needed at all, which makes it an input to the write rather than a
+ * report about it. What was correctly removed and STAYS removed is the comparison: our Samsara
+ * reading beside EFS's with the gap between them. The API still returns `ourMileage`,
+ * `odometerOffset` and `drift`; this screen reads none of them.
  *
  * ── The result panel is the whole point ─────────────────────────────────────────────────────────
  * `overrideLastMileage` returns NOTHING (§3) — no result, no document, not even an empty element.
@@ -67,7 +68,7 @@ import { landingNotice, useUnitMileage } from "./useUnitMileage";
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
-const { outcome, saving, error, override, reset } = useUnitMileage();
+const { reading, outcome, looking, saving, error, lookUp, override, reset } = useUnitMileage();
 
 const vehicles = useVehiclesQuery();
 
@@ -102,10 +103,19 @@ watch(() => props.open, (isOpen) => {
   reset();
 });
 
-/** A result belongs to the unit and code that produced it — clear it the moment either changes,
- *  so an outcome never sits under a different truck's number. */
-watch([unit, code], () => {
-  if (outcome.value) reset();
+/**
+ * Choosing a truck reads what EFS holds for it. No "Look up" button: selecting the vehicle is
+ * already the explicit act, and a second click was what made the first version feel like a
+ * reporting step rather than part of the write.
+ *
+ * Also clears the typed correction — a number entered against one truck must never carry over to
+ * the next, on an operation whose whole hazard is landing on the wrong unit.
+ */
+watch([unit, code], ([nextUnit, nextCode]) => {
+  mileage.value = "";
+  reset();
+  const trimmed = nextUnit.trim();
+  if (trimmed !== "") void lookUp(trimmed, nextCode);
 });
 
 const trimmedUnit = computed(() => unit.value.trim());
@@ -179,6 +189,20 @@ async function submit(): Promise<void> {
         <!-- Its own `legend`, not a FormField label: AppRadioGroup renders one already, with the
              same classes, so nesting the two prints the label twice. -->
         <AppRadioGroup v-model="code" legend="Reading" :options="CODE_OPTIONS" />
+      </div>
+
+      <!-- ── What EFS holds now, and nothing beside it ───────────────────────────────────────── -->
+      <div v-if="trimmedUnit !== ''" class="rounded-md bg-surface-subtle p-4 ring-1 ring-edge">
+        <p class="text-sm text-ink-muted">EFS currently holds for unit {{ trimmedUnit }}</p>
+        <p v-if="looking" class="mt-1 text-2xl font-semibold text-ink-tertiary">Reading…</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums text-ink">
+          {{ reading?.efsMileage == null ? "No reading" : `${reading.efsMileage.toLocaleString()} mi` }}
+        </p>
+        <!-- Not an error. EFS holding nothing is the ordinary state for a truck it has not been told
+             about, and it is exactly the case an override exists to seed. -->
+        <p v-if="!looking && reading && reading.efsMileage === null" class="mt-1 text-sm text-ink-muted">
+          EFS has no stored reading for this truck yet. Setting one gives the pump a baseline.
+        </p>
       </div>
 
       <!-- ── The correction ──────────────────────────────────────────────────────────────────── -->

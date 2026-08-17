@@ -5,14 +5,21 @@ import { apiFetch } from "@/lib/api";
 /**
  * Reading and correcting the odometer EFS holds for a unit (`docs/37` §6 D, E′).
  *
- * ── One call, and no read before it ─────────────────────────────────────────────────────────────
- * The drawer used to look the unit up first and show what EFS held. Removed on Miki's ruling: we
- * mirror the vendor's operation, we do not rebuild its reporting. An operator here already has the
- * number they mean to set. `before` still reaches them — it comes back in the OUTCOME, from the
- * API's verifying re-read, which is the only evidence a write that returns nothing actually landed.
+ * ── ⚠ The current reading IS fetched, and this was settled the hard way ─────────────────────────
+ * It was built, removed, removed again, and reinstated on 2026-08-17. **Do not remove it a third
+ * time citing "we mirror features, we do not rebuild EFS reporting"** — that rule stands and this is
+ * not an instance of it. Miki's words on reinstating: *"what we are missing is displaying currant
+ * data from EFS on odometer so we can see is it correct and manually override it."*
  *
- * The GET endpoint stays: `node scripts/efs.mjs mileage --unit 688` uses it, and that is where
- * reading EFS's stored value belongs — an operator tool, not a step in a write form.
+ * The distinction that took three rounds to find: an operator correcting a drifted odometer does not
+ * arrive knowing EFS's value. They arrive knowing the TRUCK's. Seeing what EFS holds is how they
+ * decide whether a correction is needed at all — it is an input to the decision to write, not a
+ * report. What was correctly removed and stays removed is the COMPARISON: our Samsara reading beside
+ * EFS's with the gap between them. One number, from the vendor, about the thing being overwritten.
+ *
+ * Fetched when the truck is chosen rather than behind a "Look up" button. Selecting the vehicle is
+ * already the explicit act; making the operator click twice was what made the first version feel
+ * like a reporting step.
  *
  * ── Not a capability, and therefore not `useOperationDispatch` ──────────────────────────────────
  * The card operations all go through the capability registry: ledger row, idempotency key,
@@ -29,6 +36,14 @@ import { apiFetch } from "@/lib/api";
  * vendor did anything (`services/efsMileageOverride.ts`).
  */
 export type MileageLanding = "landed" | "not_landed" | "indeterminate" | "already_current";
+
+/** What EFS holds for one unit. Only `efsMileage` is read — the API's comparison fields are not. */
+export interface UnitMileageReading {
+  unit: string;
+  code: EfsMileageCode;
+  /** Null when EFS holds no reading for this unit — never zero, which would mean a new truck. */
+  efsMileage: number | null;
+}
 
 export interface MileageOverrideOutcome {
   landing: MileageLanding;
@@ -62,15 +77,44 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
 }
 
 export function useUnitMileage() {
+  const reading = ref<UnitMileageReading | null>(null);
   const outcome = ref<MileageOverrideOutcome | null>(null);
+  const looking = ref(false);
   const saving = ref(false);
   const error = ref<string | null>(null);
+
+  /**
+   * What EFS holds right now. Never cached: the value is the thing about to be overwritten, and
+   * confirming a correction against a stale number is the one mistake this display exists to stop.
+   */
+  async function lookUp(unit: string, code: EfsMileageCode): Promise<void> {
+    looking.value = true;
+    error.value = null;
+    // Cleared together — a result left standing beside a freshly chosen truck reads as that truck's.
+    outcome.value = null;
+    reading.value = null;
+    try {
+      reading.value = await call<UnitMileageReading>(
+        `/api/fuel-cards/unit-mileage?unit=${encodeURIComponent(unit)}&code=${code}`,
+      );
+    } catch (e) {
+      error.value = e instanceof UnitMileageError ? e.message : "Could not reach EFS";
+    } finally {
+      looking.value = false;
+    }
+  }
 
   async function override(unit: string, code: EfsMileageCode, mileage: number): Promise<void> {
     saving.value = true;
     error.value = null;
     try {
       outcome.value = await call<MileageOverrideOutcome>("/api/fuel-cards/unit-mileage", "POST", { unit, code, mileage });
+      /**
+       * Refreshed from the OUTCOME's `after`, which is the API's own verifying re-read — never from
+       * a second GET. The server has already read it back; asking again would spend a vendor call to
+       * re-answer a settled question, and could disagree with the verdict shown beside it.
+       */
+      if (reading.value) reading.value = { ...reading.value, efsMileage: outcome.value.after };
     } catch (e) {
       error.value = e instanceof UnitMileageError ? e.message : "Could not reach EFS";
     } finally {
@@ -79,11 +123,12 @@ export function useUnitMileage() {
   }
 
   function reset(): void {
+    reading.value = null;
     outcome.value = null;
     error.value = null;
   }
 
-  return { outcome, saving, error, override, reset };
+  return { reading, outcome, looking, saving, error, lookUp, override, reset };
 }
 
 /**
