@@ -430,7 +430,10 @@ export function fuelCardExperimentsRouter(): Router {
         ? matchStatusCasing(before.card.status, input.status)
         : input.status;
       const edits = [
-        ...experimentEdits({ statusValue: statusSent, originalStatusValue: input.setOriginalStatus }),
+        ...experimentEdits({
+          statusValue: statusSent,
+          originalStatusValue: input.setOriginalStatus,
+        }),
         // `overrideClearEdits()` itself, which is what card_lock appends for `clearException`. A
         // hand-written trio here would be a second definition of "clear an override", and a green
         // result from it would say nothing about the path that actually ships.
