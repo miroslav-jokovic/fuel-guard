@@ -166,7 +166,21 @@ describe("prompts spell out what a removal costs", () => {
       body(false),
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.label).toBe("DRID");
+    // Step 9.6: by NAME, not the vendor's four-character code. An operator about to stop the pump
+    // asking who is fuelling should read "Driver ID", not a code they have to translate.
+    expect(rows[0]!.label).toBe("Driver ID");
+  });
+
+  it("names an unknown info id by its raw code rather than showing nothing", () => {
+    // `infoLabel` falls back to the id for a code the guide's table does not carry, so an id we have
+    // not catalogued degrades to what this row showed before 9.6 — never to a blank label.
+    const rows = promptsSetView.diff(
+      cardWith({ infos: [] as never }),
+      { expectedVersion: "", replaceAll: true, allowRemoveDriverId: false,
+        prompts: [{ infoId: "ZZZZ", validationType: "REPORT_ONLY", matchValue: null, reportValue: "x",
+          remove: false, ...PROMPT_INPUT_UNSET }] } as never,
+    );
+    expect(rows[0]!.label).toBe("ZZZZ");
   });
 });
 

@@ -1,5 +1,6 @@
 import {
   PROMPT_REMOVAL_STEP_UP,
+  infoLabel,
   type PromptsSetBody,
   promptRemovalNeedsStepUp,
   promptsSetContract,
@@ -39,6 +40,14 @@ export const promptsSetView = defineView(promptsSetContract, {
   /**
    * One row per prompt the request MENTIONS, not per prompt the card has.
    *
+   * ── Step 9.6: by NAME, not by the vendor's four-character code ─────────────────────────────────
+   * These rows read `DRID` and `TRLR` until 2026-08-17. The step asks for a confirmation that "lists
+   * every add, change and removal BY NAME and value", and it is the right ask: the codes are the
+   * vendor's identifiers, and an operator about to stop the pump asking who is fuelling should read
+   * "Driver ID", not a code they have to translate. `infoLabel` is the same map `CardEffectiveConfig`
+   * already renders from, and it falls back to the raw id for a code the guide's table does not carry
+   * — so an unknown id degrades to what this showed before rather than to nothing.
+   *
    * A prompt the request does not name is untouched — removal has to be authored with
    * `remove: true`, never inferred from omission — so listing the card's other prompts here would
    * show rows that are not part of this decision. The removals are the ones that need to be
@@ -48,7 +57,7 @@ export const promptsSetView = defineView(promptsSetContract, {
     body.prompts.map((prompt) => {
       const existing = (before.infos ?? []).find((info) => info.infoId === prompt.infoId);
       return row(
-        prompt.infoId,
+        infoLabel(prompt.infoId),
         promptLabel(existing?.matchValue ?? null, existing?.reportValue ?? null),
         prompt.remove ? "Removed — the pump stops asking" : promptLabel(prompt.matchValue, prompt.reportValue),
       );
