@@ -7,6 +7,7 @@ import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppCheckbox } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
+import { CLEAR_EXCEPTION_HELP, cardHasArmedException, clearExceptionLabel } from "./overrideException";
 
 /**
  * The controls for whichever operation the drawer is showing — its third region.
@@ -40,6 +41,8 @@ const props = defineProps<{
   unwritableStatus?: string | null;
   /** The prompts the card does not yet carry — what `promptAdd` may offer. */
   addOptions?: readonly string[];
+  /** The card's override count. H16's clear-and-lock checkbox appears only when it is above zero. */
+  overrideUses?: number | null;
 }>();
 
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
@@ -127,6 +130,21 @@ function chooseAdded(infoId: string): void {
       <span v-if="props.statusBlocked?.[row.value]" class="text-sm text-ink-muted">
         {{ blockedSentence(props.statusBlocked[row.value]!) }}
       </span>
+    </div>
+
+    <!--
+      docs/22 H16 — the way THROUGH, not a warning. EFS silently ignores a status change while a fuel
+      exception is armed, so without this the change is refused; with it the exception leaves in the
+      same write. Never pre-ticked: it destroys something the operator did not come here to destroy.
+    -->
+    <div v-if="cardHasArmedException(props.overrideUses)" class="space-y-1 rounded-control bg-caution-50 px-3 py-2">
+      <AppCheckbox
+        :model-value="props.draft.clearException"
+        :disabled="props.busy"
+        :label="clearExceptionLabel(props.overrideUses ?? 0)"
+        @update:model-value="(on: boolean) => patch({ clearException: on })"
+      />
+      <p class="text-sm text-caution-700">{{ CLEAR_EXCEPTION_HELP }}</p>
     </div>
   </div>
 

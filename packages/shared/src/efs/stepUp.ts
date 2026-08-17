@@ -134,7 +134,8 @@ export const CAPABILITIES_WITH_STEP_UP_GATE: readonly string[] = [
  * only ever raise the first — an armed override makes EFS silently ignore a status change, so the lock
  * is refused rather than swallowed.
  *
- * Before this split, `registry.test.ts` derived "has a gate" from the presence of a `precondition` and
+ * Before this split, `apps/api/src/efs/registry.test.ts` derived "has a gate" from the presence of a
+ * `precondition` and
  * compared it against the step-up pin, so adding lock's refusal demanded adding `card_lock` to that
  * list. That would have asserted something FALSE and load-bearing: the list's own comment says lock is
  * absent deliberately because *"locking is the 2am safety action … and it must never demand a

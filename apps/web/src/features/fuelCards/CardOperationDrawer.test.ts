@@ -5,12 +5,12 @@ import type { CardCapabilities } from "@fuelguard/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
 import {
-  currentWritableStatus,
   operationById,
   statusRows,
   unwritableStatusLabel,
   type OperationDraft,
 } from "./cardOperations";
+import { currentWritableStatus } from "./operationDrafts";
 
 /**
  * One case per invariant from plan Step 6.1, each named for the defect it prevents.

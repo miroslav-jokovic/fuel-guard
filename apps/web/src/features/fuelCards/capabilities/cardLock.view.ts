@@ -1,6 +1,7 @@
 import { type CardLockBody, cardLockContract } from "@fuelguard/shared";
 import { EFS_CARD_STATUS_LABELS } from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
+import { cardHasArmedException, clearExceptionClause } from "../overrideException.js";
 
 /**
  * What an operator reads before a card stops working.
@@ -19,11 +20,22 @@ import { defineView, row } from "./types.js";
  * is `"Hold"`, so a second branch would be unreachable code rather than a defensive one.
  */
 export const cardLockView = defineView(cardLockContract, {
-  confirmation: () => ({
+  confirmation: (body: CardLockBody, card) => ({
     tone: "danger",
     title: "Lock this card?",
+    /**
+     * The base sentence is untouched — Step 3.5's rule that this prose moves but never rewords.
+     *
+     * H16 adds a CLAUSE, and only when the operator ticked the box: the write will also destroy the
+     * card's fuel exception, and the screen with the button on it is the only place that can say so.
+     * `allowRemoveDriverId`'s rule — never inferred, always named — applied to the other destruction
+     * this product can now perform.
+     */
     body:
-      "The card stops working at every location immediately. Fuel purchases will decline until you unlock it.",
+      "The card stops working at every location immediately. Fuel purchases will decline until you unlock it."
+      + (body.clearException && cardHasArmedException(card.card.overrideUses)
+        ? clearExceptionClause(card.card.overrideUses ?? 0)
+        : ""),
     confirmLabel: "Lock card",
     busyLabel: "Locking…",
     doneLabel: "Card locked",

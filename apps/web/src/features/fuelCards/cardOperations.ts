@@ -1,4 +1,5 @@
 import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
+import { statusBlocker } from "./overrideException.js";
 import { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
 export { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts };
 import {
@@ -71,6 +72,9 @@ export type OperationCard = CapabilityCardContext["card"];
 export interface OperationDraft {
   /** The status the operator has ticked. Seeded from the card, so an untouched draft is a no-op. */
   targetStatus: EfsWritableStatus;
+  /** H16: clear the card's exception as part of the status change. NEVER seeded true — see
+   *  overrideException.ts for why being the only way forward is not consent. */
+  clearException: boolean;
   uses: number;
   scopeKind: "all" | "location";
   location: EfsLocation | null;
@@ -133,7 +137,7 @@ export interface CardOperationSpec {
    * Returns the SENTENCE, never a boolean: a disabled button whose tooltip says "invalid" tells an
    * operator to go and hunt. Null means ready.
    */
-  blocker?: (draft: OperationDraft) => string | null;
+  blocker?: (draft: OperationDraft, card: OperationCard) => string | null;
 }
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
@@ -162,8 +166,10 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
      * of these three bodies are `{}` and are not the same request.
      */
     body: (draft) => (STATUS_CAPABILITY[draft.targetStatus].key === "card_lock"
-      ? { status: draft.targetStatus }
+      ? { status: draft.targetStatus, clearException: draft.clearException }
       : {}),
+    /** H16, and the rule lives in overrideException.ts with the checkbox copy it has to agree with. */
+    blocker: statusBlocker,
   },
   {
     id: "grant",
@@ -311,20 +317,6 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
 ];
 
 /** A draft with nothing entered. The baseline the drawer's dirty check compares against. */
-export const emptyDraft = (current: string | null = null): OperationDraft =>
-  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null, removeInfoId: null });
-
-/**
- * The card's status as one of the three the operator may write, or `Active` when it is neither.
- *
- * A card sitting at `Fraud` or `Deleted` has no row in the list — those are not writable states —
- * so the draft has to start SOMEWHERE. It starts at Active, and `statusRows` marks the real state
- * separately, because silently pre-ticking a value the card is not at is how somebody presses Save
- * and changes a card they only meant to look at.
- */
-export const currentWritableStatus = (status: string | null): EfsWritableStatus =>
-  EFS_WRITABLE_STATUSES.find((s) => efsStatusEquals(s, status)) ?? "Active";
-
 export interface StatusRow {
   value: EfsWritableStatus;
   label: string;
