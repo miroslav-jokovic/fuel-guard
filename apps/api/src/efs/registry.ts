@@ -9,7 +9,7 @@ import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
-import type { CapabilityBehaviour, Landing, ReadCtx, Snapshot } from "./types.js";
+import type { EditsCtx, CapabilityBehaviour, Landing, ReadCtx, Snapshot } from "./types.js";
 import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { Env } from "../env.js";
 
@@ -29,9 +29,9 @@ import type { Env } from "../env.js";
  */
 /** What the prover needs off a proof plan, with the body type widened away. */
 export interface RegisteredProof {
-  precondition: (snap: Snapshot) => boolean;
-  sample: (snap: Snapshot) => unknown;
-  revert: (snap: Snapshot) => { capability: string; body: unknown };
+  precondition: (snap: Snapshot, ctx: EditsCtx) => boolean;
+  sample: (snap: Snapshot, ctx: EditsCtx) => unknown;
+  revert: (snap: Snapshot, ctx: EditsCtx) => { capability: string; body: unknown };
 }
 
 export interface MountedCapability {

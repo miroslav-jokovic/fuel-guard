@@ -1,9 +1,9 @@
-import { resolveEditableInfoIds } from "@fuelguard/shared";
 import { ActionRefusalError, CardControlError } from "../../services/efsCardControlErrors.js";
 import { cardOpOptions } from "../../services/efsCardOperationOptions.js";
 import { updateMirror } from "../../services/efsCardReconcile.js";
 import type { PlanCtx, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
+import { resolveOrgEditableInfoIds } from "./editableInfoIds.js";
 import { firstStep } from "./steps.js";
 import type { CardMutationContext, CardMutationPlan, ResolvedCapability } from "./types.js";
 
@@ -126,27 +126,4 @@ async function assertUnmoved<TBody>(
     );
   }
   return doc;
-}
-
-/**
- * The org's editable prompt ids (Step 9.1), read from our own table rather than from the vendor.
- *
- * `getPromptTypes` on the write path would spend a rate-limit budget keyed on IP rather than on the
- * account it protects (Step 5.6), and would make a rate-limited account one whose prompts cannot be
- * edited at all. The account-inventory walk fills `prompt_types`; this reads it.
- *
- * A missing row resolves to the DRID/UNIT fallback rather than failing the write, and that is a
- * decision rather than an oversight: a missing row is the state EVERY org is in until its first
- * inventory walk, and it is the exact behaviour this product had before Phase 9. Turning it into an
- * outage on a surface that worked yesterday would be the worse failure. The narrowing is not silent
- * either — `schemaCheck` warns at boot if the column is absent, and the inventory walk reports
- * whether its own cache write landed.
- */
-async function resolveOrgEditableInfoIds(ctx: CardMutationContext): Promise<readonly string[]> {
-  const { data } = await ctx.admin
-    .from("efs_card_control_settings")
-    .select("prompt_types")
-    .eq("org_id", ctx.orgId)
-    .maybeSingle();
-  return resolveEditableInfoIds((data as { prompt_types?: string[] } | null)?.prompt_types ?? null);
 }

@@ -187,3 +187,48 @@ describe("removing a card's Driver ID prompt", () => {
     expect(outcome.status).toBe("succeeded");
   });
 });
+
+/**
+ * Step 9.1's last gap, closed. The live prover built its sample from the hardcoded DRID/UNIT pair
+ * while the write path validated against the account's resolved set — so a green `prove prompts_set`
+ * proved two prompt ids and read as proving the surface. Same shape as the `oeg5RevertLanded`
+ * lesson: when a live run goes green, ask which code path it exercised.
+ *
+ * The fixture carries DRID, ODRD and UNIT, which is what makes these assertions possible: ODRD is
+ * reachable only through the resolved set, so a sample that ignores `ctx` cannot produce it.
+ */
+describe("the proof samples the account's prompts, not a constant", () => {
+  const doc = parseCardDocument(readFileSync(
+    fileURLToPath(new URL("../../lib/__fixtures__/efs/getCardV2.full.xml", import.meta.url)), "utf8",
+  ));
+  const snap = { doc };
+  const ids = (body: PromptsSetBody) => body.prompts.map((p) => p.infoId).sort();
+
+  it("covers every editable prompt the ACCOUNT allows, ODRD included", () => {
+    const sample = promptsSetBehaviour.proof!.sample(snap, { editableInfoIds: ["DRID", "UNIT", "ODRD"] });
+    expect(ids(sample)).toEqual(["DRID", "ODRD", "UNIT"]);
+  });
+
+  it("covers only the fallback pair when the account has never been read", () => {
+    // The positive control. Without it, a sample that ignored `ctx` and returned every record on the
+    // card would satisfy the assertion above while proving nothing about the resolved set.
+    const sample = promptsSetBehaviour.proof!.sample(snap, { editableInfoIds: ["DRID", "UNIT"] });
+    expect(ids(sample)).toEqual(["DRID", "UNIT"]);
+  });
+
+  it("reverts exactly what it sampled, through its own capability", () => {
+    // OEG-5. A revert narrower than the sample leaves a QA card dirty in precisely the way rule 14
+    // exists to prevent, and a `replaceAll` revert that omits a record DELETES it (guide p137).
+    const ctx = { editableInfoIds: ["DRID", "UNIT", "ODRD"] };
+    const revert = promptsSetBehaviour.proof!.revert(snap, ctx);
+    expect(revert.capability).toBe("prompts_set");
+    expect(ids(revert.body as PromptsSetBody)).toEqual(ids(promptsSetBehaviour.proof!.sample(snap, ctx)));
+  });
+
+  it("voids when the resolved set reaches nothing on this card", () => {
+    // OEG-3. An account whose editable ids the card does not carry has nothing to flip, so a write
+    // would be a no-op reported as a landing.
+    expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["BDAY", "GLCD"] })).toBe(false);
+    expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["ODRD"] })).toBe(true);
+  });
+});

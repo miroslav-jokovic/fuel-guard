@@ -1,7 +1,9 @@
 import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { documentShape, type CardDocument } from "../../lib/efsCardXml.js";
+import { resolveOrgEditableInfoIds } from "../orchestrator/editableInfoIds.js";
 import type { CardMutationContext } from "../orchestrator/types.js";
+import type { EditsCtx } from "../types.js";
 import type { MountedCapability } from "../registry.js";
 import { observeField, judgeField } from "./configScan.js";
 
@@ -178,10 +180,18 @@ export async function proveCapability(
   }
 
   const snap = { doc: before };
+  /**
+   * The same resolved set the write path uses, from the same lookup (Step 9.1).
+   *
+   * Resolved ONCE and reused by all three hooks: `precondition`, `sample` and `revert` must agree
+   * about which prompts exist, or OEG-3 can void on a set the sample never had and OEG-5 can put
+   * back records the proof never touched.
+   */
+  const editsCtx: EditsCtx = { editableInfoIds: await resolveOrgEditableInfoIds(ctx) };
   // OEG-3's precondition, and the reason it comes before any write: a proof that starts in the
   // target state dispatches, re-reads, sees the target value and reports success — for a write the
   // vendor may have ignored entirely. Void, not failed: nothing was learned either way.
-  if (!plan.precondition(snap)) {
+  if (!plan.precondition(snap, editsCtx)) {
     return await settle(voided(
       proofId,
       "the card is already in the state this capability would write, so the run would prove nothing. "
@@ -199,7 +209,7 @@ export async function proveCapability(
   // ── OEG-3: apply ────────────────────────────────────────────────────────────────────────────
   let applied: Awaited<ReturnType<typeof dispatch>>;
   try {
-    applied = await dispatch(ctx, capabilityKey, plan.sample(snap), before, deps.capabilities);
+    applied = await dispatch(ctx, capabilityKey, plan.sample(snap, editsCtx), before, deps.capabilities);
   } catch (error) {
     result.outcome = "error";
     result.detail = `the apply threw: ${String(error)}`;
@@ -238,7 +248,7 @@ export async function proveCapability(
   // ── OEG-5: revert, through whichever capability undoes this one ─────────────────────────────
   // Attempted even when the apply did not land: `sent` means the write MAY have landed, and a card
   // left changed because the harness assumed otherwise is the failure this whole product prevents.
-  const revert = plan.revert(snap);
+  const revert = plan.revert(snap, editsCtx);
   try {
     const reverted = await dispatch(ctx, revert.capability, revert.body, afterApply ?? before, deps.capabilities);
     result.oeg5RevertLanded = reverted.status === "succeeded";

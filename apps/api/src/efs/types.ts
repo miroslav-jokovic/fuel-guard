@@ -206,10 +206,21 @@ export interface Governance<TBody> {
  * rather than failed, because nothing was learned either way.
  */
 export interface ProofPlan<TBody> {
-  /** OEG-3: the before-state must differ from what `sample()` would write, or the run is void. */
-  precondition: (snap: Snapshot) => boolean;
+  /**
+   * OEG-3: the before-state must differ from what `sample()` would write, or the run is void.
+   *
+   * ── Why all three hooks take `EditsCtx` ────────────────────────────────────────────────────────
+   * `prompts_set` builds its sample FROM the card's own editable records, and which records those
+   * are is a per-account fact since Step 9.1. Without the resolved set the prover sampled the
+   * hardcoded DRID/UNIT pair while the write path validated against twenty-four — so a green
+   * `prove prompts_set` proved two ids and read as proving the surface.
+   *
+   * `ctx` is second so the capabilities that ignore it need no change: TypeScript accepts an
+   * implementation declaring fewer parameters than its type. Four of the six do ignore it.
+   */
+  precondition: (snap: Snapshot, ctx: EditsCtx) => boolean;
   /** A body the prover may apply to a disposable QA card. */
-  sample: (snap: Snapshot) => TBody;
+  sample: (snap: Snapshot, ctx: EditsCtx) => TBody;
   /**
    * OEG-5: how to put the card back, proven by re-read.
    *
@@ -227,7 +238,7 @@ export interface ProofPlan<TBody> {
    * own zod schema — the same discipline `VerifyPlan.reconcile` already follows for a body read back
    * out of jsonb, and stronger than a cast would be.
    */
-  revert: (snap: Snapshot) => { capability: string; body: unknown };
+  revert: (snap: Snapshot, ctx: EditsCtx) => { capability: string; body: unknown };
 }
 
 export interface CapabilityBehaviour<TBody> extends Governance<TBody> {
