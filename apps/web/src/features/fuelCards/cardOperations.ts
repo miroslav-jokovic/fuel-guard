@@ -5,7 +5,6 @@ import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
   EFS_WRITABLE_STATUSES,
-  PROMPT_INPUT_UNSET,
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
@@ -32,7 +31,7 @@ import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow }
  * registry Phase 3 built and nothing consumed until now.
  */
 
-export type CardOperationId = "status" | "grant" | "clear" | "promptAdd" | "prompts";
+export type CardOperationId = "status" | "grant" | "clear" | "promptAdd" | "prompts" | "promptRemove";
 
 /**
  * The two SECTIONS of the card page, each with its own `⋮`.
@@ -84,6 +83,14 @@ export interface OperationDraft {
    * to match it.
    */
   addInfoId: string | null;
+  /**
+   * Which prompt `promptRemove` is removing (Step 9.6). Seeded to the first the card carries.
+   *
+   * Its own field rather than reusing `addInfoId`: the two operations are mutually exclusive in the
+   * drawer but the draft is ONE object with one dirty check, and sharing the field would make a
+   * half-typed add re-seed as a removal target when the operator switched actions.
+   */
+  removeInfoId: string | null;
 }
 
 export interface CardOperationSpec {
@@ -247,16 +254,59 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       // the client can never arrive at it by omission.
       replaceAll: true,
       prompts: draft.prompts,
-      allowRemoveDriverId: draft.prompts.some((p) => p.infoId === "DRID" && p.remove),
+      /**
+       * Always false. Since Step 9.6 removal is `promptRemove`'s job and this form cannot flag one,
+       * so a `true` here could only come from a draft this operation did not build.
+       */
+      allowRemoveDriverId: false,
     }),
     blocker: (draft) =>
       (draft.prompts.length === 0 ? "This card has no prompt this product can edit." : null),
+  },
+  {
+    id: "promptRemove",
+    capabilityKey: "prompts_set",
+    scope: "prompts",
+    group: "Prompts",
+    menuLabel: "Remove prompt…",
+    /**
+     * Step 9.6's third action — and the reason Edit no longer offers removal.
+     *
+     * Removing a prompt was a red button inside the Edit form, so one destructive write had two
+     * routes into it: two confirmations, two step-up decisions and two audit stories to keep in
+     * step. That is the shape audit P0-3 names — "an unlock reachable through the lock route" — and
+     * the plan's answer is the same one Phase 8.1 gave `card_deactivate`: split the action out so
+     * the operator's intent and the record of it agree.
+     *
+     * The CAPABILITY is unchanged. All three prompt actions write through `prompts_set`, because
+     * `replaceAll` means the array IS the card's prompts afterwards (guide p137) — an add, an edit
+     * and a removal are the same vendor call with a different array. What is split is the operator's
+     * decision, not the wire.
+     */
+    applies: (card, allowed) => editableInfoIds(card, allowed).length > 0,
+    body: (draft) => ({
+      replaceAll: true,
+      // Every record goes back, with `remove` set on the one chosen. Sending only the survivors
+      // would delete the rest by omission, which `replaceAll` makes silent.
+      prompts: draft.prompts.map((p) => ({ ...p, remove: p.infoId === draft.removeInfoId })),
+      /**
+       * The explicit opt-in the API demands for a DRID removal, derived from the choice rather than
+       * from a checkbox. `assertPromptRemovalAllowed` refuses without it as `invalid_request`, and
+       * the step-up is a SEPARATE gate the view predicts — this flag answers "did you mean to", not
+       * "are you authorised".
+       */
+      allowRemoveDriverId: draft.removeInfoId === "DRID",
+    }),
+    blocker: (draft) => {
+      if (draft.prompts.length === 0) return "This card has no prompt this product can remove.";
+      return draft.removeInfoId ? null : "Choose which prompt to remove.";
+    },
   },
 ];
 
 /** A draft with nothing entered. The baseline the drawer's dirty check compares against. */
 export const emptyDraft = (current: string | null = null): OperationDraft =>
-  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null });
+  ({ targetStatus: currentWritableStatus(current), uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null, removeInfoId: null });
 
 /**
  * The card's status as one of the three the operator may write, or `Active` when it is neither.
@@ -315,45 +365,6 @@ export const resolveCapability = (
 ): { key: string; scope: CardOperationScope } =>
   spec.capabilityFor?.(draft) ?? { key: spec.capabilityKey, scope: spec.scope };
 
-/**
- * A draft seeded from the card, including `promptAdd`'s new blank record.
- *
- * The new record joins `prompts` rather than sitting beside it, so the body is a plain `replaceAll`
- * of the whole array and nothing has to remember to merge the two — which is how an add turns into
- * a delete of everything else (guide p137).
- *
- * Pure, and out here rather than in the drawer, because the drawer calls it three times — on seed,
- * inside the dirty comparison, and on a 409 reseed — and a `dirty` check computing its baseline
- * differently from `seed()` reads TRUE on an untouched drawer. That is exactly the defect Step 6.1
- * shipped and `seededFor` had to paper over.
- */
-export const seedDraftFor = (
-  operation: CardOperationSpec | null,
-  status: string,
-  prompts: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
-  allowed: readonly string[],
-): OperationDraft => {
-  const base = { ...emptyDraft(status), prompts: promptDrafts(prompts, allowed) };
-  if (operation?.id !== "promptAdd") return base;
-  const addInfoId = missingEditableInfoIds({
-    status, infos: prompts as OperationCard["infos"], limits: [],
-    overrideUses: null, overrideAllLocations: null, locationOverrideId: null,
-  }, allowed)[0] ?? null;
-  return addInfoId === null ? base : {
-    ...base,
-    addInfoId,
-    prompts: [...base.prompts, {
-      infoId: addInfoId,
-      // EXACT_MATCH by default: a prompt the pump only RECORDS stops nobody, and the operator can
-      // downgrade it deliberately. Defaulting the other way makes the weaker choice the silent one.
-      validationType: "EXACT_MATCH",
-      ...PROMPT_INPUT_UNSET,
-      matchValue: "",
-      reportValue: null,
-      remove: false,
-    }],
-  };
-};
 
 export const operationById = (id: CardOperationId): CardOperationSpec | null =>
   CARD_OPERATIONS.find((op) => op.id === id) ?? null;

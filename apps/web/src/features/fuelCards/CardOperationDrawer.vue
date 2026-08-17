@@ -18,7 +18,6 @@ import {
   type OperationDraft,
   blockedSentence,
   operationBlockedBy,
-  seedDraftFor,
   operationConfirmation,
   operationDiff,
   operationStepUp,
@@ -31,6 +30,7 @@ import {
   unwritableStatusLabel,
   toOperationCard,
 } from "./cardOperations";
+import { seedDraftFor } from "./operationDrafts";
 import { newIdempotencyKey, type CardMutationOutcome } from "./useCardControl";
 import { useOperationDispatch } from "./useOperationDispatch";
 

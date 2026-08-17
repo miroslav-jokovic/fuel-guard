@@ -188,7 +188,7 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
   it("sends every existing record back alongside the new one", () => {
     const draft = {
       targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
-      addInfoId: "UNIT" as const,
+      addInfoId: "UNIT" as const, removeInfoId: null,
       prompts: [
         { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
         { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
@@ -200,10 +200,64 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
     expect(body.allowRemoveDriverId).toBe(false);
   });
 
+  /**
+   * Step 9.6's third action. Removal used to be a red button inside the Edit form, so ONE
+   * destructive write had two routes into it — the audit P0-3 shape ("an unlock reachable through
+   * the lock route"), answered here the way Phase 8.1 answered it for `card_deactivate`.
+   */
+  describe("removing a prompt is its own action", () => {
+    const twoPrompts = [
+      { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
+      { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
+    ];
+    const removeDraft = (removeInfoId: string | null) => ({
+      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      addInfoId: null, removeInfoId, prompts: twoPrompts,
+    });
+
+    it("sends every record back, flagging only the one chosen", () => {
+      // `replaceAll` means the array IS the card's prompts afterwards. Sending only the survivors
+      // would delete the rest by omission — silently, which is the whole hazard of replaceAll.
+      const body = operationById("promptRemove")!.body(removeDraft("UNIT")) as
+        { prompts: { infoId: string; remove: boolean }[]; allowRemoveDriverId: boolean };
+
+      expect(body.prompts).toHaveLength(2);
+      expect(body.prompts.find((p) => p.infoId === "UNIT")!.remove).toBe(true);
+      expect(body.prompts.find((p) => p.infoId === "DRID")!.remove).toBe(false);
+    });
+
+    it("derives the Driver ID opt-in from the CHOICE, not from a checkbox", () => {
+      // `assertPromptRemovalAllowed` refuses a DRID removal without it as `invalid_request`. The
+      // step-up is a separate gate: this flag answers "did you mean to", not "are you authorised".
+      expect((operationById("promptRemove")!.body(removeDraft("DRID")) as { allowRemoveDriverId: boolean })
+        .allowRemoveDriverId).toBe(true);
+      expect((operationById("promptRemove")!.body(removeDraft("UNIT")) as { allowRemoveDriverId: boolean })
+        .allowRemoveDriverId).toBe(false);
+    });
+
+    it("will not submit until a prompt is chosen", () => {
+      expect(operationById("promptRemove")!.blocker!(removeDraft(null))).toContain("Choose which prompt");
+      expect(operationById("promptRemove")!.blocker!(removeDraft("UNIT"))).toBeNull();
+    });
+
+    it("no longer lets the EDIT form remove anything — one write, one route", () => {
+      /**
+       * The assertion that makes the split real. Even handed a draft carrying `remove: true` — which
+       * this form can no longer produce — `prompts` must not claim the Driver ID opt-in.
+       */
+      const sneaky = {
+        ...removeDraft(null),
+        prompts: [{ ...twoPrompts[0]!, remove: true }],
+      };
+      expect((operationById("prompts")!.body(sneaky) as { allowRemoveDriverId: boolean })
+        .allowRemoveDriverId).toBe(false);
+    });
+  });
+
   it("refuses an EXACT_MATCH with no value — a prompt that validates nothing stops nobody", () => {
     const draft = {
       targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
-      addInfoId: "UNIT" as const,
+      addInfoId: "UNIT" as const, removeInfoId: null,
       prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }],
     };
     expect(operationById("promptAdd")!.blocker!(draft)).toContain("value the driver must type");

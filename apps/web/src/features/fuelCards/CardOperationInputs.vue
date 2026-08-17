@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { EFS_MATCH_VALUE_MAX, PROMPT_INPUT_UNSET, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
@@ -217,6 +216,32 @@ function chooseAdded(infoId: string): void {
     </div>
   </div>
 
+  <!--
+    Step 9.6's third action: pick ONE prompt, and read what stops happening at the pump.
+    A select rather than a row of buttons — the decision is which prompt, and a list of red buttons
+    invites the click that a confirmation then has to talk somebody out of.
+  -->
+  <div v-else-if="props.operation === 'promptRemove'" class="space-y-4">
+    <FormField label="Prompt to remove">
+      <template #default="{ id }">
+        <ComboSelect
+          :id="id"
+          :model-value="props.draft.removeInfoId ?? ''"
+          :options="props.draft.prompts.map((p) => ({ value: p.infoId, label: infoLabel(p.infoId) }))"
+          :disabled="props.busy"
+          @update:model-value="patch({ removeInfoId: $event })"
+        />
+      </template>
+    </FormField>
+    <p v-if="props.draft.removeInfoId" class="rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700">
+      The pump will stop asking for
+      {{ infoLabel(props.draft.removeInfoId) }} on this card after you confirm.
+      <span v-if="props.draft.removeInfoId === 'DRID'">
+        FuelGuard also loses its strongest signal for attributing a fill to a driver.
+      </span>
+    </p>
+  </div>
+
   <div v-else-if="props.operation === 'prompts'" class="space-y-4">
     <div
       v-for="(prompt, index) in props.draft.prompts"
@@ -228,7 +253,7 @@ function chooseAdded(infoId: string): void {
         :label="prompt.validationType === 'REPORT_ONLY' ? 'Value to report' : 'Value the driver must enter'"
         :hint="prompt.validationType === 'REPORT_ONLY'
           ? `Maximum ${EFS_MATCH_VALUE_MAX} characters. An empty report value is allowed.`
-          : `Maximum ${EFS_MATCH_VALUE_MAX} characters. Choose Remove this prompt to remove it.`"
+          : `Maximum ${EFS_MATCH_VALUE_MAX} characters. Use Remove prompt to take it off the card.`"
       >
         <template #default="{ id }">
           <BaseInput
@@ -236,7 +261,7 @@ function chooseAdded(infoId: string): void {
             type="text"
             :maxlength="EFS_MATCH_VALUE_MAX"
             :model-value="prompt.validationType === 'REPORT_ONLY' ? prompt.reportValue ?? '' : prompt.matchValue ?? ''"
-            :disabled="props.busy || prompt.remove"
+            :disabled="props.busy"
             @update:model-value="patchPrompt(index, prompt.validationType === 'REPORT_ONLY' ? { reportValue: $event } : { matchValue: $event })"
           />
         </template>
@@ -247,35 +272,18 @@ function chooseAdded(infoId: string): void {
             :id="id"
             :model-value="prompt.validationType"
             :options="validationOptions"
-            :disabled="props.busy || prompt.remove"
+            :disabled="props.busy"
             @update:model-value="patchPrompt(index, { validationType: $event as PromptInput['validationType'] })"
           />
         </template>
       </FormField>
-      <div class="flex justify-end">
-        <!-- Clearing a value is NOT removing a prompt: empty values are valid for REPORT_ONLY. -->
-        <BaseButton
-          v-if="prompt.remove"
-          variant="ghost"
-          size="sm"
-          :disabled="props.busy"
-          @click="patchPrompt(index, { remove: false })"
-        >
-          Keep this prompt
-        </BaseButton>
-        <BaseButton
-          v-else
-          variant="danger"
-          size="sm"
-          :disabled="props.busy"
-          @click="patchPrompt(index, { remove: true })"
-        >
-          Remove this prompt
-        </BaseButton>
-      </div>
-      <p v-if="prompt.remove" class="rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700">
-        The pump will stop asking for this after you confirm.
-      </p>
+      <!--
+        No Remove button here since Step 9.6. Removal is its own action, because one destructive
+        write with two routes into it means two confirmations and two audit stories to keep in step
+        — the shape audit P0-3 names. Clearing a value is NOT removing a prompt: an empty value is
+        valid for REPORT_ONLY, and conflating the two is how a prompt gets deleted by someone who
+        meant to blank it.
+      -->
     </div>
 
     <!--

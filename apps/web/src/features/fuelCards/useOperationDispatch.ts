@@ -66,8 +66,17 @@ export function useOperationDispatch() {
         return grant.mutateAsync({ ...common, uses: body.uses as number, scope: body.scope as never });
       case "clear":
         return clear.mutateAsync(common);
+      /**
+       * All three prompt actions dispatch through ONE capability, and that is deliberate.
+       *
+       * `replaceAll` means the array IS the card's prompts afterwards (guide p137), so an add, an
+       * edit and a removal are the same `prompts_set` call with a different array. Step 9.6 split
+       * the operator's DECISION into three, not the wire into three — the opposite of the `status`
+       * case above, where three statuses genuinely are two capabilities with two approver scopes.
+       */
       case "promptAdd":
       case "prompts":
+      case "promptRemove":
         return setPrompts.mutateAsync({
           ...common,
           prompts: body.prompts as PromptInput[],
