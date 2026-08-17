@@ -676,6 +676,24 @@ first override lands on production with no QA rehearsal behind it.
    override"* is plainly a statement about screens, which is the strongest hint it is a UI rule — but
    it is a hint, not the answer.
 
+   > ### ⚠ Probed 2026-08-17 — and the run does NOT answer this. Q6 stays open.
+   >
+   > `f9-probe` ran on QA ••••7671 (docs/22 **H16**, transcript `docs/efs/f9-override-freeze-qa.json`).
+   > The status write did not land — three readings over 10.2s, version unchanged, void success, no
+   > fault. **But it sent `Hold` to an account that stores `ACTIVE`, which is H1 exactly**, and H1
+   > already proved a wrong-cased status is answered with the identical void success and applied
+   > nothing. One uncontrolled variable, sufficient on its own to produce the observed result, so the
+   > override cannot be credited with it.
+   >
+   > **Two things the run DID settle, both clean** (neither writes a status string): the echo
+   > override-clear **lands** on a card carrying an armed override — so `setCardv2` is not wholesale
+   > frozen and our live clear path works — and **`deleteOverride` is entitled on this account and
+   > lands**, which closes D1's entitlement half, open since Phase 8.2.
+   >
+   > The drill has been fixed twice over: `matchAccountCasing` sends production's own bytes, and a
+   > **control run** proves the identical write lands with no override armed before the test repeats it
+   > with one. Re-run needed.
+
    **This one IS cheaply probeable on QA, and it should be probed before Phase 10 promotes**, because
    two of its three outcomes change the product: grant a 1-use override on a QA card, then attempt a
    `card_lock` to `Hold` through the ordinary capability path and read back. If the status does not

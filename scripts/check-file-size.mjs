@@ -92,7 +92,18 @@ const GRANDFATHERED = {
   // have been armed AT THE INSTANT of the reading. Inferring it from a `read_state` either side is
   // weaker for the reason docs/28 §8's four defects were weak — two sources agreeing about a third
   // thing neither observed.
-  "apps/api/src/routes/fuelCards/experiments.ts": 516,
+  //
+  // 516 → 536 later the same day, and this one was paid for by a run that produced an unusable
+  // result. The F9 probe sent `Hold` to an account that stores `ACTIVE` — H1 exactly, answered with
+  // the same void success and applied nothing — so `landed: false` had two sufficient explanations
+  // and could not choose between them. `matchAccountCasing` opts a set_status experiment into
+  // production's own `matchStatusCasing`, applied HERE from the document in hand so the rule stays
+  // single-sourced; a CLI that recomputed it would be a second implementation of the rule H1 cost us.
+  // The verbatim default is untouched, because casing IS hypothesis H1 and an endpoint that silently
+  // corrected it could never have measured it. `statusSent` now reports the bytes actually sent
+  // rather than the bytes requested — a transcript that reported the request while sending something
+  // else is how the first run looked correct for an hour.
+  "apps/api/src/routes/fuelCards/experiments.ts": 536,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this

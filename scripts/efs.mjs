@@ -841,6 +841,48 @@ switch (command) {
       }
       console.error(`baseline: status ${startStatus}, overrideUses 0, no card-level limits — usable\n`);
 
+      /**
+       * ── 1b. ⚠ THE CONTROL, and the run is worthless without it ─────────────────────────────────
+       *
+       * The first F9 attempt (2026-08-17) failed here and the transcript is what caught it. It sent
+       * `Hold` to an account that stores `ACTIVE`, which is H1 exactly: EFS answers a wrong-cased
+       * status with the same void success and applies nothing — "it is not slow, it is dead", three
+       * reads over ten seconds. So `landed: false` had TWO sufficient explanations and the run could
+       * not choose between them.
+       *
+       * Two fixes, both needed. `matchAccountCasing` makes the write carry production's own bytes
+       * (`matchStatusCasing` server-side, from the document in hand). And this control proves THE
+       * IDENTICAL WRITE LANDS ON THIS CARD, IN THIS SESSION, MOMENTS EARLIER — which is the method H1
+       * used to settle itself: "same session, same card, same request shape, same echo — the casing
+       * was the only variable." Here the override is the only variable.
+       */
+      const target = String(startStatus ?? "").toUpperCase() === "HOLD" ? "Active" : "Hold";
+      console.error(`CONTROL: ${target} with NO override armed — this must land, or nothing after it means anything…`);
+      const control = record("1b-set_status(control)", await experiment({
+        experiment: "set_status", status: target, variant: "standard", matchAccountCasing: true, confirm,
+      }));
+      const controlLanded = control.body?.landed === true;
+      console.error(
+        `control: sent <status>${control.body?.statusSent}</status> -> `
+          + `${controlLanded ? "LANDED" : "did NOT land"}`,
+      );
+      if (!controlLanded) {
+        verdict = "control_failed";
+        console.error(
+          "\n⚠ THE CONTROL FAILED, so this card cannot answer F9 today. A status write is not landing\n"
+            + "  even with no override in the way, so a failure WITH one would prove nothing. That is a\n"
+            + "  finding in its own right — check statusSent against the account's own casing and the\n"
+            + "  response shape before blaming the override.\n",
+        );
+        console.error(JSON.stringify(control.body?.readings ?? control.body, null, 2));
+      } else {
+        // Put it back before arming, so the test writes the SAME transition the control just proved.
+        const undo = record("1c-set_status(control-undo)", await experiment({
+          experiment: "set_status", status: startStatus, variant: "standard", matchAccountCasing: true, confirm,
+        }));
+        console.error(`control undone: back to ${undo.body?.statusSent} -> ${undo.body?.landed === true ? "LANDED" : "did NOT land"}\n`);
+      }
+
       // ── 2. Arm the exception. 1 use: WEX recommends it for this very reason, and it is below the
       //       step-up threshold, so nothing here depends on the grant being the unusual case ───────
       const grant = record("2-set_override", await experiment({ experiment: "set_override", uses: 1, confirm }));
@@ -880,21 +922,23 @@ switch (command) {
         //       algebra as production, so a negative is about the override and not about the harness.
         //       Each reading now carries overrideUses beside status, so a `landed: false` shows the
         //       override was armed AT THAT INSTANT rather than leaving it to be inferred ─────────────
-        const target = String(startStatus ?? "").toUpperCase() === "HOLD" ? "Active" : "Hold";
-        console.error(`THE TEST: setting status to ${target} while the override is armed…`);
+        console.error(`THE TEST: the SAME write the control just proved, now with the override armed…`);
         const lock = record("4-set_status", await experiment({
-          experiment: "set_status", status: target, variant: "standard", confirm,
+          experiment: "set_status", status: target, variant: "standard", matchAccountCasing: true, confirm,
         }));
         const lockLanded = lock.body?.landed === true;
-        verdict = lockLanded ? "no_freeze" : "freeze_or_other_failure";
+        // The verdict is only about F9 when the control established that this write works otherwise.
+        verdict = !controlLanded ? "control_failed" : lockLanded ? "no_freeze" : "freeze_confirmed";
         console.error(
           lockLanded
-            ? `\n✓ The status write LANDED on a card in override.\n`
-              + "  F9 resolves toward 'the freeze is a portal-UI rule'. Q6 closes, Phase 10 goes to 10.4.\n"
-            : `\n✗ The status write did NOT land while the override was armed.\n`
-              + "  If every reading below shows overrideUses >= 1, THE FREEZE IS REAL FOR THE API, and\n"
-              + "  card_lock needs a precondition naming the override. That is a safety fix, not a\n"
-              + "  Phase 10 detail. Check the readings before concluding — a fault is not a refusal.\n",
+            ? `\n✓ <status>${lock.body?.statusSent}</status> LANDED on a card in override.\n`
+              + "  F9 resolves to 'the freeze is a portal-UI rule'. Q6 closes, Phase 10 goes to 10.4.\n"
+            : !controlLanded
+              ? `\n(inconclusive — the control did not land either, so this says nothing about overrides)\n`
+              : `\n✗ <status>${lock.body?.statusSent}</status> did NOT land, and the IDENTICAL write landed\n`
+                + "  moments ago with no override. The override is the only variable, so THE FREEZE IS\n"
+                + "  REAL FOR THE API and card_lock needs a precondition naming it. That is a safety fix,\n"
+                + "  not a Phase 10 detail. Confirm every reading below shows overrideUses >= 1.\n",
         );
         console.error(JSON.stringify(lock.body?.readings ?? lock.body, null, 2));
         record("5-read_state", await experiment({ experiment: "read_state" }));

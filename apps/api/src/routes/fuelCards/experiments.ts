@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { efsStatusEquals } from "@fuelguard/shared";
+import { efsStatusEquals, matchStatusCasing } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {
@@ -72,6 +72,20 @@ const experimentSchema = z.discriminatedUnion("experiment", [
     cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
     /** Sent VERBATIM — casing is hypothesis H1. Allowlist enforced below with a readable error. */
     status: z.string().trim().min(1),
+    /**
+     * Opt in to production's OWN casing rule (`matchStatusCasing`) instead of the verbatim default.
+     *
+     * The default has to stay verbatim: casing IS hypothesis H1, and an endpoint that quietly
+     * corrected it could never have measured it. But that default made this endpoint unusable for
+     * asking a question ABOUT SOMETHING ELSE — the F9 run on 2026-08-17 sent `Hold` to an account
+     * that stores `ACTIVE`, reproduced H1's accepted-and-ignored exactly, and could not tell that
+     * apart from the override freeze it was trying to measure. One uncontrolled variable, already
+     * proven sufficient on its own to produce the observed result.
+     *
+     * Applied SERVER-SIDE from the document in hand, so the rule stays single-sourced — a CLI that
+     * recomputed it would be a second implementation of the thing H1 cost us.
+     */
+    matchAccountCasing: z.boolean().default(false),
     variant: z.enum(EXPERIMENT_VARIANTS).default("standard"),
     /** Hypothesis H3. Only meaningful alongside a Hold; the vendor decides what it does with it. */
     setOriginalStatus: z.string().trim().min(1).optional(),
@@ -400,8 +414,14 @@ export function fuelCardExperimentsRouter(): Router {
         return;
       }
 
+      // The bytes that actually go on the wire, and the only value reported as `statusSent` below:
+      // a transcript that echoed the REQUESTED status while sending a different one would be worse
+      // than no transcript.
+      const statusSent = input.matchAccountCasing
+        ? matchStatusCasing(before.card.status, input.status)
+        : input.status;
       const edits = experimentEdits({
-        statusValue: input.status,
+        statusValue: statusSent,
         originalStatusValue: input.setOriginalStatus,
       });
 
@@ -477,7 +497,7 @@ export function fuelCardExperimentsRouter(): Router {
         meta: {
           experiment: "set_status",
           variant: input.variant,
-          statusSent: input.status,
+          statusSent,
           setOriginalStatus: input.setOriginalStatus ?? null,
           cardLast4: last4, // never the PAN
           landed,
@@ -490,7 +510,7 @@ export function fuelCardExperimentsRouter(): Router {
       res.json({
         experiment: "set_status",
         variant: input.variant,
-        statusSent: input.status,
+        statusSent,
         setOriginalStatus: input.setOriginalStatus ?? null,
         cardLast4: last4,
         statusBefore: before.card.status,

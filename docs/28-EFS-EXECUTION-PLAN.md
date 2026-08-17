@@ -1956,6 +1956,8 @@ against a card number with `OVER` appended. That is not this phase.
 - [x] The limits the override deleted are recorded, so a failed vendor restore is recoverable
 - [x] ~~F3: does a card-level `<limits>` override apply when `limitSource` is `POLICY`?~~ **Downgraded to a confirming question by F12** — WEX's override flow never touches the field *(docs/37 §7 Q5)*
 - [ ] ⚠ **F9 answered**: does `setCardv2` work at all on a card that is currently in override? *(docs/37 §7 Q6 — a `card_lock` safety question before it is a Phase 10 question)*
+  - **Probed 2026-08-17 and the run was spoiled by its own drill** — it sent `Hold` to an account storing `ACTIVE`, reproducing H1 rather than measuring F9. docs/22 **H16**. Drill fixed (`matchAccountCasing` + a control run that proves the identical write lands with no override armed); **re-run owed**
+  - ✅ Two clean results from the same run: the **echo override-clear lands on a card in override**, so `setCardv2` is not wholesale frozen and the live clear path works; and **`deleteOverride` is entitled and lands — D1's entitlement half is CLOSED**, open since Phase 8.2
 - [ ] 10.3 states the amount as a TOTAL and pairs DSL with ULSD *(F10, F11)*
 - [ ] Product-limit override works end to end, proven live on QA
 - [ ] Restore-on-clear confirmed by observation, **on a card that has card-level limits**
