@@ -188,7 +188,7 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
     // slip. EXACT_MATCH and ACCRUAL_CHECK carry their own required companion field.
     const companions: Record<string, Record<string, unknown>> = {
       EXACT_MATCH: { matchValue: "D-1" },
-      ACCRUAL_CHECK: { value: 1800 },
+      ACCRUAL_CHECK: { minimum: 1, maximum: 1800 },
       DYNAMIC: { infoId: "CNTN" },
     };
     for (const validationType of EFS_VALIDATION_TYPES) {
@@ -211,22 +211,30 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
     }
   });
 
-  it("refuses ACCRUAL_CHECK without an accrual above zero", () => {
-    // A zero accrual is the guide's own "not configured" sentinel — production carries exactly that
-    // on both policies (docs/25 Q3). Accepting it from an operator who has just chosen odometer
-    // following would record a decision that does nothing.
-    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK" }).success).toBe(false);
-    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK", value: 0 }).success).toBe(false);
-    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK", value: 1800 }).success).toBe(true);
+  it("ACCEPTS production's own ODRD record, verbatim", () => {
+    // THE characterisation, and the one this suite should have opened with. Both production policies
+    // carry this exact shape, and the WEX portal renders it `Odometer · Accrual Check · M:1, X:1800`.
+    //
+    // Two rules written from the guide's prose refused it: "an accrual above zero" (production runs
+    // value 0) and "bounds need lengthCheck" (production runs lengthCheck false with 1/1800 in
+    // force). On a `replaceAll` surface that blocked the entire prompt save, not just the field.
+    // Validating against the prose instead of the captures sitting in docs/efs is what allowed it.
+    expect(one({
+      infoId: "ODRD", validationType: "ACCRUAL_CHECK",
+      lengthCheck: false, minimum: 1, maximum: 1800, value: 0,
+    }).success).toBe(true);
   });
 
-  it("refuses bounds without the flag that makes EFS check them", () => {
-    // "Only checked if lengthCheck is true" (p36, p135). Sending bounds without it is not a weaker
-    // version of the feature — it is a no-op the vendor accepts and ignores (audit W3).
+  it("keeps the lengthCheck gate for every OTHER validation type", () => {
+    // The guide's rule holds where nothing contradicts it: "Only checked if lengthCheck is true"
+    // (p36, p135). ACCRUAL_CHECK is exempt because there the bounds ARE the odometer window rather
+    // than a string-length check — which is the account's behaviour, not a reading of the prose.
     expect(one({ infoId: "UNIT", validationType: "NUMERIC", minimum: 4 }).success).toBe(false);
     expect(one({ infoId: "UNIT", validationType: "NUMERIC", maximum: 8 }).success).toBe(false);
     expect(one({ infoId: "UNIT", validationType: "NUMERIC", lengthCheck: true, minimum: 4, maximum: 8 }).success).toBe(true);
     expect(one({ infoId: "UNIT", validationType: "NUMERIC", lengthCheck: true, minimum: 9, maximum: 8 }).success).toBe(false);
+    // …and the exemption is not a hole: min > max is still refused for the accrual too.
+    expect(one({ infoId: "ODRD", validationType: "ACCRUAL_CHECK", minimum: 1800, maximum: 1 }).success).toBe(false);
   });
 
   it("takes an infoId the OLD enum would have refused, and still refuses a malformed one", () => {
