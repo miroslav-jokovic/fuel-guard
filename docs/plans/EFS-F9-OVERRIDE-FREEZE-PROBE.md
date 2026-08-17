@@ -3,6 +3,21 @@
 **Written 2026-08-17. Authorised by Miki the same day.** Answers `docs/37` §7 **Q6**, the question
 WEX's own portal documentation raised and the SOAP guide never mentions.
 
+> ## ✅ RUN, AND ANSWERED — 2026-08-17. The freeze is REAL.
+>
+> Full result in **docs/22 H16**; transcript `docs/efs/f9-override-freeze-qa.json`. Two byte-identical
+> `<status>HOLD</status>` writes on QA ••••7671: **landed at `overrideUses: 0`, did NOT land at `1`.**
+> Field-scoped though — `clear_override` and `deleteOverride` both landed on the same armed card.
+>
+> **The prediction below was wrong** (I leaned ~60/40 toward "portal-UI rule only"), and the FIRST run
+> was invalid: it sent `Hold` to an account storing `ACTIVE` and reproduced H1 instead. The control run
+> in the sequence is what settled it. **Everything below is kept as written, predictions included** —
+> §4.3's discipline only means anything if the record survives being wrong.
+>
+> The guard it produced shipped in the same day: `card_lock` takes `clearException` (clear and lock in
+> one write, never inferred); `card_unlock`, `card_deactivate` and `prompts_set` refuse and name the
+> exception. See `packages/shared/src/efs/overrideFreeze.ts`.
+
 > All three eManager quick-reference guides, in the notes under BOTH override flows:
 > *"When a card is in override no changes can be made to the card (i.e. status, add cash, etc.),
 > therefore, it is recommended that (1) one override/swipe be selected."*
