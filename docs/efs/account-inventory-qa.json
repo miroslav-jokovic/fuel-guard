@@ -1,8 +1,8 @@
 
 {
-  "ok": true,
-  "operations": 17,
-  "requestBudget": 28,
+  "ok": false,
+  "operations": 18,
+  "requestBudget": 29,
   "truncated": [],
   "promptTypesCached": {
     "ok": true
@@ -11,103 +11,110 @@
     {
       "operation": "getCarrierInfo",
       "ok": true,
-      "ms": 345,
+      "ms": 377,
+      "count": 1
+    },
+    {
+      "operation": "doesCardPosition",
+      "ok": true,
+      "ms": 1610,
       "count": 1
     },
     {
       "operation": "getPromptTypes",
       "ok": true,
-      "ms": 1707,
+      "ms": 1690,
       "count": 41
     },
     {
       "operation": "getContracts",
       "ok": true,
-      "ms": 1689,
+      "ms": 3310,
       "count": 2
     },
     {
       "operation": "getCreditLimits(870634)",
       "ok": true,
-      "ms": 2745,
+      "ms": 5200,
       "count": 1
     },
     {
       "operation": "getCreditLimits(870635)",
       "ok": true,
-      "ms": 2152,
+      "ms": 2507,
       "count": 1
     },
     {
       "operation": "getPolicyDescriptions",
       "ok": true,
-      "ms": 2331,
+      "ms": 1121,
       "count": 3
     },
     {
       "operation": "getPolicy(1)",
-      "ok": true,
-      "ms": 1242,
-      "count": 1
+      "ok": false,
+      "ms": 96147,
+      "errorCode": "transport",
+      "error": "EFS getPolicy request failed"
     },
     {
       "operation": "getPolicyRefreshingLimits(1)",
       "ok": true,
-      "ms": 752,
+      "ms": 1969,
       "count": 1
     },
     {
       "operation": "getPolicy(2)",
       "ok": true,
-      "ms": 2679,
+      "ms": 7066,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(2)",
       "ok": true,
-      "ms": 709,
+      "ms": 261,
       "count": 1
     },
     {
       "operation": "getPolicy(3)",
       "ok": true,
-      "ms": 2362,
+      "ms": 7034,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(3)",
       "ok": true,
-      "ms": 957,
+      "ms": 226,
       "count": 1
     },
     {
       "operation": "getProductGroups",
       "ok": true,
-      "ms": 1705,
+      "ms": 1821,
       "count": 77
     },
     {
       "operation": "getProducts",
       "ok": true,
-      "ms": 1727,
+      "ms": 1648,
       "count": 93
     },
     {
       "operation": "getLocationGroupDescriptions",
       "ok": true,
-      "ms": 1542,
+      "ms": 1810,
       "count": 9
     },
     {
       "operation": "getSitePolicyDescriptions",
       "ok": true,
-      "ms": 2649,
+      "ms": 6793,
       "count": 0
     },
     {
       "operation": "serverTime",
       "ok": true,
-      "ms": 687,
+      "ms": 230,
       "count": 1
     }
   ],
@@ -117,6 +124,7 @@
       "carrierId": 5821160,
       "locationGroups": false
     },
+    "securefuel": false,
     "promptTypes": [
       "CRDR",
       "EXPT",
@@ -217,51 +225,7 @@
     "policies": [
       {
         "policyNumber": 1,
-        "policy": {
-          "policyNumber": 1,
-          "description": null,
-          "handEnter": null,
-          "infos": [],
-          "limits": [
-            {
-              "limitId": "DEF",
-              "limit": 500,
-              "hours": 0,
-              "minHours": 0,
-              "autoRollMap": 127,
-              "autoRollMax": 0
-            },
-            {
-              "limitId": "DSL",
-              "limit": 500,
-              "hours": 0,
-              "minHours": 0,
-              "autoRollMap": 127,
-              "autoRollMax": 0
-            },
-            {
-              "limitId": "RFR",
-              "limit": 500,
-              "hours": 0,
-              "minHours": 0,
-              "autoRollMap": 127,
-              "autoRollMax": 0
-            },
-            {
-              "limitId": "ULSD",
-              "limit": 250,
-              "hours": 0,
-              "minHours": 0,
-              "autoRollMap": 127,
-              "autoRollMax": 0
-            }
-          ],
-          "locationGroups": [
-            "1"
-          ],
-          "locations": [],
-          "timeRestrictions": []
-        },
+        "policy": null,
         "refreshingLimits": {
           "dayCntLimit": null,
           "dayAmtLimit": null,
@@ -1930,7 +1894,7 @@
       }
     ],
     "sitePolicies": [],
-    "serverTime": "2026-08-16T21:25:19.000-05:00",
+    "serverTime": "2026-08-16T21:50:47.000-05:00",
     "sampledCards": []
   }
 }

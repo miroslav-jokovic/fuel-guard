@@ -1,0 +1,115 @@
+unit_number,apu_type,has_optimized_idle,continuous_idle_h_30d,learned_pattern,engine_off_share,notes
+688,,,357.2,continuous_only,18%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+710,,,356.1,continuous_only,6%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+671,,,347.5,continuous_only,5%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+665,,,336.2,continuous_only,0%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+664,,,322.7,continuous_only,3%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+722,,,319.9,continuous_only,17%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+607,,,312.7,continuous_only,12%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+656,,,301.6,continuous_only,22%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+709,,,298.7,continuous_only,22%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+711,,,287.6,continuous_only,24%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+666,,,285.9,apu,26%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+706,,,283.6,continuous_only,16%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+674,,,283.6,continuous_only,11%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+707,,,281.8,apu,34%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+693,,,280.9,continuous_only,0%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+701,,,277.3,apu,29%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+571,,,276.2,apu,27%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+657,,,275.6,continuous_only,12%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+642,,,275.3,continuous_only,4%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+604,,,273.8,continuous_only,17%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+662,,,269.6,apu,37%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+646,,,265.6,apu,41%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+572,,,263.6,continuous_only,25%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+668,,,254,continuous_only,16%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+774,,,249.5,apu,34%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+637,,,246,continuous_only,8%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+731,,,244.8,apu,37%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+650,,,237.1,apu,52%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+659,,,232.5,apu,33%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+673,,,230.3,apu,47%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+658,,,228.3,continuous_only,12%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+676,,,220.3,apu,45%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+603,,,220,continuous_only,10%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+645,,,213,apu,50%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+683,,,211.7,apu,50%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+678,,,207.9,continuous_only,12%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+691,,,206.7,continuous_only,13%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+699,,,204.5,apu,56%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+705,,,203.3,apu,46%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+687,,,202,apu,34%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+641,,,197.6,apu,48%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+655,,,193,apu,35%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+695,,,192.6,apu,48%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+686,,,191.1,apu,42%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+692,,,188.3,apu,52%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+670,,,186,apu,42%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+684,,,182.9,apu,49%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+569,,,180.3,apu,58%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+651,,,180,apu,47%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+638,,,179.8,apu,47%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+708,,,176.4,apu,58%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+702,,,175.8,apu,29%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+672,,,175,apu,65%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+649,,,172.5,continuous_only,22%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+772,,,169,apu,60%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+728,,,160.2,apu,56%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+654,,,159.9,apu,63%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+730,,,158.8,apu,30%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+697,,,158.6,apu,66%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+685,,,156.9,apu,34%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+648,,,155.4,apu,57%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+704,,,149.2,apu,61%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+644,,,146.8,apu,65%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+601,,,145.8,apu,65%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+703,,,140.6,apu,48%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+690,,,129.1,apu,63%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+675,,,125.7,apu,71%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+694,,,123.2,apu,66%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+679,,,122.7,apu,68%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+669,,,105.2,apu,69%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+718,,,103.6,continuous_only,11%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+667,,,103.6,apu,65%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+552,,,82.4,apu,71%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+643,,,76.3,apu,69%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+689,,,75.6,apu,70%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+661,,,70.8,apu,83%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+632,,,67.9,apu,87%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+608,,,67.4,continuous_only,22%,"only ever idles continuously — if truly no equipment, set apu_type=none"
+727,,,62.6,apu,88%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+784,,,60,apu,53%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+647,,,57.2,apu,83%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+633,,,54,apu,82%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+700,,,51.7,apu,84%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+680,,,50.4,apu,84%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+744,,,23.8,apu,91%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+748,,,23,apu,93%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+786,,,18.9,apu,93%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+747,,,16,apu,97%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+732,,,12.5,apu,97%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+723,,,12.3,apu,95%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+726,,,12.2,apu,96%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+746,,,11.8,apu,97%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+741,,,8.6,apu,97%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+736,,,8.6,apu,98%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+743,,,7.9,apu,98%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+738,,,7,apu,98%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+785,,,6.8,apu,97%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+745,,,6.2,apu,98%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+788,,,6.2,apu,94%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+733,,,2.2,apu,99%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+725,,,1.2,apu,100%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+787,,,0.6,apu,100%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+635,,,0,apu,100%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+639,,,0,apu,100%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+660,,,0,unknown,0%,no clear pattern — check the spec sheet
+663,,,0,apu,100%,rests engine-off — likely diesel_apu or battery_hvac; confirm which
+676 - OLD,,,0,unknown,0%,no clear pattern — check the spec sheet
+677,,,0,unknown,0%,no clear pattern — check the spec sheet
+681,,,0,unknown,0%,no clear pattern — check the spec sheet
+720,,,0,unknown,0%,no clear pattern — check the spec sheet
+733 - OLD,,,0,unknown,0%,no clear pattern — check the spec sheet
+738 - OLD,,,0,unknown,0%,no clear pattern — check the spec sheet
+739 - OLD,,,0,unknown,0%,no clear pattern — check the spec sheet
+748 - OLD,,,0,unknown,0%,no clear pattern — check the spec sheet

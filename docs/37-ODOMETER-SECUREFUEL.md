@@ -316,6 +316,50 @@ brags about keeping `efsCardOps.ts` inside. All three operations now live in `ef
 which is the better home anyway: one feature, one file, with the write declared at the top. The
 account module keeps its "read-only, every one" claim and the test that holds it to it.
 
+## 6c. ⚠ QA answered `false` — the account we prove things on does not have this feature
+
+**First live run of `doesCardPosition`, QA, 2026-08-17.** The operation dialled, parsed and answered
+in 1.6s:
+
+```
+doesCardPosition  ok  1610ms  ->  securefuel: false
+```
+
+Two things follow, and the second one changes how this ships.
+
+**§6 A is proven live.** The answer is `false`, not `null` — so the response really does carry the
+value under its own part name, exactly where the WSDL says and nowhere near `<result>`. That was the
+one claim a WSDL-derived fixture could not make, and it is now made. The three-valued handling earns
+its keep here too: had the parse missed, this would read `null`, and `null` is visibly not an answer
+where `false` is.
+
+**QA cannot prove the odometer feature, because QA does not have it.** The account walk confirms it
+structurally as well as by the flag — all three QA policies carry `"infos": []`, no prompts of any
+kind, where both production policies carry `ODRD` / `ACCRUAL_CHECK` with `M:1, X:1800` (§2).
+
+That breaks the QA-first discipline this product uses everywhere else, and it cannot be fixed by
+being careful:
+
+- `getLastMileage` on a QA unit is expected to return nothing, since there is no SecureFuel
+  configuration behind it. **Worth one read to confirm** — read-only, one call — because "returns
+  nothing" and "returns a reading anyway" are different worlds for the override.
+- `overrideLastMileage` has nothing meaningful to correct on QA. A proof run there would exercise
+  our code and tell us nothing about the vendor's behaviour, which is the H1 shape: a green run that
+  proves the harness rather than the integration.
+- So **the first real exercise of E′ is on PRODUCTION**, against a live truck's baseline. That is a
+  materially different risk posture from every other capability in this product, and it is the
+  argument for the `already_current` short-circuit, the vehicle-ownership check, `EFS_MILEAGE_MAX`
+  and the 3/minute cap all being in place BEFORE the first live write rather than after.
+
+**Next, and read-only:** the same walk against production, to confirm `true` there. §6a records
+SecureFuel as ON for that org on Miki's account of it; this would be the vendor saying so.
+
+⚠ Unrelated, and noted so it is not read as a symptom: `getPolicy(1)` failed this run with a
+`transport` error after 96 seconds. `getPolicy` is not new and is not part of this change — the walk
+is built to record a failed step and continue, which is what it did.
+
+---
+
 ## 6a. Answered by Miki, 2026-08-17 — and one of them renames the whole feature
 
 Asked as the scope items in §6, answered operationally:
