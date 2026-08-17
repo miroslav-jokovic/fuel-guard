@@ -238,6 +238,60 @@ see that reason anywhere in the transaction data? Location is scoped nowhere in 
 
 ---
 
+## 6b. Cross-check against WEX's public material (Miki, via ChatGPT, 2026-08-17)
+
+An independent pass over EFS eManager, EFS merchant policies and WEX's public SecureFuel pages. It
+reaches the same structural conclusion this document does — SecureFuel is a separate authorization
+mechanism, not a prompt — and adds two facts. It also makes one recommendation that must NOT be
+followed, for a reason worth stating plainly.
+
+### ⚠ `M:1, X:1800` is eManager's DISPLAY, not an EFS wire value
+
+The research recommends preserving `rawEfsValue: "M:1,X:1800"` with an
+`interpretationStatus: 'EFS_CONFIRMATION_REQUIRED'`, on the grounds that the SOAP contract was not
+available to it — *"upload the WSDL, that's the missing piece."*
+
+We have the WSDL. It is committed at `docs/efs/CardManagementWS.wsdl`, and there is no encoded string
+anywhere in this path:
+
+```
+WSCardInfo:  minimum: int   maximum: int   value: int   lengthCheck: boolean
+```
+
+`M` and `X` are how the portal RENDERS two integer fields that already arrive structured and named,
+as §2's captured record shows. So the letter-decoding question is not open — it was answered by the
+wire before it was asked. **Do not add a raw-string layer**: it would invent a serialization that
+does not exist and couple this product to a UI rendering that WEX can change at will.
+
+The research's *conclusion* (M = minimum, X = maximum) is right. Its *evidence* is the letters; ours
+is the WSDL and 199 live documents. Keep the second.
+
+### Genuinely new, and worth acting on
+
+1. **SecureFuel also checks TANK LEVEL / ECM, not only location.** WEX's SecureFuel material describes
+   checking the truck's location *and tank level* before authorizing, and reporting proximity and
+   tank reconciliation back to the carrier. Miki's §6a B named odometer and location; this is a third
+   signal and, more usefully, a reconciliation OUTPUT we have never looked for.
+2. **`INFORMATION_POOL` appears as a validation type in eManager** and is **not** among the seven the
+   SOAP guide lists (p36). Either the portal offers a validation the API does not document, or it is
+   `DYNAMIC` under another name. Same class of portal-vs-API gap as `M:1, X:1800`, and unresolved.
+
+### Already built, so not work
+
+- Policy/card prompt separation with a computed effective configuration — that is
+  `cardControlEffectiveConfig.ts`, `CardEffectiveConfig.vue` and `infoSource` (POLICY/CARD/BOTH),
+  shipped in Phase 7.
+- Hiding the vendor's serialization from the frontend — the API already returns typed integers.
+
+### Declined
+
+Renaming info ids to `ODOMETER` / `DRIVER_ID` / `UNIT_NUMBER`. The vendor's identifiers are the
+four-character codes in the guide's own Info IDs table (p168-169), verified one-for-one against
+`EFS_INFO_LABELS`, which already supplies the friendly name keyed on the real code. A parallel
+vocabulary would be a second mapping to keep correct for no gain.
+
+---
+
 ## 7. Open questions for WEX
 
 1. **Still open, and it is the one that matters.** Which direction is the accrual window checked, and
@@ -249,6 +303,10 @@ see that reason anywhere in the transaction data? Location is scoped nowhere in 
    Sharpened by §6a B: if one rule is odometer-only and the other adds position, this decides what
    the product can honestly tell an operator about why a fuelling was declined.
 2b. Does a POSITION mismatch decline a fuelling, and is that reason visible in the transaction data?
+2c. Same for TANK LEVEL (§6b): WEX's public material says SecureFuel checks tank level and reports
+   tank reconciliation to the carrier. Where does that reconciliation surface, and can we read it?
+2d. Is `INFORMATION_POOL` — a validation type eManager offers and the SOAP guide does not list — a
+   distinct validation, or `DYNAMIC` under the portal's name?
 3. Does `getLastMileage` accept more than one search entry per call, as the guide's *"Search Array,
    1 to many"* implies but the WSDL does not declare?
 4. Is `value` ever the accrual on any account, or is the guide's sentence simply wrong?
