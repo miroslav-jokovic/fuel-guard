@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two rows, because the WEX portal's "All" radio returns a table rather than a single reading and
+  the WSDL response part is a `WSLastMileageArray` either way.
+
+  The first row is the real capture from the portal on 2026-08-16 — unit 688, odometer, 258536 —
+  transcribed into the wire's own vocabulary: the portal DISPLAYS the code as "odometer", the guide
+  and the WSDL spell it `ODRD`. Fields are `unit`/`code`/`mileage` only; `Carrier ID` appears in the
+  portal's table but is not part of `WSLastMileage`, so it is deliberately absent here.
+
+  The second row is a hubometer, the other of the two codes the guide names, so the parser is
+  exercised on both without either being invented.
+-->
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getLastMileageResponse>
+      <result>
+        <value>
+          <unit>688</unit>
+          <code>ODRD</code>
+          <mileage>258536</mileage>
+        </value>
+        <value>
+          <unit>412</unit>
+          <code>HBRD</code>
+          <mileage>91204</mileage>
+        </value>
+      </result>
+    </getLastMileageResponse>
+  </soap:Body>
+</soap:Envelope>

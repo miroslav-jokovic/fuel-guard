@@ -222,6 +222,21 @@ describe("fixture fidelity — what makes a hand-written fixture worth anything"
     expect([...emitted].filter((op) => !tested.has(op)), "operations with no test").toEqual([]);
     expect(tested.size).toBe(13);
   });
+
+  /**
+   * The invariant the module's header rests on: this file is read-only, which is why Step 7.2 exposes
+   * it with no probe flag and why it is safe against the production org.
+   *
+   * `overrideLastMileage` is the first operation in this integration that could break it, and it is
+   * the natural one to add here — its read half lives in this file. Asserting the absence keeps that
+   * decision from being undone by a later author following the wrong local convention.
+   */
+  it("emits no operation that can change anything at EFS", () => {
+    const source = readFileSync(fileURLToPath(new URL("./efsAccountOps.ts", import.meta.url)), "utf8");
+    const emitted = [...source.matchAll(/<CardManagementEP_([A-Za-z0-9]+)>/g)].map((m) => m[1]!);
+    const writers = emitted.filter((op) => /^(set|create|delete|remove|override|register|transfer|issue|stop)/.test(op));
+    expect(writers, "efsAccountOps.ts must stay read-only — see the module header").toEqual([]);
+  });
 });
 
 describe("parse — as good as the fixtures above, and no better", () => {
@@ -336,4 +351,8 @@ describe("parse — as good as the fixtures above, and no better", () => {
     const { fetch: impl } = recordingFetch(fixture("serverTime"));
     expect(await serverTime(env, creds, { fetchImpl: impl })).toBe("2026-08-16T09:41:07.000-05:00");
   });
-});
+
+  
+  
+  
+  });

@@ -66,7 +66,7 @@ and accepted-and-ignored is its demonstrated response to those (audit W3).
 
 ---
 
-## 3. The three uncalled operations, with exact contracts
+## 3. The four uncalled operations, with exact contracts
 
 ### `doesCardPosition(clientId) → boolean`
 
@@ -81,6 +81,36 @@ questions — does not ask it. Cheapest possible addition: one more `step()` in 
 Note the guide mentions *"secure fuel rules of 1 or 2"* and gives no way to read which rule applies.
 That is a question for WEX.
 
+### `registerCardPosition(clientId, cardNum, latitude, longitude, unitNum, source) → «status»`
+
+**Found 2026-08-17, after this document's first four sections were written — it is a fourth
+operation, and this section used to say "three".** It matters because §6a B established that
+SecureFuel checks POSITION: this is the write that puts a position where SecureFuel can check it.
+
+```
+clientId   string (32)
+cardNum    string (25)
+latitude   float (10,6)
+longitude  float (10,6)
+unitNum    ⚠ WSDL only — see below
+source     string (24)    "The data source."
+```
+
+> *"Registers the position of a card (latitude/longitude)."* (guide p125)
+
+⚠ **WSDL/guide discrepancy, the sixth of this kind:** the WSDL declares
+`parameterOrder="clientId cardNum latitude longitude unitNum source"` — six parameters. The guide's
+input table (p125) documents five and **omits `unitNum` entirely**. Trust the WSDL, as Phase 7
+established, and treat `unitNum` as required-until-proven-optional.
+
+Two things follow. First, it is the exact structural mirror of `overrideLastMileage`: a non-card
+write, keyed on the unit, whose output the guide describes only as *"Successful response indicating
+card position was registered else a decline with an error string"* — so §4's argument about the card
+ledger applies to it unchanged. Second, we already hold the input. Samsara gives us a GPS fix per
+unit; this is the operation that would hand it to EFS. **Nothing in §6's proposed scope covers it**,
+and it should not be added there until question 2b is answered — writing positions into a decline
+path we cannot yet read the outcome of is the wrong order to build in.
+
 ### `getLastMileage(clientId, search) → WSLastMileageArray`
 
 ```
@@ -93,6 +123,12 @@ code = "ODRD" (odometer) or "HBRD" (hubometer)
 part as a single `WSLastMileageSearch` and there is **no** `WSLastMileageSearchArray` type. Phase 7
 found five discrepancies of exactly this kind by reading the WSDL instead of the guide. Assume one
 unit per call until a live probe says otherwise, and budget requests accordingly.
+
+The `<search>` wrapper needs no guessing here, and that is worth noting because the last operation
+with criteria did. `efsLocationSearch.ts` had to try shapes against the live binding and remember
+which one ADB accepted, since the WSDL was unavailable when it was written; this part is *named*
+`search` in the checked-in WSDL, so the shape is read from the vendor rather than discovered from a
+fault.
 
 ### `overrideLastMileage(clientId, unit, code, mileage) → «empty»`
 
@@ -111,6 +147,41 @@ by re-reading `getLastMileage` and comparing. The capability architecture alread
 this — `verify.snapshot` names its OWN read ops (docs/27 §3.3), the case `setCardRefreshingLimits`
 was designed around. A `direct` mutation whose snapshot is `getLastMileage` and whose `judge`
 compares the returned mileage is exactly right.
+
+---
+
+## 3a. What the WEX portal's own Override Mileage screens show (Miki, 2026-08-17)
+
+Three screenshots of the operation being performed by hand — the task this feature automates. They
+settle three things the WSDL cannot, and one of them improves the design.
+
+**The portal's flow is search-then-edit, which is the flow the empty response forces on us anyway.**
+*Override Mileage* asks for a unit, `Search` lists *Last Mileage Information*, and only an `Edit`
+pencil on the row opens *Edit Mileage* with the current value pre-filled. So the mandatory re-read in
+§3 is not our invention working around a vendor limitation — **it is what WEX's own UI does**, and an
+operator moving from the portal to this product will find the same three beats.
+
+**There is an `All` mode, and it may collapse the fleet read to one call.** The unit field is
+required only for a targeted search; the `All` radio returns every unit's row. Both criteria are
+`nillable` in `WSLastMileageSearch`, so the wire equivalent is `<search><unit></unit><code></code></search>`
+— empty ELEMENTS, per the rule this binding taught the transaction feeds. If that is accepted, a
+fleet-wide drift comparison costs one round trip instead of one per unit, which changes what §6 D can
+afford. ⚠ **Inference from the portal, not from the wire.** It is the first thing to probe live, and
+it is cheap: `getLastMileage` is read-only.
+
+**⚠ `Code` renders as "odometer", not `ODRD` — a third portal-display-vs-wire-value trap.** The
+captured row reads `Carrier ID 139445 · odometer · Unit 688 · Mileage 258536`. The wire value is
+`ODRD` (guide p97, p135); "odometer" is a label the portal substitutes, exactly as `M:1, X:1800` is a
+rendering of two integers (§6b) and `INFORMATION_POOL` may be a rendering of a validation type (§7
+2d). Three instances now, all in this one feature's neighbourhood. **Sending the label instead of the
+code would be dispatched into an operation that returns nothing to say it was wrong** — hence
+`EFS_MILEAGE_CODES` as a closed set rather than a free string.
+
+Two smaller facts. `Carrier ID` appears in the portal's table but is **not** part of `WSLastMileage`,
+which carries `{unit, code, mileage}` only — the portal is joining account context it already has.
+And the unit is a bare short number (`688`), consistent with `vehicles.unit_number`; whether EFS's
+unit string and ours agree for every truck is the assumption the whole feature rests on, and
+`getLastMileage` in `All` mode is what will answer it.
 
 ---
 
@@ -192,11 +263,13 @@ goes stale. Correcting that copy is integration work, and it is the task Miki pe
 
 | # | Change | Verify | Cost |
 |---|---|---|---|
-| **A** | `doesCardPosition` added to the account-inventory walk | The inventory reports it for both orgs; recorded in `docs/25` as a thirteenth question | one call, hours |
+| # | Change | Verify | Cost |
+|---|---|---|---|
+| ✅ **A** | `doesCardPosition` added to the account-inventory walk | **BUILT 2026-08-17.** Reads its own part name, kept three-valued end to end, and raised `INVENTORY_REQUEST_BUDGET` 28 → 29 rather than buying the call with policy coverage. Live run on both orgs still owed | one call, hours |
 | **B** | Model `gpsid` / `vin` / `zid` from `WSCardSummary`; surface on the card page | A card with a GPS ID shows it; `MODELLED_CARD_FIELDS` parity test still green | small |
 | ~~**C**~~ | ~~Card-level accrual editor~~ | **DROPPED — see §5a. `ODRD` is policy-only; no card has ever carried it** | — |
-| **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | The reading for a known unit matches the WEX portal | small |
-| **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | Sets the BASELINE mileage until Samsara telemetry stabilises (§6a E′) — a seed, not a repair, and the UI should say so. The op returns nothing (§3), so the re-read is not optional: without it the button reports success whether or not the vendor acted | small–medium |
+| ✅ **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | **BUILT 2026-08-17.** `GET /api/fuel-cards/unit-mileage` returns EFS's reading, ours, the `odometer_offset` calibration and the drift. Live reading for a known unit vs the WEX portal still owed | small |
+| ✅ **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | **BUILT 2026-08-17.** `POST` to the same path: read, write, re-read, and the re-read is what the response reports. Four landings, `already_current` among them. Live proof still owed | small–medium |
 
 A, B, D and E′ are read-mostly integration with a single write, which is the right shape.
 
@@ -206,6 +279,42 @@ unit and that ledger keys on a card, so the honest choice is: either accept a pl
 The first is proportionate to one operator action correcting a GPS glitch. Decide it when building
 E′, not before — but do not let "it needs its own phase" stand unexamined, because that was written
 before §5a was measured.
+
+### ✅ Decided 2026-08-17: the plain audited write, and what it costs
+
+Taken on §6's recommendation and verified against the code first — §4's four costs are all real.
+`planCardMutation` refuses every non-card target at its first line, `ReadCtx` requires a
+`cardNumber`, `Snapshot.doc` is documented card-only, and the ledger keys on `efs_card_id`. (One
+correction to §4: `Target` already carries an `account` kind, so `unit` would be the sixth, not the
+fifth.)
+
+**What this write does NOT get, recorded here so nobody discovers it later:**
+
+- no `pnpm efs:prove` — the prover is keyed on capabilities, so there is no OEG run and no Step 4.6
+  promotion gate;
+- no ledger row, so nothing in `mutationView` and no background reconciler second look;
+- the audit row and the response are the entire record.
+
+**What makes that acceptable rather than merely cheap** is that landing is judged from a re-read,
+now, using the same operation a capability's `verify.snapshot` would have named. The audit row
+carries `before`, `after` and the verdict on every outcome including the failures — so the evidence
+a ledger would have held sits in `audit_logs` instead of nowhere.
+
+**Two things found while building it that would have been live defects.** `card_write_counters.bucket`
+carries a CHECK enumerating the three buckets that existed in 0178; a fourth makes the RPC error,
+and because this bucket is fail-closed the symptom is *every* correction answering 503 "the usage
+counter is unavailable" — a permanent failure wearing a transient message. Migration **0201** admits
+it. And the path had to be a single segment: `/mileage/override` is matched by the `card_override`
+rate-limit pattern with its wildcard binding to `mileage`, which would have metered odometer
+corrections out of the fuel-override budget and named them as overrides to the operator. The same
+wildcard shadows it twice more — `GET /:id` in the router mount and again in the vendor rate-limit
+table, where the entry must sit ABOVE `/:id` or inherit its `opensSoap: false` and go uncharged.
+
+**And one gate caught a third.** The two reads went into `efsAccountOps.ts`, which is where every
+rule that module states puts them — and took it to 560 lines, past the 500-line budget its own header
+brags about keeping `efsCardOps.ts` inside. All three operations now live in `efsSecureFuelOps.ts`,
+which is the better home anyway: one feature, one file, with the write declared at the top. The
+account module keeps its "read-only, every one" claim and the test that holds it to it.
 
 ## 6a. Answered by Miki, 2026-08-17 — and one of them renames the whole feature
 
@@ -238,17 +347,115 @@ see that reason anywhere in the transaction data? Location is scoped nowhere in 
 
 ---
 
+## 6b. Cross-check against WEX's public material (Miki, via ChatGPT, 2026-08-17)
+
+An independent pass over EFS eManager, EFS merchant policies and WEX's public SecureFuel pages. It
+reaches the same structural conclusion this document does — SecureFuel is a separate authorization
+mechanism, not a prompt — and adds two facts. It also makes one recommendation that must NOT be
+followed, for a reason worth stating plainly.
+
+### ⚠ `M:1, X:1800` is eManager's DISPLAY, not an EFS wire value
+
+The research recommends preserving `rawEfsValue: "M:1,X:1800"` with an
+`interpretationStatus: 'EFS_CONFIRMATION_REQUIRED'`, on the grounds that the SOAP contract was not
+available to it — *"upload the WSDL, that's the missing piece."*
+
+We have the WSDL. It is committed at `docs/efs/CardManagementWS.wsdl`, and there is no encoded string
+anywhere in this path:
+
+```
+WSCardInfo:  minimum: int   maximum: int   value: int   lengthCheck: boolean
+```
+
+`M` and `X` are how the portal RENDERS two integer fields that already arrive structured and named,
+as §2's captured record shows. So the letter-decoding question is not open — it was answered by the
+wire before it was asked. **Do not add a raw-string layer**: it would invent a serialization that
+does not exist and couple this product to a UI rendering that WEX can change at will.
+
+The research's *conclusion* (M = minimum, X = maximum) is right. Its *evidence* is the letters; ours
+is the WSDL and 199 live documents. Keep the second.
+
+### Genuinely new, and worth acting on
+
+1. **SecureFuel also checks TANK LEVEL / ECM, not only location.** WEX's SecureFuel material describes
+   checking the truck's location *and tank level* before authorizing, and reporting proximity and
+   tank reconciliation back to the carrier. Miki's §6a B named odometer and location; this is a third
+   signal and, more usefully, a reconciliation OUTPUT we have never looked for.
+2. **`INFORMATION_POOL` appears as a validation type in eManager** and is **not** among the seven the
+   SOAP guide lists (p36). Either the portal offers a validation the API does not document, or it is
+   `DYNAMIC` under another name. Same class of portal-vs-API gap as `M:1, X:1800`, and unresolved.
+
+### Already built, so not work
+
+- Policy/card prompt separation with a computed effective configuration — that is
+  `cardControlEffectiveConfig.ts`, `CardEffectiveConfig.vue` and `infoSource` (POLICY/CARD/BOTH),
+  shipped in Phase 7.
+- Hiding the vendor's serialization from the frontend — the API already returns typed integers.
+
+### Declined
+
+Renaming info ids to `ODOMETER` / `DRIVER_ID` / `UNIT_NUMBER`. The vendor's identifiers are the
+four-character codes in the guide's own Info IDs table (p168-169), verified one-for-one against
+`EFS_INFO_LABELS`, which already supplies the friendly name keyed on the real code. A parallel
+vocabulary would be a second mapping to keep correct for no gain.
+
+---
+
 ## 7. Open questions for WEX
+
+> **A pass over the guide and the WSDL on 2026-08-17 tried to close 1, 2c and 2d without WEX.** It
+> closed none of them, which is itself the useful result — each is now known to be unanswerable from
+> the material we hold, for a stated reason, rather than merely unanswered. The reasons are recorded
+> under each question. 2d is answerable by a live QA probe; 1 and 2c are not answerable by any
+> experiment we can run.
 
 1. **Still open, and it is the one that matters.** Which direction is the accrual window checked, and
    in what unit — is `M:1, X:1800` "at least 1 and at most 1800 miles since the last reading"? Miki
    confirms EFS compares the entry against Samsara's reading (§6a D), which settles *what* is
    compared but not *how the window is applied*. No UI sentence should explain it until this is
    answered.
+
+   ⚠ **The guide describes `minimum`/`maximum` THREE different ways, and none of them is an accrual
+   window.** `setCard`/`getCard` (p36, p135) say *"The maximum value. Only checked if lengthCheck is
+   true."* `getPolicy` (p84) says something else again — *"Max length" / "Min length"*, the length of
+   the entered string. And §2's captured production record carries `minimum: 1, maximum: 1800` with
+   `lengthCheck: false`, which both descriptions exclude. The most likely explanation is that the
+   guide's authors documented these two fields for length checking and **never modelled what
+   `ACCRUAL_CHECK` does with them at all**. That kills the last hope of deriving the direction from
+   the document: there is no sentence to read carefully, because there is no sentence. Only WEX can
+   answer this, and it cannot be probed — confirming the direction would require causing a real
+   fuelling at a real pump with a known odometer delta.
 2. What are *"secure fuel rules of 1 or 2"*, and how do we read which one applies to an account?
    Sharpened by §6a B: if one rule is odometer-only and the other adds position, this decides what
    the product can honestly tell an operator about why a fuelling was declined.
 2b. Does a POSITION mismatch decline a fuelling, and is that reason visible in the transaction data?
+2c. Same for TANK LEVEL (§6b): WEX's public material says SecureFuel checks tank level and reports
+   tank reconciliation to the carrier. Where does that reconciliation surface, and can we read it?
+
+   ⚠ **Not through this web service — the search is exhausted, and the answer is no.** The string
+   `tank` does not appear anywhere in the 200-page guide, and no element in the WSDL is named for
+   tank, level or ECM. More decisively, `WSTransaction` — the richest per-fuelling record the service
+   returns, 50-odd fields covering fees, taxes, currency conversion and line items — carries no tank
+   or ECM field of any kind. So the question is not *"which call returns it"* but *"which WEX product
+   does"*: eManager reporting, a SecureFuel-specific feed, or nothing we can subscribe to. **Ask WEX
+   for the channel, not for the field.** Until then, treat tank reconciliation as outside this
+   integration entirely rather than as an unbuilt part of it.
+2d. Is `INFORMATION_POOL` — a validation type eManager offers and the SOAP guide does not list — a
+   distinct validation, or `DYNAMIC` under the portal's name?
+
+   ⚠ **Absent from both artifacts, and the guide contradicts itself about the seven.**
+   `INFORMATION_POOL` appears nowhere in the guide or the WSDL. Worse for anyone hoping to settle
+   this by reading: the guide's own enumeration is inconsistent — `setCard`/`getCard` (p36, p135,
+   p138) list **seven** types including `DYNAMIC`, while `getPolicy` (p84) lists **six** and drops
+   `DYNAMIC` without comment. And the WSDL constrains nothing: `validationType` is declared
+   `nillable="true" type="string"`, a free string with no enumeration, so the API will accept any
+   value we send and the vendor's demonstrated response to shapes it has never seen is
+   accepted-and-ignored (audit W3).
+   **This one IS probeable on QA**, and it is the only one of the three that is: write
+   `INFORMATION_POOL` to a prompt on a QA card, read it back, and the three outcomes separate cleanly
+   — rejected (not a real type), returned as `INFORMATION_POOL` (a real type the guide omits), or
+   returned as something else / dropped (a portal alias, or accepted-and-ignored). Worth one proof
+   run; it costs a single card write and settles a question the document cannot.
 3. Does `getLastMileage` accept more than one search entry per call, as the guide's *"Search Array,
    1 to many"* implies but the WSDL does not declare?
 4. Is `value` ever the accrual on any account, or is the guide's sentence simply wrong?

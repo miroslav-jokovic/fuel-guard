@@ -34,11 +34,23 @@ import { collectElements, findDescendant, type XmlElement } from "./efsXml.js";
  *
  * Read-only, every one. Nothing in this file can change anything at EFS — which is why Step 7.2 can
  * expose them behind an admin route with no probe flag, and why Phase 7 is safe to run against the
- * production org: the same posture as the echo scan and the linking sweep before it.
+ * production org: the same posture as the echo scan and the linking sweep before it. A test asserts
+ * that claim rather than trusting the next author to notice it.
  *
  * Split from `efsCardOps.ts` rather than added to it, on the seam that file already uses: it answers
  * "what does EFS say about this CARD", and this answers "what does EFS say about this ACCOUNT". It
  * also keeps `efsCardOps.ts` inside the 500-line budget, which thirteen more operations would not.
+ *
+ * ── The SecureFuel operations were here for one commit, and that was one too many ───────────────
+ * `doesCardPosition` and `getLastMileage` (`docs/37` §6 A, D) are account-scoped reads and belong
+ * here by every rule this file states — which is exactly why they were added here first. They took
+ * it to 560 lines and `lint:filesize` refused the build. They now live in `efsSecureFuelOps.ts`
+ * with the write they exist to serve, which is the better home anyway: they are one feature, and
+ * a reader asking "how does odometer following work" now has one file to open rather than three.
+ *
+ * `payload`, `parseOne` and `bool` are exported for it, following the arrangement `efsCardOps.ts`
+ * already uses for `callCardOp`/`resultRecords`/`text`: the canonical home stays here and the split
+ * module imports. A second copy would be a second place for the parsing to go wrong.
  *
  * ── Three of the thirteen do NOT return `<result>`, and the plan's template would miss them ──────
  * Step 7.1 says to follow `getPolicy` "exactly". `getPolicy` reads its payload out of `<result>` (or
@@ -81,13 +93,13 @@ import { collectElements, findDescendant, type XmlElement } from "./efsXml.js";
  * the same reason. The `result` / `return` fallbacks after the named part are what `getPolicy` does,
  * kept so an operation whose binding disagrees with its own WSDL part name still parses.
  */
-function payload(xml: string, part: string): XmlElement {
+export function payload(xml: string, part: string): XmlElement {
   const root = parseSoap(xml);
   return findDescendant(root, part) ?? findDescendant(root, "result") ?? findDescendant(root, "return") ?? root;
 }
 
 /** Parse one record, or throw the same shaped error `getPolicy` throws. */
-function parseOne<T extends z.ZodTypeAny>(schema: T, value: unknown, operation: string): z.infer<T> {
+export function parseOne<T extends z.ZodTypeAny>(schema: T, value: unknown, operation: string): z.infer<T> {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new EfsSoapError(
@@ -100,7 +112,7 @@ function parseOne<T extends z.ZodTypeAny>(schema: T, value: unknown, operation: 
 }
 
 /** EFS writes booleans as true/false, True/False and 1/0 depending on the field and the version. */
-function bool(value: string | null): boolean | null {
+export function bool(value: string | null): boolean | null {
   if (value === null) return null;
   const v = value.trim().toLowerCase();
   if (v === "true" || v === "1") return true;

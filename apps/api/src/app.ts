@@ -31,6 +31,7 @@ import { fuelCardPromoteRouter } from "./routes/fuelCards/promote.js";
 import { fuelCardExperimentsRouter } from "./routes/fuelCards/experiments.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardInventoryRouter } from "./routes/fuelCards/inventory.js";
+import { fuelCardUnitMileageRouter } from "./routes/fuelCards/unitMileage.js";
 import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
 import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
@@ -276,7 +277,10 @@ export function createApp(env: Env): Express {
   // fuelCardCapabilityRouter is the generated one and serves EVERY card write, one route per
   // capability in the registry (Step 3.7 deleted the hand-written control router; its history read
   // moved into fuelCardsRouter, where a GET belongs).
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
+  // ⚠ fuelCardUnitMileageRouter joins settings AHEAD of fuelCardsRouter, for the same reason:
+  // `GET /:id` matches the literal path "unit-mileage" and would answer 404 for a card id that
+  // never was one. Its POST is safe anywhere, but the pair belongs together.
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardUnitMileageRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
