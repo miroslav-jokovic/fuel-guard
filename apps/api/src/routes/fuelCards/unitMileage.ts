@@ -55,11 +55,19 @@ export function fuelCardUnitMileageRouter(): Router {
       }
       const code = EFS_MILEAGE_CODES.find((c) => c === req.query.code) ?? "ODRD";
 
+      /**
+       * ⚠ An unknown unit is NOT refused here, unlike on the write below.
+       *
+       * The POST 404s on a unit that is not one of this company's trucks, and should: that is the
+       * typo boundary, and `688` versus `868` are both plausible units the vendor would accept
+       * without complaint. A READ has no such failure. Refusing one would hide the single most
+       * interesting thing this endpoint can find — **a unit EFS holds a reading for that our fleet
+       * does not model at all** — behind a 404 that reads as "no such truck", when the truth is
+       * "no such truck HERE, and EFS disagrees".
+       *
+       * So the vendor is always asked, and `knownVehicle` says whether the comparison half is real.
+       */
       const vehicle = await findVehicle(admin, orgId, unit);
-      if (!vehicle) {
-        res.status(404).json(apiError("unknown_unit", `No vehicle in this company has unit number ${unit}.`));
-        return;
-      }
 
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds?.enabled) {
@@ -68,21 +76,28 @@ export function fuelCardUnitMileageRouter(): Router {
       }
 
       const efs = await readUnitMileage(env, creds, unit, code, { priority: "interactive" });
+      const ours = vehicle?.current_odometer ?? null;
       res.json({
         unit,
         code,
         /** EFS's copy — the one a SecureFuel pump compares the driver's entry against. */
         efsMileage: efs,
         /**
+         * False when no vehicle in this company carries this unit number. Reported rather than
+         * refused: paired with a non-null `efsMileage` it means EFS is tracking a truck we do not
+         * model, which is a real gap and not an error.
+         */
+        knownVehicle: vehicle !== null,
+        /**
          * Ours, and ADVISORY (`vehicles.current_odometer` is marked so in migration 0003). Reported
          * with its offset rather than pre-adjusted: `odometer_offset` is the dash↔Samsara
          * calibration (migration 0025), and an operator deciding what to send EFS needs to see that
          * a 400-mile gap is a known cluster offset rather than drift.
          */
-        ourMileage: vehicle.current_odometer,
-        odometerOffset: vehicle.odometer_offset,
+        ourMileage: ours,
+        odometerOffset: vehicle?.odometer_offset ?? null,
         /** Null on either side means "no comparison", never zero. */
-        drift: efs === null || vehicle.current_odometer === null ? null : Math.round(vehicle.current_odometer - efs),
+        drift: efs === null || ours === null ? null : Math.round(ours - efs),
       });
     }),
   );

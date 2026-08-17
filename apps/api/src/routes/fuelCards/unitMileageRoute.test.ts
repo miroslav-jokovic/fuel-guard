@@ -288,6 +288,7 @@ describe("showing EFS's reading beside ours", () => {
     stubVendor([258536]);
     const { payload } = await get("unit=688");
     expect(payload.efsMileage).toBe(258536);
+    expect(payload.knownVehicle).toBe(true);
     expect(payload.ourMileage).toBe(258900);
     // 258900 − 258536. The number that tells an operator whether a correction is even warranted.
     expect(payload.drift).toBe(364);
@@ -299,5 +300,32 @@ describe("showing EFS's reading beside ours", () => {
     expect(payload.efsMileage).toBeNull();
     // Zero would read as "they agree", which is the opposite of what an absent reading means.
     expect(payload.drift).toBeNull();
+  });
+
+  it("still asks EFS about a unit our fleet does not model, and says so", async () => {
+    /**
+     * The READ deliberately does not 404 where the WRITE does.
+     *
+     * Refusing here would hide the most interesting thing this endpoint can find — EFS holding a
+     * reading for a truck we do not model — behind a 404 that reads as "no such truck", when the
+     * truth is "no such truck HERE, and the vendor disagrees".
+     */
+    const vendor = stubVendor([258536]);
+    const { status, payload } = await get("unit=688", null);
+
+    expect(status).toBe(200);
+    expect(vendor.ops).toContain("getLastMileage");
+    expect(payload.efsMileage).toBe(258536);
+    expect(payload.knownVehicle).toBe(false);
+    // No vehicle means no comparison — reported as absent, never as agreement.
+    expect(payload.ourMileage).toBeNull();
+    expect(payload.drift).toBeNull();
+  });
+
+  it("still refuses an unknown unit on the WRITE — the two halves differ on purpose", async () => {
+    const vendor = stubVendor([258536]);
+    const { status } = await post({ unit: "868", mileage: 258900 }, null);
+    expect(status).toBe(404);
+    expect(vendor.ops).toEqual([]);
   });
 });

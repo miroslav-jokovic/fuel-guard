@@ -19,6 +19,14 @@
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
  *   node scripts/efs.mjs inventory       # the ACCOUNT inventory (Step 7.2); --cards <uuid,uuid>
+ *   node scripts/efs.mjs mileage --unit 688   # EFS's odometer reading for a unit, beside ours
+ *   node scripts/efs.mjs sync            # force a card-mirror sweep now
+ *   node scripts/efs.mjs job efs_card_sync   # watch it
+ *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
+ *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
+ *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
+ *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
+ *   pnpm efs:echo-scan
  *
  * ── ⚠ Use `--out <path>`, NOT `> path` ─────────────────────────────────────────────────────────
  * The shell truncates a redirect target when it builds the pipeline — before this process starts,
@@ -30,13 +38,6 @@
  * a refusal genuinely leaves the previous capture alone:
  *
  *   node scripts/efs.mjs inventory --expect-org production --out docs/efs/account-inventory-production.json
- *   node scripts/efs.mjs sync            # force a card-mirror sweep now
- *   node scripts/efs.mjs job efs_card_sync   # watch it
- *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
- *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
- *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
- *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
- *   pnpm efs:echo-scan
  *
  * `--api` overrides the host. It defaults to the API service, NOT the web service: they deploy
  * independently and only one of them can reach EFS (docs/30 §4, Step 5.10).
@@ -197,9 +198,14 @@ async function call(path, body, opts = {}) {
   if (opts.stepUp) headers["x-step-up-token"] = await getStepUpToken();
 
   const res = await fetch(`${api}${path}`, {
-    method: "POST",
+    // GET for the read-only endpoints. `body` is ignored on a GET — every caller that passes one
+    // also passes a POST route, and Node refuses a GET carrying a body outright rather than
+    // silently dropping it, so a mistake here is loud.
+    method: opts.method ?? "POST",
     headers,
-    body: JSON.stringify(body ?? {}),
+    // Omitted entirely on a GET: fetch throws `TypeError: Request with GET/HEAD method cannot have
+    // body` rather than dropping it, so this cannot be left in "harmlessly".
+    ...(opts.method === "GET" ? {} : { body: JSON.stringify(body ?? {}) }),
   });
   const text = await res.text();
   if (res.status === 401) {
@@ -343,6 +349,29 @@ switch (command) {
     }
     await announceOrg("Account inventory");
     await call("/api/fuel-cards/account-inventory", cards.length > 0 ? { sampleCards: cards } : {});
+    break;
+  }
+
+  /**
+   * What odometer reading EFS holds for one unit, beside ours (`docs/37` §6 D).
+   *
+   * Read-only — one `getLastMileage`, no write — so it announces the org like the other account-wide
+   * reads and takes `--expect-org`. **Production is the only account where this can return
+   * anything**: QA answered `doesCardPosition: false` and carries no policy prompts at all
+   * (`docs/37` §6c), so a QA run here is expected to come back with `efsMileage: null`.
+   *
+   * The unit is a plain flag, unlike a card number: it is not a secret, it is what the WEX portal's
+   * own Override Mileage screen asks for, and it has to appear in shell history for a second run to
+   * be reproducible.
+   */
+  case "mileage": {
+    const unit = typeof flags.unit === "string" ? flags.unit.trim() : "";
+    if (!unit) die("mileage needs --unit <number>, e.g. --unit 688.");
+    // The WIRE codes. The portal DISPLAYS ODRD as "odometer"; that label is not a code.
+    const code = typeof flags.code === "string" ? flags.code.toUpperCase() : "ODRD";
+    if (code !== "ODRD" && code !== "HBRD") die("--code takes ODRD (odometer) or HBRD (hubometer).");
+    await announceOrg("Unit mileage");
+    await call(`/api/fuel-cards/unit-mileage?unit=${encodeURIComponent(unit)}&code=${code}`, null, { method: "GET" });
     break;
   }
 
@@ -716,7 +745,7 @@ switch (command) {
 
   default:
     die(
-      "commands: scan · inventory [--cards <uuid,uuid>] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
+      "commands: scan · inventory [--cards <uuid,uuid>] · mileage --unit <n> [--code ODRD|HBRD] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
         + "write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)\n"
