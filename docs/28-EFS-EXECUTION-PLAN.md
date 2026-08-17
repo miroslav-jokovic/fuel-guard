@@ -1766,6 +1766,52 @@ correct.* No credentials in this container.
 
 **Blocked on Phase 2.**
 
+> ### ⚠ Measured against the portal's own screens, 2026-08-17
+>
+> Miki captured the real WEX **Override Card** flow (card `…7560`, unit 688, driver 1440, policy 1 —
+> the same unit §6d read the odometer for). Instruction: *"mirror this, not reinvent something new."*
+> What the portal offers, against what we ship today:
+>
+> | Portal control | Ours | Verdict |
+> |---|---|---|
+> | `# Card Overrides` — a list, **1 to 9** | `uses`, `EFS_OVERRIDE_MAX_USES = 9` | ✅ matches, bound for bound |
+> | `All Locations` / `Network Plus Optional Location` + location lookup | `scope: {kind:"all"｜"location"}` + `EfsLocationPicker` | ✅ matches structurally. ⚠ **our WORDING does not** — the portal's second option is "Network Plus Optional Location", i.e. the network AND one extra site, not "only this location" |
+> | `Product/Limit Override` checkbox → limit picker → amount | not built | 🔶 **this is Phase 10**, and the screens confirm 10.1's design |
+> | `Allow Hand Enter` checkbox | not on the override at all | ❌ **scoped in the WRONG PHASE** — see below |
+>
+> **1. `Allow Hand Enter` is an OVERRIDE option in the portal, and a Phase 12 card setting in this
+> plan.** Step 12.1 has it as a standalone `handEnter` enum write (ALLOW / DISALLOW / POLICY). The
+> portal puts it on the override screen as a checkbox, which reads as *"for these N uses, also permit
+> a hand-entered card number"* — a temporary allowance, not a permanent card setting. Those are
+> materially different powers: 12.1's version leaves a card hand-enterable until someone changes it
+> back. **Do not build either until we know which the vendor actually does** — the checkbox may well
+> emit the same `handEnter: ALLOW` field, in which case the portal's framing is the misleading one
+> and 12.1 is right. Read the wire, not the label (§5a's lesson).
+>
+> **2. The flow is TWO phases, and the first one lands on its own.** The banner after step 2 reads
+> *"Card …7560 has been overridden for 1 time(s) for all locations"* — the override is committed
+> BEFORE any limit is chosen. So a failure while adding limits leaves a card that is already
+> overridden. That is the `partial` outcome Phase 11.3 was designed around, arriving a phase early,
+> and it decides 10.1's shape: either one atomic write carrying `limits`, or a sequence whose
+> half-failure the UI must name. **The screens do not tell us which the SOAP API supports** — the
+> portal's two-step may be its own UI convenience over a single `setCardv2`.
+>
+> **3. Multiple limits per override, via `Save and Add Another`.** Miki: *"we can add multiple
+> overrides at one time with amounts."* 10.1's `limits: z.array(...).max(10)` already anticipates
+> this; the screens confirm it is the real workflow rather than a guide artefact.
+>
+> **4. Amounts carry their unit on screen — `DSL` shows `GAL`.** Exactly what 10.3 specifies via
+> `formatLimit`. The limit list is the account's own (`ACCE`, `ADD`, `AMDS`, `ANFR`, `APRO`, `ATOM`,
+> `AVGS`, `BDSL`, `BEVR`, `BPRP`, … `DSL`), which is `getProducts` — already walked by Phase 7.
+>
+> **5. Lookup by UNIT is first-class in the portal**, alongside Card #, Driver ID, Driver Name, X-Ref
+> and Policy. Our card list searches on rather less. Not a defect; a note for whoever scopes search.
+>
+> **6. The portal masks its own PANs** — `708305*********7560`. Standing rule 13 is the vendor's
+> practice too, which is worth knowing the next time someone argues the mask is ours to relax.
+
+
+
 | Step | Change | Verify |
 |---|---|---|
 | **10.1** | `grantOverrideSchema` gains optional `limits: z.array({limitId, limit: 0..EFS_LIMIT_MAX, hours: 0..999, minHours: 0..999}).max(10)`. `overrideGrantEdits` appends `{op:"replaceAll", name:"limits", records, removals: []}` when present. Require `scope.kind === "all"` and step-up whenever limits are present | *"a product-limit override sends the p194 limits array"* asserting the exact bytes for the guide's own example, **in sequence position** · *"…on a card with no existing limits places limits before locationGroups"* · *"…requires step-up"* · *"…requires scope=all"* |
