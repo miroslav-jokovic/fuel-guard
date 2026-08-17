@@ -112,6 +112,8 @@ interface VerifyReading {
   version: string;
   /** Verbatim vendor casing — the reading IS the data here. */
   status: string | null;
+  /** F9: a `landed: false` is evidence about overrides only if one was armed AT THIS INSTANT. */
+  overrideUses: number | null;
   landed: boolean;
 }
 
@@ -456,6 +458,7 @@ export function fuelCardExperimentsRouter(): Router {
             atMsAfterWrite: Date.now() - writeStarted - writeMs,
             version: read.version,
             status: read.card.status,
+            overrideUses: read.card.overrideUses,
             landed,
           });
           if (landed) break;
