@@ -1,5 +1,8 @@
 import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
-import { emptyDraft, type CardOperationSpec, type OperationCard, type OperationDraft } from "./cardOperations";
+import {
+  EFS_WRITABLE_STATUSES, efsStatusEquals, type EfsWritableStatus,
+} from "@fuelguard/shared";
+import type { CardOperationSpec, OperationCard, OperationDraft } from "./cardOperations";
 import { missingEditableInfoIds, promptDrafts } from "./promptDrafts";
 
 /**
@@ -55,3 +58,17 @@ export const seedDraftFor = (
     }],
   };
 };
+
+export const emptyDraft = (current: string | null = null): OperationDraft =>
+  ({ targetStatus: currentWritableStatus(current), clearException: false, uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null, removeInfoId: null });
+
+/**
+ * The card's status as one of the three the operator may write, or `Active` when it is neither.
+ *
+ * A card sitting at `Fraud` or `Deleted` has no row in the list — those are not writable states —
+ * so the draft has to start SOMEWHERE. It starts at Active, and `statusRows` marks the real state
+ * separately, because silently pre-ticking a value the card is not at is how somebody presses Save
+ * and changes a card they only meant to look at.
+ */
+export const currentWritableStatus = (status: string | null): EfsWritableStatus =>
+  EFS_WRITABLE_STATUSES.find((s) => efsStatusEquals(s, status)) ?? "Active";

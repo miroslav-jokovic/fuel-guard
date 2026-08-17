@@ -3,7 +3,6 @@ import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET } 
 import {
   CARD_OPERATIONS,
   blockedSentence,
-  emptyDraft,
   operationBlockedBy,
   editableInfoIds,
   missingEditableInfoIds,
@@ -14,8 +13,16 @@ import {
   operationFromQuery,
   operationLink,
   operationUi,
+  type OperationCard,
 } from "./cardOperations";
+import { emptyDraft } from "./operationDrafts";
 import type { CardCapabilities } from "@fuelguard/shared";
+
+/** A card with no fuel exception — the state every blocker below is actually about. */
+const QUIET_CARD = {
+  status: "Active", infos: [], limits: [],
+  overrideUses: 0, overrideAllLocations: false, locationOverrideId: null,
+} as unknown as OperationCard;
 
 /**
  * The catalogue's own fitness checks.
@@ -187,7 +194,7 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
    */
   it("sends every existing record back alongside the new one", () => {
     const draft = {
-      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      targetStatus: "Active" as const, clearException: false, uses: 1, scopeKind: "all" as const, location: null,
       addInfoId: "UNIT" as const, removeInfoId: null,
       prompts: [
         { infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
@@ -211,7 +218,7 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
       { infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "3182", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET },
     ];
     const removeDraft = (removeInfoId: string | null) => ({
-      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      targetStatus: "Active" as const, clearException: false, uses: 1, scopeKind: "all" as const, location: null,
       addInfoId: null, removeInfoId, prompts: twoPrompts,
     });
 
@@ -236,8 +243,8 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
     });
 
     it("will not submit until a prompt is chosen", () => {
-      expect(operationById("promptRemove")!.blocker!(removeDraft(null))).toContain("Choose which prompt");
-      expect(operationById("promptRemove")!.blocker!(removeDraft("UNIT"))).toBeNull();
+      expect(operationById("promptRemove")!.blocker!(removeDraft(null), QUIET_CARD)).toContain("Choose which prompt");
+      expect(operationById("promptRemove")!.blocker!(removeDraft("UNIT"), QUIET_CARD)).toBeNull();
     });
 
     it("no longer lets the EDIT form remove anything — one write, one route", () => {
@@ -256,11 +263,11 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
 
   it("refuses an EXACT_MATCH with no value — a prompt that validates nothing stops nobody", () => {
     const draft = {
-      targetStatus: "Active" as const, uses: 1, scopeKind: "all" as const, location: null,
+      targetStatus: "Active" as const, clearException: false, uses: 1, scopeKind: "all" as const, location: null,
       addInfoId: "UNIT" as const, removeInfoId: null,
       prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }],
     };
-    expect(operationById("promptAdd")!.blocker!(draft)).toContain("value the driver must type");
+    expect(operationById("promptAdd")!.blocker!(draft, QUIET_CARD)).toContain("value the driver must type");
   });
 });
 

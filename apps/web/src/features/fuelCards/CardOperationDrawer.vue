@@ -444,7 +444,7 @@ const environmentBadge = computed(() =>
           :draft="draft"
           :busy="busy"
           :read-only-prompts="readOnlyPrompts"
-          :add-options="addOptions"
+          :add-options="addOptions" :override-uses="props.overrideUses"
           :status-rows="rows"
           :status-blocked="statusBlocked"
           :unwritable-status="unwritable"

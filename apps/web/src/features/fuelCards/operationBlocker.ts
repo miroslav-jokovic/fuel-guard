@@ -53,7 +53,7 @@ export function operationBlocker(input: BlockerInputs): string | null {
     return "This card is not in a state where that applies.";
   }
 
-  const blocker = operation.blocker?.(draft);
+  const blocker = operation.blocker?.(draft, card);
   if (blocker) return blocker;
   if (input.statusUnchanged) return "This card is already at that status.";
 

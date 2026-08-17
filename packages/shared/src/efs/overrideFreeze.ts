@@ -72,7 +72,8 @@ export const CARD_LOCK_OVERRIDE_BLOCKED =
  * A hand-written map, deliberately, for the same reason `CAPABILITIES_WITH_STEP_UP_GATE` is one: it is
  * the thing being compared rather than a shortcut around comparing. Adding a capability that writes
  * outside the override trio without adding it here is a capability that will be silently swallowed on
- * a card with an exception, so `registry.test.ts` asserts every non-override capability appears.
+ * a card with an exception. `apps/api/src/efs/capabilities/cardLock.behaviour.test.ts` pins the
+ * refusal for one that IS mapped and for one that is not.
  */
 export const OVERRIDE_BLOCKED_CAPABILITIES: Readonly<Record<string, string>> = {
   card_lock: "a status change",
