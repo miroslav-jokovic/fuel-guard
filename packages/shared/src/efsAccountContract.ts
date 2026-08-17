@@ -253,6 +253,42 @@ export type WsLastMileage = z.infer<typeof wsLastMileageSchema>;
 export const EFS_MILEAGE_CODES = ["ODRD", "HBRD"] as const;
 export type EfsMileageCode = (typeof EFS_MILEAGE_CODES)[number];
 
+/**
+ * The ceiling on a mileage a person may type, and the reason it is not `z.number().int()`.
+ *
+ * A US class-8 tractor is retired long before two million miles, and the accrual window on this
+ * account is 1–1800 (§2) — so a reading an order of magnitude past the fleet's oldest truck is a
+ * fat-fingered digit, not a truck. The vendor field is `xsd:int`, which would accept 2.1 billion
+ * without complaint and leave a baseline no real odometer can ever reach: every subsequent pump
+ * entry would fall outside the window, and the truck would stop fuelling until someone found this
+ * screen again. Bounded here rather than trusted to the operator, because the operation gives back
+ * nothing that would say the number was absurd.
+ */
+export const EFS_MILEAGE_MAX = 2_000_000;
+
+/**
+ * What an operator may ask for when correcting EFS's stored reading (`docs/37` §6 E′).
+ *
+ * `unit` is the vendor's unit string, not a uuid — the WEX portal's own Override Mileage screen
+ * takes exactly this and the captured account uses bare short numbers like `688` (§3a). It is
+ * checked against the org's own `vehicles` before anything is dispatched; this schema bounds the
+ * shape, the route bounds the ownership.
+ */
+export const overrideMileageSchema = z.object({
+  unit: z.string().trim().min(1).max(24),
+  /**
+   * Defaulted to the odometer, which is what every `ACCRUAL_CHECK` prompt on this account uses. The
+   * hubometer is the other code the guide names and is offered rather than assumed away.
+   *
+   * ⚠ These are WIRE values. The portal DISPLAYS this field as "odometer"; that label is not a code
+   * and sending it would be dispatched into an operation that returns nothing to say it was wrong.
+   */
+  code: z.enum(EFS_MILEAGE_CODES).default("ODRD"),
+  /** Whole miles. EFS stores an `int`; a fractional reading is a precision we do not have anyway. */
+  mileage: z.number().int().min(0).max(EFS_MILEAGE_MAX),
+});
+export type OverrideMileageRequest = z.infer<typeof overrideMileageSchema>;
+
 // ─── serverTime → xsd:dateTime ─────────────────────────────────────────────────────────────────
 
 /**

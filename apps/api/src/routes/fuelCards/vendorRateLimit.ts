@@ -29,6 +29,28 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
    * page somebody leaves open.
    */
   { method: "GET", path: "/mutations", opensSoap: false },
+  /**
+   * `docs/37` §6 E′ — the odometer baseline EFS compares a driver's pump entry against.
+   *
+   * ⚠ **ABOVE `GET /:id`, and this table is order-sensitive.** `matchedRoute` takes the FIRST
+   * match, and `/:id` is a single wildcard segment that matches the literal path "unit-mileage" —
+   * so declared below it, this GET would resolve to the card-detail entry and inherit its
+   * `opensSoap: false`. It would then be classified as a database read while actually opening a
+   * SOAP session, which is the one direction this table's "ambiguity resolves toward charging"
+   * rule exists to forbid. The router mount in `app.ts` has to dodge the same wildcard.
+   *
+   * Both are charged. The GET is charged because it asks EFS: it reads the vendor's stored reading
+   * so an operator can see it beside ours before deciding what to send. The POST is two reads
+   * around one write — `getLastMileage`, `overrideLastMileage`, `getLastMileage` again — because
+   * the write's response message carries nothing to judge landing from.
+   */
+  { method: "GET", path: "/unit-mileage", opensSoap: true },
+  /**
+   * ONE path segment, unlike every other write here. `/mileage/override` would be matched by the
+   * `card_override` RATE-LIMIT pattern with its wildcard binding to "mileage", metering the
+   * odometer correction out of the fuel-override budget. See `cardWriteLimits.ts`.
+   */
+  { method: "POST", path: "/unit-mileage", opensSoap: true },
   { method: "GET", path: "/:id", opensSoap: false },
   { method: "POST", path: "/:id/refresh", opensSoap: true },
   { method: "POST", path: "/:id/lock", opensSoap: true },
@@ -61,6 +83,14 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   // `sampleCards` is used. Read-only throughout, which is why it needs no probe flag; charged
   // because "read-only" says nothing about vendor budget.
   { method: "POST", path: "/account-inventory", opensSoap: true },
+  /**
+   * `docs/37` §6 E′. Two reads around one write — `getLastMileage`, `overrideLastMileage`,
+   * `getLastMileage` again — because the write's response message carries nothing to judge from.
+   *
+   * ONE path segment, unlike every other write here, and deliberately: `/mileage/override` would be
+   * matched by the `card_override` rate-limit pattern with its wildcard binding to "mileage", so the
+   * odometer correction would be metered as a fuel override. See `cardWriteLimits.ts`.
+   */
 ];
 
 const PREFIX = "/api/fuel-cards";

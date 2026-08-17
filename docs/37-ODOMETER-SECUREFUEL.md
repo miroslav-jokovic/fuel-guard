@@ -263,11 +263,13 @@ goes stale. Correcting that copy is integration work, and it is the task Miki pe
 
 | # | Change | Verify | Cost |
 |---|---|---|---|
-| **A** | `doesCardPosition` added to the account-inventory walk | The inventory reports it for both orgs; recorded in `docs/25` as a thirteenth question | one call, hours |
+| # | Change | Verify | Cost |
+|---|---|---|---|
+| ✅ **A** | `doesCardPosition` added to the account-inventory walk | **BUILT 2026-08-17.** Reads its own part name, kept three-valued end to end, and raised `INVENTORY_REQUEST_BUDGET` 28 → 29 rather than buying the call with policy coverage. Live run on both orgs still owed | one call, hours |
 | **B** | Model `gpsid` / `vin` / `zid` from `WSCardSummary`; surface on the card page | A card with a GPS ID shows it; `MODELLED_CARD_FIELDS` parity test still green | small |
 | ~~**C**~~ | ~~Card-level accrual editor~~ | **DROPPED — see §5a. `ODRD` is policy-only; no card has ever carried it** | — |
-| **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | The reading for a known unit matches the WEX portal | small |
-| **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | Sets the BASELINE mileage until Samsara telemetry stabilises (§6a E′) — a seed, not a repair, and the UI should say so. The op returns nothing (§3), so the re-read is not optional: without it the button reports success whether or not the vendor acted | small–medium |
+| ✅ **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | **BUILT 2026-08-17.** `GET /api/fuel-cards/unit-mileage` returns EFS's reading, ours, the `odometer_offset` calibration and the drift. Live reading for a known unit vs the WEX portal still owed | small |
+| ✅ **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | **BUILT 2026-08-17.** `POST` to the same path: read, write, re-read, and the re-read is what the response reports. Four landings, `already_current` among them. Live proof still owed | small–medium |
 
 A, B, D and E′ are read-mostly integration with a single write, which is the right shape.
 
@@ -277,6 +279,36 @@ unit and that ledger keys on a card, so the honest choice is: either accept a pl
 The first is proportionate to one operator action correcting a GPS glitch. Decide it when building
 E′, not before — but do not let "it needs its own phase" stand unexamined, because that was written
 before §5a was measured.
+
+### ✅ Decided 2026-08-17: the plain audited write, and what it costs
+
+Taken on §6's recommendation and verified against the code first — §4's four costs are all real.
+`planCardMutation` refuses every non-card target at its first line, `ReadCtx` requires a
+`cardNumber`, `Snapshot.doc` is documented card-only, and the ledger keys on `efs_card_id`. (One
+correction to §4: `Target` already carries an `account` kind, so `unit` would be the sixth, not the
+fifth.)
+
+**What this write does NOT get, recorded here so nobody discovers it later:**
+
+- no `pnpm efs:prove` — the prover is keyed on capabilities, so there is no OEG run and no Step 4.6
+  promotion gate;
+- no ledger row, so nothing in `mutationView` and no background reconciler second look;
+- the audit row and the response are the entire record.
+
+**What makes that acceptable rather than merely cheap** is that landing is judged from a re-read,
+now, using the same operation a capability's `verify.snapshot` would have named. The audit row
+carries `before`, `after` and the verdict on every outcome including the failures — so the evidence
+a ledger would have held sits in `audit_logs` instead of nowhere.
+
+**Two things found while building it that would have been live defects.** `card_write_counters.bucket`
+carries a CHECK enumerating the three buckets that existed in 0178; a fourth makes the RPC error,
+and because this bucket is fail-closed the symptom is *every* correction answering 503 "the usage
+counter is unavailable" — a permanent failure wearing a transient message. Migration **0201** admits
+it. And the path had to be a single segment: `/mileage/override` is matched by the `card_override`
+rate-limit pattern with its wildcard binding to `mileage`, which would have metered odometer
+corrections out of the fuel-override budget and named them as overrides to the operator. The same
+wildcard shadows it twice more — `GET /:id` in the router mount and again in the vendor rate-limit
+table, where the entry must sit ABOVE `/:id` or inherit its `opensSoap: false` and go uncharged.
 
 ## 6a. Answered by Miki, 2026-08-17 — and one of them renames the whole feature
 

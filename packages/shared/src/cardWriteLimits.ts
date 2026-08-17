@@ -19,7 +19,7 @@
  * that hands out fuel, and five in a minute is already an odd afternoon.
  */
 
-export const CARD_WRITE_BUCKETS = ["card_status", "card_override", "card_prompts"] as const;
+export const CARD_WRITE_BUCKETS = ["card_status", "card_override", "card_prompts", "unit_mileage"] as const;
 export type CardWriteBucket = (typeof CARD_WRITE_BUCKETS)[number];
 
 export interface CardWriteLimit {
@@ -48,6 +48,26 @@ export const CARD_WRITE_LIMITS: Record<CardWriteBucket, CardWriteLimit> = {
   card_status: { perMinute: 10, perDay: 100, label: "card lock changes", onCounterFailure: "open" },
   card_override: { perMinute: 5, perDay: 25, label: "fuel overrides", onCounterFailure: "closed" },
   card_prompts: { perMinute: 10, perDay: 50, label: "prompt changes", onCounterFailure: "closed" },
+  /**
+   * The odometer baseline EFS compares a driver's pump entry against (`docs/37` §6 E′).
+   *
+   * Not a card write at all — it targets a UNIT — but it belongs in this table because the risk it
+   * carries is the same one the table exists for: it moves a number that decides whether fuel is
+   * authorised at the pump.
+   *
+   * Tighter than every other bucket, and deliberately the tightest. The legitimate case is one
+   * operator correcting one truck whose GPS glitched; Miki does this by hand today, a unit at a
+   * time. Three a minute is already someone working fast, and twenty in a day is a fleet-wide
+   * telemetry outage that wants a conversation rather than a bigger allowance.
+   *
+   * `closed` on counter failure, with `card_override` and `card_prompts` rather than with
+   * `card_status`. The status bucket fails open because locking is the SAFE direction and a 2am
+   * theft response must not be blocked by a database hiccup. There is no safe direction here: a
+   * wrong baseline can strand a truck that cannot fuel, and it can equally widen the window a
+   * plausibility check is meant to close. An unmetered write in either direction is worse than a
+   * refused one an operator can retry in a minute.
+   */
+  unit_mileage: { perMinute: 3, perDay: 20, label: "odometer corrections", onCounterFailure: "closed" },
 };
 
 /**
@@ -69,6 +89,16 @@ const PATTERNS: ReadonlyArray<{ bucket: CardWriteBucket; method: "POST" | "DELET
   // would otherwise get twice the budget by alternating.
   { bucket: "card_override", method: "DELETE", re: /^\/api\/fuel-cards\/[^/]+\/override\/?$/ },
   { bucket: "card_prompts", method: "POST", re: /^\/api\/fuel-cards\/[^/]+\/prompts\/?$/ },
+  /**
+   * ⚠ ONE path segment, and that is load-bearing.
+   *
+   * Every pattern above matches `/api/fuel-cards/<something>/<verb>`, so a two-segment mileage path
+   * — `/api/fuel-cards/mileage/override` was the obvious spelling — would be caught by the
+   * `card_override` pattern with `[^/]+` binding to "mileage". It would then be metered as a fuel
+   * override, share that bucket's budget, and read in every limiter message as one. A flat single
+   * segment cannot collide with any of them.
+   */
+  { bucket: "unit_mileage", method: "POST", re: /^\/api\/fuel-cards\/unit-mileage\/?$/ },
 ];
 
 export function cardWriteBucket(method: string, pathname: string): CardWriteBucket | null {

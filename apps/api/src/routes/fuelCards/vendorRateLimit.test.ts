@@ -11,6 +11,7 @@ import { fuelCardConfigScanRouter } from "./scan.js";
 import { fuelCardProveRouter } from "./prove.js";
 import { fuelCardPromoteRouter } from "./promote.js";
 import { fuelCardInventoryRouter } from "./inventory.js";
+import { fuelCardUnitMileageRouter } from "./unitMileage.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
 import { fuelCardProbeRouter } from "./probe.js";
 import { fuelCardSettingsRouter } from "./settings.js";
@@ -217,6 +218,10 @@ describe("fuel-card vendor rate budget", () => {
     // This assertion is what noticed each move.
     const routers = [
       fuelCardSettingsRouter(),
+      // `docs/37` §6 E′. Mounted ahead of `fuelCardsRouter` for the reason settings is: `GET /:id`
+      // matches the literal path "unit-mileage". Both its routes open a session — the GET asks EFS
+      // for its stored reading so it can be shown beside ours.
+      fuelCardUnitMileageRouter(),
       fuelCardsRouter(),
       fuelCardCapabilityRouter(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv)),
       fuelCardProbeRouter(),
