@@ -1,9 +1,9 @@
 import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
+import { editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
+export { editableInfoIds, missingEditableInfoIds, promptDrafts };
 import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
-  EFS_EDITABLE_INFO_IDS,
-  type EfsEditableInfoId,
   EFS_WRITABLE_STATUSES,
   PROMPT_INPUT_UNSET,
   type EfsWritableStatus,
@@ -125,14 +125,6 @@ export interface CardOperationSpec {
 }
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
-
-/** The editable prompts the card HAS. */
-export const editableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
-  EFS_EDITABLE_INFO_IDS.filter((id) => (card.infos ?? []).some((info) => info.infoId === id));
-
-/** The editable prompts the card LACKS — what `promptAdd` can offer. */
-export const missingEditableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
-  EFS_EDITABLE_INFO_IDS.filter((id) => !(card.infos ?? []).some((info) => info.infoId === id));
 
 export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
   {
@@ -311,27 +303,6 @@ export const unwritableStatusLabel = (cardStatus: string | null): string | null 
   const known = canonicalEfsStatus(cardStatus);
   return cardStatus ? (EFS_CARD_STATUS_LABELS[known as never] ?? cardStatus) : "Unknown";
 };
-
-/**
- * The card's prompts as editable drafts.
- *
- * Only `EFS_EDITABLE_INFO_IDS`. Everything else is echoed untouched by the API — and a `replaceAll`
- * carrying an info id nobody may edit is refused by the contract's own schema, while silently
- * dropping the rest is what deletes a driver assignment (guide p137).
- */
-export const promptDrafts = (
-  rows: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
-): PromptInput[] =>
-  rows
-    .filter((p) => (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId))
-    .map((p) => ({
-      infoId: p.infoId as PromptInput["infoId"],
-      validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
-      matchValue: p.matchValue,
-      reportValue: p.reportValue,
-      remove: false,
-      ...PROMPT_INPUT_UNSET,
-    }));
 
 /** The capability and scope THIS draft would write through — see `capabilityFor`. */
 export const resolveCapability = (
