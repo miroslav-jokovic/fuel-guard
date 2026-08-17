@@ -178,6 +178,9 @@ describe("the account inventory, called", () => {
     expect(vendor.ops).toEqual([
       "login",
       "getCarrierInfo",
+      // `docs/37` §6 A, second because it gates every odometer question the way `getCarrierInfo`
+      // gates every location-group one.
+      "doesCardPosition",
       "getPromptTypes",
       "getContracts",
       "getCreditLimits",
@@ -194,9 +197,12 @@ describe("the account inventory, called", () => {
     expect(inv.promptTypes).toEqual(["DRID", "UNIT", "ODOM", "NAME", "TRIP"]);
     expect(inv.serverTime).toBe("2026-08-16T09:41:07.000-05:00");
     expect((inv.carrierInfo as { locationGroups: boolean }).locationGroups).toBe(true);
+    // Read out of its own part name, not `result` — the trap that would report this account, which
+    // does use SecureFuel, as an account that does not.
+    expect(inv.securefuel).toBe(true);
   });
 
-  it("STAYS UNDER 28 REQUESTS on an account big enough to blow the budget", async () => {
+  it("STAYS UNDER 29 REQUESTS on an account big enough to blow the budget", async () => {
     /**
      * The Verify, asserted by counting rather than by arithmetic.
      *

@@ -3,6 +3,9 @@ import {
   type WsCarrierInfo,
   type WsContract,
   type WsCreditLimits,
+  type EfsMileageCode,
+  type WsLastMileage,
+  wsLastMileageSchema,
   type WsLocationGroup,
   type WsLocationGroupDescription,
   type WsPolicyDescription,
@@ -30,11 +33,16 @@ import { EfsSoapError, parseSoap } from "./efsSoapSession.js";
 import { collectElements, findDescendant, type XmlElement } from "./efsXml.js";
 
 /**
- * The thirteen ACCOUNT-level read operations (execution plan Step 7.1).
+ * The fifteen ACCOUNT-level read operations (execution plan Step 7.1, extended by `docs/37` §6).
  *
  * Read-only, every one. Nothing in this file can change anything at EFS — which is why Step 7.2 can
  * expose them behind an admin route with no probe flag, and why Phase 7 is safe to run against the
  * production org: the same posture as the echo scan and the linking sweep before it.
+ *
+ * ⚠ **That invariant is why `overrideLastMileage` is NOT here**, even though its read half
+ * `getLastMileage` is. This file's whole safety argument is "nothing in it can change anything", and
+ * one write would end it for all fifteen. The override lives on its own, with its own audit and its
+ * own re-read verification (`docs/37` §4).
  *
  * Split from `efsCardOps.ts` rather than added to it, on the seam that file already uses: it answers
  * "what does EFS say about this CARD", and this answers "what does EFS say about this ACCOUNT". It
@@ -430,6 +438,96 @@ export async function getSitePolicyDescriptions(
       sitePolicyPolicy: nested ? readPolicyDescription(nested) : null,
     }, `getSitePolicyDescriptions[${i}]`);
   });
+}
+
+// ─── doesCardPosition ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether this account uses SecureFuel at all (`docs/37` §6 A).
+ *
+ * > *"This method will return if the customer uses secure fuel. If has secure fuel rules of 1 or 2
+ * > and a member type of customer, this will return true."* (guide p30)
+ *
+ * The cheapest question in the inventory and the one that gates every other odometer question: on an
+ * account that answers false, the accrual window, the stored mileage and the override are all
+ * inert. Asking it costs one call and no parameters beyond the session.
+ *
+ * ⚠ Response part is `doesCardPosition`, not `result` — read from
+ * `<message name="CardManagementEP_doesCardPositionResponse"><part name="doesCardPosition">` in the
+ * checked-in WSDL. A fourth operation joins the three named in this file's header.
+ *
+ * ⚠ It does NOT say WHICH of the two rules applies, and the guide gives no operation that does. That
+ * is open question 2 in `docs/37` §7 — one rule may be odometer-only and the other add position, and
+ * the difference decides what this product can honestly tell an operator about a decline.
+ */
+export async function doesCardPosition(
+  env: Env,
+  creds: EfsSoapCredentials,
+  opts: CardOpOptions = {},
+): Promise<boolean | null> {
+  const xml = await callCardOp(
+    env, creds, "doesCardPosition",
+    (session) => `<CardManagementEP_doesCardPosition>${el("clientId", session.clientId)}</CardManagementEP_doesCardPosition>`,
+    { priority: "backfill", ...opts },
+  );
+  return bool((payload(xml, "doesCardPosition").textContent ?? "").trim());
+}
+
+// ─── getLastMileage ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The odometer or hubometer reading EFS holds, per UNIT (`docs/37` §6 D).
+ *
+ * The reading a SecureFuel account compares the driver's pump entry against, and the state
+ * `overrideLastMileage` corrects. It is also the ONLY way to judge whether that override landed:
+ * the write's response message has no parts at all (`docs/37` §3), so this read is the verification.
+ *
+ * ── The `search` wrapper is READ, not guessed ───────────────────────────────────────────────────
+ * `efsLocationSearch.ts` had to discover its wrapper by trying shapes against the live binding and
+ * remembering which one ADB accepted — the WSDL was not available when it was written. It is now:
+ * `<message name="CardManagementEP_getLastMileage"><part name="search" type="ns2:WSLastMileageSearch">`.
+ * The element is `search`, on the vendor's own authority, so no shape ladder is needed here.
+ *
+ * ── One `WSLastMileageSearch`, not an array ─────────────────────────────────────────────────────
+ * The guide says *"Search Array, 1 to many"* (p84) and the WSDL declares a single
+ * `WSLastMileageSearch` with no `…SearchArray` type anywhere in it. The WSDL wins, as it has in five
+ * prior discrepancies. `docs/37` §7 question 3 is whether the binding nonetheless accepts repeats;
+ * until that is probed, one unit per call.
+ *
+ * ── Both criteria are sent even when empty, and that is what "All" means ────────────────────────
+ * `elAlways`, per the rule this binding taught the transaction feeds: it "rejects omitted filter
+ * elements even though the WSDL marks them nillable". Sending both empty is the wire equivalent of
+ * the WEX portal's **All** radio, which returns every unit's row in one page — so a fleet-wide drift
+ * comparison may cost one round trip rather than one per unit.
+ *
+ * ⚠ That last part is an INFERENCE from the portal's UI, not from the wire, and it is the first
+ * thing to probe live. If empty criteria are refused rather than treated as "all", the caller must
+ * pass a unit and the fleet view costs N calls — which changes what §6 D can afford, not whether it
+ * works.
+ *
+ * ⚠ `code` on the wire is `ODRD` / `HBRD`. The portal DISPLAYS it as "odometer"; that label is not a
+ * wire value, and sending it would be the same class of mistake as reading `M:1, X:1800` as a
+ * string. `EFS_MILEAGE_CODES` is the closed set for exactly this reason.
+ */
+export async function getLastMileage(
+  env: Env,
+  creds: EfsSoapCredentials,
+  search: { unit?: string | null; code?: EfsMileageCode | null } = {},
+  opts: CardOpOptions = {},
+): Promise<WsLastMileage[]> {
+  const xml = await callCardOp(
+    env, creds, "getLastMileage",
+    (session) =>
+      `<CardManagementEP_getLastMileage>${el("clientId", session.clientId)}`
+      + `<search>${elAlways("unit", search.unit ?? "")}${elAlways("code", search.code ?? "")}</search>`
+      + `</CardManagementEP_getLastMileage>`,
+    { priority: "backfill", ...opts },
+  );
+  return resultRecords(payload(xml, "result")).map((e, i) => parseOne(wsLastMileageSchema, {
+    unit: text(e, "unit"),
+    code: text(e, "code"),
+    mileage: text(e, "mileage"),
+  }, `getLastMileage[${i}]`));
 }
 
 // ─── serverTime ────────────────────────────────────────────────────────────────────────────────

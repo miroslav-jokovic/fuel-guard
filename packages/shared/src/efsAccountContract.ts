@@ -220,6 +220,39 @@ export const wsCarrierInfoSchema = z.object({
 });
 export type WsCarrierInfo = z.infer<typeof wsCarrierInfoSchema>;
 
+// ─── getLastMileage → WSLastMileageArray ───────────────────────────────────────────────────────
+
+/**
+ * WSDL `WSLastMileage`. The odometer or hubometer reading EFS holds for one UNIT.
+ *
+ * The reading a SecureFuel account compares the driver's pump entry against (`docs/37` §1), and the
+ * first thing in this integration that is keyed on a unit rather than on a card or an account.
+ *
+ * ── Why `mileage` is `vendorInt` and not `z.number()` ──────────────────────────────────────────
+ * The WSDL declares it `int`, so a strict number would be defensible — but this schema's job is to
+ * record what the account actually says (see this file's header), and the one field we are about to
+ * make a *decision* from is the worst place to throw on a surprise. A reading we cannot parse
+ * becomes null, the comparison against Samsara reports "EFS's copy is unreadable", and an operator
+ * sees that instead of a 500.
+ */
+export const wsLastMileageSchema = z.object({
+  unit: z.string().nullable(),
+  /** `ODRD` (odometer) or `HBRD` (hubometer) — the same code the prompt carries. */
+  code: z.string().nullable(),
+  mileage: vendorInt,
+});
+export type WsLastMileage = z.infer<typeof wsLastMileageSchema>;
+
+/**
+ * The two mileage codes, and the reason this is a closed set rather than a free string.
+ *
+ * `overrideLastMileage` takes this code as a parameter and the operation returns NOTHING (`docs/37`
+ * §3) — so a typo'd code is a write dispatched into a reading we never look at, reported as success.
+ * The guide names exactly these two (p97, p135).
+ */
+export const EFS_MILEAGE_CODES = ["ODRD", "HBRD"] as const;
+export type EfsMileageCode = (typeof EFS_MILEAGE_CODES)[number];
+
 // ─── serverTime → xsd:dateTime ─────────────────────────────────────────────────────────────────
 
 /**

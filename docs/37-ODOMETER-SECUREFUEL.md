@@ -124,6 +124,12 @@ part as a single `WSLastMileageSearch` and there is **no** `WSLastMileageSearchA
 found five discrepancies of exactly this kind by reading the WSDL instead of the guide. Assume one
 unit per call until a live probe says otherwise, and budget requests accordingly.
 
+The `<search>` wrapper needs no guessing here, and that is worth noting because the last operation
+with criteria did. `efsLocationSearch.ts` had to try shapes against the live binding and remember
+which one ADB accepted, since the WSDL was unavailable when it was written; this part is *named*
+`search` in the checked-in WSDL, so the shape is read from the vendor rather than discovered from a
+fault.
+
 ### `overrideLastMileage(clientId, unit, code, mileage) → «empty»`
 
 ```
@@ -141,6 +147,41 @@ by re-reading `getLastMileage` and comparing. The capability architecture alread
 this — `verify.snapshot` names its OWN read ops (docs/27 §3.3), the case `setCardRefreshingLimits`
 was designed around. A `direct` mutation whose snapshot is `getLastMileage` and whose `judge`
 compares the returned mileage is exactly right.
+
+---
+
+## 3a. What the WEX portal's own Override Mileage screens show (Miki, 2026-08-17)
+
+Three screenshots of the operation being performed by hand — the task this feature automates. They
+settle three things the WSDL cannot, and one of them improves the design.
+
+**The portal's flow is search-then-edit, which is the flow the empty response forces on us anyway.**
+*Override Mileage* asks for a unit, `Search` lists *Last Mileage Information*, and only an `Edit`
+pencil on the row opens *Edit Mileage* with the current value pre-filled. So the mandatory re-read in
+§3 is not our invention working around a vendor limitation — **it is what WEX's own UI does**, and an
+operator moving from the portal to this product will find the same three beats.
+
+**There is an `All` mode, and it may collapse the fleet read to one call.** The unit field is
+required only for a targeted search; the `All` radio returns every unit's row. Both criteria are
+`nillable` in `WSLastMileageSearch`, so the wire equivalent is `<search><unit></unit><code></code></search>`
+— empty ELEMENTS, per the rule this binding taught the transaction feeds. If that is accepted, a
+fleet-wide drift comparison costs one round trip instead of one per unit, which changes what §6 D can
+afford. ⚠ **Inference from the portal, not from the wire.** It is the first thing to probe live, and
+it is cheap: `getLastMileage` is read-only.
+
+**⚠ `Code` renders as "odometer", not `ODRD` — a third portal-display-vs-wire-value trap.** The
+captured row reads `Carrier ID 139445 · odometer · Unit 688 · Mileage 258536`. The wire value is
+`ODRD` (guide p97, p135); "odometer" is a label the portal substitutes, exactly as `M:1, X:1800` is a
+rendering of two integers (§6b) and `INFORMATION_POOL` may be a rendering of a validation type (§7
+2d). Three instances now, all in this one feature's neighbourhood. **Sending the label instead of the
+code would be dispatched into an operation that returns nothing to say it was wrong** — hence
+`EFS_MILEAGE_CODES` as a closed set rather than a free string.
+
+Two smaller facts. `Carrier ID` appears in the portal's table but is **not** part of `WSLastMileage`,
+which carries `{unit, code, mileage}` only — the portal is joining account context it already has.
+And the unit is a bare short number (`688`), consistent with `vehicles.unit_number`; whether EFS's
+unit string and ours agree for every truck is the assumption the whole feature rests on, and
+`getLastMileage` in `All` mode is what will answer it.
 
 ---
 

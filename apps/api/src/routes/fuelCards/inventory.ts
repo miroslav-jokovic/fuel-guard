@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
 import {
+  doesCardPosition,
   getCardRefreshingLimits,
   getCarrierInfo,
   getContracts,
@@ -53,19 +54,26 @@ import { step, type StepResult } from "./probe.js";
  *
  * Step 7.2's Verify is "route test under 28 requests". The account walk's fixed cost is TEN:
  *
- *   login · getCarrierInfo · getPromptTypes · getContracts · getPolicyDescriptions ·
- *   getProductGroups · getProducts · getLocationGroupDescriptions ·
+ *   login · getCarrierInfo · doesCardPosition · getPromptTypes · getContracts ·
+ *   getPolicyDescriptions · getProductGroups · getProducts · getLocationGroupDescriptions ·
  *   getSitePolicyDescriptions · serverTime
  *
  * That leaves **18** for the two loops, which cost one call per contract and TWO per policy
  * (`getPolicy` + `getPolicyRefreshingLimits`). So the loops must be bounded, or an account with a
  * dozen policies silently blows the budget this step exists to hold:
  *
- *   MAX_CONTRACTS(4) + 2 × MAX_POLICIES(7) = 4 + 14 = 18,  and 10 + 18 = 28.
+ *   MAX_CONTRACTS(4) + 2 × MAX_POLICIES(7) = 4 + 14 = 18,  and 11 + 18 = 29.
  *
- * The ten counts the login. It happens only when no session is cached, so a warm walk costs 27 —
+ * The eleven counts the login. It happens only when no session is cached, so a warm walk costs 28 —
  * which is why the response reports `operations` (what it definitely did) rather than a request
  * count it would have to guess at.
+ *
+ * ── The fixed cost was TEN until `docs/37` §6 A, and the budget moved with it ───────────────────
+ * `doesCardPosition` is the eleventh, and it raised `INVENTORY_REQUEST_BUDGET` from 28 to 29 — the
+ * deliberate raise this docblock's truncation note asks for, rather than a cap quietly lowered to
+ * keep an old number true. Lowering `MAX_POLICIES` to absorb it was the alternative and would have
+ * been the wrong trade: the policies are where `ODRD` actually lives (`docs/37` §5a), so paying for
+ * the SecureFuel flag by walking fewer policies would buy the question and sell the answer.
  *
  * **Nothing is truncated silently.** `truncated` in the response names what was left out and how
  * many, because a bounded walk reported as a complete one is worse than no walk — it would scope
@@ -80,8 +88,12 @@ import { step, type StepResult } from "./probe.js";
  */
 const MAX_CONTRACTS = 4;
 const MAX_POLICIES = 7;
-/** The Verify's own number. Asserted in the route test against the actual call count, not assumed. */
-export const INVENTORY_REQUEST_BUDGET = 28;
+/**
+ * The Verify's own number, raised by one for `doesCardPosition`. Asserted in the route test against
+ * the actual call count, not assumed — see the docblock above for why the raise was the right side
+ * of the trade.
+ */
+export const INVENTORY_REQUEST_BUDGET = 29;
 
 /**
  * Sample cards are charged SEPARATELY and deliberately.
@@ -143,6 +155,25 @@ export function fuelCardInventoryRouter(): Router {
       let carrierInfo: Awaited<ReturnType<typeof getCarrierInfo>> | null = null;
       steps.push(await step("getCarrierInfo", async () => {
         carrierInfo = await getCarrierInfo(env, creds, opts);
+        return 1;
+      }));
+
+      /**
+       * `docs/37` §6 A — the cheapest question in the walk, and the one that gates every odometer
+       * question after it.
+       *
+       * Placed straight after `getCarrierInfo` for the same reason that one leads: on an account
+       * answering false, the accrual window, the stored mileage and the override are all inert, and
+       * a thirteen-call walk that never asks has to guess. One call, no parameters beyond the
+       * session.
+       *
+       * Null is a THIRD state and is preserved as one — "we asked and could not tell" is not
+       * "SecureFuel is off", and `doesCardPosition` reads its answer out of its own part name
+       * precisely so those two cannot collapse into each other.
+       */
+      let securefuel: boolean | null = null;
+      steps.push(await step("doesCardPosition", async () => {
+        securefuel = await doesCardPosition(env, creds, opts);
         return 1;
       }));
 
@@ -333,6 +364,15 @@ export function fuelCardInventoryRouter(): Router {
         steps,
         inventory: {
           carrierInfo,
+          /**
+           * `docs/37` §6 A — the thirteenth question, and now the account's own answer to it.
+           *
+           * Three-valued and reported as such: `true`, `false`, or `null` for "we asked and could
+           * not tell". Collapsing null to false would report a SecureFuel account as unprotected,
+           * which is the more dangerous of the two wrong answers — it is the one that makes an
+           * operator believe the odometer prompt at the pump does nothing.
+           */
+          securefuel,
           promptTypes,
           contracts,
           creditLimits,

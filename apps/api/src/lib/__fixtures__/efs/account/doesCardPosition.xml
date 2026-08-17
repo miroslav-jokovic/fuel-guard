@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ⚠ The payload element is `doesCardPosition`, NOT `result` — read from the WSDL message
+  CardManagementEP_doesCardPositionResponse, whose single part is named doesCardPosition. A parser
+  following the `getPolicy` template would find nothing here and report the account as having no
+  answer, which is indistinguishable from `false`.
+
+  (Element names are written bare above on purpose: the fidelity test scans this file's raw text for
+  tags and reads any inside a comment as fields the vendor never declared.)
+
+  `true` because production is the account this matters for: §6a established SecureFuel is ON for
+  this org, so a fixture answering false would model the case we already know we are not in.
+-->
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <doesCardPositionResponse>
+      <doesCardPosition>true</doesCardPosition>
+    </doesCardPositionResponse>
+  </soap:Body>
+</soap:Envelope>
