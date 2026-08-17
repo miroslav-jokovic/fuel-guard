@@ -117,6 +117,27 @@ and every new guard should add one. The harness refuses to run on a dirty tree �
 
 > ⚠ A mutation whose pattern no longer matches is a **failure**, not a skip.
 
+### 4.1b ⚠ `pnpm typecheck` does NOT validate a `.vue` import path — only the build does
+
+`import ComboSelect from "@/components/ui/ComboSelect.vue"` typechecked clean and the file **does not
+exist**. `*.vue` resolves through a module shim, so TypeScript accepts any path that ends in `.vue`.
+The bundler is the only thing that catches it, and it fails late with `UNLOADABLE_DEPENDENCY` rather
+than a type error.
+
+This bit on 2026-08-17 and the commit was already made when the build failed, because the command
+chained with `;` rather than `&&`. **Run the web build before committing UI**, and chain gates with
+`&&`:
+
+```bash
+VITE_SUPABASE_URL="https://example.supabase.co" VITE_SUPABASE_ANON_KEY="ci-test-anon-key" \
+  pnpm --filter web build && git commit …
+```
+
+The component was `AppCombobox` in `@fuelguard/ui`, aliased as `ComboSelect` at every existing call
+site. **`DESIGN-SYSTEM-CONTRACT.md` names a `components/ui/ComboSelect.vue` that does not exist** —
+its own header warns it is partly stale, and this is one of those places. Grep an existing call site
+before trusting it.
+
 ### 4.2 A test that passes against both the bug and the fix is worthless
 
 Phase 9's example: the Edit form can no longer flag a removal, so a test hands it a draft carrying
