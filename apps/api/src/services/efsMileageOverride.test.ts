@@ -70,7 +70,9 @@ function stubVendor(readings: (number | null)[]) {
       return new Response(soap("<overrideLastMileageResponse/>"), { status: 200 });
     }
     ops.push("getLastMileage");
-    const value = readings[Math.min(readIndex, readings.length - 1)];
+    // `?? null` rather than `!`: an off-by-one here would otherwise assert a reading the test never
+    // declared, and "EFS holds nothing" is the honest reading of an index past the end.
+    const value = readings[Math.min(readIndex, readings.length - 1)] ?? null;
     readIndex += 1;
     return new Response(readResponse(value === null ? "" : mileageRow("688", "ODRD", value)), { status: 200 });
   }) as unknown as typeof fetch;

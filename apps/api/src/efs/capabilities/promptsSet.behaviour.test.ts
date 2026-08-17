@@ -141,6 +141,91 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * Step 9.4 — the card whose prompts come from the POLICY.
+ *
+ * `getCardV2.empty.xml` is the only captured document in the repository carrying
+ * `infoSource: POLICY`, and it is the whole reason this can be tested at all: every card on both
+ * live accounts reads `BOTH` (Step 7.3), which is the finding that has blocked the live
+ * `infoSource=POLICY` fixture since Step 0.13. **The live half of 9.4's Verify remains open**; what
+ * is proven here is that the branch throws on a document that really does say POLICY, rather than
+ * on one a test invented.
+ */
+describe("a card that takes its prompts from the policy", () => {
+  const POLICY_XML = fixture("getCardV2.empty.xml");
+
+  const setPromptsOn = (rec: SupabaseRecorder, xml: string) =>
+    executeCapability(
+      ctxFor(rec, stub(loginOk, xml, soap(""), xml), xml, true),
+      resolveCapability(promptsSetContract, promptsSetBehaviour, {
+        expectedVersion: versionOf(xml),
+        replaceAll: true,
+        allowRemoveDriverId: false,
+        prompts: [keepUnit],
+      } satisfies PromptsSetBody),
+    );
+
+  it("refuses the write, and calls it a bad request rather than a step-up", async () => {
+    /**
+     * The defect: EFS ACCEPTS this write and ignores it, and the echo verifier cannot tell —
+     * it re-reads the card and finds the records it just wrote, because the card still STORES
+     * them. They simply never reach a pump. Before this refusal the operator saw a clean landing
+     * for a change that would never take effect.
+     */
+    const rec = recorder();
+    const error = await setPromptsOn(rec, POLICY_XML).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    // No password fixes this one — the fix is a policy edit, which this product does not do.
+    expect((error as ActionRefusalError).code).toBe("invalid_request");
+    expect((error as ActionRefusalError).message).toContain("policy");
+  });
+
+  it("refuses BEFORE the ledger row, so nothing is left half-written", async () => {
+    // The precondition runs after the fresh read and before the row opens (docs/27 §3.4). A
+    // refusal that had already inserted would leave a mutation nobody dispatched.
+    const rec = recorder();
+    await setPromptsOn(rec, POLICY_XML).catch(() => undefined);
+    expect(inserted(rec)).toHaveLength(0);
+  });
+
+  it("still allows a card sourced BOTH — which is every card on both live accounts", async () => {
+    /**
+     * The guard must not quietly become "refuse prompt writes". `BOTH` means the card's own records
+     * ARE consulted, and every prompt write this product has ever landed was on a BOTH card.
+     *
+     * Asserted against the fixture's actual header rather than trusting the filename, so this
+     * cannot pass because the document happens to carry no `infoSource` at all — which is the
+     * ALLOWED-absent branch and would prove nothing about `BOTH`.
+     */
+    expect(parseCardDocument(CARD_XML).card.infoSource).toBe("BOTH");
+
+    const rec = recorder();
+    const outcome = await setPrompts(rec, [keepUnit], { stepUp: true, allowRemoveDriverId: false })
+      .catch((e: unknown) => e);
+    expect(outcome).not.toBeInstanceOf(ActionRefusalError);
+    expect(inserted(rec)).toHaveLength(1);
+  });
+
+  it("allows a document with no infoSource at all, rather than failing closed on 'we cannot tell'", async () => {
+    /**
+     * Deliberate, and the opposite choice from the removal gate above.
+     *
+     * A card document without the field is an older shape or a parse we have not modelled. Refusing
+     * there would block every prompt write the moment the vendor renamed a header field — turning a
+     * guard against a SILENT NO-OP into an outage. The removal gate protects a driver's attribution
+     * and must fail closed; this one protects against a write that does nothing, which is not worth
+     * breaking the feature over.
+     */
+    const withoutSource = CARD_XML.replace(/<infoSource>[^<]*<\/infoSource>/, "");
+    expect(parseCardDocument(withoutSource).card.infoSource).toBeNull();
+
+    const rec = recorder();
+    const outcome = await setPromptsOn(rec, withoutSource).catch((e: unknown) => e);
+    expect(outcome).not.toBeInstanceOf(ActionRefusalError);
+  });
+});
+
 describe("removing a card's Driver ID prompt", () => {
   it("refuses without a fresh sign-in, and says so as a step-up rather than a bad request", async () => {
     const rec = recorder();

@@ -1,6 +1,7 @@
 import { PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
 import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
+import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
 import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
@@ -28,9 +29,11 @@ import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
  * The card's own editable prompts, in the shape this capability's body wants them.
  *
  * Rebuilt from the observed document rather than invented, so a proof run writes the card's REAL
- * records back and changes exactly one field. Filtered to `EFS_EDITABLE_INFO_IDS` because a
- * `replaceAll` carrying an info id nobody may edit would be refused by the contract's own schema —
- * and silently dropping the rest is what deletes a driver assignment (guide p137).
+ * records back and changes exactly one field. Filtered to `ctx.editableInfoIds` — the set Step 9.1
+ * resolves from the ACCOUNT, not the `EFS_EDITABLE_INFO_IDS` constant this comment named until
+ * 2026-08-17 — because a `replaceAll` carrying an info id nobody may edit would be refused by the
+ * contract's own schema, and silently dropping the rest is what deletes a driver assignment
+ * (guide p137). PR #80 fixed the code; the comment still described the constant.
  */
 const proofPrompts = (snap: Snapshot, ctx: EditsCtx): PromptsSetBody["prompts"] =>
   (snap.doc?.card.infos ?? [])
@@ -90,6 +93,7 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   },
 
   precondition: (ctx: PlanCtx, snap: Snapshot, body: PromptsSetBody) => {
+    assertCardPromptsAreWritable(snap);
     const plan = planFor(snap, body, ctx);
     assertPromptRemovalAllowed(plan.removedInfoIds, body.allowRemoveDriverId, ctx.stepUp);
   },
@@ -110,3 +114,50 @@ const planFor = (snap: Snapshot, body: PromptsSetBody, ctx: EditsCtx) => {
   if (!snap.doc) throw new Error("prompts_set requires a card document");
   return promptsEdits(snap.doc, body.prompts, ctx.editableInfoIds);
 };
+
+/**
+ * Step 9.4 — refuse a card-level prompt write on a card whose prompts come from the POLICY.
+ *
+ * ── The defect this closes, in the vendor's own words ───────────────────────────────────────────
+ * `WSCardv2.header.infoSource` says where a card's prompts are read from: `CARD`, `POLICY` or
+ * `BOTH`. On a `POLICY`-source card the card-level records are not what the pump consults, so a
+ * `setCardv2` carrying them is **accepted and ignored** — the vendor's demonstrated response to
+ * writes it does not want (audit W3, H1). The echo verifier cannot save us either: it re-reads the
+ * card and finds the records it just wrote, because the card still STORES them. They simply do not
+ * govern anything. So today this reports a clean landing for a change that will never reach a
+ * driver at a pump.
+ *
+ * ── Why a refusal and not a warning ─────────────────────────────────────────────────────────────
+ * The operator's intent — "make the pump ask this driver for their ID" — is unachievable through
+ * this operation on this card, and no amount of retrying changes that. The fix is a policy edit,
+ * which this product does not do. Reporting success is the failure; reporting a warning beside a
+ * success is the same failure with a footnote.
+ *
+ * `invalid_request`, not `step_up_required`: no amount of re-authentication makes the write land.
+ *
+ * ── ⚠ NOT covered by a live proof, and the plan says why ────────────────────────────────────────
+ * Step 9.4's Verify wants this checked on a real card. **Neither account has one**: every card on
+ * both orgs reads `infoSource: BOTH` (`efsCardOps.ts`, Step 7.3), which is the finding that has
+ * blocked the `infoSource=POLICY` fixture since Step 0.13. So this is proven offline against
+ * `getCardV2.empty.xml` — a captured document that really does carry `POLICY` — and the live half
+ * stays open. An offline proof of a refusal is worth more than it sounds: the branch either throws
+ * on that document or it does not.
+ *
+ * `BOTH` is deliberately allowed. The card's own records ARE consulted under `BOTH`, which is why
+ * every prompt write this product has ever landed was on a `BOTH` card.
+ */
+function assertCardPromptsAreWritable(snap: Snapshot): void {
+  const source = snap.doc?.card.infoSource;
+  // Absent is ALLOWED, not refused. A card document without the field is an older shape or a
+  // parse we did not model, and refusing on "we could not tell" would block every prompt write
+  // the moment the vendor renamed a header field. The removal gate above is the one that must
+  // fail closed; this one guards against a silent no-op, and a silent no-op is not a safety
+  // property worth breaking the feature over.
+  if (source === null || source === undefined) return;
+  if (source.trim().toUpperCase() !== "POLICY") return;
+  throw new ActionRefusalError(
+    "This card takes its prompts from the policy, so a card-level change would be accepted by EFS "
+      + "and never used at the pump. Change the policy instead.",
+    "invalid_request",
+  );
+}

@@ -244,6 +244,14 @@ const MUTATIONS = [
     detect: ["node", ["scripts/check-waiver-growth.mjs"]],
   },
 
+  {
+    id: "efs-prompts-policy-source-writable",
+    why: "Step 9.4's guard is removed, so a card-level prompt write on a POLICY-source card is dispatched again. EFS accepts it and ignores it, and the echo verifier CANNOT catch that — it re-reads the card and finds the records it just wrote, because the card still stores them. They just never reach a pump. The operator sees a clean landing for a change that will never take effect.",
+    file: "apps/api/src/efs/capabilities/promptsSet.behaviour.ts",
+    find: "    assertCardPromptsAreWritable(snap);\n",
+    replace: "",
+    detect: apiTest("src/efs/capabilities/promptsSet.behaviour.test.ts"),
+  },
   // ── the mileage override: a write the capability ledger does not cover ──────
   // Not a capability (docs/37 §4 chose a plain audited write over a unit-keyed LedgerAdapter), so
   // it gets none of the orchestrator's guarantees — no ledger row, no reconciler, no `pnpm efs:prove`.
