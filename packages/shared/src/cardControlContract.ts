@@ -2,9 +2,7 @@ import { z } from "zod";
 import {
   EFS_CARD_STATUSES,
   EFS_CONFIG_SOURCES,
-  EFS_EDITABLE_INFO_IDS,
   EFS_HAND_ENTER,
-  EFS_MATCH_VALUE_MAX,
   EFS_OVERRIDE_MAX_USES,
   EFS_OVERRIDE_MIN_USES,
   EFS_POLICY_MAX,
@@ -12,6 +10,7 @@ import {
   EFS_VALIDATION_TYPES,
   EFS_LOCK_STATUSES,
 } from "./efsCardCatalog.js";
+import { cardVersionSchema } from "./cardVersion.js";
 import type { EffectiveRow } from "./cardControlEffectiveConfig.js";
 
 /**
@@ -272,13 +271,8 @@ export {
  * nothing empty, and rule 12 forbids editing an applied migration.
  */
 
-/**
- * The optimistic-concurrency token, computed by us over the mutable part of the card document. EFS
- * offers no ETag, no lastModified and no row version, so this is the only defence against two
- * dispatchers editing one card — or against a change made in the WEX portal between the read that
- * drew the screen and the write that acts on it.
- */
-export const cardVersionSchema = z.string().min(16);
+/** The optimistic-concurrency token — a leaf module so the prompt schemas can share it (see there). */
+export { cardVersionSchema } from "./cardVersion.js";
 
 export const lockCardSchema = z.object({
   expectedVersion: cardVersionSchema,
@@ -339,46 +333,6 @@ export const clearOverrideSchema = z.object({
   expectedVersion: cardVersionSchema,
 });
 
-export const promptInputSchema = z.object({
-  infoId: z.enum(EFS_EDITABLE_INFO_IDS),
-  validationType: z.enum(["EXACT_MATCH", "REPORT_ONLY"]),
-  matchValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
-  reportValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
-  remove: z.boolean().default(false),
-}).refine(
-  (p) => p.remove || p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
-  // The pump validates driver entry AGAINST this value. Empty + EXACT_MATCH means nothing a driver
-  // types can ever match: the card silently stops fueling (audit P1-6a). Clearing the value while
-  // keeping validation on is never what an operator meant — make them pick one.
-  { message: "EXACT_MATCH needs a value to match — clear the validation type instead of the value." },
-);
-export type PromptInput = z.infer<typeof promptInputSchema>;
-
-export const setPromptsSchema = z.object({
-  expectedVersion: cardVersionSchema,
-  /**
-   * Full-replace is the EFS semantic, not a convenience: the API carries every prompt record and
-   * requires explicit `remove: true` before omitting one from the setCardV2 document.
-   */
-  replaceAll: z.literal(true),
-  // Bounded by what is actually editable, and UNIQUE by infoId: EFS's prompts array is a full
-  // replace, and two records with one infoId is a document shape the vendor never emits — on this
-  // vendor, "accepted and ignored" is the documented failure mode for shapes it has never seen
-  // (audit P1-6b). The append loop in efsCardEdits would have pushed both.
-  prompts: z.array(promptInputSchema)
-    .max(EFS_EDITABLE_INFO_IDS.length)
-    .refine(
-      (list) => new Set(list.map((p) => p.infoId)).size === list.length,
-      { message: "Each prompt may appear once." },
-    ),
-  /**
-   * Dropping the DRID record stops the pump asking who is fuelling, and every downstream attribution
-   * decision loses its strongest signal. Explicit opt-in plus step-up re-auth; never a side effect of
-   * clearing a text box.
-   */
-  allowRemoveDriverId: z.boolean().default(false),
-});
-export type SetPromptsRequest = z.infer<typeof setPromptsSchema>;
 
 /** Location search backing the single-location override picker (searchLocation, p132). */
 export const locationSearchSchema = z.object({
@@ -399,3 +353,17 @@ export const efsLocationSchema = z.object({
   phone: z.string().nullable(),
 });
 export type EfsLocation = z.infer<typeof efsLocationSchema>;
+
+/**
+ * The prompt schemas live in `cardControlPrompts.ts` since Step 9.2 — see that file for why.
+ * Re-exported here because every existing caller imports them from this module (and from the
+ * package barrel, which re-exports this one), and a split that forces an import rewrite across two
+ * apps is a refactor pretending to be a file move.
+ */
+export {
+  PROMPT_INPUT_UNSET,
+  promptInputSchema,
+  setPromptsSchema,
+  type PromptInput,
+  type SetPromptsRequest,
+} from "./cardControlPrompts.js";

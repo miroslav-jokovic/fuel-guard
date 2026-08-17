@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import type { CardCapabilities } from "@fuelguard/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
@@ -642,8 +643,15 @@ describe("re-homed from the drawer this replaced", () => {
     await flushPromises();
 
     const arg = mutations.prompts.mutateAsync.mock.calls[0]![0] as { prompts: Record<string, unknown>[] };
+    // Still the WHOLE object, not a subset match: this test exists because reading only `matchValue`
+    // silently blanked a REPORT_ONLY record, and a partial assertion is exactly what would have let
+    // that through. Step 9.2's fields are asserted at their unset values for the same reason — a
+    // no-op save must not quietly start configuring a length check or an accrual either.
     expect(arg.prompts).toEqual([
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182", remove: false },
+      {
+        infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182", remove: false,
+        ...PROMPT_INPUT_UNSET,
+      },
     ]);
   });
 

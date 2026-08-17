@@ -1,10 +1,11 @@
 import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
+import { editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
+export { editableInfoIds, missingEditableInfoIds, promptDrafts };
 import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
-  EFS_EDITABLE_INFO_IDS,
-  type EfsEditableInfoId,
   EFS_WRITABLE_STATUSES,
+  PROMPT_INPUT_UNSET,
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
@@ -76,7 +77,13 @@ export interface OperationDraft {
   location: EfsLocation | null;
   prompts: PromptInput[];
   /** Which prompt `promptAdd` is adding. Seeded to the first the card lacks. */
-  addInfoId: EfsEditableInfoId | null;
+  /**
+   * Step 9.2 widened this from `EfsEditableInfoId` — the DRID/UNIT union — to a plain string, for the
+   * same reason `promptInputSchema.infoId` widened: which ids are addable is a per-ACCOUNT fact
+   * resolved at runtime, and a compile-time union can only ever be right for an account that happens
+   * to match it.
+   */
+  addInfoId: string | null;
 }
 
 export interface CardOperationSpec {
@@ -118,14 +125,6 @@ export interface CardOperationSpec {
 }
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
-
-/** The editable prompts the card HAS. */
-export const editableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
-  EFS_EDITABLE_INFO_IDS.filter((id) => (card.infos ?? []).some((info) => info.infoId === id));
-
-/** The editable prompts the card LACKS — what `promptAdd` can offer. */
-export const missingEditableInfoIds = (card: OperationCard): EfsEditableInfoId[] =>
-  EFS_EDITABLE_INFO_IDS.filter((id) => !(card.infos ?? []).some((info) => info.infoId === id));
 
 export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
   {
@@ -305,26 +304,6 @@ export const unwritableStatusLabel = (cardStatus: string | null): string | null 
   return cardStatus ? (EFS_CARD_STATUS_LABELS[known as never] ?? cardStatus) : "Unknown";
 };
 
-/**
- * The card's prompts as editable drafts.
- *
- * Only `EFS_EDITABLE_INFO_IDS`. Everything else is echoed untouched by the API — and a `replaceAll`
- * carrying an info id nobody may edit is refused by the contract's own schema, while silently
- * dropping the rest is what deletes a driver assignment (guide p137).
- */
-export const promptDrafts = (
-  rows: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
-): PromptInput[] =>
-  rows
-    .filter((p) => (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId))
-    .map((p) => ({
-      infoId: p.infoId as PromptInput["infoId"],
-      validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
-      matchValue: p.matchValue,
-      reportValue: p.reportValue,
-      remove: false,
-    }));
-
 /** The capability and scope THIS draft would write through — see `capabilityFor`. */
 export const resolveCapability = (
   spec: CardOperationSpec, draft: OperationDraft,
@@ -362,6 +341,7 @@ export const seedDraftFor = (
       // EXACT_MATCH by default: a prompt the pump only RECORDS stops nobody, and the operator can
       // downgrade it deliberately. Defaulting the other way makes the weaker choice the silent one.
       validationType: "EXACT_MATCH",
+      ...PROMPT_INPUT_UNSET,
       matchValue: "",
       reportValue: null,
       remove: false,

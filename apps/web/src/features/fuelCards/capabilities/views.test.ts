@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import type { CapabilityCardContext } from "./types.js";
 import { cardDeactivateView } from "./cardDeactivate.view.js";
 import { cardLockView } from "./cardLock.view.js";
@@ -142,7 +143,7 @@ describe("unlocking escalates when EFS has flagged the card", () => {
 describe("prompts spell out what a removal costs", () => {
   const body = (remove: boolean) => ({
     expectedVersion: "", replaceAll: true as const, allowRemoveDriverId: remove,
-    prompts: [{ infoId: "DRID" as const, validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove }],
+    prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH" as const, matchValue: "D-1", reportValue: null, remove, ...PROMPT_INPUT_UNSET }],
   });
 
   it("names what the fleet loses when the Driver ID prompt goes", () => {

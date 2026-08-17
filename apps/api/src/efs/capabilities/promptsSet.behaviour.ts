@@ -1,4 +1,4 @@
-import { EFS_EDITABLE_INFO_IDS, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
 import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
@@ -42,6 +42,10 @@ const proofPrompts = (snap: Snapshot): PromptsSetBody["prompts"] =>
       matchValue: info.matchValue,
       reportValue: info.reportValue,
       remove: false,
+      // The proof rewrites the card's OWN records and flips one validationType. It must not also
+      // start configuring length checks or accruals, so every Step 9.2 field goes back unset — the
+      // proof's whole claim is "exactly one field moved".
+      ...PROMPT_INPUT_UNSET,
     }));
 
 export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
