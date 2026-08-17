@@ -86,6 +86,15 @@ const experimentSchema = z.discriminatedUnion("experiment", [
      * recomputed it would be a second implementation of the thing H1 cost us.
      */
     matchAccountCasing: z.boolean().default(false),
+    /**
+     * Also disarm the override, in the SAME request as the status — the H16 follow-up.
+     *
+     * H16 proved a status-only write is ignored while an override is armed, and that an override-only
+     * clear lands. It never tested a request carrying BOTH, so whether EFS evaluates the status
+     * against the pre- or post-clear state is unknown — and `card_lock`'s `clearException` now sends
+     * exactly that combination in production. This answers it against the same bytes.
+     */
+    clearOverride: z.boolean().default(false),
     variant: z.enum(EXPERIMENT_VARIANTS).default("standard"),
     /** Hypothesis H3. Only meaningful alongside a Hold; the vendor decides what it does with it. */
     setOriginalStatus: z.string().trim().min(1).optional(),
@@ -420,10 +429,16 @@ export function fuelCardExperimentsRouter(): Router {
       const statusSent = input.matchAccountCasing
         ? matchStatusCasing(before.card.status, input.status)
         : input.status;
-      const edits = experimentEdits({
-        statusValue: statusSent,
-        originalStatusValue: input.setOriginalStatus,
-      });
+      const edits = [
+        ...experimentEdits({
+          statusValue: statusSent,
+          originalStatusValue: input.setOriginalStatus,
+        }),
+        // `overrideClearEdits()` itself, which is what card_lock appends for `clearException`. A
+        // hand-written trio here would be a second definition of "clear an override", and a green
+        // result from it would say nothing about the path that actually ships.
+        ...(input.clearOverride ? overrideClearEdits() : []),
+      ];
 
       let requestXmlRedacted = "";
       let writeError: EfsSoapError | null = null;

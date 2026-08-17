@@ -103,7 +103,13 @@ const GRANDFATHERED = {
   // corrected it could never have measured it. `statusSent` now reports the bytes actually sent
   // rather than the bytes requested — a transcript that reported the request while sending something
   // else is how the first run looked correct for an hour.
-  "apps/api/src/routes/fuelCards/experiments.ts": 536,
+  //
+  // 536 → 551 the same day, for the H16 FOLLOW-UP. `clearOverride` makes `set_status` send the status
+  // and the override clear in ONE request — which is exactly what `card_lock` now does for
+  // `clearException`, and the one combination H16 never tested. It appends `overrideClearEdits()`
+  // itself rather than a hand-written trio, because a second definition of "clear an override" would
+  // make a green result say nothing about the path that ships.
+  "apps/api/src/routes/fuelCards/experiments.ts": 551,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this
