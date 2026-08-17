@@ -572,3 +572,38 @@ first override lands on production with no QA rehearsal behind it.
 3. Does `getLastMileage` accept more than one search entry per call, as the guide's *"Search Array,
    1 to many"* implies but the WSDL does not declare?
 4. Is `value` ever the accrual on any account, or is the guide's sentence simply wrong?
+5. ⚠ **Does a card-level `<limits>` override apply on a card whose `limitSource` is `POLICY`?**
+   *(added 2026-08-17 while verifying Phase 10; this one gates shipping the feature, not explaining it)*
+
+   The guide's limits object states, verbatim: *"Only limits assigned at the CARD level are returned,
+   POLICY limits are not returned even if the card source is set to `BOTH`."* So `getCard` reports
+   card-level limits **only**, and `limitSource` is what decides which set the pump actually enforces.
+
+   p194's product-limit override recipe writes a **card-level** `<limits>` array and **never mentions
+   `limitSource`**. docs/22 H7 records `limitSource` as `POLICY` on **all 35** QA cards, and docs/28
+   §1986 shows the same on production's sampled card. So the override this phase builds may write a
+   set of limits the account does not consult — and this vendor's demonstrated response to a shape it
+   has not seen is accepted-and-ignored (H1, audit W3). The operator would be told an exception was
+   granted for 1000 gallons of ULSD while the pump went on enforcing the policy's 250.
+
+   **Why reading further will not settle it.** The guide gives the override recipe and the source
+   field in different sections and never relates them. Neither `setCard`'s field table nor p194 says
+   whether `override` suspends `limitSource`, whether the recipe implies setting it to `CARD`, or
+   whether card-level limits are consulted during an override regardless. There is no sentence to read
+   carefully.
+
+   **Why the obvious probe is weaker than it looks.** Writing the override and re-reading proves only
+   that the ARRAY round-trips, which is a different claim from "the pump enforces it" — and on QA it
+   is weaker still, because every QA card is on `policyNumber 1`, whose `getPolicy` returns
+   `"policy": null` in both inventories. The enforced limits are invisible through both read paths, so
+   a round-trip that succeeds tells us nothing about what a pump would do. Confirming enforcement
+   needs either WEX's answer or a real fuelling at a real pump.
+
+   **Two things worth asking WEX together**, since the second decides the shape of the answer to the
+   first: (a) does an override's card-level `<limits>` array take effect on a `limitSource=POLICY`
+   card, and (b) if not, is the intended flow to set `limitSource` to `CARD` as part of the override —
+   in which case clearing the override has to put it back, and that is a second field the §1.2 restore
+   question now covers.
+
+   ⚠ **This blocks Step 10.3 and 10.5, not 10.1** — the bytes p194 asks for are the same whichever way
+   it resolves, which is why the write path shipped and the UI did not.

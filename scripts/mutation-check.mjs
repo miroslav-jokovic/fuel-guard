@@ -308,8 +308,19 @@ const MUTATIONS = [
     id: "efs-mileage-unit-ownership-dropped",
     why: "The typo boundary. `overrideLastMileage` returns nothing, so a write onto a unit belonging to nobody — 868 for 688 — lands silently and reports success. The org-scoped EFS session does not catch it: both units are on the same account.",
     file: "apps/api/src/routes/fuelCards/unitMileage.ts",
-    find: "      const vehicle = await findVehicle(admin, orgId, unit);\n      if (!vehicle) {\n        res.status(404).json(apiError(\"unknown_unit\", `No vehicle in this company has unit number ${unit}.`));\n        return;\n      }\n\n      // AFTER validation and ownership",
-    replace: "      const vehicle = await findVehicle(admin, orgId, unit);\n\n      // AFTER validation and ownership",
+    /**
+     * Re-anchored 2026-08-17 after this check went STALE — a stale mutation is worse than a survived
+     * one, because it reads as a pass while testing nothing. Commit ceabbf5 split `findVehicle`'s
+     * answer into `{ vehicle, lookupFailed }` and expanded the 404's wording, so the old pattern
+     * stopped matching and this entry had been asserting nothing since.
+     *
+     * Anchored on the `!vehicle` refusal ALONE rather than on the surrounding lines, so a future
+     * rewording of the sentence cannot silence it again. The `lookupFailed` branch above is a
+     * different guard with a different failure (a 503, not a silent landing) and is left in place:
+     * removing only the ownership refusal is what makes this mutation about ownership.
+     */
+    find: "      if (!vehicle) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
+    replace: "      if (false) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
     detect: apiTest("src/routes/fuelCards/unitMileageRoute.test.ts"),
   },
   {
