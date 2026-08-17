@@ -739,6 +739,22 @@ switch (command) {
       break;
     }
     if (typeof flags.proof !== "string") die("--proof <id> is required to enable. Run `pnpm efs:prove` first.");
+    /**
+     * Shape-checked HERE, before the token and password prompts — the same reason `--expect-org` is
+     * validated up front: a malformed flag must not cost a credential prompt and a round trip to
+     * find out.
+     *
+     * It cost exactly that on 2026-08-17. A placeholder `--proof 3f2a...` was pasted literally, and
+     * the operator typed an admin token AND a step-up password before the API answered "Invalid
+     * UUID". Two secrets entered for a request that was never going to be sent.
+     */
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(flags.proof)) {
+      die(
+        `--proof must be the uuid of a completed proof run, not "${flags.proof}".\n`
+          + "It is the `id` in `pnpm efs:prove <capability>`'s output. If you have not run one yet,\n"
+          + "there is nothing to cite — run the proof first.",
+      );
+    }
     await call(`/api/fuel-cards/promote/${capability}`, { action: "enable", reason, proofId: flags.proof }, { stepUp: true });
     break;
   }
