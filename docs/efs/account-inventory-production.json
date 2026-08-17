@@ -1,100 +1,109 @@
 
 {
   "ok": false,
-  "operations": 15,
-  "requestBudget": 28,
+  "operations": 16,
+  "requestBudget": 29,
   "truncated": [],
+  "promptTypesCached": {
+    "ok": true
+  },
   "steps": [
     {
       "operation": "getCarrierInfo",
       "ok": true,
-      "ms": 454,
+      "ms": 2752,
+      "count": 1
+    },
+    {
+      "operation": "doesCardPosition",
+      "ok": true,
+      "ms": 1119,
       "count": 1
     },
     {
       "operation": "getPromptTypes",
       "ok": true,
-      "ms": 1593,
+      "ms": 1723,
       "count": 40
     },
     {
       "operation": "getContracts",
       "ok": true,
-      "ms": 1687,
+      "ms": 1539,
       "count": 2
     },
     {
       "operation": "getCreditLimits(69949)",
       "ok": true,
-      "ms": 2041,
+      "ms": 1968,
       "count": 1
     },
     {
       "operation": "getCreditLimits(260246)",
       "ok": true,
-      "ms": 1461,
+      "ms": 3240,
       "count": 1
     },
     {
       "operation": "getPolicyDescriptions",
       "ok": true,
-      "ms": 1535,
+      "ms": 3153,
       "count": 2
     },
     {
       "operation": "getPolicy(1)",
       "ok": true,
-      "ms": 4569,
+      "ms": 4478,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(1)",
       "ok": false,
-      "ms": 2139,
+      "ms": 497,
       "errorCode": "rate_limited",
       "error": "contract for carrier 139445 and policy 1 does not allow Refreshing Limits/Velocity Limits [getPolicyRefreshingLimits]"
     },
     {
       "operation": "getPolicy(2)",
       "ok": true,
-      "ms": 1757,
+      "ms": 1877,
       "count": 1
     },
     {
       "operation": "getPolicyRefreshingLimits(2)",
       "ok": false,
-      "ms": 3153,
+      "ms": 1500,
       "errorCode": "rate_limited",
       "error": "contract for carrier 139445 and policy 2 does not allow Refreshing Limits/Velocity Limits [getPolicyRefreshingLimits]"
     },
     {
       "operation": "getProductGroups",
       "ok": true,
-      "ms": 1645,
+      "ms": 1771,
       "count": 73
     },
     {
       "operation": "getProducts",
       "ok": true,
-      "ms": 1682,
+      "ms": 1561,
       "count": 93
     },
     {
       "operation": "getLocationGroupDescriptions",
       "ok": true,
-      "ms": 1633,
+      "ms": 1650,
       "count": 18
     },
     {
       "operation": "getSitePolicyDescriptions",
       "ok": true,
-      "ms": 2040,
+      "ms": 2125,
       "count": 2
     },
     {
       "operation": "serverTime",
       "ok": true,
-      "ms": 1233,
+      "ms": 1133,
       "count": 1
     }
   ],
@@ -104,6 +113,7 @@
       "carrierId": 139445,
       "locationGroups": false
     },
+    "securefuel": true,
     "promptTypes": [
       "DLIC",
       "DLST",
@@ -177,7 +187,7 @@
           "contractStatus": "ACTIVE",
           "transLimit": 1500,
           "origLimit": 85900,
-          "creditAvailable": 83437.42,
+          "creditAvailable": 83420.92,
           "dailyLimit": 0,
           "dailyAvailable": 0,
           "totalAvailable": 0,
@@ -191,7 +201,7 @@
           "contractStatus": "ACTIVE",
           "transLimit": 1500,
           "origLimit": 64400,
-          "creditAvailable": 48804.17,
+          "creditAvailable": 45656.32,
           "dailyLimit": 0,
           "dailyAvailable": 0,
           "totalAvailable": 0,
@@ -9920,7 +9930,7 @@
         "sitePolicyPolicy": null
       }
     ],
-    "serverTime": "2026-08-16T13:01:57.000-05:00",
+    "serverTime": "2026-08-16T21:55:31.000-05:00",
     "sampledCards": []
   }
 }

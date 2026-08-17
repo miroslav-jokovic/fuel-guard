@@ -351,8 +351,31 @@ being careful:
   argument for the `already_current` short-circuit, the vehicle-ownership check, `EFS_MILEAGE_MAX`
   and the 3/minute cap all being in place BEFORE the first live write rather than after.
 
-**Next, and read-only:** the same walk against production, to confirm `true` there. §6a records
-SecureFuel as ON for that org on Miki's account of it; this would be the vendor saying so.
+### ✅ Production answered `true` — the vendor now says it, 2026-08-17
+
+```
+SILVICOM INC  (carrierId 139445)   ->  securefuel: true
+```
+
+§6a had SecureFuel as ON for this org on Miki's operational account of it. The vendor now says so
+itself, which makes this the first end-to-end confirmation of the premise the whole document rests
+on. The `carrierId` is the same **139445** printed on the portal's Override Mileage table (§3a), so
+the screenshots, the flag and the walk are all the same account.
+
+The two accounts therefore differ in kind, not in degree:
+
+| | QA | Production |
+|---|---|---|
+| `doesCardPosition` | **false** | **true** |
+| policy prompts | `infos: []` on all 3 | `ODRD` / `ACCRUAL_CHECK`, `M:1 X:1800`, both policies |
+
+**Which settles where E′ can first be exercised, and it is not the account we usually prove things
+on.** See the constraint above; it is now a fact rather than an expectation.
+
+⚠ Production's walk also returned two failures on `getPolicyRefreshingLimits`, unrelated to this
+feature but worth knowing about because the label was wrong: they were recorded as `rate_limited`
+and are in fact the contract refusing a feature it does not carry. `docs/25` Q6 carries the
+correction.
 
 ⚠ Unrelated, and noted so it is not read as a symptom: `getPolicy(1)` failed this run with a
 `transport` error after 96 seconds. `getPolicy` is not new and is not part of this change — the walk

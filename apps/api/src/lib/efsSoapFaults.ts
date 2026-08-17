@@ -32,6 +32,13 @@ export class EfsSoapError extends Error {
       // `NotAllowed` — EFS refused the OPERATION, not the credential. Distinct from `auth` because the
       // remedy is different: an allowlist entry or an entitlement from WEX, not a new password.
       | "not_allowed"
+      // The account's CONTRACT does not include the feature being asked for. Permanent, informative,
+      // and NOT a failure of ours — the vendor is answering the question, in the negative.
+      //
+      // Distinct from `not_allowed` (their firewall blocked the request) and, crucially, from
+      // `rate_limited` (transient, retry later). It was `rate_limited` until 2026-08-17 — see the
+      // pattern below for how, and for what that cost.
+      | "not_entitled"
       // A write was well-formed but the vendor refused it ("a decline error with text", p136).
       | "declined"
       // OUR OWN guard refused to send a lossy full-document echo. Never a vendor condition — this is
@@ -70,6 +77,33 @@ const FAULT_CODES: ReadonlyArray<[RegExp, EfsSoapError["code"], string?]> = [
   // parameter value. Correct and retry." (p9). Deliberately distinct from not_allowed — EFS separates
   // our fault from their firewall, so our error surface does too.
   [/InvalidParameterNameID/i, "soap_fault", "EFS rejected a parameter value in our request. Per the guide (p9) this one is ours to correct — it is not an access problem."],
+  /**
+   * "contract for carrier 139445 and policy 1 does not allow Refreshing Limits/Velocity Limits"
+   *
+   * ⚠ THIS WAS CLASSIFIED `rate_limited` FOR A MONTH, AND IT CLOSED A QUESTION NOBODY KNEW WAS
+   * CLOSED. The heuristic below tests `/rate|limit|429/` against the lowercased message, and the
+   * vendor's own FEATURE NAMES contain the word "Limits" — Refreshing Limits, Velocity Limits,
+   * Credit Limits. So a permanent contract refusal matched `limit` and was reported as throttling.
+   *
+   * The cost was not a retry storm; the walk records a failed step and continues. It was that
+   * `docs/25` question 6 recorded production as *"rate_limited, unanswered"* and stayed 🟡 open,
+   * when the vendor had in fact answered it in full: this contract does not carry refreshing or
+   * velocity limits at all. A transient-looking label made a definitive answer look like a
+   * missing one.
+   *
+   * Matched here, ahead of the heuristics, on the vendor's phrasing. Note the guide's own
+   * `NotAllowed` pattern above does NOT catch it — that needs "Allowed", and this says "allow".
+   *
+   * The loose `/limit/` in the fallback is deliberately left alone: EFS's real rate-limit
+   * faultstring has never been observed, and narrowing the pattern on a guess risks missing the
+   * throttling it was written for. This entry removes the case we HAVE seen.
+   */
+  [
+    /does not allow/i,
+    "not_entitled",
+    "This EFS contract does not include the feature that was asked for. The vendor is answering, not "
+      + "failing — retrying will not change it, and the remedy is an entitlement from WEX.",
+  ],
 ];
 
 /** Classify a `<Fault>`. The named-exception table wins; the substring heuristics are the fallback for

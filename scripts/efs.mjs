@@ -19,6 +19,17 @@
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
  *   node scripts/efs.mjs inventory       # the ACCOUNT inventory (Step 7.2); --cards <uuid,uuid>
+ *
+ * ── ⚠ Use `--out <path>`, NOT `> path` ─────────────────────────────────────────────────────────
+ * The shell truncates a redirect target when it builds the pipeline — before this process starts,
+ * so before `--expect-org` can refuse and before a single byte is read from the vendor. On
+ * 2026-08-17 that emptied the 220 KB production inventory during a run the guard correctly
+ * REFUSED, while printing "no file was written". Only git had the contents.
+ *
+ * `--out` opens the file here, after the org check passes, which is the only arrangement in which
+ * a refusal genuinely leaves the previous capture alone:
+ *
+ *   node scripts/efs.mjs inventory --expect-org production --out docs/efs/account-inventory-production.json
  *   node scripts/efs.mjs sync            # force a card-mirror sweep now
  *   node scripts/efs.mjs job efs_card_sync   # watch it
  *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
@@ -31,6 +42,7 @@
  * independently and only one of them can reach EFS (docs/30 §4, Step 5.10).
  */
 import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
 
 const API_DEFAULT = "https://fleetguardapi-production.up.railway.app";
 
@@ -198,7 +210,9 @@ async function call(path, body, opts = {}) {
   }
   let parsed;
   try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
-  console.log(JSON.stringify(parsed, null, 2));
+  const rendered = JSON.stringify(parsed, null, 2);
+  if (typeof flags.out === "string") writeFileSync(flags.out, `${rendered}\n`);
+  else console.log(rendered);
   // A refusal is not a crash — `promotion_refused` is the system working — but the exit code must
   // still be non-zero so a script that chains these stops rather than continuing on a "no".
   if (!res.ok) process.exit(2);
@@ -260,10 +274,31 @@ async function announceOrg(label) {
   const want = String(expected).toLowerCase();
   const ok = want === "qa" ? isQa : want === "production" ? !isQa : want === org.toLowerCase();
   if (!ok) {
+    /**
+     * ⚠ "No file was written" was a LIE whenever the caller used `> file.json`, and it cost the
+     * 220 KB production inventory on 2026-08-17.
+     *
+     * The shell truncates a redirect target when it builds the pipeline — BEFORE this process
+     * starts, let alone before this check runs. So the guard added to stop a wrong-org artefact
+     * being written under a right-org name instead stood over a right-org file it had just emptied,
+     * announcing that nothing had been written. Only git had the contents.
+     *
+     * Two fixes, and both are needed. `--out` (below) lets this tool open the file ITSELF, after
+     * the check, which is the only arrangement where the sentence can be true. And when stdout is
+     * redirected anyway, say what actually happened instead of reassuring the operator.
+     */
+    const redirected = !process.stdout.isTTY;
     die(
       `--expect-org ${expected}, but this token belongs to ${named}.\n`
-        + "Refusing. Nothing was read, and no file was written — a wrong-org artefact under a\n"
-        + "right-org filename is worse than no artefact at all.",
+        + "Refusing. Nothing was read from the vendor.\n"
+        + (redirected
+          ? "\n⚠ Your shell truncated the redirect target when it built the pipeline — BEFORE this\n"
+            + "  refusal, and before anything was read. If it held a previous capture, that capture is\n"
+            + "  gone from the working tree. Restore it:\n\n"
+            + "      git restore <the file you redirected into>\n\n"
+            + "  Then re-run with --out <path> instead of `>`, which opens the file only after this\n"
+            + "  check passes.\n"
+          : "No file was written.\n"),
     );
   }
   return org;
@@ -684,6 +719,8 @@ switch (command) {
       "commands: scan · inventory [--cards <uuid,uuid>] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
         + "write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
-        + "(card numbers and tokens are always prompted for, never passed as flags)",
+        + "(card numbers and tokens are always prompted for, never passed as flags)\n"
+        + "--out <path> writes the result to a file AFTER --expect-org passes; prefer it to `>`,\n"
+        + "which your shell truncates before this tool can refuse anything.",
     );
 }

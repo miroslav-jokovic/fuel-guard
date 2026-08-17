@@ -90,7 +90,7 @@ inventory JSON, so filling this in is transcription rather than interpretation.
 | 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ✅ **YES — production policy 1, `ODRD` with `ACCRUAL_CHECK`, min 1 max 1800, value "0"** |
 | 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | ✅ **Both recorded below** |
 | 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ✅ **Recorded below — and two are `0`** |
-| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | 🟡 **QA: all six counters null on all 3 policies.** Production: **`rate_limited`, unanswered** |
+| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | ✅ **ANSWERED both. QA: all six counters null on all 3 policies. Production: the contract does not carry them at all** — *"contract for carrier 139445 and policy 1 does not allow Refreshing Limits/Velocity Limits"*. Recorded as `rate_limited` until 2026-08-17; that was our classifier, not the vendor |
 | 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ✅ **Production: $85,900 / $64,400 original; $83,437.42 / $48,804.17 available** |
 | 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ✅ **`locationGroups: false` on BOTH orgs** — see below |
 | 9 | Are **time restrictions** in use? | `getPolicy` per policy; sample cards | `inventory.policies[].policy.timeRestrictions` | ⛔ UNANSWERED |
@@ -244,18 +244,43 @@ numbers before anything else — zero 10-digit-or-longer runs in either, and `li
 operations against a ceiling of 28, so `MAX_CONTRACTS(4)`/`MAX_POLICIES(7)` never bound anything —
 the caps exist for an account larger than either of these, and neither is close.
 
-### ⚠ Production `ok: false` — the vendor rate-limited two steps
+### ⚠ Production `ok: false` — ~~the vendor rate-limited two steps~~ the contract does not carry the feature
+
+**This heading was wrong for a month, and the correction matters more than the typo.**
 
 ```
-getPolicyRefreshingLimits(1)  -> rate_limited
-getPolicyRefreshingLimits(2)  -> rate_limited
+getPolicyRefreshingLimits(1)  -> "contract for carrier 139445 and policy 1
+                                  does not allow Refreshing Limits/Velocity Limits"
+getPolicyRefreshingLimits(2)  -> same, policy 2
 ```
+
+The `rate_limited` label was ours. `efsSoapFaults.ts`'s fallback heuristic tests `/rate|limit|429/`
+against the lowercased faultstring, and the vendor's own FEATURE NAMES contain the word "Limits" —
+Refreshing Limits, Velocity Limits, Credit Limits. So a permanent contract refusal matched `limit`
+and surfaced as throttling.
+
+The cost was not a retry storm: the walk records a failed step and continues. The cost was that a
+question the vendor had **fully answered** sat 🟡 open, and the advice below — "re-run just that leg,
+or space the walk" — was advice to retry something that can never succeed. Fixed 2026-08-17 with a
+`not_entitled` code matched on the vendor's phrasing, ahead of the heuristics; the guide's own
+`NotAllowed` pattern does not catch it, because this says "allow" and that needs "Allowed".
+
+⚠ **Planning consequence for Phase 11.** Step 11.2 builds `setCardRefreshingLimits` as the first
+`direct` capability. The vendor has now said, in writing, that this contract does not carry
+refreshing or velocity limits at the POLICY level. Whether the CARD level is separately entitled is
+untested — `getCardRefreshingLimits` runs only with `sampleCards`, which this walk did not pass.
+**Establish that before Phase 11 is scheduled**, not after it is built.
 
 Thirteen of fifteen operations succeeded and the walk carried on, which is exactly the "never fails
 whole" design — a walk that aborted on the first refusal could not answer "which of these does this
-account refuse". But it means **question 6 is unanswered for production**, and it is a real
-operational finding: fifteen paced calls in sequence is enough to trip this vendor's limiter, and it
-tripped on the same operation twice rather than randomly. Re-run just that leg, or space the walk.
+account refuse".
+
+~~But it means question 6 is unanswered for production … fifteen paced calls in sequence is enough to
+trip this vendor's limiter … re-run just that leg, or space the walk.~~ **Struck 2026-08-17.** Every
+clause of that was an inference from the wrong label. The limiter was never involved; the operation
+failed twice on the same two policies because the contract lacks the feature, which is also why it
+"tripped on the same operation twice rather than randomly" — the one detail that should have given
+the game away.
 
 ### Q8 — **location groups are OFF for both orgs**, and that outranks the 18 below
 

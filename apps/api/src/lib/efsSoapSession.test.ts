@@ -343,6 +343,19 @@ describe("EFS fault classification", () => {
     ["NotAllowed", "not_allowed"],
     ["Not Allowed 109491436176", "not_allowed"],
     ["InvalidParameterNameID", "soap_fault"],
+    /**
+     * The live production faultstring, verbatim, from the account walk on 2026-08-17.
+     *
+     * ⚠ It classified as `rate_limited` before that date, because the fallback heuristic tests
+     * `/rate|limit|429/` and the vendor's FEATURE NAMES contain "Limits". A permanent contract
+     * refusal read as throttling, which is how `docs/25` question 6 sat 🟡 "unanswered" while the
+     * vendor had answered it in full. The word here is "allow", not "Allowed", so the guide's own
+     * NotAllowed pattern above does not catch it.
+     */
+    [
+      "contract for carrier 139445 and policy 1 does not allow Refreshing Limits/Velocity Limits [getPolicyRefreshingLimits]",
+      "not_entitled",
+    ],
   ])("maps the documented fault %s to code %s", async (faultName, expected) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     __resetEfsSessions();
