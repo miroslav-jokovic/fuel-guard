@@ -244,6 +244,34 @@ const MUTATIONS = [
     detect: ["node", ["scripts/check-waiver-growth.mjs"]],
   },
 
+  // ── the mileage override: a write the capability ledger does not cover ──────
+  // Not a capability (docs/37 §4 chose a plain audited write over a unit-keyed LedgerAdapter), so
+  // it gets none of the orchestrator's guarantees — no ledger row, no reconciler, no `pnpm efs:prove`.
+  // These three are what stands in for that, and each mirrors a defect this integration could ship.
+  {
+    id: "efs-mileage-already-current-dispatched",
+    why: "The skip is removed, so a request for the value EFS already holds is dispatched and then 'verified' by a re-read that shows that value whether or not the vendor did anything. Reporting `landed` there is unfounded — the H1 shape, and the exact case the short-circuit exists for.",
+    file: "apps/api/src/services/efsMileageOverride.ts",
+    find: "  if (before === mileage) {",
+    replace: "  if (false) {",
+    detect: apiTest("src/services/efsMileageOverride.test.ts"),
+  },
+  {
+    id: "efs-mileage-indeterminate-as-landed",
+    why: "A reading that is neither the old value nor the one we asked for is reported as success. The ELD feed writes this value too, so that third number means something else wrote after us — calling it `landed` claims a write landed when nothing checked it.",
+    file: "apps/api/src/services/efsMileageOverride.ts",
+    find: "  if (after === requested) return \"landed\";\n  if (after === before) return \"not_landed\";\n  return \"indeterminate\";",
+    replace: "  if (after === before) return \"not_landed\";\n  return \"landed\";",
+    detect: apiTest("src/services/efsMileageOverride.test.ts"),
+  },
+  {
+    id: "efs-mileage-unit-ownership-dropped",
+    why: "The typo boundary. `overrideLastMileage` returns nothing, so a write onto a unit belonging to nobody — 868 for 688 — lands silently and reports success. The org-scoped EFS session does not catch it: both units are on the same account.",
+    file: "apps/api/src/routes/fuelCards/unitMileage.ts",
+    find: "      const vehicle = await findVehicle(admin, orgId, unit);\n      if (!vehicle) {\n        res.status(404).json(apiError(\"unknown_unit\", `No vehicle in this company has unit number ${unit}.`));\n        return;\n      }\n\n      // AFTER validation and ownership",
+    replace: "      const vehicle = await findVehicle(admin, orgId, unit);\n\n      // AFTER validation and ownership",
+    detect: apiTest("src/routes/fuelCards/unitMileageRoute.test.ts"),
+  },
   {
     id: "driver-tests-uncollected",
     why: "Re-narrows the driver include glob — the bug that hid 24 tests for months, three times over.",
