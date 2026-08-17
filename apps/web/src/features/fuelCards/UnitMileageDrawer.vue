@@ -2,7 +2,9 @@
 import { computed, ref, watch } from "vue";
 import { EFS_MILEAGE_MAX, type EfsMileageCode } from "@fuelguard/shared";
 import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField, AppRadioGroup } from "@fuelguard/ui";
+import ComboSelect from "@/components/ui/ComboSelect.vue";
 import SlideOver from "@/components/SlideOver.vue";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { landingNotice, useUnitMileage } from "./useUnitMileage";
 
 /**
@@ -21,6 +23,17 @@ import { landingNotice, useUnitMileage } from "./useUnitMileage";
  *     correcting is a question EFS answers by declining a fuelling.
  *   • **No card.** The operation targets a UNIT. It is on the fuel-cards page because that is where
  *     EFS lives in this product, not because it belongs to a card.
+ *
+ * ── The unit is CHOSEN from our fleet, not typed ────────────────────────────────────────────────
+ * A free-text unit box shipped briefly and produced the obvious failure the same day: `991` typed
+ * against QA, refused with "No vehicle in this company has unit number 991", and no way to see what
+ * the valid units were. The write already required the unit to be one of this company's trucks —
+ * that is the typo boundary, and `overrideLastMileage` returns nothing that would say the reading
+ * landed on the wrong truck — so the field may as well only offer trucks that pass it.
+ *
+ * This is NOT the look-up step that was removed. That one read EFS's stored mileage and displayed
+ * it; this reads our own vehicle list to answer "which truck", which is the question the portal's
+ * own Card Lookup screen asks first. Choosing an entity is not displaying vendor data.
  *
  * ── It shows NO reading before the write, and that was a correction ─────────────────────────────
  * The first version looked the unit up first and displayed what EFS held, on the argument that it is
@@ -46,6 +59,19 @@ const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
 const { outcome, saving, error, override, reset } = useUnitMileage();
+
+const vehicles = useVehiclesQuery();
+
+/**
+ * Only trucks with a unit number, since that is what EFS is keyed on. A vehicle without one cannot
+ * be the subject of this operation at all, and offering it would produce a refusal we can prevent.
+ */
+const unitOptions = computed(() => (vehicles.data.value ?? [])
+  .filter((v) => (v.unit_number ?? "").trim() !== "")
+  .map((v) => ({
+    value: v.unit_number as string,
+    label: [v.unit_number, v.make, v.model].filter(Boolean).join(" · "),
+  })));
 
 const unit = ref("");
 const code = ref<EfsMileageCode>("ODRD");
@@ -124,14 +150,19 @@ async function submit(): Promise<void> {
     <div class="space-y-5">
       <!-- ── Which truck ─────────────────────────────────────────────────────────────────────── -->
       <div class="grid gap-4 sm:grid-cols-2">
-        <FormField label="Unit number" hint="The unit as EFS knows it, e.g. 688.">
+        <FormField
+          label="Truck"
+          :hint="unitOptions.length === 0 && !vehicles.isLoading.value
+            ? 'No vehicle in this company has a unit number, so there is nothing EFS can be keyed to.'
+            : 'The unit number EFS holds the reading against.'"
+        >
           <template #default="{ id }">
-            <BaseInput
+            <ComboSelect
               :id="id"
               v-model="unit"
-              inputmode="numeric"
-              autocomplete="off"
-              placeholder="688"
+              :options="unitOptions"
+              :disabled="saving || vehicles.isLoading.value"
+              :placeholder="vehicles.isLoading.value ? 'Loading trucks…' : 'Choose a truck…'"
             />
           </template>
         </FormField>
