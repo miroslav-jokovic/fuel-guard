@@ -1,3 +1,5 @@
+import type { EditsCtx } from "../types.js";
+import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { describe, expect, it } from "vitest";
 import { deactivateCardSchema, lockCardSchema, unlockCardSchema } from "@fuelguard/shared";
 import type { z } from "zod";
@@ -6,6 +8,14 @@ import { cardDeactivateBehaviour } from "./cardDeactivate.behaviour.js";
 import { cardLockBehaviour } from "./cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./cardUnlock.behaviour.js";
 import { statusIsRevertible, statusRevert } from "./statusRevert.js";
+
+/**
+ * The status capabilities ignore the editable prompt set entirely — their proofs are about
+ * `status` — so any value serves. Passing the DRID/UNIT fallback rather than an empty list keeps it
+ * honest: that is what an org whose vocabulary has never been read actually resolves to.
+ */
+const PROOF_CTX: EditsCtx = { editableInfoIds: [...EFS_EDITABLE_INFO_IDS] };
+
 
 /**
  * The revert a proof run actually sends, judged by the schema that actually receives it.
@@ -95,18 +105,18 @@ describe("a card no capability can put back", () => {
     expect(statusIsRevertible(status)).toBe(false);
     // All three would otherwise pass their own precondition — none of these is Hold, Active or
     // Inactive — then write to a real card and have no way home.
-    expect(cardLockBehaviour.proof?.precondition(snapAt(status))).toBe(false);
-    expect(cardUnlockBehaviour.proof?.precondition(snapAt(status))).toBe(false);
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt(status))).toBe(false);
+    expect(cardLockBehaviour.proof?.precondition(snapAt(status), PROOF_CTX)).toBe(false);
+    expect(cardUnlockBehaviour.proof?.precondition(snapAt(status), PROOF_CTX)).toBe(false);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt(status), PROOF_CTX)).toBe(false);
   });
 
   it("still lets the states that CAN be restored through", () => {
     // The other half of the pair: a precondition that refused everything would satisfy the case
     // above and make all three capabilities permanently unprovable.
-    expect(cardLockBehaviour.proof?.precondition(snapAt("ACTIVE"))).toBe(true);
-    expect(cardLockBehaviour.proof?.precondition(snapAt("INACTIVE"))).toBe(true);
-    expect(cardUnlockBehaviour.proof?.precondition(snapAt("HOLD"))).toBe(true);
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("HOLD"))).toBe(true);
+    expect(cardLockBehaviour.proof?.precondition(snapAt("ACTIVE"), PROOF_CTX)).toBe(true);
+    expect(cardLockBehaviour.proof?.precondition(snapAt("INACTIVE"), PROOF_CTX)).toBe(true);
+    expect(cardUnlockBehaviour.proof?.precondition(snapAt("HOLD"), PROOF_CTX)).toBe(true);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("HOLD"), PROOF_CTX)).toBe(true);
   });
 });
 
@@ -118,14 +128,14 @@ describe("the revert body each behaviour hands the prover", () => {
   ] as const;
 
   it.each(BEHAVIOURS)("%s, proved on a card resting at INACTIVE, reverts through card_deactivate", (_n, behaviour) => {
-    const revert = behaviour.proof!.revert(snapAt("INACTIVE"));
+    const revert = behaviour.proof!.revert(snapAt("INACTIVE"), PROOF_CTX);
 
     expect(revert.capability).toBe("card_deactivate");
     expect(acceptedBy(deactivateCardSchema, revert.body as Record<string, unknown>)).toBe(true);
   });
 
   it.each(BEHAVIOURS)("%s, proved on a card resting at HOLD, reverts through card_lock", (_n, behaviour) => {
-    const revert = behaviour.proof!.revert(snapAt("HOLD"));
+    const revert = behaviour.proof!.revert(snapAt("HOLD"), PROOF_CTX);
 
     expect(revert.capability).toBe("card_lock");
     // The case that started this: `HOLD` verbatim is refused here, `Hold` is not.

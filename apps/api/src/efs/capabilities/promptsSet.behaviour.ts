@@ -1,4 +1,4 @@
-import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
 import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
@@ -32,10 +32,9 @@ import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
  * `replaceAll` carrying an info id nobody may edit would be refused by the contract's own schema —
  * and silently dropping the rest is what deletes a driver assignment (guide p137).
  */
-const proofPrompts = (snap: Snapshot): PromptsSetBody["prompts"] =>
+const proofPrompts = (snap: Snapshot, ctx: EditsCtx): PromptsSetBody["prompts"] =>
   (snap.doc?.card.infos ?? [])
-    .filter((info): info is typeof info & { infoId: (typeof EFS_EDITABLE_INFO_IDS)[number] } =>
-      (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(info.infoId))
+    .filter((info) => ctx.editableInfoIds.includes(info.infoId))
     .map((info) => ({
       infoId: info.infoId,
       validationType: info.validationType === "EXACT_MATCH" ? "EXACT_MATCH" as const : "REPORT_ONLY" as const,
@@ -71,21 +70,21 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
    * would be a no-op reported as a landing.
    */
   proof: {
-    precondition: (snap) => proofPrompts(snap).length > 0,
-    sample: (snap): PromptsSetBody => ({
+    precondition: (snap, ctx) => proofPrompts(snap, ctx).length > 0,
+    sample: (snap, ctx): PromptsSetBody => ({
       expectedVersion: "",
       replaceAll: true,
       allowRemoveDriverId: false,
-      prompts: proofPrompts(snap).map((p, i) => (i === 0
+      prompts: proofPrompts(snap, ctx).map((p, i) => (i === 0
         ? { ...p, validationType: p.validationType === "EXACT_MATCH" ? "REPORT_ONLY" as const : "EXACT_MATCH" as const }
         : p)),
     }),
-    revert: (snap) => ({
+    revert: (snap, ctx) => ({
       capability: "prompts_set",
       body: {
         expectedVersion: "",
         replaceAll: true, allowRemoveDriverId: false,
-        prompts: proofPrompts(snap),
+        prompts: proofPrompts(snap, ctx),
       },
     }),
   },

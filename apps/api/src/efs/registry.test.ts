@@ -16,6 +16,7 @@ import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.j
 import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
 import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { ALL_CAPABILITIES, mountedCapabilities } from "./registry.js";
+import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 
 /**
  * The cross-registry fitness test (docs/27 §7.2).
@@ -70,7 +71,7 @@ describe("the capability registries agree with each other", () => {
     expect(planned.length).toBe(Object.keys(CARD_CAPABILITY_CONTRACTS).length);
 
     for (const [key, behaviour] of planned) {
-      const target = behaviour.proof!.revert(emptySnapshot).capability;
+      const target = behaviour.proof!.revert(emptySnapshot, { editableInfoIds: [...EFS_EDITABLE_INFO_IDS] }).capability;
       expect(
         Object.keys(CARD_CAPABILITY_CONTRACTS),
         `${key}'s proof reverts through "${target}", which is not a capability`,

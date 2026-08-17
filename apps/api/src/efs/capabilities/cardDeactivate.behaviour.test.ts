@@ -1,3 +1,5 @@
+import type { EditsCtx } from "../types.js";
+import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +14,14 @@ import { resolveCapability } from "../orchestrator/resolve.js";
 import type { CardMutationContext } from "../orchestrator/types.js";
 import { cardDeactivateBehaviour } from "./cardDeactivate.behaviour.js";
 import { testEnv } from "../../testing/testEnv.js";
+
+/**
+ * The status capabilities ignore the editable prompt set entirely — their proofs are about
+ * `status` — so any value serves. Passing the DRID/UNIT fallback rather than an empty list keeps it
+ * honest: that is what an org whose vocabulary has never been read actually resolves to.
+ */
+const PROOF_CTX: EditsCtx = { editableInfoIds: [...EFS_EDITABLE_INFO_IDS] };
+
 
 /**
  * Retiring a card, driven through the real orchestrator against a scripted vendor.
@@ -198,25 +208,25 @@ describe("the proof plan for a retirement", () => {
   it("voids on a card already INACTIVE — a write the vendor ignores would report success", () => {
     // OEG-3. This account spells it upper-case, so `efsStatusEquals` and not `===`: an exact
     // comparison would run the proof, see `INACTIVE` on re-read and call it landed.
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("INACTIVE"))).toBe(false);
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("HOLD"))).toBe(true);
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("ACTIVE"))).toBe(true);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("INACTIVE"), PROOF_CTX)).toBe(false);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("HOLD"), PROOF_CTX)).toBe(true);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("ACTIVE"), PROOF_CTX)).toBe(true);
   });
 
   it("refuses a card no capability could put back", () => {
     // Fraud and Deleted are neither Inactive nor revertible; running here would retire a real card
     // with no way home (standing rule 14).
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("FRAUD"))).toBe(false);
-    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("Deleted"))).toBe(false);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("FRAUD"), PROOF_CTX)).toBe(false);
+    expect(cardDeactivateBehaviour.proof?.precondition(snapAt("Deleted"), PROOF_CTX)).toBe(false);
   });
 
   it("reverts through whichever capability owns the status it found", () => {
-    expect(cardDeactivateBehaviour.proof?.revert(snapAt("HOLD"))).toMatchObject({
+    expect(cardDeactivateBehaviour.proof?.revert(snapAt("HOLD"), PROOF_CTX)).toMatchObject({
       capability: "card_lock", body: { status: "Hold" },
     });
     // Canonical `Hold`, not the observed `HOLD`: `card_lock`'s schema is a case-sensitive enum and
     // the account's own casing is re-applied at `buildEdits`. See `statusRevert.ts`.
-    expect(cardDeactivateBehaviour.proof?.revert(snapAt("ACTIVE"))).toMatchObject({
+    expect(cardDeactivateBehaviour.proof?.revert(snapAt("ACTIVE"), PROOF_CTX)).toMatchObject({
       capability: "card_unlock",
     });
   });
