@@ -5,13 +5,14 @@ import { apiFetch } from "@/lib/api";
 /**
  * Reading and correcting the odometer EFS holds for a unit (`docs/37` §6 D, E′).
  *
- * ── Why this is not vue-query, unlike every other fuel-card read ────────────────────────────────
- * `useEfsCards` caches because the card list is a VIEW — the same data serves every visitor and a
- * stale second is harmless. This is a lookup inside a form, and the value it fetches is the thing
- * the operator is about to overwrite. A cached reading here would mean confirming a correction
- * against a number that is no longer true, on an operation whose whole difficulty is that the
- * vendor never tells you what it did (§3). So every look-up is a fresh call, and the reading shown
- * after a write comes from the API's own verifying re-read rather than from a refetch we schedule.
+ * ── One call, and no read before it ─────────────────────────────────────────────────────────────
+ * The drawer used to look the unit up first and show what EFS held. Removed on Miki's ruling: we
+ * mirror the vendor's operation, we do not rebuild its reporting. An operator here already has the
+ * number they mean to set. `before` still reaches them — it comes back in the OUTCOME, from the
+ * API's verifying re-read, which is the only evidence a write that returns nothing actually landed.
+ *
+ * The GET endpoint stays: `node scripts/efs.mjs mileage --unit 688` uses it, and that is where
+ * reading EFS's stored value belongs — an operator tool, not a step in a write form.
  *
  * ── Not a capability, and therefore not `useOperationDispatch` ──────────────────────────────────
  * The card operations all go through the capability registry: ledger row, idempotency key,
@@ -19,17 +20,6 @@ import { apiFetch } from "@/lib/api";
  * chose a plain audited write instead. Routing it through `useOperationDispatch` would need a
  * capability key the registry does not have.
  */
-
-/** What EFS holds for one unit right now. The comparison fields the API also returns are
- *  deliberately not read here — see `UnitMileageDrawer.vue`. */
-export interface UnitMileageReading {
-  unit: string;
-  code: EfsMileageCode;
-  /** Null when EFS holds no reading for this unit — not zero, which would mean a new truck. */
-  efsMileage: number | null;
-  /** False when no vehicle in this company carries this unit number. */
-  knownVehicle: boolean;
-}
 
 /**
  * Three-valued plus one, and every value is a different sentence to an operator.
@@ -72,42 +62,15 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
 }
 
 export function useUnitMileage() {
-  const reading = ref<UnitMileageReading | null>(null);
   const outcome = ref<MileageOverrideOutcome | null>(null);
-  const looking = ref(false);
   const saving = ref(false);
   const error = ref<string | null>(null);
-
-  async function lookUp(unit: string, code: EfsMileageCode): Promise<void> {
-    looking.value = true;
-    error.value = null;
-    // Cleared TOGETHER with the reading: a result panel left standing beside a freshly looked-up
-    // different unit reads as that unit's outcome.
-    outcome.value = null;
-    reading.value = null;
-    try {
-      reading.value = await call<UnitMileageReading>(
-        `/api/fuel-cards/unit-mileage?unit=${encodeURIComponent(unit)}&code=${code}`,
-      );
-    } catch (e) {
-      error.value = e instanceof UnitMileageError ? e.message : "Could not reach EFS";
-    } finally {
-      looking.value = false;
-    }
-  }
 
   async function override(unit: string, code: EfsMileageCode, mileage: number): Promise<void> {
     saving.value = true;
     error.value = null;
     try {
       outcome.value = await call<MileageOverrideOutcome>("/api/fuel-cards/unit-mileage", "POST", { unit, code, mileage });
-      /**
-       * The reading is replaced from the OUTCOME's `after`, which is the API's verifying re-read —
-       * not from a second look-up of our own. Two reads where the server already did one would
-       * spend a vendor call to answer a question that has been answered, and could disagree with
-       * the verdict shown beside it.
-       */
-      if (reading.value) reading.value = { ...reading.value, efsMileage: outcome.value.after };
     } catch (e) {
       error.value = e instanceof UnitMileageError ? e.message : "Could not reach EFS";
     } finally {
@@ -116,12 +79,11 @@ export function useUnitMileage() {
   }
 
   function reset(): void {
-    reading.value = null;
     outcome.value = null;
     error.value = null;
   }
 
-  return { reading, outcome, looking, saving, error, lookUp, override, reset };
+  return { outcome, saving, error, override, reset };
 }
 
 /**

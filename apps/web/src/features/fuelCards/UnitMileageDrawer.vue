@@ -22,10 +22,17 @@ import { landingNotice, useUnitMileage } from "./useUnitMileage";
  *   • **No card.** The operation targets a UNIT. It is on the fuel-cards page because that is where
  *     EFS lives in this product, not because it belongs to a card.
  *
- * ── Why the current reading is shown, given "no comparison" ─────────────────────────────────────
- * Because it is the value being overwritten, not a comparison. The portal shows it for the same
- * reason: typing a replacement for a number you cannot see is how a digit gets dropped. It is one
- * value from one source, which is the difference between showing state and inviting an inference.
+ * ── It shows NO reading before the write, and that was a correction ─────────────────────────────
+ * The first version looked the unit up first and displayed what EFS held, on the argument that it is
+ * the value being overwritten rather than a comparison. Miki's ruling, 2026-08-17: *"we dont need to
+ * display this data, we are mirroring features not recreating EFS SecureFuel."* The distinction that
+ * matters is not comparison-vs-state, it is that an operator here already knows the number they
+ * intend to set — they are correcting a reading they got from Samsara or from the truck, not
+ * browsing EFS. A lookup step made them wait for a value they were about to replace.
+ *
+ * What survives is the OUTCOME, which is not a data display: `overrideLastMileage` returns nothing,
+ * so `before → after` is the only evidence the write landed, and it comes from the API's verifying
+ * re-read after the fact rather than from a screen the operator had to drive first.
  *
  * ── The result panel is the whole point ─────────────────────────────────────────────────────────
  * `overrideLastMileage` returns NOTHING (§3) — no result, no document, not even an empty element.
@@ -38,7 +45,7 @@ import { landingNotice, useUnitMileage } from "./useUnitMileage";
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
-const { reading, outcome, looking, saving, error, lookUp, override, reset } = useUnitMileage();
+const { outcome, saving, error, override, reset } = useUnitMileage();
 
 const unit = ref("");
 const code = ref<EfsMileageCode>("ODRD");
@@ -60,14 +67,13 @@ watch(() => props.open, (isOpen) => {
   reset();
 });
 
-/** Re-looking-up is required after changing either, so the reading on screen always belongs to the
- *  unit and code in the boxes above it. */
+/** A result belongs to the unit and code that produced it — clear it the moment either changes,
+ *  so an outcome never sits under a different truck's number. */
 watch([unit, code], () => {
-  if (reading.value) reset();
+  if (outcome.value) reset();
 });
 
 const trimmedUnit = computed(() => unit.value.trim());
-const canLookUp = computed(() => trimmedUnit.value.length > 0 && !looking.value && !saving.value);
 
 const parsedMileage = computed(() => {
   const raw = mileage.value.trim();
@@ -90,7 +96,7 @@ const mileageError = computed(() => {
 });
 
 const canSubmit = computed(() =>
-  reading.value !== null && parsedMileage.value !== null && !saving.value && !looking.value);
+  trimmedUnit.value.length > 0 && parsedMileage.value !== null && !saving.value);
 
 const notice = computed(() => (outcome.value ? landingNotice(outcome.value) : null));
 
@@ -126,7 +132,6 @@ async function submit(): Promise<void> {
               inputmode="numeric"
               autocomplete="off"
               placeholder="688"
-              @keyup.enter="canLookUp && lookUp(trimmedUnit, code)"
             />
           </template>
         </FormField>
@@ -136,33 +141,8 @@ async function submit(): Promise<void> {
         <AppRadioGroup v-model="code" legend="Reading" :options="CODE_OPTIONS" />
       </div>
 
-      <BaseButton variant="secondary" :disabled="!canLookUp" @click="lookUp(trimmedUnit, code)">
-        {{ looking ? "Looking up…" : "Look up current reading" }}
-      </BaseButton>
-
-      <!-- ── What EFS holds now ──────────────────────────────────────────────────────────────── -->
-      <div v-if="reading" class="rounded-md bg-surface-subtle p-4 ring-1 ring-edge">
-        <p class="text-sm text-ink-muted">EFS currently holds for unit {{ reading.unit }}</p>
-        <p class="mt-1 text-2xl font-semibold tabular-nums text-ink">
-          {{ reading.efsMileage === null ? "No reading" : `${reading.efsMileage.toLocaleString()} mi` }}
-        </p>
-        <!-- Not an error. EFS holding nothing is the ordinary state for a truck it has never been
-             told about, and it is exactly the case an override exists to seed. -->
-        <p v-if="reading.efsMileage === null" class="mt-1 text-sm text-ink-muted">
-          EFS has no stored reading for this unit yet. Setting one gives the pump a baseline to
-          compare against.
-        </p>
-        <!-- The API answers for a unit our fleet does not model rather than refusing it; say so
-             plainly, because it means the unit may not be the truck the operator has in mind. -->
-        <p v-if="!reading.knownVehicle" class="mt-2 text-sm text-warning-800">
-          No vehicle in this company has unit number {{ reading.unit }}. You can read EFS's value,
-          but the correction below will be refused until the unit matches one of your trucks.
-        </p>
-      </div>
-
       <!-- ── The correction ──────────────────────────────────────────────────────────────────── -->
       <FormField
-        v-if="reading"
         label="New reading"
         :error="mileageError"
         :hint="mileageError ? undefined : 'Whole miles. This replaces the value above.'"
@@ -184,7 +164,7 @@ async function submit(): Promise<void> {
         operator is most likely to get wrong, and §6a E′ is explicit: it seeds EFS's copy, it does
         not touch the truck, Samsara, or our own odometer.
       -->
-      <p v-if="reading" class="text-sm text-ink-muted">
+      <p class="text-sm text-ink-muted">
         This changes only the reading EFS compares the driver's pump entry against. It does not
         change the truck's real odometer or anything we hold.
       </p>
