@@ -572,8 +572,44 @@ first override lands on production with no QA rehearsal behind it.
 3. Does `getLastMileage` accept more than one search entry per call, as the guide's *"Search Array,
    1 to many"* implies but the WSDL does not declare?
 4. Is `value` ever the accrual on any account, or is the guide's sentence simply wrong?
-5. ⚠ **Does a card-level `<limits>` override apply on a card whose `limitSource` is `POLICY`?**
-   *(added 2026-08-17 while verifying Phase 10; this one gates shipping the feature, not explaining it)*
+5. **Does a card-level `<limits>` override apply on a card whose `limitSource` is `POLICY`?**
+   *(added 2026-08-17 while verifying Phase 10; **largely answered the same day** — see the box below)*
+
+   > ### ✅ Mostly answered from WEX's own portal documentation, 2026-08-17
+   >
+   > Three official eManager quick-reference guides were found and read — the Overrides guide is now
+   > checked in at `docs/efs/eManager-Overrides-2017-11.pdf`, and the two Card Management /
+   > Administrator guides are at the URLs in §8 below. **All three agree**, and they answer this:
+   >
+   > **The portal's procedure for a PERMANENT card-level product limit begins by changing the limit
+   > source.** *"In the gray bar at the top of the screen select 'Limits' > 'Update Limits' · Under
+   > 'Limit', select 'Both' · Click on 'Add Limit'."* By parallel construction with the card-setup
+   > step *"Under Information, select 'Both'"* — which is unambiguously `infoSource` — that `'Limit'`
+   > dropdown is `limitSource`. **So card-level limits ARE gated on the source field, and `POLICY` is
+   > the state you have to leave to add one.** That half of the worry was real.
+   >
+   > **But the OVERRIDE procedure has no such step, and that is the answer.** The override flow is:
+   > *Override Card → number of overrides → 'Product / Limit Override' → select product → Amount →
+   > 'Complete Override'.* No limit-source screen, no mention of it in the notes, and the flow's own
+   > stated use case is *"OVERRIDE FOR AN ADDITIONAL PRODUCT – OR A PRODUCT'S LIMIT HAS BEEN USED"* —
+   > i.e. it is designed for exactly the cards whose limit came from a policy. WEX documents the
+   > override as working without touching `limitSource`.
+   >
+   > **So `override_grant` should NOT write `limitSource`, and p194 is complete for the override
+   > path.** Writing it would be inventing a step the vendor's own flow does not have, and it would
+   > leave a card permanently consulting card-level limits after a temporary exception — the exact
+   > harm §1.2 is about, caused by the fix rather than the bug.
+   >
+   > **What is left of this question** is one confirming sentence rather than a blocker: does the
+   > override's card-level `<limits>` array take effect even though `limitSource` reads `POLICY`?
+   > Every piece of documentation says yes by omission; nothing says yes explicitly. Downgraded from
+   > *gates the phase* to *ask when convenient*.
+   >
+   > ⚠ **One residue worth knowing.** If the override leaves a card-level `<limits>` array behind
+   > after it is consumed, that array is inert while `limitSource` is `POLICY` — but it becomes live
+   > the day somebody sets that card's limit source to `Both` in the portal. Harmless now, a landmine
+   > later. This is a second reason 10.4 must record what the card's `<limits>` looks like AFTER the
+   > override clears, not only whether the original limits came back.
 
    The guide's limits object states, verbatim: *"Only limits assigned at the CARD level are returned,
    POLICY limits are not returned even if the card source is set to `BOTH`."* So `getCard` reports
@@ -586,11 +622,15 @@ first override lands on production with no QA rehearsal behind it.
    has not seen is accepted-and-ignored (H1, audit W3). The operator would be told an exception was
    granted for 1000 gallons of ULSD while the pump went on enforcing the policy's 250.
 
-   **Why reading further will not settle it.** The guide gives the override recipe and the source
-   field in different sections and never relates them. Neither `setCard`'s field table nor p194 says
-   whether `override` suspends `limitSource`, whether the recipe implies setting it to `CARD`, or
-   whether card-level limits are consulted during an override regardless. There is no sentence to read
-   carefully.
+   **The SOAP guide and the WSDL are exhausted, and this was checked rather than assumed.**
+   `limitSource` occurs exactly four times in the 200-page guide, and **all four are field-table rows**
+   giving nothing but the enumeration (twice as *"Policy, Card, or Both"*, twice as *"POLICY, CARD or
+   BOTH."*). There is no prose anywhere about precedence — a search for *"most restrictive"*,
+   *"takes precedence"*, *"supersede"* and *"in addition to the policy"* returns nothing. The WSDL
+   constrains it no further: `<element name="limitSource" nillable="true" type="string"/>`, and the
+   file contains **zero** `simpleType`/`enumeration` declarations in total, so it validates nothing.
+   The guide gives the override recipe and the source field in different sections and never relates
+   them. **The answer came from the portal guides instead** — see the box above.
 
    **Why the obvious probe is weaker than it looks.** Writing the override and re-reading proves only
    that the ARRAY round-trips, which is a different claim from "the pump enforces it" — and on QA it
@@ -599,11 +639,101 @@ first override lands on production with no QA rehearsal behind it.
    a round-trip that succeeds tells us nothing about what a pump would do. Confirming enforcement
    needs either WEX's answer or a real fuelling at a real pump.
 
-   **Two things worth asking WEX together**, since the second decides the shape of the answer to the
-   first: (a) does an override's card-level `<limits>` array take effect on a `limitSource=POLICY`
-   card, and (b) if not, is the intended flow to set `limitSource` to `CARD` as part of the override —
-   in which case clearing the override has to put it back, and that is a second field the §1.2 restore
-   question now covers.
+   **What to ask WEX, now that it is one question and not two:** does an override's card-level
+   `<limits>` array take effect on a card whose `limitSource` reads `POLICY`? The portal guides answer
+   it by omission — their override flow never touches the field — so this is a confirmation, not a
+   discovery. Ask it alongside Q6.
 
-   ⚠ **This blocks Step 10.3 and 10.5, not 10.1** — the bytes p194 asks for are the same whichever way
-   it resolves, which is why the write path shipped and the UI did not.
+   **Status: downgraded 2026-08-17 from blocking to confirming.** It no longer blocks 10.3 or 10.5.
+6. ⚠ **Does `setCardv2` work at all on a card that is currently in override?** *(added 2026-08-17;
+   this is the one the portal research turned up that we did not know to ask, and it outranks Q5)*
+
+   All three eManager guides carry the same sentence, in the notes under BOTH override flows:
+   *"When a card is in override no changes can be made to the card (i.e. status, add cash, etc.),
+   therefore, it is recommended that (1) one override/swipe be selected."*
+
+   Nothing in the 200-page SOAP guide says this. If it is true of the web service and not merely of
+   the portal's screens, then on a card carrying an armed override:
+
+   - **`card_lock` may not apply** — the 2am action for a stolen card, which this codebase has
+     deliberately kept free of every kind of friction (no reason required, no step-up, see docs/22
+     §B1). "No changes can be made" is a great deal worse than friction.
+   - **`prompts_set`, `card_unlock`, `card_deactivate` and the mileage override** are in the same
+     position. None of them checks `overrideUses` today.
+   - ⚠ **Our live override CLEAR is itself a `setCardv2`** on a card that is by definition in
+     override — `overrideClearBehaviour` is commented *"the proven mechanism, and the one that is live
+     today"*, and it echo-writes the three header fields. If the vendor's sentence holds for the API,
+     that path cannot work, and **`deleteOverride` (guide p27) existing as a dedicated operation with
+     no payload is exactly what one would expect if the normal write path were closed.** That would
+     also explain why WEX bothered to build it.
+
+   **What is actually known, stated carefully.** H5 (docs/22) is the `card_lock` proof — status
+   `HOLD` → `ACTIVE` on a card with **no** override. The echo clear's "proven" claim means
+   production-wired and offline-verified, **not** proven live against a card carrying an override; no
+   OEG record exists for that. So the vendor's sentence is currently **unrefuted by anything we have
+   measured**, and the reading that it describes the portal's UI rather than the API is plausible but
+   also unevidenced. *"If there is no button to select under 'Override Card' the card is already in
+   override"* is plainly a statement about screens, which is the strongest hint it is a UI rule — but
+   it is a hint, not the answer.
+
+   **This one IS cheaply probeable on QA, and it should be probed before Phase 10 promotes**, because
+   two of its three outcomes change the product: grant a 1-use override on a QA card, then attempt a
+   `card_lock` to `Hold` through the ordinary capability path and read back. If the status does not
+   land, the override freeze is real for the API and `card_lock` needs a precondition that tells the
+   operator to clear the override first — plus an override-aware failure message, since today it would
+   say only *"EFS accepted the request but the card is unchanged."* Then clear via the echo path and
+   via `deleteOverride` and compare which one actually lands.
+
+---
+
+## 8. Primary sources — WEX's own portal documentation
+
+Found 2026-08-17. **These answered two questions the 200-page SOAP guide does not address at all**, and
+they are the reason Q5 was downgraded and Q6 exists. Worth checking here BEFORE opening a WEX ticket:
+the portal guides describe the same features from the operator's side, and they say things the API
+reference omits.
+
+| Document | Where | What it settles |
+|---|---|---|
+| **eManager Quick Reference Guide — Overrides**, Nov 2017 | ✅ checked in at `docs/efs/eManager-Overrides-2017-11.pdf` · orig. `manage.fleetone.com/common/pdf/overrides.pdf` | The whole override flow, screen by screen. Replacement-not-addition, the DSL+ULSD pairing, the in-override freeze, self-consumption on swipe |
+| eManager Quick Reference Guide — Card Management, Nov 2017 | `manage.fleetone.com/common/pdf/card_management.pdf` | Same override notes, **plus "CHANGING A CARD'S PRODUCT LIMIT"** — the *"Under 'Limit', select 'Both'"* step that answers Q5 |
+| eManager Quick Reference Guide — Card Management, Apr 2019 | `wexdrive.com/otr/pdf/EFS_eMgrAdmin-Verify4.pdf` (also `emgr.efsllc.com/common/pdf/administrator.pdf`) | Independent corroboration of all of the above, two years later and unchanged |
+
+⚠ **They do not extract through `WebFetch`** — its reader returns "corrupted binary". They extract
+perfectly with `pdftotext` (poppler is installed). Download, then extract locally.
+
+### The four sentences worth quoting, verbatim
+
+1. *"Override limit does not 'add' to the existing limit; it is REPLACING the limit as a daily total
+   (i.e. if a card has a 100 gallon limit of diesel and the card needs an additional 50 gallons, the
+   override would need to be in place for 150 gallons)."*
+   — Confirms §1.2's premise from the vendor's own side, and **the operator enters the TOTAL, not the
+   increment.** An override UI that reads as "additional gallons" grants LESS than the card already
+   allowed.
+2. *"When a card is in override no changes can be made to the card (i.e. status, add cash, etc.),
+   therefore, it is recommended that (1) one override/swipe be selected."* — Q6.
+3. *"When overriding fuel, add product DSL for the desired gallons … and also add product ULSD for
+   the desired gallons. This is done because different truck stops use different product codes for
+   fuel."* — **p194's ULSD-only example is not a complete operational recipe.** A diesel override
+   needs both codes or it declines at half the network.
+4. *"Once the card is swiped the number of overrides selected the override will automatically be
+   removed."* — The vendor manages the override's lifecycle server-side. It is the strongest available
+   indication that restoring the prior limits is WEX's job rather than ours, and it is still not a
+   statement that WEX does it.
+
+### Two ambiguities these documents introduce rather than resolve
+
+- **What `hours` means on an override.** The override screen: *"'Hours' represents the number of hours
+  allowed between swipes if multiple swipes are selected — the default is 1."* The limits screen:
+  *"Enter Hours (i.e. 24 equals daily) when to refresh the limit."* The SOAP field table (p36) matches
+  the SECOND: `hours` is *"the hours the limit is good for before resetting"*, and *between* uses is
+  `minHours`. Yet p194's example writes `hours: 1, minHours: 0`, and 1 is the override screen's own
+  default. One label, two meanings — the family docs/22 keeps recording. **Recommendation: default
+  `hours: 1, minHours: 0` exactly as p194 does, and do not label the field with either meaning in the
+  UI until this is confirmed.**
+- **`autoRollMap` is a days-of-week bitmap.** A 2019 walkthrough of the same screen describes the
+  alternative to Hours as *"click Auto Rollover and choose the days of the week that you want the
+  limit to refresh"*. That decodes the field: QA policies 2 and 3 carry `autoRollMap: 127` (= all
+  seven bits set), and `getCardV2.autoRoll.xml` carries `7`. Our own comment on `autoRollMax` (*"0
+  means no daily maximum"*) is unaffected. Nothing writes either field, so this is a reading aid — but
+  it is the first explanation of `autoRollMap` this workstream has had.
