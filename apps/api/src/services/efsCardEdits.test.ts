@@ -185,6 +185,42 @@ describe("prompts — full replace without collateral damage", () => {
       .toThrowError(/not editable on this account/);
   });
 
+  it("carries an ACCRUAL_CHECK prompt's accrual value onto the wire, to the byte", () => {
+    // Step 9.3's Verify. The guide gives one sentence on this field — "For the accrual check method
+    // for odometer or hubometer, this is the accrual value" (p36, p135, p138) — and `value` was
+    // hardcoded to "0", so odometer following could be selected and silently configured with no
+    // accrual at all. Production carries exactly that shape on both policies (docs/25 Q3).
+    const before = doc();
+    const submitted: readonly PromptInput[] = [
+      { infoId: "ODRD", validationType: "ACCRUAL_CHECK", matchValue: null, reportValue: null,
+        ...PROMPT_INPUT_UNSET, value: 1800, remove: false },
+    ];
+    const xml = request(before, promptsEditsFor(before, submitted, ["ODRD"]).edits);
+
+    expect(xml).toContain("<validationType>ACCRUAL_CHECK</validationType>");
+    expect(xml).toContain("<value>1800</value>");
+    // The POSITIVE CONTROL: the fixture's own ODRD record already carries <value>1500</value>, so
+    // asserting only the presence of 1800 would pass against a builder that echoed the old record
+    // untouched and ignored the submission entirely.
+    expect(xml).not.toContain("<value>1500</value>");
+  });
+
+  it("writes the guide's own \"0\" for every non-accrual combination", () => {
+    // The second half of the vendor's sentence: "For all other info ids/validation type combos just
+    // leave as <value/> or <value>0</value>". Written for EVERY record rather than only the accrual
+    // one, because `replaceAll` means a record's fields are whatever this request says they are — a
+    // prompt switched OFF ACCRUAL_CHECK while keeping a stale accrual would carry a number the
+    // operator cannot see and did not ask for.
+    const before = doc();
+    const submitted: readonly PromptInput[] = [
+      { infoId: "ODRD", validationType: "REPORT_ONLY", matchValue: null, reportValue: "441022",
+        ...PROMPT_INPUT_UNSET, value: 1800, remove: false },
+    ];
+    const xml = request(before, promptsEditsFor(before, submitted, ["ODRD"]).edits);
+    expect(xml).toContain("<value>0</value>");
+    expect(xml).not.toContain("<value>1800</value>");
+  });
+
   it("passes non-editable records through untouched", () => {
     const before = doc();
     const others = before.card.infos.filter((i) => i.infoId !== "DRID" && i.infoId !== "UNIT");
