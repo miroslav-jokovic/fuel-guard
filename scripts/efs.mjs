@@ -263,14 +263,20 @@ async function resolveOrg(bearer) {
  * must confirm WHICH COMPANY it is about to act on, and must refuse rather than assume when it
  * cannot tell." Accepts `qa`, `production`, or a literal uuid.
  */
-async function announceOrg(label) {
+/**
+ * `dispatchNote` exists because this helper used to assert "Read-only: nothing is dispatched" for
+ * every caller, and `f9-probe` arms a real override. A banner that says nothing is dispatched, above
+ * a drill that writes twice, is worse than no banner: it is the reassurance an operator reads instead
+ * of the warning. Defaulted, so the three read-only callers are unchanged.
+ */
+async function announceOrg(label, dispatchNote = "Read-only: nothing is dispatched.") {
   // Validated first: a malformed flag must not cost a token prompt and a round trip to find out.
   if (flags["expect-org"] === true) die("--expect-org needs a value: qa, production, or an org uuid.");
   const org = await resolveOrg(await getToken());
   const named = org
     ? (KNOWN_ORGS[org] ? `${org}  (${KNOWN_ORGS[org]})` : `${org}  (NOT the known QA org — treat as production)`)
     : "(could not determine)";
-  console.error(`\n${label} — org ${named}. Read-only: nothing is dispatched.\n`);
+  console.error(`\n${label} — org ${named}. ${dispatchNote}\n`);
 
   const expected = flags["expect-org"];
   if (expected === undefined) return org;
@@ -730,6 +736,262 @@ switch (command) {
     break;
   }
 
+  /**
+   * F9 — does a card carrying an override accept ANY other change? (`docs/37` §7 Q6)
+   *
+   * WEX's three eManager quick-reference guides all say the same thing, under both override flows:
+   * *"When a card is in override no changes can be made to the card (i.e. status, add cash, etc.)"* —
+   * and the 200-page SOAP guide never mentions it. No capability checks `overrideUses` today, so if
+   * that sentence holds for the web service, `card_lock` — the 2am action for a stolen card, kept free
+   * of every kind of friction on purpose — silently does nothing on a card with an exception armed.
+   *
+   * ── Why this is a CLI drill and not a runbook of nine console calls ──────────────────────────────
+   * The runbook version (docs/plans/EFS-F9-OVERRIDE-FREEZE-PROBE.md) is nine hand-pasted fetches with
+   * a card number retyped into each one, and its middle step ARMS AN OVERRIDE. Two things follow.
+   * A hand-run sequence that aborts halfway leaves the card armed, and if the freeze is real the clear
+   * is one of the things that no longer works — so the restore has to be a `finally`, not step 9 of a
+   * list somebody is reading. And the ORDER is load-bearing: `set_status` is only evidence about
+   * overrides if the grant landed first, which is why step 3 aborts rather than continuing.
+   *
+   * Same reasoning as `suspend-drill`, which exists for the same reason and paid for its absence.
+   *
+   * ── The safety rails, each one earned elsewhere in this file ─────────────────────────────────────
+   * `--expect-org` is REQUIRED, not optional: this arms a real override, and the suspension drill
+   * already demonstrated what "use a QA token" plus a production token costs (docs/22 H10). The card
+   * number is prompted hidden, never a flag (rule 13). A card carrying `<limits>` is REFUSED — the
+   * only QA card that has them is ••••7672 and Step 10.4's restore check needs it untouched. And a
+   * card already in override is refused rather than cleared, because a clear is one of the things
+   * under test.
+   *
+   * ⚠ A QA card is never swiped, so a 1-use override does NOT self-consume. If both clear paths fail,
+   * the escape hatch is the WEX portal's own *Remove Override* button — and `deleteOverride`'s
+   * entitlement on this account is itself still unconfirmed (D1, open since Phase 8.2), which is why
+   * this drill runs it whether or not the echo clear worked.
+   */
+  case "f9-probe": {
+    const expectOrg = flags["expect-org"];
+    // Validated BEFORE any prompt, like every other flag here: a malformed argument must not cost a
+    // token paste and a password to discover.
+    if (expectOrg === undefined || expectOrg === true) {
+      die(
+        "usage: node scripts/efs.mjs f9-probe --expect-org qa [--out <path>]\n"
+          + "--expect-org is REQUIRED for this one: it arms a real override on a real card.\n"
+          + "(the card number is prompted for, hidden — never pass it as a flag)",
+      );
+    }
+    if (flags.card) {
+      die(
+        "--card is refused on purpose: a card number passed as a flag lands in shell history and the\n"
+          + "process table. Run the command and paste it at the prompt instead.",
+      );
+    }
+    if (String(expectOrg).toLowerCase() === "production") {
+      die(
+        "REFUSING: this drill arms an override and attempts a status write. It is a QA instrument.\n"
+          + "Nothing about F9 needs to be answered on production — the vendor's behaviour is the same\n"
+          + "account to account, and a production card in override is a truck that cannot fuel.",
+      );
+    }
+
+    const org = await announceOrg(
+      "F9 override-freeze probe",
+      "⚠ THIS WRITES: it arms a 1-use override, attempts a status change, then restores both.",
+    );
+    await getStepUpToken();
+    const card = await promptHidden("Card number (hidden): ", "card number");
+    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    const last4 = card.slice(-4);
+    const confirm = `WRITE ${last4}`;
+    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, cardNumber: card }, { stepUp: true });
+
+    /** Every step's full response, in order — the transcript IS the finding (docs/22's H1 pattern). */
+    const steps = [];
+    const record = (step, result) => {
+      steps.push({ step, http: result.status, ok: result.ok, body: result.body });
+      return result;
+    };
+
+    console.error(`\nProbing ••••${last4}. Predictions are in docs/plans/EFS-F9-OVERRIDE-FREEZE-PROBE.md.\n`);
+
+    let armed = false;
+    let verdict = "inconclusive";
+    /** Hoisted out of the try so the cleanup can put it back — the test itself changes it. */
+    let startStatus = null;
+    try {
+      // ── 1. Baseline. Both refusals below protect a fixture rather than this run ─────────────────
+      const before = record("1-read_state", await experiment({ experiment: "read_state" }));
+      if (!before.ok) {
+        console.error(JSON.stringify(before.body, null, 2));
+        die("The baseline read failed. Nothing was written.");
+      }
+      startStatus = before.body.status;
+      if ((before.body.overrideUses ?? 0) !== 0) {
+        die(
+          `REFUSING: ••••${last4} already carries an override (${before.body.overrideUses} use(s)).\n`
+            + "Clearing it is one of the things this drill TESTS, so starting from that state would\n"
+            + "measure a clear whose starting conditions we did not set. Pick another card.",
+        );
+      }
+      if (/<limits>/i.test(String(before.body.document ?? ""))) {
+        die(
+          `REFUSING: ••••${last4} carries card-level <limits>.\n`
+            + "On QA that is ••••7672 and Step 10.4's restore check needs it untouched. F9 is about\n"
+            + "STATUS, not limits — any disposable card with no limits answers it. Pick another.",
+        );
+      }
+      console.error(`baseline: status ${startStatus}, overrideUses 0, no card-level limits — usable\n`);
+
+      // ── 2. Arm the exception. 1 use: WEX recommends it for this very reason, and it is below the
+      //       step-up threshold, so nothing here depends on the grant being the unusual case ───────
+      const grant = record("2-set_override", await experiment({ experiment: "set_override", uses: 1, confirm }));
+      armed = grant.ok && grant.body?.landed === true;
+      console.error(`grant: ${grant.body?.landed === true ? "LANDED" : "did NOT land"} (http ${grant.status})`);
+
+      // ── 3. The order is the whole design. A status write on a card whose override never armed is
+      //       evidence about nothing, and would read as a clean "no freeze" ────────────────────────
+      const armedRead = record("3-read_state", await experiment({ experiment: "read_state" }));
+      const preconditionOk = (armedRead.body?.overrideUses ?? 0) >= 1;
+      if (preconditionOk) {
+        armed = true;
+        console.error(`armed: overrideUses ${armedRead.body.overrideUses}\n`);
+      } else {
+        /**
+         * ⚠ NOT `die()` here, and that distinction is H5's.
+         *
+         * `die()` is `process.exit`, which does not run a `finally`. H5 measured this account applying
+         * a write AFTER the first verifying re-read missed it — so "the grant did not land" and "the
+         * grant has not landed YET" are indistinguishable at this point, and exiting on one reading
+         * would walk away from a card that arms itself a second later. Falling through keeps the
+         * cleanup and the final read in play, which is the only version that cannot strand a card.
+         */
+        verdict = "precondition_failed";
+        console.error(
+          "\nABORTING THE TEST: the override has not armed, so a status write now would prove nothing\n"
+            + "about F9 — a failed precondition, not a freeze result. Continuing to the cleanup anyway,\n"
+            + "because a late apply (H5) would arm this card after we stopped looking.\n",
+        );
+        console.error(JSON.stringify(grant.body, null, 2));
+      }
+
+      // Skipped when the override never armed: everything below is evidence about F9 only if there
+      // was an exception on the card at the time. The cleanup in `finally` still runs either way.
+      if (preconditionOk) {
+        // ── 4. ⚠ THE TEST. `variant: "standard"` deliberately — experimentEdits uses the same CardEdit
+        //       algebra as production, so a negative is about the override and not about the harness.
+        //       Each reading now carries overrideUses beside status, so a `landed: false` shows the
+        //       override was armed AT THAT INSTANT rather than leaving it to be inferred ─────────────
+        const target = String(startStatus ?? "").toUpperCase() === "HOLD" ? "Active" : "Hold";
+        console.error(`THE TEST: setting status to ${target} while the override is armed…`);
+        const lock = record("4-set_status", await experiment({
+          experiment: "set_status", status: target, variant: "standard", confirm,
+        }));
+        const lockLanded = lock.body?.landed === true;
+        verdict = lockLanded ? "no_freeze" : "freeze_or_other_failure";
+        console.error(
+          lockLanded
+            ? `\n✓ The status write LANDED on a card in override.\n`
+              + "  F9 resolves toward 'the freeze is a portal-UI rule'. Q6 closes, Phase 10 goes to 10.4.\n"
+            : `\n✗ The status write did NOT land while the override was armed.\n`
+              + "  If every reading below shows overrideUses >= 1, THE FREEZE IS REAL FOR THE API, and\n"
+              + "  card_lock needs a precondition naming the override. That is a safety fix, not a\n"
+              + "  Phase 10 detail. Check the readings before concluding — a fault is not a refusal.\n",
+        );
+        console.error(JSON.stringify(lock.body?.readings ?? lock.body, null, 2));
+        record("5-read_state", await experiment({ experiment: "read_state" }));
+
+        // ── 6. The live production clear, on the card state it actually runs against ────────────────
+        const echoClear = record("6-clear_override", await experiment({ experiment: "clear_override", confirm }));
+        const echoCleared = echoClear.body?.landed === true;
+        if (echoCleared) armed = false;
+        console.error(`echo clear (the live path): ${echoCleared ? "LANDED" : "did NOT land"}`);
+        if (lockLanded && !echoCleared) {
+          verdict = "clear_frozen_only";
+          console.error(
+            "\n⚠ The most interesting outcome, and one no document predicts: the STATUS write landed\n"
+              + "  and the override clear did not. The restriction would be specific to the override\n"
+              + "  fields rather than to the card.\n",
+          );
+        }
+        record("7-read_state", await experiment({ experiment: "read_state" }));
+
+        // ── 8. Runs either way. It closes D1's entitlement question — open since Phase 8.2 — for the
+        //       cost of one dispatch, and it is the escape hatch whose existence is unconfirmed ──────
+        if (!echoCleared) {
+          console.error("re-arming is unnecessary: the override is still armed. Trying the dedicated op…");
+        } else {
+          record("8a-set_override", await experiment({ experiment: "set_override", uses: 1, confirm }));
+          armed = true;
+        }
+        const dedicated = record("8-delete_override", await experiment({ experiment: "delete_override", confirm }));
+        const dedicatedCleared = dedicated.body?.landed === true;
+        if (dedicatedCleared) armed = false;
+        console.error(
+          `deleteOverride: ${dedicatedCleared ? "LANDED" : "did NOT land"} (http ${dedicated.status}`
+            + `, ${dedicated.body?.error?.code ?? "no error code"}) — this answers D1's entitlement half`,
+        );
+      }
+    } finally {
+      /**
+       * Restore in `finally`, because the failure this drill is testing FOR is the one that makes the
+       * restore hard. An armed override on a QA card does not self-consume — nothing swipes it — so
+       * "the run threw" must not mean "the card stays armed".
+       */
+      console.error("\nrestoring…");
+      if (armed) {
+        const rescue = record("9-clear_override(restore)", await experiment({ experiment: "clear_override", confirm }));
+        if (rescue.body?.landed !== true) {
+          record("9b-delete_override(restore)", await experiment({ experiment: "delete_override", confirm }));
+        }
+      }
+      /**
+       * Status AFTER the override, never before — that order is the finding this drill is chasing.
+       * If the freeze is real, a status write cannot land while an exception is armed, so restoring
+       * the status first would fail for the same reason the test failed and look like a second
+       * result. Clearing first means this either works or tells us the card needs the portal.
+       */
+      let afterClear = record("10-read_state", await experiment({ experiment: "read_state" }));
+      if (
+        startStatus
+        && (afterClear.body?.overrideUses ?? 0) === 0
+        && String(afterClear.body?.status ?? "").toUpperCase() !== String(startStatus).toUpperCase()
+      ) {
+        console.error(`restoring status ${afterClear.body?.status} -> ${startStatus}…`);
+        record("11-set_status(restore)", await experiment({
+          experiment: "set_status", status: startStatus, variant: "standard", confirm,
+        }));
+        afterClear = record("12-read_state", await experiment({ experiment: "read_state" }));
+      }
+      const final = afterClear;
+      const stillArmed = (final.body?.overrideUses ?? 0) > 0;
+      const statusRestored = !startStatus
+        || String(final.body?.status ?? "").toUpperCase() === String(startStatus).toUpperCase();
+      console.error(
+        stillArmed
+          ? `\n*** ⚠ ••••${last4} IS STILL IN OVERRIDE (${final.body.overrideUses} use(s)). ***\n`
+            + "Both API clear paths failed. Clear it in the WEX portal — look the card up and press\n"
+            + "'Remove Override' — then re-read. Do not leave the session here.\n"
+          : statusRestored
+            ? `••••${last4}: override clear, status back to ${final.body?.status ?? "(unknown)"}.\n`
+            : `\n*** ⚠ ••••${last4} is out of override but its status is `
+              + `${final.body?.status} and it started ${startStatus}. Put it back by hand. ***\n`,
+      );
+      const transcript = {
+        probe: "F9", question: "docs/37 §7 Q6", org, cardLast4: last4,
+        verdict, startStatus, stillArmed, statusRestored, steps,
+      };
+      // stdout carries ONLY this, so `--out` and a redirect both produce valid JSON (lint:cli-streams).
+      const json = JSON.stringify(transcript, null, 2);
+      if (typeof flags.out === "string") {
+        writeFileSync(flags.out, `${json}\n`);
+        console.error(`transcript → ${flags.out}`);
+      } else {
+        process.stdout.write(`${json}\n`);
+      }
+      if (stillArmed || !statusRestored) process.exit(2);
+    }
+    break;
+  }
+
   case "promote": {
     if (!capability) die("usage: pnpm efs:promote <capability> --proof <id> --reason <why>   |   --suspend --reason <why>");
     const reason = typeof flags.reason === "string" ? flags.reason : null;
@@ -763,6 +1025,7 @@ switch (command) {
     die(
       "commands: scan · inventory [--cards <uuid,uuid>] · mileage --unit <n> [--code ODRD|HBRD] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
         + "write-check [--read-only] [--status Hold|Inactive] · "
+        + "f9-probe --expect-org qa   (docs/37 §7 Q6: does a card in override accept any change? WRITES) · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)\n"
         + "--out <path> writes the result to a file AFTER --expect-org passes; prefer it to `>`,\n"

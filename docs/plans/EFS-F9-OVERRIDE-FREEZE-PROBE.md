@@ -43,7 +43,40 @@ as a dedicated operation taking nothing but a card number.
   card by its `<infos>` contents from the first `read_state`, and record that, not just the last four.
 - Start the card **Active** with `overrideUses: 0`. Step 1 confirms both.
 
-Driven from the browser console on a signed-in admin page, exactly as the Phase 0 runbook does:
+## Run it with the CLI — one command, and the cleanup cannot be skipped
+
+```bash
+node scripts/efs.mjs f9-probe --expect-org qa --out docs/efs/f9-override-freeze-qa.json
+```
+
+It prompts for the admin token, then the step-up password, then the card number — all hidden, none of
+them in shell history (rule 13). It then runs the whole sequence below in order, prints the narration
+to stderr and writes the full transcript of every step as JSON.
+
+**Why the CLI and not nine pasted fetches.** The middle of this sequence ARMS AN OVERRIDE, and the
+failure it is testing for is the one that makes the override hard to remove. A hand-run list that
+aborts halfway leaves the card armed; the command puts the cleanup in a `finally`, so "the run threw"
+cannot mean "the card stays armed". Same reasoning as `suspend-drill`, which exists for the same reason.
+
+What it refuses, before asking for a single credential:
+
+| Refusal | Why |
+|---|---|
+| no `--expect-org` | It arms a real override. `suspend-drill` already paid for "use a QA token" plus a production token (docs/22 H10) |
+| `--expect-org production` | Nothing about F9 needs production, and a production card stuck in override is a truck that cannot fuel |
+| `--card <number>` | A PAN in argv is in the process table and the shell history. Rule 13 |
+| a card already in override | Clearing it is one of the things under test, so we must set the starting state ourselves |
+| a card carrying `<limits>` | On QA that is ••••7672, and Step 10.4's restore check needs it untouched. F9 is about STATUS |
+
+And what its cleanup does, in this order: clear the override (echo, then the dedicated op if that
+fails), **then** restore the status. That order is the finding it is chasing — if the freeze is real, a
+status write cannot land until the exception is gone, so restoring the status first would fail for the
+same reason the test failed and read as a second result. It exits `2` if either half is unrestored.
+
+### The manual fallback
+
+If the CLI cannot reach the API, the same sequence runs from the browser console on a signed-in admin
+page, as the Phase 0 runbook does — but then **the cleanup is yours to remember**:
 
 ```js
 const experiment = (body) =>
@@ -68,9 +101,10 @@ Per the method (§4.3): stating these first is what makes the run evidence rathe
 **If step 4 lands, F9 resolves to "portal-UI rule only", Q6 closes, and Phase 10 proceeds to 10.4
 unchanged.** That is the cheap outcome and it is why this runs before anything else.
 
-## The sequence
+## The sequence — what the command does, step by step
 
-Run in order. **Record every full response**, not just `landed` — the readings carry the latency
+The CLI runs all of this. The calls are written out so the transcript can be read against them, and
+so the manual fallback is a copy-paste rather than a reconstruction. Run in order. **Record every full response**, not just `landed` — the readings carry the latency
 arithmetic that H5 showed matters (its first verifying re-read MISSED, and the raw duration read as
 "9× slower" when it was not).
 
