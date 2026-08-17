@@ -1,6 +1,6 @@
 import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
-import { editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
-export { editableInfoIds, missingEditableInfoIds, promptDrafts };
+import { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
+export { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts };
 import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
@@ -112,7 +112,12 @@ export interface CardOperationSpec {
    * conflating them is how "you cannot do this" gets shown to somebody whose real problem is that
    * the card is already locked.
    */
-  applies: (card: OperationCard) => boolean;
+  /**
+   * `allowed` is the account's editable prompt ids (Step 9.1's client half). Passed to every
+   * operation rather than only the two that read it, so a future operation that needs it does not
+   * have to change this signature and every call site again.
+   */
+  applies: (card: OperationCard, allowed: readonly string[]) => boolean;
   /** The operation-specific half of the request body. The drawer adds the version and the key. */
   body: (draft: OperationDraft) => Record<string, unknown>;
   /**
@@ -206,7 +211,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
      * card with an empty `<infos>` could never be given a Driver ID prompt — which is the whole of
      * FuelGuard's attribution signal for that card. Unreachable, silently, since the feature shipped.
      */
-    applies: (card) => missingEditableInfoIds(card).length > 0,
+    applies: (card, allowed) => missingEditableInfoIds(card, allowed).length > 0,
     /**
      * `replaceAll` means the array in the request IS the card's prompts afterwards (guide p137), so
      * an ADD has to send every existing record back alongside the new one. Sending only the new one
@@ -236,7 +241,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     group: "Prompts",
     menuLabel: "Edit prompts…",
     // Nothing to edit on a card with no editable record — that is `promptAdd`'s job.
-    applies: (card) => editableInfoIds(card).length > 0,
+    applies: (card, allowed) => editableInfoIds(card, allowed).length > 0,
     body: (draft) => ({
       // Always the literal `true`: full replace is the EFS semantic, and sending it explicitly means
       // the client can never arrive at it by omission.
@@ -326,13 +331,14 @@ export const seedDraftFor = (
   operation: CardOperationSpec | null,
   status: string,
   prompts: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
+  allowed: readonly string[],
 ): OperationDraft => {
-  const base = { ...emptyDraft(status), prompts: promptDrafts(prompts) };
+  const base = { ...emptyDraft(status), prompts: promptDrafts(prompts, allowed) };
   if (operation?.id !== "promptAdd") return base;
   const addInfoId = missingEditableInfoIds({
     status, infos: prompts as OperationCard["infos"], limits: [],
     overrideUses: null, overrideAllLocations: null, locationOverrideId: null,
-  })[0] ?? null;
+  }, allowed)[0] ?? null;
   return addInfoId === null ? base : {
     ...base,
     addInfoId,

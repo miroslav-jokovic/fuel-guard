@@ -1,4 +1,5 @@
 import type { CardCapabilities } from "@fuelguard/shared";
+import { allowedInfoIdsFrom } from "./promptDrafts";
 import { typeToConfirmSatisfied } from "./TypeToConfirm.vue";
 import type { CapabilityConfirmation } from "./capabilities/types";
 import {
@@ -46,7 +47,11 @@ export function operationBlocker(input: BlockerInputs): string | null {
 
   const blockedBy = operationBlockedBy(operation, capabilities, scopes, draft);
   if (blockedBy) return blockedSentence(blockedBy);
-  if (!operation.applies(card)) return "This card is not in a state where that applies.";
+  // The account's set, not the hardcoded pair — `promptAdd` applies when the card LACKS an id this
+  // account permits, and that is a per-account question since Step 9.1.
+  if (!operation.applies(card, allowedInfoIdsFrom(capabilities))) {
+    return "This card is not in a state where that applies.";
+  }
 
   const blocker = operation.blocker?.(draft);
   if (blocker) return blocker;

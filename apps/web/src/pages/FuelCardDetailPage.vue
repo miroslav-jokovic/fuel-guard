@@ -17,6 +17,7 @@ import { AppCard as BaseCard } from "@fuelguard/ui";
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useSessionStore } from "@/stores/session";
 import CardOperationDrawer from "@/features/fuelCards/CardOperationDrawer.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -94,7 +95,7 @@ const sectionOperations = (group: CardOperationGroup) => {
   const context = toOperationCard(c);
   const scopes = caps.scopes ?? [];
   return CARD_OPERATIONS
-    .filter((op) => op.group === group && op.applies(context))
+    .filter((op) => op.group === group && op.applies(context, allowedInfoIdsFrom(caps)))
     .map((op) => {
       const blocked = operationBlockedBy(op, caps, scopes);
       return { op, blocked, reason: blocked ? blockedSentence(blocked) : null };
@@ -114,7 +115,11 @@ const promptOperations = computed(() => sectionOperations("Prompts"));
 watch([() => route.query.action, card], ([action, loaded]) => {
   if (!loaded || openOperation.value) return;
   const spec = operationFromQuery(action);
-  if (spec && spec.applies(toOperationCard(loaded))) openOperation.value = spec;
+  // A deep link can arrive before `capabilities` resolves; the fallback is the server's own answer
+  // for an unread account.
+  if (spec && spec.applies(toOperationCard(loaded), allowedInfoIdsFrom(capabilities.value))) {
+    openOperation.value = spec;
+  }
 }, { immediate: true });
 
 /** The card-level prompts, which are what the drawer edits. Policy-level records are not editable. */

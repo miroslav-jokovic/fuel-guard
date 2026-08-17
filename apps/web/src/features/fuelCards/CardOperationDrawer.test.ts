@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import type { CardCapabilities } from "@fuelguard/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
@@ -103,6 +103,7 @@ const ALL_ENABLED = {
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
   writeEntitlement: "confirmed", blockedBy: null,
+  editableInfoIds: EFS_EDITABLE_INFO_IDS,
   capabilityStates: { ...ALL_ENABLED }, environment: "production", ...over,
 });
 
@@ -769,7 +770,7 @@ describe("the operation catalogue decides what is worth offering", () => {
     expect(operationById("clear")!.applies({
       status: "Active", infos: [], limits: [], overrideUses: 0,
       overrideAllLocations: false, locationOverrideId: "442",
-    })).toBe(true);
+    }, EFS_EDITABLE_INFO_IDS)).toBe(true);
   });
 
   it("does not let Save write the status the card already has", () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 import { loadCardControlAccess } from "./efsCardControlAccess.js";
@@ -29,6 +30,8 @@ function accessRecorder(
    */
   promotion?: Record<string, string> | { error: string },
   environment = "sandbox",
+  /** Step 9.1's cache. `null` models an org whose inventory walk has never run. */
+  promptTypes: string[] | null = null,
 ) {
   const promotionTable = promotion && "error" in promotion
     ? { data: null, error: { message: promotion.error } }
@@ -45,6 +48,7 @@ function accessRecorder(
           write_entitlement: "confirmed",
           require_approver: false,
           probed_identity_hash: probedIdentityHash,
+          prompt_types: promptTypes,
         },
         error: null,
       },
@@ -67,6 +71,36 @@ afterEach(() => {
 });
 
 describe("card-control credential identity binding", () => {
+  /**
+   * Step 9.1's client half: the account's editable prompt ids must REACH the browser.
+   *
+   * Until 2026-08-17 they did not. The set was resolved server-side, cached per org and threaded to
+   * the write path, and no endpoint carried it to the client — so `promptDrafts.ts` went on keying
+   * the drawer to the hardcoded DRID/UNIT pair while the API accepted twenty-four. The drawer
+   * offered two ids and nothing anywhere said why.
+   */
+  it("ships the ACCOUNT's editable prompt ids, resolved from the cached prompt_types", async () => {
+    const rec = accessRecorder(credentialIdentityHash(env, baseIdentity), {}, undefined, "sandbox",
+      ["DRID", "UNIT", "TRLR", "NAME"]);
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    // Intersected with the guide's Info IDs table by `resolveEditableInfoIds`, so this asserts the
+    // account's answer reached the field — not that the raw column was copied through.
+    expect(access.editableInfoIds).toContain("TRLR");
+    expect(access.editableInfoIds.length).toBeGreaterThan(2);
+  });
+
+  it("falls back to the pair for an org whose inventory walk has never run", async () => {
+    // A missing cache is the state EVERY org is in until its first walk. It must narrow the UI, not
+    // empty it — an empty set would claim this account permits editing nothing.
+    const rec = accessRecorder(credentialIdentityHash(env, baseIdentity), {}, undefined, "sandbox", null);
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    expect([...access.editableInfoIds]).toEqual([...EFS_EDITABLE_INFO_IDS]);
+  });
+
   it("refuses card control when the SOAP username changed since the probe", async () => {
     const rec = accessRecorder(credentialIdentityHash(env, baseIdentity), {
       soapUsername: "production-user",

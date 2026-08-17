@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { CardCapabilities, WsCard } from "@fuelguard/shared";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
@@ -27,6 +26,7 @@ import {
   resolveCapability,
   capabilityBlockedBy,
   statusRows,
+  allowedInfoIdsFrom,
   missingEditableInfoIds,
   unwritableStatusLabel,
   toOperationCard,
@@ -99,7 +99,8 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 
 const toast = useToastStore();
 
-const draft = ref<OperationDraft>(seedDraftFor(null, props.status, []));
+const allowedInfoIds = computed(() => allowedInfoIdsFrom(props.capabilities)); // Step 9.1's set
+const draft = ref<OperationDraft>(seedDraftFor(null, props.status, [], allowedInfoIds.value));
 const activeVersion = ref(props.version);
 const activePrompts = ref(props.prompts);
 const activeStatus = ref(props.status);
@@ -137,13 +138,13 @@ const typed = ref("");
 const dispatchOperation = useOperationDispatch();
 
 const readOnlyPrompts = computed(() =>
-  activePrompts.value.filter((p) => !(EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId)));
+  activePrompts.value.filter((p) => !allowedInfoIds.value.includes(p.infoId)));
 
 function seed(): void {
   activeVersion.value = props.version;
   activePrompts.value = props.prompts;
   activeStatus.value = props.status;
-  draft.value = seedDraftFor(props.operation, props.status, props.prompts);
+  draft.value = seedDraftFor(props.operation, props.status, props.prompts, allowedInfoIds.value);
   committed.value = null;
   settled.value = null;
   stepUpFor.value = null;
@@ -161,7 +162,7 @@ function seed(): void {
  * click through.
  */
 const dirty = computed(() => {
-  const clean = seedDraftFor(props.operation, activeStatus.value, activePrompts.value);
+  const clean = seedDraftFor(props.operation, activeStatus.value, activePrompts.value, allowedInfoIds.value);
   return JSON.stringify(draft.value) !== JSON.stringify(clean);
 });
 
@@ -243,7 +244,7 @@ const statusBlocked = computed<Record<string, string | null>>(() => Object.fromE
 const unwritable = computed(() => unwritableStatusLabel(activeStatus.value));
 
 /** The prompts this card does not yet carry — what `promptAdd` may offer. */
-const addOptions = computed(() => missingEditableInfoIds(card.value));
+const addOptions = computed(() => missingEditableInfoIds(card.value, allowedInfoIds.value));
 
 /** Saving the status the card already has is a vendor call that changes nothing. */
 const statusUnchanged = computed(() =>
@@ -335,7 +336,7 @@ function handleFailure(error: unknown): void {
       activeVersion.value = version;
       activePrompts.value = live.infos;
       activeStatus.value = live.status ?? props.status;
-      draft.value = seedDraftFor(props.operation, live.status ?? props.status, live.infos);
+      draft.value = seedDraftFor(props.operation, live.status ?? props.status, live.infos, allowedInfoIds.value);
       committed.value = null;
     },
     abandon: () => { committed.value = null; },

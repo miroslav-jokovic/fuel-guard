@@ -245,6 +245,14 @@ const MUTATIONS = [
   },
 
   {
+    id: "efs-editable-ids-not-shipped",
+    why: "Step 9.1's client half is undone — the browser falls back to the hardcoded DRID/UNIT pair while the API validates against the account's twenty-four. The drawer then offers two ids and says nothing about the rest, which is the exact gap promptDrafts.ts carried until 2026-08-17.",
+    file: "apps/api/src/services/efsCardControlAccess.ts",
+    find: "  editableInfoIds = resolveEditableInfoIds(row?.prompt_types ?? null);",
+    replace: "  editableInfoIds = resolveEditableInfoIds(null);",
+    detect: apiTest("src/services/efsCardControlAccess.test.ts"),
+  },
+  {
     id: "efs-prompts-policy-source-writable",
     why: "Step 9.4's guard is removed, so a card-level prompt write on a POLICY-source card is dispatched again. EFS accepts it and ignores it, and the echo verifier CANNOT catch that — it re-reads the card and finds the records it just wrote, because the card still stores them. They just never reach a pump. The operator sees a clean landing for a change that will never take effect.",
     file: "apps/api/src/efs/capabilities/promptsSet.behaviour.ts",

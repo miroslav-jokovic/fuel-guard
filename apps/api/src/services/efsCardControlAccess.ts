@@ -5,6 +5,7 @@ import {
   type CardBlockedBy,
   type CardCapabilities,
   type UserRole,
+  resolveEditableInfoIds,
   rolesThatManage,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
@@ -56,6 +57,8 @@ export interface CardControlSettingsRow {
   write_entitlement: "unknown" | "confirmed" | "denied";
   require_approver: boolean;
   probed_identity_hash: string | null;
+  /** Step 9.1's cache, filled by the account-inventory walk. Null until an org has been walked. */
+  prompt_types: string[] | null;
 }
 
 const NO_SCOPES: CardScope[] = [];
@@ -164,7 +167,18 @@ export async function loadCardControlAccess(
    */
   let environment: CardCapabilities["environment"] = null;
 
+  /**
+   * The account's editable prompt ids, filled once the settings row is read.
+   *
+   * Starts as the fallback rather than empty, because `denied()` can fire BEFORE the row is read —
+   * on a kill switch, for instance — and an empty array there would be a claim that this account
+   * permits editing nothing. The fallback is what `resolveEditableInfoIds` answers for an unread
+   * account anyway, so a refusal carries the same value the write path would use.
+   */
+  let editableInfoIds = resolveEditableInfoIds(null);
+
   const denied = (blockedBy: CardBlockedBy, writeEntitlement: CardCapabilities["writeEntitlement"] = "unknown"): CardControlAccess => ({
+    editableInfoIds,
     canLock: false, canUnlock: false, canDeactivate: false, canOverride: false, canSetPrompts: false,
     writeEntitlement, blockedBy, capabilityStates: allBlocked(blockedBy), environment,
     scopes: NO_SCOPES, orgReady: false,
@@ -174,7 +188,11 @@ export async function loadCardControlAccess(
 
   const [{ data: settings }, { data: credentials }] = await Promise.all([
     admin.from("efs_card_control_settings")
-      .select("enabled, write_entitlement, require_approver, probed_identity_hash")
+      // `prompt_types` rides along for Step 9.1's client half: this row is already being read, so
+      // the account's editable set costs nothing extra here. A separate lookup would be a second
+      // query for a fact already in flight — and a second place for it to disagree with the write
+      // path, which is exactly what `editableInfoIds.ts` exists to prevent.
+      .select("enabled, write_entitlement, require_approver, probed_identity_hash, prompt_types")
       .eq("org_id", orgId).maybeSingle(),
     admin.from("efs_soap_credentials")
       .select("enabled, endpoint_url, soap_username, account_id, environment")
@@ -183,6 +201,9 @@ export async function loadCardControlAccess(
 
   const row = (settings ?? null) as CardControlSettingsRow | null;
   const entitlement = row?.write_entitlement ?? "unknown";
+  // Assigned before the first refusal that follows, so a `denied()` from here on carries the
+  // account's real set rather than the fallback it was seeded with.
+  editableInfoIds = resolveEditableInfoIds(row?.prompt_types ?? null);
 
   // Read before the enabled check: which installation a disabled connection POINTS at is exactly
   // what an admin is trying to confirm while they switch it on. The column is `not null` with a
@@ -289,6 +310,7 @@ export async function loadCardControlAccess(
   }
 
   return {
+    editableInfoIds,
     canLock: scopes.includes("lock"),
     canUnlock: scopes.includes("unlock"),
     canDeactivate: scopes.includes("deactivate"),

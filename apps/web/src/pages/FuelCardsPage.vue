@@ -21,6 +21,7 @@ import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue"
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
+import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
@@ -203,7 +204,7 @@ const rowOperations = (row: EfsCardRow) => {
   const context = toOperationCard(row);
   const scopes = caps.scopes ?? [];
   return CARD_OPERATIONS
-    .filter((op) => op.applies(context))
+    .filter((op) => op.applies(context, allowedInfoIdsFrom(caps)))
     // Unavailable operations are omitted HERE, unlike on the detail page: a dropdown has no room
     // for the sentence explaining each one, and a greyed item with no reason is the thing invariant
     // 6 exists to prevent. The detail page shows them all, with reasons.

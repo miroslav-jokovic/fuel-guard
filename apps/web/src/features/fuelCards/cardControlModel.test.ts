@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import type { CardCapabilities } from "@fuelguard/shared";
 import {
   activeOverrides,
@@ -26,7 +27,10 @@ import {
 // construction would hide a reader that had started using the wrong one of the two.
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: false, canUnlock: false, canDeactivate: false, canOverride: false, canSetPrompts: false,
-  writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null, ...over,
+  writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null,
+  // Not read by `availability()` — it answers from account-level facts — but required by the type.
+  editableInfoIds: EFS_EDITABLE_INFO_IDS,
+  ...over,
 });
 
 describe("card status", () => {

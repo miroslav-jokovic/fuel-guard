@@ -71,5 +71,25 @@ export const cardCapabilitiesSchema = z.object({
    * nobody reads.
    */
   environment: z.enum(["sandbox", "production"]).nullable(),
+  /**
+   * The prompt ids THIS account allows an operator to edit — Step 9.1's client half.
+   *
+   * ── Why it belongs here and not on `/settings` ──────────────────────────────────────────────────
+   * Step 9.1 made the editable set an ACCOUNT fact resolved server-side, cached per org, and
+   * threaded to the write path. The browser never received it, so `promptDrafts.ts` went on keying
+   * the UI to the hardcoded DRID/UNIT pair: the API accepted twenty-four ids and the drawer offered
+   * two. `/settings` was the obvious home and is the wrong one — it is admin-only, while editing
+   * prompts is granted by the `prompts` SCOPE, so an approver who may edit prompts and is not an
+   * admin would have been shown the fallback pair with nothing saying why.
+   *
+   * This object is already computed server-side per card, for exactly this class of fact: the
+   * browser can see a role but not an entitlement, a kill switch, a promotion state — or an account's
+   * prompt catalogue.
+   *
+   * Never empty. `resolveEditableInfoIds` answers an unread account with the DRID/UNIT fallback
+   * rather than nothing, so the client never has to decide what an absent set means — the same
+   * guarantee `PlanCtx.editableInfoIds` gives the write path, from the same function.
+   */
+  editableInfoIds: z.array(z.string()).readonly(),
 });
 export type CardCapabilities = z.infer<typeof cardCapabilitiesSchema>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
@@ -7,6 +7,7 @@ import {
   operationBlockedBy,
   editableInfoIds,
   missingEditableInfoIds,
+  promptDrafts,
   operationById,
   operationConfirmation,
   operationDiff,
@@ -34,6 +35,9 @@ const card = {
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
   writeEntitlement: "confirmed", blockedBy: null,
+  // Step 9.1's client half. The pair here matches what the server resolves for an unread account,
+  // so these cases keep asserting the behaviour they were written for.
+  editableInfoIds: EFS_EDITABLE_INFO_IDS,
   capabilityStates: {
     card_lock: null, card_unlock: null, card_deactivate: null, override_grant: null,
     override_clear: null, delete_override: null, prompts_set: null,
@@ -127,20 +131,53 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
    * which is the whole of FuelGuard's attribution signal for an unassigned card.
    */
   it("offers Add on a card with no prompts, and Edit on one that has some", () => {
-    expect(operationById("promptAdd")!.applies(bare)).toBe(true);
-    expect(operationById("prompts")!.applies(bare)).toBe(false);
-    expect(operationById("prompts")!.applies(withBoth)).toBe(true);
+    expect(operationById("promptAdd")!.applies(bare, EFS_EDITABLE_INFO_IDS)).toBe(true);
+    expect(operationById("prompts")!.applies(bare, EFS_EDITABLE_INFO_IDS)).toBe(false);
+    expect(operationById("prompts")!.applies(withBoth, EFS_EDITABLE_INFO_IDS)).toBe(true);
   });
 
   it("stops offering Add once the card carries every prompt this product can set", () => {
-    expect(operationById("promptAdd")!.applies(withBoth)).toBe(false);
-    expect(missingEditableInfoIds(withBoth)).toEqual([]);
+    expect(operationById("promptAdd")!.applies(withBoth, EFS_EDITABLE_INFO_IDS)).toBe(false);
+    expect(missingEditableInfoIds(withBoth, EFS_EDITABLE_INFO_IDS)).toEqual([]);
+  });
+
+  it("offers the ACCOUNT's prompt ids, not the hardcoded pair — Step 9.1's client half", () => {
+    /**
+     * The bug this closes: `promptDrafts.ts` keyed the UI to `EFS_EDITABLE_INFO_IDS` while the API
+     * validated against the twenty-four ids `getPromptTypes` resolves for the account, so the drawer
+     * offered two of them and nothing said why.
+     *
+     * `TRLR` is deliberately outside the hardcoded pair — if this passed with the old constant the
+     * assertion would prove nothing.
+     */
+    const accountSet = ["DRID", "UNIT", "TRLR"] as const;
+    expect(EFS_EDITABLE_INFO_IDS).not.toContain("TRLR");
+
+    const onlyDrid = { ...card, infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null }] } as never;
+    expect(missingEditableInfoIds(onlyDrid, accountSet)).toEqual(["UNIT", "TRLR"]);
+    // And the operation is offered on a card the old pair would have called complete.
+    const withPair = { ...card, infos: [
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null },
+      { infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null },
+    ] } as never;
+    expect(operationById("promptAdd")!.applies(withPair, EFS_EDITABLE_INFO_IDS)).toBe(false);
+    expect(operationById("promptAdd")!.applies(withPair, accountSet)).toBe(true);
+  });
+
+  it("keeps a draft's prompts to the account's set, so a replaceAll cannot carry an id it disallows", () => {
+    // `replaceAll` means the array IS the card's prompts afterwards (guide p137). A draft built from
+    // records outside the permitted set would either be refused by the contract or delete the rest.
+    const rows = [
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null },
+      { infoId: "ODRD", validationType: "ACCRUAL_CHECK", matchValue: null, reportValue: null },
+    ];
+    expect(promptDrafts(rows, ["DRID"]).map((p) => p.infoId)).toEqual(["DRID"]);
   });
 
   it("offers only the prompts the card is missing", () => {
     const onlyDrid = { ...card, infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null }] } as never;
-    expect(missingEditableInfoIds(onlyDrid)).toEqual(["UNIT"]);
-    expect(editableInfoIds(onlyDrid)).toEqual(["DRID"]);
+    expect(missingEditableInfoIds(onlyDrid, EFS_EDITABLE_INFO_IDS)).toEqual(["UNIT"]);
+    expect(editableInfoIds(onlyDrid, EFS_EDITABLE_INFO_IDS)).toEqual(["DRID"]);
   });
 
   /**
