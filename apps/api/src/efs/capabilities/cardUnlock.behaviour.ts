@@ -7,6 +7,7 @@ import {
 } from "@fuelguard/shared";
 import { unlockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
+import { assertOverrideDoesNotBlock } from "./overrideFreezeGuard.js";
 import { defineBehaviour } from "../types.js";
 import { statusIsRevertible, statusRevert } from "./statusRevert.js";
 
@@ -86,6 +87,17 @@ export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
    * what it is handed. This one gets the document EFS just returned; the drawer only has the mirror,
    * which is why its warning is a courtesy and this remains the decision.
    */
+  /**
+   * H16: an armed override makes EFS silently ignore a status change, so an unlock on such a card did
+   * nothing and reported "the card is unchanged". Refused rather than swallowed.
+   *
+   * Ahead of `planStepUp` in effect if not in source order — the orchestrator runs step-up decisions
+   * and the precondition around the same fresh read, and the important property is that a card with an
+   * exception never reaches the dispatch. Unlike lock, there is no `clearException` way through: an
+   * unlock is not urgent in the way a lock is, so a refusal naming the exception is the honest answer.
+   */
+  precondition: (_ctx, snap) => assertOverrideDoesNotBlock("card_unlock", snap),
+
   planStepUp: (ctx, snap) =>
     (!ctx.stepUp && cardUnlockNeedsStepUp(snap.doc?.card.status ?? null) ? CARD_UNLOCK_STEP_UP : null),
 

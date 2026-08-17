@@ -79,4 +79,5 @@ export * from "./efsAccountContract.js";
 export * from "./cardControlLedger.js";
 export * from "./efs/types.js";
 export * from "./efs/stepUp.js";
+export * from "./efs/overrideFreeze.js";
 export * from "./efs/registry.js";

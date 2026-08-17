@@ -1,6 +1,7 @@
 import { type CardDeactivateBody, cardDeactivateContract, efsStatusEquals } from "@fuelguard/shared";
 import { deactivateEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
+import { assertOverrideDoesNotBlock } from "./overrideFreezeGuard.js";
 import { defineBehaviour } from "../types.js";
 import { statusIsRevertible, statusRevert } from "./statusRevert.js";
 
@@ -54,6 +55,13 @@ export const cardDeactivateBehaviour = defineBehaviour(cardDeactivateContract, {
       return { capability, body: { ...body, expectedVersion: "" } };
     },
   },
+
+  /**
+   * H16, same as the other two status writes: refused rather than silently swallowed. Retiring a card
+   * is never the 2am action, so no `clearException` way through — a refusal that names the exception is
+   * both honest and cheap here.
+   */
+  precondition: (_ctx, snap) => assertOverrideDoesNotBlock("card_deactivate", snap),
 
   auditMeta: (snap) => ({
     statusBefore: snap.doc?.card.status ?? null,

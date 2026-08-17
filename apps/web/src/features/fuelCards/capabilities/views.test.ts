@@ -71,7 +71,7 @@ describe("granting an exception names the numbers", () => {
 
 describe("locking says what happens to the DRIVER", () => {
   it("describes the consequence at the pump, never the field name", () => {
-    const lock = cardLockView.confirmation({ status: "Hold", expectedVersion: "" }, context());
+    const lock = cardLockView.confirmation({ status: "Hold", clearException: false, expectedVersion: "" }, context());
     expect(lock.body).toMatch(/stops working/i);
     expect(lock.body).not.toMatch(/status/i);
   });
@@ -84,7 +84,7 @@ describe("locking says what happens to the DRIVER", () => {
   it("treats deactivating as a different, heavier act than holding", () => {
     expect(cardDeactivateView.confirmation({ expectedVersion: "" }, context()).title)
       .toMatch(/deactivate/i);
-    expect(cardLockView.confirmation({ status: "Hold", expectedVersion: "" }, context()).title)
+    expect(cardLockView.confirmation({ status: "Hold", clearException: false, expectedVersion: "" }, context()).title)
       .toMatch(/lock/i);
   });
 
@@ -111,13 +111,13 @@ describe("locking says what happens to the DRIVER", () => {
    * what would hide the next mismatch of that kind.
    */
   it("labels a status it recognises, whatever casing this account sent", () => {
-    const rows = cardLockView.diff(cardWith({ status: "ACTIVE" }), { status: "Hold", expectedVersion: "" });
+    const rows = cardLockView.diff(cardWith({ status: "ACTIVE" }), { status: "Hold", clearException: false, expectedVersion: "" });
     expect(rows[0]!.before).toBe("Active");
     expect(rows[0]!.after).toBe("On hold");
   });
 
   it("shows a status it does NOT recognise verbatim, never blanked", () => {
-    const rows = cardLockView.diff(cardWith({ status: "PENDING_REVIEW" }), { status: "Hold", expectedVersion: "" });
+    const rows = cardLockView.diff(cardWith({ status: "PENDING_REVIEW" }), { status: "Hold", clearException: false, expectedVersion: "" });
     expect(rows[0]!.before).toBe("PENDING_REVIEW");
   });
 });

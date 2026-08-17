@@ -676,25 +676,43 @@ first override lands on production with no QA rehearsal behind it.
    override"* is plainly a statement about screens, which is the strongest hint it is a UI rule — but
    it is a hint, not the answer.
 
-   > ### ⚠ Probed 2026-08-17 — and the run does NOT answer this. Q6 stays open.
+   > ### ✅ ANSWERED 2026-08-17 — the freeze is REAL for the web service
    >
-   > `f9-probe` ran on QA ••••7671 (docs/22 **H16**, transcript `docs/efs/f9-override-freeze-qa.json`).
-   > The status write did not land — three readings over 10.2s, version unchanged, void success, no
-   > fault. **But it sent `Hold` to an account that stores `ACTIVE`, which is H1 exactly**, and H1
-   > already proved a wrong-cased status is answered with the identical void success and applied
-   > nothing. One uncontrolled variable, sufficient on its own to produce the observed result, so the
-   > override cannot be credited with it.
+   > Probed twice on QA ••••7671 (docs/22 **H16**, transcript `docs/efs/f9-override-freeze-qa.json`).
    >
-   > **Two things the run DID settle, both clean** (neither writes a status string): the echo
-   > override-clear **lands** on a card carrying an armed override — so `setCardv2` is not wholesale
-   > frozen and our live clear path works — and **`deleteOverride` is entitled on this account and
-   > lands**, which closes D1's entitlement half, open since Phase 8.2.
+   > **The first run was invalid and said so:** it sent `Hold` to an account that stores `ACTIVE`, which
+   > is H1 exactly, so `landed: false` had two sufficient explanations. The drill was fixed —
+   > `matchAccountCasing` so the write carries production's own bytes, plus a CONTROL run — and re-run.
    >
-   > The drill has been fixed twice over: `matchAccountCasing` sends production's own bytes, and a
-   > **control run** proves the identical write lands with no override armed before the test repeats it
-   > with one. Re-run needed.
+   > **The second run settles it. Two byte-identical writes, opposite outcomes:**
+   >
+   > | | sent | `overrideUses` in | landed |
+   > |---|---|---|---|
+   > | control | `<status>HOLD</status>` | 0 | **true** |
+   > | test | `<status>HOLD</status>` | 1 | **false** |
+   >
+   > Same session, same card, same casing. Three readings at 703/5179/11045 ms all read `ACTIVE`,
+   > `overrideUses: 1`, `version` unchanged. The override was the only variable.
+   >
+   > **So: a card carrying an armed override silently ignores a `setCardv2` status change on this
+   > account, and the vendor gives no signal — `responseShape: empty`, no fault.** WEX's portal sentence
+   > is true of the web service, not just of its screens.
+   >
+   > ⚠ **But narrower than WEX's wording: the freeze is FIELD-scoped, not card-scoped.** In the same run
+   > with an override armed, the echo `clear_override` **landed** and `deleteOverride` **landed**. The
+   > override trio stays writable — it must, or no override could be cleared — and `status` does not.
+   >
+   > **Consequence, and it is a safety one:** no capability checks `overrideUses` today, so `card_lock`
+   > — the 2am stolen-card action, deliberately free of all friction — demonstrably does nothing on a
+   > card with an exception, and the operator is told only *"EFS accepted the request but the card is
+   > unchanged."* `card_unlock`, `card_deactivate` and `prompts_set` are in the same
+   > position — but NOT the mileage override, which is `overrideLastMileage`, unit-keyed, and never
+   > touches `setCardv2`. The fix is owed and jumps the Phase 10 queue — see docs/28 §10.
+   >
+   > **Also closed by the same run:** `deleteOverride` is entitled on this account and lands, which
+   > answers D1's entitlement half, open since Phase 8.2.
 
-   **This one IS cheaply probeable on QA, and it should be probed before Phase 10 promotes**, because
+   *(Original note, kept because the reasoning held:)* **This one IS cheaply probeable on QA, and it should be probed before Phase 10 promotes**, because
    two of its three outcomes change the product: grant a 1-use override on a QA card, then attempt a
    `card_lock` to `Hold` through the ordinary capability path and read back. If the status does not
    land, the override freeze is real for the API and `card_lock` needs a precondition that tells the
