@@ -230,17 +230,17 @@ export interface PromptPlan {
  * all other info ids/validation type combos just leave as `<value/>` or `<value>0</value>`"*
  * (p36, p135, p138).
  *
- * So: the accrual when the operator configured one, and `"0"` otherwise — the second half of the
- * vendor's own sentence, not a default we chose. It is written for EVERY combination rather than
- * only the accrual one, because `replaceAll` means a record's fields are whatever this request says
- * they are; a card switched OFF `ACCRUAL_CHECK` while keeping a stale accrual would be a number the
- * operator cannot see and did not ask for.
+ * ⚠ On THIS account the odometer window is NOT here. Both production policies run `ACCRUAL_CHECK`
+ * with `value: "0"` and the numbers in `minimum`/`maximum` — which is how the WEX portal renders the
+ * prompt too, as `M:1, X:1800`. Writing an accrual into `value` would send a shape the account has
+ * never carried, and "accepted and ignored" is this vendor's demonstrated response to a shape it has
+ * not seen (audit W3): the operator would be told the odometer window changed and the pump would go
+ * on using the old bounds.
  *
- * ⚠ What this deliberately does NOT claim: how EFS APPLIES the accrual. The guide never says whether
- * it is a floor, a ceiling or a tolerance against the unit's last mileage, and the vendor's own
- * `getLastMileage` / `overrideLastMileage` pages (p122–123) describe the stored reading without
- * describing the check. This function gets the number onto the wire exactly; the UI must not tell an
- * operator a mechanism nobody has documented.
+ * So `value` carries what the caller submitted for an ACCRUAL_CHECK — which on this account is `0`,
+ * round-tripping the real record — and the guide's literal `"0"` for every other combination, a rule
+ * nothing contradicts. The odometer window itself travels in `minimum`/`maximum`, which is where the
+ * account and the portal both keep it, and where the Step 9.3 UI must write it.
  */
 const promptValue = (prompt: PromptInput): string =>
   prompt.validationType === "ACCRUAL_CHECK" ? String(prompt.value ?? 0) : "0";

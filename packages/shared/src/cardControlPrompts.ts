@@ -44,16 +44,21 @@ export const promptInputSchema = z.object({
   matchValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
   reportValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
   /**
-   * The accrual value, and ONLY meaningful for `ACCRUAL_CHECK`.
+   * `WSCardInfo.value`. The guide calls this the accrual value; THIS ACCOUNT does not use it that way.
    *
    * The guide, verbatim (p36, p135, p138): *"For the accrual check method for odometer or hubometer,
    * this is the accrual value. For all other info ids/validation type combos just leave as `<value/>`
    * or `<value>0</value>`."*
    *
-   * Typed as an integer here although the vendor describes it three different ways — `int` in the
-   * WSDL's `WSCardInfo`, "String" on the guide's card pages, "int(24)" on setPolicy (p146). An
-   * integer is the only reading all three admit, production returns `"0"`, and the wire form is
-   * digits either way.
+   * But both production policies run `ACCRUAL_CHECK` with `value: "0"` and the odometer window in
+   * `minimum`/`maximum`, which is also how the WEX portal renders it — `M:1, X:1800`. So on this
+   * account `value` is the second half of the vendor's sentence (`0`, every combination) and the
+   * numbers live in the bounds. Kept in the schema because the vendor declares it and a future
+   * account may use it; NOT the field the odometer UI writes to. See the ACCRUAL_CHECK note below.
+   *
+   * Typed as an integer although the vendor describes it three ways — `int` in the WSDL's
+   * `WSCardInfo`, "String" on the guide's card pages, "int(24)" on setPolicy (p146). An integer is
+   * the only reading all three admit, and the wire form is digits either way.
    */
   value: z.coerce.number().int().min(0).max(EFS_PROMPT_ACCRUAL_MAX).nullable().default(null),
   /**
@@ -88,16 +93,31 @@ export const promptInputSchema = z.object({
     // vendor's rule that belongs to the denial, not to this refinement.
     { message: "DYNAMIC is only valid on the Control number, Personal identifier and Driver ID prompts." },
   )
+  /**
+   * ── ACCRUAL_CHECK carries its bounds in `minimum`/`maximum`, NOT in `value` ────────────────────
+   *
+   * This is the account overruling the guide, and it was found the only way it could be: Miki read
+   * the prompt out of the WEX portal, where it renders as **`Odometer · Accrual Check · M:1, X:1800`**.
+   * That is `minimum: 1, maximum: 1800` — and the same record carries `value: "0"` and
+   * `lengthCheck: false` on BOTH production policies, exactly as `docs/efs/` captured it.
+   *
+   * Two rules written from the guide's prose were therefore refusing the account's own configuration:
+   *
+   *   "Odometer following needs an accrual value above zero"  — production runs `value: 0`.
+   *   "A minimum or maximum is only checked when lengthCheck" — production runs `lengthCheck: false`
+   *                                                             with min 1 / max 1800 in force.
+   *
+   * On a `replaceAll` surface that is not a cosmetic refusal: an operator could not save production's
+   * existing prompts back at all. The characterisation was sitting in the committed captures the
+   * whole time and I validated against the prose instead.
+   *
+   * So `lengthCheck` gates the bounds for every OTHER validation type — that is the guide's rule and
+   * nothing contradicts it there — and ACCRUAL_CHECK is exempt, because for ACCRUAL_CHECK the bounds
+   * ARE the odometer window rather than a string-length check.
+   */
   .refine(
-    (p) => p.remove || p.validationType !== "ACCRUAL_CHECK" || (p.value ?? 0) > 0,
-    // An ACCRUAL_CHECK whose accrual is 0 is the guide's own "no accrual configured" sentinel, so
-    // submitting one asks the pump to follow an odometer by nothing. Production carries exactly that
-    // on both policies (docs/25 Q3) — which is a fact about the account, not a shape to accept from
-    // an operator who has just chosen odometer following on purpose.
-    { message: "Odometer following needs an accrual value above zero." },
-  )
-  .refine(
-    (p) => p.lengthCheck || (p.minimum === null && p.maximum === null),
+    (p) => p.remove || p.validationType === "ACCRUAL_CHECK"
+      || p.lengthCheck || (p.minimum === null && p.maximum === null),
     { message: "A minimum or maximum is only checked when length checking is on." },
   )
   .refine(
