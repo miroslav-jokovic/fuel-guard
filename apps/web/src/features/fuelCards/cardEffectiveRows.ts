@@ -56,7 +56,25 @@ const describeOrigin = (origin: EffectiveOrigin) => ({
   enforced: origin === "card" || origin === "policy",
 });
 
-export interface RawInfo { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }
+export interface RawInfo {
+  infoId: string;
+  validationType: string | null;
+  matchValue: string | null;
+  reportValue: string | null;
+  /**
+   * Step 9.3's display half. The API has sent these all along — `mergeEffectiveConfig` passes the
+   * parsed policy record through untouched, and `getPolicy` has parsed `minimum`/`maximum`/`value`
+   * since Step 7.3 — but this type omitted them, so the one prompt production actually runs the
+   * odometer on rendered as the literal string `ACCRUAL_CHECK`.
+   *
+   * Optional because a CARD-level record carries them too and no card on either account has ever
+   * had an `ODRD` prompt (`docs/37` §5a): this is a policy-level field in practice.
+   */
+  minimum?: number | null;
+  maximum?: number | null;
+  value?: string | null;
+  lengthCheck?: boolean | null;
+}
 export interface RawLimit {
   limitId: string;
   limit: number;
@@ -84,9 +102,50 @@ export function promptRows(rows: readonly Merged<RawInfo>[]): EffectiveDisplayRo
       ? `Must match ${row.value.matchValue || "—"}`
       : row.value.validationType === "REPORT_ONLY"
         ? `Recorded only${row.value.reportValue ? `: ${row.value.reportValue}` : ""}`
-        : (row.value.validationType ?? "—"),
+        : row.value.validationType === "ACCRUAL_CHECK"
+          ? accrualDetail(row.value)
+          : (row.value.validationType ?? "—"),
     ...describeOrigin(row.origin),
   }));
+}
+
+/**
+ * The odometer prompt, reported as CONFIGURATION and explained no further — Step 9.3, display half.
+ *
+ * ── What this may NOT say, and why the step's own wording is not used ───────────────────────────
+ * Step 9.3 specifies *"the pump rejects a reading more than N miles from the last one."* **That
+ * sentence cannot be written yet.** It asserts a DIRECTION for the check, and `docs/37` §7 Q1 is
+ * open: the guide describes `minimum`/`maximum` three different ways and none of them is an accrual
+ * window, so we know the two numbers and not how EFS applies them. §2 is explicit — it is safe to
+ * WRITE the window, because we reproduce a shape the account already runs, and any sentence
+ * EXPLAINING it to an operator waits for WEX.
+ *
+ * So this prints the field names and their values and stops. "minimum 1, maximum 1800" is a report
+ * of what EFS is configured with; "rejects a reading more than 1800 miles out" is a claim about
+ * behaviour we have not verified, and an operator would act on the second.
+ *
+ * ⚠ `value` is shown ONLY when it is set and non-zero, and that is a probe rather than a feature.
+ * The guide says `value` "is the accrual value" (p36) and both production policies carry `"0"`,
+ * which is why PR #82 had to stop the schema demanding it. §7 Q4 asks whether it is EVER the
+ * accrual on any account. If a non-zero one ever appears on this screen, that question is answered
+ * — and the answer arrives from a real account rather than from the guide.
+ */
+function accrualDetail(info: RawInfo): string {
+  const bounds = info.minimum != null && info.maximum != null
+    ? `minimum ${info.minimum.toLocaleString()}, maximum ${info.maximum.toLocaleString()}`
+    : info.minimum != null
+      ? `minimum ${info.minimum.toLocaleString()}`
+      : info.maximum != null
+        ? `maximum ${info.maximum.toLocaleString()}`
+        : null;
+  // Deliberately NOT "0" — the account's own records carry "0" as "unset", and printing it would
+  // invite the reading the guide's prose already caused once.
+  const accrual = info.value && info.value.trim() !== "" && info.value.trim() !== "0"
+    ? `, value ${info.value.trim()}`
+    : "";
+  return bounds === null
+    ? `Driver enters the odometer${accrual}`
+    : `Driver enters the odometer — ${bounds}${accrual}`;
 }
 
 /**

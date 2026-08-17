@@ -18,6 +18,7 @@ import {
   overrideScopeLabel,
   relativeAge,
   promptRows,
+  type RawInfo,
   sourceSentence,
   timeRows,
 } from "./cardControlModel.js";
@@ -674,5 +675,53 @@ describe("the parity gate (Step 7.4) — every parsed field is reachable by exac
       expect(sourceSentence("Location rules", source, 14)).not.toMatch(/not reported/);
     }
     expect(sourceSentence("Location rules", null, 14)).toMatch(/not reported/);
+  });
+});
+
+
+/**
+ * Step 9.3's display half — the odometer prompt, and the sentence we are NOT allowed to write.
+ *
+ * Production runs `ODRD` / `ACCRUAL_CHECK` with `minimum: 1, maximum: 1800` on BOTH policies
+ * (`docs/37` §2). Until 2026-08-17 this screen rendered it as the literal string "ACCRUAL_CHECK".
+ */
+describe("the odometer prompt", () => {
+  const accrual = (over: Partial<RawInfo> = {}) => promptRows([{
+    value: {
+      infoId: "ODRD", validationType: "ACCRUAL_CHECK", matchValue: null, reportValue: null,
+      minimum: 1, maximum: 1800, value: "0", lengthCheck: false, ...over,
+    },
+    origin: "policy" as const,
+  }])[0]!;
+
+  it("reports the configured bounds by their field names, and claims nothing about behaviour", () => {
+    const row = accrual();
+    expect(row.label).toBe("Odometer");
+    expect(row.detail).toBe("Driver enters the odometer — minimum 1, maximum 1,800");
+  });
+
+  it("does NOT explain how EFS applies the window — §7 Q1 is open", () => {
+    /**
+     * Step 9.3 asks for "the pump rejects a reading more than N miles from the last one". That
+     * asserts a DIRECTION, and the guide describes these two fields three different ways without
+     * ever describing the comparison. Reporting the configuration is safe; explaining it is not.
+     */
+    const detail = accrual().detail;
+    for (const forbidden of ["reject", "more than", "since the last", "will be declined"]) {
+      expect(detail.toLowerCase()).not.toContain(forbidden);
+    }
+  });
+
+  it("hides `value` when it is the account's own \"0\", and shows it when it is not", () => {
+    // Both production policies carry "0" — printing it invites exactly the misreading of the
+    // guide's prose that PR #82 had to undo. A non-zero one would ANSWER §7 Q4, so it is surfaced.
+    expect(accrual({ value: "0" }).detail).not.toContain("value");
+    expect(accrual({ value: "" }).detail).not.toContain("value");
+    expect(accrual({ value: "500" }).detail).toContain("value 500");
+  });
+
+  it("degrades to the plain sentence when EFS sends no bounds at all", () => {
+    expect(accrual({ minimum: null, maximum: null }).detail).toBe("Driver enters the odometer");
+    expect(accrual({ minimum: 1, maximum: null }).detail).toBe("Driver enters the odometer — minimum 1");
   });
 });
