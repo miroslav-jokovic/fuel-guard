@@ -285,5 +285,50 @@ for (const status of ["sent", "succeeded", "drift_detected", "partial"]) {
     (await one(`select approved_by from efs_card_mutations where id=$1`, [legacy])).approved_by === null);
 }
 
+console.log("\n-- 0200: the account's prompt vocabulary, and the two things it may not be --");
+
+/**
+ * Asserted by inserting what the constraints must REJECT, never by reading them.
+ *
+ * That is not ceremony. 0173's non-empty-scopes CHECK was written as
+ * `array_length(scopes, 1) >= 1` and never held for a single day: `array_length('{}', 1)` is NULL,
+ * `NULL >= 1` is NULL, and a CHECK rejects only on FALSE. It was found by running a later migration
+ * against a scratch database and feeding it the row it was supposed to refuse (`docs/22` H15).
+ * 0200's own non-empty rule uses `cardinality` for exactly that reason, so it is proven the same way.
+ */
+{
+  await db.query(`insert into efs_card_control_settings (org_id) values ($1)
+                  on conflict (org_id) do nothing`, [ORG]);
+
+  const set = (types, at) => err(db.query(
+    `update efs_card_control_settings set prompt_types = $2, prompt_types_at = $3 where org_id = $1`,
+    [ORG, types, at],
+  ));
+
+  ok("a never-walked account is representable — both null",
+    (await set(null, null)) === null);
+
+  ok("a real vocabulary with its timestamp is accepted",
+    (await set(["DRID", "UNIT", "ODRD"], new Date("2026-08-16T17:22:53Z").toISOString())) === null);
+
+  ok("the stored vocabulary is the ACCOUNT's, not the editable subset",
+    (await one(`select cardinality(prompt_types) n from efs_card_control_settings where org_id=$1`, [ORG])).n === 3);
+
+  // The H15 case itself. `array_length('{}', 1)` would have let this through.
+  ok("an EMPTY vocabulary is REFUSED — null and '{}' are not two ways to say the same thing",
+    (await set([], new Date().toISOString())) !== null);
+
+  ok("a vocabulary with no read date is REFUSED — the value without its provenance",
+    (await set(["DRID"], null)) !== null);
+
+  ok("a read date with no vocabulary is REFUSED — a timestamp about nothing",
+    (await set(null, new Date().toISOString())) !== null);
+
+  // A positive control on the four refusals above: they must be rejecting the SHAPE, not rejecting
+  // every write. Without this, a constraint that refused everything would score four passes.
+  ok("…and the row is still writable afterwards, so the refusals are about shape",
+    (await set(["DRID", "UNIT"], new Date().toISOString())) === null);
+}
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

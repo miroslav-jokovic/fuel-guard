@@ -5,7 +5,7 @@ import type { Env } from "../../env.js";
 import type { CardEdit } from "../../lib/efsCardEcho.js";
 import type { CardDocument } from "../../lib/efsCardXml.js";
 import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
-import type { Governance, Mutation, Snapshot, Step, VerifyPlan } from "../types.js";
+import type { Governance, Mutation, PlanCtx, Snapshot, Step, VerifyPlan } from "../types.js";
 
 /**
  * What one orchestration is, in types. No behaviour, so everything else can import it freely.
@@ -116,6 +116,16 @@ export interface CardMutationPlan<TBody = unknown> {
   /** The FIRST step's edits, built before the ledger row opened. Later steps build their own. */
   edits: CardEdit[];
   auditMeta: Record<string, unknown>;
+  /**
+   * What `plan` handed the capability's hooks, carried forward so later steps of a sequence build
+   * their edits against the SAME resolved editable set as step 0.
+   *
+   * Re-resolving in `dispatch` would be a second database read that can disagree with the first: an
+   * inventory walk finishing mid-sequence would give step 2 a different editable set from step 0,
+   * and on a `replaceAll` surface a set that changed between steps decides which records are rebuilt
+   * and which are passed through. One resolution per request, or the request is not one decision.
+   */
+  planCtx: PlanCtx;
 }
 
 /**

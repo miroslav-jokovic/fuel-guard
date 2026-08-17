@@ -1,5 +1,6 @@
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../../lib/efsCardEcho.js";
 import { parseCardDocument, type CardDocument } from "../../lib/efsCardXml.js";
+import { resolveEditableInfoIds } from "@fuelguard/shared";
 import { capabilityRegistry } from "../registry.js";
 
 /**
@@ -46,6 +47,16 @@ export interface LocalReplayOptions {
   body: unknown;
   clientId?: string;
   cardNumber?: string;
+  /**
+   * Step 9.1: the prompt ids editable on the account being replayed. Defaults to the DRID/UNIT
+   * fallback — the same answer the orchestrator gives an org whose vocabulary has never been read —
+   * so a replay that says nothing about prompts reproduces pre-Phase-9 behaviour exactly.
+   *
+   * Named here rather than resolved, because the harness is OFFLINE: it has a recorded document and
+   * no database, and inventing an editable set from the document would make the replay's output a
+   * function of the fixture rather than of the account.
+   */
+  editableInfoIds?: readonly string[];
 }
 
 /**
@@ -80,7 +91,9 @@ export function replayCapability(opts: LocalReplayOptions): LocalReplay {
     );
   }
 
-  const edits = mutation.buildEdits(document, parsed.data as never);
+  const edits = mutation.buildEdits(document, parsed.data as never, {
+    editableInfoIds: opts.editableInfoIds ?? resolveEditableInfoIds(null),
+  });
   const { xml, redactedXml } = serializeSetCardRequest(
     document,
     { clientId: opts.clientId ?? REPLAY_CLIENT_ID, cardNumber: opts.cardNumber ?? REPLAY_CARD_NUMBER },

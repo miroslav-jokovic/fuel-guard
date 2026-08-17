@@ -48,7 +48,30 @@ export interface PlanCtx {
   env: Env;
   /** Whether the caller already presented a fresh re-authentication on this request. */
   stepUp: boolean;
+  /**
+   * Step 9.1: the prompt ids editable on THIS org, resolved by the orchestrator.
+   *
+   * It arrives here rather than being fetched by the capability for the reason stated at the top of
+   * this file — no DB handle reaches a capability at all. The set lives in
+   * `efs_card_control_settings.prompt_types`, so a capability that resolved it itself would need
+   * exactly the database access this shape exists to deny it.
+   *
+   * Present on every request, never null: `resolveEditableInfoIds` answers an unread account with
+   * the DRID/UNIT fallback rather than with nothing, so a capability never has to decide what an
+   * absent set means.
+   */
+  editableInfoIds: readonly string[];
 }
+
+/**
+ * What `buildEdits` and `auditMeta` may consult — strictly less than `PlanCtx`.
+ *
+ * Producing bytes and describing a diff are not governance decisions, so neither hook is handed
+ * `env` or `stepUp`. Keeping this a `Pick` rather than a second declaration means a field added to
+ * `PlanCtx` does not silently widen what an edit builder can reach, and it lets the offline replay
+ * harness supply a real value instead of casting an empty object into an `Env` it never uses.
+ */
+export type EditsCtx = Pick<PlanCtx, "editableInfoIds">;
 
 /**
  * The state a verification compares, from ops the capability NAMED ITSELF.
@@ -106,7 +129,9 @@ export interface VerifyPlan<TBody> {
  * nothing else needs to — which is the point of naming the kinds rather than branching on operation.
  */
 export type Mutation<TBody> =
-  | { kind: "echo"; buildEdits: (doc: CardDocument, body: TBody) => CardEdit[] }
+  // `ctx` is third so the five capabilities that ignore it need no change: TypeScript accepts an
+  // implementation that declares fewer parameters than its type.
+  | { kind: "echo"; buildEdits: (doc: CardDocument, body: TBody, ctx: EditsCtx) => CardEdit[] }
   | { kind: "direct"; dispatch: (ctx: DispatchCtx, body: TBody) => Promise<SetCardResult> }
   | { kind: "sequence"; steps: readonly Step<TBody>[] };
 
@@ -157,7 +182,8 @@ export interface Governance<TBody> {
    * version has to keep them in step by hand. One call, one rule.
    */
   precondition?: (ctx: PlanCtx, snap: Snapshot, body: TBody) => void;
-  auditMeta?: (snap: Snapshot, body: TBody) => Record<string, unknown>;
+  /** `ctx` is third for the same reason as `buildEdits`: the capabilities that ignore it need no change. */
+  auditMeta?: (snap: Snapshot, body: TBody, ctx: EditsCtx) => Record<string, unknown>;
   /** Defaults to redactCardXml. MANDATORY when the contract sets `carriesSecret`. */
   redactRequest?: (xml: string) => string;
   redactResponse?: (xml: string) => string;

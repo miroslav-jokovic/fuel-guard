@@ -1,5 +1,5 @@
 import {
-  EFS_EDITABLE_INFO_IDS,
+  infoLabel,
   matchStatusCasing,
   type EfsWritableStatus,
   type OverrideScope,
@@ -9,6 +9,7 @@ import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { childElements, collectElements, localName, type XmlElement } from "../lib/efsXml.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
+import { ActionRefusalError } from "./efsCardControlErrors.js";
 
 /**
  * The vendor's own override and prompt recipes, expressed as `CardEdit[]` and nothing else.
@@ -186,8 +187,6 @@ export function recordFromElement(element: XmlElement): Record<string, string | 
   return record;
 }
 
-const EDITABLE = new Set<string>(EFS_EDITABLE_INFO_IDS);
-
 export interface PromptPlan {
   edits: CardEdit[];
   /** Editable prompts explicitly marked for removal — the removals the caller must authorise. */
@@ -203,8 +202,14 @@ export interface PromptPlan {
  * ── What "full replace" means here, and what it deliberately does not ────────────────────────────
  * EFS has no partial prompt update: the array in the request IS the card's prompts afterwards. So the
  * request has to carry every record, not just the edited ones. Editable omissions are preserved unless
- * the caller marks `remove: true`; records whose `infoId` is not editable in Phase 1 — `ODRD`, `TRIP`,
- * `TRLR`, `NAME`, `PPIN`, `CNTN` — are passed through EXACTLY as EFS sent them.
+ * the caller marks `remove: true`; records whose `infoId` is not in `editableInfoIds` — `PPIN`, which
+ * this product denies outright, and anything the guide's Info IDs table does not name — are passed
+ * through EXACTLY as EFS sent them.
+ *
+ * Before Step 9.1 that second group was almost everything: the editable set was the hardcoded pair
+ * `DRID`/`UNIT`, so `ODRD`, `TRIP`, `TRLR`, `NAME` and `CNTN` were all pass-through by construction.
+ * They are now editable on both real accounts, and the pass-through rule is unchanged — it just
+ * applies to a smaller group.
  *
  * For an editable record that already exists, only `validationType`, `matchValue` and `reportValue` are
  * touched; the rest of the record keeps its original values AND its original position in the array,
@@ -217,7 +222,50 @@ export interface PromptPlan {
  * and an empty one very differently. Removing the RECORD is a separate, explicit act (below), not
  * something that happens because a text box was emptied.
  */
-export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[]): PromptPlan {
+export function promptsEdits(
+  doc: CardDocument,
+  prompts: readonly PromptInput[],
+  /**
+   * Step 9.1: the ids editable ON THIS ACCOUNT, resolved by the orchestrator from the cached
+   * `getPromptTypes` vocabulary. A REQUIRED parameter with no default, deliberately — a default
+   * would be `EFS_EDITABLE_INFO_IDS`, and a caller that forgot to thread the resolved set would
+   * silently narrow the editable surface from 24 ids to 2 while typechecking perfectly.
+   *
+   * Widening this widens what gets REBUILT rather than passed through, so it is worth being exact
+   * about the safety property it moves. A record is rebuilt only when the caller SUBMITTED it;
+   * anything not submitted is pushed back untouched whether or not it is editable. So the guarantee
+   * that survives is "not submitted, not altered", and this set decides which submissions are
+   * honoured rather than which records are preserved.
+   */
+  editableInfoIds: readonly string[],
+): PromptPlan {
+  const EDITABLE = new Set<string>(editableInfoIds);
+
+  /**
+   * A submission for an id this account does not let us edit is REFUSED, not ignored.
+   *
+   * Ignoring it is not the harmless option it looks like. A record whose `infoId` is outside
+   * `EDITABLE` is passed through untouched by the loop below and never entered into `seen`, so the
+   * append loop then treats the same submission as a prompt the card does not have and pushes a
+   * SECOND record with the same `infoId`. That is the duplicate the contract's own comment warns
+   * about — "two records with one infoId is a document shape the vendor never emits", whose
+   * demonstrated failure mode on this vendor is accepted-and-ignored (audit P1-6b).
+   *
+   * It was unreachable while the editable set was a constant, because the request schema's enum was
+   * built from the same constant. Step 9.1 resolves the set per ACCOUNT, so the two can now disagree
+   * — an account that does not offer `DRID` still gets a schema that accepts `DRID` — and Step 9.2,
+   * which turns `infoId` into a plain string validated at request time, removes the enum entirely.
+   * Refusing here means the invariant belongs to the function that depends on it.
+   */
+  for (const prompt of prompts) {
+    if (!EDITABLE.has(prompt.infoId)) {
+      throw new ActionRefusalError(
+        `${infoLabel(prompt.infoId)} (${prompt.infoId}) is not editable on this account.`,
+        "invalid_request",
+      );
+    }
+  }
+
   const existing = collectElements(doc.root, "infos");
   const wanted = new Map(prompts.map((p) => [p.infoId as string, p]));
   const records: Record<string, string | null>[] = [];

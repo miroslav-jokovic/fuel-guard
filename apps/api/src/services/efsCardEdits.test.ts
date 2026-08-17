@@ -3,7 +3,24 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../lib/efsCardEcho.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
-import { lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits, unlockEdits } from "./efsCardEdits.js";
+import type { CardDocument } from "../lib/efsCardXml.js";
+import type { PromptInput } from "@fuelguard/shared";
+import {
+  lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits as promptsEditsFor, unlockEdits,
+} from "./efsCardEdits.js";
+
+/**
+ * Every case below is about the DIFF — what a submitted prompt does to the request bytes — not about
+ * WHICH ids an account lets us edit. Step 9.1 made the editable set a parameter, so these pin it to
+ * the pair they were written against and keep asserting exactly what they asserted before.
+ *
+ * The account-driven half is elsewhere on purpose: `resolveEditableInfoIds` is proven in
+ * `packages/shared/src/efsCardCatalog.test.ts` and against the real captures in
+ * `apps/api/src/efs/editableInfoIds.test.ts`. Widening the set HERE would make these cases restate
+ * that suite's claim in a place nobody would look for it.
+ */
+const promptsEdits = (doc: CardDocument, prompts: readonly PromptInput[]) =>
+  promptsEditsFor(doc, prompts, ["DRID", "UNIT"]);
 
 /**
  * The vendor recipes, tested as recipes: what does the REQUEST look like after each intent.
@@ -141,6 +158,31 @@ describe("prompts — full replace without collateral damage", () => {
     // lengthCheck was never mentioned by the operator and must survive the round trip.
     expect(xml).toContain("<lengthCheck>false</lengthCheck>");
     expect(plan.removedInfoIds).toEqual([]);
+  });
+
+  it("honours a submission for an id the ACCOUNT allows, which the hardcoded pair never reached", () => {
+    // Step 9.1's whole point, on the wire. `ODRD` is in the guide's Info IDs table (p168) and in
+    // both real accounts' getPromptTypes, and was unreachable while the editable set was DRID/UNIT
+    // — it is also the id Step 9.3's odometer following needs.
+    const before = doc();
+    expect(before.card.infos.some((i) => i.infoId === "ODRD")).toBe(true); // the fixture must carry one
+
+    const submitted: readonly PromptInput[] = [
+      { infoId: "ODRD" as PromptInput["infoId"], validationType: "REPORT_ONLY", matchValue: null, reportValue: "441022", remove: false },
+    ];
+    expect(request(before, promptsEditsFor(before, submitted, ["DRID", "UNIT", "ODRD"]).edits))
+      .toContain("<reportValue>441022</reportValue>");
+
+    // The POSITIVE CONTROL, and the half that makes the assertion above mean anything: the same
+    // submission against the old pair must not reach the wire. Without it, a promptsEdits that
+    // ignored `editableInfoIds` entirely and edited everything would pass the first expectation.
+    //
+    // It REFUSES rather than silently dropping the record, and that is the behaviour worth pinning:
+    // the untouched-passthrough loop never enters a non-editable id into `seen`, so the append loop
+    // would otherwise push a SECOND <infos> with the same infoId — the duplicate shape audit P1-6b
+    // says this vendor accepts and ignores.
+    expect(() => promptsEditsFor(before, submitted, ["DRID", "UNIT"]))
+      .toThrowError(/not editable on this account/);
   });
 
   it("passes non-editable records through untouched", () => {

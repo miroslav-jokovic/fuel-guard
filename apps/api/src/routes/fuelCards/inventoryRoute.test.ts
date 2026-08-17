@@ -142,15 +142,23 @@ afterEach(() => {
   __resetEfsSessions();
 });
 
-async function inventory(body: unknown = {}): Promise<{ status: number; payload: Record<string, unknown> }> {
-  holder.client = createSupabaseRecorder({
+/** The recorder behind the most recent `inventory()` call, for asserting what the route WROTE. */
+let db: ReturnType<typeof createSupabaseRecorder>;
+
+async function inventory(
+  body: unknown = {},
+  tables: Record<string, unknown> = {},
+): Promise<{ status: number; payload: Record<string, unknown> }> {
+  db = createSupabaseRecorder({
     tables: {
       efs_soap_credentials: [CREDENTIALS],
       audit_logs: { data: [], error: null },
       // `loadCardNumber` reads this; the sealed value is produced by the same secretBox the route uses.
       efs_cards: { data: { card_number_sealed: null }, error: null },
+      ...tables,
     },
-  }).client;
+  });
+  holder.client = db.client;
   const res = await fetch(`${baseUrl}/api/fuel-cards/account-inventory`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
@@ -293,5 +301,52 @@ describe("the account inventory, called", () => {
     expect(status).toBe(200);
     expect((payload.inventory as { sampledCards: unknown[] }).sampledCards).toEqual([]);
     expect(vendor.ops).not.toContain("getCardv2");
+  });
+});
+
+/**
+ * Step 9.1. This walk is the only caller of `getPromptTypes`, so it is the only place the account's
+ * prompt vocabulary can be captured — and before this it handed that vocabulary to one operator's
+ * screen and dropped it. The write path reads the cached row rather than calling the vendor, because
+ * the rate limiter is keyed on IP rather than on the account (Step 5.6).
+ */
+describe("the prompt-type cache the walk fills", () => {
+  const cacheWrites = () =>
+    db.queries.filter((q) => q.table === "efs_card_control_settings" && q.write !== null);
+
+  it("writes the account's vocabulary, verbatim and dated", async () => {
+    stubVendor();
+    const { payload } = await inventory();
+
+    expect(payload.promptTypesCached).toEqual({ ok: true });
+
+    const [write] = cacheWrites();
+    expect(write?.write?.method).toBe("upsert");
+    const row = write?.write?.payload as { org_id: string; prompt_types: string[]; prompt_types_at: string };
+    expect(row.org_id).toBe(ORG);
+    // VERBATIM: the account's whole vocabulary, not the subset this product may edit. Narrowing here
+    // would bake today's denial list into stored data, and re-admitting PPIN later would then need a
+    // backfill rather than a code change.
+    expect(row.prompt_types).toEqual((payload.inventory as { promptTypes: string[] }).promptTypes);
+    expect(Number.isNaN(Date.parse(row.prompt_types_at))).toBe(false);
+  });
+
+  it("reports a failed cache write WITHOUT failing a walk whose every vendor call landed", async () => {
+    stubVendor();
+    const { status, payload } = await inventory(
+      {},
+      { efs_card_control_settings: { data: [], error: null, writeError: { message: "permission denied" } } },
+    );
+
+    // Both halves matter. The walk succeeded — every vendor read landed, and the operator has the
+    // inventory in front of them — so `ok` must stay true and `operations` must not count a database
+    // write. But the failure cannot be silent either: a cache that quietly did not write leaves the
+    // editable set on the 2-id fallback with nothing on screen to say why.
+    expect(status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.promptTypesCached).toEqual({ ok: false, error: "permission denied" });
+    expect((payload.steps as unknown[]).length).toBe(payload.operations);
+    expect((payload.steps as { operation: string }[]).map((s) => s.operation))
+      .not.toContain("cachePromptTypes");
   });
 });

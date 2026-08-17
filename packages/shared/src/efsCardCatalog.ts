@@ -225,15 +225,91 @@ export const EFS_INFO_LABELS: Record<string, string> = {
 };
 
 /**
- * The prompts this product edits in Phase 1.
+ * The FALLBACK editable set — what this product may edit when it has never asked the account.
  *
- * Driver and unit only, and only these, because a DRID/UNIT record with EXACT_MATCH is what makes the
- * pump validate who is fuelling and in what truck — the two facts every downstream FuelGuard
- * attribution decision depends on. Everything else in the table is either a reporting field nobody
- * asked to change or, in PPIN's case, a driver-held secret with a credential-handoff problem attached.
+ * Driver and unit only, because a DRID/UNIT record with EXACT_MATCH is what makes the pump validate
+ * who is fuelling and in what truck — the two facts every downstream FuelGuard attribution decision
+ * depends on. Until Phase 9 this was the WHOLE editable set, hardcoded; `resolveEditableInfoIds`
+ * now widens it to what the account actually offers, and falls back to this pair when it cannot.
+ *
+ * Deliberately NOT widened to the resolved set: a fallback that guesses generously is worse than one
+ * that guesses narrowly, because the failure it covers is "we could not read the account".
  */
 export const EFS_EDITABLE_INFO_IDS = ["DRID", "UNIT"] as const;
 export type EfsEditableInfoId = (typeof EFS_EDITABLE_INFO_IDS)[number];
+
+/**
+ * Prompt IDs this product refuses to edit even when the account offers them.
+ *
+ * PPIN is the driver's Personal Identifier — a credential the driver holds, not a fleet attribute.
+ * Three separate reasons, any one of which is sufficient:
+ *
+ *   1. Editing it is ISSUING a credential, which is a different act from configuring a card and
+ *      belongs to whoever owns driver identity, not to a fleet-card screen.
+ *   2. `matchValue` carries it in clear on the request, in `mirror.last_response_xml_redacted`, and
+ *      in the audit diff. `redactCardXml` masks digit runs of TEN OR MORE and `<cardNumber>`
+ *      elements; a 4-6 digit PIN passes through every one of those rules untouched.
+ *   3. It was already excluded before Phase 9, for reason 1, and Phase 9 widening the set by
+ *      intersection would have re-admitted it silently as a side effect rather than as a decision.
+ *
+ * Miki's call, 2026-08-16, on being shown that the runtime set resolves to 25 including this one.
+ * Reversing it is a product decision AND a redaction change — reason 2 does not go away on its own.
+ *
+ * Consequence worth stating: PPIN is one of the three IDs `DYNAMIC` may pair with
+ * (`EFS_DYNAMIC_INFO_IDS`), so in this product DYNAMIC is reachable on CNTN and DRID only. That is a
+ * narrowing of the vendor's rule, not a mistranscription of it.
+ */
+export const EFS_UNEDITABLE_INFO_IDS = ["PPIN"] as const;
+
+/**
+ * The prompt IDs this product may edit on THIS account, resolved at runtime.
+ *
+ * ── Why a constant could not stay ────────────────────────────────────────────────────────────────
+ * `EFS_EDITABLE_INFO_IDS` is a list this codebase chose. `getPromptTypes` is the list the ACCOUNT
+ * owns, and it is 40 IDs on production and 41 on QA — against a hardcoded 2. Everything between the
+ * two was unreachable through this product while being perfectly configurable in the WEX portal.
+ *
+ * ── Why the intersection, rather than everything the account offers ──────────────────────────────
+ * The accounts return codes the vendor's own documentation does not define: 15 on production and 16
+ * on QA (`DSCD`, `DMLC`, `LSNB`, `CUNB`, `VHTP`, `PDLN`, `CLCD`, `VHNB`, `CVNM`, `LCCD`, `PLDS`,
+ * `SPLN`, `SLDS`, `CVNB`, `CARR`, and `VEHN` on QA alone). The guide's Info IDs table (p168-169) has
+ * exactly 26 entries and `EFS_INFO_LABELS` transcribes it one-for-one. Offering an operator a prompt
+ * whose meaning is documented NOWHERE — not in the guide, not in the WSDL — is offering them a
+ * switch with no label, on a surface where a wrong prompt stops a pump.
+ *
+ * So the resolved set is what the account offers AND the vendor documents AND we have not denied.
+ * Measured 2026-08-16 against both real accounts, that is 24 — the same 24 on each, same casing.
+ *
+ * ── Casing is the account's, not ours ────────────────────────────────────────────────────────────
+ * Returned IDs are matched case-INSENSITIVELY but emitted in the spelling `EFS_INFO_LABELS` holds,
+ * because that is the spelling the guide's table uses and the one an operator will see next to the
+ * label. This account has already produced a `status` in an undocumented casing (`docs/25` §3), so
+ * the tolerance is earned rather than defensive.
+ *
+ * @param promptTypes what `getPromptTypes` returned for this org, or null/empty if never read.
+ */
+export const resolveEditableInfoIds = (
+  promptTypes: readonly string[] | null | undefined,
+): readonly string[] => {
+  // Guards the `.map` below against null, and nothing more. An EMPTY array deliberately falls
+  // through to the single fallback at the bottom rather than being special-cased here: an account
+  // that offers nothing and an account whose every offer is unnameable are the same situation, and
+  // two returns for one decision is a branch no test can tell apart. It was written both ways, and
+  // deleting `|| promptTypes.length === 0` changed no assertion — so it is gone rather than pinned.
+  if (!promptTypes) return [...EFS_EDITABLE_INFO_IDS];
+
+  const denied = new Set<string>(EFS_UNEDITABLE_INFO_IDS);
+  const offered = new Set(promptTypes.map((id) => id.trim().toUpperCase()).filter(Boolean));
+
+  // Iterating the LABELS rather than the account's list makes the output order and spelling ours and
+  // stable, so a vendor reordering its response cannot reorder a confirmation dialog.
+  const resolved = Object.keys(EFS_INFO_LABELS)
+    .filter((id) => offered.has(id) && !denied.has(id));
+
+  // An account that offers nothing we can name is indistinguishable, for the operator, from an
+  // account we never read — and the honest answer to both is the fallback, not an empty editor.
+  return resolved.length > 0 ? resolved : [...EFS_EDITABLE_INFO_IDS];
+};
 
 export const infoLabel = (infoId: string): string => EFS_INFO_LABELS[infoId] ?? infoId;
 

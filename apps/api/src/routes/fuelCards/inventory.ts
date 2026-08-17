@@ -267,6 +267,42 @@ export function fuelCardInventoryRouter(): Router {
         sampled.push({ cardId, card, refreshingLimits, locationGroups: cardLocationGroups });
       }
 
+      /**
+       * Step 9.1. This walk is the ONLY reader of `getPromptTypes`, so it is the only place the
+       * account's prompt vocabulary can be captured — and until now it returned that vocabulary to
+       * one operator's screen and then dropped it.
+       *
+       * Persisted here rather than fetched on the write path because the vendor's rate limiter is
+       * keyed on IP rather than on the account it protects (Step 5.6): a `getPromptTypes` in front
+       * of every prompt edit would spend that budget on a list that changes roughly never, and would
+       * make a rate-limited account one whose prompts cannot be edited at all.
+       *
+       * Best-effort, and deliberately AFTER every vendor call. A failure to cache must not fail a
+       * read-only walk that has already succeeded — the resolver's documented fallback covers a
+       * missing row, and the operator still has the inventory in front of them. Only a non-empty
+       * read is written: migration 0200 refuses `'{}'` precisely so that "the account said nothing"
+       * cannot be stored as if it were an answer.
+       *
+       * Reported in its own field rather than pushed onto `steps[]`, for two reasons that both bite.
+       * `steps[]` is the `/diagnose` shape and its length IS `operations`, which the response
+       * documents as vendor operations and which the request budget is checked against — a database
+       * write counted there would make both numbers lies. And `ok` is `steps.every(s => s.ok)`, so a
+       * failed cache would report the whole read-only walk as failed when every vendor call landed.
+       * Silence is not the alternative: a cache that quietly did not write leaves the editable set on
+       * the 2-id fallback with nothing on screen to say why, which is the failure this field exists
+       * to make visible.
+       */
+      let promptTypesCached: { ok: boolean; error?: string } | null = null;
+      if (promptTypes.length > 0) {
+        const { error } = await admin
+          .from("efs_card_control_settings")
+          .upsert(
+            { org_id: orgId, prompt_types: promptTypes, prompt_types_at: new Date().toISOString() },
+            { onConflict: "org_id" },
+          );
+        promptTypesCached = error ? { ok: false, error: error.message } : { ok: true };
+      }
+
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,
@@ -288,6 +324,12 @@ export function fuelCardInventoryRouter(): Router {
         requestBudget: INVENTORY_REQUEST_BUDGET,
         /** Non-empty means this walk did NOT see the whole account. Never omitted when it applies. */
         truncated,
+        /**
+         * Step 9.1's cache write. `null` when `getPromptTypes` returned nothing to store, so an
+         * operator can tell "we did not write" from "we wrote and it failed" — the two have very
+         * different fixes and the same symptom, an editable set stuck on the fallback pair.
+         */
+        promptTypesCached,
         steps,
         inventory: {
           carrierInfo,
