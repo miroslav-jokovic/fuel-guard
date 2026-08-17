@@ -1751,14 +1751,20 @@ correct.* No credentials in this container.
 | **9.4** | Add the `infoSource` precondition — a card-level prompt write on a `POLICY`-source card is a silent no-op reported as success today. Surface as a disabled state with the reason | *"a prompt write on a POLICY-source card is refused, naming the source"* |
 | **9.5** | **Decompose `promptsEdits` before it exceeds the 200-line function cap** — a per-validation-type table, not a switch | `pnpm lint:funcsize` |
 | **9.6** | Per-prompt Edit / **Add** / **Remove** as three explicit actions. The confirmation lists every add, change and removal by name and value | *"can add a prompt the card does not have"* · *"cannot add one already on the card"*. **Live QA:** add a prompt to the reserved **empty-`<infos>`** card — this exercises Phase 2's sequence fix on a real document |
-| **9.7** | Prove and promote | Full OEG recorded; promotion outcome recorded |
+| **9.7** | Prove and promote | ✅ **DONE 2026-08-17.** QA card ••••7671, proof `14723221-b664-4a22-8197-99ed9b930c68`, OEG 1/3/4/5 all true, `cardStillChanged: false`, promoted to `enabled`. Two residual risks recorded: OEG-2b unobtainable, and self-approval. Full record in `docs/22` H6 |
+| **9.8** | ⚠ **NEW, from 9.7's own output.** Widen `promptsSet.contract.ts`'s `emittableValues` to what the capability can actually emit. It declares `infoId: EFS_EDITABLE_INFO_IDS` (the pair) and two validation types; the proof EMITTED `NAME`, and Step 9.2 made all seven types reachable. So the config scanner reports `match` on a fraction of the surface. Same class as the `proofPrompts` defect #80 fixed, one layer up | The scan's `infoId` verdict covers every id the account permits. ⚠ Expect `match` → `unobserved` for values QA has never produced — that is the gate getting HONEST, not breaking, and `decidePromotion` already accepts `unobserved` on proof evidence. Do not narrow the schema to make it green (standing rule 1) |
 
 ### ✅ Exit Gate — Phase 9
-- [ ] Prompt IDs come from `getPromptTypes`, not a constant
-- [ ] All seven validation types reachable; `DYNAMIC` constrained
-- [ ] Odometer following settable with its accrual value and displayed correctly
-- [ ] Add / edit / remove are three explicit actions
-- [ ] QA cards back to their original prompts
+- [x] Prompt IDs come from `getPromptTypes`, not a constant — **both halves**: resolved server-side (9.1) and shipped to the browser on `capabilities.editableInfoIds` (2026-08-17)
+- [x] All seven validation types reachable; `DYNAMIC` constrained — in the SCHEMA (9.2). ⚠ The drawer offers two of them, and `emittableValues` declares two — Step 9.8
+- [ ] Odometer following settable with its accrual value and displayed correctly — **wire half only** (PR #81). The display is blocked on `docs/37` §7 Q1: we may show `1–1800` and may NOT yet explain it. `RawInfo` also needs widening to carry `minimum`/`maximum`/`value`
+- [x] Add / edit / remove are three explicit actions — 9.6, and removal is OUT of the Edit form
+- [x] QA cards back to their original prompts — `cardStillChanged: false` on the 9.7 proof
+
+**Phase 9 is NOT closed.** One gate line is genuinely open (odometer display, blocked on WEX), and two
+live checks were never run: 9.6's *"can add a prompt the card does not have"* / *"cannot add one
+already on the card"* against the reserved empty-`<infos>` card, and 9.4's `infoSource=POLICY` refusal
+— which **cannot** be run, because no card on either account is POLICY-sourced.
 
 ---
 

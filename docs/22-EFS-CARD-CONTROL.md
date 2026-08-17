@@ -730,6 +730,49 @@ defaults to 24; this card's badge was wrong for nine hours and the UI presented 
 signal. For a lock that is tolerable. For an override — the number that says whether a driver can
 take another free tank — it is not. Filed as **`docs/28` Step 7.8**.
 
+## H6 — `prompts_set` proven and promoted (2026-08-17, QA) — Step 9.7
+
+Phase 9's exit. QA card ••••7671, proof `14723221-b664-4a22-8197-99ed9b930c68`, promoted to
+`enabled` the same session.
+
+| OEG | Result | Note |
+|---|---|---|
+| 1 — entitled | **true** | |
+| 2b — no-op stable | **null** | unobtainable through the capability model, same as H5. Recorded as residual risk, not waived |
+| 3 — change landed | **true** | apply → `succeeded`, 617 ms |
+| 4 — vocabulary | **true** | vendor spelled every value back as sent |
+| 5 — revert landed | **true** | `cardStillChanged: false` — the card is back (standing rule 14) |
+
+Document shape `nested:header`, matching the org's config scan, so the proof is evidence for the
+account it was taken on. Promotion recorded two residual risks: OEG-2b, and self-approval — the same
+person ran the proof and promoted it, which `decidePromotion` permits outside production and records
+rather than allowing silently.
+
+### ⚠ The vocabulary line is the interesting one, and it says two things at once
+
+```
+infoId: ["DRID", "NAME", "UNIT"]
+```
+
+**`NAME` was emitted.** That is the live confirmation that PR #80's fix works: `proofPrompts` now
+builds its sample from the account's resolved set (24 ids) rather than the hardcoded DRID/UNIT pair,
+and card ••••7671 happens to carry `NAME`. Before that fix this run would have exercised two ids and
+produced output indistinguishable from this one — which is precisely why the defect survived so long.
+
+**And the same line shows the gap one layer up.** `promptsSet.contract.ts` declares
+`emittableValues.infoId = EFS_EDITABLE_INFO_IDS` — still the pair. So the capability demonstrably
+emits an id its own declaration does not cover, and the config scanner's `match` verdict for `infoId`
+checked `DRID` and `UNIT` while the write carried `NAME` as well. The same is true of
+`validationType`: two declared, seven reachable since Step 9.2.
+
+Not unsafe today — OEG-4 came back true, and the scan independently observed `NAME` spelled exactly,
+5 times across 35 QA documents. But the declaration is narrower than the behaviour, which is the same
+class of defect #80 closed for the prover. **Filed as `docs/28` Step 9.8**, deliberately not fixed in
+the same breath: widening `emittableValues` changes what a gate checks, and standing rule 1 says that
+is its own commit with its own justification.
+
+---
+
 ## H5 — the first capability proof, and what a live run measured (2026-08-15, QA)
 
 The Phase 4 harness run end to end against `ws.partner.efsllc.com`, QA card ••••7671, proof
