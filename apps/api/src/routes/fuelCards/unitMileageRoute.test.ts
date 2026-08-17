@@ -146,6 +146,25 @@ function recorder(vehicle: unknown = VEHICLE) {
   holder.client = db.client;
 }
 
+/** The vehicles table answering with an ERROR rather than an empty result. */
+async function postWithVehicleError(body: unknown) {
+  db = createSupabaseRecorder({
+    tables: {
+      efs_soap_credentials: [CREDENTIALS],
+      audit_logs: { data: [], error: null },
+      vehicles: { data: null, error: { message: "connection reset" } },
+    },
+    rpc: { bump_card_write_counter: { allowed: true } },
+  });
+  holder.client = db.client;
+  const res = await fetch(`${baseUrl}/api/fuel-cards/unit-mileage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, payload: (await res.json()) as Record<string, unknown> };
+}
+
 async function post(body: unknown, vehicle: unknown = VEHICLE) {
   recorder(vehicle);
   const res = await fetch(`${baseUrl}/api/fuel-cards/unit-mileage`, {
@@ -320,6 +339,29 @@ describe("showing EFS's reading beside ours", () => {
     // No vehicle means no comparison — reported as absent, never as agreement.
     expect(payload.ourMileage).toBeNull();
     expect(payload.drift).toBeNull();
+  });
+
+  it("does not claim the truck is absent when the lookup itself failed", async () => {
+    /**
+     * "No vehicle has unit 991" is a factual claim about the fleet. On a database error we have not
+     * checked it, and saying so anyway sends somebody to add a truck that may already be there.
+     */
+    const vendor = stubVendor([258536]);
+    const { status, payload } = await postWithVehicleError({ unit: "991", mileage: 258900 });
+
+    expect(status).toBe(503);
+    expect((payload.error as { code: string }).code).toBe("vehicle_lookup_failed");
+    expect((payload.error as { message: string }).message).not.toContain("No vehicle");
+    expect(vendor.ops).toEqual([]);
+  });
+
+  it("says WHERE the unit was checked, so an EFS unit number is not mistaken for ours", async () => {
+    // The QA confusion of 2026-08-17 exactly: a UNIT prompt set on an EFS card does not create a
+    // vehicle here, and the refusal never said which list it had consulted.
+    const { payload } = await post({ unit: "991", mileage: 258900 }, null);
+    const message = (payload.error as { message: string }).message;
+    expect(message).toContain("FuelGuard's own");
+    expect(message).toContain("not against EFS");
   });
 
   it("still refuses an unknown unit on the WRITE — the two halves differ on purpose", async () => {

@@ -67,7 +67,7 @@ export function fuelCardUnitMileageRouter(): Router {
        *
        * So the vendor is always asked, and `knownVehicle` says whether the comparison half is real.
        */
-      const vehicle = await findVehicle(admin, orgId, unit);
+      const { vehicle } = await findVehicle(admin, orgId, unit);
 
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds?.enabled) {
@@ -136,9 +136,22 @@ export function fuelCardUnitMileageRouter(): Router {
        * reading landed on the wrong truck. A truck we have never heard of is the one signal
        * available before the write, so it is spent here.
        */
-      const vehicle = await findVehicle(admin, orgId, unit);
+      const { vehicle, lookupFailed } = await findVehicle(admin, orgId, unit);
+      if (lookupFailed) {
+        // Refuse, but do not claim the truck is absent — we did not find out.
+        res.status(503).json(apiError(
+          "vehicle_lookup_failed",
+          "Could not check which trucks this company has, so the unit was not confirmed. Nothing was sent to EFS.",
+        ));
+        return;
+      }
       if (!vehicle) {
-        res.status(404).json(apiError("unknown_unit", `No vehicle in this company has unit number ${unit}.`));
+        res.status(404).json(apiError(
+          "unknown_unit",
+          `No vehicle in this company has unit number ${unit}. This is checked against FuelGuard's own `
+            + "vehicle list, not against EFS — a unit that exists on an EFS card still needs a matching "
+            + "truck here before its mileage can be corrected.",
+        ));
         return;
       }
 
@@ -203,18 +216,26 @@ interface VehicleRow {
   odometer_offset: number | null;
 }
 
-/** The org's own truck with this unit number, or null. Org-scoped in the query, never after it. */
+/**
+ * The org's own truck with this unit number. Org-scoped in the query, never after it.
+ *
+ * ── Three outcomes, not two ─────────────────────────────────────────────────────────────────────
+ * This used to answer `null` for a query ERROR as well as for a genuine miss, and the caller turned
+ * both into *"No vehicle in this company has unit number 991."* That sentence is a factual claim
+ * about the fleet, and on a database error it is a claim we did not check — it sends somebody to
+ * add a truck that may already be there. Fail closed either way, but say which.
+ */
 async function findVehicle(
   admin: ReturnType<typeof getSupabaseAdmin>,
   orgId: string,
   unit: string,
-): Promise<VehicleRow | null> {
+): Promise<{ vehicle: VehicleRow | null; lookupFailed: boolean }> {
   const { data, error } = await admin
     .from("vehicles")
     .select("id, current_odometer, odometer_offset")
     .eq("org_id", orgId)
     .eq("unit_number", unit)
     .maybeSingle();
-  if (error) return null;
-  return (data as VehicleRow | null) ?? null;
+  if (error) return { vehicle: null, lookupFailed: true };
+  return { vehicle: (data as VehicleRow | null) ?? null, lookupFailed: false };
 }
