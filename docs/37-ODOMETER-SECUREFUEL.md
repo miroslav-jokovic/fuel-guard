@@ -22,9 +22,10 @@ So there are three moving parts, and this product currently models **none** of t
 |---|---|---|
 | The prompt that asks the driver | `ODRD` / `ACCRUAL_CHECK` on the policy or card | ✅ read; write path fixed in PR #82 |
 | The reading EFS compares against | per **unit**, via `getLastMileage` | ❌ never called |
-| The correction when GPS is wrong | `overrideLastMileage` | ❌ never called |
-| Whether SecureFuel is on at all | `doesCardPosition` | ❌ never called |
-| The card↔GPS identity | `gpsid`, `vin`, `zid` on `WSCardSummary` | ❌ not modelled |
+| The BASELINE when GPS is unstable | `overrideLastMileage` | ❌ never called |
+| Whether the card is POSITION-checked | `doesCardPosition` | ❌ never called — and ON for this org (§6a) |
+| The card↔GPS identity | `gpsid`, `vin`, `zid` on `WSCardSummary` | ❌ not modelled — and load-bearing (§6a B) |
+| **Location checking at the pump** | not scoped anywhere | ❌ **unknown territory (§6a B)** |
 
 ---
 
@@ -195,7 +196,7 @@ goes stale. Correcting that copy is integration work, and it is the task Miki pe
 | **B** | Model `gpsid` / `vin` / `zid` from `WSCardSummary`; surface on the card page | A card with a GPS ID shows it; `MODELLED_CARD_FIELDS` parity test still green | small |
 | ~~**C**~~ | ~~Card-level accrual editor~~ | **DROPPED — see §5a. `ODRD` is policy-only; no card has ever carried it** | — |
 | **D** | `getLastMileage` as a read — EFS's stored reading beside Samsara's | The reading for a known unit matches the WEX portal | small |
-| **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | The correction Miki does by hand. The op returns nothing (§3), so the re-read is not optional — without it the button reports success whether or not the vendor acted | small–medium |
+| **E′** | `overrideLastMileage`, VERIFIED BY RE-READ | Sets the BASELINE mileage until Samsara telemetry stabilises (§6a E′) — a seed, not a repair, and the UI should say so. The op returns nothing (§3), so the re-read is not optional: without it the button reports success whether or not the vendor acted | small–medium |
 
 A, B, D and E′ are read-mostly integration with a single write, which is the right shape.
 
@@ -206,11 +207,48 @@ The first is proportionate to one operator action correcting a GPS glitch. Decid
 E′, not before — but do not let "it needs its own phase" stand unexamined, because that was written
 before §5a was measured.
 
+## 6a. Answered by Miki, 2026-08-17 — and one of them renames the whole feature
+
+Asked as the scope items in §6, answered operationally:
+
+| # | Answer | What it changes |
+|---|---|---|
+| **A** | **SecureFuel IS ON for this organization.** | `doesCardPosition` drops from discovery to confirmation. Still worth calling — an org-level flag we assert rather than assume — but nothing waits on it. |
+| **B** | **Samsara is connected to EFS, and SecureFuel uses odometer AND LOCATION.** | ⚠ See below. This is new and it is not a detail. |
+| **D** | **EFS compares the driver's entry against the reading from Samsara.** | Confirms the mechanism. `getLastMileage` therefore reads *Samsara's value as EFS received it* — which makes it a divergence check against our own copy, not just a display. |
+| **E′** | **The override sets a STARTING mileage, used until Samsara data is stable.** | It is a SEED, not a permanent correction. That changes the UI verb and the audit story: "set baseline until telemetry recovers", not "fix the odometer". |
+
+### ⚠ B: SecureFuel checks POSITION, and that explains the operation's name
+
+`doesCardPosition` is not an oddly-worded "does this customer have SecureFuel". It is literally asking
+whether the card is **positioned** — whether GPS location is being checked. SecureFuel verifies two
+things at the pump: that the odometer entry is plausible, **and that the truck is actually at the
+site**. The card-summary fields we do not model — `gpsid`, `vin`, `zid` — are the identity that makes
+both checks possible, and `zid` is described in the guide as *"the ZID for the card, for secure
+fuel."*
+
+This raises the value of §6 item B considerably. Those three fields are not cosmetic: they are the
+join that decides whether a card participates in SecureFuel at all. A card missing its `gpsid` is a
+card whose driver may be declined at the pump for a reason no screen in this product can currently
+explain — and `docs/22` H13 already records 29 production cards with no unit prompt, which is the
+adjacent failure.
+
+**It also opens a question nobody has asked:** does a location mismatch decline a fuelling, and can we
+see that reason anywhere in the transaction data? Location is scoped nowhere in the plan today.
+
+---
+
 ## 7. Open questions for WEX
 
-1. Which direction is the accrual window checked, and in what unit — is `M:1, X:1800` "at least 1 and
-   at most 1800 miles since the last reading"?
+1. **Still open, and it is the one that matters.** Which direction is the accrual window checked, and
+   in what unit — is `M:1, X:1800` "at least 1 and at most 1800 miles since the last reading"? Miki
+   confirms EFS compares the entry against Samsara's reading (§6a D), which settles *what* is
+   compared but not *how the window is applied*. No UI sentence should explain it until this is
+   answered.
 2. What are *"secure fuel rules of 1 or 2"*, and how do we read which one applies to an account?
+   Sharpened by §6a B: if one rule is odometer-only and the other adds position, this decides what
+   the product can honestly tell an operator about why a fuelling was declined.
+2b. Does a POSITION mismatch decline a fuelling, and is that reason visible in the transaction data?
 3. Does `getLastMileage` accept more than one search entry per call, as the guide's *"Search Array,
    1 to many"* implies but the WSDL does not declare?
 4. Is `value` ever the accrual on any account, or is the guide's sentence simply wrong?
