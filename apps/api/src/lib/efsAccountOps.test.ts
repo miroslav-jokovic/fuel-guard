@@ -6,12 +6,10 @@ import { __resetSoapPacing } from "./soapClient.js";
 import { testEnv } from "../testing/testEnv.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import {
-  doesCardPosition,
   getCardRefreshingLimits,
   getCarrierInfo,
   getContracts,
   getCreditLimits,
-  getLastMileage,
   getLocationGroupDescriptions,
   getLocationGroups,
   getPolicyDescriptions,
@@ -110,7 +108,7 @@ afterEach(() => {
 });
 
 /**
- * The fifteen, as one table.
+ * The thirteen, as one table.
  *
  * Derived rather than hand-listed per test (standing lesson 4.4): the coverage assertion at the
  * bottom compares this table against the operations `efsAccountOps.ts` actually emits, so an
@@ -131,8 +129,6 @@ const OPERATIONS = [
   { op: "getLocationGroups", run: (o: Impl) => getLocationGroups(env, creds, { policyNumber: 14 }, o) },
   { op: "getSitePolicyDescriptions", run: (o: Impl) => getSitePolicyDescriptions(env, creds, o) },
   { op: "serverTime", run: (o: Impl) => serverTime(env, creds, o) },
-  { op: "doesCardPosition", run: (o: Impl) => doesCardPosition(env, creds, o) },
-  { op: "getLastMileage", run: (o: Impl) => getLastMileage(env, creds, { unit: "688", code: "ODRD" }, o) },
 ] as const;
 
 describe("request shape — our own output, and the tier that needs no vendor", () => {
@@ -215,7 +211,7 @@ describe("fixture fidelity — what makes a hand-written fixture worth anything"
     expect(offenders, "fixture fields not declared anywhere in the WSDL").toEqual([]);
   });
 
-  it("covers all fifteen operations the module exports", () => {
+  it("covers all thirteen operations the module exports", () => {
     // Derived, not hand-counted. An operation added to `efsAccountOps.ts` without a row in
     // OPERATIONS above fails here rather than shipping untested.
     const source = readFileSync(fileURLToPath(new URL("./efsAccountOps.ts", import.meta.url)), "utf8");
@@ -224,7 +220,7 @@ describe("fixture fidelity — what makes a hand-written fixture worth anything"
     // whatever the MODULE emits, which is by definition not constrained to this table.
     const tested = new Set<string>(OPERATIONS.map((o) => o.op));
     expect([...emitted].filter((op) => !tested.has(op)), "operations with no test").toEqual([]);
-    expect(tested.size).toBe(15);
+    expect(tested.size).toBe(13);
   });
 
   /**
@@ -356,49 +352,7 @@ describe("parse — as good as the fixtures above, and no better", () => {
     expect(await serverTime(env, creds, { fetchImpl: impl })).toBe("2026-08-16T09:41:07.000-05:00");
   });
 
-  it("doesCardPosition reads its own part name, not `result`", async () => {
-    /**
-     * The trap this operation shares with the three named in the module header, and the one that
-     * matters most: a parser reaching for `<result>` finds nothing, `bool(null)` is null, and an
-     * account that uses SecureFuel reads as an account we could not ask. Both render as "not on".
-     */
-    const { fetch: impl } = recordingFetch(fixture("doesCardPosition"));
-    expect(await doesCardPosition(env, creds, { fetchImpl: impl })).toBe(true);
+  
+  
+  
   });
-
-  it("getLastMileage wraps its criteria in <search>, on the WSDL's authority", async () => {
-    /**
-     * `efsLocationSearch.ts` had to find this wrapper by trying shapes against the live binding,
-     * because the WSDL was not available when it was written. It is now, and it names the part
-     * `search` — so this is asserted from the contract rather than discovered from a fault.
-     *
-     * `elAlways` for both criteria: the binding rejects omitted filter elements even where the WSDL
-     * marks them nillable, and sending both empty is the wire equivalent of the portal's "All".
-     */
-    const { fetch: impl, requestFor } = recordingFetch(fixture("getLastMileage"));
-    await getLastMileage(env, creds, { unit: "688", code: "ODRD" }, { fetchImpl: impl });
-    const body = requestFor("getLastMileage");
-    expect(body).toContain("<search><unit>688</unit><code>ODRD</code></search>");
-  });
-
-  it("getLastMileage sends both criteria empty when asked for every unit", async () => {
-    const { fetch: impl, requestFor } = recordingFetch(fixture("getLastMileage"));
-    await getLastMileage(env, creds, {}, { fetchImpl: impl });
-    // Empty ELEMENTS, not absent ones — the distinction the rejected-feed request proved.
-    expect(requestFor("getLastMileage")).toContain("<search><unit></unit><code></code></search>");
-  });
-
-  it("getLastMileage parses both mileage codes, in the wire's spelling", async () => {
-    /**
-     * The first row is the 2026-08-16 portal capture. The portal renders `Code` as "odometer"; the
-     * wire value is `ODRD`, and a reader who took the portal's label for a wire value would send a
-     * code this vendor has never seen — into an operation that returns nothing to say so.
-     */
-    const { fetch: impl } = recordingFetch(fixture("getLastMileage"));
-    const rows = await getLastMileage(env, creds, {}, { fetchImpl: impl });
-    expect(rows).toEqual([
-      { unit: "688", code: "ODRD", mileage: 258536 },
-      { unit: "412", code: "HBRD", mileage: 91204 },
-    ]);
-  });
-});

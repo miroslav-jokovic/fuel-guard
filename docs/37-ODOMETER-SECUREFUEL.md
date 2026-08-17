@@ -310,6 +310,12 @@ corrections out of the fuel-override budget and named them as overrides to the o
 wildcard shadows it twice more — `GET /:id` in the router mount and again in the vendor rate-limit
 table, where the entry must sit ABOVE `/:id` or inherit its `opensSoap: false` and go uncharged.
 
+**And one gate caught a third.** The two reads went into `efsAccountOps.ts`, which is where every
+rule that module states puts them — and took it to 560 lines, past the 500-line budget its own header
+brags about keeping `efsCardOps.ts` inside. All three operations now live in `efsSecureFuelOps.ts`,
+which is the better home anyway: one feature, one file, with the write declared at the top. The
+account module keeps its "read-only, every one" claim and the test that holds it to it.
+
 ## 6a. Answered by Miki, 2026-08-17 — and one of them renames the whole feature
 
 Asked as the scope items in §6, answered operationally:

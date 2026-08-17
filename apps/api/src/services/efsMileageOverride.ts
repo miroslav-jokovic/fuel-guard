@@ -1,7 +1,6 @@
 import type { EfsMileageCode } from "@fuelguard/shared";
 import type { Env } from "../env.js";
-import { getLastMileage } from "../lib/efsAccountOps.js";
-import { overrideLastMileage } from "../lib/efsMileageOps.js";
+import { getLastMileage, overrideLastMileage } from "../lib/efsSecureFuelOps.js";
 import type { CardOpOptions } from "../lib/efsCardOps.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 

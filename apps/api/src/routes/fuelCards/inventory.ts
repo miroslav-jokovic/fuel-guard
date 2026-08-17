@@ -2,7 +2,6 @@ import { Router } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
 import {
-  doesCardPosition,
   getCardRefreshingLimits,
   getCarrierInfo,
   getContracts,
@@ -17,6 +16,7 @@ import {
   getSitePolicyDescriptions,
   serverTime,
 } from "../../lib/efsAccountOps.js";
+import { doesCardPosition } from "../../lib/efsSecureFuelOps.js";
 import { getCardV2, getPolicy } from "../../lib/efsCardOps.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
