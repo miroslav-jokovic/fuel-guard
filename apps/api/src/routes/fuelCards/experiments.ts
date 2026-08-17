@@ -112,6 +112,8 @@ interface VerifyReading {
   version: string;
   /** Verbatim vendor casing — the reading IS the data here. */
   status: string | null;
+  /** F9: a `landed: false` is evidence about overrides only if one was armed AT THIS INSTANT. */
+  overrideUses: number | null;
   landed: boolean;
 }
 
@@ -200,7 +202,7 @@ export function fuelCardExperimentsRouter(): Router {
               before, grant.uses,
               grant.locationId !== undefined
                 ? { kind: "location" as const, locationId: grant.locationId }
-                : { kind: "all" as const },
+                : { kind: "all" as const }, [], // `[]`: a probe does not delete a card's limits
             )
           : overrideClearEdits();
         /** What the trio's count should read once the write lands. */
@@ -456,6 +458,7 @@ export function fuelCardExperimentsRouter(): Router {
             atMsAfterWrite: Date.now() - writeStarted - writeMs,
             version: read.version,
             status: read.card.status,
+            overrideUses: read.card.overrideUses,
             landed,
           });
           if (landed) break;

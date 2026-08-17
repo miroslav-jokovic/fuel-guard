@@ -1,8 +1,7 @@
 import {
-  OVERRIDE_GRANT_STEP_UP,
   type OverrideGrantBody,
   overrideGrantContract,
-  overrideGrantNeedsStepUp,
+  overrideGrantStepUp,
 } from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
 
@@ -42,9 +41,12 @@ export const overrideGrantView = defineView(overrideGrantContract, {
   /**
    * The one gate that is EXACT here: `preflightStepUp` decides from the body alone, and this has the
    * same body. Turning the stepper past three re-renders this warning with no round trip.
+   *
+   * `overrideGrantStepUp` rather than the two predicates spelled out, so the drawer shows the reason
+   * the server would actually give. There are two of them since Step 10.1, and a view that picked its
+   * own would be free to warn about a use count while the server refused over a deleted product limit.
    */
-  stepUp: (body: OverrideGrantBody) =>
-    (overrideGrantNeedsStepUp(body.uses) ? OVERRIDE_GRANT_STEP_UP : null),
+  stepUp: (body: OverrideGrantBody) => overrideGrantStepUp(body),
 });
 
 const usesLabel = (uses: number): string =>

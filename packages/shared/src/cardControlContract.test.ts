@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { deactivateCardSchema, grantOverrideSchema, lockCardSchema, setPromptsSchema, unlockCardSchema } from "./cardControlContract.js";
-import { EFS_DYNAMIC_INFO_IDS, EFS_INFO_LABELS, EFS_VALIDATION_TYPES } from "./efsCardCatalog.js";
+import {
+  EFS_DYNAMIC_INFO_IDS, EFS_INFO_LABELS, EFS_OVERRIDE_MAX_LIMITS, EFS_VALIDATION_TYPES,
+} from "./efsCardCatalog.js";
 // The permission vocabulary and the settings shapes moved here in Step 3.7's split. Imported from
 // the module rather than the package index, so this file keeps saying which one owns each symbol.
 import {
@@ -279,6 +281,68 @@ describe("grantOverrideSchema locationId (audit P1-6c)", () => {
     expect(grantOverrideSchema.safeParse({
       ...base, scope: { kind: "location", locationId: "123456" },
     }).success).toBe(true);
+  });
+});
+
+describe("grantOverrideSchema limits — the p194 product override (Step 10.1)", () => {
+  const base = {
+    expectedVersion: "0123456789abcdef0123456789abcdef",
+    uses: 1,
+    scope: { kind: "all" as const },
+  };
+  const limit = { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 };
+
+  it("defaults to no limits, so every existing caller still sends a scope-only grant", () => {
+    const parsed = grantOverrideSchema.parse(base);
+    expect(parsed.limits).toEqual([]);
+  });
+
+  it("accepts the guide's own worked example", () => {
+    expect(grantOverrideSchema.parse({ ...base, limits: [limit] }).limits).toEqual([limit]);
+  });
+
+  it("refuses the same product twice — the vendor never emits that shape and ignores what it cannot read", () => {
+    expect(grantOverrideSchema.safeParse({
+      ...base, limits: [limit, { ...limit, limit: 50 }],
+    }).success).toBe(false);
+    // POSITIVE CONTROL: two DIFFERENT products is the portal's "Save and Add Another" and is allowed.
+    expect(grantOverrideSchema.safeParse({
+      ...base, limits: [limit, { ...limit, limitId: "DEF", limit: 50 }],
+    }).success).toBe(true);
+  });
+
+  it("refuses a location-scoped product override — p194 gives that recipe in one form only", () => {
+    expect(grantOverrideSchema.safeParse({
+      ...base, scope: { kind: "location", locationId: "442013" }, limits: [limit],
+    }).success).toBe(false);
+    // POSITIVE CONTROL: the same location scope with NO limits is the ordinary single-location recipe.
+    expect(grantOverrideSchema.safeParse({
+      ...base, scope: { kind: "location", locationId: "442013" }, limits: [],
+    }).success).toBe(true);
+  });
+
+  it("holds each field to the width the guide's limits table declares", () => {
+    // limit numeric(4) "0 to 9999"; hours and minHours both int(3). Read from the field table, not
+    // from p194's recipe, which only ever shows hours: 1.
+    expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, limit: 10_000 }] }).success).toBe(false);
+    expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, hours: 1000 }] }).success).toBe(false);
+    expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, minHours: 1000 }] }).success).toBe(false);
+    // POSITIVE CONTROLS: each ceiling is itself allowed, or the bound is off by one in the direction
+    // that refuses the guide's own maximum.
+    expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, limit: 9999 }] }).success).toBe(true);
+    expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, hours: 999, minHours: 999 }] }).success).toBe(true);
+  });
+
+  it("refuses a limitId that is not a vendor product code", () => {
+    for (const limitId of ["ulsd", "ULSD DIESEL", "", "ULSD;DROP"]) {
+      expect(grantOverrideSchema.safeParse({ ...base, limits: [{ ...limit, limitId }] }).success).toBe(false);
+    }
+  });
+
+  it("bounds how much of a card's fuel policy one exception may rewrite", () => {
+    const many = Array.from({ length: EFS_OVERRIDE_MAX_LIMITS + 1 }, (_, i) => ({ ...limit, limitId: `P${i}` }));
+    expect(grantOverrideSchema.safeParse({ ...base, limits: many }).success).toBe(false);
+    expect(grantOverrideSchema.safeParse({ ...base, limits: many.slice(0, -1) }).success).toBe(true);
   });
 });
 

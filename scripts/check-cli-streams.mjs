@@ -40,6 +40,13 @@ const CASES = [
   // Added after --expect-org shipped: its argument validation must also stay off stdout, and must
   // happen before the token prompt rather than after a round trip.
   { name: "--expect-org with no value is refused", args: ["scan", "--expect-org"] },
+  /**
+   * `f9-probe` arms a real override, so all three of its refusals have to happen before the token
+   * prompt — and a refusal that lands on stdout would corrupt the transcript the command writes there.
+   */
+  { name: "f9-probe without --expect-org is refused", args: ["f9-probe"] },
+  { name: "f9-probe refuses a card number as a flag", args: ["f9-probe", "--expect-org", "qa", "--card", "70830000000000001"] },
+  { name: "f9-probe refuses to run against production", args: ["f9-probe", "--expect-org", "production"] },
 ];
 
 const failures = [];

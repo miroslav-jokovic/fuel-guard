@@ -4,9 +4,12 @@ import {
   CAPABILITIES_WITH_STEP_UP_GATE,
   CARD_UNLOCK_STEP_UP,
   OVERRIDE_GRANT_STEP_UP,
+  OVERRIDE_LIMITS_STEP_UP,
   PROMPT_REMOVAL_STEP_UP,
   cardUnlockNeedsStepUp,
   overrideGrantNeedsStepUp,
+  overrideGrantStepUp,
+  overrideLimitsNeedStepUp,
   promptRemovalNeedsStepUp,
 } from "./stepUp.js";
 import { overrideStepUpMessage } from "./capabilities/overrideGrant.contract.js";
@@ -38,6 +41,46 @@ describe("override grant", () => {
 
   it("names the threshold in the sentence, so the operator is told what would avoid the prompt", () => {
     expect(OVERRIDE_GRANT_STEP_UP).toContain(String(CARD_OVERRIDE_STEP_UP_ABOVE_USES));
+  });
+});
+
+describe("override grant — the product-limit reason (Step 10.1)", () => {
+  const limit = { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 };
+
+  it("demands a password for ONE use with a product limit — the use count is not the only reason", () => {
+    // p194 replaces the card's product limits with the override's, so a single-use product override
+    // deletes the caps the card was carrying. `promptRemovalNeedsStepUp` makes the same call: every
+    // explicit removal is destructive, not only a large one.
+    expect(overrideLimitsNeedStepUp(1)).toBe(true);
+    expect(overrideGrantStepUp({ uses: 1, limits: [limit] })).toBe(OVERRIDE_LIMITS_STEP_UP);
+  });
+
+  it("does NOT tell that operator they asked for more than three uses", () => {
+    // The whole reason there are two strings. A single shared message would answer "why am I being
+    // asked for a password?" with a threshold the operator is nowhere near, and they would go and
+    // turn the stepper down looking for it.
+    const message = overrideGrantStepUp({ uses: 1, limits: [limit] })!;
+    expect(message).not.toContain(String(CARD_OVERRIDE_STEP_UP_ABOVE_USES));
+    expect(message).not.toBe(OVERRIDE_GRANT_STEP_UP);
+    // POSITIVE CONTROL for those two absences: it does say what actually demanded the password.
+    expect(message).toContain("product limit");
+    expect(message).toContain("replaces the card's own limits");
+  });
+
+  it("still gives the use-count reason when that is the only one that fired", () => {
+    expect(overrideGrantStepUp({ uses: CARD_OVERRIDE_STEP_UP_ABOVE_USES + 1, limits: [] }))
+      .toBe(OVERRIDE_GRANT_STEP_UP);
+  });
+
+  it("names the destructive reason when both apply", () => {
+    expect(overrideGrantStepUp({ uses: 9, limits: [limit] })).toBe(OVERRIDE_LIMITS_STEP_UP);
+  });
+
+  it("asks for nothing on the ordinary scope-only grant, which is most of them", () => {
+    expect(overrideGrantStepUp({ uses: 1, limits: [] })).toBeNull();
+    // An absent `limits` reads as none — the schema defaults it, and a caller mid-refactor must not
+    // accidentally acquire a step-up prompt.
+    expect(overrideGrantStepUp({ uses: 1 })).toBeNull();
   });
 });
 

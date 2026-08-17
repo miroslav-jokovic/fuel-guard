@@ -3,6 +3,9 @@ import {
   EFS_CARD_STATUSES,
   EFS_CONFIG_SOURCES,
   EFS_HAND_ENTER,
+  EFS_LIMIT_HOURS_MAX,
+  EFS_LIMIT_MAX,
+  EFS_OVERRIDE_MAX_LIMITS,
   EFS_OVERRIDE_MAX_USES,
   EFS_OVERRIDE_MIN_USES,
   EFS_POLICY_MAX,
@@ -322,11 +325,84 @@ export const overrideScopeSchema = z.discriminatedUnion("kind", [
 ]);
 export type OverrideScope = z.infer<typeof overrideScopeSchema>;
 
+/**
+ * One product and the amount an override opens it up to — p194's third recipe, "Override Product
+ * Limits", whose worked example is `hours 1 / limit 1000 / limitId ULSD / minHours 0`.
+ *
+ * ── Four fields, not six, and that is the guide's choice rather than ours ─────────────────────────
+ * `WSCardLimitv2` declares six (`autoRollMap`/`autoRollMax` follow `minHours` — see
+ * WS_CARD_LIMIT_SEQUENCE). p194's example carries four, and an override limit is a temporary
+ * exception rather than a rolling allowance, so auto-roll has nothing to say about it. The serializer
+ * emits whatever fields a record has in the declared order, so adding them later needs no change
+ * here.
+ *
+ * ── `limitId` is shape-checked, NOT checked against the account ───────────────────────────────────
+ * The same call Step 9.2 made for `infoId`: the set of real limit IDs comes from the ACCOUNT
+ * (`getProducts`, walked by Phase 7), not from a constant, so validating it here would mean either a
+ * stale enum or a second copy of the account vocabulary. `EFS_LIMIT_LABELS` is our transcription of
+ * the guide's table and is a floor, not the account's set — refusing against it would refuse a
+ * product WEX added. Step 10.3's picker is fed from the account and is where an unknown id is
+ * refused with the vocabulary in hand.
+ */
+export const overrideLimitSchema = z.object({
+  /** Limit IDs are short upper-case codes (`ULSD`, `DEF`, `CADV`) — p169-170. */
+  limitId: z.string().regex(/^[A-Z0-9]{1,10}$/, {
+    message: "limitId is a short upper-case EFS product code, e.g. ULSD.",
+  }),
+  /** Gallons for fuel and DEF, dollars otherwise (p36) — see limitUnit(). numeric(4), 0–9999. */
+  limit: z.coerce.number().int().min(0).max(EFS_LIMIT_MAX),
+  /** Hours the limit is good for before resetting. int(3). */
+  hours: z.coerce.number().int().min(0).max(EFS_LIMIT_HOURS_MAX),
+  /** Minimum hours between uses. int(3). */
+  minHours: z.coerce.number().int().min(0).max(EFS_LIMIT_HOURS_MAX),
+});
+export type OverrideLimit = z.infer<typeof overrideLimitSchema>;
+
 export const grantOverrideSchema = z.object({
   expectedVersion: cardVersionSchema,
   uses: z.coerce.number().int().min(EFS_OVERRIDE_MIN_USES).max(EFS_OVERRIDE_MAX_USES),
   scope: overrideScopeSchema,
-});
+  /**
+   * The products this override opens up. EMPTY is the ordinary case — a scope-only exception, which
+   * is every override this product granted before Step 10.1 — and it is spelled as an empty array
+   * rather than an absent field so a grant always says what it does to the card's limits.
+   */
+  limits: z.array(overrideLimitSchema).max(EFS_OVERRIDE_MAX_LIMITS).default([]),
+})
+  .superRefine((body, ctx) => {
+    /**
+     * Two products with one `limitId` is a document shape the vendor never emits, and this vendor's
+     * demonstrated answer to a shape it has not seen is accepted-and-ignored (audit W3). It is also
+     * ambiguous on its face — which of the two amounts is the exception? — so it is refused rather
+     * than resolved by a last-wins rule nobody would find.
+     */
+    const seen = new Set<string>();
+    for (const [index, limit] of body.limits.entries()) {
+      if (seen.has(limit.limitId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["limits", index, "limitId"],
+          message: `${limit.limitId} is listed twice — one amount per product.`,
+        });
+      }
+      seen.add(limit.limitId);
+    }
+
+    /**
+     * p194 gives the product-limit override in ONE form: `overrideAllLocations` set to True. There is
+     * no single-location variant of it, and the two location recipes above it say nothing about
+     * limits. So a location-scoped product override is a shape the guide does not describe, and
+     * inventing it here would ask the operator to trust a combination nothing has ever confirmed —
+     * the same refusal Step 9.3 made about the odometer direction.
+     */
+    if (body.limits.length > 0 && body.scope.kind !== "all") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scope", "kind"],
+        message: "A product-limit override applies at every location (p194). Clear the location to continue.",
+      });
+    }
+  });
 export type GrantOverrideRequest = z.infer<typeof grantOverrideSchema>;
 
 export const clearOverrideSchema = z.object({

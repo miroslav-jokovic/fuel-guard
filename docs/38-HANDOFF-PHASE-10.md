@@ -174,7 +174,9 @@ Live-verified this session, against the real account:
 | — | 9.6's two live add-prompt checks never run | needs Miki + QA card |
 | — | 9.4's `POLICY`-source refusal cannot be proven live — **no card on either org is POLICY-sourced** | proven offline only |
 | — | `card_unlock` STILL unproven after three voids, outstanding since Phase 8.2 | `docs/28` 8.2 |
-| — | §7 Q1/Q2/Q2b/Q2d/Q3/Q4 need WEX; Q2c answered (not this web service) | `docs/37` §7 |
+| — | §7 Q1/Q2/Q2b/Q2d/Q3/Q4 need WEX; Q2c answered (not this web service). **Q5 added and largely self-answered 2026-08-17** from WEX's portal guides — downgraded to confirming. **⚠ Q6 is the new one and it is a `card_lock` safety question**: all three eManager guides say *"when a card is in override no changes can be made to the card"*, absent from the SOAP guide, and NO capability checks `overrideUses` today | `docs/37` §7, §8 |
+| — | ⚠ **Check `docs/37` §8 before opening a WEX ticket.** Three official eManager guides answered two questions this workstream had written down as *"only WEX can answer"*. They do NOT extract through `WebFetch` (it reports corrupted binary) — download and run `pdftotext` | `docs/37` §8 |
+| — | Five gates exist that no workflow runs — **and one of them, `mutation-check`, had gone STALE unnoticed**: `efs-mileage-unit-ownership-dropped` stopped matching when commit `ceabbf5` reworded the 404, so it had been asserting nothing. Re-anchored 2026-08-17 on the `!vehicle` refusal alone. **A stale mutation reads as a pass** — worth checking the harness reports `29/29`, not just "no failures" | `scripts/mutation-check.mjs` |
 | — | Five gates exist that **no workflow runs**: `lint:comment-claims`, `lint:rls`, `lint:codegen`, `lint:wsdl`, `format:check` | run them by hand |
 | — | `format:check` has drifted to ~1295 files; prettier is effectively not the house style | do not "fix" it casually |
 | — | 33 remote branches whose tips are not in `main`, incl. `fix/accrual-follows-the-account` (content IS merged) | housekeeping, Miki's call |

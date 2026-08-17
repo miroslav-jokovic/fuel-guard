@@ -164,6 +164,30 @@ const MUTATIONS = [
     detect: sharedTest("src/efs/stepUp.test.ts"),
   },
   {
+    id: "efs-override-limits-removals-empty",
+    why: "The Step 10.1 plan error, as a mutation. `removals: []` is what the plan specified; it passes on a card whose <limits> is already empty — the one card Step 10.4 proves on — and assertCollectionsPreserved refuses it on every card that has limits. So the bug would have gone live green and failed on the first real override.",
+    file: "apps/api/src/services/efsCardEdits.ts",
+    find: "    removals,\n  };\n}",
+    replace: "    removals: [],\n  };\n}",
+    detect: apiTest("src/services/efsCardEdits.test.ts"),
+  },
+  {
+    id: "efs-override-limits-scope-only",
+    why: "The products the operator chose are dropped on the way to the edit list, so the write grants a scope-only exception while the ledger and the confirmation both say a product limit was overridden. Silent, and in the expensive direction: the driver is still capped at the card's own amount.",
+    file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
+    find: "overrideGrantEdits(doc, body.uses, body.scope, body.limits)",
+    replace: "overrideGrantEdits(doc, body.uses, body.scope, [])",
+    detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
+  },
+  {
+    id: "efs-override-limits-stepup-bypassed",
+    why: "A product-limit override stops demanding a password, so one click deletes the card's product limits (p194) with no re-authentication. The uses threshold still fires, which is what makes this quiet — the gate looks alive.",
+    file: "packages/shared/src/efs/stepUp.ts",
+    find: "export const overrideLimitsNeedStepUp = (limitCount: number): boolean => limitCount > 0;",
+    replace: "export const overrideLimitsNeedStepUp = (limitCount: number): boolean => limitCount > 99;",
+    detect: sharedTest("src/efs/stepUp.test.ts"),
+  },
+  {
     id: "efs-prompts-optin-bypassed",
     why: "The DRID removal opt-in is ignored, so clearing a text box can stop the pump asking who is fuelling (guide p137). The refusal had no test at all until Step 3.6.",
     file: "apps/api/src/efs/capabilities/promptsSet.behaviour.ts",
@@ -284,8 +308,19 @@ const MUTATIONS = [
     id: "efs-mileage-unit-ownership-dropped",
     why: "The typo boundary. `overrideLastMileage` returns nothing, so a write onto a unit belonging to nobody — 868 for 688 — lands silently and reports success. The org-scoped EFS session does not catch it: both units are on the same account.",
     file: "apps/api/src/routes/fuelCards/unitMileage.ts",
-    find: "      const vehicle = await findVehicle(admin, orgId, unit);\n      if (!vehicle) {\n        res.status(404).json(apiError(\"unknown_unit\", `No vehicle in this company has unit number ${unit}.`));\n        return;\n      }\n\n      // AFTER validation and ownership",
-    replace: "      const vehicle = await findVehicle(admin, orgId, unit);\n\n      // AFTER validation and ownership",
+    /**
+     * Re-anchored 2026-08-17 after this check went STALE — a stale mutation is worse than a survived
+     * one, because it reads as a pass while testing nothing. Commit ceabbf5 split `findVehicle`'s
+     * answer into `{ vehicle, lookupFailed }` and expanded the 404's wording, so the old pattern
+     * stopped matching and this entry had been asserting nothing since.
+     *
+     * Anchored on the `!vehicle` refusal ALONE rather than on the surrounding lines, so a future
+     * rewording of the sentence cannot silence it again. The `lookupFailed` branch above is a
+     * different guard with a different failure (a 503, not a silent landing) and is left in place:
+     * removing only the ownership refusal is what makes this mutation about ownership.
+     */
+    find: "      if (!vehicle) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
+    replace: "      if (false) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
     detect: apiTest("src/routes/fuelCards/unitMileageRoute.test.ts"),
   },
   {

@@ -84,7 +84,15 @@ const GRANDFATHERED = {
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
   // not grow. Removed when the Phase 4 harness supersedes the experiment router.
-  "apps/api/src/routes/fuelCards/experiments.ts": 513,
+  //
+  // 513 → 516 on 2026-08-17, deliberately and with the reason stated, per this gate's own rule that
+  // justified growth raises the pin in the same commit. `VerifyReading` gained `overrideUses` so the
+  // F9 probe's central observation is self-evidencing: WEX's portal guides say a card in override
+  // accepts no changes, and a `landed: false` is only evidence of that if the override is known to
+  // have been armed AT THE INSTANT of the reading. Inferring it from a `read_state` either side is
+  // weaker for the reason docs/28 §8's four defects were weak — two sources agreeing about a third
+  // thing neither observed.
+  "apps/api/src/routes/fuelCards/experiments.ts": 516,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this
