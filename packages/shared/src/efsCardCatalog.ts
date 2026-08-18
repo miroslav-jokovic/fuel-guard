@@ -343,19 +343,12 @@ export const resolveEditableInfoIds = (
 export const infoLabel = (infoId: string): string => EFS_INFO_LABELS[infoId] ?? infoId;
 
 // ─── Limit IDs (per-product caps) — p169–171 ───────────────────────────────────────────────────
-// Moved to `efsLimitCatalog.ts` for the file-size budget and re-exported here, so every existing
-// import of a limit helper from this module keeps working. `index.ts` exports both files anyway;
-// this line is for the call sites that name the catalog directly.
-export {
-  EFS_LIMIT_LABELS,
-  formatLimit,
-  limitLabel,
-  limitUnit,
-  resolveLimitVocabulary,
-  type EfsLimitOption,
-  type EfsLimitUnit,
-  type EfsProductGroupRecord,
-} from "./efsLimitCatalog.js";
+// Moved WHOLE to `efsLimitCatalog.ts` for the file-size budget, and deliberately NOT re-exported
+// from here. A hand-written re-export list is a second place to remember: it was written that way
+// first, four helpers added to the catalog afterwards were missing from it, and `pnpm typecheck`
+// did not notice — the web app typechecks against `packages/shared/dist` and RUNS against `src`, so
+// the failure surfaced only as `limitOptionIndex is not a function` at test time. `index.ts` exports
+// both modules; nothing needs a bridge here.
 
 
 /**

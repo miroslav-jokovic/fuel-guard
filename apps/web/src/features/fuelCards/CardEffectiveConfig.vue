@@ -25,11 +25,18 @@ import {
   sourceSentence,
   timeRows,
 } from "./cardControlModel";
+import type { EfsLimitOption } from "@fuelguard/shared";
 import type { EfsCardDetailResponse } from "./useEfsCards";
 
 const props = defineProps<{
   effective: EfsCardDetailResponse["effective"];
   policyNumber: number | null;
+  /**
+   * The account's limit vocabulary, so a product limit is rendered in the unit THIS account says it
+   * has rather than the one our transcribed table guesses. Required, not optional: a default here
+   * would silently restore the guess at whichever call site forgot to pass it.
+   */
+  limitOptions: readonly EfsLimitOption[];
 }>();
 
 const columns: DataTableColumn[] = [
@@ -50,7 +57,7 @@ const sections = computed(() => [
     id: "limits",
     title: "Product limits",
     sentence: sourceSentence("Limits", props.effective.sources.limitSource, props.policyNumber),
-    rows: limitRows(props.effective.limits),
+    rows: limitRows(props.effective.limits, props.limitOptions),
     empty: "No product limits. Spending is bounded only by the account.",
   },
   {

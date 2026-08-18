@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   EFS_INFO_LABELS,
-  EFS_LIMIT_LABELS,
   EFS_UNEDITABLE_INFO_IDS,
   matchStatusCasing,
   resolveEditableInfoIds,
-  resolveLimitVocabulary,
 } from "./efsCardCatalog.js";
+import { EFS_LIMIT_LABELS, resolveLimitVocabulary } from "./efsLimitCatalog.js";
 
 /**
  * H1 (confirmed 2026-08-12, QA card ••••7671): EFS applies a status write ONLY when its casing

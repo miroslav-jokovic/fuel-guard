@@ -145,9 +145,9 @@ const limitUnitFor = (limitId: string, isFuel: boolean | null | undefined): EfsL
   return limitUnit(limitId);
 };
 
-/** Render a limit value with the unit its ID implies. */
-export function formatLimit(limitId: string, value: number): string {
-  switch (limitUnit(limitId)) {
+/** Render a value in a KNOWN unit. The only place the three renderings are spelled. */
+export function renderLimitValue(unit: EfsLimitUnit, value: number): string {
+  switch (unit) {
     case "gallons":
       return `${value} gal`;
     case "units":
@@ -156,3 +156,59 @@ export function formatLimit(limitId: string, value: number): string {
       return `$${value}`;
   }
 }
+
+/**
+ * Render a limit value with the unit its ID implies, from the id ALONE.
+ *
+ * ⚠ This is the id-only fallback and it is knowably wrong on some accounts. `GALLON_LIMIT_IDS` is a
+ * list this codebase chose from the guide's p36 sentence; this account reports `APRO` and `HYDR` as
+ * fuel and neither is in it, so both render as dollars here. Prefer `formatLimitFrom`, which asks
+ * the account. This remains for the callers that genuinely have no vocabulary in hand.
+ */
+export function formatLimit(limitId: string, value: number): string {
+  return renderLimitValue(limitUnit(limitId), value);
+}
+
+/**
+ * One limit id looked up in the ACCOUNT's own vocabulary, or null when it is not there.
+ *
+ * A Map is not built here on purpose: the caller that renders a table builds one once with
+ * `limitOptionIndex` below, and a caller with a single id should not pay to build one at all.
+ */
+export const limitOptionFor = (
+  options: readonly EfsLimitOption[] | null | undefined,
+  limitId: string,
+): EfsLimitOption | null =>
+  options?.find((option) => option.limitId === limitId.trim().toUpperCase()) ?? null;
+
+/** The same lookup as a Map, for a caller rendering many rows against one vocabulary. */
+export const limitOptionIndex = (
+  options: readonly EfsLimitOption[] | null | undefined,
+): ReadonlyMap<string, EfsLimitOption> =>
+  new Map((options ?? []).map((option) => [option.limitId, option]));
+
+/**
+ * Label and value for one limit, asking the ACCOUNT first — what the rendering fix is for.
+ *
+ * ── The defect this closes ──────────────────────────────────────────────────────────────────────
+ * `formatLimit` answers from `GALLON_LIMIT_IDS`, which has `APRO` and `HYDR` wrong on this account:
+ * `getProductGroups` reports both as `isFuel: true`, and both rendered as dollars. A fuel cap shown
+ * as "$100" when it is a hundred units of something is the p36 failure this file's comments have
+ * warned about since Phase 1, arriving through the one route nobody had checked — an id the guide's
+ * table never listed.
+ *
+ * The account's answer wins where there is one. Where there is not — an id on a card that the
+ * vocabulary does not carry, which is exactly what a stale walk looks like — it falls back to the
+ * id-only rule rather than to nothing, so a limit is never rendered without a unit at all.
+ */
+export function formatLimitFrom(
+  option: EfsLimitOption | null | undefined,
+  limitId: string,
+  value: number,
+): string {
+  return option ? renderLimitValue(option.unit, value) : formatLimit(limitId, value);
+}
+
+/** The account's wording for a limit, falling back to our transcription and then to the bare id. */
+export const limitLabelFrom = (option: EfsLimitOption | null | undefined, limitId: string): string =>
+  option?.label ?? limitLabel(limitId);

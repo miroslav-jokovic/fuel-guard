@@ -1,8 +1,10 @@
 import {
   type EffectiveOrigin,
-  formatLimit,
+  type EfsLimitOption,
+  formatLimitFrom,
   infoLabel,
-  limitLabel,
+  limitLabelFrom,
+  limitOptionIndex,
 } from "@fuelguard/shared";
 
 /**
@@ -19,7 +21,9 @@ import {
  * ── The two rules that drive every renderer here ────────────────────────────────────────────────
  *   • A limit VALUE means gallons for fuel and dollars otherwise (guide p36). Rendering a 100-gallon
  *     ULSD cap as "$100" tells a fleet manager their driver can buy a third of a tank when he can in
- *     fact fill twice.
+ *     fact fill twice. Since Step 10.3 the ACCOUNT answers which products are fuel — `isFuel` from
+ *     `getProductGroups` — because the set this codebase transcribed from p36 has `APRO` and `HYDR`
+ *     wrong, and both rendered as dollars.
  *   • "Card level always trumps policy" (p37), and getCardv2 does not return the policy half at all.
  *     A policy rule that is NOT in force must still be visible, and visibly not in force.
  */
@@ -167,15 +171,37 @@ export function autoRollClause(limit: RawLimit): string {
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
-export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRow[] {
+/**
+ * `options` is REQUIRED, with no default, for `promptDrafts.ts`' reason: a default would let a call
+ * site silently keep rendering from the hardcoded table, which is the bug being closed and would be
+ * invisible at exactly the call site that forgot.
+ *
+ * ── Why the account's vocabulary reaches the RENDERING and not just the picker ──────────────────
+ * `formatLimit` answers from `GALLON_LIMIT_IDS`, a set this codebase transcribed from p36. This
+ * account reports `APRO` and `HYDR` as `isFuel: true` and neither is in that set, so a fuel cap on
+ * either rendered as "$100" — the "a third of a tank when he can in fact fill twice" failure the
+ * note at the top of this file has warned about since Phase 1, reached through the one route nobody
+ * checked: a limit id the guide's own table never listed.
+ *
+ * An id the vocabulary does not carry still renders, through the id-only fallback. A stale walk must
+ * degrade to the old behaviour, never to a limit with no unit at all.
+ */
+export function limitRows(
+  rows: readonly Merged<RawLimit>[],
+  options: readonly EfsLimitOption[],
+): EffectiveDisplayRow[] {
+  // Built once for the whole table rather than a linear scan per row — 93 products against however
+  // many limits a card carries is a product nobody needs to pay for on every render.
+  const byId = limitOptionIndex(options);
   return rows.map((row, index) => {
     const window = row.value.hours ? ` per ${row.value.hours}h` : "";
     const gap = row.value.minHours ? `, ${row.value.minHours}h between uses` : "";
+    const option = byId.get(row.value.limitId.trim().toUpperCase()) ?? null;
     return {
       key: `${row.value.limitId}-${row.origin}-${index}`,
-      label: limitLabel(row.value.limitId),
-      // formatLimit carries the unit the limit ID implies. See the note at the top of this file.
-      detail: `${formatLimit(row.value.limitId, row.value.limit)}${window}${gap}${autoRollClause(row.value)}`,
+      label: limitLabelFrom(option, row.value.limitId),
+      // The ACCOUNT's unit where it has one; the id-only rule otherwise. See the docblock above.
+      detail: `${formatLimitFrom(option, row.value.limitId, row.value.limit)}${window}${gap}${autoRollClause(row.value)}`,
       ...describeOrigin(row.origin),
     };
   });
