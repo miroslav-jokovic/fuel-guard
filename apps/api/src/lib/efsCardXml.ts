@@ -399,6 +399,33 @@ export function cardVersion(root: XmlElement): string {
  */
 const EFS_FAULT_REFERENCE = /\b(Not\s*Allowed|ERROR running command|Invalid policy number for)\s+(\d{6,14})\b/gi;
 
+/**
+ * Info records whose values identify a PERSON rather than configure a pump.
+ *
+ * ── Why this pass exists (2026-08-18, the Step 10.4 production transcript) ───────────────────────
+ * A setCardv2 echo carries the card's `<infos>` back verbatim, and the digit passes below cannot see
+ * PII that is not a bare digit run: `<reportValue>BENJAMIN MASSEY</reportValue>` has no digits, a
+ * licence like `M611196591000` opens with a letter (no `\b` between two word characters, so the
+ * digit-run pass never fires), and a four-digit driver id is below the 10-digit floor. All three
+ * sailed through redaction into `requestXmlRedacted`, and the production transcript had to be
+ * hand-scrubbed before it could be committed.
+ *
+ * The VALUES are masked in full, not last-four (rule 13's style is for numbers): the last four
+ * letters of a name identify a person, and a licence's tail plus the `DLST` state beside it narrows
+ * to one. Structure stays readable — `infoId`, `validationType` and the element tags survive, so a
+ * transcript still shows WHICH prompts rode along and how the pump treats them; only who they
+ * belong to is gone.
+ */
+const PII_INFO_IDS = new Set(["NAME", "DLIC", "CNTN", "DRID"]);
+
+const maskPiiInfoBlocks = (xml: string): string =>
+  xml.replace(/<infos>[\s\S]*?<\/infos>/gi, (block) => {
+    const infoId = /<infoId>\s*([A-Za-z0-9]+)\s*<\/infoId>/i.exec(block)?.[1]?.toUpperCase();
+    if (!infoId || !PII_INFO_IDS.has(infoId)) return block;
+    return block.replace(/(<(?:matchValue|reportValue)>)[^<]+(<\/)/gi, (_m, open: string, close: string) =>
+      `${open}••••${close}`);
+  });
+
 export function redactCardXml(xml: string): string {
   // Park the references, redact everything, then put them back. Simpler and safer than trying to
   // write one regex that redacts digit runs EXCEPT after certain phrases.
@@ -408,7 +435,7 @@ export function redactCardXml(xml: string): string {
     return `${prefix} @@EFSREF${references.length - 1}@@`;
   });
 
-  const redacted = parked
+  const redacted = maskPiiInfoBlocks(parked)
     .replace(/(<(?:cardNumber|cardNum|CardNumber|fromCard|toCard)>)([^<]*)(<\/)/gi, (_m, open, value: string, close) =>
       `${open}${maskDigits(value)}${close}`)
     .replace(/\b\d{10,25}[A-Z]{2,6}\b/g, (value) => maskDigits(value))

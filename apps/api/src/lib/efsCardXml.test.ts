@@ -775,6 +775,65 @@ describe("redaction", () => {
   it("masks for display without ever holding a full PAN", () => {
     expect(maskPan("7521")).toBe("•••• 7521");
   });
+
+  /**
+   * Driver PII in `<infos>` — the gap the Step 10.4 PRODUCTION transcript exposed (2026-08-18).
+   *
+   * A setCardv2 echo carries the card's prompt records verbatim, and none of the digit passes can
+   * see them: a name has no digits, a licence opens with a letter (no word boundary for the
+   * digit-run pass), a driver id is four digits. `docs/efs/limit-restore-production.json` had to be
+   * hand-scrubbed before commit. These pin the pass that closes that.
+   */
+  describe("driver PII in info records", () => {
+    const info = (id: string, field: string, value: string) =>
+      `<infos><infoId>${id}</infoId><matchValue>${field === "match" ? value : ""}</matchValue>`
+      + `<reportValue>${field === "report" ? value : ""}</reportValue>`
+      + `<validationType>${field === "match" ? "EXACT_MATCH" : "REPORT_ONLY"}</validationType></infos>`;
+
+    it("masks a driver's name, licence, contact and driver id — in FULL, not last-four", () => {
+      const out = redactCardXml(
+        info("NAME", "report", "BENJAMIN MASSEY")
+          + info("DLIC", "report", "M611196591000")
+          + info("CNTN", "report", "BMASSEY")
+          + info("DRID", "match", "7500"),
+      );
+      expect(out).not.toContain("MASSEY");
+      expect(out).not.toContain("M611196591000");
+      expect(out).not.toContain("BMASSEY");
+      expect(out).not.toContain("<matchValue>7500</matchValue>");
+      // Full mask: the last four letters of a name identify a person; rule 13's last-four is for PANs.
+      expect(out).toContain("<reportValue>••••</reportValue>");
+      expect(out).toContain("<matchValue>••••</matchValue>");
+    });
+
+    it("keeps the record's STRUCTURE readable — which prompt, and how the pump treats it", () => {
+      const out = redactCardXml(info("NAME", "report", "BENJAMIN MASSEY"));
+      expect(out).toContain("<infoId>NAME</infoId>");
+      expect(out).toContain("<validationType>REPORT_ONLY</validationType>");
+    });
+
+    it("leaves operational prompts alone — a unit or trip number configures a pump, not a person", () => {
+      const operational = info("UNIT", "match", "746") + info("TRIP", "report", "0133313");
+      expect(redactCardXml(operational)).toBe(operational);
+    });
+
+    it("leaves an empty value visibly empty rather than pretending something was masked", () => {
+      const out = redactCardXml(info("NAME", "match", "IGNORED"));
+      // NAME's reportValue is empty in this shape; it must stay empty, while matchValue masks.
+      expect(out).toContain("<reportValue></reportValue>");
+      expect(out).toContain("<matchValue>••••</matchValue>");
+    });
+
+    it("still masks the PAN and keeps the fault reference in the same body", () => {
+      const out = redactCardXml(
+        `${info("DLIC", "report", "M611196591000")}<cardNumber>70830000000007521</cardNumber>`
+          + "<faultstring>ERROR running command 110662569118</faultstring>",
+      );
+      expect(out).toContain("<reportValue>••••</reportValue>");
+      expect(out).toContain("••••7521");
+      expect(out).toContain("ERROR running command 110662569118");
+    });
+  });
 });
 
 describe("documentShape", () => {
