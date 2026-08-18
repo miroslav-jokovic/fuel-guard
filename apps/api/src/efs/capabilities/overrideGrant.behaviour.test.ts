@@ -315,7 +315,10 @@ describe("the use count itself, which is what authorises a purchase", () => {
  * demonstrated without the question ever being asked.
  */
 describe("a card that takes its product limits from the policy", () => {
-  const POLICY_XML = fixture("getCardV2.empty.xml");
+  // The captured POLICY-source document is an Inactive card, and the Active-only gate now fires
+  // first — so these cases run it as Active, keeping them about the limitSource question alone.
+  const POLICY_XML = fixture("getCardV2.empty.xml")
+    .replace("<status>Inactive</status>", "<status>Active</status>");
 
   const grantOn = (xml: string, rec: SupabaseRecorder, limits: OverrideGrantBody["limits"]) =>
     executeCapability(
@@ -358,6 +361,52 @@ describe("a card that takes its product limits from the policy", () => {
   it("still allows a SCOPE-ONLY exception on the same card", async () => {
     const rec = recorder();
     const outcome = await grantOn(POLICY_XML, rec, []).catch((e: unknown) => e);
+    expect(outcome).not.toBeInstanceOf(ActionRefusalError);
+  });
+});
+
+/**
+ * Exceptions are for cards that can fuel — Miki's 2026-08-18 ruling, made after watching a HOLD
+ * card ACCEPT a grant live (the 10.5 proof run). EFS lands the count and the pump declines the
+ * card anyway, so the ledger would say "covered" about a driver who is not.
+ */
+describe("a card that is not Active", () => {
+  const grantOn = (xml: string) =>
+    executeCapability(
+      {
+        admin: recorder().client, env, creds, orgId: ORG,
+        fetchImpl: stub(loginOk, xml, soap(""), xml),
+        efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
+        expectedVersion: versionOf(xml),
+        idempotencyKey: null,
+        stepUp: false,
+      } satisfies CardMutationContext,
+      resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
+        uses: 1, scope: { kind: "all" }, limits: [], allowHandEnter: false,
+        expectedVersion: versionOf(xml),
+      }),
+    );
+
+  it("refuses a grant on a HOLD card, naming the status and the reason", async () => {
+    const HELD = NO_OVERRIDE.replace("<status>Active</status>", "<status>HOLD</status>");
+    const error = await grantOn(HELD).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    expect((error as ActionRefusalError).message).toContain("HOLD");
+    expect((error as ActionRefusalError).message).toMatch(/Active card/);
+  });
+
+  it("refuses an Inactive card the same way — and the account's own casing does not slip past", async () => {
+    // efsStatusEquals, never ===: an account reading `ACTIVE` upper-case must still be grantable,
+    // and `INACTIVE` must still refuse (H1's casing lesson, applied to the new gate).
+    const INACTIVE = NO_OVERRIDE.replace("<status>Active</status>", "<status>INACTIVE</status>");
+    const error = await grantOn(INACTIVE).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    expect((error as ActionRefusalError).message).toContain("INACTIVE");
+  });
+
+  it("still grants on an upper-case ACTIVE account — the control that pins efsStatusEquals", async () => {
+    const UPPER = NO_OVERRIDE.replace("<status>Active</status>", "<status>ACTIVE</status>");
+    const outcome = await grantOn(UPPER).catch((e: unknown) => e);
     expect(outcome).not.toBeInstanceOf(ActionRefusalError);
   });
 });

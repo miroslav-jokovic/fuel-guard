@@ -300,7 +300,7 @@ function inFlightWindowMs(env: Env): number {
 async function assertNoneInFlight(ctx: CardMutationContext): Promise<void> {
   const { data, error } = await ctx.admin
     .from("efs_card_mutations")
-    .select("id, status, created_at")
+    .select("id, status, created_at, proof_run_id")
     .eq("org_id", ctx.orgId)
     .eq("efs_card_id", ctx.efsCardId)
     .in("status", ["pending", "sent"])
@@ -327,12 +327,25 @@ async function assertNoneInFlight(ctx: CardMutationContext): Promise<void> {
       { reason: "ledger_unavailable" },
     );
   }
-  if (data && data.length > 0) {
+  /**
+   * A proof run's OWN rows do not block it — the fix for the 2026-08-18 production incident.
+   *
+   * Proof `86897357` applied a grant that settled `sent` — TERMINAL for a vendor-blind capability
+   * (`sentAccepted`), not "still confirming" — and seconds later this guard refused the harness's
+   * own revert, leaving ••••6536 armed and the proof denied with THE CARD IS STILL CHANGED. Within
+   * one proof run there is no race to guard: the harness awaited the apply's settlement before
+   * dispatching the revert, so its own row is a sequenced fact, not an unknown in flight. The
+   * exemption is exactly that narrow — rows carrying THIS run's `proof_run_id`. Another operator's
+   * write, another proof's write, and every proofless row still block.
+   */
+  const rows = (data ?? []) as { id: string; proof_run_id: string | null }[];
+  const blocking = rows.filter((row) => !(ctx.proofRunId && row.proof_run_id === ctx.proofRunId));
+  if (blocking.length > 0) {
     throw new CardControlError(
       "Another change to this card is still being confirmed. Wait for it to finish, then try again.",
       "mutation_in_flight",
       409,
-      { mutationId: (data[0] as { id: string }).id },
+      { mutationId: blocking[0]!.id },
     );
   }
 }

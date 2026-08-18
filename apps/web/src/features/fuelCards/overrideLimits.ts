@@ -2,7 +2,9 @@ import {
   EFS_OVERRIDE_MAX_LIMITS,
   type EfsLimitOption,
   type OverrideLimit,
+  efsStatusEquals,
   overrideGrantBlockedMessage,
+  overrideGrantStatusMessage,
 } from "@fuelguard/shared";
 import type { OperationDraft } from "./cardOperations";
 
@@ -156,8 +158,16 @@ export const canAddOverrideLimit = (limits: readonly OverrideLimit[]): boolean =
  */
 export function grantBlocker(
   draft: OperationDraft,
-  card: { overrideUses: number | null },
+  card: { overrideUses: number | null; status: string | null },
 ): string | null {
+  /**
+   * Active cards only — Miki's 2026-08-18 ruling, checked FIRST for the API's reason: on a held or
+   * inactive card there is nothing the operator can fix in this drawer, so every other sentence is
+   * an errand. Absent status falls through; the API's precondition reads the live card either way.
+   */
+  if (card.status !== null && !efsStatusEquals(card.status, "Active")) {
+    return overrideGrantStatusMessage(card.status);
+  }
   const uses = card.overrideUses ?? 0;
   if (uses > 0) return overrideGrantBlockedMessage(uses);
   if (draft.scopeKind === "location" && draft.location === null) {

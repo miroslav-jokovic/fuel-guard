@@ -1,8 +1,10 @@
 import {
   type OverrideGrantBody,
+  efsStatusEquals,
   overrideBlocksWrite,
   overrideGrantBlockedMessage,
   overrideGrantContract,
+  overrideGrantStatusMessage,
   overrideGrantStepUp,
 } from "@fuelguard/shared";
 import { overrideGrantEdits, overrideLimitsBefore } from "../../services/efsCardEdits.js";
@@ -192,12 +194,26 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
    */
   precondition: (_ctx, snap, body: OverrideGrantBody) => {
     /**
+     * Exceptions are for cards that can fuel — Miki's 2026-08-18 ruling, made after watching a
+     * HOLD card ACCEPT a grant (the 10.5 proof run; the 10.4 drill before it). EFS lands the count
+     * and the pump declines the card anyway, so the ledger would say "covered" about a driver who
+     * is not. FIRST, ahead of every other refusal: on a non-Active card there is nothing to fix —
+     * no exception to remove, no product line to clear — so any other sentence sends the operator
+     * on an errand that ends here anyway. `efsStatusEquals`, never `===` (H1: this account spells
+     * ACTIVE upper-case). Absent is allowed, as everywhere in this file.
+     */
+    const status = snap.doc?.card.status;
+    if (status !== null && status !== undefined && !efsStatusEquals(status, "Active")) {
+      throw new ActionRefusalError(overrideGrantStatusMessage(status), "invalid_request");
+    }
+
+    /**
      * No grant on a card already in override — Miki's 2026-08-18 ruling, and the vendor's own
      * behaviour three ways over (see `overrideFreeze.ts`'s `override_grant` block: the portal offers
      * no second override, H16's freeze makes a grant's non-trio fields — `limits`, `handEnter` —
      * liable to be silently swallowed, and a landing re-grant REPLACES the count rather than adding).
      *
-     * FIRST, before the limitSource check: the card's state outranks the request's inputs, and an
+     * Before the limitSource check: the card's state outranks the request's inputs, and an
      * operator told "remove the exception" should not first be told to clear their product lines.
      * Absent is allowed, as everywhere in this file: `plan` has its own handling for a failed read,
      * and a vendor blip must not become a claim that the card carries an exception.

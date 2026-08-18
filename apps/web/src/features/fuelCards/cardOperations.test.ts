@@ -349,3 +349,24 @@ describe("the grant blocker on a card already in override", () => {
     expect(operationById("grant")!.blocker!(emptyDraft(), QUIET_CARD, [])).toBeNull();
   });
 });
+
+/**
+ * Exceptions are for cards that can fuel — Miki's 2026-08-18 ruling. EFS accepts a grant on a HOLD
+ * card (watched live, twice) and the pump declines the card anyway, so the drawer refuses before a
+ * vendor call is spent, with the same sentence the API's precondition uses.
+ */
+describe("the grant blocker on a card that is not Active", () => {
+  it("blocks a HOLD card first, before any other sentence", () => {
+    const held = { ...QUIET_CARD, status: "HOLD", overrideUses: 2 } as unknown as OperationCard;
+    // Held AND armed: the status sentence wins — there is nothing to fix in this drawer, so being
+    // sent to remove the exception first would be an errand that ends at this same wall.
+    const blocker = operationById("grant")!.blocker!(emptyDraft(), held, []);
+    expect(blocker).toContain("HOLD");
+    expect(blocker).toMatch(/Active card/);
+  });
+
+  it("treats the account's own casing as Active — ACTIVE passes (H1)", () => {
+    const upper = { ...QUIET_CARD, status: "ACTIVE" } as unknown as OperationCard;
+    expect(operationById("grant")!.blocker!(emptyDraft(), upper, [])).toBeNull();
+  });
+});

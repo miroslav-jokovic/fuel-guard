@@ -197,6 +197,22 @@ const MUTATIONS = [
     detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
   },
   {
+    id: "efs-override-grant-on-held-card",
+    why: "Miki's 2026-08-18 ruling: exceptions only on Active cards. EFS accepts a grant on a HOLD card (watched live, twice) and the pump declines the card anyway — without the gate the ledger says a driver is covered when they are not.",
+    file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
+    find: "    if (status !== null && status !== undefined && !efsStatusEquals(status, \"Active\")) {",
+    replace: "    if (false) {",
+    detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
+  },
+  {
+    id: "efs-proof-blocked-by-own-row",
+    why: "The 2026-08-18 production incident: a proof's revert was refused by the in-flight guard tripping over the proof's OWN terminal-sent apply row, leaving ••••6536 armed and the proof denied. Un-scoping the exemption re-strands every future vendor-blind proof at OEG-5.",
+    file: "apps/api/src/efs/orchestrator/ledger.ts",
+    find: "  const blocking = rows.filter((row) => !(ctx.proofRunId && row.proof_run_id === ctx.proofRunId));",
+    replace: "  const blocking = rows;",
+    detect: apiTest("src/efs/harness/prove.test.ts"),
+  },
+  {
     id: "efs-override-grant-sent-not-accepted",
     why: "Step 3.11's answer undone: without sentAccepted, override_grant's proof can never settle proven — the vendor never echoes the scope or limits, so OEG-3 reads every working grant as unlanded and 10.5's promotion becomes unreachable. The declaration must be load-bearing, not decorative.",
     file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
