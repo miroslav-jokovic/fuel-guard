@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolveLimitVocabulary } from "@fuelguard/shared";
 import type { OperationDraft } from "./cardOperations";
 import {
+  ALLOW_HAND_ENTER_HELP,
+  ALLOW_HAND_ENTER_LABEL,
   OVERRIDE_LIMIT_AMOUNT_HELP,
   OVERRIDE_LIMIT_AMOUNT_LABEL,
+  handEnterClause,
   missingDieselPartner,
   overrideLimitsBlocker,
   overrideLimitsClause,
@@ -24,7 +27,7 @@ const VOCABULARY = resolveLimitVocabulary([
 
 const draft = (over: Partial<OperationDraft> = {}): OperationDraft => ({
   targetStatus: "Active", clearException: false, uses: 1, scopeKind: "all", location: null,
-  limits: [], prompts: [], addInfoId: null, removeInfoId: null, ...over,
+  limits: [], allowHandEnter: false, prompts: [], addInfoId: null, removeInfoId: null, ...over,
 });
 
 const limit = (limitId: string, amount: number) => ({ limitId, limit: amount, hours: 1, minHours: 0 });
@@ -156,5 +159,36 @@ describe("the confirmation names the destruction, not just the grant", () => {
   it("promises nothing about restoration, which is unproven until Step 10.4", () => {
     const clause = overrideLimitsClause([limit("DSL", 150)], VOCABULARY);
     expect(clause).not.toMatch(/restored|put back|returned|afterwards/i);
+  });
+});
+
+/**
+ * `Allow Hand Enter` — the portal's control, and the sentence that keeps it honest.
+ *
+ * `handEnter` is `string (7) ALLOW / DISALLOW / POLICY` on getCard/setCard, with no override scope in
+ * the guide or the WSDL. The portal places it under `Optional` beside `Product/Limit Override`, which
+ * reads as "for these N uses". Every string this product shows about it has to say otherwise, and the
+ * blast radius of getting it wrong is a card left hand-enterable indefinitely after one free tank.
+ */
+describe("Allow hand enter says it is PERMANENT", () => {
+  it("states that it does not expire, in the help and in the confirmation", () => {
+    expect(ALLOW_HAND_ENTER_HELP).toMatch(/does NOT expire/i);
+    expect(ALLOW_HAND_ENTER_HELP).toMatch(/until somebody changes it back/i);
+    expect(handEnterClause(true)).toMatch(/stays on after the exception is used up/i);
+  });
+
+  it("never implies the exception scopes it", () => {
+    const copy = `${ALLOW_HAND_ENTER_LABEL} ${ALLOW_HAND_ENTER_HELP} ${handEnterClause(true)}`;
+    // Positive control first — an empty string would satisfy every absence below it.
+    expect(copy).toMatch(/hand-entered card numbers/i);
+    expect(copy.length).toBeGreaterThan(120);
+    // The phrasings that would make it sound temporary. "for this exception", "while", "during".
+    expect(copy).not.toMatch(/for this exception|for these purchases|while the exception|temporar/i);
+  });
+
+  it("says nothing at all when the operator did not ask", () => {
+    // The other half of never-inferred: an untouched grant must not mention hand entry, because an
+    // unticked box does not write DISALLOW and nothing about the card's hand entry changes.
+    expect(handEnterClause(false)).toBe("");
   });
 });

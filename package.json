@@ -12,6 +12,7 @@
     "efs:echo-scan": "node scripts/efs.mjs echo-scan",
     "efs:write-check": "node scripts/efs.mjs write-check",
     "efs:prove": "node scripts/efs.mjs prove",
+    "efs:limit-restore": "node scripts/efs.mjs limit-restore",
     "efs:promote": "node scripts/efs.mjs promote",
     "driver:ios": "pnpm --filter @fuelguard/driver ios",
     "driver:android": "pnpm --filter @fuelguard/driver android",

@@ -118,6 +118,7 @@ const grant = (afterXml: string, rec: SupabaseRecorder) =>
       uses: 1,
       scope: { kind: "all" },
       limits: [],
+      allowHandEnter: false,
       expectedVersion: versionOf(NO_OVERRIDE),
     }),
   );
@@ -192,7 +193,7 @@ describe("an override grant whose scope this vendor does not report back", () =>
 
 describe("the product-limit override reaches the wire (Step 10.1)", () => {
   const limits = [{ limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 }];
-  const body = { uses: 1, scope: { kind: "all" as const }, limits, expectedVersion: "" };
+  const body = { uses: 1, scope: { kind: "all" as const }, limits, allowHandEnter: false, expectedVersion: "" };
 
   it("threads the operator's products into the edit list rather than dropping them", () => {
     // The failure this pins is silent and in the expensive direction: an override that carried no

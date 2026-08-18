@@ -384,6 +384,25 @@ export const grantOverrideSchema = z.object({
    * rather than an absent field so a grant always says what it does to the card's limits.
    */
   limits: z.array(overrideLimitSchema).max(EFS_OVERRIDE_MAX_LIMITS).default([]),
+  /**
+   * Permit hand-entered card numbers — the portal's `Allow Hand Enter`, which sits on its Override
+   * Card screen beside `Product/Limit Override` (docs/37 §9.1).
+   *
+   * ⚠ **This does NOT expire with the exception, and the vendor has no version that does.**
+   * `handEnter` is an ordinary card field — `string (7) ALLOW / DISALLOW / POLICY` in the
+   * getCard/setCard tables — with no override scope anywhere in the guide or the WSDL. The portal's
+   * placement reads as "for these N uses"; the web service has no such concept. Every sentence the
+   * drawer shows about this says so, because a control that implies an expiry it does not have is
+   * how a card stays hand-enterable for a year after a one-tank exception.
+   *
+   * ── True writes ALLOW; false writes NOTHING ─────────────────────────────────────────────────────
+   * Deliberately asymmetric, and it is the `clearException` rule again. An unticked box means "the
+   * operator did not ask about hand entry", NOT "set it to DISALLOW" — writing DISALLOW would take a
+   * capability away from a card that had it, as a side effect of granting fuel. There is no way to
+   * turn hand entry OFF from this screen, and that is correct: revoking it is a card setting change
+   * and belongs to Step 12.1, with its own confirmation.
+   */
+  allowHandEnter: z.boolean().default(false),
 })
   .superRefine((body, ctx) => {
     /**

@@ -1,10 +1,8 @@
 import { Router } from "express";
-import { z } from "zod";
 import { efsStatusEquals, matchStatusCasing } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {
-  EXPERIMENT_VARIANTS,
   experimentEdits,
   isExperimentStatus,
   transformForVariant,
@@ -62,94 +60,15 @@ import { resolveProbeCredentials } from "./probeGuards.js";
  * docs/plans/EFS-PHASE0-EXPERIMENTS-RUNBOOK.md.
  */
 
-const experimentSchema = z.discriminatedUnion("experiment", [
-  z.object({
-    experiment: z.literal("read_state"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
-  }),
-  z.object({
-    experiment: z.literal("set_status"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
-    /** Sent VERBATIM — casing is hypothesis H1. Allowlist enforced below with a readable error. */
-    status: z.string().trim().min(1),
-    /**
-     * Opt in to production's OWN casing rule (`matchStatusCasing`) instead of the verbatim default.
-     *
-     * The default has to stay verbatim: casing IS hypothesis H1, and an endpoint that quietly
-     * corrected it could never have measured it. But that default made this endpoint unusable for
-     * asking a question ABOUT SOMETHING ELSE — the F9 run on 2026-08-17 sent `Hold` to an account
-     * that stores `ACTIVE`, reproduced H1's accepted-and-ignored exactly, and could not tell that
-     * apart from the override freeze it was trying to measure. One uncontrolled variable, already
-     * proven sufficient on its own to produce the observed result.
-     *
-     * Applied SERVER-SIDE from the document in hand, so the rule stays single-sourced — a CLI that
-     * recomputed it would be a second implementation of the thing H1 cost us.
-     */
-    matchAccountCasing: z.boolean().default(false),
-    /**
-     * Also disarm the override, in the SAME request as the status — the H16 follow-up.
-     *
-     * H16 proved a status-only write is ignored while an override is armed, and that an override-only
-     * clear lands. It never tested a request carrying BOTH, so whether EFS evaluates the status
-     * against the pre- or post-clear state is unknown — and `card_lock`'s `clearException` now sends
-     * exactly that combination in production. This answers it against the same bytes.
-     */
-    clearOverride: z.boolean().default(false),
-    variant: z.enum(EXPERIMENT_VARIANTS).default("standard"),
-    /** Hypothesis H3. Only meaningful alongside a Hold; the vendor decides what it does with it. */
-    setOriginalStatus: z.string().trim().min(1).optional(),
-    confirm: z.string().trim(),
-  }),
-  // ── D1 pair: grant an override, then delete it with the dedicated op ──────────────────────────
-  z.object({
-    experiment: z.literal("set_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
-    /** Vendor range (p194). The experiment grants the smallest useful state; 1 is the default ask. */
-    uses: z.coerce.number().int().min(1).max(9).default(1),
-    /** A 6-digit EFS location id makes it a single-location override; absent = all locations. */
-    locationId: z.string().trim().regex(/^[0-9]{1,7}$/).optional(),
-    confirm: z.string().trim(),
-  }),
-  z.object({
-    experiment: z.literal("delete_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
-    confirm: z.string().trim(),
-  }),
-  /** The production FALLBACK mechanism (three-field echo clear) as an experiment: the cleanup path
-   *  when delete_override turns out unentitled, and the baseline the dedicated op is compared to. */
-  z.object({
-    experiment: z.literal("clear_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
-    confirm: z.string().trim(),
-  }),
-]);
 
-/** Re-read schedule after the write, in ms after the previous read. Three looks, ~8s total: enough
- *  to catch a replication-lagged apply (H2) without turning the endpoint into a poller. */
-const VERIFY_DELAYS_MS = [0, 3_000, 5_000] as const;
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-interface VerifyReading {
-  atMsAfterWrite: number;
-  version: string;
-  /** Verbatim vendor casing — the reading IS the data here. */
-  status: string | null;
-  /** F9: a `landed: false` is evidence about overrides only if one was armed AT THIS INSTANT. */
-  overrideUses: number | null;
-  landed: boolean;
-}
-
-/** One verifying look at the override trio. What EFS sets them to after `deleteOverride` — 0, nil,
- *  absent — is exactly what the D1 experiments exist to record (fix plan D1 step 2). */
-interface OverrideReading {
-  atMsAfterWrite: number;
-  version: string;
-  overrideUses: number | null;
-  overrideAllLocations: boolean | null;
-  locationOverrideId: string | null;
-  landed: boolean;
-}
+import {
+  VERIFY_DELAYS_MS,
+  experimentSchema,
+  readLimits,
+  sleep,
+  type OverrideReading,
+  type VerifyReading,
+} from "./experimentShapes.js";
 
 export function fuelCardExperimentsRouter(): Router {
   const router = Router();
@@ -225,7 +144,13 @@ export function fuelCardExperimentsRouter(): Router {
               before, grant.uses,
               grant.locationId !== undefined
                 ? { kind: "location" as const, locationId: grant.locationId }
-                : { kind: "all" as const }, [], // `[]`: a probe does not delete a card's limits
+                : { kind: "all" as const },
+              /**
+               * Empty by default — a probe does not delete a card's limits unless it was asked to.
+               * Step 10.4 asks on purpose, on a named QA card, and `limitsBefore` in the response is
+               * the recovery record if the vendor turns out not to restore them.
+               */
+              grant?.limits ?? [],
             )
           : overrideClearEdits();
         /** What the trio's count should read once the write lands. */
@@ -276,6 +201,7 @@ export function fuelCardExperimentsRouter(): Router {
               overrideAllLocations: read.card.overrideAllLocations,
               locationOverrideId: read.card.locationOverrideId,
               landed,
+              limits: readLimits(read.card),
             });
             if (landed) break;
           }
@@ -303,6 +229,14 @@ export function fuelCardExperimentsRouter(): Router {
             overrideUses: before.card.overrideUses,
             overrideAllLocations: before.card.overrideAllLocations,
             locationOverrideId: before.card.locationOverrideId,
+            /**
+             * ⚠ Step 10.4's RECOVERY RECORD, and the reason this endpoint is safe to point at a card
+             * that has limits worth keeping. p194's product recipe deletes them; nothing promises
+             * they come back. If the answer turns out to be "they do not", these are the exact
+             * records to put back by hand — so they are captured BEFORE the write, not inferred
+             * afterwards from a card that no longer has them.
+             */
+            limits: readLimits(before.card),
           },
           writeMs,
           writeErrorCode: writeError?.code ?? null,
@@ -362,6 +296,7 @@ export function fuelCardExperimentsRouter(): Router {
             overrideAllLocations: read.card.overrideAllLocations,
             locationOverrideId: read.card.locationOverrideId,
             landed,
+            limits: readLimits(read.card),
           });
           if (landed) break;
         }
@@ -386,6 +321,14 @@ export function fuelCardExperimentsRouter(): Router {
             overrideUses: before.card.overrideUses,
             overrideAllLocations: before.card.overrideAllLocations,
             locationOverrideId: before.card.locationOverrideId,
+            /**
+             * ⚠ Step 10.4's RECOVERY RECORD, and the reason this endpoint is safe to point at a card
+             * that has limits worth keeping. p194's product recipe deletes them; nothing promises
+             * they come back. If the answer turns out to be "they do not", these are the exact
+             * records to put back by hand — so they are captured BEFORE the write, not inferred
+             * afterwards from a card that no longer has them.
+             */
+            limits: readLimits(before.card),
           },
           writeMs,
           writeErrorCode: writeError?.code ?? null,

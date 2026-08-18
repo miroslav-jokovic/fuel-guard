@@ -21,6 +21,8 @@ import { type CardOperationId, type OperationDraft, type StatusRow, blockedSente
 import { CLEAR_EXCEPTION_HELP, cardHasArmedException, clearExceptionLabel } from "./overrideException";
 import {
   OVERRIDE_LIMIT_AMOUNT_HELP,
+  ALLOW_HAND_ENTER_HELP,
+  ALLOW_HAND_ENTER_LABEL,
   OVERRIDE_LIMIT_AMOUNT_LABEL,
   PRODUCT_OVERRIDE_HELP,
   canAddOverrideLimit,
@@ -280,8 +282,19 @@ function chooseAdded(infoId: string): void {
       not something to walk into by finding a form already open. Ticking it opens one empty line, the
       way `Product/Limit Override` → `Override Card` lands you on `Create Limit`.
     -->
-    <section class="space-y-3 border-t border-edge pt-5" aria-labelledby="product-limits-heading">
-      <h3 id="product-limits-heading" class="text-sm font-semibold text-ink">Product limits</h3>
+    <!-- The portal's `Optional` fieldset holds both. `Allow Hand Enter` is scoped to the exception
+         in NO vendor artefact, so its help says so rather than repeating the portal's three words. -->
+    <section class="space-y-3 border-t border-edge pt-5" aria-labelledby="optional-heading">
+      <h3 id="optional-heading" class="text-sm font-semibold text-ink">Optional</h3>
+
+      <AppCheckbox
+        :model-value="props.draft.allowHandEnter"
+        :label="ALLOW_HAND_ENTER_LABEL"
+        :disabled="props.busy"
+        @update:model-value="(on: boolean) => patch({ allowHandEnter: on })"
+      />
+      <p class="text-sm text-caution-700">{{ ALLOW_HAND_ENTER_HELP }}</p>
+
       <AppCheckbox
         :model-value="limitDraft.length > 0"
         label="Product/limit override"

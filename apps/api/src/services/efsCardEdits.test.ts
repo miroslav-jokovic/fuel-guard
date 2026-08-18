@@ -110,6 +110,44 @@ describe("override — the p194 recipes", () => {
     expect(xml).toContain("<overrideAllLocations>true</overrideAllLocations>");
   });
 
+  /**
+   * `handEnter` is a PERMANENT card field (string(7) ALLOW/DISALLOW/POLICY, no override scope in the
+   * guide or the WSDL). Three properties, and the middle one is the dangerous one.
+   */
+  it("writes handEnter ALLOW only when the operator asked", () => {
+    const before = doc("getCardV2.full.xml");
+    const xml = request(before, overrideGrantEdits(before, 1, { kind: "all" }, [], true));
+    expect(xml).toContain("<handEnter>ALLOW</handEnter>");
+  });
+
+  it("NEVER EDITS handEnter when unticked — an unticked box is 'not asked', not 'take it away'", () => {
+    /**
+     * The expensive direction: granting a tank of fuel must not silently revoke hand entry on a card
+     * that had it.
+     *
+     * ⚠ The assertion is on the EDIT LIST and on the value being UNCHANGED — not on the string
+     * `DISALLOW` being absent from the request. The first draft asserted that and failed, correctly:
+     * `getCardV2.full.xml` already carries `<handEnter>DISALLOW</handEnter>` and the echo faithfully
+     * sends it back, which is the echo doing its job. "The field is not in the request" and "we did
+     * not change the field" are different claims, and only the second one is the property here.
+     */
+    const before = doc("getCardV2.full.xml");
+    const edits = overrideGrantEdits(before, 1, { kind: "all" }, [], false);
+    expect(edits.some((e) => e.name === "handEnter")).toBe(false);
+    // Echoed back exactly as the card had it — `full.xml` holds DISALLOW, and it stays DISALLOW.
+    expect(before.card.handEnter).toBe("DISALLOW");
+    expect(request(before, edits)).toContain("<handEnter>DISALLOW</handEnter>");
+    // And the ALLOW the ticked path would have written is nowhere in it.
+    expect(request(before, edits)).not.toContain("<handEnter>ALLOW</handEnter>");
+  });
+
+  it("defaults to not touching it at all, so a caller that forgets changes nothing", () => {
+    const before = doc("getCardV2.full.xml");
+    // Same arity as every pre-10.3 call site. The default has to be the SAFE direction.
+    expect(overrideGrantEdits(before, 1, { kind: "all" }, []).some((e) => e.name === "handEnter"))
+      .toBe(false);
+  });
+
   it("single location: the 6-digit id, all-locations false, override = uses", () => {
     const before = doc();
     const xml = request(before, overrideGrantEdits(before, 1, { kind: "location", locationId: "442013" }, []));

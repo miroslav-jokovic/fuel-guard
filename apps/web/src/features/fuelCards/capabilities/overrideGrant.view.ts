@@ -4,7 +4,7 @@ import {
   overrideGrantStepUp,
 } from "@fuelguard/shared";
 import { defineView, row } from "./types.js";
-import { overrideLimitsClause } from "../overrideLimits.js";
+import { handEnterClause, overrideLimitsClause } from "../overrideLimits.js";
 
 /**
  * The confirmation that NAMES THE NUMBERS.
@@ -24,7 +24,9 @@ export const overrideGrantView = defineView(overrideGrantContract, {
         "The exception is used up automatically — it does not need to be revoked." +
         // Step 10.3. Names the DESTRUCTION on the same screen as the button that causes it, the rule
         // `clearExceptionClause` follows: a product override removes the card's other limits (p194).
-        overrideLimitsClause(body.limits ?? [], card.limitOptions ?? []),
+        overrideLimitsClause(body.limits ?? [], card.limitOptions ?? [])
+        // Permanent, and named at the point of commitment as well as at the point of choice.
+        + handEnterClause(body.allowHandEnter === true),
       confirmLabel: "Grant exception",
       busyLabel: "Granting…",
       doneLabel: "Exception granted",
@@ -48,6 +50,11 @@ export const overrideGrantView = defineView(overrideGrantContract, {
      */
     ...((body.limits ?? []).length > 0
       ? [row("Product limits", "Its own limits", productsLabel(body.limits))]
+      : []),
+    /** Shown only when it MOVES. A permanent setting changing inside a temporary grant is exactly
+     *  the row an operator should see before pressing the button. */
+    ...(body.allowHandEnter === true
+      ? [row("Hand entry", "As the card had it", "Allowed — stays on afterwards")]
       : []),
   ],
 
