@@ -1104,7 +1104,8 @@ switch (command) {
    * ── This drill is the opposite of `f9-probe` and refuses the opposite card ──────────────────────
    * F9 refuses a card that carries `<limits>` because it must not disturb this fixture. This one
    * REQUIRES limits, because a card with none cannot answer the question — the restore has nothing
-   * to restore. On QA that card is ••••7672.
+   * to restore. ⚠ And it requires `limitSource` CARD or BOTH, which NO QA card has — all 35 read
+   * POLICY (sweep 2026-08-18) — so the answer lives on production, per Miki's ruling the same day.
    *
    * ⚠ It writes the exact records back itself when the vendor does not, so the card is never left
    * altered by a measurement. That repair is the point of capturing `before.limits` first.
@@ -1113,9 +1114,9 @@ switch (command) {
     const expectOrg = flags["expect-org"];
     if (expectOrg === undefined || expectOrg === true) {
       die(
-        "usage: node scripts/efs.mjs limit-restore --expect-org qa [--card-id <uuid>] [--out <path>]\n"
+        "usage: node scripts/efs.mjs limit-restore --expect-org production --card-id <uuid> [--out <path>]\n"
           + "--expect-org is REQUIRED: this DELETES a real card's product limits and puts them back.\n"
-          + "(the card number is prompted for, hidden — never pass it as a flag)",
+          + "(production requires --card-id; QA cannot answer — every QA card is limitSource=POLICY)",
       );
     }
     if (flags.card) {
@@ -1124,11 +1125,25 @@ switch (command) {
           + "table. Use --card-id <efs_cards.id uuid> instead, which is exact and is not a PAN.",
       );
     }
-    if (String(expectOrg).toLowerCase() === "production") {
+    /**
+     * ⚠ Production is ALLOWED as of 2026-08-18, and it is the only org that can answer.
+     *
+     * This block used to refuse production outright, on the claim "QA answers it". The fleet sweep
+     * the same day proved QA cannot: all 35 QA cards read `limitSource=POLICY`, so the POLICY bail
+     * below fires on every one of them — there is no QA card whose own limits govern its pump.
+     * Production holds the 180 BOTH-source cards. Miki ruled: run it there, on one of those.
+     *
+     * The production shape of the risk is a truck fuelling with no caps between the two writes, so
+     * production demands the exact-card path: `--card-id`, never a typed number. Prefer a card whose
+     * STATUS already stops it fuelling (HOLD) — then the window between grant and clear contains
+     * nothing a driver can spend.
+     */
+    const isProductionRun = String(expectOrg).toLowerCase() !== "qa";
+    if (isProductionRun && typeof flags["card-id"] !== "string") {
       die(
-        "REFUSING: this drill removes a live card's product limits to find out whether EFS puts them\n"
-          + "back. On production the failure mode is a truck fuelling with no caps. QA answers it — the\n"
-          + "vendor's behaviour is the same account to account.",
+        "On production this drill takes --card-id <efs_cards.id uuid> ONLY — a typed card number\n"
+          + "has already sent a drill at the wrong card twice (2026-08-18, QA). Pick a limitSource=BOTH\n"
+          + "card that carries card-level limits, ideally one on HOLD so nothing can fuel mid-run.",
       );
     }
 
@@ -1235,13 +1250,11 @@ switch (command) {
         await bail(
           `REFUSING: the card ending ${last4} carries NO card-level limits, so there is nothing for\n`
             + "EFS to restore and this run cannot answer the question. NOTHING HAS BEEN WRITTEN.\n\n"
-            + "⚠ LAST FOUR DIGITS DO NOT IDENTIFY A QA CARD. 35 QA cards share 20 distinct last-4\n"
-            + "values and SIX groups — 7670, 7671, 7672, 7677, 7678, 7679 — are THREE CARDS EACH\n"
-            + "(docs/28 Step 0.13). So a card ending 7672 is very likely the wrong 7672.\n\n"
-            + "The one Step 10.4 needs is efs_cards.id bf47678d-3edb-4a45-bb34-df30dd1bf98d —\n"
-            + "ACTIVE, card-level limits DEF 250 · RFR 75 · ULSD 500. Open /fuel-cards/<that uuid>\n"
-            + "in the dashboard, confirm those three under 'Product limits' with source CARD, and\n"
-            + "copy ITS number. A policy-level limit is not the card's own and is not replaced.",
+            + "⚠ LAST FOUR DIGITS DO NOT IDENTIFY A CARD — 35 QA cards share 20 distinct last-4\n"
+            + "values (docs/28 Step 0.13). Use --card-id with the efs_cards.id uuid of a\n"
+            + "limitSource=BOTH card whose 'Product limits' show source CARD in the dashboard.\n"
+            + "(A policy-level limit is not the card's own and is not replaced. And QA cannot\n"
+            + "answer this at all — every QA card reads limitSource=POLICY, sweep 2026-08-18.)",
         );
       }
       /**
@@ -1361,7 +1374,7 @@ switch (command) {
       "commands: scan · inventory [--cards <uuid,uuid>] · mileage --unit <n> [--code ODRD|HBRD] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
         + "write-check [--read-only] [--status Hold|Inactive] · "
         + "f9-probe --expect-org qa   (docs/37 §7 Q6: does a card in override accept any change? WRITES) · "
-        + "limit-restore --expect-org qa   (Step 10.4: does EFS restore a card's own limits when a "
+        + "limit-restore --expect-org production --card-id <uuid>   (Step 10.4: does EFS restore a card's own limits when a "
         + "product override clears? WRITES — needs a card that HAS limits; on QA that is ••••7672) · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)\n"
