@@ -1,4 +1,9 @@
-import { EFS_OVERRIDE_MAX_LIMITS, type EfsLimitOption, type OverrideLimit } from "@fuelguard/shared";
+import {
+  EFS_OVERRIDE_MAX_LIMITS,
+  type EfsLimitOption,
+  type OverrideLimit,
+  overrideGrantBlockedMessage,
+} from "@fuelguard/shared";
 import type { OperationDraft } from "./cardOperations";
 
 /**
@@ -138,6 +143,28 @@ export const emptyOverrideLimit = (): OverrideLimit =>
 /** Whether another product may be added — `grantOverrideSchema` refuses more than this. */
 export const canAddOverrideLimit = (limits: readonly OverrideLimit[]): boolean =>
   limits.length < EFS_OVERRIDE_MAX_LIMITS;
+
+/**
+ * The grant's WHOLE blocker chain — the card's state first, then the draft's inputs
+ * (`operationBlocker`'s own ordering rule: each step is a thing the operator can do less about
+ * than the one after it).
+ *
+ * The armed-override refusal is Miki's 2026-08-18 ruling, and the API refuses identically
+ * (`overrideGrant.behaviour.ts`) — both read `overrideGrantBlockedMessage`, so the drawer's
+ * sentence and the server's cannot drift. Blocking here is what keeps the operator from spending
+ * a vendor call and a rate-limit slot to learn what the card page already knows.
+ */
+export function grantBlocker(
+  draft: OperationDraft,
+  card: { overrideUses: number | null },
+): string | null {
+  const uses = card.overrideUses ?? 0;
+  if (uses > 0) return overrideGrantBlockedMessage(uses);
+  if (draft.scopeKind === "location" && draft.location === null) {
+    return "Choose the location this exception applies at.";
+  }
+  return overrideLimitsBlocker(draft);
+}
 
 /**
  * The blocker, as a SENTENCE (invariant 6) — every reason this grant cannot be sent yet.
