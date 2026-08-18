@@ -99,9 +99,9 @@ driver PII the redactor does not mask; see its `scrubbed` note). Three findings,
    card's stored state. **Step 10.4 is answered. Product overrides are safe to ship; 10.5 is
    unblocked.**
 
-⚠ Housekeeping owed: `EFS_CARD_CONTROL_PROBE_ENABLED` and `EFS_ALLOW_PRODUCTION_PROBE` are both SET
-on Railway as of this run. Unset both + `railway redeploy --from-source --yes` + poll
-`/api/version` (standing rule 15, and §2.2's skipped-deployment trap).
+✅ Housekeeping DONE, same evening: `EFS_CARD_CONTROL_PROBE_ENABLED` and `EFS_ALLOW_PRODUCTION_PROBE`
+both deleted, `railway redeploy --from-source --yes`, and `/api/version` confirmed the fresh process
+(deployment `aeebb47d…`, started 19:10Z, commit `80c4213`). The probe endpoints are dark again.
 
 ---
 
