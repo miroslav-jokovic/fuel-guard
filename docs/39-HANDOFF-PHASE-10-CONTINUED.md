@@ -110,22 +110,44 @@ about. See `overrideGrant.behaviour.ts` and the outcome copy it feeds.
 ⚠ Do NOT "fix" this by calling the grant `succeeded`. Step 3.11 exists because that was tried and the
 scope genuinely is unobservable.
 
-### 3.2 The 2–3 minute wait before *Remove exception* appears — UNDIAGNOSED
+### 3.2 The 2–3 minute wait before *Remove exception* appears — STILL UNSOLVED, now much narrower
 
-After a grant, Miki had to wait 2–3 minutes before he could remove it. Partially chased and **not
-solved** — do not trust the following as a diagnosis, only as where to start:
+After a grant, Miki had to wait 2–3 minutes before he could remove it. **Not reproducible from this
+repo** (no dev server on this Mac, no local route to EFS), so it was chased by elimination instead.
 
-- `useCardControl.ts` invalidates on `onSuccess`, and a `sent` outcome is still HTTP 200, so
-  invalidation *should* fire.
-- `dispatch.ts` calls `updateMirror` in every branch after a successful re-read, so the mirror
-  *should* carry `override_uses: 1` immediately.
-- `cardControlModel.ts` has `known: !stale` driving the badge's "Override: unknown" text — that is
-  DISPLAY freshness and should not gate the *action*.
-- `cardOperations.ts`'s clear operation applies on `usesLeft(card) > 0 || scope armed`.
+**All four original suspects are now cleared, by reading the code rather than by assuming:**
 
-**Same root cause probably explains "nothing changed in the drawer":** the clear-and-lock checkbox
-renders only when `card.overrideUses > 0`, so if the page's card data lags, the checkbox lags with it.
-The wiring is correct (`FuelCardDetailPage.vue:316`).
+| Suspect | Verdict |
+|---|---|
+| Invalidation does not fire on a `sent` outcome | **Cleared.** `apiFetch` derives `ok` from the HTTP status, not from the payload's own `ok` field, so a recorded `sent` is `ok: true` and `onSuccess` runs |
+| The query key misses the detail query | **Cleared.** `useEfsCard` is `["efs_cards", "detail", id]` and invalidation targets the `["efs_cards"]` prefix |
+| The mirror does not carry the new count | **Cleared.** `updateMirror` runs BEFORE the landing check in `dispatch.ts`, and `upsertCardDetail` writes `override_uses` explicitly. The `sent`-with-a-document route therefore mirrors normally |
+| Freshness gates the ACTION | **Cleared.** `toOperationCard` passes `overrideUses` straight through with no freshness test; `known` gates only the badge's sentence |
+
+#### The recovery TIME is the evidence, and it points away from the server
+
+**Nothing re-reads a card mirror on a minutes cadence.** `EFS_CARD_SYNC_HOURS` defaults to **24**,
+and the mutation path is the only other writer. So if the mirror row had been wrong, it would have
+stayed wrong for up to a day — not 2–3 minutes.
+
+Recovery in 2–3 minutes therefore means **the mirror was already correct and the browser was showing
+stale data**, and 2–3 minutes is 2–3 cycles of `POLL_MS` (60 s, `useEfsCards.ts`). The remaining
+question is client-side only: *why did the invalidation-driven refetch not deliver what the poll
+delivered a minute or two later?*
+
+⚠ **One observation collapses this whole argument, so establish it first:** if Miki pressed
+**Refresh from EFS** during those minutes, that is a live vendor re-read and the timing proves
+nothing. Ask before chasing further. The other thing worth capturing at the next occurrence is the
+network tab — whether the `GET /api/fuel-cards/:id` fired at grant time at all, and what it returned.
+
+#### "Nothing changed in the drawer" had a second cause, and it is FIXED
+
+The guess above — the clear-and-lock checkbox renders only when `card.overrideUses > 0`, so it lags
+whatever the page's card data lags — is still available. But there was a real bug underneath it:
+**`clearException` was dropped on the browser's last hop** and never reached the API, so ticking the
+box produced the freeze refusal instead of a clear-and-lock. Fixed, with a drawer test on the
+dispatched argument and mutation `efs-clear-and-lock-flag-dropped`. `limits` was dropped on the same
+hop and is fixed with it — that one would have silently emptied 10.3's product override.
 
 ---
 
