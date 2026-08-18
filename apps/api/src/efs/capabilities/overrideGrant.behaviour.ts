@@ -137,6 +137,19 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
       capability: "override_clear",
       body: { expectedVersion: "" },
     }),
+    /**
+     * The Step 3.11 question — "proven adapter or permanent precondition" — answered on 2026-08-18:
+     * a permanent property of the VENDOR, so the proof gate carries it instead of failing on it.
+     * A grant's judge can never say `succeeded`: the scope pair reads `false`/`0` on all 234
+     * mirrored cards after grants that provably armed (H2), and the production 10.4 run watched an
+     * ARMED override while getCardv2 returned the card's own limits (docs/40 §1.3). The count — the
+     * one observable field — landing is what `sent` already requires; anything less is `not_landed`
+     * and still fails OEG-3.
+     */
+    sentAccepted: {
+      reason: "this vendor never echoes an override's scope or limits through getCardv2 (H2; "
+        + "docs/40 §1.3) — the count landed, and the count is the only observable field",
+    },
   },
 
   /**

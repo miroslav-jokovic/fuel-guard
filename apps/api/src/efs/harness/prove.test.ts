@@ -182,6 +182,65 @@ describe("OEG-4, the H1 gate", () => {
   });
 });
 
+/**
+ * Step 3.11's answer, shipped 2026-08-18: `override_grant` is VENDOR-BLIND. The scope pair reads
+ * `false`/`0` on all 234 mirrored cards after grants that provably armed (H2), and the production
+ * 10.4 run watched an ARMED override while getCardv2 returned the card's own limits (docs/40 §1.3).
+ * So its judge can never say `succeeded`, and OEG-3 accepts `sent` — for the ONE plan that declares
+ * `sentAccepted`, and for nothing else.
+ */
+describe("OEG-3 and the vendor-blind capability", () => {
+  /** What this vendor actually returns after a grant: the count applied, everything else unmoved. */
+  const COUNT_ONLY = ACTIVE.replace("<override>0</override>", "<override>1</override>");
+
+  it("proves override_grant when the count lands and the vendor echoes nothing else back", async () => {
+    // apply: plan-read, write, verify → COUNT_ONLY (scope unobservable → judge says `sent`).
+    // oeg4 read. revert (override_clear): plan-read, write, verify → ACTIVE — count back to 0,
+    // which IS observable, so the revert must genuinely land for OEG-5.
+    const h = harness(stub(
+      loginOk, ACTIVE,
+      ACTIVE, soap(""), COUNT_ONLY,
+      COUNT_ONLY,
+      COUNT_ONLY, soap(""), ACTIVE,
+    ));
+    const result = await proveCapability(h.ctx, "override_grant", h.deps);
+
+    expect(result.oeg3ChangeLanded).toBe(true);
+    // The acceptance is recorded ON the proof, so a promotion citing it carries the caveat.
+    expect(result.detail).toMatch(/sent ACCEPTED as applied/);
+    expect(result.oeg5RevertLanded).toBe(true);
+    expect(result.outcome).toBe("proven");
+    expect(h.states).toEqual(["proving", "proven"]);
+  });
+
+  it("still DENIES when the count itself does not land — sent is not a blank cheque", async () => {
+    // The verify re-read shows `override` still 0: an unlanded OBSERVABLE field, so the judge says
+    // `failed`, and `sentAccepted` must not reach it. This is the control that keeps the acceptance
+    // from quietly becoming "any outcome counts".
+    const h = harness(stub(
+      loginOk, ACTIVE,
+      ACTIVE, soap(""), ACTIVE,
+      ACTIVE,
+      ACTIVE, soap(""), ACTIVE,
+    ));
+    const result = await proveCapability(h.ctx, "override_grant", h.deps);
+
+    expect(result.oeg3ChangeLanded).toBe(false);
+    expect(result.detail).not.toMatch(/sent ACCEPTED/);
+    expect(result.outcome).toBe("denied");
+  });
+
+  it("override_grant is the ONLY plan that declares sentAccepted — the blast radius, pinned", () => {
+    // Every other capability's writes ARE observable, and accepting `sent` there would wave through
+    // exactly the silent no-op H1 taught this codebase to fear. Adding a second holder must be a
+    // decision made against `ProofPlan.sentAccepted`'s documented bar, not a copy-paste.
+    const holders = Object.entries(capabilities)
+      .filter(([, mounted]) => mounted.proof?.sentAccepted !== undefined)
+      .map(([key]) => key);
+    expect(holders).toEqual(["override_grant"]);
+  });
+});
+
 describe("what the harness may and may not decide", () => {
   it("cannot promote — `enabled` is not a state it can write", async () => {
     const h = harness(stub(
