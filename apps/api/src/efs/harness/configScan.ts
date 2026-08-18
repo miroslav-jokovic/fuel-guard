@@ -83,7 +83,39 @@ export interface ConfigScanReport {
   fields: FieldObservation[];
   verdicts: FieldVerdict[];
   summary: Record<VocabularyState, number>;
+  /** The read-only fields a capability BRANCHES on. See `DEPENDED_FIELDS`. */
+  dependedFields: FieldObservation[];
 }
+
+/**
+ * Fields this product never writes and cannot work without knowing — the OTHER half of a vocabulary.
+ *
+ * ── Why the emit scan could not see these ───────────────────────────────────────────────────────
+ * Everything above is derived from `emittableValues`: the strings a capability's writes can put on
+ * the wire. That is the right question for a field we SET, and it is blind to a field we READ and
+ * then branch on. `limitSource` is exactly that — nothing emits it, and since Step 10.3 a product
+ * override is REFUSED when it reads POLICY.
+ *
+ * ── What made the gap visible ───────────────────────────────────────────────────────────────────
+ * 2026-08-18: a refused drill run captured `limitSource: POLICY` on a QA card — the first live
+ * reading of that value this workstream has ever had, and it arrived by accident. Meanwhile the
+ * codebase recorded, from Step 7.3, that "every card on both orgs reads `infoSource: BOTH`", which
+ * had been taken as settling the source question generally. The two fields do not travel together:
+ * that same card reads `infoSource: BOTH` and `limitSource: POLICY`.
+ *
+ * A guard whose input has been observed on ONE card, by accident, is not a guard anybody can size.
+ * These four are swept across every mirrored document so the fleet answer is a number, not a story.
+ *
+ * `POLICY` on `limitSource` means a card-level product override cannot govern that card's pump; the
+ * count of such cards is the difference between "one awkward card" and "this feature does not apply
+ * to most of the fleet".
+ */
+export const DEPENDED_FIELDS: readonly string[] = [
+  "infoSource",
+  "limitSource",
+  "locationSource",
+  "timeSource",
+];
 
 /**
  * Every descendant with this local name, at any depth.
@@ -267,5 +299,8 @@ export function scanConfig(
     fields: [...observations.values()],
     verdicts,
     summary,
+    // Observed, never judged. There is no `emittableValues` to compare against — the question is
+    // "what does the fleet actually say", not "did we send something it did not expect".
+    dependedFields: DEPENDED_FIELDS.map((f) => observeField(parsed, f)),
   };
 }

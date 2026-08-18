@@ -70,4 +70,19 @@ for (const [orgId, label] of Object.entries(ORGS)) {
   for (const v of report.verdicts) {
     console.log(`   ${v.state.padEnd(11)} ${v.capability}.${v.field}  observed=[${v.observation.rawSpellings.join(", ")}]`);
   }
+
+  /**
+   * The read-only fields a capability BRANCHES on, counted across the whole fleet.
+   *
+   * Printed with the per-value counts because the COUNT is the finding: `limitSource: POLICY` on one
+   * card is an awkward fixture, and on a hundred it means a card-level product override does not
+   * apply to this account. Nothing above could report it — the emit scan only sees fields some
+   * capability declares it can write, and these are fields we only ever read.
+   */
+  console.log("   ── read-only fields capabilities depend on ─────────────────");
+  for (const f of report.dependedFields) {
+    const values = f.observedValues.map((v) => `${v.text}×${v.count}`).join(", ") || "(none observed)";
+    const absent = f.absentCount > 0 ? `  absent=${f.absentCount}` : "";
+    console.log(`   ${f.field.padEnd(16)} ${values}${absent}`);
+  }
 }
