@@ -1972,7 +1972,10 @@ against a card number with `OVER` appended. That is not this phase.
   | **C** | Refuse, but give the drawer a one-press "clear the exception and lock" affordance | Best UX; most work, and it leaves the API refusing a safety action |
 
   **Recommendation: B for `card_lock`, A for the other four.** Locking is the one place where the exception is part of the risk being contained; everywhere else a refusal that names the cause is the honest answer and nothing is urgent. ⚠ Whichever way, the precondition must read `overrideUses` from the FRESH document at write time, not the mirror — a sweep-old zero would wave the write straight through into the silent-ignore. **Scope decision is Miki's.**
-- [ ] 10.3 states the amount as a TOTAL and pairs DSL with ULSD *(F10, F11)*
+- [x] 10.3 states the amount as a TOTAL and ADVISES the DSL/ULSD pair *(F10, F11 — F11 was demanding
+  where the vendor advises: the portal requires ONE product and offers `Save and Add Another` for the
+  rest. Miki's 2026-08-18 ruling: one required, others optional per session. `dieselPartnerAdvice`
+  with a one-click add replaced the blocker — see docs/40 §3.2)*
 - [ ] Product-limit override works end to end, proven live on QA
 - [ ] Restore-on-clear confirmed by observation, **on a card that has card-level limits**
 - [ ] QA cards restored

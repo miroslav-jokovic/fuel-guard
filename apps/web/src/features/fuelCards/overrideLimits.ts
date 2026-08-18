@@ -31,18 +31,40 @@ export const OVERRIDE_LIMIT_AMOUNT_HELP =
   + "100 gallons that needs 50 more wants 150 here, not 50.";
 
 /**
- * ⚠ RULE 2 — diesel is two product codes, and one of them is not enough.
+ * ⚠ RULE 2 — diesel is two product codes, and the vendor ADVISES naming both. Advises, not requires.
  *
- * WEX: *"different truck stops use different product codes for fuel."* The guide's own p194 example
- * caps `ULSD` alone, which is an illustration of the request shape and NOT a complete operational
- * recipe — a driver sent to a stop that rings up `DSL` is declined by an exception that named only
- * `ULSD`.
+ * WEX's Overrides guide, NOTES: *"When overriding fuel, add product DSL for the desired gallons,
+ * select 'Save and Add Another' and also add product ULSD for the desired gallons. This is done
+ * because different truck stops use different product codes for fuel."*
  *
- * Enforced as a BLOCKER rather than by silently adding the partner, because adding a product nobody
- * asked for is granting fuel nobody authorised — the same rule `clearException` follows. The operator
- * adds it, so the confirmation names what they chose.
+ * The portal's own flow requires exactly ONE product — *"Select product to override and then
+ * 'Next'"* — and offers more only conditionally: *"Select 'Save and Add Another' **if** multiple
+ * products are being overridden."* Until 2026-08-18 this module enforced the pairing as a BLOCKER,
+ * which demanded two products where the vendor demands one; Miki's ruling that day — one product
+ * required, all others in the same session optional — matches the vendor's flow, so the pairing is
+ * now `dieselPartnerAdvice`: shown beside the picker with a one-click add, never a refusal.
+ *
+ * The advice is still worth a sentence AND a button, because the risk it names is real: a driver
+ * sent to a stop that rings diesel up as `DSL` is declined by an exception that named only `ULSD`.
+ * The operator clicks to add the partner, so the confirmation still names only what they chose —
+ * silently adding a product nobody asked for stays off the table (`clearException`'s rule).
  */
 export const DIESEL_PAIR = ["DSL", "ULSD"] as const;
+
+/**
+ * The advice, as a sentence for the picker — null whenever there is nothing to advise: no diesel
+ * chosen, both codes already named, or the account does not offer the partner.
+ */
+export function dieselPartnerAdvice(
+  limits: readonly OverrideLimit[],
+  vocabulary: readonly EfsLimitOption[],
+): string | null {
+  const partner = missingDieselPartner(limits, vocabulary);
+  if (!partner) return null;
+  return `Truck stops ring up diesel under both DSL and ULSD — an exception naming only one can `
+    + `decline the driver where the pump uses the other. WEX's own guide advises adding ${partner} `
+    + `as well, at the same amount.`;
+}
 
 /**
  * ⚠ And the amounts on the pair do NOT add up — WEX's Overrides guide, verbatim:
@@ -123,10 +145,7 @@ export const canAddOverrideLimit = (limits: readonly OverrideLimit[]): boolean =
  * Returns the FIRST unmet condition rather than a list: a disabled button with four sentences under
  * it is a form nobody reads. They are ordered by how early the operator hits them.
  */
-export function overrideLimitsBlocker(
-  draft: OperationDraft,
-  vocabulary: readonly EfsLimitOption[],
-): string | null {
+export function overrideLimitsBlocker(draft: OperationDraft): string | null {
   const limits = draft.limits ?? [];
   if (limits.length === 0) return null;
 
@@ -147,12 +166,11 @@ export function overrideLimitsBlocker(
   if (zero) {
     return `Set an amount for ${zero.limitId} — an exception of zero declines the driver outright.`;
   }
-
-  const missing = missingDieselPartner(limits, vocabulary);
-  if (missing) {
-    return `Add ${missing} as well — truck stops ring up diesel under both codes, and an exception `
-      + `naming only one declines the driver at the others.`;
-  }
+  /**
+   * ⚠ Deliberately NOT here: the diesel pair. It was this function's fourth refusal until
+   * 2026-08-18, which made every diesel exception demand two products where the portal demands one
+   * — see `dieselPartnerAdvice`, which is where the vendor's NOTES guidance now lives.
+   */
   return null;
 }
 

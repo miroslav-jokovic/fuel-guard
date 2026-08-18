@@ -201,10 +201,10 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       limits: draft.limits ?? [],
       allowHandEnter: draft.allowHandEnter === true,
     }),
-    blocker: (draft, _card, limitOptions) =>
+    blocker: (draft) =>
       (draft.scopeKind === "location" && draft.location === null
         ? "Choose the location this exception applies at."
-        : overrideLimitsBlocker(draft, limitOptions)),
+        : overrideLimitsBlocker(draft)),
   },
   {
     id: "clear",

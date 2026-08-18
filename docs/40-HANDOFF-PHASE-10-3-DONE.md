@@ -117,9 +117,16 @@ POLICY`, and verified by breaking it. **The live half stays open, exactly as 9.4
 
 1. **The amount is the TOTAL, not the increment.** No code can tell those apart — only a label. The
    test asserts the COPY: says REPLACES, never "additional", carries the 100/50/**150** example.
-2. **Diesel is two codes**, enforced as a blocker, and it does NOT fire when the account lacks the
-   partner. ⚠ **And the amounts do not add up** — WEX: *"The system will not combine the gallon limit
-   on DLS and ULSD as it recognizes this as one product."* DSL 150 + ULSD 150 is **150 gallons**.
+2. **Diesel is two codes**, ~~enforced as a blocker~~ — ⚠ **CORRECTED 2026-08-18, later the same
+   day**: the blocker demanded two products where the portal demands ONE. The Overrides guide's own
+   flow is *"Select product to override and then 'Next'"* then *"Select 'Save and Add Another' **if**
+   multiple products are being overridden"* — one required, the rest optional, and the DSL+ULSD
+   pairing is a NOTES-section advisory, not a rule the portal enforces. Miki's ruling matches the
+   vendor's flow. It is now `dieselPartnerAdvice` — a caution beside the picker with a one-click
+   "add the partner at the same amount" button, never a refusal. Still gated on the account offering
+   the partner. ⚠ **And the amounts do not add up** — WEX: *"The system will not combine the gallon
+   limit on DLS and ULSD as it recognizes this as one product."* DSL 150 + ULSD 150 is **150
+   gallons**.
 3. **`hours` gets no asserted meaning.** The portal's two screens disagree; the value `1` is now
    sourced from the Overrides guide rather than copied from p194's example.
 
