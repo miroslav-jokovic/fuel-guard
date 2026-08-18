@@ -64,11 +64,15 @@ function stub(...responses: string[]): typeof fetch {
 /** The REAL registry — the prover must resolve capabilities the same way production does. */
 const capabilities = capabilityRegistry();
 
-function harness(fetchImpl: typeof fetch) {
+function harness(
+  fetchImpl: typeof fetch,
+  mutationsFixture?: (q: { write: { method: string } | null; filters: () => { col: string; val: unknown }[] }) =>
+    { data: unknown; error: null; count?: number },
+) {
   const rec = createSupabaseRecorder({
     tables: {
-      efs_card_mutations: (q) =>
-        q.write?.method === "insert" ? { data: { id: "mutation-1" }, error: null } : { data: [], error: null, count: 0 },
+      efs_card_mutations: mutationsFixture ?? ((q) =>
+        q.write?.method === "insert" ? { data: { id: "mutation-1" }, error: null } : { data: [], error: null, count: 0 }),
       efs_cards: { data: { id: CARD_ID }, error: null },
     },
   });
@@ -227,6 +231,71 @@ describe("OEG-3 and the vendor-blind capability", () => {
 
     expect(result.oeg3ChangeLanded).toBe(false);
     expect(result.detail).not.toMatch(/sent ACCEPTED/);
+    expect(result.outcome).toBe("denied");
+  });
+
+  /**
+   * The 2026-08-18 production incident, reproduced and then fixed. Proof `86897357`'s apply
+   * settled `sent` — TERMINAL for this capability — and `assertNoneInFlight`'s recency window read
+   * the harness's own row as "still confirming", refused the revert, and left ••••6536 armed with
+   * the proof denied. Within one run the harness sequences apply → revert itself; its own row is a
+   * settled fact, not a race. The exemption is scoped to the run's `proof_run_id` and nothing else.
+   */
+  it("is not blocked by its own apply row — the revert dispatches and the proof settles proven", async () => {
+    const ownRow = {
+      id: "mutation-0", status: "sent",
+      created_at: new Date().toISOString(), proof_run_id: "proof-1",
+    };
+    const h = harness(
+      stub(
+        loginOk, ACTIVE,
+        ACTIVE, soap(""), COUNT_ONLY,
+        COUNT_ONLY,
+        COUNT_ONLY, soap(""), ACTIVE,
+      ),
+      // Every in-flight lookup sees a FRESH `sent` row belonging to this very proof run.
+      (q) => {
+        if (q.write?.method === "insert") return { data: { id: "mutation-1" }, error: null };
+        if (q.filters().some((f) => f.col === "status")) return { data: [ownRow], error: null, count: 1 };
+        return { data: [], error: null, count: 0 };
+      },
+    );
+    const result = await proveCapability(h.ctx, "override_grant", h.deps);
+
+    expect(result.oeg5RevertLanded).toBe(true);
+    expect(result.cardStillChanged).toBe(false);
+    expect(result.outcome).toBe("proven");
+  });
+
+  it("is still blocked by anyone ELSE's fresh row — the exemption is this run's rows and nothing more", async () => {
+    // The same shape with a foreign (proofless) row appearing after the apply — an operator's write
+    // landing mid-proof. The revert must refuse and the proof must say the card is still changed,
+    // because now there genuinely IS an unknown in flight.
+    let statusReads = 0;
+    const foreignRow = {
+      id: "mutation-9", status: "sent",
+      created_at: new Date().toISOString(), proof_run_id: null,
+    };
+    const h = harness(
+      stub(
+        loginOk, ACTIVE,
+        ACTIVE, soap(""), COUNT_ONLY,
+        COUNT_ONLY,
+      ),
+      (q) => {
+        if (q.write?.method === "insert") return { data: { id: "mutation-1" }, error: null };
+        if (q.filters().some((f) => f.col === "status")) {
+          statusReads += 1;
+          return statusReads >= 2 ? { data: [foreignRow], error: null, count: 1 } : { data: [], error: null, count: 0 };
+        }
+        return { data: [], error: null, count: 0 };
+      },
+    );
+    const result = await proveCapability(h.ctx, "override_grant", h.deps);
+
+    expect(result.oeg5RevertLanded).toBe(false);
+    expect(result.cardStillChanged).toBe(true);
+    expect(result.detail).toMatch(/still being confirmed/i);
     expect(result.outcome).toBe("denied");
   });
 

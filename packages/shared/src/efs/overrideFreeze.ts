@@ -127,3 +127,17 @@ export const overrideGrantBlockedMessage = (uses: number): string =>
   `This card already has a fuel exception with ${uses === 1 ? "1 purchase" : `${uses} purchases`} `
   + "left. Remove that exception first — the vendor offers no second override on a card already in "
   + "override, and granting over one can apply only partially while EFS reports success either way.";
+
+/**
+ * Exceptions are for cards that can fuel — Miki's 2026-08-18 ruling: *"we cant add override if card
+ * is on hold or inactive, only if it is active."*
+ *
+ * EFS itself ACCEPTS the write — both live HOLD-card grants landed their count (docs/40 §1.3, and
+ * the 10.5 proof run) — which is exactly the problem: the pump declines a held or inactive card
+ * whatever exceptions it carries, so the grant succeeds, the ledger says the driver is covered, and
+ * the driver is declined anyway. Same sentence on the API's precondition and the drawer's blocker.
+ */
+export const overrideGrantStatusMessage = (status: string): string =>
+  `This card is ${status} — a fuel exception can only be granted on an Active card. The pump `
+  + "declines a held or inactive card regardless of any exception it carries, so granting one here "
+  + "would only say the driver is covered when they are not.";
