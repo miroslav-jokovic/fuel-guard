@@ -41,8 +41,31 @@ the number that makes the guard proportionate rather than paranoid or pointless.
 3. **Have QA reconfigured** so at least one card is CARD or BOTH-sourced. Cleanest long-term; also
    unblocks whatever in Phases 11–13 needs card-level limits.
 
-Claude's recommendation on 2026-08-18 was **2 then 3, keeping production out of it**. Miki has not
-ruled.
+Claude's recommendation on 2026-08-18 was **2 then 3, keeping production out of it**. ~~Miki has not
+ruled.~~
+
+### 1.2 ✅ RULED, later on 2026-08-18: option 1 — production, one of the BOTH cards
+
+Miki: *"lets do 10.4 on production, one of the BOTH cards."* The drill's production refusal is
+lifted (it was justified by "QA answers it", which §1's sweep disproved); production now REQUIRES
+`--card-id`, never a typed number.
+
+**The candidates, from the mirror (production org `86d6b3ea…`, 180 BOTH cards, of which exactly SIX
+carry card-level limit records):**
+
+| efs_cards.id | card | status | last used | card-level limits |
+|---|---|---|---|---|
+| `c811dfe6-c707-46a1-b7b4-2185a0dbb863` | ••••6536 | **HOLD** | 2026-08-10 | ADD $40 |
+| `7b0d691c-2878-441e-8a88-59185310a6b8` | ••••6692 | **HOLD** | 2026-08-15 | ADD $40 |
+| `46b2de42-b72c-4b0a-bb2f-0b69a6eb1ffc` | ••••6635 | ACTIVE | 2026-08-14 | ADD $40 |
+| `af69cbb3-6a4d-484d-a4ca-b8eb7c081fe5` | ••••6817 | ACTIVE | 2026-08-15 | ADD $40 |
+| `b774c382-6e30-46d4-88d7-db68e970816f` | ••••7559 | ACTIVE | 2026-08-15 | DSL 50 gal |
+| `7b1b9991-ada6-4c0d-9f15-a7f1cfade1b4` | ••••6544 | ACTIVE | 2026-08-16 | ADD $40 |
+
+**The chosen card is ••••6536** — on HOLD (so nothing can fuel during the run's armed window, which
+closes the production failure mode §1.1 named), longest-idle, one small card-level record for the
+restore comparison. The drill re-reads live before writing, so a stale mirror row can only make it
+refuse, never mislead it.
 
 ---
 
