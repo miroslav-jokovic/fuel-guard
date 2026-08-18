@@ -35,9 +35,21 @@ import { defineBehaviour, type Landing } from "../types.js";
  * this is the honest answer and NOT a resting place — the rows accumulate on the unresolved list on
  * purpose, where they are visible.
  */
-const UNOBSERVABLE_SCOPE_FIELDS: ReadonlySet<string> = new Set([
+const UNOBSERVABLE_GRANT_FIELDS: ReadonlySet<string> = new Set([
   "overrideAllLocations",
   "locationOverride",
+  /**
+   * ⚠ `limits` joined on 2026-08-18, from the production 10.4 run (limit-restore-production.json).
+   *
+   * With the override ARMED (uses 1, six-field ULSD probe accepted), getCardv2 still returned the
+   * card's OWN record — ADD 40, autoRollMap 127 — not the override's. The override's limits live in
+   * the vendor's override overlay, and the read path never echoes them. So an unlanded `limits`
+   * edit after a grant is not evidence the cap failed to arm; it is what a WORKING product override
+   * looks like through getCardv2. This is precisely how the 2026-08-18 QA grant (DSL 50 + ULSD 50)
+   * came to be recorded `failed` while the card showed a use armed — the judge condemned the one
+   * field this vendor never reports back.
+   */
+  "limits",
 ]);
 
 /**
@@ -46,7 +58,7 @@ const UNOBSERVABLE_SCOPE_FIELDS: ReadonlySet<string> = new Set([
  */
 const judgeGrant = (unlanded: readonly string[]): Landing => {
   if (unlanded.length === 0) return "landed";
-  if (unlanded.some((name) => !UNOBSERVABLE_SCOPE_FIELDS.has(name))) return "not_landed";
+  if (unlanded.some((name) => !UNOBSERVABLE_GRANT_FIELDS.has(name))) return "not_landed";
   return "indeterminate";
 };
 

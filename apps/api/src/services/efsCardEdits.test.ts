@@ -172,16 +172,21 @@ describe("override — the p194 recipes", () => {
     expect(edits.some((e) => e.name === "locationOverride")).toBe(false);
   });
 
-  it("a product-limit override sends the p194 limits array, in sequence position", () => {
-    // The guide's own worked example, verbatim: "if you want to allow ULSD for 1000 gallons, you would
-    // put <hours>1</hours><limit>1000</limit><limitId>ULSD</limitId><minHours>0</minHours>".
+  it("a product-limit override sends the limits array SIX-field, in sequence position", () => {
+    // p194's worked example is four fields — and it is written for setCard v1. The production run of
+    // 2026-08-18 (limit-restore-production.json, steps 2/2b) proved setCardv2 REJECTS the four-field
+    // record (`ERROR running command`) and accepts it with autoRollMap/autoRollMax present. So the
+    // builder defaults the pair to 0 — an override is a temporary exception with no rolling allowance.
     const before = doc();
     const xml = request(before, overrideGrantEdits(before, 1, { kind: "all" }, [
       { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
     ]));
 
-    // Exact bytes, in WSCardLimitv2's declared field order — not four separate contains().
-    expect(xml).toContain("<limits><hours>1</hours><limit>1000</limit><limitId>ULSD</limitId><minHours>0</minHours></limits>");
+    // Exact bytes, in WSCardLimitv2's declared field order — not six separate contains().
+    expect(xml).toContain(
+      "<limits><hours>1</hours><limit>1000</limit><limitId>ULSD</limitId><minHours>0</minHours>"
+      + "<autoRollMap>0</autoRollMap><autoRollMax>0</autoRollMax></limits>",
+    );
     // Exactly one record: the override REPLACES the card's limits, it does not add to them.
     expect(xml.match(/<limits>/g)).toHaveLength(1);
     expect(xml).toContain("<override>1</override>");
@@ -215,21 +220,31 @@ describe("override — the p194 recipes", () => {
     expect(() => request(before, asPlanned)).toThrow(/drops <limits> record "CADV"/);
   });
 
-  it("survives a card whose limit record carries the auto-roll fields the override omits", () => {
-    // The SECOND reason removals cannot be empty, independent of the first. getCardV2.autoRoll.xml's
-    // ULSD record has autoRollMap and autoRollMax; p194's override record has four fields and neither.
-    // The guard's field-drop branch reads an omitted field as a DELETED field, so "reuse the existing
-    // record and change the amount" is not a way round this — naming the id is.
+  it("carries the auto-roll pair on every record — defaulted 0, or passed through verbatim", () => {
+    // getCardV2.autoRoll.xml's ULSD record has autoRollMap and autoRollMax; production's own ADD
+    // record reads autoRollMap 127 (••••6536). ⚠ The LOCAL guard never refused the four-field
+    // record — removals names every pre-existing id, so nothing is field-compared — which is
+    // exactly how it reached production and drew `ERROR running command [setCardv2]`. The vendor
+    // is the enforcer here; this test pins the shape that landed (2026-08-18, steps 2/2b).
     const before = doc("getCardV2.autoRoll.xml");
     const edits = overrideGrantEdits(before, 1, { kind: "all" }, [
       { limitId: "ULSD", limit: 1000, hours: 1, minHours: 0 },
     ]);
     expect(() => request(before, edits)).not.toThrow();
-    expect(request(before, edits)).not.toContain("autoRoll");
+    expect(request(before, edits)).toContain("<autoRollMap>0</autoRollMap>");
 
-    // POSITIVE CONTROL: unnamed, it is the field-drop refusal rather than the record-drop one.
+    // A caller with REAL values — the 10.4 drill's repair path — passes them through unchanged.
+    const repair = overrideGrantEdits(before, 1, { kind: "all" }, [
+      { limitId: "ADD", limit: 40, hours: 0, minHours: 0, autoRollMap: 127, autoRollMax: 0 },
+    ]);
+    expect(request(before, repair)).toContain("<autoRollMap>127</autoRollMap>");
+
+    // POSITIVE CONTROL (the guard still watches field fidelity where it CAN): un-name ULSD from
+    // removals and strip the pair — the field-drop refusal fires, as it always did.
     const unnamed = edits.map((e) =>
-      (e.op === "replaceAll" && e.name === "limits" ? { ...e, removals: ["DEF"] } : e));
+      (e.op === "replaceAll" && e.name === "limits"
+        ? { ...e, removals: ["DEF"], records: e.records.map(({ autoRollMap: _m, autoRollMax: _x, ...rest }) => rest) }
+        : e));
     expect(() => request(before, unnamed)).toThrow(/<autoRollMap>.*from <limits> record "ULSD"/);
   });
 

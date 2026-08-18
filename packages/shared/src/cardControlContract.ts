@@ -344,12 +344,13 @@ export type OverrideScope = z.infer<typeof overrideScopeSchema>;
  * One product and the amount an override opens it up to — p194's third recipe, "Override Product
  * Limits", whose worked example is `hours 1 / limit 1000 / limitId ULSD / minHours 0`.
  *
- * ── Four fields, not six, and that is the guide's choice rather than ours ─────────────────────────
- * `WSCardLimitv2` declares six (`autoRollMap`/`autoRollMax` follow `minHours` — see
- * WS_CARD_LIMIT_SEQUENCE). p194's example carries four, and an override limit is a temporary
- * exception rather than a rolling allowance, so auto-roll has nothing to say about it. The serializer
- * emits whatever fields a record has in the declared order, so adding them later needs no change
- * here.
+ * ── Four INPUT fields; the wire carries six — corrected 2026-08-18, on production evidence ────────
+ * This schema stays four-field: the operator chooses a product and an amount, and auto-roll has
+ * nothing to say about a temporary exception. But p194's four-field example is written for setCard
+ * v1, and `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as REQUIRED — the first production
+ * limits write (four fields, ••••6536) came back `ERROR running command [setCardv2]`, and the same
+ * record with the pair at 0 landed (docs/efs/limit-restore-production.json). `overrideLimitsEdit`
+ * defaults the pair on every record, so no caller of this schema has to know.
  *
  * ── `limitId` is shape-checked, NOT checked against the account ───────────────────────────────────
  * The same call Step 9.2 made for `infoId`: the set of real limit IDs comes from the ACCOUNT — from

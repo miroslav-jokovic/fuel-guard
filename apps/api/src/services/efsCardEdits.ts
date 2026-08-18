@@ -197,21 +197,23 @@ function overrideLimitsEdit(doc: CardDocument, limits: readonly OverrideLimitRec
     op: "replaceAll",
     name: "limits",
     /**
-     * Four fields in WSCardLimitv2's declared order — `orderRecordFields` enforces it either way —
-     * PLUS the auto-roll pair when the caller supplied one. p194's four-field example is written
-     * for setCard v1 (`WSCardLimit`); v2's `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as
-     * required elements, and the first-ever production limits write (2026-08-18, four fields) came
-     * back `ERROR running command [setCardv2]`. The 10.4 drill sends the six-field shape to test
-     * that hypothesis, and its repair path sends a card's own records back WITH their real
-     * auto-roll values rather than silently narrowing them.
+     * ⚠ SIX fields, always, in WSCardLimitv2's declared order — proven on production 2026-08-18.
+     *
+     * p194's four-field example is written for setCard v1 (`WSCardLimit`); this codebase sends
+     * setCardv2, whose `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as REQUIRED elements.
+     * The 10.4 drill proved the difference live on ••••6536: the four-field record came back
+     * `ERROR running command [setCardv2]` with the card untouched; the same record with
+     * `autoRollMap 0 / autoRollMax 0` LANDED (docs/efs/limit-restore-production.json, steps 2/2b).
+     * An override limit is a temporary exception with no rolling allowance, so 0/0 is the right
+     * default; a caller with real auto-roll values (the drill's repair path) passes them through.
      */
     records: limits.map((limit) => ({
       hours: String(limit.hours),
       limit: String(limit.limit),
       limitId: limit.limitId,
       minHours: String(limit.minHours),
-      ...(limit.autoRollMap !== undefined ? { autoRollMap: String(limit.autoRollMap) } : {}),
-      ...(limit.autoRollMax !== undefined ? { autoRollMax: String(limit.autoRollMax) } : {}),
+      autoRollMap: String(limit.autoRollMap ?? 0),
+      autoRollMax: String(limit.autoRollMax ?? 0),
     })),
     removals,
   };
