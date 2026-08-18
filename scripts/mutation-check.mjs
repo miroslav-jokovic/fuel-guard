@@ -197,6 +197,14 @@ const MUTATIONS = [
     detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
   },
   {
+    id: "efs-override-grant-sent-not-accepted",
+    why: "Step 3.11's answer undone: without sentAccepted, override_grant's proof can never settle proven — the vendor never echoes the scope or limits, so OEG-3 reads every working grant as unlanded and 10.5's promotion becomes unreachable. The declaration must be load-bearing, not decorative.",
+    file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
+    find: "    sentAccepted: {\n      reason: \"this vendor never echoes an override's scope or limits through getCardv2 (H2; \"\n        + \"docs/40 §1.3) — the count landed, and the count is the only observable field\",\n    },",
+    replace: "",
+    detect: apiTest("src/efs/harness/prove.test.ts"),
+  },
+  {
     id: "efs-override-limits-four-field-wire",
     why: "The four-field limit record is p194's example — and setCardv2 REJECTS it (production, 2026-08-18: 'ERROR running command', card untouched; the six-field record landed). Reverting to four fields ships a product override that faults on every real grant, and the local echo guard cannot catch it because removals names every pre-existing record.",
     file: "apps/api/src/services/efsCardEdits.ts",

@@ -239,6 +239,22 @@ export interface ProofPlan<TBody> {
    * out of jsonb, and stronger than a cast would be.
    */
   revert: (snap: Snapshot, ctx: EditsCtx) => { capability: string; body: unknown };
+  /**
+   * Present ONLY when this capability's judge can NEVER return `succeeded` for a working write,
+   * because the vendor does not echo the written fields back through any read — so `sent`
+   * (indeterminate) IS what success looks like, and OEG-3 accepts it with this reason recorded in
+   * the proof's detail.
+   *
+   * ── The bar for setting this, and why it is deliberately high ──────────────────────────────────
+   * The claim is not "verification is flaky here"; it is "verification is IMPOSSIBLE here, and we
+   * proved it". `override_grant` qualifies on live evidence from both orgs: the scope pair reads
+   * `false`/`0` across all 234 mirrored cards after every grant that provably armed (docs/22 H2),
+   * and the 2026-08-18 production run watched an ARMED override while getCardv2 still returned the
+   * card's own limits (docs/40 §1.3). A capability whose writes CAN be observed must never set this
+   * — accepting `sent` there would wave through exactly the silent no-op H1 taught this codebase to
+   * fear, which is why the reason string is mandatory and lands in the proof row.
+   */
+  sentAccepted?: { reason: string };
 }
 
 export interface CapabilityBehaviour<TBody> extends Governance<TBody> {

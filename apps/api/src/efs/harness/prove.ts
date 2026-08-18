@@ -216,7 +216,15 @@ export async function proveCapability(
     return await settle(result);
   }
   if (applied.faultCode && NOT_ENTITLED.has(applied.faultCode)) result.oeg1Entitled = false;
-  result.oeg3ChangeLanded = applied.status === "succeeded";
+  /**
+   * `sent` is accepted as OEG-3 green ONLY for a plan that declares `sentAccepted` — a capability
+   * whose judge can never observe its own write because the vendor echoes nothing back (the bar is
+   * documented on `ProofPlan.sentAccepted`; `override_grant` is the one holder, on live evidence
+   * from both orgs). The acceptance and its reason land in the proof's detail, so a promotion
+   * citing this proof carries the caveat rather than silently absorbing it.
+   */
+  const sentAccepted = applied.status === "sent" && plan.sentAccepted !== undefined;
+  result.oeg3ChangeLanded = applied.status === "succeeded" || sentAccepted;
   /**
    * Step 4.7 — taken from the orchestrator, not measured here.
    *
@@ -232,7 +240,8 @@ export async function proveCapability(
    * harness and the entitlement probe now report the same physical quantity.
    */
   result.applyLatencyMs = applied.applyLatencyMs ?? null;
-  result.detail = `apply → ${applied.status}${applied.faultCode ? ` (${applied.faultCode})` : ""}`;
+  result.detail = `apply → ${applied.status}${applied.faultCode ? ` (${applied.faultCode})` : ""}`
+    + (sentAccepted ? ` · sent ACCEPTED as applied: ${plan.sentAccepted!.reason}` : "");
 
   // ── OEG-4: vocabulary, on the document the write left behind ────────────────────────────────
   let afterApply: CardDocument | null = null;

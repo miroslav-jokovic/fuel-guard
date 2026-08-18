@@ -32,6 +32,8 @@ export interface RegisteredProof {
   precondition: (snap: Snapshot, ctx: EditsCtx) => boolean;
   sample: (snap: Snapshot, ctx: EditsCtx) => unknown;
   revert: (snap: Snapshot, ctx: EditsCtx) => { capability: string; body: unknown };
+  /** Carried through verbatim — see `ProofPlan.sentAccepted` for the (deliberately high) bar. */
+  sentAccepted?: { reason: string };
 }
 
 export interface MountedCapability {
