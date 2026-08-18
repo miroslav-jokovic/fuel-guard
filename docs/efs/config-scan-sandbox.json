@@ -5,8 +5,8 @@
     "cardsInOrg": 35,
     "cardsWithStoredDocument": 35,
     "cardsWithoutStoredDocument": 0,
-    "oldestSyncedAt": "2026-08-15T02:34:02.924+00:00",
-    "newestSyncedAt": "2026-08-15T02:48:44.127+00:00"
+    "oldestSyncedAt": "2026-08-18T13:38:19.351+00:00",
+    "newestSyncedAt": "2026-08-18T15:05:21.861+00:00"
   },
   "documentsScanned": 35,
   "documentsUnparseable": 0,
@@ -15,25 +15,25 @@
       "field": "infoId",
       "documentsScanned": 35,
       "documentsWithField": 7,
-      "occurrences": 17,
+      "occurrences": 18,
       "observedValues": [
         {
           "text": "DRID",
           "count": 7
         },
         {
-          "text": "NAME",
-          "count": 5
+          "text": "UNIT",
+          "count": 6
         },
         {
-          "text": "UNIT",
+          "text": "NAME",
           "count": 5
         }
       ],
       "rawSpellings": [
         "DRID",
-        "NAME",
-        "UNIT"
+        "UNIT",
+        "NAME"
       ],
       "nilCount": 0,
       "absentCount": 28,
@@ -67,11 +67,11 @@
       "observedValues": [
         {
           "text": "ACTIVE",
-          "count": 34
+          "count": 33
         },
         {
           "text": "INACTIVE",
-          "count": 1
+          "count": 2
         }
       ],
       "rawSpellings": [
@@ -87,20 +87,20 @@
       "field": "validationType",
       "documentsScanned": 35,
       "documentsWithField": 7,
-      "occurrences": 17,
+      "occurrences": 18,
       "observedValues": [
         {
-          "text": "REPORT_ONLY",
+          "text": "EXACT_MATCH",
           "count": 9
         },
         {
-          "text": "EXACT_MATCH",
-          "count": 8
+          "text": "REPORT_ONLY",
+          "count": 9
         }
       ],
       "rawSpellings": [
-        "REPORT_ONLY",
-        "EXACT_MATCH"
+        "EXACT_MATCH",
+        "REPORT_ONLY"
       ],
       "nilCount": 0,
       "absentCount": 28,
@@ -117,13 +117,6 @@
         {
           "expected": "Hold",
           "state": "unobserved"
-        },
-        {
-          "expected": "Inactive",
-          "state": "observed_differently_cased",
-          "observedAs": [
-            "INACTIVE"
-          ]
         }
       ],
       "observation": {
@@ -134,11 +127,11 @@
         "observedValues": [
           {
             "text": "ACTIVE",
-            "count": 34
+            "count": 33
           },
           {
             "text": "INACTIVE",
-            "count": 1
+            "count": 2
           }
         ],
         "rawSpellings": [
@@ -172,11 +165,49 @@
         "observedValues": [
           {
             "text": "ACTIVE",
-            "count": 34
+            "count": 33
           },
           {
             "text": "INACTIVE",
-            "count": 1
+            "count": 2
+          }
+        ],
+        "rawSpellings": [
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "card_deactivate",
+      "field": "status",
+      "state": "match",
+      "values": [
+        {
+          "expected": "Inactive",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "INACTIVE"
+          ]
+        }
+      ],
+      "observation": {
+        "field": "status",
+        "documentsScanned": 35,
+        "documentsWithField": 35,
+        "occurrences": 35,
+        "observedValues": [
+          {
+            "text": "ACTIVE",
+            "count": 33
+          },
+          {
+            "text": "INACTIVE",
+            "count": 2
           }
         ],
         "rawSpellings": [
@@ -275,20 +306,20 @@
         "field": "validationType",
         "documentsScanned": 35,
         "documentsWithField": 7,
-        "occurrences": 17,
+        "occurrences": 18,
         "observedValues": [
           {
-            "text": "REPORT_ONLY",
+            "text": "EXACT_MATCH",
             "count": 9
           },
           {
-            "text": "EXACT_MATCH",
-            "count": 8
+            "text": "REPORT_ONLY",
+            "count": 9
           }
         ],
         "rawSpellings": [
-          "REPORT_ONLY",
-          "EXACT_MATCH"
+          "EXACT_MATCH",
+          "REPORT_ONLY"
         ],
         "nilCount": 0,
         "absentCount": 28,
@@ -314,25 +345,25 @@
         "field": "infoId",
         "documentsScanned": 35,
         "documentsWithField": 7,
-        "occurrences": 17,
+        "occurrences": 18,
         "observedValues": [
           {
             "text": "DRID",
             "count": 7
           },
           {
-            "text": "NAME",
-            "count": 5
+            "text": "UNIT",
+            "count": 6
           },
           {
-            "text": "UNIT",
+            "text": "NAME",
             "count": 5
           }
         ],
         "rawSpellings": [
           "DRID",
-          "NAME",
-          "UNIT"
+          "UNIT",
+          "NAME"
         ],
         "nilCount": 0,
         "absentCount": 28,
@@ -342,8 +373,86 @@
     }
   ],
   "summary": {
-    "match": 3,
+    "match": 4,
     "mismatch": 0,
     "unobserved": 3
-  }
+  },
+  "dependedFields": [
+    {
+      "field": "infoSource",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "BOTH",
+          "count": 35
+        }
+      ],
+      "rawSpellings": [
+        "BOTH"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "limitSource",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "POLICY",
+          "count": 35
+        }
+      ],
+      "rawSpellings": [
+        "POLICY"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "locationSource",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "POLICY",
+          "count": 35
+        }
+      ],
+      "rawSpellings": [
+        "POLICY"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "timeSource",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "POLICY",
+          "count": 35
+        }
+      ],
+      "rawSpellings": [
+        "POLICY"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    }
+  ]
 }
