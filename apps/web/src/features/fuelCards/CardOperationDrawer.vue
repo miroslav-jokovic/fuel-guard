@@ -22,13 +22,8 @@ import {
   operationDiff,
   operationStepUp,
   operationUi,
-  resolveCapability,
-  capabilityBlockedBy,
-  statusRows,
-  allowedInfoIdsFrom,
-  missingEditableInfoIds,
-  unwritableStatusLabel,
-  toOperationCard,
+  resolveCapability, capabilityBlockedBy, statusRows, toOperationCard,
+  allowedInfoIdsFrom, allowedLimitsFrom, missingEditableInfoIds, unwritableStatusLabel,
 } from "./cardOperations";
 import { seedDraftFor } from "./operationDrafts";
 import { newIdempotencyKey, type CardMutationOutcome } from "./useCardControl";
@@ -99,7 +94,8 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 
 const toast = useToastStore();
 
-const allowedInfoIds = computed(() => allowedInfoIdsFrom(props.capabilities)); // Step 9.1's set
+const allowedInfoIds = computed(() => allowedInfoIdsFrom(props.capabilities)); // 9.1's set
+const limitOptions = computed(() => allowedLimitsFrom(props.capabilities)); // 10.3's set
 const draft = ref<OperationDraft>(seedDraftFor(null, props.status, [], allowedInfoIds.value));
 const activeVersion = ref(props.version);
 const activePrompts = ref(props.prompts);
@@ -218,6 +214,7 @@ const card = computed(() => toOperationCard({
 const context = computed(() => ({
   maskedRef: props.maskedRef,
   card: card.value,
+  limitOptions: limitOptions.value,
   locationLabel: (locationId: string): string | null =>
     (draft.value.location?.locId === locationId
       ? [draft.value.location.name, draft.value.location.city, draft.value.location.state].filter(Boolean).join(", ")
@@ -445,9 +442,8 @@ const environmentBadge = computed(() =>
           :busy="busy"
           :read-only-prompts="readOnlyPrompts"
           :add-options="addOptions" :override-uses="props.overrideUses"
-          :status-rows="rows"
-          :status-blocked="statusBlocked"
-          :unwritable-status="unwritable"
+          :limit-options="limitOptions" :status-rows="rows"
+          :status-blocked="statusBlocked" :unwritable-status="unwritable"
           @update:draft="draft = $event"
         />
 

@@ -1,7 +1,11 @@
-import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
+import type {
+  CardCapabilities, EfsLimitOption, EfsLocation, OverrideLimit, PromptInput, WsCard,
+} from "@fuelguard/shared";
 import { statusBlocker } from "./overrideException.js";
-import { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts } from "./promptDrafts";
-export { allowedInfoIdsFrom, editableInfoIds, missingEditableInfoIds, promptDrafts };
+import { overrideLimitsBlocker } from "./overrideLimits.js";
+import * as drafts from "./promptDrafts";
+export const { allowedInfoIdsFrom, allowedLimitsFrom, editableInfoIds, missingEditableInfoIds } = drafts;
+export const promptDrafts = drafts.promptDrafts;
 import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
@@ -78,6 +82,9 @@ export interface OperationDraft {
   uses: number;
   scopeKind: "all" | "location";
   location: EfsLocation | null;
+  /** Products this exception caps (10.3). Empty is the ordinary case — a product override DELETES
+   *  the card's other limits (p194), so nothing is here until the operator asks. */
+  limits: OverrideLimit[];
   prompts: PromptInput[];
   /** Which prompt `promptAdd` is adding. Seeded to the first the card lacks. */
   /**
@@ -137,7 +144,9 @@ export interface CardOperationSpec {
    * Returns the SENTENCE, never a boolean: a disabled button whose tooltip says "invalid" tells an
    * operator to go and hunt. Null means ready.
    */
-  blocker?: (draft: OperationDraft, card: OperationCard) => string | null;
+  /** `limitOptions` goes to EVERY operation, not just the one reading it — `applies`' `allowed`
+   *  rule: a future operation that needs it should not change this signature and every call site. */
+  blocker?: (d: OperationDraft, c: OperationCard, limitOptions: readonly EfsLimitOption[]) => string | null;
 }
 
 const usesLeft = (card: OperationCard): number => card.overrideUses ?? 0;
@@ -186,16 +195,16 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
         ? { kind: "all" }
         : { kind: "location", locationId: draft.location?.locId ?? "" },
       /**
-       * Scope-only until Step 10.3 builds the product picker. Sent EXPLICITLY rather than left absent
-       * even though the schema defaults it, because "this exception does not touch the card's product
-       * limits" is a claim this body should make out loud — the field's whole reason for existing.
+       * Still sent EXPLICITLY when empty rather than left absent, even though the schema defaults it:
+       * "this exception does not touch the card's product limits" is a claim this body should make
+       * out loud, and it is the field's whole reason for existing.
        */
-      limits: [],
+      limits: draft.limits ?? [],
     }),
-    blocker: (draft) =>
+    blocker: (draft, _card, limitOptions) =>
       (draft.scopeKind === "location" && draft.location === null
         ? "Choose the location this exception applies at."
-        : null),
+        : overrideLimitsBlocker(draft, limitOptions)),
   },
   {
     id: "clear",

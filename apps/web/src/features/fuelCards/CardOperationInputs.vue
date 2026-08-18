@@ -1,13 +1,29 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { EFS_MATCH_VALUE_MAX, PROMPT_INPUT_UNSET, type EfsLocation, type PromptInput, infoLabel } from "@fuelguard/shared";
+import {
+  EFS_LIMIT_MAX,
+  EFS_MATCH_VALUE_MAX,
+  PROMPT_INPUT_UNSET,
+  type EfsLimitOption,
+  type EfsLocation,
+  type OverrideLimit,
+  type PromptInput,
+  infoLabel,
+} from "@fuelguard/shared";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppCheckbox } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
 import { CLEAR_EXCEPTION_HELP, cardHasArmedException, clearExceptionLabel } from "./overrideException";
+import {
+  OVERRIDE_LIMIT_AMOUNT_HELP,
+  OVERRIDE_LIMIT_AMOUNT_LABEL,
+  canAddOverrideLimit,
+  emptyOverrideLimit,
+} from "./overrideLimits";
 
 /**
  * The controls for whichever operation the drawer is showing — its third region.
@@ -43,6 +59,13 @@ const props = defineProps<{
   addOptions?: readonly string[];
   /** The card's override count. H16's clear-and-lock checkbox appears only when it is above zero. */
   overrideUses?: number | null;
+  /**
+   * The products THIS account can cap (Step 10.3). Fed from `allowedLimitsFrom(capabilities)`, never
+   * from `EFS_LIMIT_LABELS` — that table is our transcription of the guide and this account carries
+   * fifteen groups it does not contain, including nothing at all for `DSL` if products are used
+   * instead of groups. Offering an id the account does not have is a decline at the pump.
+   */
+  limitOptions?: readonly EfsLimitOption[];
 }>();
 
 const emit = defineEmits<{ "update:draft": [value: OperationDraft] }>();
@@ -54,6 +77,27 @@ const useOptions = Array.from({ length: 9 }, (_, i) => ({
   value: String(i + 1),
   label: i === 0 ? "1 purchase" : `${i + 1} purchases`,
 }));
+
+/** The account's products as select options, with the id kept visible — it is what EFS declines on. */
+const productOptions = computed(() =>
+  (props.limitOptions ?? []).map((option) => ({ value: option.limitId, label: `${option.label} (${option.limitId})` })));
+
+const limitDraft = computed(() => props.draft.limits ?? []);
+
+/** Replace one line. The array is rebuilt rather than mutated — the drawer diffs the draft object. */
+const patchLimit = (index: number, over: Partial<OverrideLimit>): void =>
+  patch({ limits: limitDraft.value.map((limit, i) => (i === index ? { ...limit, ...over } : limit)) });
+
+const addLimit = (): void => patch({ limits: [...limitDraft.value, emptyOverrideLimit()] });
+const removeLimit = (index: number): void =>
+  patch({ limits: limitDraft.value.filter((_, i) => i !== index) });
+
+/** The unit spelled out beside the amount, from the ACCOUNT's answer for that product. */
+const unitHint = (limitId: string): string => {
+  const option = (props.limitOptions ?? []).find((o) => o.limitId === limitId);
+  if (!option) return "";
+  return option.unit === "gallons" ? "gallons" : option.unit === "dollars" ? "dollars" : "units";
+};
 
 /**
  * A real either/or, not a checkbox: EFS's recipe (p194) sets `overrideAllLocations=true` for
@@ -179,6 +223,64 @@ function chooseAdded(infoId: string): void {
       :disabled="props.busy"
       @update:model-value="patch({ location: $event as EfsLocation | null })"
     />
+
+    <!--
+      Step 10.3's product picker. Collapsed to a single button until the operator asks for it, because
+      a scope-only exception is the ordinary case and a product override DELETES the card's other
+      product limits for the duration (p194) — not something to walk into by finding a form open.
+    -->
+    <div class="space-y-3 border-t border-line pt-4">
+      <div
+        v-for="(limit, index) in limitDraft"
+        :key="index"
+        class="space-y-2 rounded-control bg-surface-subtle px-3 py-3"
+      >
+        <FormField label="Product">
+          <template #default="{ id }">
+            <ComboSelect
+              :id="id"
+              :model-value="limit.limitId"
+              :options="productOptions"
+              :disabled="props.busy"
+              @update:model-value="patchLimit(index, { limitId: String($event) })"
+            />
+          </template>
+        </FormField>
+
+        <FormField :label="OVERRIDE_LIMIT_AMOUNT_LABEL" :hint="OVERRIDE_LIMIT_AMOUNT_HELP">
+          <template #default="{ id }">
+            <div class="flex items-center gap-2">
+              <BaseInput
+                :id="id"
+                type="number"
+                min="0"
+                :max="EFS_LIMIT_MAX"
+                :model-value="String(limit.limit)"
+                :disabled="props.busy"
+                @update:model-value="patchLimit(index, { limit: Number($event) })"
+              />
+              <span v-if="unitHint(limit.limitId)" class="whitespace-nowrap text-sm text-ink-muted">
+                {{ unitHint(limit.limitId) }}
+              </span>
+            </div>
+          </template>
+        </FormField>
+
+        <BaseButton variant="ghost" size="sm" :disabled="props.busy" @click="removeLimit(index)">
+          Remove {{ limit.limitId || "this product" }}
+        </BaseButton>
+      </div>
+
+      <BaseButton
+        v-if="canAddOverrideLimit(limitDraft)"
+        variant="soft"
+        size="sm"
+        :disabled="props.busy"
+        @click="addLimit()"
+      >
+        {{ limitDraft.length === 0 ? "Also cap a product…" : "Add another product" }}
+      </BaseButton>
+    </div>
   </div>
 
   <!--
