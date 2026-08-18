@@ -230,6 +230,38 @@ describe("outcomeNotice — a 200 is not a success", () => {
     expect(notice.message).toMatch(/could apply it twice/i);
   });
 
+  /**
+   * ── The bug this block exists for ─────────────────────────────────────────────────────────────
+   * A granted exception rendered as "we could not confirm what happened", which reads as a failure
+   * and invites the operator to grant a second one — the exact double-grant the same sentence warns
+   * against. The count IS confirmed on that route; only the scope is unobservable.
+   *
+   * Three cases, and the two controls are what make the first one mean anything: the same operation
+   * with no document read keeps the generic copy, and a DIFFERENT operation that DID read one keeps
+   * it too. Without them a test would pass against a change keyed on `version` alone.
+   */
+  it("tells a grant its exception is live, rather than that nothing may have happened", () => {
+    const notice = outcomeNotice({ status: "sent", version: "v9" }, "Exception granted", "grant");
+    expect(notice.kind).toBe("warning");
+    expect(notice.title).not.toMatch(/not confirmed$/i);
+    expect(notice.message).not.toMatch(/could not confirm what happened/i);
+    // What IS true: the count landed, the scope did not come back, do not grant another.
+    expect(notice.message).toMatch(/confirmed the number of uses/i);
+    expect(notice.message).toMatch(/do not grant another/i);
+    expect(notice.retryNote).toMatch(/already armed/i);
+  });
+
+  it("keeps the generic wording for a grant whose re-read failed — nothing is known there", () => {
+    const notice = outcomeNotice({ status: "sent", version: null }, "Exception granted", "grant");
+    expect(notice.title).toMatch(/not confirmed/i);
+    expect(notice.message).toMatch(/could not confirm what happened/i);
+  });
+
+  it("keeps the generic wording for another operation that DID read the card back", () => {
+    const notice = outcomeNotice({ status: "sent", version: "v9" }, "Card locked", "status");
+    expect(notice.message).toMatch(/could not confirm what happened/i);
+  });
+
   it("says a drifted write worked AND that something else moved", () => {
     const notice = outcomeNotice({ status: "drift_detected", driftFields: ["/policyNumber"] }, "Card locked");
     expect(notice.kind).toBe("warning");

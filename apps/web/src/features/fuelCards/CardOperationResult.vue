@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { outcomeNotice } from "./cardControlModel";
 import type { CardMutationOutcome } from "./useCardControl";
+import type { CardOperationId } from "./cardOperations";
 
 /**
  * What happened, kept IN the drawer — invariant 4.
@@ -17,12 +18,23 @@ import type { CardMutationOutcome } from "./useCardControl";
  * fuel exception is a second free tank — so the button is disabled and the copy sends the operator
  * to the WEX portal instead. This is the most dangerous state in the system and the one the old
  * drawer expressed only as a warning-coloured toast.
+ *
+ * The retry caution is NOT written here. It comes from the notice (`sentNotice`), because "we could
+ * not confirm what happened" is false of `override_grant` — that outcome is reachable only with the
+ * use count confirmed — and two hand-written copies of the same sentence drifted apart exactly that
+ * way once already.
  */
 
-const props = defineProps<{ outcome: CardMutationOutcome; doneLabel: string; cardId: string }>();
+const props = defineProps<{
+  outcome: CardMutationOutcome;
+  doneLabel: string;
+  cardId: string;
+  /** Which operation settled. `sent` reads it, so a grant is not told it may have done nothing. */
+  operationId?: CardOperationId;
+}>();
 const emit = defineEmits<{ retry: []; close: [] }>();
 
-const notice = computed(() => outcomeNotice(props.outcome, props.doneLabel));
+const notice = computed(() => outcomeNotice(props.outcome, props.doneLabel, props.operationId));
 const unconfirmed = computed(() => props.outcome.status === "sent");
 </script>
 
@@ -33,9 +45,11 @@ const unconfirmed = computed(() => props.outcome.status === "sent");
       {{ notice.message ?? "The card now reads as shown on this page." }}
     </p>
 
-    <p v-if="unconfirmed" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
-      Trying again is disabled for this one. The change was sent and we could not confirm what
-      happened, so a retry could apply it twice — check the card in the WEX portal first.
+    <p
+      v-if="unconfirmed && notice.retryNote"
+      class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700"
+    >
+      {{ notice.retryNote }}
     </p>
 
     <div class="flex flex-wrap justify-end gap-3">

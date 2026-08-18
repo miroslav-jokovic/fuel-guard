@@ -302,10 +302,9 @@ async function run(): Promise<void> {
   try {
     const outcome = await dispatch();
     settled.value = outcome;
-    const notice = outcomeNotice(outcome, confirmation.value?.doneLabel ?? "Done");
-    if (notice.kind === "success") toast.success(notice.title, notice.message);
-    else if (notice.kind === "warning") toast.warning(notice.title, notice.message);
-    else toast.error(notice.title, notice.message);
+    const notice = outcomeNotice(outcome, confirmation.value?.doneLabel ?? "Done", props.operation?.id);
+    // `kind` IS a `ToastVariant`, so it is pushed by name rather than mapped in three branches.
+    toast.push(notice.kind, notice.title, notice.message);
     emit("changed");
     // A key is spent the moment its request SETTLES with a known outcome. `sent` is the sole
     // exception: its outcome is unknown, and re-clicking must replay "still unconfirmed" rather
@@ -415,6 +414,7 @@ const environmentBadge = computed(() =>
         :outcome="settled"
         :done-label="confirmation?.doneLabel ?? 'Done'"
         :card-id="props.cardId"
+        :operation-id="props.operation?.id"
         @retry="seed()"
       />
 

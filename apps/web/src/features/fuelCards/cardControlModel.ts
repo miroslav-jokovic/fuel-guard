@@ -3,6 +3,7 @@ import {
   type EfsCardStatus,
   canonicalEfsStatus,
 } from "@fuelguard/shared";
+import type { CardOperationId } from "./cardOperations";
 
 /**
  * Pure presentation logic for the fuel-card pages.
@@ -319,6 +320,64 @@ export interface OutcomeNotice {
   kind: "success" | "warning" | "error";
   title: string;
   message?: string;
+  /**
+   * The caution beside the DISABLED retry button, when the outcome is `sent`.
+   *
+   * It travels with the notice rather than living in `CardOperationResult.vue` because the two
+   * sentences have to agree about what happened, and when they were written in two places they
+   * disagreed — the box said "we could not confirm what happened" on a grant we can prove landed.
+   */
+  retryNote?: string;
+}
+
+/**
+ * The generic `sent` copy, and the one operation that must not use it.
+ *
+ * ── What went wrong ─────────────────────────────────────────────────────────────────────────────
+ * 2026-08-17: Miki granted an exception from the dashboard, read *"The change was sent to EFS and we
+ * could not confirm what happened"*, and concluded the grant was broken. It had worked — the next
+ * probe run refused to start because that card already carried one use. The copy told him the
+ * opposite of the truth, and the action it invited (grant again) is the double-grant its own last
+ * clause warns about.
+ *
+ * ── Why the grant can say more, and exactly how much more ───────────────────────────────────────
+ * `override_grant` reaches `sent` through ONE narrow route. `judgeGrant` returns `indeterminate`
+ * only when every unlanded edit is `overrideAllLocations` or `locationOverride` — the two fields
+ * this account has never echoed back (H2/H3: 234 mirror rows `false`, none `true`). The use COUNT is
+ * a third edit, `override`, and it is not in that set, so an unlanded count is a plain `not_landed`
+ * and never arrives here. A `sent` grant that carries a version therefore has a confirmed count: the
+ * exception IS armed, and only its SCOPE is unobservable.
+ *
+ * `version` is the discriminator because it is null in exactly one case — `finalizeUnverified` is
+ * called with a null document only on the route where the verifying re-read itself failed, and there
+ * nothing at all is known. That case keeps the generic wording, which is true of it.
+ *
+ * ⚠ This is NOT licence to call the grant `succeeded`. Step 3.11 exists because that was tried; the
+ * scope genuinely cannot be observed through `getCardv2` on this account.
+ */
+function sentNotice(version: string | null | undefined, operationId?: CardOperationId): OutcomeNotice {
+  if (operationId === "grant" && version) {
+    return {
+      kind: "warning",
+      title: "Exception granted — the scope is unconfirmed",
+      message:
+        "The exception is on the card: EFS confirmed the number of uses. What it does not report " +
+        "back is WHERE the exception applies, so we cannot confirm the locations you chose. Check " +
+        "the card in the WEX portal — and do not grant another, because the first one is live.",
+      retryNote:
+        "Trying again is disabled for this one. The exception is already armed, so a retry would " +
+        "grant a second free tank rather than repair anything.",
+    };
+  }
+  return {
+    kind: "warning",
+    title: "Sent, but not confirmed",
+    message:
+      "The change was sent to EFS and we could not confirm what happened. Check the card in the WEX portal before trying again — retrying could apply it twice.",
+    retryNote:
+      "Trying again is disabled for this one. The change was sent and we could not confirm what " +
+      "happened, so a retry could apply it twice — check the card in the WEX portal first.",
+  };
 }
 
 /**
@@ -334,8 +393,17 @@ export interface OutcomeNotice {
  *   sent           → WE DO NOT KNOW. The one outcome that must never be dressed up as either.
  */
 export function outcomeNotice(
-  outcome: { status: string; driftFields?: string[]; faultMessage?: string | null; idempotent?: boolean },
+  outcome: {
+    status: string;
+    driftFields?: string[];
+    faultMessage?: string | null;
+    idempotent?: boolean;
+    /** Null only when the verifying re-read itself failed — see `sentNotice`. */
+    version?: string | null;
+  },
   doneLabel: string,
+  /** Which operation this was. Only `sent` reads it, and only `grant` answers differently. */
+  operationId?: CardOperationId,
 ): OutcomeNotice {
   // A replay of an already-settled key (audit P1-2): the API did nothing new and returned the prior
   // outcome. Say so, rather than claim a fresh success or failure — the operator clicked twice and
@@ -362,12 +430,7 @@ export function outcomeNotice(
           " EFS is the source of truth and the card page now shows what it reports.",
       };
     case "sent":
-      return {
-        kind: "warning",
-        title: "Sent, but not confirmed",
-        message:
-          "The change was sent to EFS and we could not confirm what happened. Check the card in the WEX portal before trying again — retrying could apply it twice.",
-      };
+      return sentNotice(outcome.version, operationId);
     case "failed":
       return {
         kind: "error",
