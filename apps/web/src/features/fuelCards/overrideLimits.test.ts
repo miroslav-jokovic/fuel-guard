@@ -6,6 +6,7 @@ import {
   ALLOW_HAND_ENTER_LABEL,
   OVERRIDE_LIMIT_AMOUNT_HELP,
   OVERRIDE_LIMIT_AMOUNT_LABEL,
+  dieselPartnerAdvice,
   handEnterClause,
   missingDieselPartner,
   overrideLimitsBlocker,
@@ -50,37 +51,46 @@ describe("RULE 1 — the amount is the TOTAL, not the increment", () => {
   });
 });
 
-describe("RULE 2 — diesel is two codes and one of them is not enough", () => {
-  it("refuses a grant that names DSL without ULSD", () => {
-    const blocker = overrideLimitsBlocker(draft({ limits: [limit("DSL", 150)] }), VOCABULARY);
-    expect(blocker).toContain("ULSD");
+describe("RULE 2 — diesel is two codes, and the vendor ADVISES the pair; one product grants", () => {
+  /**
+   * The 2026-08-18 correction. The portal's flow requires exactly ONE product — "Select product to
+   * override and then 'Next'" — and offers more only conditionally: "Select 'Save and Add Another'
+   * IF multiple products are being overridden." The pairing lives in the guide's NOTES as advice.
+   * Until this day it was enforced as a blocker, which demanded two products where the vendor
+   * demands one; Miki's ruling — one required, all others in the same session optional — matches
+   * the vendor's own flow.
+   */
+  it("does NOT block a grant that names DSL alone — one product is enough", () => {
+    expect(overrideLimitsBlocker(draft({ limits: [limit("DSL", 150)] }))).toBeNull();
+    expect(overrideLimitsBlocker(draft({ limits: [limit("ULSD", 150)] }))).toBeNull();
   });
 
-  it("refuses the mirror case too — ULSD without DSL", () => {
-    // p194's own example caps ULSD alone. It is an illustration of the request SHAPE, not an
-    // operational recipe, and following it literally declines a driver at a DSL truck stop.
-    const blocker = overrideLimitsBlocker(draft({ limits: [limit("ULSD", 150)] }), VOCABULARY);
-    expect(blocker).toContain("DSL");
+  it("advises the partner instead, naming it and the risk", () => {
+    const advice = dieselPartnerAdvice([limit("DSL", 150)], VOCABULARY);
+    expect(advice).toContain("ULSD");
+    expect(advice).toMatch(/decline/i);
+    // The mirror case — p194's own example caps ULSD alone, and a driver sent to a DSL stop
+    // is declined by it. The advice is what keeps that from being a surprise.
+    expect(dieselPartnerAdvice([limit("ULSD", 150)], VOCABULARY)).toContain("DSL");
   });
 
-  it("passes once both are named", () => {
-    const both = draft({ limits: [limit("DSL", 150), limit("ULSD", 150)] });
-    expect(overrideLimitsBlocker(both, VOCABULARY)).toBeNull();
+  it("stops advising once both are named", () => {
+    expect(dieselPartnerAdvice([limit("DSL", 150), limit("ULSD", 150)], VOCABULARY)).toBeNull();
   });
 
   /**
-   * The control that keeps the rule from becoming an unfixable blocker. An account that does not
-   * carry the partner code cannot satisfy a demand for it, and a Confirm button that can never
-   * enable is worse than the decline it guards against.
+   * An account that does not carry the partner code cannot act on the advice, and advice nobody
+   * can follow is noise — same reason the old blocker was gated on the vocabulary.
    */
-  it("does not demand a partner this account does not offer", () => {
+  it("does not advise a partner this account does not offer", () => {
     const ulsdOnly = resolveLimitVocabulary([{ groupId: "ULSD", description: "ULSD", isFuel: true }]);
     expect(missingDieselPartner([limit("ULSD", 150)], ulsdOnly)).toBeNull();
-    expect(overrideLimitsBlocker(draft({ limits: [limit("ULSD", 150)] }), ulsdOnly)).toBeNull();
+    expect(dieselPartnerAdvice([limit("ULSD", 150)], ulsdOnly)).toBeNull();
   });
 
   it("says nothing about diesel when no diesel is involved", () => {
     expect(missingDieselPartner([limit("CADV", 50)], VOCABULARY)).toBeNull();
+    expect(dieselPartnerAdvice([limit("CADV", 50)], VOCABULARY)).toBeNull();
   });
 });
 
@@ -95,10 +105,10 @@ describe("RULE 3 — hours gets no asserted meaning", () => {
       OVERRIDE_LIMIT_AMOUNT_HELP,
       OVERRIDE_LIMIT_AMOUNT_LABEL,
       overrideLimitsClause([limit("DSL", 150)], VOCABULARY),
-      // DSL alone, so the diesel-pair sentence is in the sample too — that is the copy most likely
+      // DSL alone, so the diesel-pair ADVICE is in the sample too — that is the copy most likely
       // to grow an explanation of `hours` if somebody ever decides the window needs describing.
-      overrideLimitsBlocker(draft({ limits: [limit("DSL", 150)] }), VOCABULARY) ?? "",
-      overrideLimitsBlocker(draft({ limits: [limit("CADV", 0)] }), VOCABULARY) ?? "",
+      dieselPartnerAdvice([limit("DSL", 150)], VOCABULARY) ?? "",
+      overrideLimitsBlocker(draft({ limits: [limit("CADV", 0)] })) ?? "",
     ].join(" ");
     // The positive control, without which an empty string would satisfy every line below it —
     // `cardControlModel.test.ts`'s odometer block is the pattern (§4.2: assertions of absence need
@@ -114,21 +124,21 @@ describe("RULE 3 — hours gets no asserted meaning", () => {
 describe("the blocker's other refusals", () => {
   it("refuses a product limit scoped to one location — a shape p194 never describes", () => {
     const located = draft({ limits: [limit("CADV", 50)], scopeKind: "location" });
-    expect(overrideLimitsBlocker(located, VOCABULARY)).toContain("every location");
+    expect(overrideLimitsBlocker(located)).toContain("every location");
   });
 
   it("refuses an amount of zero, which declines the driver outright", () => {
-    expect(overrideLimitsBlocker(draft({ limits: [limit("CADV", 0)] }), VOCABULARY)).toContain("CADV");
+    expect(overrideLimitsBlocker(draft({ limits: [limit("CADV", 0)] }))).toContain("CADV");
   });
 
   it("refuses a line with no product chosen", () => {
-    expect(overrideLimitsBlocker(draft({ limits: [limit("", 50)] }), VOCABULARY)).toContain("product");
+    expect(overrideLimitsBlocker(draft({ limits: [limit("", 50)] }))).toContain("product");
   });
 
   /** The control: a scope-only exception is the ordinary case and must stay unblocked. */
   it("says nothing at all when no products are capped", () => {
-    expect(overrideLimitsBlocker(draft(), VOCABULARY)).toBeNull();
-    expect(overrideLimitsBlocker(draft({ scopeKind: "location" }), VOCABULARY)).toBeNull();
+    expect(overrideLimitsBlocker(draft())).toBeNull();
+    expect(overrideLimitsBlocker(draft({ scopeKind: "location" }))).toBeNull();
   });
 });
 
