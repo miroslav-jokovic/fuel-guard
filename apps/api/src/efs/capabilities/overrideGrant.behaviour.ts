@@ -7,6 +7,7 @@ import { overrideGrantEdits, overrideLimitsBefore } from "../../services/efsCard
 import { unlandedEditNames } from "../../services/efsCardReconcile.js";
 import { unlandedEditNamesFromAfter } from "../../lib/efsCardWrite.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
+import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import { defineBehaviour, type Landing } from "../types.js";
 
 /**
@@ -132,6 +133,48 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
    * `prepare()`, so a refusal never spends a slot against the daily override budget.
    */
   preflightStepUp: (body: OverrideGrantBody) => overrideGrantStepUp(body),
+
+  /**
+   * Step 9.4's guard, for LIMITS — the gap the 2026-08-18 QA session found.
+   *
+   * `WSCardv2.header.limitSource` says where a card's product caps are read from: `CARD`, `POLICY`
+   * or `BOTH`. It is the exact twin of `infoSource`, which `promptsSet.behaviour.ts` has refused on
+   * since Phase 9, and the failure is the same one: on a `POLICY`-source card the card-level records
+   * are not what the pump consults, so a `setCardv2` carrying them is accepted and ignored.
+   *
+   * ⚠ And the echo verifier cannot save us, for the reason 9.4 spells out: the card still STORES the
+   * records, so the re-read finds them and reports a clean landing for an override that will never
+   * cap anything. A product exception that reports success and lets a driver buy without limit is
+   * the expensive direction of this mistake.
+   *
+   * ── Why the accounts made this easy to miss ─────────────────────────────────────────────────────
+   * QA policy 1 carries NO limits at all, and the QA cards in use sit on policy 1 (inventory,
+   * 2026-08-18). Production policy 1 carries nine, including DSL 200 and ULSD 200. So the config an
+   * operator sees in production comes from the POLICY, while the QA cards this was built against had
+   * neither policy nor card limits — which is why a product override could be designed, shipped and
+   * demonstrated without the question ever being asked.
+   *
+   * ── Only when the grant actually writes limits ──────────────────────────────────────────────────
+   * A scope-only exception touches no limits and must stay available on every card, `POLICY`-source
+   * included: it grants purchases outside the card's normal caps, wherever those caps come from.
+   * `BOTH` is allowed for 9.4's reason — the card's own records ARE consulted under `BOTH`.
+   *
+   * Absent is ALLOWED, not refused, exactly as in 9.4: refusing on "we could not tell" would break
+   * the feature the moment the vendor renamed a header field, and this guards a silent no-op rather
+   * than a safety property.
+   */
+  precondition: (_ctx, snap, body: OverrideGrantBody) => {
+    if (body.limits.length === 0) return;
+    const source = snap.doc?.card.limitSource;
+    if (source === null || source === undefined) return;
+    if (source.trim().toUpperCase() !== "POLICY") return;
+    throw new ActionRefusalError(
+      "This card takes its product limits from the policy, so a card-level product override would "
+        + "be accepted by EFS and never used at the pump. Grant the exception without a product "
+        + "limit, or change the policy instead.",
+      "invalid_request",
+    );
+  },
 
   /**
    * `limitsBefore` is the recovery record, not decoration (Step 10.1).

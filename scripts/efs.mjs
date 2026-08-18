@@ -1199,7 +1199,25 @@ switch (command) {
             + "copy ITS number. A policy-level limit is not the card's own and is not replaced.",
         );
       }
-      console.error(`baseline: overrideUses 0, card-level limits present — usable`);
+      /**
+       * ⚠ `limitSource` decides whether this card can answer the question at all.
+       *
+       * On a POLICY-source card the card-level records are not what the pump consults, so a
+       * card-level limit write is accepted and IGNORED — Step 9.4's finding, for the other
+       * collection. The card would still store them, so the drill would watch its own write land and
+       * conclude the vendor restores limits, having proved nothing about a pump.
+       */
+      const limitSource = /<limitSource>([^<]*)<\/limitSource>/i.exec(String(before.body.document ?? ""));
+      const source = (limitSource?.[1] ?? "").trim().toUpperCase();
+      if (source === "POLICY") {
+        await bail(
+          `REFUSING: this card reads limitSource=POLICY, so its card-level limits are not what the\n`
+            + "pump consults. A card-level write would be accepted and ignored, and this drill would\n"
+            + "watch its own write land and prove nothing. NOTHING HAS BEEN WRITTEN.\n\n"
+            + "Use a card whose limitSource is CARD or BOTH.",
+        );
+      }
+      console.error(`baseline: overrideUses 0, card-level limits present, limitSource=${source || "(absent)"} — usable`);
 
       // ── 2. Grant the product override. `limits` is what makes this Step 10.4 ────────────────────
       // A cheap, unmistakable cap: one product, one gallon. The AMOUNT is irrelevant to the question
