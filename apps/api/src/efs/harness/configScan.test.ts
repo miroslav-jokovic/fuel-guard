@@ -180,3 +180,45 @@ describe("scanning whole documents against the real capability registry", () => 
     expect(scope?.observation.rawSpellings).toEqual(["false"]);
   });
 });
+
+/**
+ * The read-only fields capabilities BRANCH on — the sweep that would have found this months earlier.
+ *
+ * `limitSource` gates Step 10.3's product override: POLICY means a card-level limit write cannot
+ * govern that card's pump, so the grant is refused. Before this sweep the field had been observed on
+ * exactly ONE card, by accident, in a drill run that refused and stopped (2026-08-18). The emit scan
+ * could never have found it — it derives its fields from `emittableValues`, and nothing emits a
+ * source field.
+ */
+describe("the fleet sweep of fields we only read", () => {
+  it("counts limitSource across documents, including the POLICY value that started this", () => {
+    // `empty.xml` really does carry limitSource POLICY; `full.xml` carries CARD. A fleet of both.
+    const report = scanConfig(
+      [fixture("getCardV2.full.xml"), fixture("getCardV2.empty.xml"), fixture("getCardV2.autoRoll.xml")],
+      CARD_CAPABILITY_CONTRACTS,
+    );
+    const limitSource = report.dependedFields.find((f) => f.field === "limitSource");
+    expect(limitSource).toBeDefined();
+
+    const counts = Object.fromEntries(limitSource!.observedValues.map((v) => [v.text, v.count]));
+    expect(counts.POLICY).toBe(1);
+    expect(counts.CARD).toBeGreaterThanOrEqual(1);
+  });
+
+  it("sweeps all four source fields, not just the one that bit", () => {
+    // `infoSource` reading BOTH is what Step 7.3 recorded and what made the source question look
+    // settled. The same card reads limitSource POLICY. Sweeping one field would have kept that hidden.
+    const report = scanConfig([fixture("getCardV2.empty.xml")], CARD_CAPABILITY_CONTRACTS);
+    expect(report.dependedFields.map((f) => f.field).sort())
+      .toEqual(["infoSource", "limitSource", "locationSource", "timeSource"]);
+
+    const infoSource = report.dependedFields.find((f) => f.field === "infoSource");
+    expect(infoSource!.observedValues.map((v) => v.text)).toContain("POLICY");
+  });
+
+  it("does not judge them — there is no emittable set to judge against", () => {
+    // A verdict would be a claim that we send these, and we never do. The sweep OBSERVES.
+    const report = scanConfig([fixture("getCardV2.empty.xml")], CARD_CAPABILITY_CONTRACTS);
+    expect(report.verdicts.some((v) => v.field === "limitSource")).toBe(false);
+  });
+});
