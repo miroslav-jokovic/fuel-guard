@@ -1070,6 +1070,158 @@ switch (command) {
     break;
   }
 
+  /**
+   * Step 10.4's restore check — the ONE question that decides whether product overrides may ship.
+   *
+   * p194's product recipe echoes the card back "except remove the limits" and puts the override's in
+   * their place. Nothing in the guide, the WSDL or WEX's portal guides says EFS gives the card's own
+   * limits back when the exception clears. `docs/38` §1.2 calls this a precondition for shipping
+   * rather than a closing check, and the reason is blunt: if the vendor does not restore them, a
+   * TEMPORARY exception has PERMANENTLY altered a card, and nobody would notice until a driver was
+   * declined weeks later.
+   *
+   * ── This drill is the opposite of `f9-probe` and refuses the opposite card ──────────────────────
+   * F9 refuses a card that carries `<limits>` because it must not disturb this fixture. This one
+   * REQUIRES limits, because a card with none cannot answer the question — the restore has nothing
+   * to restore. On QA that card is ••••7672.
+   *
+   * ⚠ It writes the exact records back itself when the vendor does not, so the card is never left
+   * altered by a measurement. That repair is the point of capturing `before.limits` first.
+   */
+  case "limit-restore": {
+    const expectOrg = flags["expect-org"];
+    if (expectOrg === undefined || expectOrg === true) {
+      die(
+        "usage: node scripts/efs.mjs limit-restore --expect-org qa [--out <path>]\n"
+          + "--expect-org is REQUIRED: this DELETES a real card's product limits and puts them back.\n"
+          + "(the card number is prompted for, hidden — never pass it as a flag)",
+      );
+    }
+    if (flags.card) {
+      die("--card is refused: a card number passed as a flag lands in shell history and the process table.");
+    }
+    if (String(expectOrg).toLowerCase() === "production") {
+      die(
+        "REFUSING: this drill removes a live card's product limits to find out whether EFS puts them\n"
+          + "back. On production the failure mode is a truck fuelling with no caps. QA answers it — the\n"
+          + "vendor's behaviour is the same account to account.",
+      );
+    }
+
+    const org = await announceOrg(
+      "Step 10.4 — product-override restore check",
+      "⚠ THIS WRITES: it replaces the card's product limits with an override's, then clears it and\n"
+        + "   checks whether the originals came back. It repairs the card itself if they did not.",
+    );
+    await getStepUpToken();
+    const card = await promptHidden("Card number (hidden): ", "card number");
+    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    const last4 = card.slice(-4);
+    const confirm = `WRITE ${last4}`;
+    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, cardNumber: card }, { stepUp: true });
+
+    const steps = [];
+    const record = (step, result) => {
+      steps.push({ step, http: result.status, ok: result.ok, body: result.body });
+      return result;
+    };
+    /** Same shape both sides of the run, so "did they come back" is a string comparison, not a squint. */
+    const shape = (limits) =>
+      JSON.stringify([...(limits ?? [])]
+        .map((l) => ({ limitId: l.limitId, limit: l.limit, hours: l.hours, minHours: l.minHours }))
+        .sort((a, b) => String(a.limitId).localeCompare(String(b.limitId))));
+
+    let verdict = "inconclusive";
+    let limitsBefore = [];
+    try {
+      // ── 1. Baseline, and the two refusals that make the run meaningful ──────────────────────────
+      const before = record("1-read_state", await experiment({ experiment: "read_state" }));
+      if (!before.ok) {
+        console.error(JSON.stringify(before.body, null, 2));
+        die("The baseline read failed. Nothing was written.");
+      }
+      if ((before.body.overrideUses ?? 0) !== 0) {
+        die(
+          `REFUSING: ••••${last4} already carries an override (${before.body.overrideUses} use(s)).\n`
+            + "Its limits may already BE an override's. Clear it first, then re-run.",
+        );
+      }
+
+      // ── 2. Grant the product override. `limits` is what makes this Step 10.4 ────────────────────
+      // A cheap, unmistakable cap: one product, one gallon. The AMOUNT is irrelevant to the question
+      // and a small one minimises what a driver could spend if the run dies between the two writes.
+      const probeLimit = { limitId: "ULSD", limit: 1, hours: 1, minHours: 0 };
+      console.error(`\ngranting a 1-use override capping ${probeLimit.limitId} at ${probeLimit.limit}…`);
+      const granted = record("2-set_override(with limits)", await experiment({
+        experiment: "set_override", uses: 1, limits: [probeLimit], confirm,
+      }));
+      limitsBefore = granted.body?.before?.limits ?? [];
+      if (limitsBefore.length === 0) {
+        die(
+          `REFUSING to draw a conclusion: ••••${last4} carries NO card-level limits, so there is\n`
+            + "nothing for EFS to restore and this run cannot answer the question. On QA the card\n"
+            + "with limits is ••••7672. NOTE: an override may now be armed — check step 2's output.",
+        );
+      }
+      console.error(`the card's own limits, captured BEFORE the write: ${shape(limitsBefore)}`);
+      if (!granted.ok || !granted.body?.landed) {
+        console.error(JSON.stringify(granted.body, null, 2));
+        die("The override did not land. Nothing to restore; the card should be unchanged.");
+      }
+
+      // ── 3. Clear it, and look at what the card carries afterwards ───────────────────────────────
+      console.error("clearing the override…");
+      const cleared = record("3-clear_override", await experiment({ experiment: "clear_override", confirm }));
+      const afterClear = cleared.body?.readings?.[cleared.body.readings.length - 1] ?? null;
+      const limitsAfter = afterClear?.limits ?? [];
+
+      const restored = shape(limitsAfter) === shape(limitsBefore);
+      verdict = restored ? "restored" : "not_restored";
+      console.error(
+        restored
+          ? `\n*** EFS RESTORED the card's own limits. Product overrides are safe to ship. ***\n`
+          : `\n*** ⚠ EFS DID NOT RESTORE the limits. ***\n`
+            + `   before: ${shape(limitsBefore)}\n   after:  ${shape(limitsAfter)}\n`
+            + "   A temporary exception permanently altered this card. Repairing it now…\n",
+      );
+
+      // ── 4. Repair, so a MEASUREMENT never leaves the card changed ───────────────────────────────
+      if (!restored) {
+        const repair = record("4-set_override(repair)", await experiment({
+          experiment: "set_override", uses: 1, limits: limitsBefore, confirm,
+        }));
+        const repairCleared = record("5-clear_override", await experiment({
+          experiment: "clear_override", confirm,
+        }));
+        const finalLimits = repairCleared.body?.readings?.[repairCleared.body.readings.length - 1]?.limits ?? [];
+        if (shape(finalLimits) !== shape(limitsBefore)) {
+          console.error(
+            `\n*** ⚠ REPAIR FAILED. ••••${last4} does NOT carry its original limits. ***\n`
+              + `   Put these back in the WEX portal by hand: ${shape(limitsBefore)}\n`,
+          );
+          verdict = "not_restored_and_repair_failed";
+        } else {
+          console.error(`repair confirmed: ••••${last4} carries its original limits again.\n`);
+        }
+        void repair;
+      }
+    } finally {
+      const transcript = {
+        drill: "10.4", question: "does EFS restore a card's own limits when a product override clears?",
+        org, cardLast4: last4, verdict, limitsBefore, steps,
+      };
+      const json = JSON.stringify(transcript, null, 2);
+      if (typeof flags.out === "string") {
+        writeFileSync(flags.out, `${json}\n`);
+        console.error(`transcript → ${flags.out}`);
+      } else {
+        process.stdout.write(`${json}\n`);
+      }
+    }
+    if (verdict !== "restored") process.exit(2);
+    break;
+  }
+
   case "promote": {
     if (!capability) die("usage: pnpm efs:promote <capability> --proof <id> --reason <why>   |   --suspend --reason <why>");
     const reason = typeof flags.reason === "string" ? flags.reason : null;
@@ -1104,6 +1256,8 @@ switch (command) {
       "commands: scan · inventory [--cards <uuid,uuid>] · mileage --unit <n> [--code ODRD|HBRD] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
         + "write-check [--read-only] [--status Hold|Inactive] · "
         + "f9-probe --expect-org qa   (docs/37 §7 Q6: does a card in override accept any change? WRITES) · "
+        + "limit-restore --expect-org qa   (Step 10.4: does EFS restore a card's own limits when a "
+        + "product override clears? WRITES — needs a card that HAS limits; on QA that is ••••7672) · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)\n"
         + "--out <path> writes the result to a file AFTER --expect-org passes; prefer it to `>`,\n"

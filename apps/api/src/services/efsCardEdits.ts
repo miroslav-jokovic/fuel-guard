@@ -123,6 +123,8 @@ export function overrideGrantEdits(
    * write does.
    */
   limits: readonly OverrideLimit[],
+  /** Permit hand-entered card numbers. PERMANENT — see `grantOverrideSchema.allowHandEnter`. */
+  allowHandEnter = false,
 ): CardEdit[] {
   const edits: CardEdit[] = [{ op: "setField", name: "override", value: String(uses) }];
   if (scope.kind === "all") {
@@ -135,6 +137,12 @@ export function overrideGrantEdits(
     edits.push({ op: "setField", name: "overrideAllLocations", value: "false" });
   }
   if (limits.length > 0) edits.push(overrideLimitsEdit(doc, limits));
+  /**
+   * Only ever ALLOW, and only when asked. `handEnter` is a permanent card field (see the schema),
+   * so the false branch writes nothing at all rather than DISALLOW — an operator granting a tank of
+   * fuel must not silently revoke hand entry on a card that had it.
+   */
+  if (allowHandEnter) edits.push({ op: "setField", name: "handEnter", value: "ALLOW" });
   return edits;
 }
 

@@ -37,14 +37,14 @@ describe("granting an exception names the numbers", () => {
   it("says how many purchases and where, rather than 'grant an override?'", () => {
     // A generic confirmation is how somebody grants nine when they meant one.
     const one = overrideGrantView.confirmation(
-      { uses: 1, scope: { kind: "location", locationId: "442" }, limits: [], expectedVersion: "" },
+      { uses: 1, scope: { kind: "location", locationId: "442" }, limits: [], allowHandEnter: false, expectedVersion: "" },
       context(),
     );
     expect(one.body).toContain("1 purchase");
     expect(one.body).toContain("Loves station 442, Effingham IL");
 
     const three = overrideGrantView.confirmation(
-      { uses: 3, scope: { kind: "all" }, limits: [], expectedVersion: "" },
+      { uses: 3, scope: { kind: "all" }, limits: [], allowHandEnter: false, expectedVersion: "" },
       context(),
     );
     expect(three.body).toContain("3 purchases");
@@ -53,7 +53,7 @@ describe("granting an exception names the numbers", () => {
 
   it("falls back to the location ID it cannot name — that is what a driver is declined at", () => {
     const unknown = overrideGrantView.confirmation(
-      { uses: 2, scope: { kind: "location", locationId: "999" }, limits: [], expectedVersion: "" },
+      { uses: 2, scope: { kind: "location", locationId: "999" }, limits: [], allowHandEnter: false, expectedVersion: "" },
       context(),
     );
     expect(unknown.body).toContain("999");
@@ -62,7 +62,7 @@ describe("granting an exception names the numbers", () => {
   it("shows the scope change, not only the count — 'anywhere' vs 'one station' is the decision", () => {
     const rows = overrideGrantView.diff(
       cardWith({ overrideUses: 0 }),
-      { uses: 2, scope: { kind: "location", locationId: "442" }, limits: [], expectedVersion: "" },
+      { uses: 2, scope: { kind: "location", locationId: "442" }, limits: [], allowHandEnter: false, expectedVersion: "" },
     );
     expect(rows.map((r) => r.label)).toContain("Where");
     expect(rows.find((r) => r.label === "Exception")?.after).toBe("2 purchases");

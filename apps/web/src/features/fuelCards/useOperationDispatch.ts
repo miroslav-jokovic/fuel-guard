@@ -75,6 +75,7 @@ export function useOperationDispatch() {
           uses: body.uses as number,
           scope: body.scope as never,
           limits: (body.limits ?? []) as OverrideLimit[],
+          allowHandEnter: body.allowHandEnter === true,
         });
       case "clear":
         return clear.mutateAsync(common);

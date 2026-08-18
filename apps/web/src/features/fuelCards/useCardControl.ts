@@ -185,10 +185,14 @@ export function useUnlockCard() {
 export function useGrantOverride() {
   const invalidate = useCardInvalidation();
   return useMutation({
-    mutationFn: (args: WriteArgs & { uses: number; scope: OverrideScope; limits: OverrideLimit[] }) =>
+    mutationFn: (args: WriteArgs
+      & { uses: number; scope: OverrideScope; limits: OverrideLimit[]; allowHandEnter: boolean }) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/override`, "POST",
-        { expectedVersion: args.expectedVersion, uses: args.uses, scope: args.scope, limits: args.limits },
+        {
+          expectedVersion: args.expectedVersion, uses: args.uses, scope: args.scope,
+          limits: args.limits, allowHandEnter: args.allowHandEnter,
+        },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,

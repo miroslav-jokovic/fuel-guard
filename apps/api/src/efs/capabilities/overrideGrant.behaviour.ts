@@ -69,7 +69,8 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
      * scope of "0", the LOCATION_OVERRIDE_NONE sentinel that arms neither scope and declines the
      * driver everywhere while the ledger says they are covered (audit P1-6c).
      */
-    buildEdits: (doc, body: OverrideGrantBody) => overrideGrantEdits(doc, body.uses, body.scope, body.limits),
+    buildEdits: (doc, body: OverrideGrantBody) =>
+      overrideGrantEdits(doc, body.uses, body.scope, body.limits, body.allowHandEnter),
   },
 
   /**
@@ -113,7 +114,9 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
      * belongs to Step 10.4's supervised run against a named QA card, not to an automated probe.
      */
     sample: (): OverrideGrantBody => ({
-      uses: 1, scope: { kind: "all" }, limits: [], expectedVersion: "",
+      // `allowHandEnter: false` spelled out for `limits: []`'s reason and one of its own: the flag
+      // writes a PERMANENT card setting, and an automated probe does not get to leave one behind.
+      uses: 1, scope: { kind: "all" }, limits: [], allowHandEnter: false, expectedVersion: "",
     }),
     revert: () => ({
       capability: "override_clear",
@@ -148,5 +151,9 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
     locationId: body.scope.kind === "location" ? body.scope.locationId : null,
     limitsBefore: snap.doc ? overrideLimitsBefore(snap.doc) : null,
     limitsAfter: body.limits,
+    /** Recorded because it OUTLIVES the exception — the audit row is the only place that says a
+     *  permanent card setting moved during what the operator thought was a temporary grant. */
+    handEnterBefore: snap.doc?.card.handEnter ?? null,
+    allowHandEnter: body.allowHandEnter,
   }),
 });

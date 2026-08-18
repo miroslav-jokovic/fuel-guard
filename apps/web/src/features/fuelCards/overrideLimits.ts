@@ -67,6 +67,34 @@ export const PRODUCT_OVERRIDE_HELP =
   "Caps what the driver may buy during the exception. While it is armed the card's OTHER product "
   + "limits are removed — that is how EFS applies a product override.";
 
+/**
+ * ⚠ `Allow Hand Enter` — the portal puts it on this screen, and the screen is misleading.
+ *
+ * `handEnter` is an ordinary card field (`string (7)` ALLOW / DISALLOW / POLICY on getCard/setCard).
+ * It has no override scope in the guide, none in the WSDL, and no expiry anywhere. Sitting under the
+ * portal's `Optional` heading next to `Product/Limit Override` it reads as *"for these N uses, also
+ * permit hand entry"* — and there is no such thing.
+ *
+ * So the label says what it does. Miki's 2026-08-17 call was that it belongs in settings; on
+ * 2026-08-18, having seen the portal, he asked for it here. Both hold only if the control is honest
+ * about outliving the exception, which is the whole reason these two strings exist rather than the
+ * portal's three words.
+ *
+ * ⚠ There is no way to turn hand entry OFF here, deliberately — see `grantOverrideSchema`.
+ * Unticked means "not asked about", never DISALLOW.
+ */
+export const ALLOW_HAND_ENTER_LABEL = "Allow hand-entered card numbers";
+export const ALLOW_HAND_ENTER_HELP =
+  "⚠ This does NOT expire with the exception. It stays on until somebody changes it back — the "
+  + "vendor has no version of this setting that lasts only for the granted purchases.";
+
+/** The confirmation's clause, so the permanence is named where it is committed as well as chosen. */
+export const handEnterClause = (allow: boolean): string =>
+  (allow
+    ? " Hand-entered card numbers will also be permitted — and that stays on after the exception is "
+      + "used up, until it is changed back."
+    : "");
+
 /** A fresh row for the picker, at p194's window and with no product chosen yet. */
 export const emptyOverrideLimit = (): OverrideLimit =>
   ({ limitId: "", limit: 0, ...P194_LIMIT_WINDOW });
