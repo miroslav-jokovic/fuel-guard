@@ -55,6 +55,18 @@ export const DIESEL_PAIR = ["DSL", "ULSD"] as const;
  */
 export const P194_LIMIT_WINDOW = { hours: 1, minHours: 0 } as const;
 
+/**
+ * Why an operator would tick `Product/limit override`, and what it costs — said BEFORE they tick it.
+ *
+ * The destruction is named twice on purpose: here, where the decision is made, and again in the
+ * confirmation (`overrideLimitsClause`), where it is committed. `clearException` follows the same
+ * rule for the same reason — a consequence stated only at the end is a consequence discovered too
+ * late to change your mind about cheaply.
+ */
+export const PRODUCT_OVERRIDE_HELP =
+  "Caps what the driver may buy during the exception. While it is armed the card's OTHER product "
+  + "limits are removed — that is how EFS applies a product override.";
+
 /** A fresh row for the picker, at p194's window and with no product chosen yet. */
 export const emptyOverrideLimit = (): OverrideLimit =>
   ({ limitId: "", limit: 0, ...P194_LIMIT_WINDOW });
