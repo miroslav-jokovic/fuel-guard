@@ -14,14 +14,25 @@ import { EXPERIMENT_VARIANTS } from "../../lib/efsCardExperiments.js";
  * changes the handler there.
  */
 
+/**
+ * ⚠ A card is named by NUMBER or by `efs_cards.id`, and the uuid is the better of the two.
+ *
+ * Last four digits do not identify a QA card — 35 cards share 20 last-4 values and six groups hold
+ * three cards each (docs/28 Step 0.13) — so "the 7672 card" is not a thing, and on 2026-08-18 that
+ * ambiguity sent a drill at the wrong card twice. A uuid is exact, it is org-scoped when resolved
+ * through `loadCardNumber`, and unlike a PAN it may safely appear in shell history and a transcript
+ * (rule 13). Exactly one of the two must be given; the handler refuses both and neither.
+ */
 export const experimentSchema = z.discriminatedUnion("experiment", [
   z.object({
     experiment: z.literal("read_state"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
+    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
+    efsCardId: z.string().uuid().optional(),
   }),
   z.object({
     experiment: z.literal("set_status"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
+    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
+    efsCardId: z.string().uuid().optional(),
     /** Sent VERBATIM — casing is hypothesis H1. Allowlist enforced below with a readable error. */
     status: z.string().trim().min(1),
     /**
@@ -55,7 +66,8 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   // ── D1 pair: grant an override, then delete it with the dedicated op ──────────────────────────
   z.object({
     experiment: z.literal("set_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
+    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
+    efsCardId: z.string().uuid().optional(),
     /** Vendor range (p194). The experiment grants the smallest useful state; 1 is the default ask. */
     uses: z.coerce.number().int().min(1).max(9).default(1),
     /** A 6-digit EFS location id makes it a single-location override; absent = all locations. */
@@ -79,14 +91,16 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
   }),
   z.object({
     experiment: z.literal("delete_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
+    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
+    efsCardId: z.string().uuid().optional(),
     confirm: z.string().trim(),
   }),
   /** The production FALLBACK mechanism (three-field echo clear) as an experiment: the cleanup path
    *  when delete_override turns out unentitled, and the baseline the dedicated op is compared to. */
   z.object({
     experiment: z.literal("clear_override"),
-    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/),
+    cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
+    efsCardId: z.string().uuid().optional(),
     confirm: z.string().trim(),
   }),
 ]);
