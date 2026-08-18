@@ -7,6 +7,14 @@ import {
   type PromptInput,
 } from "@fuelguard/shared";
 import type { CardEdit } from "../lib/efsCardEcho.js";
+
+/**
+ * An override limit as the wire may need it: p194's four fields, optionally carrying
+ * `WSCardLimitv2`'s auto-roll pair. The product's `grantOverrideSchema` stays four-field; the
+ * six-field shape is the 10.4 drill's instrument (and its repair's fidelity) until the production
+ * fault is understood — see `overrideLimitsEdit`'s records comment.
+ */
+export type OverrideLimitRecord = OverrideLimit & { autoRollMap?: number; autoRollMax?: number };
 import { recordIdentity } from "../lib/efsCardCollections.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { childElements, collectElements, localName, type XmlElement } from "../lib/efsXml.js";
@@ -122,7 +130,7 @@ export function overrideGrantEdits(
    * default `editableInfoIds` — a forgotten argument that typechecks and silently narrows what the
    * write does.
    */
-  limits: readonly OverrideLimit[],
+  limits: readonly OverrideLimitRecord[],
   /** Permit hand-entered card numbers. PERMANENT — see `grantOverrideSchema.allowHandEnter`. */
   allowHandEnter = false,
 ): CardEdit[] {
@@ -178,7 +186,7 @@ export function overrideGrantEdits(
  * named: we cannot prove what we would be deleting, so the guard refuses the send with the precise
  * reason. Fail-closed, and its message is better than one invented here.
  */
-function overrideLimitsEdit(doc: CardDocument, limits: readonly OverrideLimit[]): CardEdit {
+function overrideLimitsEdit(doc: CardDocument, limits: readonly OverrideLimitRecord[]): CardEdit {
   const removals: string[] = [];
   for (const element of collectElements(doc.root, "limits")) {
     const identity = recordIdentity("limits", element);
@@ -188,13 +196,22 @@ function overrideLimitsEdit(doc: CardDocument, limits: readonly OverrideLimit[])
   return {
     op: "replaceAll",
     name: "limits",
-    // Four fields, in WSCardLimitv2's declared order — `orderRecordFields` enforces it either way,
-    // but writing them in order keeps the literal readable against p194's own example.
+    /**
+     * Four fields in WSCardLimitv2's declared order — `orderRecordFields` enforces it either way —
+     * PLUS the auto-roll pair when the caller supplied one. p194's four-field example is written
+     * for setCard v1 (`WSCardLimit`); v2's `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as
+     * required elements, and the first-ever production limits write (2026-08-18, four fields) came
+     * back `ERROR running command [setCardv2]`. The 10.4 drill sends the six-field shape to test
+     * that hypothesis, and its repair path sends a card's own records back WITH their real
+     * auto-roll values rather than silently narrowing them.
+     */
     records: limits.map((limit) => ({
       hours: String(limit.hours),
       limit: String(limit.limit),
       limitId: limit.limitId,
       minHours: String(limit.minHours),
+      ...(limit.autoRollMap !== undefined ? { autoRollMap: String(limit.autoRollMap) } : {}),
+      ...(limit.autoRollMax !== undefined ? { autoRollMax: String(limit.autoRollMax) } : {}),
     })),
     removals,
   };
