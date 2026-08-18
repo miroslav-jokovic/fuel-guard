@@ -200,8 +200,15 @@ const MUTATIONS = [
     id: "efs-override-limits-scope-only",
     why: "The products the operator chose are dropped on the way to the edit list, so the write grants a scope-only exception while the ledger and the confirmation both say a product limit was overridden. Silent, and in the expensive direction: the driver is still capped at the card's own amount.",
     file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
-    find: "overrideGrantEdits(doc, body.uses, body.scope, body.limits)",
-    replace: "overrideGrantEdits(doc, body.uses, body.scope, [])",
+    /**
+     * Re-anchored 2026-08-18: `allowHandEnter` became a fifth argument and the old one-line pattern
+     * stopped matching, so this entry had gone STALE — reporting nothing while reading as a pass,
+     * the same failure `efs-mileage-unit-ownership-dropped` had. Anchored on `body.limits` ALONE
+     * now, which is the only token this mutation is actually about; a sixth argument cannot silence
+     * it again.
+     */
+    find: "body.scope, body.limits, body.allowHandEnter",
+    replace: "body.scope, [], body.allowHandEnter",
     detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
   },
   {
