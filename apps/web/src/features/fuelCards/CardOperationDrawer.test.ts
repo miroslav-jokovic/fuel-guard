@@ -30,7 +30,14 @@ const mutations = vi.hoisted(() => ({
   prompts: { isPending: { value: false }, mutateAsync: vi.fn() },
 }));
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }));
+/**
+ * `push` is what the drawer calls — `outcomeNotice`'s `kind` IS a `ToastVariant`, so the variant is
+ * an ARGUMENT here rather than a choice of method. The named helpers stay on the mock because the
+ * real store has them and other code uses them.
+ */
+const toast = vi.hoisted(() => ({
+  push: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(),
+}));
 
 /** A COUNTER, not a constant: rotation is invisible to a mock that returns the same key every time. */
 const keyGen = vi.hoisted(() => ({ n: 0, next: () => `key-${++keyGen.n}` }));
@@ -200,6 +207,77 @@ describe("invariant 1 — the payload is frozen when Confirm is pressed", () => 
  * capability that row calls, and therefore what the ledger and the audit trail say afterwards. So the
  * assertion is on the endpoint, not merely on the count.
  */
+/**
+ * H16's Option B, end to end through the drawer — the half that was missing.
+ *
+ * The checkbox rendered, `cardLock.view.ts` wrote a confirmation clause promising the exception would
+ * leave in the same write, and `useOperationDispatch` dropped the flag on its way to `useLockCard`.
+ * So the request carried the schema's `clearException: false`, `cardLock.behaviour.ts`'s precondition
+ * refused it, and the operator was shown `CARD_LOCK_OVERRIDE_BLOCKED` — the dead-end sentence the
+ * checkbox exists to avoid — after ticking a box that said it would be handled.
+ *
+ * Asserted on the DISPATCHED ARGUMENT rather than on the checkbox rendering, because the checkbox
+ * rendered the whole time the feature was broken.
+ */
+describe("clear-and-lock reaches the wire (docs/22 H16, Option B)", () => {
+  const armed = { status: "Active", overrideUses: 1, capabilities: caps() };
+
+  it("sends clearException when the operator ticks it", async () => {
+    mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+
+    const wrapper = render("status", armed);
+    await setDraft(wrapper, { targetStatus: "Hold", clearException: true });
+    await button(wrapper, "Lock card").trigger("click");
+    await flushPromises();
+
+    const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { clearException: boolean };
+    expect(arg.clearException).toBe(true);
+  });
+
+  /**
+   * The positive control. Without it the case above would pass against a hook that hardcoded `true`,
+   * which would clear an exception nobody asked about — the thing `clearException`'s
+   * never-inferred rule exists to prevent.
+   */
+  it("sends clearException false on a card with no exception to clear", async () => {
+    mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+
+    const wrapper = render("status", { status: "Active", overrideUses: 0, capabilities: caps() });
+    await setDraft(wrapper, { targetStatus: "Hold" });
+    await button(wrapper, "Lock card").trigger("click");
+    await flushPromises();
+
+    const arg = mutations.lock.mutateAsync.mock.calls[0]![0] as { clearException: boolean };
+    expect(arg.clearException).toBe(false);
+  });
+
+  /** The blocker's half: an armed card cannot be locked WITHOUT the operator deciding about it. */
+  it("will not dispatch at all on an armed card until the box is ticked", async () => {
+    const wrapper = render("status", armed);
+    await setDraft(wrapper, { targetStatus: "Hold" });
+
+    expect(button(wrapper, "Lock card").attributes("disabled")).toBeDefined();
+    expect(mutations.lock.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The same drop, on the other capability that has a field to lose. `limits` is `[]` today, so this
+ * asserts the field ARRIVES rather than what is in it — which is the whole point: 10.3 fills it in,
+ * and a hop that silently discards it would make a product override write a scope-only one.
+ */
+describe("the grant carries its limits field (Step 10.1)", () => {
+  it("sends limits, not merely uses and scope", async () => {
+    mutations.grant.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+
+    const wrapper = render("grant");
+    await button(wrapper, "Grant exception").trigger("click");
+    await flushPromises();
+
+    expect(mutations.grant.mutateAsync.mock.calls[0]![0]).toHaveProperty("limits");
+  });
+});
+
 describe("retiring a card (Step 8.1)", () => {
   const held = { status: "Hold", capabilities: caps(), maskedRef: "••••3182" };
 
@@ -620,8 +698,8 @@ describe("carried over from the old drawer, because they were right", () => {
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalled();
+    expect(toast.push).not.toHaveBeenCalledWith("success", expect.anything(), expect.anything());
+    expect(toast.push).toHaveBeenCalledWith("error", expect.anything(), expect.anything());
   });
 });
 
@@ -667,7 +745,9 @@ describe("re-homed from the drawer this replaced", () => {
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
 
-    expect(toast.success).toHaveBeenCalledWith("Already done", expect.stringContaining("earlier attempt"));
+    expect(toast.push).toHaveBeenCalledWith(
+      "success", "Already done", expect.stringContaining("earlier attempt"),
+    );
   });
 
   it("does not dispatch a second time while the first confirm is in flight", async () => {

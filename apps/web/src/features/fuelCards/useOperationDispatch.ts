@@ -1,4 +1,4 @@
-import type { PromptInput } from "@fuelguard/shared";
+import type { OverrideLimit, PromptInput } from "@fuelguard/shared";
 import type { CardOperationId } from "./cardOperations";
 import {
   useClearOverride,
@@ -60,10 +60,22 @@ export function useOperationDispatch() {
         switch (capabilityKey) {
           case "card_unlock": return unlock.mutateAsync(common);
           case "card_deactivate": return deactivate.mutateAsync(common);
-          default: return lock.mutateAsync({ ...common, status: body.status as "Hold" });
+          default:
+            return lock.mutateAsync({
+              ...common,
+              status: body.status as "Hold",
+              // H16's Option B. Dropped here until 2026-08-17, which made the checkbox and its
+              // confirmation clause promise something the request never asked for.
+              clearException: body.clearException === true,
+            });
         }
       case "grant":
-        return grant.mutateAsync({ ...common, uses: body.uses as number, scope: body.scope as never });
+        return grant.mutateAsync({
+          ...common,
+          uses: body.uses as number,
+          scope: body.scope as never,
+          limits: (body.limits ?? []) as OverrideLimit[],
+        });
       case "clear":
         return clear.mutateAsync(common);
       /**

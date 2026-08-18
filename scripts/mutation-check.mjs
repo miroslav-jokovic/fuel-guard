@@ -50,6 +50,7 @@ const HAZMAT_MATRIX = ["node", ["supabase/tests/hazmat_rls.test.mjs"]];
 const TRIGGERS_MATRIX = ["node", ["supabase/tests/efs-card-control-triggers.test.mjs"]];
 const apiTest = (f) => ["pnpm", ["--filter", "@fuelguard/api", "exec", "vitest", "run", f]];
 const sharedTest = (f) => ["pnpm", ["--filter", "@fuelguard/shared", "exec", "vitest", "run", f]];
+const webTest = (f) => ["pnpm", ["--filter", "@fuelguard/web", "exec", "vitest", "run", f]];
 
 const MUTATIONS = [
   // ── tenant isolation in the database ────────────────────────────────────────
@@ -307,6 +308,20 @@ const MUTATIONS = [
     find: "    assertCardPromptsAreWritable(snap);\n",
     replace: "",
     detect: apiTest("src/efs/capabilities/promptsSet.behaviour.test.ts"),
+  },
+  {
+    id: "efs-clear-and-lock-flag-dropped",
+    why: "H16's Option B is broken exactly the way it shipped broken. The checkbox still renders and `cardLock.view.ts` still promises the exception will leave in the same write, but the request carries the schema's `false` — so the lock precondition refuses it and the operator is shown the dead-end sentence the checkbox exists to avoid, after ticking a box that said it would be handled. Nothing on the API side moves, which is why no API test can see it: the whole defect is one dropped field on the browser's last hop.",
+    file: "apps/web/src/features/fuelCards/useOperationDispatch.ts",
+    /**
+     * Anchored on the ASSIGNMENT alone, not the surrounding object. The comment above it will be
+     * reworded eventually and the `status` line beside it belongs to a different guard (P0-3's
+     * capability routing); either one in the pattern would let this entry go stale silently, which
+     * `efs-mileage-unit-ownership-dropped` has already cost this project once.
+     */
+    find: "              clearException: body.clearException === true,\n",
+    replace: "              clearException: false,\n",
+    detect: webTest("src/features/fuelCards/CardOperationDrawer.test.ts"),
   },
   // ── the mileage override: a write the capability ledger does not cover ──────
   // Not a capability (docs/37 §4 chose a plain audited write over a unit-keyed LedgerAdapter), so

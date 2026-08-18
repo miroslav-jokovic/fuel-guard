@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
-import type { CardMutationIntent, CardMutationStatus, OverrideScope, PromptInput } from "@fuelguard/shared";
+import type {
+  CardMutationIntent,
+  CardMutationStatus,
+  OverrideLimit,
+  OverrideScope,
+  PromptInput,
+} from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -115,13 +121,23 @@ function useCardInvalidation() {
   return () => void qc.invalidateQueries({ queryKey: cardsKey });
 }
 
+/**
+ * `clearException` is a REQUIRED argument here, not an optional one with a default.
+ *
+ * The drawer has offered the clear-and-lock checkbox since H16's Option B, `cardLock.view.ts` writes
+ * a confirmation clause promising the exception leaves in the same write, and the flag was dropped
+ * on this line — so the request arrived with the schema's `false`, `cardLock.behaviour.ts`'s
+ * precondition refused it, and the operator was shown `CARD_LOCK_OVERRIDE_BLOCKED`, the dead-end
+ * sentence the checkbox exists to avoid. Optional-with-a-default is what let a forgotten field
+ * typecheck; the same reason `overrideGrantEdits` refuses to default `limits`.
+ */
 export function useLockCard() {
   const invalidate = useCardInvalidation();
   return useMutation({
-    mutationFn: (args: WriteArgs & { status: "Hold" | "Inactive" }) =>
+    mutationFn: (args: WriteArgs & { status: "Hold" | "Inactive"; clearException: boolean }) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/lock`, "POST",
-        { expectedVersion: args.expectedVersion, status: args.status },
+        { expectedVersion: args.expectedVersion, status: args.status, clearException: args.clearException },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
@@ -158,13 +174,21 @@ export function useUnlockCard() {
   });
 }
 
+/**
+ * `limits` is required for the same reason, and carried now rather than when 10.3 needs it.
+ *
+ * Step 10.1 landed `grantOverrideSchema.limits` on the API and `cardOperations.ts` already builds the
+ * field; this hop dropped it. It is harmless today — the drawer only ever sends `[]`, which is what
+ * the schema defaults to — and it would have been the whole of 10.3's product override going missing
+ * silently the moment the picker started filling it in.
+ */
 export function useGrantOverride() {
   const invalidate = useCardInvalidation();
   return useMutation({
-    mutationFn: (args: WriteArgs & { uses: number; scope: OverrideScope }) =>
+    mutationFn: (args: WriteArgs & { uses: number; scope: OverrideScope; limits: OverrideLimit[] }) =>
       call<CardMutationOutcome>(
         `/api/fuel-cards/${args.cardId}/override`, "POST",
-        { expectedVersion: args.expectedVersion, uses: args.uses, scope: args.scope },
+        { expectedVersion: args.expectedVersion, uses: args.uses, scope: args.scope, limits: args.limits },
         withKey(args.idempotencyKey),
       ),
     onSuccess: invalidate,
