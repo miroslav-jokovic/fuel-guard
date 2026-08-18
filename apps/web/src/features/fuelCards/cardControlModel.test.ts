@@ -86,24 +86,77 @@ describe("freshness", () => {
   });
 });
 
+/**
+ * What an account nobody has walked resolves to — the guide's own table, which is exactly what
+ * `resolveLimitVocabulary(null)` answers on the API side. Using it here keeps these cases about the
+ * RENDERING rather than about the vocabulary, and it is the value a real unwalked org receives.
+ */
+const GUIDE_LIMITS = resolveLimitVocabulary(null);
+
 describe("limit rows", () => {
   it("renders a fuel limit in GALLONS", () => {
     // "gallons for fuel or DEF dispensed and dollar amounts in all other cases" (p36). Getting this
     // backwards tells a manager a 250-gallon cap is $250.
-    const [row] = limitRows([{ value: { limitId: "ULSD", limit: 250, hours: 24, minHours: 4 }, origin: "card" }]);
+    const [row] = limitRows([{ value: { limitId: "ULSD", limit: 250, hours: 24, minHours: 4 }, origin: "card" }], GUIDE_LIMITS);
     expect(row!.detail).toBe("250 gal per 24h, 4h between uses");
     expect(row!.label).toBe("Ultra-low-sulphur diesel");
   });
 
   it("renders a non-fuel limit in DOLLARS", () => {
-    const [row] = limitRows([{ value: { limitId: "CADV", limit: 100, hours: 168, minHours: null }, origin: "card" }]);
+    const [row] = limitRows([{ value: { limitId: "CADV", limit: 100, hours: 168, minHours: null }, origin: "card" }], GUIDE_LIMITS);
     expect(row!.detail).toBe("$100 per 168h");
+  });
+
+  /**
+   * The rendering half of Step 10.3, and the defect it closes.
+   *
+   * `GALLON_LIMIT_IDS` is a set this codebase transcribed from the guide's p36 sentence. This
+   * account's `getProductGroups` reports `APRO` and `HYDR` as `isFuel: true` and neither is in that
+   * set, so both rendered as DOLLARS — the "a third of a tank when he can in fact fill twice"
+   * failure the top of `cardEffectiveRows.ts` has warned about since Phase 1, reached through the
+   * one route nobody had checked: a limit id the guide's own table never listed.
+   */
+  it("renders a fuel the guide never listed as a quantity, not as dollars", () => {
+    const account = [
+      { groupId: "HYDR", description: "HYDROGEN", isFuel: true },
+      { groupId: "APRO", description: "AVIATION PROPELLANT", isFuel: true },
+    ];
+    const rows = limitRows(
+      [{ value: { limitId: "HYDR", limit: 100, hours: null, minHours: null }, origin: "card" }],
+      resolveLimitVocabulary(account),
+    );
+    // Not "$100". And not "100 gal" either — hydrogen is sold by the kilogram, and inventing a unit
+    // is the same class of error as the one being fixed, pointing the other way.
+    expect(rows[0]!.detail).toBe("100");
+    expect(rows[0]!.label).toBe("HYDROGEN");
+  });
+
+  /**
+   * The positive control, and it is what makes the case above mean something: the SAME id renders as
+   * dollars against the guide's table alone. Without this the fix could be "everything is a
+   * quantity now", which would be a different bug wearing the same green tick.
+   */
+  it("still renders that id as dollars when the account has not been walked", () => {
+    const rows = limitRows(
+      [{ value: { limitId: "HYDR", limit: 100, hours: null, minHours: null }, origin: "card" }],
+      GUIDE_LIMITS,
+    );
+    expect(rows[0]!.detail).toBe("$100");
+  });
+
+  it("keeps rendering a limit the account's vocabulary does not carry", () => {
+    // A stale walk must degrade to the old behaviour, never to a limit with no unit at all.
+    const rows = limitRows(
+      [{ value: { limitId: "ULSD", limit: 250, hours: null, minHours: null }, origin: "card" }],
+      resolveLimitVocabulary([{ groupId: "WASH", description: "CAR WASH", isFuel: false }]),
+    );
+    expect(rows[0]!.detail).toBe("250 gal");
   });
 
   it("falls back to dollars for a limit id we have never seen", () => {
     // The default direction matters: claiming volume for an unknown product overstates what a driver
     // can buy, dollars understates it. Understating is the safe error.
-    const [row] = limitRows([{ value: { limitId: "ZZZZ", limit: 5, hours: null, minHours: null }, origin: "card" }]);
+    const [row] = limitRows([{ value: { limitId: "ZZZZ", limit: 5, hours: null, minHours: null }, origin: "card" }], GUIDE_LIMITS);
     expect(row!.detail).toBe("$5");
   });
 });
@@ -148,7 +201,7 @@ describe("card trumps policy", () => {
     const rows = limitRows([
       { value: { limitId: "ULSD", limit: 250, hours: 24, minHours: 0 }, origin: "card" },
       { value: { limitId: "ULSD", limit: 150, hours: 24, minHours: 0 }, origin: "policy-overridden" },
-    ]);
+    ], GUIDE_LIMITS);
     expect(rows[0]).toMatchObject({ originLabel: "Card", enforced: true });
     expect(rows[1]).toMatchObject({ originLabel: "Overridden by card", enforced: false });
   });
@@ -156,7 +209,7 @@ describe("card trumps policy", () => {
   it("keeps a policy rule that the source mode ignores, and says it is not applied", () => {
     // Dropping it silently produces the worst support call: the WEX portal shows a rule, this page
     // does not mention it, and nobody can say which one the pump obeys.
-    const [row] = limitRows([{ value: { limitId: "MERC", limit: 50, hours: 24, minHours: 0 }, origin: "policy-ignored" }]);
+    const [row] = limitRows([{ value: { limitId: "MERC", limit: 50, hours: 24, minHours: 0 }, origin: "policy-ignored" }], GUIDE_LIMITS);
     expect(row).toMatchObject({ originLabel: "Not applied", enforced: false });
   });
 
@@ -328,8 +381,8 @@ describe("effective config — the card/policy merge, as an operator reads it", 
   it("renders fuel limits in GALLONS and everything else in DOLLARS", () => {
     // Getting this backwards makes a 100-gallon cap look like a $100 cap — roughly a factor of four,
     // in the direction that reads as "this truck is over budget" when it is not.
-    const [fuel] = limitRows([{ value: limit("ULSD", 250), origin: "card" }]);
-    const [cash] = limitRows([{ value: limit("CADV", 100), origin: "card" }]);
+    const [fuel] = limitRows([{ value: limit("ULSD", 250), origin: "card" }], GUIDE_LIMITS);
+    const [cash] = limitRows([{ value: limit("CADV", 100), origin: "card" }], GUIDE_LIMITS);
     expect(fuel!.detail).toMatch(/gal/i);
     expect(cash!.detail).toContain("$");
     expect(cash!.detail).not.toMatch(/gal/i);
@@ -624,7 +677,7 @@ describe("the parity gate (Step 7.4) — every parsed field is reachable by exac
   it("renders auto-roll, which the API has always sent and nothing displayed", () => {
     const [row] = limitRows([merged({
       limitId: "ULSD", limit: 500, hours: 24, minHours: null, autoRollMap: 100, autoRollMax: 3,
-    })]);
+    })], GUIDE_LIMITS);
     expect(row!.detail).toContain("auto-roll 100");
     expect(row!.detail).toContain("daily max 3");
   });
@@ -637,14 +690,14 @@ describe("the parity gate (Step 7.4) — every parsed field is reachable by exac
      */
     const [row] = limitRows([merged({
       limitId: "ULSD", limit: 500, hours: null, minHours: null, autoRollMap: 100, autoRollMax: 0,
-    })]);
+    })], GUIDE_LIMITS);
     expect(row!.detail).toContain("no daily maximum");
     expect(row!.detail).not.toMatch(/daily max 0/);
   });
 
   it("says nothing about auto-roll when EFS reported neither field", () => {
     // Null is "EFS did not report it", which is different from zero and must not be rendered as one.
-    const [row] = limitRows([merged({ limitId: "ULSD", limit: 500, hours: null, minHours: null })]);
+    const [row] = limitRows([merged({ limitId: "ULSD", limit: 500, hours: null, minHours: null })], GUIDE_LIMITS);
     expect(row!.detail).not.toContain("auto-roll");
     expect(row!.detail).not.toContain("daily max");
     expect(autoRollClause({ limitId: "X", limit: 1, hours: null, minHours: null })).toBe("");

@@ -17,7 +17,7 @@ import { AppCard as BaseCard } from "@fuelguard/ui";
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
+import { allowedInfoIdsFrom, allowedLimitsFrom } from "@/features/fuelCards/promptDrafts";
 import { useSessionStore } from "@/stores/session";
 import CardOperationDrawer from "@/features/fuelCards/CardOperationDrawer.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -275,6 +275,7 @@ const facts = computed(() => {
         v-if="query.data.value"
         :effective="query.data.value.effective"
         :policy-number="card.policyNumber"
+        :limit-options="allowedLimitsFrom(capabilities)"
       >
         <template #actions="{ section }">
           <KebabMenu
