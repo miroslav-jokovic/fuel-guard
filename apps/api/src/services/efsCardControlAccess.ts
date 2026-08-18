@@ -4,8 +4,10 @@ import {
   CARD_CAPABILITY_KEYS,
   type CardBlockedBy,
   type CardCapabilities,
+  type EfsProductGroupRecord,
   type UserRole,
   resolveEditableInfoIds,
+  resolveLimitVocabulary,
   rolesThatManage,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
@@ -59,6 +61,8 @@ export interface CardControlSettingsRow {
   probed_identity_hash: string | null;
   /** Step 9.1's cache, filled by the account-inventory walk. Null until an org has been walked. */
   prompt_types: string[] | null;
+  /** Migration 0202: `[{groupId, description, isFuel}]` as `getProductGroups` returned it. */
+  product_groups: EfsProductGroupRecord[] | null;
 }
 
 const NO_SCOPES: CardScope[] = [];
@@ -176,9 +180,12 @@ export async function loadCardControlAccess(
    * account anyway, so a refusal carries the same value the write path would use.
    */
   let editableInfoIds = resolveEditableInfoIds(null);
+  /** The account's limit vocabulary (Step 10.3), seeded and reassigned exactly as the prompts are. */
+  let limitOptions = resolveLimitVocabulary(null);
 
   const denied = (blockedBy: CardBlockedBy, writeEntitlement: CardCapabilities["writeEntitlement"] = "unknown"): CardControlAccess => ({
     editableInfoIds,
+    limitOptions,
     canLock: false, canUnlock: false, canDeactivate: false, canOverride: false, canSetPrompts: false,
     writeEntitlement, blockedBy, capabilityStates: allBlocked(blockedBy), environment,
     scopes: NO_SCOPES, orgReady: false,
@@ -192,7 +199,7 @@ export async function loadCardControlAccess(
       // the account's editable set costs nothing extra here. A separate lookup would be a second
       // query for a fact already in flight — and a second place for it to disagree with the write
       // path, which is exactly what `editableInfoIds.ts` exists to prevent.
-      .select("enabled, write_entitlement, require_approver, probed_identity_hash, prompt_types")
+      .select("enabled, write_entitlement, require_approver, probed_identity_hash, prompt_types, product_groups")
       .eq("org_id", orgId).maybeSingle(),
     admin.from("efs_soap_credentials")
       .select("enabled, endpoint_url, soap_username, account_id, environment")
@@ -204,6 +211,7 @@ export async function loadCardControlAccess(
   // Assigned before the first refusal that follows, so a `denied()` from here on carries the
   // account's real set rather than the fallback it was seeded with.
   editableInfoIds = resolveEditableInfoIds(row?.prompt_types ?? null);
+  limitOptions = resolveLimitVocabulary(row?.product_groups ?? null);
 
   // Read before the enabled check: which installation a disabled connection POINTS at is exactly
   // what an admin is trying to confirm while they switch it on. The column is `not null` with a
@@ -311,6 +319,7 @@ export async function loadCardControlAccess(
 
   return {
     editableInfoIds,
+    limitOptions,
     canLock: scopes.includes("lock"),
     canUnlock: scopes.includes("unlock"),
     canDeactivate: scopes.includes("deactivate"),

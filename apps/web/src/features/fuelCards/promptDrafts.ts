@@ -1,4 +1,11 @@
-import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, type CardCapabilities, type PromptInput } from "@fuelguard/shared";
+import {
+  EFS_EDITABLE_INFO_IDS,
+  PROMPT_INPUT_UNSET,
+  type CardCapabilities,
+  type EfsLimitOption,
+  type PromptInput,
+  resolveLimitVocabulary,
+} from "@fuelguard/shared";
 import type { OperationCard } from "./cardOperations";
 
 /**
@@ -64,3 +71,29 @@ export const promptDrafts = (
       remove: false,
       ...PROMPT_INPUT_UNSET,
     }));
+
+/**
+ * The account's limit vocabulary, or the fallback when the server has not said — Step 10.3.
+ *
+ * Deliberately the same shape as `allowedInfoIdsFrom` above, including the reason: the fallback is
+ * a claim about what an unread account can cap, and it must be the SAME claim the API makes. It
+ * falls back to `resolveLimitVocabulary(null)` — the guide's transcribed table — which is exactly
+ * what the server answers for an org that has never been walked.
+ *
+ * ⚠ The picker must key off THIS and never off `EFS_LIMIT_LABELS` directly. That table is our
+ * transcription of the guide (60 ids); this account carries 73 groups, fifteen of which the table
+ * does not contain. Reading the table directly is Phase 9.1's defect, one phase later — the API
+ * would accept an id the drawer could not offer, silently.
+ *
+ * Lives beside the prompt accessor rather than in `cardOperations.ts` because the two answer the
+ * same question about two vocabularies, and the next person to change one should see the other.
+ */
+export const allowedLimitsFrom = (
+  capabilities: Pick<CardCapabilities, "limitOptions"> | null | undefined,
+): readonly EfsLimitOption[] => capabilities?.limitOptions ?? LIMIT_VOCABULARY_FALLBACK;
+
+/**
+ * Computed once at module load, not per call. `resolveLimitVocabulary(null)` walks the whole guide
+ * table to build 60 objects, and this is read by every render of a picker that lists them.
+ */
+const LIMIT_VOCABULARY_FALLBACK: readonly EfsLimitOption[] = resolveLimitVocabulary(null);

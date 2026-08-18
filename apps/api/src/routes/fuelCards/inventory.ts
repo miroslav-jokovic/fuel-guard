@@ -334,6 +334,37 @@ export function fuelCardInventoryRouter(): Router {
         promptTypesCached = error ? { ok: false, error: error.message } : { ok: true };
       }
 
+      /**
+       * Step 10.3, and the same argument as the block above one phase later: this walk is the only
+       * reader of `getProductGroups`, and until now it returned the account's LIMIT vocabulary to one
+       * operator's screen and then dropped it.
+       *
+       * ⚠ `productGroups`, not `products`. Both handoffs name `getProducts`; the guide points
+       * `groupId` at its Limit IDs table and `code` at nothing, and ten documented limit ids — DSL,
+       * GAS, JET among them — exist on this account ONLY as groups. A picker fed from products could
+       * not have offered DSL, which WEX's Overrides guide says every diesel override needs.
+       *
+       * Stored whole rather than as bare ids: `description` is the wording the operator already sees
+       * in the WEX portal, and `isFuel` is what decides gallons versus dollars (p36). Both would
+       * otherwise cost a second vendor call to recover.
+       *
+       * Its own upsert rather than one merged with the prompts write above, and deliberately: two
+       * facts read by two different vendor calls fail independently, and merging them would let a
+       * prompt-vocabulary failure discard a product vocabulary that arrived perfectly well. Reported
+       * in its own field for the reasons the block above spells out — `steps[]` is the `/diagnose`
+       * shape and its length IS `operations`, which a database write must not inflate.
+       */
+      let productGroupsCached: { ok: boolean; error?: string } | null = null;
+      if (productGroups.length > 0) {
+        const { error } = await admin
+          .from("efs_card_control_settings")
+          .upsert(
+            { org_id: orgId, product_groups: productGroups, product_groups_at: new Date().toISOString() },
+            { onConflict: "org_id" },
+          );
+        productGroupsCached = error ? { ok: false, error: error.message } : { ok: true };
+      }
+
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,
@@ -361,6 +392,8 @@ export function fuelCardInventoryRouter(): Router {
          * different fixes and the same symptom, an editable set stuck on the fallback pair.
          */
         promptTypesCached,
+        /** Step 10.3's cache write, reported on the same terms and for the same reason. */
+        productGroupsCached,
         steps,
         inventory: {
           carrierInfo,

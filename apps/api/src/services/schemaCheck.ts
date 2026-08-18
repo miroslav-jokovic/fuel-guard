@@ -90,7 +90,11 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // Step 9.1. Missing here does not break a prompt edit — `resolveEditableInfoIds` falls back to
   // DRID/UNIT — which is exactly why it is worth a boot warning: the failure is a QUIET narrowing of
   // the editable set from 24 ids back to 2, with a working screen and no error anywhere.
-  { table: "efs_card_control_settings", column: "prompt_types", migration: "0200" }
+  { table: "efs_card_control_settings", column: "prompt_types", migration: "0200" },
+  // Step 10.3, and the same quiet failure one phase later: without it `resolveLimitVocabulary` falls
+  // back to our transcription of the guide's table, so the picker silently offers the ids WE know
+  // instead of the ones this ACCOUNT has — fifteen of which are not in that table at all.
+  { table: "efs_card_control_settings", column: "product_groups", migration: "0202" }
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

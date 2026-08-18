@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@fuelguard/shared";
 import type { CardCapabilities } from "@fuelguard/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
@@ -111,6 +111,9 @@ const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
   writeEntitlement: "confirmed", blockedBy: null,
   editableInfoIds: EFS_EDITABLE_INFO_IDS,
+  // Step 10.3's vocabulary. The guide's own table is what an unwalked account resolves to,
+  // so this fixture holds the same value a real never-walked org would receive.
+  limitOptions: resolveLimitVocabulary(null),
   capabilityStates: { ...ALL_ENABLED }, environment: "production", ...over,
 });
 

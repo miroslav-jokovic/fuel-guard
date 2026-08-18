@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@fuelguard/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
@@ -45,6 +45,9 @@ const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   // Step 9.1's client half. The pair here matches what the server resolves for an unread account,
   // so these cases keep asserting the behaviour they were written for.
   editableInfoIds: EFS_EDITABLE_INFO_IDS,
+  // Step 10.3's vocabulary. The guide's own table is what an unwalked account resolves to,
+  // so this fixture holds the same value a real never-walked org would receive.
+  limitOptions: resolveLimitVocabulary(null),
   capabilityStates: {
     card_lock: null, card_unlock: null, card_deactivate: null, override_grant: null,
     override_clear: null, delete_override: null, prompts_set: null,
