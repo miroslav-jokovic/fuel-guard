@@ -711,6 +711,11 @@ first override lands on production with no QA rehearsal behind it.
    >
    > **Also closed by the same run:** `deleteOverride` is entitled on this account and lands, which
    > answers D1's entitlement half, open since Phase 8.2.
+   >
+   > ✅ **And the follow-up (docs/22 H17): the COMBINED write lands.** A single request carrying the
+   > status *and* `overrideClearEdits()` applied both — so `card_lock`'s `clearException` clears the
+   > exception and locks the card in one press, and the freeze is judged against the request's own
+   > effect rather than the card's state on arrival.
 
    *(Original note, kept because the reasoning held:)* **This one IS cheaply probeable on QA, and it should be probed before Phase 10 promotes**, because
    two of its three outcomes change the product: grant a 1-use override on a QA card, then attempt a
