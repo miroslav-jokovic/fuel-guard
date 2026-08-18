@@ -890,3 +890,64 @@ banner is not evidence of a required sequence.**
 - A **`Product/limit override` checkbox** gates the picker, mirroring the `Optional` fieldset — and
   the destruction is now named before it is ticked as well as in the confirmation.
 - Product options read **`DSL - DIESEL`**, the portal's own `CODE - DESCRIPTION` format.
+
+
+---
+
+## 10. What the documents we ALREADY HAVE answer — searched 2026-08-18
+
+Miki, on being told the restore question might need WEX: *"we dont need to ask WEX nothing, all things
+we need to know are in documents we have and WSDL we have, maybe you need to find it there."* Right as
+a method — §8 is the precedent — so the eManager Overrides guide was read end to end. It answered four
+things and pointedly did not answer the fifth.
+
+### 10.1 ⚠ DSL and ULSD do NOT add up — they are ONE product
+
+> *"The system will not combine the gallon limit on DLS and ULSD as it recognizes this as one
+> product."* (their typo)
+
+So `DSL 150 + ULSD 150` is **150 gallons of diesel, not 300**. Rule 2 makes an operator name both
+codes so the exception reaches every truck stop; a confirmation listing two lines then invites exactly
+the wrong arithmetic. `overrideLimitsClause` now says so whenever both are capped.
+
+### 10.2 The override REMOVES ITSELF once the swipes are used
+
+> *"Once the card is swiped the number of overrides selected the override will automatically be
+> removed."*
+
+Confirms the drawer's "used up automatically — it does not need to be revoked", which had been written
+from p194's count semantics rather than from a sentence.
+
+### 10.3 `hours` — the override screen's meaning, and the vendor's own default
+
+> *"'Hours' represents the number of hours allowed between swipes if multiple swipes are selected —
+> The default is 1 and typically this is left at 1 to not detain cardholder from making purchases."*
+
+`docs/39` §4 rule 3 declined to assert a meaning because the portal's two screens disagree. That
+stands — but the DEFAULT is now sourced rather than inferred: p194 writes `hours: 1` and this guide
+says 1 is what to leave it at and why. `P194_LIMIT_WINDOW` matches the vendor's recommendation.
+
+### 10.4 ⚠ The portal REFUSES a second override; we offer one
+
+> *"If there is no button to select under 'Override Card' the card is already in override."*
+
+The vendor hides the action on an armed card. `cardOperations.ts` has the grant as
+`applies: () => true` — always offerable — so this product allows what the portal prevents. Also:
+
+> *"When a card is in override no changes can be made to the card … therefore it is recommended that
+> 1 override/swipe be selected."*
+
+H16 in the vendor's own words, WITH a recommendation attached: prefer 1. Our default is 1; the reason
+is not yet in the copy.
+
+Both are open, and neither is urgent: granting over an armed override replaces it, which is the
+vendor's own semantic per p194 and is what an operator means by "let him fuel once more".
+
+### 10.5 ❌ The restore question is NOT in any document we hold
+
+Searched the 200-page SOAP guide and the Overrides guide for restore / revert / reinstate / original
+limit. **Nothing.** p194 says the write removes the card's limits and adds the override's back; no
+source says what happens to the originals when the override clears.
+
+So this one really is empirical or vendor-answered — but that is now a conclusion from reading rather
+than an assumption. ⚠ And per the fleet sweep (PR #99), QA cannot answer it either — all 35 cards read limitSource=POLICY.

@@ -192,3 +192,27 @@ describe("Allow hand enter says it is PERMANENT", () => {
     expect(handEnterClause(false)).toBe("");
   });
 });
+
+/**
+ * The arithmetic the two-line confirmation invites, and the vendor's own correction to it.
+ *
+ * WEX's Overrides guide: *"The system will not combine the gallon limit on DLS and ULSD as it
+ * recognizes this as one product."* Rule 2 makes an operator name BOTH codes; without this sentence
+ * the confirmation then reads as twice the fuel.
+ */
+describe("DSL and ULSD are one product, and the amounts do not add up", () => {
+  it("says the amount is not doubled when both diesel codes are capped", () => {
+    const clause = overrideLimitsClause(
+      [limit("DSL", 150), limit("ULSD", 150)],
+      VOCABULARY,
+    );
+    expect(clause).toMatch(/same product/i);
+    expect(clause).toMatch(/NOT doubled/i);
+  });
+
+  /** The control: a single product must not gain a sentence about a pair that is not there. */
+  it("says nothing about pairing when only one diesel code is capped", () => {
+    const clause = overrideLimitsClause([limit("ULSD", 150)], VOCABULARY);
+    expect(clause).not.toMatch(/same product|doubled/i);
+  });
+});

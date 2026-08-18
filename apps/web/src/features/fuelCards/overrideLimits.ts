@@ -45,6 +45,20 @@ export const OVERRIDE_LIMIT_AMOUNT_HELP =
 export const DIESEL_PAIR = ["DSL", "ULSD"] as const;
 
 /**
+ * ⚠ And the amounts on the pair do NOT add up — WEX's Overrides guide, verbatim:
+ *
+ *   *"The system will not combine the gallon limit on DLS and ULSD as it recognizes this as one
+ *   product."* (their typo, their emphasis)
+ *
+ * So DSL 150 + ULSD 150 is **150 gallons of diesel**, not 300. Naming both codes is how the exception
+ * reaches every truck stop; it is not how you buy twice as much. A confirmation that lists them as
+ * two lines invites exactly that arithmetic, which is why the clause says so out loud.
+ */
+export const DIESEL_ONE_PRODUCT =
+  " DSL and ULSD are the same product to EFS — naming both covers every truck stop, and the amount "
+  + "is NOT doubled.";
+
+/**
  * ⚠ RULE 3 — `hours` gets NO asserted meaning here.
  *
  * The portal's override screen calls it *"hours allowed between swipes"*; its limits screen calls it
@@ -185,8 +199,10 @@ export function overrideLimitsClause(
     const option = byId.get(limit.limitId);
     return `${option?.label ?? limit.limitId} at ${amountWithUnit(option, limit.limit)}`;
   });
+  const bothDiesel = DIESEL_PAIR.every((id) => limits.some((l) => l.limitId === id));
   return ` During the exception the card is capped at ${joinWithAnd(named)}, and its OTHER product `
-    + "limits are removed for the duration — that is how EFS applies a product override.";
+    + "limits are removed for the duration — that is how EFS applies a product override."
+    + (bothDiesel ? DIESEL_ONE_PRODUCT : "");
 }
 
 /** The amount with the unit the ACCOUNT gives this product, never a unit inferred from the id. */
