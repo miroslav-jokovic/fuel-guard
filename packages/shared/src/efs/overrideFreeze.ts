@@ -89,6 +89,30 @@ export const OVERRIDE_BLOCKED_CAPABILITIES: Readonly<Record<string, string>> = {
  * card carrying an armed override. Blocking them would make an armed exception unclearable, which is
  * the one state this whole guard must never create.
  *
+ * **⚠ `override_grant` is a THIRD absence, and unlike the two above it is not yet a decision.**
+ *
+ * A scope-only grant writes only the trio, which H16 watched land on an armed card — so it belongs
+ * out of this map for the same reason `override_clear` does. But a grant carrying `limits` (Step
+ * 10.3) also writes the `<limits>` COLLECTION, and H16 never tested that field under an armed
+ * override. What H16 established is field-scoped: `status` is frozen, the trio is not. `limits` was
+ * not on either list.
+ *
+ * ⚠ There is a live observation consistent with it being frozen. On 2026-08-18 Miki granted DSL 50 +
+ * ULSD 50 from the drawer on a QA card and the outcome came back `failed` — "EFS accepted the request
+ * but the card is unchanged" — while the card afterwards showed `Override: 1 use left`. The COUNT
+ * landed and something else did not, and `judgeGrant` only reaches `not_landed` when an unlanded edit
+ * is outside the two unobservable scope fields. `limits` is the only other edit that grant sends.
+ *
+ * Two explanations fit and they are NOT the same product decision:
+ *   • the card already carried an override, and an armed override freezes `<limits>` as it freezes
+ *     `status` — in which case a product override must refuse on an armed card, the way lock does;
+ *   • this account ignores the `limits` array on `setCardv2` generally — in which case Step 10.3
+ *     cannot ship at all and p194's recipe does not work here.
+ *
+ * `pnpm efs:limit-restore` distinguishes them: it refuses a card that already carries an override, so
+ * a grant that lands its limits there rules the second out and implicates the first. Until it has
+ * run, NO guard is added on a hypothesis — see docs/22.
+ *
  * **The mileage override is not here either, and the first draft of this file had it wrong.** It is
  * `overrideLastMileage` — a unit-keyed operation that never touches `setCardv2` and takes no card
  * number at all (docs/37 §3). The freeze is a property of writes to a CARD, so a unit-keyed write is

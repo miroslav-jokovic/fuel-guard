@@ -1167,8 +1167,13 @@ switch (command) {
       }
       if ((before.body.overrideUses ?? 0) !== 0) {
         die(
-          `REFUSING: ••••${last4} already carries an override (${before.body.overrideUses} use(s)).\n`
-            + "Its limits may already BE an override's. Clear it first, then re-run.",
+          `REFUSING: the card ending ${last4} already carries an override `
+            + `(${before.body.overrideUses} use(s)). Clear it first, then re-run.\n\n`
+            + "Two reasons, and the second is the interesting one. Its limits may already BE an\n"
+            + "override's, so 'before' would not be the card's own. AND an armed override may FREEZE\n"
+            + "the <limits> collection the way H16 proved it freezes <status> — untested, and the\n"
+            + "live symptom on 2026-08-18 fits it. Starting from zero is what lets this run tell\n"
+            + "'EFS ignores limits' apart from 'EFS ignores limits while an override is armed'.",
         );
       }
 
