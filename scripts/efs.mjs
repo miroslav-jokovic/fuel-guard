@@ -1181,7 +1181,12 @@ switch (command) {
     /** Same shape both sides of the run, so "did they come back" is a string comparison, not a squint. */
     const shape = (limits) =>
       JSON.stringify([...(limits ?? [])]
-        .map((l) => ({ limitId: l.limitId, limit: l.limit, hours: l.hours, minHours: l.minHours }))
+        .map((l) => ({
+          limitId: l.limitId, limit: l.limit, hours: l.hours, minHours: l.minHours,
+          // The auto-roll pair rides along when the API reports it — a restore that brought the
+          // record back without its auto-roll values did not restore the record.
+          autoRollMap: l.autoRollMap ?? null, autoRollMax: l.autoRollMax ?? null,
+        }))
         .sort((a, b) => String(a.limitId).localeCompare(String(b.limitId))));
 
     let verdict = "inconclusive";
@@ -1281,12 +1286,64 @@ switch (command) {
       // A cheap, unmistakable cap: one product, one gallon. The AMOUNT is irrelevant to the question
       // and a small one minimises what a driver could spend if the run dies between the two writes.
       const probeLimit = { limitId: "ULSD", limit: 1, hours: 1, minHours: 0 };
-      console.error(`\ngranting a 1-use override capping ${probeLimit.limitId} at ${probeLimit.limit}…`);
-      const granted = record("2-set_override(with limits)", await experiment({
+
+      /** A write EFS rejected outright, with every re-read still on the baseline version. */
+      const faulted = (r) => !r.ok || r.body?.writeErrorCode != null;
+      const unchanged = (r) => {
+        const readings = r.body?.readings ?? [];
+        return readings.length > 0 && readings.every((x) => x.version === r.body?.before?.version);
+      };
+
+      /**
+       * ── The shape LADDER, from the 2026-08-18 production fault ────────────────────────────────
+       * The first-ever production limits write — p194's four-field record, exactly as the guide
+       * writes it — came back `ERROR running command [setCardv2]` with the card untouched. p194's
+       * example is written for setCard v1 (`WSCardLimit`, four fields); we send setCardv2, whose
+       * `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as REQUIRED. So on a clean fault the
+       * drill retries the vendor's own declared shape, and if both fault it arms a scope-only
+       * override to classify the refusal — limits-specific, or setCardv2-on-this-card entirely.
+       */
+      console.error(`\ngranting a 1-use override capping ${probeLimit.limitId} at ${probeLimit.limit} (p194 four-field)…`);
+      let granted = record("2-set_override(limits, p194 four-field)", await experiment({
         experiment: "set_override", uses: 1, limits: [probeLimit], confirm,
       }));
       limitsBefore = granted.body?.before?.limits ?? [];
       console.error(`the card's own limits, captured BEFORE the write: ${shape(limitsBefore)}`);
+
+      let grantShape = "four-field";
+      if (faulted(granted) && unchanged(granted)) {
+        console.error("\nfour-field write FAULTED with the card unchanged — retrying WSCardLimitv2's six-field shape…");
+        granted = record("2b-set_override(limits, v2 six-field)", await experiment({
+          experiment: "set_override", uses: 1,
+          limits: [{ ...probeLimit, autoRollMap: 0, autoRollMax: 0 }], confirm,
+        }));
+        grantShape = "six-field";
+
+        if (faulted(granted) && unchanged(granted)) {
+          console.error("six-field FAULTED too — arming a SCOPE-ONLY override to classify the refusal…");
+          const scopeOnly = record("2c-set_override(scope-only)", await experiment({
+            experiment: "set_override", uses: 1, limits: [], confirm,
+          }));
+          if (scopeOnly.body?.landed) {
+            record("2d-clear_override", await experiment({ experiment: "clear_override", confirm }));
+            verdict = "limits_write_refused";
+            await bail(
+              "Both limit shapes FAULT; a scope-only override LANDS on the same card. EFS refuses\n"
+                + "the limits array itself here — p194's product recipe does not work on this card as\n"
+                + "written. The card is unchanged and the probe override is cleared.",
+            );
+          }
+          verdict = "override_write_refused";
+          await bail(
+            "Even a scope-only override did not land. setCardv2 override writes are refused on this\n"
+              + "card entirely — its HOLD status is the obvious suspect (every landed write to date was\n"
+              + "on an ACTIVE card). The card is unchanged. Next: an ACTIVE candidate whose truck is\n"
+              + "confirmed parked.",
+            { disarm: !faulted(scopeOnly) && !unchanged(scopeOnly) },
+          );
+        }
+      }
+
       /**
        * From here on the card may be ARMED, so nothing exits without clearing it first. `bail`
        * disarms, writes the transcript and then leaves — `die()` does neither, and `process.exit`
@@ -1296,6 +1353,7 @@ switch (command) {
         console.error(JSON.stringify(granted.body, null, 2));
         await bail("The override did not land. Disarming and stopping.", { disarm: true });
       }
+      console.error(`override landed (${grantShape} record).`);
 
       // ── 3. Clear it, and look at what the card carries afterwards ───────────────────────────────
       console.error("clearing the override…");
@@ -1315,8 +1373,18 @@ switch (command) {
 
       // ── 4. Repair, so a MEASUREMENT never leaves the card changed ───────────────────────────────
       if (!restored) {
+        /**
+         * The card's OWN records, at full fidelity: the auto-roll pair is sent when the original
+         * carried one, and omitted — not zeroed — when it did not. `z.coerce` turns null into 0,
+         * which would write a value the card never held.
+         */
+        const repairRecords = limitsBefore.map((l) => ({
+          limitId: l.limitId, limit: l.limit, hours: l.hours, minHours: l.minHours,
+          ...(l.autoRollMap != null ? { autoRollMap: l.autoRollMap } : {}),
+          ...(l.autoRollMax != null ? { autoRollMax: l.autoRollMax } : {}),
+        }));
         const repair = record("4-set_override(repair)", await experiment({
-          experiment: "set_override", uses: 1, limits: limitsBefore, confirm,
+          experiment: "set_override", uses: 1, limits: repairRecords, confirm,
         }));
         const repairCleared = record("5-clear_override", await experiment({
           experiment: "clear_override", confirm,

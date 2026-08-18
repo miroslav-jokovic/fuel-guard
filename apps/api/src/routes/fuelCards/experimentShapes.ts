@@ -86,6 +86,18 @@ export const experimentSchema = z.discriminatedUnion("experiment", [
       limit: z.coerce.number().int().min(0).max(9999),
       hours: z.coerce.number().int().min(0).max(999).default(1),
       minHours: z.coerce.number().int().min(0).max(999).default(0),
+      /**
+       * ⚠ Optional SIX-field shape — the 2026-08-18 production fault's prime suspect.
+       *
+       * p194's four-field example is written for setCard (v1, `WSCardLimit`); this endpoint sends
+       * setCardv2, whose `WSCardLimitv2` declares `autoRollMap`/`autoRollMax` as required elements
+       * (WSDL, no minOccurs). The first-ever production limits write — four fields, card ••••6536 —
+       * came back `ERROR running command [setCardv2]` with nothing applied. These two fields let the
+       * 10.4 drill retry the vendor's own declared shape, and let its repair path send a card's
+       * original records back WITH the auto-roll values they actually carry.
+       */
+      autoRollMap: z.coerce.number().int().min(0).optional(),
+      autoRollMax: z.coerce.number().int().min(0).optional(),
     })).max(10).default([]),
     confirm: z.string().trim(),
   }),
@@ -140,12 +152,19 @@ export interface OverrideReading {
   limits: LimitReading[];
 }
 
-/** The four fields p194's override record carries — the ones a restore has to bring back. */
+/**
+ * p194's four fields PLUS `WSCardLimitv2`'s auto-roll pair. The auto-roll values matter to the 10.4
+ * drill's repair: a card's original record carries real `autoRollMap`/`autoRollMax`, and a repair
+ * that writes it back without them has quietly narrowed the card (the field-drop failure
+ * `assertCollectionsPreserved` exists for, one layer up).
+ */
 export interface LimitReading {
   limitId: string | null;
   limit: number | null;
   hours: number | null;
   minHours: number | null;
+  autoRollMap: number | null;
+  autoRollMax: number | null;
 }
 
 /** One card's limits, flattened for a transcript a human reads next to `before.limits`. */
@@ -155,5 +174,7 @@ export function readLimits(card: { limits: readonly LimitReading[] }): LimitRead
     limit: l.limit,
     hours: l.hours,
     minHours: l.minHours,
+    autoRollMap: l.autoRollMap,
+    autoRollMax: l.autoRollMax,
   }));
 }
