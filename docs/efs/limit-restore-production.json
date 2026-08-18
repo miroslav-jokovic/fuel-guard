@@ -1,0 +1,249 @@
+{
+  "drill": "10.4",
+  "question": "does EFS restore a card's own limits when a product override clears?",
+  "org": "86d6b3ea-4361-4f71-877f-e8373615769b",
+  "cardLast4": "6536",
+  "verdict": "restored",
+  "limitsBefore": [
+    {
+      "limitId": "ADD",
+      "limit": 40,
+      "hours": 0,
+      "minHours": 0,
+      "autoRollMap": 127,
+      "autoRollMax": 0
+    }
+  ],
+  "steps": [
+    {
+      "step": "1-read_state",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "read_state",
+        "cardLast4": "6536",
+        "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+        "status": "HOLD",
+        "originalStatus": null,
+        "overrideUses": 0,
+        "overrideAllLocations": false,
+        "locationOverrideId": null,
+        "documentShape": "nested:header",
+        "document": "<?xml version='1.0' encoding='utf-8'?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><ns5:getCardv2Response xmlns:ns5=\"http://com.tch.cards.service\"><result><cardNumber>\u2022\u2022\u2022\u20226536</cardNumber><header><companyXRef></companyXRef><handEnter>POLICY</handEnter><infoSource>BOTH</infoSource><limitSource>BOTH</limitSource><locationOverride>0</locationOverride><locationSource>POLICY</locationSource><overrideAllLocations>false</overrideAllLocations><originalStatus xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:nil=\"1\" /><payrollStatus>FOLLOWS</payrollStatus><override>0</override><policyNumber>1</policyNumber><status>HOLD</status><timeSource>BOTH</timeSource><lastUsedDate>2026-08-10T17:31:00.000-05:00</lastUsedDate><lastTransaction>\u2022\u2022\u2022\u20229358</lastTransaction><payrollUse>N</payrollUse><payrollAtm>DISALLOW</payrollAtm><payrollChk>DISALLOW</payrollChk><payrollAch>DISALLOW</payrollAch><payrollWire>DISALLOW</payrollWire><payrollDebit>DISALLOW</payrollDebit></header><infos><infoId>UNIT</infoId><lengthCheck>false</lengthCheck><matchValue>746</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>DRID</infoId><lengthCheck>false</lengthCheck><matchValue>7500</matchValue><maximum>0</maximum><minimum>0</minimum><reportValue></reportValue><validationType>EXACT_MATCH</validationType><value>0</value></infos><infos><infoId>NAME</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>BENJAMIN MASSEY</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>TRIP</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>0133313</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>CNTN</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>BMASSEY</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DLST</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>FL</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>DLIC</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>M611196591000</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><infos><infoId>TRLR</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue><maximum>0</maximum><minimum>0</minimum><reportValue>535427</reportValue><validationType>REPORT_ONLY</validationType><value>0</value></infos><limits><hours>0</hours><limit>40</limit><limitId>ADD</limitId><minHours>0</minHours><autoRollMap>127</autoRollMap><autoRollMax>0</autoRollMax></limits><locationGroups>1</locationGroups></result></ns5:getCardv2Response></soapenv:Body></soapenv:Envelope>"
+      }
+    },
+    {
+      "step": "2-set_override(limits, p194 four-field)",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "set_override",
+        "cardLast4": "6536",
+        "uses": 1,
+        "locationId": null,
+        "before": {
+          "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+          "overrideUses": 0,
+          "overrideAllLocations": false,
+          "locationOverrideId": null,
+          "limits": [
+            {
+              "limitId": "ADD",
+              "limit": 40,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ]
+        },
+        "writeMs": 1345,
+        "writeErrorCode": "soap_fault",
+        "writeErrorMessage": "ERROR running command 110664850482 [setCardv2]",
+        "readings": [
+          {
+            "atMsAfterWrite": 712,
+            "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+            "overrideUses": 0,
+            "overrideAllLocations": false,
+            "locationOverrideId": null,
+            "landed": false,
+            "limits": [
+              {
+                "limitId": "ADD",
+                "limit": 40,
+                "hours": 0,
+                "minHours": 0,
+                "autoRollMap": 127,
+                "autoRollMax": 0
+              }
+            ]
+          },
+          {
+            "atMsAfterWrite": 4508,
+            "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+            "overrideUses": 0,
+            "overrideAllLocations": false,
+            "locationOverrideId": null,
+            "landed": false,
+            "limits": [
+              {
+                "limitId": "ADD",
+                "limit": 40,
+                "hours": 0,
+                "minHours": 0,
+                "autoRollMap": 127,
+                "autoRollMax": 0
+              }
+            ]
+          },
+          {
+            "atMsAfterWrite": 10463,
+            "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+            "overrideUses": 0,
+            "overrideAllLocations": false,
+            "locationOverrideId": null,
+            "landed": false,
+            "limits": [
+              {
+                "limitId": "ADD",
+                "limit": 40,
+                "hours": 0,
+                "minHours": 0,
+                "autoRollMap": 127,
+                "autoRollMax": 0
+              }
+            ]
+          }
+        ],
+        "landed": false,
+        "changedPaths": [
+          "/header/override",
+          "/header/overrideAllLocations",
+          "/limits/autoRollMap",
+          "/limits/autoRollMax",
+          "/limits/hours",
+          "/limits/limit",
+          "/limits/limitId"
+        ],
+        "requestXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)",
+        "responseXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)"
+      }
+    },
+    {
+      "step": "2b-set_override(limits, v2 six-field)",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "set_override",
+        "cardLast4": "6536",
+        "uses": 1,
+        "locationId": null,
+        "before": {
+          "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+          "overrideUses": 0,
+          "overrideAllLocations": false,
+          "locationOverrideId": null,
+          "limits": [
+            {
+              "limitId": "ADD",
+              "limit": 40,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ]
+        },
+        "writeMs": 914,
+        "writeErrorCode": null,
+        "writeErrorMessage": null,
+        "readings": [
+          {
+            "atMsAfterWrite": 751,
+            "version": "9ba90fe7e3d9c048fe9729da34d7b7a5c8f8eb218a33a0c45aadc2f9cd4f97dd",
+            "overrideUses": 1,
+            "overrideAllLocations": false,
+            "locationOverrideId": null,
+            "landed": true,
+            "limits": [
+              {
+                "limitId": "ADD",
+                "limit": 40,
+                "hours": 0,
+                "minHours": 0,
+                "autoRollMap": 127,
+                "autoRollMax": 0
+              }
+            ]
+          }
+        ],
+        "landed": true,
+        "changedPaths": [
+          "/header/overrideAllLocations",
+          "/limits/autoRollMap",
+          "/limits/hours",
+          "/limits/limit",
+          "/limits/limitId"
+        ],
+        "requestXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)",
+        "responseXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)"
+      }
+    },
+    {
+      "step": "3-clear_override",
+      "http": 200,
+      "ok": true,
+      "body": {
+        "experiment": "clear_override",
+        "cardLast4": "6536",
+        "uses": 0,
+        "locationId": null,
+        "before": {
+          "version": "9ba90fe7e3d9c048fe9729da34d7b7a5c8f8eb218a33a0c45aadc2f9cd4f97dd",
+          "overrideUses": 1,
+          "overrideAllLocations": false,
+          "locationOverrideId": null,
+          "limits": [
+            {
+              "limitId": "ADD",
+              "limit": 40,
+              "hours": 0,
+              "minHours": 0,
+              "autoRollMap": 127,
+              "autoRollMax": 0
+            }
+          ]
+        },
+        "writeMs": 1098,
+        "writeErrorCode": null,
+        "writeErrorMessage": null,
+        "readings": [
+          {
+            "atMsAfterWrite": 683,
+            "version": "f210904653cbcd4d91bf92fd0784dbea5c19ae895937f6f48dbbfc9ce03254ca",
+            "overrideUses": 0,
+            "overrideAllLocations": false,
+            "locationOverrideId": null,
+            "landed": true,
+            "limits": [
+              {
+                "limitId": "ADD",
+                "limit": 40,
+                "hours": 0,
+                "minHours": 0,
+                "autoRollMap": 127,
+                "autoRollMax": 0
+              }
+            ]
+          }
+        ],
+        "landed": true,
+        "changedPaths": [],
+        "requestXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)",
+        "responseXmlRedacted": "(stripped before commit: carries driver PII \u2014 name, licence, prompts \u2014 which redactCardXml does not mask)"
+      }
+    }
+  ],
+  "scrubbed": "requestXmlRedacted/responseXmlRedacted bodies stripped 2026-08-18 before commit; PANs were already masked, but the echoed <infos> records carry driver PII that redaction does not cover"
+}

@@ -197,6 +197,14 @@ const MUTATIONS = [
     detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
   },
   {
+    id: "efs-override-limits-four-field-wire",
+    why: "The four-field limit record is p194's example — and setCardv2 REJECTS it (production, 2026-08-18: 'ERROR running command', card untouched; the six-field record landed). Reverting to four fields ships a product override that faults on every real grant, and the local echo guard cannot catch it because removals names every pre-existing record.",
+    file: "apps/api/src/services/efsCardEdits.ts",
+    find: "      autoRollMap: String(limit.autoRollMap ?? 0),\n      autoRollMax: String(limit.autoRollMax ?? 0),",
+    replace: "      ...(limit.autoRollMap !== undefined ? { autoRollMap: String(limit.autoRollMap) } : {}),\n      ...(limit.autoRollMax !== undefined ? { autoRollMax: String(limit.autoRollMax) } : {}),",
+    detect: apiTest("src/services/efsCardEdits.test.ts"),
+  },
+  {
     id: "efs-override-limits-removals-empty",
     why: "The Step 10.1 plan error, as a mutation. `removals: []` is what the plan specified; it passes on a card whose <limits> is already empty — the one card Step 10.4 proves on — and assertCollectionsPreserved refuses it on every card that has limits. So the bug would have gone live green and failed on the first real override.",
     file: "apps/api/src/services/efsCardEdits.ts",

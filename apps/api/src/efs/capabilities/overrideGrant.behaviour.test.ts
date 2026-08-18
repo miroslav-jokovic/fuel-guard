@@ -147,6 +147,40 @@ describe("an override grant whose scope this vendor does not report back", () =>
     expect(auditActions(rec)).not.toContain("card.mutation_failed");
   });
 
+  /**
+   * The 2026-08-18 production discovery (limit-restore-production.json): with an override ARMED,
+   * getCardv2 still returns the card's OWN limits — the override's live in the vendor's overlay and
+   * are never echoed. So a product grant whose count lands but whose limits "did not" is a WORKING
+   * grant seen through a read path that cannot see it, and condemning it as failed tells the
+   * operator to grant a SECOND one — which is exactly what the 2026-08-18 QA session was invited
+   * to do.
+   */
+  it("does not condemn a product grant whose limits the vendor never echoes back", async () => {
+    const rec = recorder();
+    const outcome = await executeCapability(
+      {
+        admin: rec.client, env, creds, orgId: ORG,
+        fetchImpl: stub(loginOk, NO_OVERRIDE, soap(""), COUNT_ONLY),
+        efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
+        expectedVersion: versionOf(NO_OVERRIDE),
+        idempotencyKey: null,
+        stepUp: true,
+      } satisfies CardMutationContext,
+      resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
+        uses: 1,
+        scope: { kind: "all" },
+        // getCardV2.full.xml carries ULSD 250 — the after-read (COUNT_ONLY) still shows it, so the
+        // `limits` edit reads as unlanded. That must be indeterminate, never failure.
+        limits: [{ limitId: "ULSD", limit: 999, hours: 1, minHours: 0 }],
+        allowHandEnter: false,
+        expectedVersion: versionOf(NO_OVERRIDE),
+      }),
+    );
+    expect(outcome.status).toBe("sent");
+    expect(auditActions(rec)).toContain("card.mutation_unverified");
+    expect(auditActions(rec)).not.toContain("card.mutation_failed");
+  });
+
   it("records what EFS actually held, and which field it could not judge", async () => {
     const rec = recorder();
     await grant(COUNT_ONLY, rec);
@@ -207,8 +241,10 @@ describe("the product-limit override reaches the wire (Step 10.1)", () => {
 
     const edit = mutation.buildEdits(doc, body, {} as never).find((e) => e.name === "limits");
     expect(edit?.op).toBe("replaceAll");
+    // Six fields: the auto-roll pair defaults to 0 because setCardv2 rejects the four-field record
+    // outright — proven on production 2026-08-18 (limit-restore-production.json, steps 2/2b).
     expect(edit?.op === "replaceAll" && edit.records).toEqual([
-      { hours: "1", limit: "1000", limitId: "ULSD", minHours: "0" },
+      { hours: "1", limit: "1000", limitId: "ULSD", minHours: "0", autoRollMap: "0", autoRollMax: "0" },
     ]);
     // And the removals the echo guard needs, or the write is refused before it is sent.
     expect(edit?.op === "replaceAll" && edit.removals).toEqual(["ULSD", "CADV"]);

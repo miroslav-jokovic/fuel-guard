@@ -67,6 +67,42 @@ closes the production failure mode §1.1 named), longest-idle, one small card-le
 restore comparison. The drill re-reads live before writing, so a stale mirror row can only make it
 refuse, never mislead it.
 
+### 1.3 ✅ ANSWERED, 2026-08-18 evening — run on ••••6536, verdict `restored`, and TWO discoveries
+
+Transcript: `docs/efs/limit-restore-production.json` (XML bodies stripped before commit — they carry
+driver PII the redactor does not mask; see its `scrubbed` note). Three findings, each load-bearing:
+
+1. **⚠ setCardv2 REJECTS p194's four-field limit record.** `ERROR running command [setCardv2]`,
+   card untouched on every re-read. The same record with `autoRollMap 0 / autoRollMax 0` LANDED.
+   p194's example is written for setCard **v1** (`WSCardLimit`, four fields); `WSCardLimitv2`
+   declares the pair REQUIRED and means it. `overrideLimitsEdit` now defaults the pair on every
+   record — the shipped drawer grant would have faulted on production without this. Mutation
+   `efs-override-limits-four-field-wire` pins it. ⚠ The local echo guard could never have caught
+   this: `removals` names every pre-existing record, so nothing is field-compared. The vendor is
+   the enforcer.
+
+2. **⚠ getCardv2 NEVER echoes an override's limits.** With the six-field override ARMED (uses 1),
+   the card still read its own `ADD 40 (autoRollMap 127)` — the override's ULSD probe was nowhere.
+   The override's limits live in the vendor's overlay, like its scope. So `limits` joined
+   `UNOBSERVABLE_GRANT_FIELDS` in `overrideGrant.behaviour.ts`: a product grant whose count lands is
+   `sent`/indeterminate, never `failed`. **This also re-explains the 2026-08-18 QA "failure"** — the
+   DSL 50 + ULSD 50 grant almost certainly WORKED and was condemned by the judge for the one field
+   this vendor never reports back. (And it retires §3.1's fear for the echo verifier: the verifier
+   was thought unable to catch a POLICY-source no-op because "the card still stores the records" —
+   in fact it never even sees the override's records. The limitSource guard stays, for the same
+   reason with better evidence.)
+
+3. **✅ EFS RESTORED the card's own limits.** After `clear_override`, ••••6536 read exactly its
+   baseline: `ADD 40, hours 0, minHours 0, autoRollMap 127, autoRollMax 0` — full fidelity,
+   auto-roll included. With finding 2, the mechanism is visible: the card's stored limits are never
+   displaced by an override at all; p194's "remove the limits" describes the REQUEST shape, not the
+   card's stored state. **Step 10.4 is answered. Product overrides are safe to ship; 10.5 is
+   unblocked.**
+
+⚠ Housekeeping owed: `EFS_CARD_CONTROL_PROBE_ENABLED` and `EFS_ALLOW_PRODUCTION_PROBE` are both SET
+on Railway as of this run. Unset both + `railway redeploy --from-source --yes` + poll
+`/api/version` (standing rule 15, and §2.2's skipped-deployment trap).
+
 ---
 
 ## 2. ⚠ Two corrections to things this project believed
