@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, resolveLimitVocabulary } from "@fuelguard/shared";
 import type { CardCapabilities } from "@fuelguard/shared";
 import {
   activeOverrides,
@@ -31,6 +31,9 @@ const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null,
   // Not read by `availability()` — it answers from account-level facts — but required by the type.
   editableInfoIds: EFS_EDITABLE_INFO_IDS,
+  // Step 10.3's vocabulary. The guide's own table is what an unwalked account resolves to,
+  // so this fixture holds the same value a real never-walked org would receive.
+  limitOptions: resolveLimitVocabulary(null),
   ...over,
 });
 

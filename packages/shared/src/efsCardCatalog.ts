@@ -343,69 +343,20 @@ export const resolveEditableInfoIds = (
 export const infoLabel = (infoId: string): string => EFS_INFO_LABELS[infoId] ?? infoId;
 
 // ─── Limit IDs (per-product caps) — p169–171 ───────────────────────────────────────────────────
+// Moved to `efsLimitCatalog.ts` for the file-size budget and re-exported here, so every existing
+// import of a limit helper from this module keeps working. `index.ts` exports both files anyway;
+// this line is for the call sites that name the catalog directly.
+export {
+  EFS_LIMIT_LABELS,
+  formatLimit,
+  limitLabel,
+  limitUnit,
+  resolveLimitVocabulary,
+  type EfsLimitOption,
+  type EfsLimitUnit,
+  type EfsProductGroupRecord,
+} from "./efsLimitCatalog.js";
 
-export const EFS_LIMIT_LABELS: Record<string, string> = {
-  ADD: "Additives", AMDS: "Aviation merchandise", ANFR: "Anti-freeze", AVGS: "Aviation gas",
-  BDSL: "Biodiesel", BRAK: "Brakes and wheels", CADV: "Cash advance", CLTH: "Clothing",
-  CNG: "Compressed natural gas", COUP: "Coupon", DEF: "DEF (bulk)", DEFC: "DEF (container)",
-  DELI: "Restaurant / deli", DSL: "Diesel", DSLM: "Mexico diesel", ELEC: "Electronics",
-  EVCH: "Electric charging", FAX: "Fax", FURN: "Furnace oil", GAS: "Gasoline",
-  GASM: "Mexico gas magna", GASP: "Mexico premium gas", GROC: "C-store / groceries",
-  HARD: "Hardware / accessories", IDLE: "IdleAire", JET: "Jet fuel", KERO: "Kerosene",
-  LABR: "Labour", LMPR: "Lumper", LNG: "Liquid natural gas", MDSL: "Tax-exempt diesel",
-  MERC: "Miscellaneous merchandise", MGAS: "Tax-exempt gas", MRFR: "Marked reefer",
-  NGAS: "Natural gas", OIL: "Oil", OILC: "Oil change", PART: "Parts", PHON: "Phone time",
-  PNT: "Paint", PROP: "Propane", RECP: "Recap", REPR: "Repair service", REST: "Restaurant",
-  RFND: "Refund", RFR: "Reefer", RFRM: "Thermo", SCAN: "Tons imaging", SCLE: "Weigh scale",
-  SHWR: "Shower", SPLT: "Split / other payment", STAX: "Sales tax", TIRE: "Tyres / tyre repairs",
-  TOLL: "Ambassador Bridge toll", TRAL: "Trailer", TRPP: "Trip permit",
-  ULSD: "Ultra-low-sulphur diesel", WASH: "Car wash", WIFI: "Fleet WiFi", WWFL: "Washer fluid",
-};
-
-export type EfsLimitUnit = "gallons" | "units" | "dollars";
-
-/**
- * What a limit VALUE means. This matters more than it looks: a `ULSD` limit of 100 is a hundred
- * gallons, and rendering it as "$100" tells a fleet manager their driver can buy a third of a tank
- * when in fact he can fill twice.
- *
- * The guide states the rule but does not enumerate which products it covers: "the limit value, which
- * will be gallons for fuel or DEF dispensed and dollar amounts in all other cases" (p36). So:
- *
- *   • `gallons` — liquid fuel and DEF, where "gallons" is unambiguous.
- *   • `units`   — dispensed energy that is NOT sold by the gallon (CNG and LNG in DGE/GGE, electric
- *                 charging in kWh). The guide's sentence plainly intends a dispensed quantity rather
- *                 than dollars, but it does not say the unit, so we render a neutral one instead of
- *                 asserting a wrong one. Confirm with WEX before showing a unit on these.
- *   • `dollars` — everything else, per "dollar amounts in all other cases". This is the DEFAULT, so an
- *                 unrecognised or newly-added limit ID falls here rather than silently claiming volume.
- */
-const GALLON_LIMIT_IDS = new Set([
-  "ULSD", "DSL", "DSLM", "BDSL", "MDSL", "GAS", "GASM", "GASP", "MGAS",
-  "DEF", "DEFC", "RFR", "MRFR", "RFRM", "KERO", "PROP", "AVGS", "JET", "FURN",
-]);
-const UNIT_LIMIT_IDS = new Set(["CNG", "LNG", "NGAS", "EVCH"]);
-
-export function limitUnit(limitId: string): EfsLimitUnit {
-  const id = limitId.toUpperCase();
-  if (GALLON_LIMIT_IDS.has(id)) return "gallons";
-  if (UNIT_LIMIT_IDS.has(id)) return "units";
-  return "dollars";
-}
-
-export const limitLabel = (limitId: string): string => EFS_LIMIT_LABELS[limitId] ?? limitId;
-
-/** Render a limit value with the unit its ID implies. */
-export function formatLimit(limitId: string, value: number): string {
-  switch (limitUnit(limitId)) {
-    case "gallons":
-      return `${value} gal`;
-    case "units":
-      return `${value}`;
-    default:
-      return `$${value}`;
-  }
-}
 
 /**
  * Display form of a card. NEVER render a full PAN — the same rule the web app's card-assignment

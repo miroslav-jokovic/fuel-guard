@@ -91,5 +91,27 @@ export const cardCapabilitiesSchema = z.object({
    * guarantee `PlanCtx.editableInfoIds` gives the write path, from the same function.
    */
   editableInfoIds: z.array(z.string()).readonly(),
+  /**
+   * The product limits THIS account can cap — Step 10.3's client half, and 9.1's lesson applied
+   * before the defect rather than after it.
+   *
+   * 9.1 shipped a resolved prompt vocabulary to the write path and to nothing else, so the API
+   * accepted 24 ids while the drawer offered 2. The product picker is the same shape one phase on:
+   * built first, it would have been fed from `EFS_LIMIT_LABELS` — our transcription of the guide's
+   * table — and this account has fifteen groups that table does not contain, while the table has two
+   * (CNG, LNG) the account does not carry as groups.
+   *
+   * ⚠ Resolved from `getProductGroups`, NOT `getProducts`, against both handoffs. The guide points
+   * `groupId` at its Limit IDs table and `getProducts.code` at nothing; ten documented limit ids
+   * including **DSL** exist only as groups on this account. See `resolveLimitVocabulary`.
+   *
+   * Never empty, exactly like `editableInfoIds`: an unwalked account resolves to the guide's table
+   * rather than to nothing, so the client never has to decide what an absent list means.
+   */
+  limitOptions: z.array(z.object({
+    limitId: z.string(),
+    label: z.string(),
+    unit: z.enum(["gallons", "units", "dollars"]),
+  })).readonly(),
 });
 export type CardCapabilities = z.infer<typeof cardCapabilitiesSchema>;

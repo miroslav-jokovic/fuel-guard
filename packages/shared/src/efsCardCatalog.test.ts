@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   EFS_INFO_LABELS,
+  EFS_LIMIT_LABELS,
   EFS_UNEDITABLE_INFO_IDS,
   matchStatusCasing,
   resolveEditableInfoIds,
+  resolveLimitVocabulary,
 } from "./efsCardCatalog.js";
 
 /**
@@ -105,5 +107,75 @@ describe("resolveEditableInfoIds", () => {
     // one that follows from the denial rather than from a second decision. Asserted here against the
     // three ids the rule names, and against the real accounts in `apps/api/src/efs/editableInfoIds`.
     expect(resolveEditableInfoIds(["CNTN", "PPIN", "DRID"])).toEqual(["CNTN", "DRID"]);
+  });
+});
+
+/**
+ * The vocabulary Step 10.3's picker is fed from.
+ *
+ * The account fixtures below are the real shapes from `docs/efs/account-inventory-production.json`,
+ * read 2026-08-17. The `DSL` case is the one that matters and the reason this resolver exists at
+ * all: both handoffs said the limit ids come from `getProducts`, and `DSL` is not in that response
+ * on this account — it exists only as a product GROUP. WEX's Overrides guide says a diesel override
+ * must name both `DSL` and `ULSD`, so a picker built on the handoff's instruction could not have
+ * expressed a working diesel exception.
+ */
+describe("resolveLimitVocabulary", () => {
+  const account = [
+    { groupId: "DSL", description: "DIESEL", isFuel: true },
+    { groupId: "ULSD", description: "ULTRA LOW SULFUR DIESEL", isFuel: true },
+    { groupId: "WASH", description: "CAR WASH", isFuel: false },
+    // Real, and in neither the guide's Limit IDs table nor `EFS_LIMIT_LABELS`.
+    { groupId: "HYDR", description: "HYDROGEN", isFuel: true },
+  ];
+
+  it("offers DSL — the id that is a product GROUP and not a product", () => {
+    const ids = resolveLimitVocabulary(account).map((o) => o.limitId);
+    expect(ids).toContain("DSL");
+    expect(ids).toContain("ULSD");
+  });
+
+  it("keeps an account group the guide's table has never heard of", () => {
+    // The positive control for the decision NOT to intersect with `EFS_LIMIT_LABELS`. Prompts are
+    // intersected because `getPromptTypes` returns bare codes; this response carries its own
+    // description, so the "switch with no label" argument does not apply and dropping HYDR would
+    // hide a product this account genuinely sells.
+    expect(EFS_LIMIT_LABELS.HYDR).toBeUndefined();
+    const hydr = resolveLimitVocabulary(account).find((o) => o.limitId === "HYDR");
+    expect(hydr).toBeDefined();
+    expect(hydr!.label).toBe("HYDROGEN");
+  });
+
+  it("prefers the ACCOUNT's wording over our transcription", () => {
+    // Our table says "Diesel"; the portal shows the operator "DIESEL". The account wins.
+    expect(EFS_LIMIT_LABELS.DSL).toBe("Diesel");
+    expect(resolveLimitVocabulary(account).find((o) => o.limitId === "DSL")!.label).toBe("DIESEL");
+  });
+
+  it("never asserts gallons on a fuel it cannot name", () => {
+    const by = (id: string) => resolveLimitVocabulary(account).find((o) => o.limitId === id)!;
+    // Named liquids get the unit the guide's p36 rule gives them...
+    expect(by("DSL").unit).toBe("gallons");
+    // ...and hydrogen, which this account reports as fuel and which is sold by the kilogram, gets a
+    // bare quantity rather than a wrong one. "100 gal" against "$100" is a full tank against a third
+    // of one, and an invented unit is the same class of error in the other direction.
+    expect(by("HYDR").unit).toBe("units");
+    // The account said it is not fuel, so there is nothing to be conservative about.
+    expect(by("WASH").unit).toBe("dollars");
+  });
+
+  it("falls back to the guide's table for an account nobody has walked", () => {
+    const fallback = resolveLimitVocabulary(null);
+    expect(fallback.length).toBe(Object.keys(EFS_LIMIT_LABELS).length);
+    expect(fallback.map((o) => o.limitId)).toContain("ULSD");
+    // Empty takes the same route as null, deliberately: for the operator, an account that offers
+    // nothing and an account we never asked are one situation.
+    expect(resolveLimitVocabulary([]).length).toBe(fallback.length);
+  });
+
+  it("is never empty, so the client never has to decide what an absent list means", () => {
+    for (const input of [null, undefined, [], account]) {
+      expect(resolveLimitVocabulary(input).length).toBeGreaterThan(0);
+    }
   });
 });
