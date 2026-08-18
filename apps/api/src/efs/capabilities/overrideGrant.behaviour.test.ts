@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OVERRIDE_LIMITS_STEP_UP, overrideGrantContract } from "@fuelguard/shared";
+import { OVERRIDE_LIMITS_STEP_UP, type OverrideGrantBody, overrideGrantContract } from "@fuelguard/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";
 import { executeCapability } from "../../services/efsCardControl.js";
+import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import { overrideGrantEdits } from "../../services/efsCardEdits.js";
 import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
@@ -261,5 +262,66 @@ describe("the use count itself, which is what authorises a purchase", () => {
     expect(failed?.meta).toMatchObject({
       unlandedFields: ["override", "overrideAllLocations"],
     });
+  });
+});
+
+
+/**
+ * Step 10.3's `limitSource` guard — Step 9.4's refusal, one phase later, for the other collection.
+ *
+ * `getCardV2.empty.xml` is the only captured document in the repository carrying
+ * `limitSource: POLICY`, which is what makes this provable offline at all. The LIVE half stays open
+ * for the same reason 9.4's does.
+ *
+ * ── Why it went unnoticed until a QA session ────────────────────────────────────────────────────
+ * QA policy 1 carries no limits and the QA cards in use sit on policy 1; production policy 1 carries
+ * nine, DSL 200 and ULSD 200 among them (inventory, 2026-08-18). So the product could be built and
+ * demonstrated without the question ever being asked.
+ */
+describe("a card that takes its product limits from the policy", () => {
+  const POLICY_XML = fixture("getCardV2.empty.xml");
+
+  const grantOn = (xml: string, rec: SupabaseRecorder, limits: OverrideGrantBody["limits"]) =>
+    executeCapability(
+      {
+        admin: rec.client, env, creds, orgId: ORG,
+        fetchImpl: stub(loginOk, xml, soap(""), xml),
+        efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
+        expectedVersion: versionOf(xml),
+        idempotencyKey: null,
+        stepUp: true,
+      } satisfies CardMutationContext,
+      resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
+        uses: 1,
+        scope: { kind: "all" },
+        limits,
+        allowHandEnter: false,
+        expectedVersion: versionOf(xml),
+      }),
+    );
+
+  it("refuses a PRODUCT override, because EFS would accept it and never cap anything", async () => {
+    // The echo verifier cannot catch this one: the card still STORES the records, so the re-read
+    // finds them and reports a clean landing for an exception that governs nothing at the pump.
+    const rec = recorder();
+    const error = await grantOn(POLICY_XML, rec, [
+      { limitId: "ULSD", limit: 50, hours: 1, minHours: 0 },
+    ]).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    // No password fixes it — the fix is a policy edit, which this product does not do.
+    expect((error as ActionRefusalError).code).toBe("invalid_request");
+    expect((error as ActionRefusalError).message).toMatch(/policy/i);
+  });
+
+  /**
+   * THE CONTROL, and it is what keeps the guard from being a blanket refusal. A scope-only exception
+   * touches no limits and must stay available on a POLICY-source card — it grants purchases outside
+   * the card's normal caps, wherever those caps come from.
+   */
+  it("still allows a SCOPE-ONLY exception on the same card", async () => {
+    const rec = recorder();
+    const outcome = await grantOn(POLICY_XML, rec, []).catch((e: unknown) => e);
+    expect(outcome).not.toBeInstanceOf(ActionRefusalError);
   });
 });

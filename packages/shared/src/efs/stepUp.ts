@@ -149,5 +149,12 @@ export const CAPABILITIES_WITH_PRECONDITION: readonly string[] = [
   "card_deactivate",
   "card_lock",
   "card_unlock",
+  /**
+   * Step 10.3. Refuses a PRODUCT override on a `limitSource=POLICY` card — Step 9.4's refusal for
+   * the other collection, and `invalid_request` only: no password makes a card-level write govern a
+   * pump that reads the policy. A scope-only exception is untouched, so this never blocks the
+   * ordinary grant.
+   */
+  "override_grant",
   "prompts_set",
 ];
