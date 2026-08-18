@@ -1133,6 +1133,31 @@ switch (command) {
 
     let verdict = "inconclusive";
     let limitsBefore = [];
+
+    /** Write the transcript, optionally disarm, then stop. NEVER `die()` past the first write. */
+    const writeTranscript = () => {
+      const transcript = {
+        drill: "10.4", question: "does EFS restore a card's own limits when a product override clears?",
+        org, cardLast4: last4, verdict, limitsBefore, steps,
+      };
+      const json = JSON.stringify(transcript, null, 2);
+      if (typeof flags.out === "string") {
+        writeFileSync(flags.out, `${json}\n`);
+        console.error(`transcript → ${flags.out}`);
+      } else {
+        process.stdout.write(`${json}\n`);
+      }
+    };
+    const bail = async (message, { disarm = false } = {}) => {
+      if (disarm) {
+        console.error("disarming the override this run created…");
+        record("bail-clear_override", await experiment({ experiment: "clear_override", confirm }));
+      }
+      console.error(`\n${message}\n`);
+      writeTranscript();
+      process.exit(2);
+    };
+
     try {
       // ── 1. Baseline, and the two refusals that make the run meaningful ──────────────────────────
       const before = record("1-read_state", await experiment({ experiment: "read_state" }));
@@ -1147,6 +1172,30 @@ switch (command) {
         );
       }
 
+      /**
+       * ⚠ The limits check happens HERE, on the baseline document, BEFORE anything is written.
+       *
+       * The first version asked after the grant, from the response's `before.limits` — which meant a
+       * card with no limits got an override armed and a 1-gallon ULSD cap ADDED to it before being
+       * told it was the wrong card. That happened for real on ••••7672 (2026-08-18) and left a live
+       * QA card in override with a cap it never had. The same `<limits>` probe `f9-probe` uses to
+       * REFUSE a card with limits is used here to REQUIRE one.
+       */
+      if (!/<limits>/i.test(String(before.body.document ?? ""))) {
+        await bail(
+          `REFUSING: the card ending ${last4} carries NO card-level limits, so there is nothing for\n`
+            + "EFS to restore and this run cannot answer the question. NOTHING HAS BEEN WRITTEN.\n\n"
+            + "⚠ LAST FOUR DIGITS DO NOT IDENTIFY A QA CARD. 35 QA cards share 20 distinct last-4\n"
+            + "values and SIX groups — 7670, 7671, 7672, 7677, 7678, 7679 — are THREE CARDS EACH\n"
+            + "(docs/28 Step 0.13). So a card ending 7672 is very likely the wrong 7672.\n\n"
+            + "The one Step 10.4 needs is efs_cards.id bf47678d-3edb-4a45-bb34-df30dd1bf98d —\n"
+            + "ACTIVE, card-level limits DEF 250 · RFR 75 · ULSD 500. Open /fuel-cards/<that uuid>\n"
+            + "in the dashboard, confirm those three under 'Product limits' with source CARD, and\n"
+            + "copy ITS number. A policy-level limit is not the card's own and is not replaced.",
+        );
+      }
+      console.error(`baseline: overrideUses 0, card-level limits present — usable`);
+
       // ── 2. Grant the product override. `limits` is what makes this Step 10.4 ────────────────────
       // A cheap, unmistakable cap: one product, one gallon. The AMOUNT is irrelevant to the question
       // and a small one minimises what a driver could spend if the run dies between the two writes.
@@ -1156,17 +1205,15 @@ switch (command) {
         experiment: "set_override", uses: 1, limits: [probeLimit], confirm,
       }));
       limitsBefore = granted.body?.before?.limits ?? [];
-      if (limitsBefore.length === 0) {
-        die(
-          `REFUSING to draw a conclusion: ••••${last4} carries NO card-level limits, so there is\n`
-            + "nothing for EFS to restore and this run cannot answer the question. On QA the card\n"
-            + "with limits is ••••7672. NOTE: an override may now be armed — check step 2's output.",
-        );
-      }
       console.error(`the card's own limits, captured BEFORE the write: ${shape(limitsBefore)}`);
+      /**
+       * From here on the card may be ARMED, so nothing exits without clearing it first. `bail`
+       * disarms, writes the transcript and then leaves — `die()` does neither, and `process.exit`
+       * skips `finally`, which is how the first run left no record of what it had just done.
+       */
       if (!granted.ok || !granted.body?.landed) {
         console.error(JSON.stringify(granted.body, null, 2));
-        die("The override did not land. Nothing to restore; the card should be unchanged.");
+        await bail("The override did not land. Disarming and stopping.", { disarm: true });
       }
 
       // ── 3. Clear it, and look at what the card carries afterwards ───────────────────────────────
@@ -1206,17 +1253,7 @@ switch (command) {
         void repair;
       }
     } finally {
-      const transcript = {
-        drill: "10.4", question: "does EFS restore a card's own limits when a product override clears?",
-        org, cardLast4: last4, verdict, limitsBefore, steps,
-      };
-      const json = JSON.stringify(transcript, null, 2);
-      if (typeof flags.out === "string") {
-        writeFileSync(flags.out, `${json}\n`);
-        console.error(`transcript → ${flags.out}`);
-      } else {
-        process.stdout.write(`${json}\n`);
-      }
+      writeTranscript();
     }
     if (verdict !== "restored") process.exit(2);
     break;
