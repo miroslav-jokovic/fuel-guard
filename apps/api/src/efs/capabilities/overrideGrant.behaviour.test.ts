@@ -325,3 +325,59 @@ describe("a card that takes its product limits from the policy", () => {
     expect(outcome).not.toBeInstanceOf(ActionRefusalError);
   });
 });
+
+/**
+ * No grant on a card already in override — Miki's 2026-08-18 ruling, with the vendor three ways
+ * behind it (see `overrideFreeze.ts`'s `override_grant` block): the portal offers no second
+ * override, H16's field-scoped freeze leaves a grant's non-trio fields (`limits`, `handEnter`)
+ * liable to be silently swallowed, and a landing re-grant REPLACES the count rather than adding.
+ *
+ * `getCardV2.overridden.xml` carries `override: 2` AND `limitSource: CARD` — so a refusal here can
+ * only be the armed-override guard, never the limitSource one, and the earlier suites' grants on
+ * `override: 0` documents are this guard's standing control.
+ */
+describe("a card already in override", () => {
+  const ARMED_XML = fixture("getCardV2.overridden.xml");
+
+  const grantOn = (limits: OverrideGrantBody["limits"]) =>
+    executeCapability(
+      {
+        admin: recorder().client, env, creds, orgId: ORG,
+        fetchImpl: stub(loginOk, ARMED_XML, soap(""), ARMED_XML),
+        efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
+        expectedVersion: versionOf(ARMED_XML),
+        idempotencyKey: null,
+        stepUp: true,
+      } satisfies CardMutationContext,
+      resolveCapability(overrideGrantContract, overrideGrantBehaviour, {
+        uses: 1,
+        scope: { kind: "all" },
+        limits,
+        allowHandEnter: false,
+        expectedVersion: versionOf(ARMED_XML),
+      }),
+    );
+
+  /**
+   * Scope-only is refused too, deliberately: those edits are all trio and WOULD land (H16), but a
+   * landing re-grant replaces the count — an operator granting "one more" gets 1, not 2, with
+   * nothing saying so — and the portal refuses uniformly. Remove first, then grant.
+   */
+  it("refuses even a scope-only grant, naming the uses left and the remedy", async () => {
+    const error = await grantOn([]).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    expect((error as ActionRefusalError).code).toBe("invalid_request");
+    expect((error as ActionRefusalError).message).toContain("2 purchases");
+    expect((error as ActionRefusalError).message).toMatch(/remove that exception first/i);
+  });
+
+  it("refuses a product grant the same way — the armed card outranks the limitSource question", async () => {
+    const error = await grantOn([{ limitId: "ULSD", limit: 50, hours: 1, minHours: 0 }])
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    // The armed sentence, not the policy sentence: the remedy is Remove exception, and being told
+    // to clear product lines first would send the operator to fix the wrong thing.
+    expect((error as ActionRefusalError).message).toMatch(/already has a fuel exception/i);
+    expect((error as ActionRefusalError).message).not.toMatch(/policy/i);
+  });
+});

@@ -2,7 +2,7 @@ import type {
   CardCapabilities, EfsLimitOption, EfsLocation, OverrideLimit, PromptInput, WsCard,
 } from "@fuelguard/shared";
 import { statusBlocker } from "./overrideException.js";
-import { overrideLimitsBlocker } from "./overrideLimits.js";
+import { grantBlocker } from "./overrideLimits.js";
 import * as drafts from "./promptDrafts";
 export const { allowedInfoIdsFrom, allowedLimitsFrom, editableInfoIds, missingEditableInfoIds } = drafts;
 export const promptDrafts = drafts.promptDrafts;
@@ -188,8 +188,9 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     scope: "override",
     group: "Current card",
     menuLabel: "Grant exception…",
-    // Always offerable: granting a new exception replaces whatever is there, which is the vendor's
-    // own semantic (guide p194) and is what an operator means by "let him fuel once more".
+    // Still listed on a card already in override — but BLOCKED there by `grantBlocker`, with the
+    // sentence naming the remedy. The portal hides its button instead; a visible action with the
+    // reason on it teaches the rule where it applies (invariant 6), beside Remove exception.
     applies: () => true,
     body: (draft) => ({
       uses: draft.uses,
@@ -201,10 +202,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       limits: draft.limits ?? [],
       allowHandEnter: draft.allowHandEnter === true,
     }),
-    blocker: (draft) =>
-      (draft.scopeKind === "location" && draft.location === null
-        ? "Choose the location this exception applies at."
-        : overrideLimitsBlocker(draft)),
+    blocker: (draft, card) => grantBlocker(draft, card),
   },
   {
     id: "clear",

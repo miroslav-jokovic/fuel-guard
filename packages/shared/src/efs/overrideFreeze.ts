@@ -89,29 +89,28 @@ export const OVERRIDE_BLOCKED_CAPABILITIES: Readonly<Record<string, string>> = {
  * card carrying an armed override. Blocking them would make an armed exception unclearable, which is
  * the one state this whole guard must never create.
  *
- * **⚠ `override_grant` is a THIRD absence, and unlike the two above it is not yet a decision.**
+ * **`override_grant` is a THIRD absence — refused on an armed card, but with its OWN sentence.**
  *
- * A scope-only grant writes only the trio, which H16 watched land on an armed card — so it belongs
- * out of this map for the same reason `override_clear` does. But a grant carrying `limits` (Step
- * 10.3) also writes the `<limits>` COLLECTION, and H16 never tested that field under an armed
- * override. What H16 established is field-scoped: `status` is frozen, the trio is not. `limits` was
- * not on either list.
+ * Decided 2026-08-18 (Miki: *"we cant give grant on card that is already in override"*), and the
+ * vendor agrees three ways over:
  *
- * ⚠ There is a live observation consistent with it being frozen. On 2026-08-18 Miki granted DSL 50 +
- * ULSD 50 from the drawer on a QA card and the outcome came back `failed` — "EFS accepted the request
- * but the card is unchanged" — while the card afterwards showed `Override: 1 use left`. The COUNT
- * landed and something else did not, and `judgeGrant` only reaches `not_landed` when an unlanded edit
- * is outside the two unobservable scope fields. `limits` is the only other edit that grant sends.
+ *   • The portal offers NO second override — its guide: *"If there is no button to select under
+ *     'Override Card' the card is already in override"*, and the remedy it gives is `Remove
+ *     Override` first. Mirroring the vendor (standing rule 10) means refusing here.
+ *   • H16's freeze is field-scoped: the trio lands on an armed card, but a grant is not just the
+ *     trio — Step 10.3 sends the `<limits>` collection and `handEnter`, neither of which H16 put on
+ *     the safe list. A grant over an armed override therefore risks applying PARTIALLY, with the
+ *     vendor's usual empty-success either way.
+ *   • The live observation matches: on 2026-08-18 a drawer grant of DSL 50 + ULSD 50 on a QA card
+ *     came back `failed` while the card afterwards showed `Override: 1 use left` — the count landed,
+ *     the limits did not visibly follow.
  *
- * Two explanations fit and they are NOT the same product decision:
- *   • the card already carried an override, and an armed override freezes `<limits>` as it freezes
- *     `status` — in which case a product override must refuse on an armed card, the way lock does;
- *   • this account ignores the `limits` array on `setCardv2` generally — in which case Step 10.3
- *     cannot ship at all and p194's recipe does not work here.
- *
- * `pnpm efs:limit-restore` distinguishes them: it refuses a card that already carries an override, so
- * a grant that lands its limits there rules the second out and implicates the first. Until it has
- * run, NO guard is added on a hypothesis — see docs/22.
+ * It stays OUT of `OVERRIDE_BLOCKED_CAPABILITIES` because the map's sentence — "EFS silently ignores
+ * {what}" — is FALSE for a grant (H16 proved the count lands). The refusal lives in
+ * `overrideGrant.behaviour.ts`'s precondition with `overrideGrantBlockedMessage` below, and it is
+ * uniform: a scope-only grant writes only the trio and would land, but the portal refuses uniformly,
+ * and a landing re-grant REPLACES the count rather than adding to it — an operator granting "one
+ * more" on an armed card gets 1, not 2, with nothing saying so. Remove first, then grant.
  *
  * **The mileage override is not here either, and the first draft of this file had it wrong.** It is
  * `overrideLastMileage` — a unit-keyed operation that never touches `setCardv2` and takes no card
@@ -119,3 +118,12 @@ export const OVERRIDE_BLOCKED_CAPABILITIES: Readonly<Record<string, string>> = {
  * outside it. Worth stating rather than leaving to inference: "everything that writes" is the obvious
  * generalisation of H16 and it is wrong.
  */
+
+/**
+ * The grant's own refusal, shared so the API's precondition and the drawer's blocker say the same
+ * thing (invariant 6: name the remedy, never just refuse).
+ */
+export const overrideGrantBlockedMessage = (uses: number): string =>
+  `This card already has a fuel exception with ${uses === 1 ? "1 purchase" : `${uses} purchases`} `
+  + "left. Remove that exception first — the vendor offers no second override on a card already in "
+  + "override, and granting over one can apply only partially while EFS reports success either way.";
