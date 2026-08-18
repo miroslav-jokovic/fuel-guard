@@ -60,7 +60,7 @@ export const seedDraftFor = (
 };
 
 export const emptyDraft = (current: string | null = null): OperationDraft =>
-  ({ targetStatus: currentWritableStatus(current), clearException: false, uses: 1, scopeKind: "all", location: null, prompts: [], addInfoId: null, removeInfoId: null });
+  ({ targetStatus: currentWritableStatus(current), clearException: false, uses: 1, scopeKind: "all", location: null, limits: [], prompts: [], addInfoId: null, removeInfoId: null });
 
 /**
  * The card's status as one of the three the operator may write, or `Active` when it is neither.

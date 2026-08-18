@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CapabilityContract, WsCard } from "@fuelguard/shared";
+import type { CapabilityContract, WsCard, EfsLimitOption } from "@fuelguard/shared";
 
 /**
  * The VIEW half of a capability: the words an operator reads before they commit.
@@ -79,6 +79,14 @@ export interface CapabilityCardContext {
    * number is what the driver will be declined at.
    */
   locationLabel?: (locationId: string) => string | null;
+  /**
+   * The account's limit vocabulary (Step 10.3), so a confirmation can name a product the way the
+   * operator's WEX portal names it and in the unit THIS account says it has.
+   *
+   * A field rather than a resolver, unlike `locationLabel`: locations are searched on demand and
+   * this list already rides on the capabilities payload every drawer holds.
+   */
+  limitOptions?: readonly EfsLimitOption[];
 }
 
 export interface CapabilityView<TBody> {

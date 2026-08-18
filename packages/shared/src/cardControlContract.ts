@@ -352,9 +352,10 @@ export type OverrideScope = z.infer<typeof overrideScopeSchema>;
  * here.
  *
  * ── `limitId` is shape-checked, NOT checked against the account ───────────────────────────────────
- * The same call Step 9.2 made for `infoId`: the set of real limit IDs comes from the ACCOUNT
- * (`getProducts`, walked by Phase 7), not from a constant, so validating it here would mean either a
- * stale enum or a second copy of the account vocabulary. `EFS_LIMIT_LABELS` is our transcription of
+ * The same call Step 9.2 made for `infoId`: the set of real limit IDs comes from the ACCOUNT — from
+ * `getProductGroups`, NOT `getProducts`, because the guide points `groupId` at its Limit IDs table
+ * and ten documented ids including `DSL` exist only as groups (see `resolveLimitVocabulary`) — not
+ * from a constant, so validating it here would mean either a stale enum or a second copy of it. `EFS_LIMIT_LABELS` is our transcription of
  * the guide's table and is a floor, not the account's set — refusing against it would refuse a
  * product WEX added. Step 10.3's picker is fed from the account and is where an unknown id is
  * refused with the vocabulary in hand.

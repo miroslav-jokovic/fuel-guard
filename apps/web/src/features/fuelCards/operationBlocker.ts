@@ -1,5 +1,5 @@
 import type { CardCapabilities } from "@fuelguard/shared";
-import { allowedInfoIdsFrom } from "./promptDrafts";
+import { allowedInfoIdsFrom, allowedLimitsFrom } from "./promptDrafts";
 import { typeToConfirmSatisfied } from "./TypeToConfirm.vue";
 import type { CapabilityConfirmation } from "./capabilities/types";
 import {
@@ -53,7 +53,9 @@ export function operationBlocker(input: BlockerInputs): string | null {
     return "This card is not in a state where that applies.";
   }
 
-  const blocker = operation.blocker?.(draft, card);
+  // Step 10.3: the same shape as `allowedInfoIdsFrom` above — the ACCOUNT's vocabulary, so the
+  // diesel-pair rule can check whether this account even offers the partner code before demanding it.
+  const blocker = operation.blocker?.(draft, card, allowedLimitsFrom(capabilities));
   if (blocker) return blocker;
   if (input.statusUnchanged) return "This card is already at that status.";
 
