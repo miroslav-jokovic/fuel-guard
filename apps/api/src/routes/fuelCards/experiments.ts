@@ -13,6 +13,7 @@ import { VOLATILE_FIELDS, documentShape, redactCardXml, type CardDocument } from
 import { callCardOp, getCardV2 } from "../../lib/efsCardOps.js";
 import { classifySetCardResponse, deleteOverrideOp, isDecline } from "../../lib/efsCardWrite.js";
 import { overrideClearEdits, overrideGrantEdits } from "../../services/efsCardEdits.js";
+import { loadCardNumber } from "../../services/efsCardMirror.js";
 import { EfsSoapError } from "../../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
@@ -95,15 +96,37 @@ export function fuelCardExperimentsRouter(): Router {
         return;
       }
       const input = parsed.data;
-      const last4 = input.cardNumber.slice(-4);
-
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const creds = await resolveProbeCredentials(admin, env, orgId, input.cardNumber);
+
+      /**
+       * Exactly one of `cardNumber` / `efsCardId`, and the uuid is resolved HERE — org-scoped.
+       *
+       * `loadCardNumber` is the same unseal the card-refresh route uses, and it is scoped to the
+       * caller's org, so a uuid from another tenant resolves to nothing rather than to a card. That
+       * is the property that makes accepting an id safe at all, and it is why the resolution is not
+       * done in the CLI: the browser and the terminal never hold a PAN they were not already given.
+       */
+      if ((input.cardNumber === undefined) === (input.efsCardId === undefined)) {
+        res.status(400).json(apiError(
+          "invalid_request",
+          "Name the card by exactly one of `cardNumber` or `efsCardId`.",
+        ));
+        return;
+      }
+      const cardNumber = input.efsCardId
+        ? await loadCardNumber(admin, env, orgId, input.efsCardId)
+        : input.cardNumber!;
+      if (!cardNumber) {
+        res.status(404).json(apiError("not_found", "That card is not in this company."));
+        return;
+      }
+      const last4 = cardNumber.slice(-4);
+      const creds = await resolveProbeCredentials(admin, env, orgId, cardNumber);
 
       // ── E1: read-only state check ─────────────────────────────────────────────────────────────
       if (input.experiment === "read_state") {
-        const doc = await getCardV2(env, creds, input.cardNumber, {
+        const doc = await getCardV2(env, creds, cardNumber, {
           priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
         });
         res.json({
@@ -135,7 +158,7 @@ export function fuelCardExperimentsRouter(): Router {
       // production's own (services/efsCardEdits.ts) — the experiment must exercise the exact
       // documents a real operator produces, or it tests a state nobody hits.
       if (input.experiment === "set_override" || input.experiment === "clear_override") {
-        const before = await getCardV2(env, creds, input.cardNumber, {
+        const before = await getCardV2(env, creds, cardNumber, {
           priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
         });
         const grant = input.experiment === "set_override" ? input : null;
@@ -165,7 +188,7 @@ export function fuelCardExperimentsRouter(): Router {
             env, creds, "setCardv2",
             (session) => {
               const { xml: body } = serializeSetCardRequest(
-                before, { clientId: session.clientId, cardNumber: input.cardNumber }, edits,
+                before, { clientId: session.clientId, cardNumber: cardNumber }, edits,
               );
               assertEchoFidelity(before, body, edits);
               requestXmlRedacted = redactCardXml(body);
@@ -189,7 +212,7 @@ export function fuelCardExperimentsRouter(): Router {
         if (writeError?.code !== "echo_unfaithful") {
           for (const delay of VERIFY_DELAYS_MS) {
             if (delay > 0) await sleep(delay);
-            const read = await getCardV2(env, creds, input.cardNumber, {
+            const read = await getCardV2(env, creds, cardNumber, {
               priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
             });
             after = read;
@@ -253,7 +276,7 @@ export function fuelCardExperimentsRouter(): Router {
 
       // ── D1b: the dedicated deleteOverride op — entitlement AND post-state in one dispatch ─────
       if (input.experiment === "delete_override") {
-        const before = await getCardV2(env, creds, input.cardNumber, {
+        const before = await getCardV2(env, creds, cardNumber, {
           priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
         });
 
@@ -264,7 +287,7 @@ export function fuelCardExperimentsRouter(): Router {
         let writeError: EfsSoapError | null = null;
         const writeStarted = Date.now();
         try {
-          const result = await deleteOverrideOp(env, creds, input.cardNumber, {
+          const result = await deleteOverrideOp(env, creds, cardNumber, {
             priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
           });
           requestXmlRedacted = result.requestXmlRedacted;
@@ -283,7 +306,7 @@ export function fuelCardExperimentsRouter(): Router {
         let after: CardDocument | null = null;
         for (const delay of VERIFY_DELAYS_MS) {
           if (delay > 0) await sleep(delay);
-          const read = await getCardV2(env, creds, input.cardNumber, {
+          const read = await getCardV2(env, creds, cardNumber, {
             priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
           });
           after = read;
@@ -353,7 +376,7 @@ export function fuelCardExperimentsRouter(): Router {
         return;
       }
 
-      const before = await getCardV2(env, creds, input.cardNumber, {
+      const before = await getCardV2(env, creds, cardNumber, {
         priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
       });
       if (input.variant === "setcard_v1" && before.card.limits.length > 0) {
@@ -397,7 +420,7 @@ export function fuelCardExperimentsRouter(): Router {
           variantOperation(input.variant),
           (session) => {
             const { xml: canonical } = serializeSetCardRequest(
-              before, { clientId: session.clientId, cardNumber: input.cardNumber }, edits,
+              before, { clientId: session.clientId, cardNumber: cardNumber }, edits,
             );
             const { body } = transformForVariant(canonical, input.variant);
             // On the exact bytes about to be sent — the transformed string, not the canonical one.
@@ -427,7 +450,7 @@ export function fuelCardExperimentsRouter(): Router {
       if (writeError?.code !== "echo_unfaithful") {
         for (const delay of VERIFY_DELAYS_MS) {
           if (delay > 0) await sleep(delay);
-          const read = await getCardV2(env, creds, input.cardNumber, {
+          const read = await getCardV2(env, creds, cardNumber, {
             priority: "interactive", timeoutMs: env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
           });
           after = read;

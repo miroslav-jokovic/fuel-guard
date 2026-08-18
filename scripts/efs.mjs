@@ -798,11 +798,25 @@ switch (command) {
       "⚠ THIS WRITES: it arms a 1-use override, attempts a status change, then restores both.",
     );
     await getStepUpToken();
-    const card = await promptHidden("Card number (hidden): ", "card number");
-    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
-    const last4 = card.slice(-4);
-    const confirm = `WRITE ${last4}`;
-    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, cardNumber: card }, { stepUp: true });
+
+    /**
+     * ⚠ Prefer `--card-id`. Last four digits DO NOT identify a QA card — 35 cards share 20 last-4
+     * values and six groups hold three cards each (docs/28 Step 0.13) — and on 2026-08-18 that sent
+     * this drill at the wrong card twice, once after it had already written. A uuid is exact, and
+     * unlike a PAN it may appear in shell history and in the transcript (rule 13).
+     *
+     * The number prompt stays for a card whose uuid nobody has to hand; the API accepts either and
+     * resolves the uuid org-scoped, so neither path lets a caller reach another tenant's card.
+     */
+    const cardId = typeof flags["card-id"] === "string" ? flags["card-id"] : null;
+    if (cardId && !/^[0-9a-f-]{36}$/i.test(cardId)) die("--card-id must be an efs_cards.id uuid.");
+    const card = cardId ? null : await promptHidden("Card number (hidden): ", "card number");
+    if (card !== null && !/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    /** Filled from the vendor's own reply once the baseline read lands — never guessed from a uuid. */
+    let last4 = card ? card.slice(-4) : "?";
+    let confirm = `WRITE ${last4}`;
+    const target = cardId ? { efsCardId: cardId } : { cardNumber: card };
+    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, ...target }, { stepUp: true });
 
     /** Every step's full response, in order — the transcript IS the finding (docs/22's H1 pattern). */
     const steps = [];
@@ -825,6 +839,13 @@ switch (command) {
         die("The baseline read failed. Nothing was written.");
       }
       startStatus = before.body.status;
+      // The vendor's own answer for which card this is. On the uuid path it is the FIRST time this
+      // process learns the last four, and `confirm` — the typed `WRITE <last4>` the API demands —
+      // cannot be built before it.
+      if (typeof before.body.cardLast4 === "string" && before.body.cardLast4) {
+        last4 = before.body.cardLast4;
+        confirm = `WRITE ${last4}`;
+      }
       if ((before.body.overrideUses ?? 0) !== 0) {
         die(
           `REFUSING: ••••${last4} already carries an override (${before.body.overrideUses} use(s)).\n`
@@ -1092,13 +1113,16 @@ switch (command) {
     const expectOrg = flags["expect-org"];
     if (expectOrg === undefined || expectOrg === true) {
       die(
-        "usage: node scripts/efs.mjs limit-restore --expect-org qa [--out <path>]\n"
+        "usage: node scripts/efs.mjs limit-restore --expect-org qa [--card-id <uuid>] [--out <path>]\n"
           + "--expect-org is REQUIRED: this DELETES a real card's product limits and puts them back.\n"
           + "(the card number is prompted for, hidden — never pass it as a flag)",
       );
     }
     if (flags.card) {
-      die("--card is refused: a card number passed as a flag lands in shell history and the process table.");
+      die(
+        "--card is refused: a card NUMBER passed as a flag lands in shell history and the process\n"
+          + "table. Use --card-id <efs_cards.id uuid> instead, which is exact and is not a PAN.",
+      );
     }
     if (String(expectOrg).toLowerCase() === "production") {
       die(
@@ -1114,11 +1138,25 @@ switch (command) {
         + "   checks whether the originals came back. It repairs the card itself if they did not.",
     );
     await getStepUpToken();
-    const card = await promptHidden("Card number (hidden): ", "card number");
-    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
-    const last4 = card.slice(-4);
-    const confirm = `WRITE ${last4}`;
-    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, cardNumber: card }, { stepUp: true });
+
+    /**
+     * ⚠ Prefer `--card-id`. Last four digits DO NOT identify a QA card — 35 cards share 20 last-4
+     * values and six groups hold three cards each (docs/28 Step 0.13) — and on 2026-08-18 that sent
+     * this drill at the wrong card twice, once after it had already written. A uuid is exact, and
+     * unlike a PAN it may appear in shell history and in the transcript (rule 13).
+     *
+     * The number prompt stays for a card whose uuid nobody has to hand; the API accepts either and
+     * resolves the uuid org-scoped, so neither path lets a caller reach another tenant's card.
+     */
+    const cardId = typeof flags["card-id"] === "string" ? flags["card-id"] : null;
+    if (cardId && !/^[0-9a-f-]{36}$/i.test(cardId)) die("--card-id must be an efs_cards.id uuid.");
+    const card = cardId ? null : await promptHidden("Card number (hidden): ", "card number");
+    if (card !== null && !/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    /** Filled from the vendor's own reply once the baseline read lands — never guessed from a uuid. */
+    let last4 = card ? card.slice(-4) : "?";
+    let confirm = `WRITE ${last4}`;
+    const target = cardId ? { efsCardId: cardId } : { cardNumber: card };
+    const experiment = (body) => callRaw("/api/fuel-cards/experiment", { ...body, ...target }, { stepUp: true });
 
     const steps = [];
     const record = (step, result) => {
@@ -1164,6 +1202,13 @@ switch (command) {
       if (!before.ok) {
         console.error(JSON.stringify(before.body, null, 2));
         die("The baseline read failed. Nothing was written.");
+      }
+      // The vendor's own answer for which card this is. On the uuid path it is the FIRST time this
+      // process learns the last four, and `confirm` — the typed `WRITE <last4>` the API demands —
+      // cannot be built before it.
+      if (typeof before.body.cardLast4 === "string" && before.body.cardLast4) {
+        last4 = before.body.cardLast4;
+        confirm = `WRITE ${last4}`;
       }
       if ((before.body.overrideUses ?? 0) !== 0) {
         die(
