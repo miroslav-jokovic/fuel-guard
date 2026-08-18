@@ -89,7 +89,7 @@ const {
       v-if="selectedCount > 0"
       class="flex flex-col gap-2 rounded-surface bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
     >
-      <span class="text-sm font-medium text-brand-900">{{ selectedCount }} selected</span>
+      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>

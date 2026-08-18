@@ -280,7 +280,8 @@ function chooseAdded(infoId: string): void {
       not something to walk into by finding a form already open. Ticking it opens one empty line, the
       way `Product/Limit Override` → `Override Card` lands you on `Create Limit`.
     -->
-    <div class="space-y-3 border-t border-line pt-4">
+    <section class="space-y-3 border-t border-edge pt-5" aria-labelledby="product-limits-heading">
+      <h3 id="product-limits-heading" class="text-sm font-semibold text-ink">Product limits</h3>
       <AppCheckbox
         :model-value="limitDraft.length > 0"
         label="Product/limit override"
@@ -292,7 +293,7 @@ function chooseAdded(infoId: string): void {
       <div
         v-for="(limit, index) in limitDraft"
         :key="index"
-        class="space-y-2 rounded-control bg-surface-subtle px-3 py-3"
+        class="space-y-4 rounded-control bg-surface-subtle px-3 py-3"
       >
         <FormField label="Product">
           <template #default="{ id }">
@@ -339,7 +340,7 @@ function chooseAdded(infoId: string): void {
       >
         Save and add another product
       </BaseButton>
-    </div>
+    </section>
   </div>
 
   <!--

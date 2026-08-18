@@ -240,7 +240,7 @@ onMounted(load);
       </form>
       <p class="mt-2 text-xs text-ink-tertiary">
         Looking for drivers? Driver-app logins aren't invited by email — issue a username + password
-        from the <RouterLink to="/drivers" class="text-brand underline">Drivers page</RouterLink> (App access column).
+        from the <RouterLink to="/drivers" class="text-brand-700 underline">Drivers page</RouterLink> (App access column).
       </p>
     </BaseCard>
 

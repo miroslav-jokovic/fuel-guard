@@ -34,7 +34,7 @@ const dismissed = ref(false);
         <span class="text-ink-inverse/90">A new version is ready</span>
         <button
           type="button"
-          class="rounded-full px-2.5 py-1 text-xs font-medium text-ink-inverse/60 transition hover:text-ink-inverse focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          class="rounded-full px-2.5 py-1 text-xs font-medium text-ink-inverse/60 transition hover:text-ink-inverse focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-inverse/40"
           @click="dismissed = true"
         >
           Later

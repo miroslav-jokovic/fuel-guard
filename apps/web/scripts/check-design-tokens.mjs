@@ -15,6 +15,43 @@ const ALLOW = new Set([
   "features/dashboard/chartTheme.ts", // jsdom fallbacks for canvas charts
 ]);
 
+/**
+ * Every colour ROLE the design system actually defines, read from `tokens.css` rather than listed
+ * here — a second copy of the palette is a second thing to forget to update.
+ *
+ * ── Why this rule exists ────────────────────────────────────────────────────────────────────────
+ * `border-line` shipped and sat in three files. It is not a token: the roles are `edge`,
+ * `edge-subtle`, `edge-strong`, `edge-control`. Tailwind emits nothing for an unknown role, so the
+ * border simply was not drawn — and every gate passed, because the rules below only ban RAW palette
+ * hues. A misspelt semantic name is invisible to all of them, which makes it the easier mistake to
+ * make and the harder one to see. Found 2026-08-18 while reading the contract against the drawer.
+ */
+const TOKENS_CSS = new URL("../../../packages/ui/src/tokens.css", import.meta.url).pathname;
+const COLOR_ROLES = new Set(
+  [...readFileSync(TOKENS_CSS, "utf8").matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+);
+
+/**
+ * Tailwind's own structural suffixes for these prefixes — widths, sides, styles and offsets, none of
+ * which name a colour. Listed rather than pattern-matched: a bare number is easy to spot and these
+ * words are a closed set, whereas guessing at "looks structural" is how a real violation slips past.
+ */
+const STRUCTURAL = new Set([
+  // border-* widths and sides, ring/outline modifiers, and the universal colour keywords.
+  "t", "r", "b", "l", "x", "y", "s", "e", "none", "solid", "dashed", "dotted", "double", "hidden",
+  "collapse", "separate", "inset", "offset", "reverse", "current", "transparent", "inherit",
+  // text-* utilities that are about SIZE or ALIGNMENT and merely share the prefix.
+  "xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl",
+  "left", "center", "right", "justify", "start", "end", "wrap", "nowrap", "balance", "pretty",
+  "ellipsis", "clip",
+]);
+
+/** `border-spacing-2`, `ring-offset-4` … a structural head with a value after it. */
+const STRUCTURAL_HEADS = ["spacing", "offset", "opacity"];
+
+/** `border-b-2`, `border-l-4`, `divide-y-0` — a side with a WIDTH, which names no colour. */
+const SIDE_WIDTH = /^[trblxyse]-\d+$/;
+
 const BANNED_HUES =
   "(?:slate|gray|zinc|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)";
 const UTIL_PREFIX =
@@ -32,6 +69,37 @@ const RULES = [
   {
     name: "generic elevation utility (use shadow-card/overlay/dialog)",
     re: /\bshadow-(?:sm|md|lg|xl|2xl)\b/g,
+  },
+  {
+    name: "unknown colour role — not a token in tokens.css",
+    /**
+     * Scanned inside `class` / `:class` values ONLY, never over raw text.
+     *
+     * The first attempt ran over whole lines and reported `fill-ups`, `fill-up` and `fill-by-fill`
+     * out of ordinary English prose — 103 findings, almost all of them sentences. A utility-class
+     * rule has to look where utility classes live; the hue rules above get away with whole-line
+     * scanning because a raw palette name is distinctive and an English word is not.
+     */
+    classesOnly: true,
+    re: /\b(?:bg|text|ring|border|divide|outline|fill|stroke|accent|placeholder)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b/g,
+    // A match is only a VIOLATION when the suffix names no role and is not structural. Numeric
+    // suffixes (border-2, ring-1) and arbitrary values are left alone by the pattern itself.
+    /**
+     * ⚠ The FIRST version of this rule was wrong, and it was caught by breaking it rather than by
+     * reading it. It waved through any suffix whose first segment matched no known role family —
+     * which is exactly what `border-line` is. It therefore caught `text-brand-900` (a bad STEP in a
+     * real family) and missed the very bug it was written for. A gate that passes its own defect is
+     * worse than no gate, because it reads as coverage.
+     *
+     * The rule now refuses ANY suffix that is neither a defined role nor structural. That is only
+     * safe because the structural sets above are closed and enumerated; the price of forgetting one
+     * is a false positive on the next build, which is loud, rather than a silent miss.
+     */
+    violates: (m) => {
+      const suffix = m[1];
+      if (COLOR_ROLES.has(suffix) || STRUCTURAL.has(suffix) || SIDE_WIDTH.test(suffix)) return false;
+      return !STRUCTURAL_HEADS.includes(suffix.split("-")[0]);
+    },
   },
   { name: "hex color (use tokens / chartTheme)", re: /#[0-9a-fA-F]{3,8}\b/g },
   {
@@ -55,8 +123,14 @@ for (const file of walk(SRC)) {
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((line, i) => {
     if (line.includes("token-check-disable-line")) return;
+    // Everything between the quotes of a `class=` / `:class=` binding on this line, joined. Dynamic
+    // bindings carry expressions too; harmless, since a role name in one is still a role name.
+    const classText = [...line.matchAll(/:?class="([^"]*)"/g)].map((m) => m[1]).join(" ");
     for (const rule of RULES) {
-      for (const m of line.matchAll(rule.re)) {
+      const haystack = rule.classesOnly ? classText : line;
+      if (!haystack) continue;
+      for (const m of haystack.matchAll(rule.re)) {
+        if (rule.violates && !rule.violates(m)) continue;
         failures++;
         console.error(`${rel}:${i + 1}  ${rule.name}  →  ${m[0]}`);
       }
