@@ -159,7 +159,7 @@ originals. That is now a conclusion from reading, not an assumption.
 |---|---|---|
 | **10.4** | Blocked — QA cannot answer it. Needs Miki's ruling (§1.1) | this doc |
 | **10.5** | Promote. After 10.4 | `docs/28` |
-| ⚠ | **The portal REFUSES a second override; we offer one.** *"If there is no button to select under 'Override Card' the card is already in override."* Ours is `applies: () => true`. Left open deliberately — granting over an armed override REPLACES it, which is p194's semantic. Miki's call | `docs/37` §10.4 |
+| ✅ | ~~The portal REFUSES a second override; we offer one~~ **RESOLVED 2026-08-18 — Miki ruled: no grant on a card already in override.** The API precondition and the drawer blocker both refuse via `overrideGrantBlockedMessage`; refusal is uniform (scope-only included, because a landing re-grant REPLACES the count rather than adding, and a grant's non-trio fields risk H16's silent swallow). Mutation `efs-override-grant-on-armed-card` pins it | `overrideFreeze.ts`, `docs/37` §10.4 |
 | ⚠ | **`limitSource` live half unproven**, exactly like 9.4's. Production has 19 POLICY cards to prove it on | §3.1 |
 | — | `docs/39` §3.2 — the 2–3 minute wait. **Narrowed again**: Miki pressed the *deployment update banner*, which reloads the whole SPA, NOT the card's Refresh. So no live EFS re-read happened and the recovery came from a full reload — which points harder at invalidation not delivering, rather than anything server-side | `docs/39` §3.2 |
 | — | `locationSource` is POLICY on all 234 cards. Nothing branches on it today; recorded because the last unlooked-at field cost a phase | §1 |

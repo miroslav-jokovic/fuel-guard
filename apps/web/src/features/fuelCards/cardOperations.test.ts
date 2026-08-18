@@ -321,3 +321,31 @@ describe("blocked operations always have something to say", () => {
     }
   });
 });
+
+/**
+ * No grant on a card already in override — the drawer half of Miki's 2026-08-18 ruling. The API's
+ * precondition refuses too (`overrideGrant.behaviour.ts`); this blocker is what keeps the operator
+ * from spending a vendor call and a rate-limit slot to learn it, and both say the SAME sentence
+ * because both read `overrideGrantBlockedMessage`.
+ */
+describe("the grant blocker on a card already in override", () => {
+  const armed = { ...QUIET_CARD, overrideUses: 2 } as unknown as OperationCard;
+
+  it("blocks with the uses left and the remedy, before any input question", () => {
+    const blocker = operationById("grant")!.blocker!(emptyDraft(), armed, []);
+    expect(blocker).toContain("2 purchases");
+    expect(blocker).toMatch(/remove that exception first/i);
+  });
+
+  it("outranks the draft's own blockers — the card's state is the first sentence", () => {
+    // A location scope with no location chosen would otherwise block; the armed card speaks first,
+    // because "choose the location" on a grant that can never send is a wild goose chase.
+    const draft = { ...emptyDraft(), scopeKind: "location" as const };
+    expect(operationById("grant")!.blocker!(draft, armed, [])).toMatch(/already has a fuel exception/i);
+  });
+
+  /** The control: the same draft on a quiet card blocks on the draft, not the card. */
+  it("says nothing about exceptions on a card with none", () => {
+    expect(operationById("grant")!.blocker!(emptyDraft(), QUIET_CARD, [])).toBeNull();
+  });
+});

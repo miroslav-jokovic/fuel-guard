@@ -1,5 +1,7 @@
 import {
   type OverrideGrantBody,
+  overrideBlocksWrite,
+  overrideGrantBlockedMessage,
   overrideGrantContract,
   overrideGrantStepUp,
 } from "@fuelguard/shared";
@@ -164,6 +166,22 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
    * than a safety property.
    */
   precondition: (_ctx, snap, body: OverrideGrantBody) => {
+    /**
+     * No grant on a card already in override — Miki's 2026-08-18 ruling, and the vendor's own
+     * behaviour three ways over (see `overrideFreeze.ts`'s `override_grant` block: the portal offers
+     * no second override, H16's freeze makes a grant's non-trio fields — `limits`, `handEnter` —
+     * liable to be silently swallowed, and a landing re-grant REPLACES the count rather than adding).
+     *
+     * FIRST, before the limitSource check: the card's state outranks the request's inputs, and an
+     * operator told "remove the exception" should not first be told to clear their product lines.
+     * Absent is allowed, as everywhere in this file: `plan` has its own handling for a failed read,
+     * and a vendor blip must not become a claim that the card carries an exception.
+     */
+    const uses = snap.doc?.card.overrideUses ?? null;
+    if (snap.doc !== null && overrideBlocksWrite(uses)) {
+      throw new ActionRefusalError(overrideGrantBlockedMessage(uses ?? 0), "invalid_request");
+    }
+
     if (body.limits.length === 0) return;
     const source = snap.doc?.card.limitSource;
     if (source === null || source === undefined) return;

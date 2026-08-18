@@ -13,6 +13,7 @@ import {
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
+  overrideGrantBlockedMessage,
 } from "@fuelguard/shared";
 import { CARD_CAPABILITY_VIEWS } from "./capabilities/registry.js";
 import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow } from "./capabilities/types.js";
@@ -188,8 +189,13 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
     scope: "override",
     group: "Current card",
     menuLabel: "Grant exception…",
-    // Always offerable: granting a new exception replaces whatever is there, which is the vendor's
-    // own semantic (guide p194) and is what an operator means by "let him fuel once more".
+    /**
+     * Still listed on a card already in override — but BLOCKED there, with the sentence naming the
+     * remedy (Miki's 2026-08-18 ruling; the API refuses too, see `overrideGrant.behaviour.ts`). The
+     * portal handles the same state by hiding its button and explaining in a guide nobody has open;
+     * a visible action with the reason on it teaches the same rule on the screen where it applies
+     * (invariant 6), and Remove exception sits right beside it in this menu.
+     */
     applies: () => true,
     body: (draft) => ({
       uses: draft.uses,
@@ -201,10 +207,13 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       limits: draft.limits ?? [],
       allowHandEnter: draft.allowHandEnter === true,
     }),
-    blocker: (draft) =>
-      (draft.scopeKind === "location" && draft.location === null
-        ? "Choose the location this exception applies at."
-        : overrideLimitsBlocker(draft)),
+    // The card's state first, then the draft's inputs — `operationBlocker`'s own ordering rule.
+    blocker: (draft, card) =>
+      (usesLeft(card) > 0
+        ? overrideGrantBlockedMessage(usesLeft(card))
+        : draft.scopeKind === "location" && draft.location === null
+          ? "Choose the location this exception applies at."
+          : overrideLimitsBlocker(draft)),
   },
   {
     id: "clear",

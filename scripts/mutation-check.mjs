@@ -189,6 +189,14 @@ const MUTATIONS = [
     detect: apiTest("src/efs/capabilities/cardLock.behaviour.test.ts"),
   },
   {
+    id: "efs-override-grant-on-armed-card",
+    why: "Miki's 2026-08-18 ruling: no grant on a card already in override. Without the precondition a re-grant dispatches — the count REPLACES (an operator granting 'one more' gets 1, not 2) and the non-trio fields (limits, handEnter) risk H16's silent swallow, with EFS reporting success either way.",
+    file: "apps/api/src/efs/capabilities/overrideGrant.behaviour.ts",
+    find: "    if (snap.doc !== null && overrideBlocksWrite(uses)) {",
+    replace: "    if (false) {",
+    detect: apiTest("src/efs/capabilities/overrideGrant.behaviour.test.ts"),
+  },
+  {
     id: "efs-override-limits-removals-empty",
     why: "The Step 10.1 plan error, as a mutation. `removals: []` is what the plan specified; it passes on a card whose <limits> is already empty — the one card Step 10.4 proves on — and assertCollectionsPreserved refuses it on every card that has limits. So the bug would have gone live green and failed on the first real override.",
     file: "apps/api/src/services/efsCardEdits.ts",
