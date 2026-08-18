@@ -105,7 +105,7 @@ const declineRetries = (rep: PatternReport) =>
       <div
         v-for="{ key, e } in entries(risk)"
         :key="key"
-        class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-control bg-surface-raised px-3 py-2 text-xs"
+        class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-control bg-surface-subtle px-3 py-2 text-xs"
       >
         <span class="w-14 font-semibold text-ink-secondary">{{ entryLabel[key] }}</span>
         <span :class="e.confirmed > 0 ? 'font-semibold text-danger-700' : 'text-ink-muted'">
@@ -133,7 +133,7 @@ const declineRetries = (rep: PatternReport) =>
         {{ new Date(report.generated_at).toLocaleString() }}
       </div>
       <template v-for="axis in (['driver', 'vehicle'] as const)" :key="axis">
-        <div v-if="report.report[axis]" class="rounded-control bg-surface-raised px-3 py-2">
+        <div v-if="report.report[axis]" class="rounded-control bg-surface-subtle px-3 py-2">
           <div class="mb-1 font-semibold text-ink-secondary">
             {{ entryLabel[axis] }} · {{ report.report[axis]!.fills }} fills ·
             {{ report.report[axis]!.nearThresholdTotal }} near-miss
@@ -150,7 +150,7 @@ const declineRetries = (rep: PatternReport) =>
           </div>
         </div>
       </template>
-      <div v-if="report.report.cardDeclines && report.report.cardDeclines.total > 0" class="rounded-control bg-surface-raised px-3 py-2">
+      <div v-if="report.report.cardDeclines && report.report.cardDeclines.total > 0" class="rounded-control bg-surface-subtle px-3 py-2">
         <div class="font-semibold text-ink-secondary">
           Card declines: {{ report.report.cardDeclines.total }}
           <span v-if="report.report.cardDeclines.suspicious > 0" class="text-warning-700">

@@ -15,12 +15,14 @@ import { AppFormField as FormField } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppCheckbox } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppRadioGroup as RadioGroup } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
 import { CLEAR_EXCEPTION_HELP, cardHasArmedException, clearExceptionLabel } from "./overrideException";
 import {
   OVERRIDE_LIMIT_AMOUNT_HELP,
   OVERRIDE_LIMIT_AMOUNT_LABEL,
+  PRODUCT_OVERRIDE_HELP,
   canAddOverrideLimit,
   emptyOverrideLimit,
 } from "./overrideLimits";
@@ -80,7 +82,22 @@ const useOptions = Array.from({ length: 9 }, (_, i) => ({
 
 /** The account's products as select options, with the id kept visible — it is what EFS declines on. */
 const productOptions = computed(() =>
-  (props.limitOptions ?? []).map((option) => ({ value: option.limitId, label: `${option.label} (${option.limitId})` })));
+  // `DSL - DIESEL`, which is exactly how the portal's own Limit ID list reads. The CODE leads because
+  // the code is what EFS declines on and what a truck stop rings up; the description is the gloss.
+  (props.limitOptions ?? []).map((option) => ({ value: option.limitId, label: `${option.limitId} - ${option.label}` })));
+
+/**
+ * A hand-typed location id becomes a location with NO name, and that is deliberate.
+ *
+ * `EfsLocationPicker` sets a full record because it searched for one; typing an id gives us the only
+ * fact we actually have. The confirmation's `whereLabel` already falls back to "location <id>" when
+ * it cannot name the station — the id is what a driver is declined at, so it is the part that must
+ * never be invented.
+ */
+const patchLocationId = (locId: string): void => {
+  const digits = locId.replace(/\D/g, "").slice(0, 7);
+  patch({ location: digits ? { locId: digits, name: null, city: null, state: null } as EfsLocation : null });
+};
 
 const limitDraft = computed(() => props.draft.limits ?? []);
 
@@ -105,7 +122,7 @@ const unitHint = (limitId: string): string => {
  * that let both be true at once would be describing a document EFS does not accept.
  */
 const scopeOptions = [
-  { value: "all", label: "Any location" },
+  { value: "all", label: "All locations" },
   /**
    * "Network plus one", NOT "one only" — and the difference is the whole point.
    *
@@ -114,7 +131,11 @@ const scopeOptions = [
    * it does not confine the card. This read "One location only" until 2026-08-17, which told an
    * operator trying to contain a card that picking it would narrow access. It does the opposite.
    */
-  { value: "location", label: "Network plus one location" },
+  {
+    value: "location",
+    label: "Network plus optional location",
+    description: "The card keeps its usual network AND gains this one site.",
+  },
 ];
 
 const validationOptions = [
@@ -205,35 +226,74 @@ function chooseAdded(infoId: string): void {
       </template>
     </FormField>
 
-    <FormField label="Where it applies">
-      <template #default="{ id }">
-        <ComboSelect
-          :id="id"
-          :model-value="props.draft.scopeKind"
-          :options="scopeOptions"
-          :disabled="props.busy"
-          @update:model-value="patch({ scopeKind: $event as 'all' | 'location', location: null })"
-        />
-      </template>
-    </FormField>
-
-    <EfsLocationPicker
-      v-if="props.draft.scopeKind === 'location'"
-      :model-value="props.draft.location"
+    <!--
+      The portal's `Location(s)` fieldset: two radios visible at once, not a dropdown. Both choices
+      being readable without opening anything is the point — "All Locations" and "Network Plus
+      Optional Location" are a real either/or and the second one WIDENS rather than confines.
+    -->
+    <RadioGroup
+      legend="Location(s)"
+      :model-value="props.draft.scopeKind"
+      :options="scopeOptions"
       :disabled="props.busy"
-      @update:model-value="patch({ location: $event as EfsLocation | null })"
+      @update:model-value="patch({ scopeKind: $event as 'all' | 'location', location: null })"
     />
+
+    <!--
+      Two ways in, exactly as the portal has: type the EFS id straight in, or search for it. The
+      portal's field is a bare text box beside a `Lookup Location` button, and an operator who
+      already knows the id — off a dispatch note, or from the driver on the phone — should not have
+      to search for a station they can already name.
+    -->
+    <div v-if="props.draft.scopeKind === 'location'" class="space-y-3">
+      <FormField
+        label="EFS location id"
+        hint="Six digits, from the truck stop or a lookup below. The exception opens the card up to this location as well as its usual network."
+      >
+        <template #default="{ id }">
+          <BaseInput
+            :id="id"
+            inputmode="numeric"
+            placeholder="For example, 442001"
+            :model-value="props.draft.location?.locId ?? ''"
+            :disabled="props.busy"
+            @update:model-value="patchLocationId(String($event))"
+          />
+        </template>
+      </FormField>
+
+      <EfsLocationPicker
+        :model-value="props.draft.location"
+        :disabled="props.busy"
+        @update:model-value="patch({ location: $event as EfsLocation | null })"
+      />
+    </div>
 
     <!--
       Step 10.3's product picker. Collapsed to a single button until the operator asks for it, because
       a scope-only exception is the ordinary case and a product override DELETES the card's other
       product limits for the duration (p194) — not something to walk into by finding a form open.
     -->
-    <div class="space-y-3 border-t border-line pt-4">
+    <!--
+      The portal's `Optional` fieldset gates the limit screens behind a checkbox, and so does this:
+      a product override DELETES the card's other product limits for the duration (p194), which is
+      not something to walk into by finding a form already open. Ticking it opens one empty line, the
+      way `Product/Limit Override` → `Override Card` lands you on `Create Limit`.
+    -->
+    <section class="space-y-3 border-t border-edge pt-5" aria-labelledby="product-limits-heading">
+      <h3 id="product-limits-heading" class="text-sm font-semibold text-ink">Product limits</h3>
+      <AppCheckbox
+        :model-value="limitDraft.length > 0"
+        label="Product/limit override"
+        :disabled="props.busy"
+        @update:model-value="(on: boolean) => patch({ limits: on ? [emptyOverrideLimit()] : [] })"
+      />
+      <p class="text-sm text-ink-muted">{{ PRODUCT_OVERRIDE_HELP }}</p>
+
       <div
         v-for="(limit, index) in limitDraft"
         :key="index"
-        class="space-y-2 rounded-control bg-surface-subtle px-3 py-3"
+        class="space-y-4 rounded-control bg-surface-subtle px-3 py-3"
       >
         <FormField label="Product">
           <template #default="{ id }">
@@ -272,15 +332,15 @@ function chooseAdded(infoId: string): void {
       </div>
 
       <BaseButton
-        v-if="canAddOverrideLimit(limitDraft)"
+        v-if="limitDraft.length > 0 && canAddOverrideLimit(limitDraft)"
         variant="soft"
         size="sm"
         :disabled="props.busy"
         @click="addLimit()"
       >
-        {{ limitDraft.length === 0 ? "Also cap a product…" : "Add another product" }}
+        Save and add another product
       </BaseButton>
-    </div>
+    </section>
   </div>
 
   <!--

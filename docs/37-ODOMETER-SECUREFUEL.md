@@ -778,3 +778,115 @@ perfectly with `pdftotext` (poppler is installed). Download, then extract locall
   seven bits set), and `getCardV2.autoRoll.xml` carries `7`. Our own comment on `autoRollMax` (*"0
   means no daily maximum"*) is unaffected. Nothing writes either field, so this is a reading aid — but
   it is the first explanation of `autoRollMap` this workstream has had.
+
+---
+
+## 9. The Override Card flow, measured against WEX's LIVE portal — 2026-08-18
+
+Miki captured the real flow on card ••••7560 (unit 688, driver 1440, policy 1) and instructed:
+*"we are mirroring this UX"* and *"verify documentation... let's not assume nothing, because I think
+phase 10 is outdated and not precise."* He was right on both counts. Screens are deliberately NOT
+checked in — they carry a masked PAN, a driver name and an account id (rule 13); this is the
+transcription.
+
+### 9.1 The flow, screen by screen
+
+| Screen | What it holds |
+|---|---|
+| **Card Lookup** | Lookup by Card # / Unit / Driver ID / Driver Name / X-Ref / Policy. Result row has an **Override Card** icon column |
+| **Override Card** | `# Card Overrides` — a LIST BOX of 1–9 · `Location(s)` — TWO RADIOS · `Optional` — two checkboxes · buttons `Override Card` / `Cancel` |
+| **Override Card Limits** | Banner, then `Create Limit`: `Limit ID *` list of `CODE - DESCRIPTION` · `Next` / `Cancel` |
+| **Create Limit (amount)** | `Limit ID: DSL` · `Amount: *` with a **`GAL`** suffix · `Complete Override` / `Save and Add Another` / `Back` / `Cancel` |
+
+`Location(s)` radios, verbatim: **`All Locations`** and **`Network Plus Optional Location`**. The
+second carries its own text box and a `Lookup Location` button INSIDE its group.
+
+`Optional` checkboxes, verbatim: **`Allow Hand Enter`** and **`Product/Limit Override`**.
+
+### 9.2 ✅ The portal's Limit ID list IS `getProductGroups` — the vendor's UI confirms PR #91
+
+The first ten rows read `ACCE - ACCESSORIAL`, `ADD - ADDITIVES`, `AMDS - AVIATION MERCHANDISE`,
+`ANFR - ANTI-FREEZE`, `APRO - AUTO PROPANE`, `ATOM - AUTOMOTIVE`, `AVGS - AVIATION GAS`,
+`BDSL - BIO DIESEL`, `BEVR - BEVERAGE`, `BPRP - MISC PROPANE`.
+
+**All ten match this account's `getProductGroups` descriptions exactly, in the same order — and four
+of them (`AMDS`, `APRO`, `ATOM`, `BEVR`) have no `getProducts` record at all.** `docs/38` §7.1 and
+`docs/39` §4 both say the limit ids come from `getProducts`; the vendor's own screen says otherwise,
+which is the second independent confirmation after the guide's `groupId → "See Limit IDs"` line.
+
+`ACCE`, `APRO`, `ATOM`, `BEVR` are also absent from `EFS_LIMIT_LABELS` — our transcription is a
+floor, exactly as `resolveLimitVocabulary` assumes.
+
+### 9.3 ⚠ Three recipes, and the product one is ALL-LOCATIONS by instruction
+
+The guide's Overrides section (p193–194) has **three** recipes, not one:
+
+| Recipe | Fields |
+|---|---|
+| Override All Locations | `overrideAllLocations = True`, `override = 1..9` |
+| Override Single Location ID | `locationOverride = <6-digit id>`, `overrideAllLocations = False`, `override = 1..9` |
+| Override Product Limits | echo back **except remove the limits**, `overrideAllLocations = True`, `override = 1..9`, add back the limits array |
+
+**The product recipe says `overrideAllLocations set to True` in so many words.** So
+`grantOverrideSchema`'s refusal of `limits` with a location scope is not a guess — it is the vendor's
+own instruction, and it now has a citation instead of a reasonable-sounding comment.
+
+### 9.4 ⚠ The guide contradicts ITSELF on `locationOverride`
+
+- Field table (getCard/setCard, four separate places): `locationOverride  boolean (1)  0 = no override, 1 = override`
+- Recipe p194: *"locationOverride will be set to the 6 digit EFS LLC Location Id that you want to open the card up to."*
+
+These cannot both be true. The portal settles it: the field is a text box beside a `Lookup Location`
+button, so it holds an **ID**. Our code follows the recipe and treats `"0"` as
+`LOCATION_OVERRIDE_NONE`. **Do not "fix" this against the field table.**
+
+### 9.5 ⚠ An EMPTY optional location resolves to ALL LOCATIONS — and we refuse instead
+
+In the captured run the `Network Plus Optional Location` radio was selected with an **empty** box,
+and the resulting banner read *"Card ••••7560 has been overridden for 1 time(s) **for all
+locations**."*
+
+So the portal silently widens an unfilled optional location into an all-locations grant. **We
+deliberately do not mirror that.** `cardOperations.ts`'s grant blocker refuses with *"Choose the
+location this exception applies at."* Granting access to the entire network when the operator was
+part-way through naming one site is a wider exception than they asked for, and this codebase does not
+silently grant more than was authorised (`clearException`'s rule). Mirroring the vendor's LAYOUT does
+not extend to mirroring a silent widening.
+
+### 9.6 ⚠ `Allow Hand Enter` is a PERMANENT card field, whatever the screen implies
+
+The portal puts it under `Optional` on the override screen, beside `Product/Limit Override`, which
+reads as *"for these N uses, also permit a hand-entered card number."*
+
+**The web service has no such field.** `handEnter` appears in the getCard/setCard field tables as
+`string (7) — ALLOW, DISALLOW or POLICY`: an ordinary card setting with no override scope and no
+expiry. Nothing in the guide ties it to the override count.
+
+So a checkbox placed here writes a change that OUTLIVES the exception. `docs/38` §1.3 recorded Miki's
+2026-08-17 call that it belongs in settings; on 2026-08-18, having seen the portal, he said *"actually
+we can add it here."* Both can be satisfied — but only if the control says what it does. **If it
+ships on this screen its label must state the permanence**, e.g. *"Allow hand-entered card numbers —
+stays on until it is changed back; it does NOT expire with this exception."* Shipping the portal's
+bare wording would teach the opposite of the truth.
+
+⚠ Unverified either way: whether EFS itself scopes hand-enter to the override internally. Nothing in
+the guide says so, and the field's presence on `getCard` says it does not. Worth one probe before it
+ships.
+
+### 9.7 The portal writes TWICE; we write once, and that is still correct
+
+The banner *"has been overridden for 1 time(s)"* appears on the **limits** screen — before any
+product is chosen — so the portal commits the override, then commits the limits. `docs/38` §1.1
+already settled that we do NOT copy that: p194's recipe is one `setCard`, and Phase 11.3's
+half-failure machinery is not needed. The portal's two steps are its own UI convenience. **The
+banner is not evidence of a required sequence.**
+
+### 9.8 What this changed in the product, same day
+
+- `Location(s)` is now two visible radios (`AppRadioGroup`), not a dropdown — both choices readable
+  without opening anything, as the portal has it.
+- A **manual EFS location id field** beside the search, mirroring the portal's text box + `Lookup
+  Location`. An operator holding the id off a dispatch note should not have to search for it.
+- A **`Product/limit override` checkbox** gates the picker, mirroring the `Optional` fieldset — and
+  the destruction is now named before it is ticked as well as in the confirmation.
+- Product options read **`DSL - DIESEL`**, the portal's own `CODE - DESCRIPTION` format.

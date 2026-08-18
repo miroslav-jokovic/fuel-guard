@@ -335,7 +335,7 @@ async function run(): Promise<void> {
           <template #default="{ id }">
             <textarea
               :id="id"
-              class="h-48 w-full rounded-md border border-line bg-surface p-2 font-mono text-xs text-ink-muted"
+              class="h-48 w-full rounded-md border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
               readonly
               :value="result.document"
             />
@@ -346,7 +346,7 @@ async function run(): Promise<void> {
           <template #default="{ id }">
             <textarea
               :id="id"
-              class="h-48 w-full rounded-md border border-line bg-surface p-2 font-mono text-xs text-ink-muted"
+              class="h-48 w-full rounded-md border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
               readonly
               :value="result.documentAfter"
             />

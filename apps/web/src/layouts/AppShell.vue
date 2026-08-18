@@ -129,7 +129,7 @@ async function signOut() {
                   @click="mobileOpen = false"
                 >
                   <span class="sr-only">Close sidebar</span>
-                  <AppIcon :icon="XMarkIcon" class="size-6 text-white" aria-hidden="true" />
+                  <AppIcon :icon="XMarkIcon" class="size-6 text-ink-inverse" aria-hidden="true" />
                 </button>
               </div>
               <!-- Mobile sidebar body -->
