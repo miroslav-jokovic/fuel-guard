@@ -281,6 +281,16 @@ describe("ingestReport — transaction report", () => {
     expect((db.tables.imports[0]!.summary as Row).channel).toBe("auto");
   });
 
+  it("a provisioned fuel-card driver is labelled identity_source 'efs', never the telematics default (0204, A6)", async () => {
+    // Before 0204 this insert omitted identity_source, fell to the 'samsara' DB default, and the stub
+    // claimed telematics provenance — 81 of 248 "active" drivers, a third of the qualification queue.
+    const db = new FakeDb();
+    const { deps } = spyDeps();
+    await ingestReport(db as unknown as SupabaseClient, env, txnInput("HASH_A"), deps);
+    expect(db.tables.drivers).toHaveLength(1);
+    expect(db.tables.drivers[0]).toMatchObject({ status: "active", identity_source: "efs" });
+  });
+
   it("CONTENT identity backstop: the same fill re-delivered under a different ref scheme enriches, never twins (2026-08 incident)", async () => {
     // Same physical dispense, two deliveries. The first report has no vendor transaction id → its ref
     // is invoice-keyed and transaction_id lands null. The second carries a Stable Transaction ID → its

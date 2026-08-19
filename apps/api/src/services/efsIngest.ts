@@ -92,7 +92,9 @@ async function prepareTransaction(
     const { data: created } = await admin
       .from("drivers")
       .insert(
-        toProvision.map((full_name) => ({ org_id: input.orgId, full_name, status: "active" })),
+        // identity_source 'efs' (0204): a fuel-card name is a payment identity, not an employee.
+        // Before 0204 these rows fell to the 'samsara' default and flooded the qualification queue.
+        toProvision.map((full_name) => ({ org_id: input.orgId, full_name, status: "active", identity_source: "efs" })),
       )
       .select("id, full_name");
     driverList = [...driverList, ...((created ?? []) as { id: string; full_name: string }[])];
