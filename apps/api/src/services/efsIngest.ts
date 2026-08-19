@@ -274,12 +274,15 @@ export type { IngestChannel, IngestInput, IngestResult } from "./efsIngestShared
  * write path the guarantees the browser path lacked: it runs under the service-role client + audit,
  * and every step is idempotent so a re-delivered or overlapping report is a safe no-op.
  *
- * Faithfulness contract with the manual path (verified in efsIngest.test.ts):
- *   • same shared parser (normalizeAllTransactionLines / normalizeTransactionRows / normalizeRejectRows)
- *   • same idempotency: file-level SHA-256 (imports.file_hash) + row-level external_ref upsert dedup
- *   • same faithful store (efs_transactions) + derived scoring events (fuel_transactions) + declines
- *   • same post-commit shortfall reconciliation written onto imports.summary
- * The ONLY behavioural difference is provenance: summary.channel records how the file arrived.
+ * Faithfulness contract with the manual path, each clause pinned by a scenario in efsIngest.test.ts:
+ *   • same shared parser, same faithful store, same derived events and same shortfall reconciliation —
+ *     "stores every line faithfully, derives fuel-only events, reconciles a zero shortfall, and scores"
+ *   • same row-level idempotency —
+ *     "is idempotent at the ROW level: re-ingesting the same rows under a new file writes nothing new"
+ *   • same file-level idempotency on the SHA-256 —
+ *     "is idempotent at the FILE level: the same file hash is a no-op"
+ * The ONLY behavioural difference is provenance: summary.channel records how the file arrived, proved by
+ * "channel defaults to 'auto' for an unattended run".
  */
 
 /**

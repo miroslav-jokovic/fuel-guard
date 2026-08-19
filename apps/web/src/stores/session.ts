@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
 import type { UserRole } from "@fuelguard/shared";
-import { canManageFleet, canReadRestricted, isAdmin, isReadOnly } from "@fuelguard/shared";
+import { canManageFleet, canReadAllRestricted, canReadRestrictedKind, isAdmin, isReadOnly } from "@fuelguard/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
 import { clearStepUp } from "@/lib/stepUp";
@@ -55,8 +55,14 @@ export const useSessionStore = defineStore("session", () => {
   const canManage = computed(() => canManageFleet(role.value));
   const admin = computed(() => isAdmin(role.value));
   const readOnly = computed(() => isReadOnly(role.value));
-  /** §382.401/§391.53 restricted records — admin + safety_manager only (Phase G, D-DQ15). */
-  const restrictedAccess = computed(() => canReadRestricted(role.value));
+  /**
+   * BOTH halves of the restricted set — the whole-file entitlement (auth.ts's split, 2026-08-19).
+   * Gates the binder's include-restricted checkbox and nothing per-requirement; a recruiter holds
+   * §391.53 investigation history without holding this.
+   */
+  const restrictedAccess = computed(() => canReadAllRestricted(role.value));
+  /** Per requirement, which is the question every row-level affordance actually asks. */
+  const canReadKind = (kind: string): boolean => canReadRestrictedKind(kind, role.value);
 
   async function init() {
     if (DEV_BYPASS) {
@@ -111,6 +117,7 @@ export const useSessionStore = defineStore("session", () => {
     admin,
     readOnly,
     restrictedAccess,
+    canReadKind,
     init,
     signIn,
     signOut,

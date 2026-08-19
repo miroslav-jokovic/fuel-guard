@@ -6,11 +6,14 @@ describe("shared constants", () => {
     expect(APP_NAME).toBe("FuelGuard");
   });
 
-  it("defines the six user roles (incl. the department roles)", () => {
-    expect(USER_ROLES).toHaveLength(6);
+  it("defines the seven user roles (incl. the department roles and the recruiter)", () => {
+    // The count is asserted on purpose: every role is a Postgres enum value that CANNOT be dropped
+    // (no ALTER TYPE ... DROP VALUE), so adding one is a one-way door and should not pass unnoticed.
+    expect(USER_ROLES).toHaveLength(7);
     expect(USER_ROLES).toContain("admin");
     expect(USER_ROLES).toContain("dispatcher");
     expect(USER_ROLES).toContain("safety_manager");
+    expect(USER_ROLES).toContain("recruiter");
   });
 
   it("gates MPG rules to diesel + gasoline only (audit H1)", () => {

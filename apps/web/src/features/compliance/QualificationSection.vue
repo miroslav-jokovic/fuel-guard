@@ -6,7 +6,6 @@ import {
   dqAttention,
   dqCapturableSpecs,
   dqGroups,
-  isRestrictedQualificationKind,
   moduleEnabled,
   type DqFileItem,
   type DocumentRow,
@@ -26,6 +25,7 @@ import {
   useQualificationRecordsQuery,
 } from "@/composables/useCompliance";
 import DocumentDropCard from "@/features/compliance/DocumentDropCard.vue";
+import ScreeningIdentityCard from "@/features/compliance/ScreeningIdentityCard.vue";
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
 import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
@@ -147,7 +147,10 @@ const toRow = (i: DqFileItem): Row => {
     documentUrl: doc?.url ?? null,
     documentThumbUrl: doc?.thumbUrl ?? doc?.url ?? null,
     documentIsImage: doc?.contentType.startsWith("image/") ?? false,
-    restricted: i.spec.evidenceKinds.some(isRestrictedQualificationKind),
+    // "restricted from THIS reader", not "restricted in general" — after auth.ts's split a
+    // recruiter may read a previous-employer response while a dispatcher may not, so the flag
+    // has to be resolved per reader here rather than re-gated in the table.
+    restricted: i.spec.evidenceKinds.some((k) => !session.canReadKind(k)),
     advisory: i.spec.advisory === true,
   };
 };
@@ -225,7 +228,7 @@ const dropItems = computed(() =>
   })
     .filter(
       (spec) =>
-        session.restrictedAccess || !spec.evidenceKinds.some(isRestrictedQualificationKind),
+        spec.evidenceKinds.every((k) => session.canReadKind(k)),
     )
     .map((spec) => ({
       key: spec.key,
@@ -249,6 +252,11 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
 
 <template>
   <div class="space-y-6">
+
+    <!-- Above the group tiles on purpose: the tiles answer "what does this file still need", and a
+         driver with no date of birth cannot be screened at all, which is upstream of every one of
+         them (PSP-PLAN.md P0). -->
+    <ScreeningIdentityCard :driver="driverQ.data.value ?? null" />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <BaseCard v-for="g in groups" :key="g.group" padding="sm">

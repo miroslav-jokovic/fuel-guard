@@ -30,6 +30,7 @@ const CTX: Record<string, AuthContext> = {
   safety: { userId: "u-sm", email: "s@silvicominc.com", orgId: "org-1", role: "safety_manager" },
   dispatcher: { userId: "u-disp", email: "p@silvicominc.com", orgId: "org-1", role: "dispatcher" },
   auditor: { userId: "u-aud", email: "x@silvicominc.com", orgId: "org-1", role: "auditor" },
+  recruiter: { userId: "u-rec", email: "r@silvicominc.com", orgId: "org-1", role: "recruiter" },
   driver: { userId: "u-drv", email: "d@silvicominc.com", orgId: "org-1", role: "driver" },
   pending: { userId: "u-new", email: "n@silvicominc.com", orgId: null, role: null },
 };
@@ -94,7 +95,7 @@ describe("GET /api/roster/drivers — read gate (fleet: view)", () => {
   });
 });
 
-describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
+describe("POST /api/roster/drivers — write gate (fleet: manage ∪ recruitment: manage)", () => {
   const body = JSON.stringify({ full_name: "Test Driver" });
 
   it("401 unauthenticated", async () => {
@@ -105,7 +106,13 @@ describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
     expect((await call("/", { method: "POST", body, token })).status).toBe(403);
   });
 
-  it.each(["admin", "fleet", "safety"])("passes the gate for %s", async (token) => {
+  /**
+   * The recruiter is here, and it is the one route where the two manage-sets are unioned. An
+   * applicant IS a `drivers` row, so a recruiter cannot work without this — and granting them
+   * `fleet: manage` to get it would also hand over vehicles and trailers, which is the leak the
+   * `recruitment` section exists to close (RECRUITER-ROLE-SCOPE.md §2, Option B).
+   */
+  it.each(["admin", "fleet", "safety", "recruiter"])("passes the gate for %s", async (token) => {
     const res = await call("/", { method: "POST", body, token });
     expect([401, 403]).not.toContain(res.status);
   });
@@ -132,7 +139,7 @@ describe("GET /api/roster/drivers/:id — detail gate (fleet: view)", () => {
   });
 });
 
-describe("PATCH /api/roster/drivers/:id — write gate (fleet: manage)", () => {
+describe("PATCH /api/roster/drivers/:id — write gate (fleet ∪ recruitment, minus the lifecycle)", () => {
   const path = "/11111111-1111-1111-1111-111111111111";
   const body = JSON.stringify({ cdl_expires_at: "2027-04-01" });
 
@@ -146,6 +153,39 @@ describe("PATCH /api/roster/drivers/:id — write gate (fleet: manage)", () => {
 
   it.each(["admin", "fleet", "safety"])("passes the gate for %s", async (token) => {
     expect([401, 403]).not.toContain((await call(path, { method: "PATCH", body, token })).status);
+  });
+
+  /**
+   * The lifecycle gate (0213). Refused before the read, so a rejected edit performs no query — and
+   * refused on the FIELD, so un-terminating is closed with terminating.
+   */
+  it.each([
+    ["terminating", { status: "terminated" }],
+    ["un-terminating", { status: "active" }],
+    ["clearing the termination date", { termination_date: null }],
+  ])("403 for a recruiter %s", async (_label, patch) => {
+    const res = await call(path, { method: "PATCH", body: JSON.stringify(patch), token: "recruiter" });
+    expect(res.status).toBe(403);
+  });
+
+  it("lets a recruiter make an ordinary roster edit — the gate is the lifecycle, not the row", async () => {
+    const res = await call(path, {
+      method: "PATCH",
+      body: JSON.stringify({ date_of_birth: "1980-01-01" }),
+      token: "recruiter",
+    });
+    expect([401, 403]).not.toContain(res.status);
+  });
+
+  it("still lets the fleet managers terminate", async () => {
+    for (const token of ["admin", "fleet", "safety"]) {
+      const res = await call(path, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "terminated" }),
+        token,
+      });
+      expect([401, 403]).not.toContain(res.status);
+    }
   });
 
   it("400 on an empty patch", async () => {
@@ -167,9 +207,12 @@ describe("POST /api/roster/drivers/:id/invite — enrollment gate (admin + fleet
     expect((await call(path, { method: "POST", body })).status).toBe(401);
   });
 
-  it("403 for safety_manager — may edit master data, may not hand out logins", async () => {
-    expect((await call(path, { method: "POST", body, token: "safety" })).status).toBe(403);
-  });
+  it.each(["safety", "recruiter"])(
+    "403 for %s — may edit master data, may not hand out logins",
+    async (token) => {
+      expect((await call(path, { method: "POST", body, token })).status).toBe(403);
+    },
+  );
 
   it.each(["driver", "dispatcher", "auditor"])("403 for %s", async (token) => {
     expect((await call(path, { method: "POST", body, token })).status).toBe(403);

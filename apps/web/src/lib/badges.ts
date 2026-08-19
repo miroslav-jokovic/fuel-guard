@@ -116,3 +116,27 @@ export function dqFileBadge(state: string): DqBadge {
       return { label: state, tone: "neutral" };
   }
 }
+
+/**
+ * §391.23(a)(2) inquiry state (0208's `inquiry_status`) → badge.
+ *
+ * `no_response` is SUCCESS-toned on purpose and is not a bug to fix later: §391.23(d) lets a carrier
+ * rely on a documented non-response, so the obligation is discharged. Colouring it as a problem would
+ * nag a recruiter forever about a requirement they have already met.
+ */
+export function employmentInquiryBadge(status: string): DqBadge {
+  switch (status) {
+    case "not_required":
+      return { label: "Not required", tone: "neutral" };
+    case "pending":
+      return { label: "Not sent", tone: "danger" };
+    case "sent":
+      return { label: "Awaiting", tone: "warning" };
+    case "responded":
+      return { label: "Responded", tone: "success" };
+    case "no_response":
+      return { label: "No response", tone: "success" };
+    default:
+      return { label: status, tone: "neutral" };
+  }
+}

@@ -30,6 +30,64 @@ export const isoDateSchema = z.preprocess(
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD").nullish(),
 );
 
+/**
+ * Date of birth — a `date` column with three rules `isoDateSchema` deliberately does not have.
+ *
+ * WHY THIS IS NOT JUST ANOTHER DATE (PSP-PLAN.md P0, D-PSP1's neighbourhood). DOB is the input that
+ * gates every driver-screening integration we are building: FMCSA PSP makes it mandatory and matches
+ * it EXACTLY against MCMIS (guide v3.9 §5.4.1, §8.1), a SambaSafety MVR needs it, and a §382.701
+ * Clearinghouse query needs it. And PSP **charges the transaction fee on a `Failure` response**
+ * (§8) — so a DOB typed as 2025 instead of 1925 is not a validation annoyance, it is an invoice for
+ * a lookup that could never have matched. Catching it at the door is the cheapest place.
+ *
+ * The three rules, each with a source:
+ *   • a REAL calendar date — `isoDateSchema`'s regex accepts `2026-02-31`, which Postgres then
+ *     rejects with a 500. Fine for an expiry nobody screens on; not fine for a match key.
+ *   • not in the future, and at least 18 years ago — PSP Error 27: *"Driver must be at least 18
+ *     years of age."* 18 and not 21 on purpose: 21 is §391.11(b)(1)'s interstate rule and belongs to
+ *     the qualification gate, which judges fitness to drive. This schema only judges whether the
+ *     value can be a date of birth at all, so it takes the vendor's floor rather than inventing one.
+ *   • not more than 120 years ago — the transposed-century typo, which is the common one.
+ *
+ * `dateOfBirthIssue` is exported separately and takes `today` as an argument so the rule is testable
+ * without freezing a clock; the schema is the one place that reads the wall clock.
+ */
+export function dateOfBirthIssue(value: string, today: string): string | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const todayParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today);
+  if (!parts || !todayParts) return "Expected a date as YYYY-MM-DD";
+  const y = Number(parts[1]), m = Number(parts[2]), d = Number(parts[3]);
+  // Round-trip through UTC: `Date.UTC(2026, 1, 31)` normalises to March 3, so a component that comes
+  // back different is a day that does not exist. Local-time construction would shift by a timezone.
+  const at = new Date(Date.UTC(y, m - 1, d));
+  if (at.getUTCFullYear() !== y || at.getUTCMonth() !== m - 1 || at.getUTCDate() !== d) {
+    return "That is not a real date";
+  }
+  const ty = Number(todayParts[1]), tm = Number(todayParts[2]), td = Number(todayParts[3]);
+  // Whole years elapsed, birthday-aware — never a millisecond division, which gets leap years wrong.
+  let age = ty - y;
+  if (tm < m || (tm === m && td < d)) age -= 1;
+  if (age < 0) return "Date of birth cannot be in the future";
+  if (age < 18) return "A driver must be at least 18 years old";
+  if (age > 120) return "Check the year — that date of birth is over 120 years ago";
+  return null;
+}
+
+export const dateOfBirthSchema = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD")
+    .nullish()
+    // superRefine, not refine: the message names WHICH rule failed ("at least 18", "not a real
+    // date"), and a caller who is told only "invalid" has to guess which of three things to fix.
+    .superRefine((v, ctx) => {
+      if (v == null) return;
+      const issue = dateOfBirthIssue(v, new Date().toISOString().slice(0, 10));
+      if (issue) ctx.addIssue({ code: "custom", message: issue });
+    }),
+);
+
 // ── vocabularies ──────────────────────────────────────────────────────────────
 
 /**
@@ -122,7 +180,7 @@ export const driverCreateSchema = z
     cdl_expires_at: isoDateSchema,
     cdl_restrictions: z.string().max(200).nullish(),
     medical_card_expires_at: isoDateSchema,
-    date_of_birth: isoDateSchema,
+    date_of_birth: dateOfBirthSchema,
     pay_type: z.enum(PAY_TYPES).nullish(),
     pay_rate: z.coerce.number().nonnegative().max(1_000_000).nullish(),
     per_diem: z.boolean().nullish(),
@@ -211,7 +269,7 @@ export const driverUpdateSchema = z
     hire_date: isoDateSchema,
     termination_date: isoDateSchema,
     home_terminal_id: z.uuid().nullish(),
-    date_of_birth: isoDateSchema,
+    date_of_birth: dateOfBirthSchema,
     address_line1: z.string().max(200).nullish(),
     address_line2: z.string().max(200).nullish(),
     city: z.string().max(120).nullish(),
@@ -238,6 +296,21 @@ export const driverUpdateSchema = z
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Send at least one field to update" });
 export type DriverUpdateRequest = z.infer<typeof driverUpdateSchema>;
+
+/**
+ * The employment-lifecycle fields, gated by `canWriteDriverLifecycle` (auth.ts) rather than by the
+ * roster's ordinary write permission.
+ *
+ * `termination_date` is on the list as well as `status` because the two are one act: the router's own
+ * header says deactivation IS a status edit, and `resolveDriverUpdate` stamps the date when the
+ * caller does not. Gating only `status` would leave the date editable on its own, which is the same
+ * §391.51(c) retention clock reached by a side door.
+ */
+export const DRIVER_LIFECYCLE_FIELDS = ["status", "termination_date"] as const;
+
+/** True when this patch would move the driver through their employment lifecycle. */
+export const touchesDriverLifecycle = (req: Record<string, unknown>): boolean =>
+  DRIVER_LIFECYCLE_FIELDS.some((f) => f in req);
 
 /**
  * The fields the Samsara sync also writes. Editing any of them is the admin CLAIMING this row from

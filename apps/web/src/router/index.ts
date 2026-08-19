@@ -217,6 +217,14 @@ const routes: RouteRecordRaw[] = [
     }),
   },
   {
+    // Recruitment — the hiring side of §391, starting with the employment history the application
+    // declares (§391.21(b)(10)) and the safety-history inquiries it obliges (§391.23(a)(2)).
+    path: "/recruitment",
+    name: "recruitment",
+    component: () => import("@/pages/RecruitmentPage.vue"),
+    meta: { requiresAuth: true, title: "Recruitment" },
+  },
+  {
     path: "/driver-performance",
     name: "driver-performance",
     component: () => import("@/pages/DriverPerformancePage.vue"),

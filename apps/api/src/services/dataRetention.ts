@@ -173,6 +173,14 @@ export const RETENTION_FORBIDDEN = [
   /** The export ledger (0152). The bytes expire after seven days; the row that says who pulled a
    *  driver's medical card out of the system does not (D-BD9). */
   "dq_exports",
+  /**
+   * The §391.21(b)(10) employment list (0208). Same reasoning as `qualification_records` above and
+   * the same clock: §391.51(c) keeps the qualification file for as long as the driver is employed
+   * plus three years, and §391.53(a)(1) keeps the investigation history it records the inquiries for.
+   * Mutable — a transcription correction is an UPDATE, unlike the append-only evidence tables — but
+   * mutability is not the same axis as retention, and `drivers` sits on this list for the same reason.
+   */
+  "driver_employment_history",
 ] as const;
 
 export interface RetentionTableResult {

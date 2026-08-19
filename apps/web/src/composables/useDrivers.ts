@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Driver, DriverDetail, DriverInput } from "@fuelguard/shared";
+import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
@@ -21,6 +21,36 @@ export function useDriverQuery(id: Ref<string>) {
       const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${id.value}`);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the driver.");
       return res.data.driver;
+    },
+  });
+}
+
+/**
+ * Edit one driver's master data through the ROSTER API, not through PostgREST.
+ *
+ * Deliberately not `useUpdateDriver` above. That one writes `drivers` straight from the browser on
+ * the old five-field `driverInputSchema`; this one goes through `PATCH /api/roster/drivers/:id`,
+ * which validates against `driverUpdateSchema`, runs `resolveDriverUpdate` (so an edit can claim a
+ * telematics-owned row and stamp a termination date) and writes an audit row. Personal data —
+ * date of birth is the first of it — takes the audited path.
+ *
+ * Invalidates BOTH caches: the roster detail this page reads, and the `drivers` list the roster
+ * table reads, because a status or name edit shows up there.
+ */
+export function useUpdateDriverProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; input: DriverUpdateRequest }): Promise<DriverDetail> => {
+      const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${payload.id}`, {
+        method: "PATCH",
+        body: payload.input,
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the driver.");
+      return res.data.driver;
+    },
+    onSuccess: (_driver, payload) => {
+      void qc.invalidateQueries({ queryKey: ["roster", "driver", payload.id] });
+      void qc.invalidateQueries({ queryKey: driversKey });
     },
   });
 }

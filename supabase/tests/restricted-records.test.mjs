@@ -1,10 +1,15 @@
-// FuelGuard — restricted-records matrix (migration 0205, DQF-EXECUTION-PLAN Phase G / D-DQ15).
+// FuelGuard — restricted-records matrix (0205, split by 0211; DQF-EXECUTION-PLAN Phase G / D-DQ15).
 //
 // Proves the RLS layer of the three-layer restriction: a dispatcher or auditor reading
 // qualification_records/documents through PostgREST sees no drug/alcohol/clearinghouse/
 // previous-employer rows, while admin and safety_manager see everything and non-restricted kinds
 // stay visible to all fleet roles. (The service-role API path is enforced separately in
 // routes/compliance.ts via filterRestrictedRows — RLS cannot see those reads.)
+//
+// 0211 split the one predicate in two, along the two regulations it was conflating: §382.401(a)
+// custody of testing records, and §391.53(a)(1)'s investigation history, which belongs to "those who
+// are involved in the hiring decision". The `recruiter` cases below are what that split BUYS, and the
+// recruiter's drug-test case is what proves the split did not simply widen the old flag.
 //
 // Run:  node supabase/tests/restricted-records.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -138,6 +143,131 @@ ok(
   "dq_exports carries include_restricted, defaulting false",
   (await one(`select column_default from information_schema.columns
                where table_name = 'dq_exports' and column_name = 'include_restricted'`)).column_default === "false",
+);
+
+// ── driver_employment_history (0208 + 0209) ─────────────────────────────────────────────────────
+// The `recruitment` section's whole reason for existing. Gated on `fleet` — how the surface first
+// shipped — a dispatcher could read every driver's former employers and their contact details.
+// §391.53(a)(1) puts the investigation history with those making the hiring decision, and 0209's
+// RESTRICTIVE policy is the PostgREST half of saying so (the API path guards separately, on
+// rolesThatCanView('recruitment')).
+await db.query(
+  `insert into driver_employment_history (org_id, driver_id, employer_name, started_on, ended_on)
+     values ($1, $2, 'Old Carrier', '2022-01-01', '2024-06-01')`,
+  [ORG, DRIVER],
+);
+const EMPLOYMENT = "select count(*)::int as n from driver_employment_history";
+await expect("dispatcher sees NO employment history, though they can read Fleet", "dispatcher", EMPLOYMENT, 0);
+await expect("auditor sees the employment history — a DOT audit asks for it", "auditor", EMPLOYMENT, 1);
+await expect("fleet_manager sees it", "fleet_manager", EMPLOYMENT, 1);
+await expect("safety_manager sees it", "safety_manager", EMPLOYMENT, 1);
+await expect("admin sees it", "admin", EMPLOYMENT, 1);
+// Self-view is a separate axis from the section (0129's precedent): a driver whose id does not
+// resolve sees nothing, and 0208's driver-scope policy is what limits them to their own row.
+await expect("an unlinked driver sees none of it", "driver", EMPLOYMENT, 0);
+
+// ── 0211: the split, and the role that forced it ────────────────────────────────────────────────
+const TESTING = "select count(*)::int as n from qualification_records where kind in ('drug_test','clearinghouse_limited')";
+const INVESTIGATION = "select count(*)::int as n from qualification_records where kind = 'previous_employer_response'";
+
+// §391.53(a)(1) — the recruiter IS "those who are involved in the hiring decision".
+await expect("recruiter reads the previous-employer response", "recruiter", INVESTIGATION, 1);
+// §382.401(a) — a custody rule that says nothing about hiring. The split must not have widened it.
+await expect("recruiter reads NO testing records", "recruiter", TESTING, 0);
+await expect("recruiter still sees the unrestricted record", "recruiter", RECORDS, 2);
+// Nothing changed for anyone who already held the old flag, in either direction.
+await expect("safety_manager keeps both halves", "safety_manager", RECORDS, 4);
+await expect("admin keeps both halves", "admin", RECORDS, 4);
+await expect("fleet_manager gained neither half", "fleet_manager", RECORDS, 1);
+await expect("dispatcher gained neither half", "dispatcher", RECORDS, 1);
+// Documents follow the records, kind for kind.
+await expect("recruiter reads no restricted document (only the mvr)", "recruiter", DOCS, 1);
+
+// ── 0212: what a recruiter may write ────────────────────────────────────────────────────────────
+await expect("recruiter reads employment history", "recruiter", EMPLOYMENT, 1);
+// The write cases below trip the audit trigger on `drivers`, which FKs actor_id to auth.users — so
+// the JWT's `sub` has to be a real user or the insert fails for a reason that has nothing to do with
+// the policy under test. (Diagnosed 2026-08-19: the first run of this block failed on
+// audit_logs_actor_id_fkey while `drivers_write` was already correct.)
+await db.query(`insert into auth.users (id, email) values ($1, 'recruiter@example.test')`, [
+  "00000000-0000-4000-8000-000000000001",
+]);
+const writeAs = async (role, sql) => {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    await db.query("select set_config('request.jwt.claims', $1, true)", [
+      JSON.stringify({ sub: "00000000-0000-4000-8000-000000000001", org_id: ORG, user_role: role, role: "authenticated" }),
+    ]);
+    await db.query(sql);
+    await db.exec("rollback");
+    return true;
+  } catch {
+    await db.exec("rollback");
+    return false;
+  }
+};
+ok(
+  "recruiter may create a driver — an applicant IS a drivers row",
+  await writeAs("recruiter", `insert into drivers (org_id, full_name) values ('${ORG}', 'Applicant')`),
+);
+ok(
+  "recruiter may record an employer",
+  await writeAs(
+    "recruiter",
+    `insert into driver_employment_history (org_id, driver_id, employer_name, started_on)
+       values ('${ORG}', '${DRIVER}', 'Another Carrier', '2020-01-01')`,
+  ),
+);
+// The boundary the whole design rests on: the driver write is granted BY NAME, not by widening the
+// fleet section, so the equipment tables stay shut.
+ok(
+  "recruiter may NOT create a vehicle — fleet: view, not manage",
+  !(await writeAs("recruiter", `insert into vehicles (org_id, unit_number) values ('${ORG}', 'T-999')`)),
+);
+ok(
+  "recruiter may NOT create a trailer",
+  !(await writeAs("recruiter", `insert into trailers (org_id, unit_number) values ('${ORG}', 'TR-999')`)),
+);
+
+// ── 0213: the lifecycle guard, on the path the API does not own ─────────────────────────────────
+// apps/web's older driver drawer writes `status` through PostgREST directly, so the route guard in
+// routes/roster/drivers.ts is not the only door. RLS cannot express "this column may not change" —
+// USING sees the OLD row, WITH CHECK the NEW one, and nothing compares them — so this is a trigger.
+const APPLICANT = (
+  await one(`insert into drivers (org_id, full_name, status) values ($1,'Applicant','active') returning id`, [ORG])
+).id;
+// Seeded already-terminated rather than terminated by a raw UPDATE: the trigger calls auth_role(),
+// and a raw update outside the claims-setting helpers runs with no valid JWT setting.
+const GONE = (
+  await one(`insert into drivers (org_id, full_name, status) values ($1,'Former Driver','terminated') returning id`, [ORG])
+).id;
+
+ok(
+  "recruiter may edit an ordinary field on a driver",
+  await writeAs("recruiter", `update drivers set date_of_birth = '1980-01-01' where id = '${APPLICANT}'`),
+);
+ok(
+  "recruiter may NOT terminate",
+  !(await writeAs("recruiter", `update drivers set status = 'terminated' where id = '${APPLICANT}'`)),
+);
+// The rule is about the FIELD, so the reverse is closed too — a recruiter cannot resurrect a
+// terminated driver either, which a rule about the value 'terminated' would have allowed.
+ok(
+  "recruiter may NOT un-terminate",
+  !(await writeAs("recruiter", `update drivers set status = 'active' where id = '${GONE}'`)),
+);
+ok(
+  "recruiter may NOT reach the retention clock through termination_date alone",
+  !(await writeAs("recruiter", `update drivers set termination_date = '2020-01-01' where id = '${APPLICANT}'`)),
+);
+ok(
+  "fleet_manager may still terminate",
+  await writeAs("fleet_manager", `update drivers set status = 'terminated' where id = '${APPLICANT}'`),
+);
+ok(
+  "admin may still un-terminate",
+  await writeAs("admin", `update drivers set status = 'active' where id = '${GONE}'`),
 );
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
