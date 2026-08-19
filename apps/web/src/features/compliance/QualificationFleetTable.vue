@@ -9,7 +9,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, dqFileBadge, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
@@ -188,26 +188,14 @@ function toggleExpand(id: string): void {
   expanded.value = next;
 }
 
-const STATE_TONE: Record<DqItemState, string> = {
-  current: "success",
-  expiring: "warning",
-  expired: "danger",
-  missing: "neutral",
-};
-const STATE_LABEL: Record<DqItemState, string> = {
-  current: "on file",
-  expiring: "due soon",
-  expired: "expired",
-  missing: "missing",
-};
-
-/** The one-glance file summary: "2 expired · 3 missing · 1 due soon", or a single word. */
+/** The one-glance file summary in the D4 vocabulary: "5 blocked · 1 expiring", or a single word.
+ *  Expired vs missing survives in the expanded rows, where each item says which it is. */
 const fileChips = (row: FleetRow): Array<{ text: string; tone: string }> => {
   const chips: Array<{ text: string; tone: string }> = [];
-  if (row.counts.expired > 0) chips.push({ text: `${row.counts.expired} expired`, tone: "danger" });
-  if (row.counts.missing > 0) chips.push({ text: `${row.counts.missing} missing`, tone: "neutral" });
+  const blocked = row.counts.expired + row.counts.missing;
+  if (blocked > 0) chips.push({ text: `${blocked} blocked`, tone: dqItemBadge("expired").tone });
   if (row.counts.expiring > 0)
-    chips.push({ text: `${row.counts.expiring} due soon`, tone: "warning" });
+    chips.push({ text: `${row.counts.expiring} expiring`, tone: dqItemBadge("expiring").tone });
   return chips;
 };
 
@@ -344,11 +332,10 @@ function onSort(key: string): void {
         </span>
       </template>
       <template #cell-file="{ row }">
-        <span v-if="row.state === 'complete'" :class="[BADGE_BASE, toneClass('success')]"
-          >complete</span
-        >
-        <span v-else-if="row.state === 'not_started'" :class="[BADGE_BASE, toneClass('neutral')]"
-          >not started</span
+        <span
+          v-if="row.state !== 'incomplete'"
+          :class="[BADGE_BASE, toneClass(dqFileBadge(row.state).tone)]"
+          >{{ dqFileBadge(row.state).label }}</span
         >
         <span v-else class="inline-flex flex-wrap items-center gap-1.5">
           <span
@@ -384,9 +371,10 @@ function onSort(key: string): void {
             :key="item.key"
             class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
           >
-            <span :class="[BADGE_BASE, toneClass(STATE_TONE[item.state]), 'w-20 justify-center']">{{
-              STATE_LABEL[item.state]
-            }}</span>
+            <span
+              :class="[BADGE_BASE, toneClass(dqItemBadge(item.state).tone), 'w-20 justify-center']"
+              >{{ dqItemBadge(item.state).label }}</span
+            >
             <span class="text-ink">{{ item.label }}</span>
             <span v-if="item.goodUntil" class="text-ink-muted">
               good until {{ formatDate(item.goodUntil) }}

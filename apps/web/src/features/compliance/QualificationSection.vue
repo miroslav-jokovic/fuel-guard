@@ -1,10 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
-import { AppIcon } from "@fuelguard/ui";
-import {
-  ArrowDownTrayIcon,
-} from "@fuelguard/ui/icons";
 import {
   buildDqFile,
   DQ_GROUP_LABELS,
@@ -14,16 +9,13 @@ import {
   isRestrictedQualificationKind,
   moduleEnabled,
   type DqFileItem,
-  type DqItemState,
   type DocumentRow,
 } from "@fuelguard/shared";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import StatusBadge from "@/components/StatusBadge.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
@@ -38,7 +30,7 @@ import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
 import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
-import { useExportDocument, useRequestBinder } from "@/composables/useDqExports";
+import { useExportDocument } from "@/composables/useDqExports";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -49,10 +41,11 @@ import { useExportDocument, useRequestBinder } from "@/composables/useDqExports"
  * The page is short when the file is clean and long when it is not (D-DQ8): complete groups collapse
  * to a single line, and the table shows what needs attention until you ask for everything.
  */
-const route = useRoute();
+/** D1: a SECTION of the driver detail page, not a page — the host passes the driver id. */
+const props = defineProps<{ driverId: string }>();
 const session = useSessionStore();
 const toast = useToastStore();
-const driverId = computed(() => String(route.params.id ?? ""));
+const driverId = computed(() => props.driverId);
 
 const driverQ = useDriverQuery(driverId);
 const subjectType = ref("driver");
@@ -118,19 +111,6 @@ const file = computed(() =>
 
 const groups = computed(() => dqGroups(file.value));
 const attentionKeys = computed(() => new Set(dqAttention(file.value, today).map((a) => a.key)));
-
-const STATE_TONE: Record<DqItemState, string> = {
-  current: "success",
-  expiring: "warning",
-  expired: "danger",
-  missing: "neutral",
-};
-const GROUP_LINE: Record<DqItemState, string> = {
-  current: "complete",
-  expiring: "due soon",
-  expired: "expired",
-  missing: "incomplete",
-};
 
 const showAll = ref(false);
 
@@ -200,7 +180,6 @@ const hasRequirementFilter = computed(
 // login — and what makes it safe to send is the stamp: driver, requirement, validity, who released
 // it, so a page that surfaces in somebody's inbox six months later can still be traced.
 const exportDoc = useExportDocument();
-const requestBinder = useRequestBinder();
 const releasing = ref<string | null>(null);
 
 const slug = (s: string): string =>
@@ -225,17 +204,6 @@ async function release(row: Row): Promise<void> {
   releasing.value = null;
 }
 
-async function exportWholeFile(): Promise<void> {
-  try {
-    await requestBinder.mutateAsync({ driverIds: [driverId.value], asAt: null });
-    toast.success(
-      "Building the file",
-      "It appears under Exports on the qualification page shortly.",
-    );
-  } catch (e) {
-    toast.error("Could not start the export", e instanceof Error ? e.message : undefined);
-  }
-}
 
 // ── the drawer ────────────────────────────────────────────────────────────────────────
 const openKey = ref<string | null>(null);
@@ -281,41 +249,17 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Qualification file and supporting records for this driver.">
-      <template #actions>
-        <BaseButton
-          v-if="session.canManage"
-          variant="ghost"
-          :disabled="requestBinder.isPending.value"
-          @click="exportWholeFile"
-        >
-          <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-          {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
-        </BaseButton>
-      </template>
-    </PageHeader>
-
-    <BaseCard v-if="driverQ.data.value" padding="sm">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold text-ink">{{ driverQ.data.value.full_name }}</h2>
-          <p class="mt-1 text-sm text-ink-muted">Driver qualification file</p>
-        </div>
-        <StatusBadge :status="driverQ.data.value.status" />
-      </div>
-    </BaseCard>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <BaseCard v-for="g in groups" :key="g.group" padding="sm">
         <p class="text-sm font-medium text-ink">{{ g.label }}</p>
         <p class="mt-2">
-          <span :class="[BADGE_BASE, toneClass(STATE_TONE[g.state])]">{{
-            GROUP_LINE[g.state]
+          <span :class="[BADGE_BASE, toneClass(dqItemBadge(g.state).tone)]">{{
+            dqItemBadge(g.state).label
           }}</span>
         </p>
         <p v-if="g.state !== 'current'" class="mt-2 text-xs text-ink-muted">
-          {{ g.counts.expired }} expired · {{ g.counts.missing }} missing ·
-          {{ g.counts.expiring }} due soon
+          {{ g.counts.expired + g.counts.missing }} blocked · {{ g.counts.expiring }} expiring
         </p>
       </BaseCard>
     </div>

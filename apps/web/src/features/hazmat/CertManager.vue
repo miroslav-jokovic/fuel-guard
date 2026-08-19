@@ -4,7 +4,7 @@ import type { CertificationCreateRequest, CertificationRow, CertificationKind } 
 import { HAZMAT_TRAINING_TYPES } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppDateField } from "@fuelguard/ui";
 import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
@@ -71,13 +71,14 @@ async function submit() {
 const today = new Date().toISOString().slice(0, 10);
 
 function statusOf(c: CertificationRow): { label: string; tone: string } {
+  // "no expiry" is a data note, not a status; the three status words come from badges.ts (D4).
   if (!c.expires_at) return { label: "no expiry", tone: "neutral" };
   const exp = c.expires_at.slice(0, 10);
-  if (exp < today) return { label: "expired", tone: "danger" };
+  if (exp < today) return dqItemBadge("expired");
   const soon = new Date(today + "T00:00:00.000Z");
   soon.setUTCDate(soon.getUTCDate() + 30);
-  if (exp <= soon.toISOString().slice(0, 10)) return { label: "due soon", tone: "warning" };
-  return { label: "valid", tone: "success" };
+  if (exp <= soon.toISOString().slice(0, 10)) return dqItemBadge("expiring");
+  return dqItemBadge("current");
 }
 
 const columns: DataTableColumn[] = [

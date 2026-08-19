@@ -4,12 +4,12 @@ import { AppIcon, AppButton as BaseButton } from "@fuelguard/ui";
 import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentCheckIcon, EyeIcon } from "@fuelguard/ui/icons";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * The §391.51 requirements table — extracted from DriverQualificationPage when B6's viewer wiring
+ * The §391.51 requirements table — extracted from the qualification surface (now QualificationSection, D1) when B6's viewer wiring
  * pushed the page over the 500-line budget. The page owns the DATA (buildDqFile, filters, the
  * drawer, the viewer, the release mutation); this owns the RENDERING: state badges, the thumb cell
  * that loads 40 KB instead of 25 MB (B4), the restricted-evidence gating (Phase G), and the
@@ -52,19 +52,6 @@ const emit = defineEmits<{
 
 const session = useSessionStore();
 
-const STATE_TONE: Record<DqItemState, string> = {
-  current: "success",
-  expiring: "warning",
-  expired: "danger",
-  missing: "neutral",
-};
-const STATE_LABEL: Record<DqItemState, string> = {
-  current: "on file",
-  expiring: "due soon",
-  expired: "expired",
-  missing: "missing",
-};
-
 const columns: DataTableColumn[] = [
   { key: "label", label: "Requirement", headerClass: "min-w-[18rem]", cellClass: "font-medium text-ink" },
   { key: "state", label: "Status", headerClass: "w-32" },
@@ -92,9 +79,12 @@ const columns: DataTableColumn[] = [
       >
     </template>
     <template #cell-state="{ row }">
-      <span :class="[BADGE_BASE, toneClass(STATE_TONE[row.state as DqItemState])]">{{
-        STATE_LABEL[row.state as DqItemState]
+      <span :class="[BADGE_BASE, toneClass(dqItemBadge(row.state).tone)]">{{
+        dqItemBadge(row.state).label
       }}</span>
+      <span v-if="row.state === 'missing'" class="mt-0.5 block text-xs text-ink-muted"
+        >Never recorded.</span
+      >
       <span v-if="row.expiryUnknown" class="mt-0.5 block text-xs text-warning-700"
         >No expiry recorded.</span
       >

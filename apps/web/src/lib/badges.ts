@@ -41,3 +41,78 @@ export function inviteTone(status: string): string {
 export function suspicionTone(level: string | null | undefined): string {
   return toneClass(level === "alert" ? "danger" : level === "review" ? "warning" : "neutral");
 }
+
+// ── Driver qualification (DQF plan D4): THREE words, mapped in exactly one place ─────────────────
+//
+// The section had grown four status vocabularies (queue/file, roster, CertManager, exports). The UI
+// vocabulary collapses to OK / Expiring / Blocked: `missing` and `expired` both read as Blocked —
+// either way the driver should not be dispatched on that item — and the distinction survives in the
+// requirement drawer and the detail columns, where it is actionable. `DqItemState` itself is
+// internal and unchanged. Done-when: no .vue file carries a DQ status string literal of its own.
+
+export interface DqBadge {
+  label: string;
+  tone: BadgeTone;
+}
+
+/** Per-requirement state (DqItemState) → the three-word vocabulary. */
+export function dqItemBadge(state: string): DqBadge {
+  switch (state) {
+    case "current":
+      return { label: "OK", tone: "success" };
+    case "expiring":
+      return { label: "Expiring", tone: "warning" };
+    case "expired":
+    case "missing":
+      return { label: "Blocked", tone: "danger" };
+    default:
+      return { label: state, tone: "neutral" };
+  }
+}
+
+/** HOS duty status → badge (moved from DriversPage per D3 — the contract's §8 flagged the local
+ *  map, and its -100/-700 pairs, as the violation). */
+export function hosStatusBadge(status: string): DqBadge {
+  switch (status) {
+    case "driving":
+      return { label: "Driving", tone: "info" };
+    case "on_duty":
+      return { label: "On duty", tone: "warning" };
+    case "sleeper":
+      return { label: "Sleeper", tone: "neutral" };
+    case "off_duty":
+      return { label: "Off duty", tone: "neutral" };
+    case "yard_move":
+      return { label: "Yard move", tone: "neutral" };
+    case "personal_conveyance":
+      return { label: "Personal", tone: "neutral" };
+    default:
+      return { label: "Unknown", tone: "neutral" };
+  }
+}
+
+/** Driver-app access (active | disabled | none) → badge (moved from DriversPage per D3). */
+export function appAccessBadge(access: string): DqBadge {
+  switch (access) {
+    case "active":
+      return { label: "Active", tone: "success" };
+    case "disabled":
+      return { label: "Disabled", tone: "warning" };
+    default:
+      return { label: "—", tone: "neutral" };
+  }
+}
+
+/** Whole-file state (complete | incomplete | not_started) → the same three words. */
+export function dqFileBadge(state: string): DqBadge {
+  switch (state) {
+    case "complete":
+      return { label: "OK", tone: "success" };
+    case "incomplete":
+      return { label: "Blocked", tone: "danger" };
+    case "not_started":
+      return { label: "Not started", tone: "neutral" };
+    default:
+      return { label: state, tone: "neutral" };
+  }
+}

@@ -6,6 +6,7 @@ import { RouterLink } from "vue-router";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/composables/useDrivers";
+import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -23,21 +24,12 @@ import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { formatPhone } from "@/lib/format";
+import { BADGE_BASE, appAccessBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 import { useDriverReconcile } from "@/features/fleet/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import { driverAppAccess } from "@fuelguard/shared";
 
-// HOS duty-status badge styling + a "as of" tooltip (the status is a snapshot from the last HOS sync).
-const HOS_BADGE: Record<string, { label: string; cls: string }> = {
-  driving: { label: "Driving", cls: "bg-info-100 text-info-700" },
-  on_duty: { label: "On duty", cls: "bg-warning-100 text-warning-700" },
-  sleeper: { label: "Sleeper", cls: "bg-surface-muted text-ink-secondary" },
-  off_duty: { label: "Off duty", cls: "bg-surface-muted text-ink-tertiary" },
-  yard_move: { label: "Yard move", cls: "bg-surface-muted text-ink-secondary" },
-  personal_conveyance: { label: "Personal", cls: "bg-surface-muted text-ink-secondary" },
-  unknown: { label: "Unknown", cls: "bg-surface-muted text-ink-tertiary" },
-};
-const hosBadge = (s: string) => HOS_BADGE[s] ?? HOS_BADGE.unknown!;
+// HOS badge lives in lib/badges.ts (D3); the "as of" tooltip stays here with its data.
 function hosAgo(iso: string | null): string {
   if (!iso) return "";
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -71,12 +63,25 @@ function openAccess(d: Driver) {
 watch(drivers, (list) => {
   if (accessDriver.value) accessDriver.value = list?.find((d) => d.id === accessDriver.value!.id) ?? accessDriver.value;
 });
-const ACCESS_BADGE: Record<string, { label: string; cls: string }> = {
-  active: { label: "Active", cls: "bg-success-100 text-success-700" },
-  disabled: { label: "Disabled", cls: "bg-warning-100 text-warning-700" },
-  none: { label: "—", cls: "bg-surface-muted text-ink-tertiary" },
+const accessBadge = (d: Driver) => appAccessBadge(driverAppAccess(d.user_id, d.app_access_enabled));
+
+/**
+ * The qualification column (D3): the roster finally answers "may this driver be dispatched" from
+ * the SAME overview rollup the qualification page renders — never a second computation. A due date
+ * inside 30 days outranks the plain state word, because "Due 12d" is the phone call to make today.
+ * Rows the overview does not return (EFS stubs, terminated) read as "—".
+ */
+const overviewQ = useComplianceOverviewQuery();
+const qualBadge = (driverId: string): { label: string; tone: string } | null => {
+  const row = (overviewQ.data.value?.drivers ?? []).find((d) => d.driver_id === driverId);
+  if (!row) return null;
+  const dated = row.attention.filter((a) => a.daysRemaining !== null && a.daysRemaining >= 0);
+  const soonest = dated.length ? Math.min(...dated.map((a) => a.daysRemaining as number)) : null;
+  if (row.state === "incomplete" && soonest !== null && soonest <= 30 && row.counts.expired === 0) {
+    return { label: `Due ${soonest}d`, tone: "warning" };
+  }
+  return dqFileBadge(row.state);
 };
-const accessBadge = (d: Driver) => ACCESS_BADGE[driverAppAccess(d.user_id, d.app_access_enabled)]!;
 
 const saving = computed(() => createDriver.isPending.value || updateDriver.isPending.value);
 
@@ -169,6 +174,7 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
   { key: "app_access", label: "App access", headerClass: "min-w-[8rem]" },
+  { key: "qualification", label: "Qualification", headerClass: "min-w-[9rem]" },
   {
     key: "phone",
     label: "Phone",
@@ -271,12 +277,9 @@ async function onSubmit(input: DriverInput) {
       <template #cell-current_hos_status="{ row }">
         <span
           v-if="row.current_hos_status"
-          :class="[
-            'inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold',
-            hosBadge(row.current_hos_status).cls,
-          ]"
+          :class="[BADGE_BASE, toneClass(hosStatusBadge(row.current_hos_status).tone)]"
           :title="hosAgo(row.current_hos_at)"
-          >{{ hosBadge(row.current_hos_status).label }}</span
+          >{{ hosStatusBadge(row.current_hos_status).label }}</span
         >
         <span v-else class="text-xs text-ink-tertiary">—</span>
       </template>
@@ -287,11 +290,21 @@ async function onSubmit(input: DriverInput) {
           class="inline-flex items-center gap-1.5"
           :title="row.app_username ? `Username: ${row.app_username}` : 'No app login yet — use the row menu to create one'"
         >
-          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" :class="accessBadge(row).cls">
+          <span :class="[BADGE_BASE, toneClass(accessBadge(row).tone)]">
             {{ accessBadge(row).label }}
           </span>
           <span v-if="row.app_username" class="font-mono text-xs text-ink-muted">{{ row.app_username }}</span>
         </div>
+      </template>
+      <template #cell-qualification="{ row }">
+        <RouterLink
+          v-if="qualBadge(row.id)"
+          :to="`/compliance/${row.id}`"
+          :class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
+        >
+          {{ qualBadge(row.id)!.label }}
+        </RouterLink>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
