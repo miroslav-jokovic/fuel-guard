@@ -5,12 +5,14 @@ import { ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppCard as BaseCard } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
 import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel.vue";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
+import { buildAttentionStrip } from "@/features/compliance/attentionStrip";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 
@@ -40,6 +42,28 @@ const TABS: Array<{ value: TabValue; label: string }> = [
 
 const carrierOpen = ref(false);
 const setupOpen = ref(false);
+
+/**
+ * The attention strip (C5): five tiles, each a CLICK-TO-FILTER on the fleet table's existing filter
+ * models — it never introduces a second filter mechanism. Counts come from the same overview query
+ * the table renders, so a tile and the rows it reveals cannot disagree.
+ */
+const tableStateFilter = ref("");
+const tableDueFilter = ref("");
+const strip = computed(() => buildAttentionStrip(overview.data.value?.drivers ?? []));
+const activeTile = computed(() => {
+  const t = strip.value.find((x) => x.state === tableStateFilter.value && x.due === tableDueFilter.value);
+  return tableStateFilter.value === "" && tableDueFilter.value === "" ? null : (t?.key ?? null);
+});
+function toggleTile(tile: { state: string; due: string; key: string }): void {
+  if (activeTile.value === tile.key) {
+    tableStateFilter.value = "";
+    tableDueFilter.value = "";
+  } else {
+    tableStateFilter.value = tile.state;
+    tableDueFilter.value = tile.due;
+  }
+}
 
 const seedDrivers = computed(() =>
   (overview.data.value?.drivers ?? []).map((d) => ({
@@ -145,11 +169,36 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
         />
       </template>
 
-      <QualificationFleetTable
-        v-else
-        :building="requestBinder.isPending.value"
-        @build-binder="buildBinder"
-      />
+      <template v-else>
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <BaseCard
+            v-for="t in strip"
+            :key="t.key"
+            padding="sm"
+            :as="'button'"
+            class="text-left transition"
+            :class="activeTile === t.key ? 'ring-2 ring-brand-600' : 'hover:bg-surface-subtle'"
+            role="button"
+            :aria-pressed="activeTile === t.key"
+            @click="toggleTile(t)"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">{{ t.label }}</p>
+            <p class="mt-1 text-2xl font-bold text-ink">{{ t.n }}</p>
+            <p class="mt-0.5">
+              <span :class="[BADGE_BASE, toneClass(t.tone)]">{{
+                activeTile === t.key ? "filtering" : "filter"
+              }}</span>
+            </p>
+          </BaseCard>
+        </div>
+
+        <QualificationFleetTable
+          v-model:state-filter="tableStateFilter"
+          v-model:due-filter="tableDueFilter"
+          :building="requestBinder.isPending.value"
+          @build-binder="buildBinder"
+        />
+      </template>
     </div>
 
     <div

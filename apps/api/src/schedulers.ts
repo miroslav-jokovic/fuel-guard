@@ -4,6 +4,7 @@ import { reclaimInterruptedJobs } from "./services/jobs.js";
 import { startSamsaraScheduler } from "./services/samsaraScheduler.js";
 import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
+import { startDqAlertScheduler } from "./services/dqAlertScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
 import { startEfsCardSyncScheduler } from "./services/efsCardSyncScheduler.js";
@@ -39,6 +40,7 @@ export function startAllSchedulers(env: Env): void {
   startSamsaraScheduler(env); // background auto-refresh of Samsara data
   startRebuildOnBoot(env); // one-time anomaly rebuild with current rules (rules-only, idempotent)
   startDigestScheduler(env); // weekly AI theft digest email
+  startDqAlertScheduler(env); // DQ expiry threshold alerts: ledger rows + one office email per run (C3)
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair -> rescore -> rebuild
   startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports (XLSX/CSV — manual/mailbox source)
   startEfsSoapPoller(env); // per-org EFS SOAP acquisition (posted + rejected feeds); gated on EFS_SOAP_ENABLED

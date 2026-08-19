@@ -67,8 +67,10 @@ function buildBinder(): void {
 }
 
 const search = ref("");
-const stateFilter = ref("");
-const dueFilter = ref("");
+// v-models so the page's attention strip (C5) can drive the SAME filters — one filter model, the
+// tiles are just another way to set it.
+const stateFilter = defineModel<string>("stateFilter", { default: "" });
+const dueFilter = defineModel<string>("dueFilter", { default: "" });
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
 const expanded = ref<Set<string>>(new Set());
@@ -123,6 +125,7 @@ const dueOptions = [
   { value: "", label: "Due any time" },
   { value: "overdue", label: "Overdue" },
   { value: "7", label: "Due in 7 days" },
+  { value: "14", label: "Due in 14 days" },
   { value: "30", label: "Due in 30 days" },
 ];
 
@@ -147,7 +150,7 @@ const filtered = computed(() =>
     }
     if (dueFilter.value === "overdue" && (r.soonest === null || r.soonest >= 0)) return false;
     if (
-      (dueFilter.value === "7" || dueFilter.value === "30") &&
+      (dueFilter.value === "7" || dueFilter.value === "14" || dueFilter.value === "30") &&
       (r.soonest === null || r.soonest > Number(dueFilter.value))
     )
       return false;

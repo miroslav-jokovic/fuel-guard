@@ -83,6 +83,13 @@ export async function getComplianceOverview(
   admin: SupabaseClient,
   orgId: string,
   today: string,
+  /**
+   * C2 (plan G30): the alert scheduler needs to SEE a 90-day-out item, and the default 30-day
+   * horizon hides it — `dqAttention` only carries non-current items. ONLY the scheduler passes
+   * this (91); the route, the driver page and the binder all stay on the default so the queue and
+   * the file keep agreeing, which is this module's founding invariant.
+   */
+  opts: { expiringWithinDays?: number } = {},
 ): Promise<ComplianceOverview> {
   const [driversRes, certsRes, recordsRes, docsRes, hazmatRes] = await Promise.all([
     // Employed drivers only, and only real ones. A §391.51 obligation attaches to people who drive
@@ -140,6 +147,7 @@ export async function getComplianceOverview(
     const file = buildDqFile({
       today,
       includeHazmat: includesHazmat,
+      expiringWithinDays: opts.expiringWithinDays,
       // §391.51(b)(8) applies to non-CDL drivers only (D8) — derived from the D6-synced field.
       hasCdl: d.cdl_number != null && d.cdl_number !== "",
       certs: (certsBy.get(d.id) ?? []).map(toCert),

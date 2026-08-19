@@ -13,6 +13,8 @@ export * from "./complianceContract.js";
 export * from "./complianceSeed.js";
 export * from "./dqExportContract.js";
 export * from "./dqFile.js";
+export * from "./dqAlerts.js";
+export * from "./digestDq.js";
 export * from "./documentDerivatives.js";
 export * from "./driverWriteLimits.js";
 export * from "./cardWriteLimits.js";
