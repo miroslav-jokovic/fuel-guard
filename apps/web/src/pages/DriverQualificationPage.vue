@@ -5,7 +5,6 @@ import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  ArrowUpTrayIcon,
   ClipboardDocumentCheckIcon,
   EyeIcon,
 } from "@fuelguard/ui/icons";
@@ -25,9 +24,6 @@ import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -38,8 +34,8 @@ import {
   useCertificationsQuery,
   useDocumentsQuery,
   useQualificationRecordsQuery,
-  useUploadDocument,
 } from "@/composables/useCompliance";
+import DocumentDropCard from "@/features/compliance/DocumentDropCard.vue";
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -66,7 +62,6 @@ const certsQ = useCertificationsQuery(subjectType, driverId);
 const recordsQ = useQualificationRecordsQuery(driverId);
 const docsQ = useDocumentsQuery(subjectType, driverId);
 const modules = useModulesQuery();
-const upload = useUploadDocument();
 
 const loading = computed(
   () =>
@@ -144,9 +139,10 @@ const GROUP_LINE: Record<DqItemState, string> = {
 
 const showAll = ref(false);
 
-const urlById = computed(() => {
-  const m = new Map<string, string>();
-  for (const d of docsQ.data.value ?? []) if (d.url) m.set(d.id, d.url);
+const docById = computed(() => {
+  const m = new Map<string, { url: string; isImage: boolean }>();
+  for (const d of docsQ.data.value ?? [])
+    if (d.url) m.set(d.id, { url: d.url, isImage: d.contentType.startsWith("image/") });
   return m;
 });
 
@@ -159,17 +155,23 @@ interface Row {
   goodUntil: string | null;
   expiryUnknown: boolean;
   documentUrl: string | null;
+  /** True when the scan is a photo the cell can show a thumbnail of (PDFs get the icon link). */
+  documentIsImage: boolean;
 }
-const toRow = (i: DqFileItem): Row => ({
-  key: i.spec.key,
-  label: i.spec.label,
-  group: i.spec.group,
-  state: i.state,
-  evidenceDate: i.evidenceDate,
-  goodUntil: i.goodUntil,
-  expiryUnknown: i.expiryUnknown,
-  documentUrl: i.documentId ? (urlById.value.get(i.documentId) ?? null) : null,
-});
+const toRow = (i: DqFileItem): Row => {
+  const doc = i.documentId ? docById.value.get(i.documentId) : undefined;
+  return {
+    key: i.spec.key,
+    label: i.spec.label,
+    group: i.spec.group,
+    state: i.state,
+    evidenceDate: i.evidenceDate,
+    goodUntil: i.goodUntil,
+    expiryUnknown: i.expiryUnknown,
+    documentUrl: doc?.url ?? null,
+    documentIsImage: doc?.isImage ?? false,
+  };
+};
 
 const rows = computed<Row[]>(() =>
   file.value.items.filter((i) => showAll.value || attentionKeys.value.has(i.spec.key)).map(toRow),
@@ -255,31 +257,31 @@ async function exportWholeFile(): Promise<void> {
 
 // ── the drawer ────────────────────────────────────────────────────────────────────────
 const openKey = ref<string | null>(null);
+const presetDoc = ref<{ id: string; name: string } | null>(null);
+function closeDrawer(): void {
+  openKey.value = null;
+  presetDoc.value = null;
+}
 
 // ── drop first, classify after (D-DQ10) ──────────────────────────────────────────────
-const dropped = ref<File | null>(null);
-const dropKind = ref("");
-const dropOptions = computed(() =>
-  file.value.items.map((i) => ({ value: i.spec.key, label: i.spec.label })),
+const dropItems = computed(() =>
+  file.value.items.map((i) => ({
+    key: i.spec.key,
+    label: i.spec.label,
+    // Every catalogue item names at least one evidence kind; the fallback only satisfies the index check.
+    evidenceKind: i.spec.evidenceKinds[0] ?? "other",
+  })),
 );
 
-async function fileDropped(): Promise<void> {
-  const chosen = dropped.value;
-  const spec = file.value.items.find((i) => i.spec.key === dropKind.value)?.spec;
-  if (!chosen || !spec) return;
-  try {
-    await upload.mutateAsync({
-      subjectType: "driver",
-      subjectId: driverId.value,
-      kind: spec.evidenceKinds[0] as Parameters<typeof upload.mutateAsync>[0]["kind"],
-      file: chosen,
-    });
-    toast.success("Document filed", spec.label);
-    dropped.value = null;
-    dropKind.value = "";
-  } catch (e) {
-    toast.error("Could not file the document", e instanceof Error ? e.message : undefined);
-  }
+/**
+ * Filing the scan is half the job: the requirement only counts as on file once its dates are
+ * recorded (buildDqFile reads certifications and records, not the document registry). The old flow
+ * stopped after the upload, so the row stayed "missing" and the upload looked broken. Now the
+ * requirement drawer opens with the scan already attached, asking only for the dates.
+ */
+function onFiled(payload: { documentId: string; name: string; key: string }): void {
+  presetDoc.value = { id: payload.documentId, name: payload.name };
+  openKey.value = payload.key;
 }
 </script>
 
@@ -383,7 +385,22 @@ async function fileDropped(): Promise<void> {
       </template>
       <template #cell-documentUrl="{ row }">
         <a
-          v-if="row.documentUrl"
+          v-if="row.documentUrl && row.documentIsImage"
+          :href="row.documentUrl"
+          target="_blank"
+          rel="noopener"
+          class="inline-block"
+          :aria-label="`View scan for ${row.label}`"
+        >
+          <img
+            :src="row.documentUrl"
+            alt=""
+            loading="lazy"
+            class="h-8 w-12 rounded-control object-cover ring-1 ring-edge"
+          />
+        </a>
+        <a
+          v-else-if="row.documentUrl"
           :href="row.documentUrl"
           target="_blank"
           rel="noopener"
@@ -422,40 +439,12 @@ async function fileDropped(): Promise<void> {
       </template>
     </DataTable>
 
-    <BaseCard v-if="session.canManage">
-      <h3 class="text-sm font-semibold text-ink">Drop a document</h3>
-      <p class="mt-1 text-sm text-ink-muted">
-        The scan usually arrives before the data entry. Drop it here and say what it proves.
-      </p>
-      <div class="mt-3 space-y-4">
-        <FileDropzone
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
-          :busy="upload.isPending.value"
-          busy-label="Uploading…"
-          :label="dropped ? dropped.name : 'Drag & drop a scan here'"
-          hint="PDF or photo."
-          @files="dropped = $event[0] ?? null"
-        />
-        <div v-if="dropped" class="flex flex-wrap items-end gap-3">
-          <FormField v-slot="{ id }" label="What does it prove?" class="min-w-[16rem] flex-1">
-            <ComboSelect
-              :id="id"
-              v-model="dropKind"
-              :options="dropOptions"
-              placeholder="Choose a requirement…"
-            />
-          </FormField>
-          <BaseButton
-            variant="primary"
-            :disabled="!dropKind || upload.isPending.value"
-            @click="fileDropped"
-          >
-            <AppIcon :icon="ArrowUpTrayIcon" class="size-4" aria-hidden="true" />
-            {{ upload.isPending.value ? "Uploading…" : "File it" }}
-          </BaseButton>
-        </div>
-      </div>
-    </BaseCard>
+    <DocumentDropCard
+      v-if="session.canManage"
+      :driver-id="driverId"
+      :items="dropItems"
+      @filed="onFiled"
+    />
 
     <CertificationHistory :driver-id="driverId" />
 
@@ -463,7 +452,8 @@ async function fileDropped(): Promise<void> {
       :open="openKey !== null"
       :driver-id="driverId"
       :item-key="openKey"
-      @close="openKey = null"
+      :preset-document="presetDoc"
+      @close="closeDrawer"
     />
   </div>
 </template>

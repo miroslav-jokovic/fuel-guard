@@ -34,7 +34,13 @@ import {
  * and still asked it. Here the requirement is the input: no type picker, and only the fields that
  * kind actually needs. A medical card asks for an expiry; a road test asks when it happened.
  */
-const props = defineProps<{ open: boolean; driverId: string; itemKey: string | null }>();
+const props = defineProps<{
+  open: boolean;
+  driverId: string;
+  itemKey: string | null;
+  /** A scan already filed via drop-first (D-DQ10) — the record cites it instead of asking again. */
+  presetDocument?: { id: string; name: string } | null;
+}>();
 const emit = defineEmits<{ close: [] }>();
 
 const toast = useToastStore();
@@ -102,7 +108,7 @@ async function save(): Promise<void> {
   try {
     // The scan goes first, so the record can cite a document that already exists rather than a
     // document id that may never arrive. An orphaned scan is swept; an orphaned citation is a lie.
-    let documentId: string | undefined;
+    let documentId: string | undefined = props.presetDocument?.id;
     if (scan.value) {
       const res = await upload.mutateAsync({
         subjectType: "driver",
@@ -250,7 +256,11 @@ async function save(): Promise<void> {
 
         <div>
           <p class="text-sm font-medium text-ink">Scan</p>
-          <p class="mt-1 text-sm text-ink-muted">
+          <p v-if="presetDocument" class="mt-1 text-sm text-ink-muted">
+            {{ presetDocument.name }} is already filed and will be cited by this record. Drop a
+            different scan to replace it.
+          </p>
+          <p v-else class="mt-1 text-sm text-ink-muted">
             Optional here — you can attach it later from the file.
           </p>
           <div class="mt-2">

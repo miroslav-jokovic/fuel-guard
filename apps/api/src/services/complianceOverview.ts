@@ -85,7 +85,16 @@ export async function getComplianceOverview(
   today: string,
 ): Promise<ComplianceOverview> {
   const [driversRes, certsRes, recordsRes, docsRes, hazmatRes] = await Promise.all([
-    admin.from("drivers").select("id, full_name, status").eq("org_id", orgId).order("full_name"),
+    // Employed drivers only. A §391.51 obligation attaches to people who drive for the carrier;
+    // terminated and deactivated rows (including telematics/EFS stubs someone has switched off)
+    // kept flooding the queue as "not started" files nobody was ever going to build. Their records
+    // are retained and their file page stays reachable — they just leave the work queue.
+    admin
+      .from("drivers")
+      .select("id, full_name, status")
+      .eq("org_id", orgId)
+      .in("status", ["active", "on_leave"])
+      .order("full_name"),
     admin
       .from("certifications")
       .select("subject_id, kind, qualifier, training_type, issued_at, expires_at, document_id")
