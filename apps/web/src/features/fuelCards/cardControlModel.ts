@@ -121,6 +121,27 @@ export function freshness(
 }
 
 /**
+ * The list banner's clock: the oldest sync among cards the sweep can still REACH.
+ *
+ * A card EFS stopped listing (`absentSince`) keeps its last `syncedAt` forever — the sweep cannot
+ * refresh what the vendor no longer returns. Counting those froze the cards page at "Checked 5 days
+ * ago. Refresh to see current settings." on a fleet that had swept an hour earlier (2026-08-18: two
+ * absent cards, last synced 08-13, dragged all 199 live ones — and no refresh could ever fix it,
+ * which is exactly the action the stale sentence tells the operator to take). Absent rows carry
+ * their own badge; the freshness banner is a claim about what refreshing can change.
+ */
+export function reachableSyncFloor(
+  rows: readonly { syncedAt: string | null; absentSince?: string | null }[],
+): string | null {
+  const times = rows
+    .filter((row) => !row.absentSince)
+    .map((row) => row.syncedAt)
+    .filter((t): t is string => Boolean(t))
+    .sort();
+  return times[0] ?? null;
+}
+
+/**
  * Order two card rows by one column.
  *
  * PURE and here rather than in the page because of one rule that is easy to get wrong and impossible

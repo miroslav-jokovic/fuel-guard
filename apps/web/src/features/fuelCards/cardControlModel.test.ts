@@ -10,6 +10,7 @@ import {
   compareCardValues,
   freshness,
   limitRows,
+  reachableSyncFloor,
   autoRollClause,
   locationRows,
   outcomeNotice,
@@ -442,6 +443,42 @@ describe("freshness — an alarm that fires every day is not an alarm", () => {
     // An org sweeping every 6 hours should hear about a 9-hour-old mirror.
     expect(freshness(at(9 * 60), new Date(), 8 * 60).stale).toBe(true);
     expect(freshness(at(3 * 60), new Date(), 8 * 60).stale).toBe(false);
+  });
+
+  /**
+   * The 2026-08-18 report: "Checked 5 days ago. Refresh to see current settings." on a fleet that
+   * had swept an hour earlier. Two cards EFS stopped listing on 08-14 kept their 08-13 `syncedAt`
+   * forever and dragged 199 live rows — and the refresh the sentence demands could never fix it,
+   * because the sweep cannot refresh what the vendor no longer returns.
+   */
+  describe("reachableSyncFloor — absent cards do not drag the clock", () => {
+    it("ignores an absent card's ancient sync and reports the live fleet's floor", () => {
+      const floor = reachableSyncFloor([
+        { syncedAt: "2026-08-13T16:35:00Z", absentSince: "2026-08-14T17:20:00Z" },
+        { syncedAt: "2026-08-18T20:36:00Z", absentSince: null },
+        { syncedAt: "2026-08-18T20:37:00Z", absentSince: null },
+      ]);
+      // The POSITIVE CONTROL is the choice itself: under the old min-over-everything this reads
+      // the absent card's 08-13 — the exact frozen banner reported from production.
+      expect(floor).toBe("2026-08-18T20:36:00Z");
+    });
+
+    it("still reports the oldest LIVE row — the banner reflects the stalest reachable thing", () => {
+      const floor = reachableSyncFloor([
+        { syncedAt: "2026-08-18T20:36:00Z", absentSince: null },
+        { syncedAt: "2026-08-16T09:00:00Z", absentSince: null },
+      ]);
+      expect(floor).toBe("2026-08-16T09:00:00Z");
+    });
+
+    it("has nothing to say about a list of only absent cards", () => {
+      // "Never checked." is what freshness() renders for null — truthful for a page whose every
+      // row is beyond the sweep's reach, and better than a stale claim about an unreachable card.
+      expect(reachableSyncFloor([
+        { syncedAt: "2026-08-13T16:35:00Z", absentSince: "2026-08-14T17:20:00Z" },
+      ])).toBeNull();
+      expect(reachableSyncFloor([])).toBeNull();
+    });
   });
 
   it("still treats never-checked as stale", () => {
