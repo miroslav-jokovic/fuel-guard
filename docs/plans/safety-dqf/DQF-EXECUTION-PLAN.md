@@ -169,6 +169,73 @@ corrected by hand is not overwritten by telematics — and must never log the li
 **What this does NOT change.** Previews (B1–B6) and alerts (C1–C5) stay valuable, but they improve a
 surface that will only have content once D6 and Phase E put content in it. Sequence accordingly.
 
+### A2c · The roster is 33% fuel-card stubs — **FOUND 2026-08-19**
+
+Owner: *"Samsara has only 167 active drivers, where are the extra coming from?"* Correct, and the
+answer is a provenance bug that silently inflates every roster-shaped number in the product.
+
+**The reconcile**, run read-only against both systems:
+
+| | |
+|---|---|
+| Samsara `/fleet/drivers` | **167 active**, 955 deactivated |
+| Our `drivers`, Silvicom | 263 total, **248 active** |
+| …linked to a Samsara-ACTIVE driver | **167** — exact match, the sync is correct |
+| …linked to a Samsara-DEACTIVATED driver | 0 — the deactivation pass works |
+| …linked to an id Samsara no longer returns | 0 |
+| **…with no `samsara_driver_id` at all** | **81** |
+| `identity_source` on all 248 | **`samsara`** |
+
+So 81 rows claim Samsara provenance and have no Samsara link. Every one was created by a **system
+actor** (`audit_logs.actor_id is null`, action `driver.insert`), first on 2026-07-10 and most recently
+**2026-08-19 02:56** — this is live and ongoing, not historical debris. Their column profile is a
+name and nothing else: 0 phones, 0 usernames, 0 logins, 0 driver types.
+
+**The source is `driverAttribution.ts:44`:**
+
+```ts
+.insert(toCreate.map((full_name) => ({ org_id: orgId, full_name, status: "active" })))
+```
+
+`attributeDrivers` provisions a driver row for every EFS driver NAME that has no record, so a fuel
+fill has somebody to point at. That is legitimate and should not be removed — an unattributed fill is
+worse than a stub. **What is wrong is that the stub is indistinguishable from an employee**, and it is
+wrong for two reasons that compound:
+
+1. **`identity_source` has no value for this provenance.** The CHECK constraint admits only
+   `'samsara'` and `'manual'` — so the column falls to its DB default, `'samsara'`, and every stub
+   claims to have come from telematics. The vocabulary has two values for three origins.
+2. **`status` is set to `'active'`**, which is the exact predicate `complianceOverview.ts:95` uses to
+   decide who owes a §391.51 file.
+
+**Classified against Samsara's full history** (name-normalised, counts only):
+
+| The 81 stubs | |
+|---|---|
+| Name matches a Samsara **deactivated** driver → **former employee** | **46** |
+| Name matches a Samsara **active** driver → duplicate of a real row | **0** — `driversToProvision`'s matching is sound |
+| No Samsara record at all — owner-operator, another carrier's driver on a shared card, or a card-side name variant | 35 |
+
+**What this breaks.** Commit `3876960` set out to make the qualification queue "employed drivers
+only" and filtered on `status`; these rows assert `active` with no employment behind them, so a third
+of the queue is people the carrier owes no file for — including 46 who provably left. It also means
+the A2 baseline's "266 drivers" overstates the real roster by about half, and any per-driver cost
+estimate (SambaSafety monitoring is priced per enrolled driver) would be inflated the same way.
+
+**The fix, proposed not built** — this is the owner's call because option (b) has a blast radius:
+
+- **(a) Name the provenance.** A migration extends the `identity_source` CHECK with `'efs'`, backfills
+  the rows that are system-inserted with no `samsara_driver_id`, and `driverAttribution` sets it
+  explicitly. The qualification queue then filters `identity_source <> 'efs'` and D6/Phase E enrol 167
+  drivers rather than 248. Small, targeted, and it makes the column honest.
+- **(b) Give stubs their own status** rather than `'active'`. Cleaner conceptually, but every
+  `status='active'` query in the product changes meaning at once. Not worth it for this.
+- **(c) Separately**, the 46 stubs matching deactivated Samsara drivers are ex-employees and should
+  probably be `terminated`, which is a data decision, not a code one.
+
+Recommendation: **(a) plus (c)**, and (a) lands before D6 so nothing enrols a stub into a paid
+monitoring subscription.
+
 ### A3 · Probe HEIC decode
 `documents.content_type` admits `image/heic` (G5). Write a throwaway script that runs `sharp(heicBuffer).metadata()`
 in the API's own container image.
