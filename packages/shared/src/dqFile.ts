@@ -58,6 +58,13 @@ export interface DqFileInput {
   includeHazmat: boolean;
   /** How far ahead counts as "expiring" in the qualification-state calculation. */
   expiringWithinDays?: number;
+  /**
+   * Whether the driver holds a CDL — derived from `drivers.cdl_number` (populated by the D6 sync).
+   * Gates `appliesWhen: "no_cdl"` items: since 2025-06-22 the registry-verification note is a
+   * non-CDL requirement only (D8 / G33). Defaults false, which DEMANDS the note — the safe reading
+   * of an unknown licence status is the stricter file, never the laxer one.
+   */
+  hasCdl?: boolean;
 }
 
 // ── output ────────────────────────────────────────────────────────────────────────────────────────
@@ -188,6 +195,20 @@ export interface ComplianceOverviewResponse {
   truncated: boolean;
 }
 
+/**
+ * The specs a capture UI may offer for this driver — scope and applicability filtered, but WITHOUT
+ * the advisory filter: an advisory item is absent from the checklist until evidence exists, and the
+ * drop-card is exactly where that first evidence comes from (D8). One helper so the UI never
+ * re-derives the applicability rules and drifts.
+ */
+export function dqCapturableSpecs(input: { includeHazmat: boolean; hasCdl?: boolean }): DqItemSpec[] {
+  return DQ_ITEMS.filter(
+    (spec) =>
+      (spec.scope === "always" || input.includeHazmat) &&
+      !(spec.appliesWhen === "no_cdl" && input.hasCdl),
+  );
+}
+
 const DEFAULT_EXPIRING_DAYS = 30;
 
 const day = (iso: string): string => iso.slice(0, 10);
@@ -264,25 +285,32 @@ export function buildDqFile(input: DqFileInput): DqFileSummary {
   const docIds = new Set(input.documents.map((d) => d.id));
 
   const items: DqFileItem[] = DQ_ITEMS.filter(
-    (spec) => spec.scope === "always" || input.includeHazmat,
-  ).map((spec) => {
-    const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
-    const record = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
-    const present = Boolean(cert ?? record);
-    const goodUntil = goodUntilFor(spec, cert, record);
-    // A filed document id that points at nothing is not a filed document. The register and the
-    // bytes can drift (a failed upload leaves a row behind), and a checklist that trusts the id
-    // would report a scan the auditor cannot open.
-    const rawDocId = cert?.documentId ?? record?.documentId ?? null;
-    return {
-      spec,
-      state: stateFor(present, goodUntil, today, horizon),
-      goodUntil,
-      evidenceDate: cert?.issuedAt ? day(cert.issuedAt) : record ? day(record.occurredOn) : null,
-      expiryUnknown: spec.recurrence === "expiry" && present && goodUntil == null,
-      documentId: rawDocId && docIds.has(rawDocId) ? rawDocId : null,
-    };
-  });
+    (spec) =>
+      (spec.scope === "always" || input.includeHazmat) &&
+      // §391.51(b)(8) sunset for CDL holders (D8 / G33): the item does not exist for their file.
+      !(spec.appliesWhen === "no_cdl" && input.hasCdl),
+  )
+    .map((spec) => {
+      const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
+      const record = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
+      const present = Boolean(cert ?? record);
+      const goodUntil = goodUntilFor(spec, cert, record);
+      // A filed document id that points at nothing is not a filed document. The register and the
+      // bytes can drift (a failed upload leaves a row behind), and a checklist that trusts the id
+      // would report a scan the auditor cannot open.
+      const rawDocId = cert?.documentId ?? record?.documentId ?? null;
+      return {
+        spec,
+        state: stateFor(present, goodUntil, today, horizon),
+        goodUntil,
+        evidenceDate: cert?.issuedAt ? day(cert.issuedAt) : record ? day(record.occurredOn) : null,
+        expiryUnknown: spec.recurrence === "expiry" && present && goodUntil == null,
+        documentId: rawDocId && docIds.has(rawDocId) ? rawDocId : null,
+      };
+    })
+    // Advisory items exist only when evidence does (D8): tracked-not-required must never read
+    // "missing", never enter the attention feed, and never hold a file back from `complete`.
+    .filter((i) => !(i.spec.advisory && i.state === "missing"));
 
   const counts: Record<DqItemState, number> = { current: 0, expiring: 0, expired: 0, missing: 0 };
   for (const i of items) counts[i.state] += 1;

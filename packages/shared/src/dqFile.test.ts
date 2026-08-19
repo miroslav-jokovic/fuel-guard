@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDqFile,
   dqAttention,
+  dqCapturableSpecs,
   DQ_ITEMS,
   type DqCertInput,
   type DqDocumentInput,
@@ -239,5 +240,52 @@ describe("buildDqFile — completeness", () => {
     expect(item(f, "cdl").state).toBe("expiring");
     expect(f.state).toBe("incomplete"); // still incomplete, but because of the OTHER missing items
     expect(f.counts.expired).toBe(0);
+  });
+});
+
+/**
+ * D8 — the verified regulatory state (plan G33, eCFR current through 2026-08-07). Three corrections:
+ * ELDT is tracked-not-required, the registry note is non-CDL-only, and the medical item cites
+ * (b)(6) post-2022. Each assertion is the sentence the regulation actually says now.
+ */
+describe("buildDqFile — D8 regulatory corrections", () => {
+  it("an empty file does not demand ELDT — §391.51(b) has no ELDT item", () => {
+    expect(build().items.map((i) => i.spec.key)).not.toContain("eldt");
+  });
+
+  it("a filed ELDT certificate renders, marked advisory, and never enters attention when current", () => {
+    const f = build({ records: [record({ kind: "eldt", occurredOn: "2024-01-01" })] });
+    const eldt = item(f, "eldt");
+    expect(eldt.state).toBe("current");
+    expect(eldt.spec.advisory).toBe(true);
+    expect(dqAttention(f, TODAY).map((a) => a.key)).not.toContain("eldt");
+  });
+
+  it("a CDL holder's file has no registry-note item — §391.51(b)(8)(ii) sunset 2025-06-22", () => {
+    const withCdl = build({ hasCdl: true });
+    expect(withCdl.items.map((i) => i.spec.key)).not.toContain("medical_registry_verification");
+    // And the count shrinks accordingly rather than reporting a permanent gap.
+    expect(withCdl.counts.missing).toBe(withCdl.items.length);
+  });
+
+  it("a non-CDL driver's file still demands the registry note — §391.23(m)(1)", () => {
+    const noCdl = build({ hasCdl: false });
+    expect(noCdl.items.map((i) => i.spec.key)).toContain("medical_registry_verification");
+    expect(item(noCdl, "medical_registry_verification").state).toBe("missing");
+  });
+
+  it("unknown licence status reads as the stricter file — hasCdl defaults false", () => {
+    expect(build().items.map((i) => i.spec.key)).toContain("medical_registry_verification");
+  });
+
+  it("dqCapturableSpecs still offers ELDT so the first certificate can be filed", () => {
+    const keys = dqCapturableSpecs({ includeHazmat: true, hasCdl: true }).map((s) => s.key);
+    expect(keys).toContain("eldt");
+    expect(keys).not.toContain("medical_registry_verification");
+  });
+
+  it("the medical item cites the post-2022 (b)(6), not the pre-renumbering (b)(7)", () => {
+    const spec = DQ_ITEMS.find((i) => i.key === "medical_card")!;
+    expect(spec.citation).toContain("391.51(b)(6)");
   });
 });

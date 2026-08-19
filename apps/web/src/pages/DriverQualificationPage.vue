@@ -12,6 +12,7 @@ import {
   buildDqFile,
   DQ_GROUP_LABELS,
   dqAttention,
+  dqCapturableSpecs,
   dqGroups,
   isRestrictedQualificationKind,
   moduleEnabled,
@@ -98,6 +99,9 @@ const file = computed(() =>
   buildDqFile({
     today,
     includeHazmat: moduleEnabled(modules.data.value ?? null, "hazmatguard"),
+    // §391.51(b)(8) applies to non-CDL drivers only (D8) — same derivation the overview uses,
+    // so the fleet queue and this page cannot disagree about the registry note.
+    hasCdl: Boolean(driverQ.data.value?.cdl_number),
     certs: (certsQ.data.value ?? []).map((c) => ({
       kind: c.kind,
       qualifier: c.qualifier,
@@ -162,6 +166,8 @@ interface Row {
    *  evidence and the capture affordances belong to admin + safety_manager. The API filters the
    *  records/documents anyway — this flag is what replaces the dead affordance with an explanation. */
   restricted: boolean;
+  /** Tracked-not-required (D8): the item only renders because evidence exists; label it as such. */
+  advisory: boolean;
 }
 const toRow = (i: DqFileItem): Row => {
   const doc = i.documentId ? docById.value.get(i.documentId) : undefined;
@@ -176,6 +182,7 @@ const toRow = (i: DqFileItem): Row => {
     documentUrl: doc?.url ?? null,
     documentIsImage: doc?.isImage ?? false,
     restricted: i.spec.evidenceKinds.some(isRestrictedQualificationKind),
+    advisory: i.spec.advisory === true,
   };
 };
 
@@ -270,19 +277,24 @@ function closeDrawer(): void {
 }
 
 // ── drop first, classify after (D-DQ10) ──────────────────────────────────────────────
-// Restricted requirements (Phase G, D-DQ15) are absent from the classify list for roles that cannot
-// record them — the API would refuse the record anyway; the option must not offer a dead end.
+// From dqCapturableSpecs, not file.items: an advisory item (ELDT) is absent from the checklist until
+// evidence exists, and this list is where that first evidence comes from (D8). Restricted
+// requirements (Phase G, D-DQ15) stay absent for roles that cannot record them — the API would
+// refuse the record anyway; the option must not offer a dead end.
 const dropItems = computed(() =>
-  file.value.items
+  dqCapturableSpecs({
+    includeHazmat: moduleEnabled(modules.data.value ?? null, "hazmatguard"),
+    hasCdl: Boolean(driverQ.data.value?.cdl_number),
+  })
     .filter(
-      (i) =>
-        session.restrictedAccess || !i.spec.evidenceKinds.some(isRestrictedQualificationKind),
+      (spec) =>
+        session.restrictedAccess || !spec.evidenceKinds.some(isRestrictedQualificationKind),
     )
-    .map((i) => ({
-      key: i.spec.key,
-      label: i.spec.label,
+    .map((spec) => ({
+      key: spec.key,
+      label: spec.label,
       // Every catalogue item names at least one evidence kind; the fallback only satisfies the index check.
-      evidenceKind: i.spec.evidenceKinds[0] ?? "other",
+      evidenceKind: spec.evidenceKinds[0] ?? "other",
     })),
 );
 
@@ -379,6 +391,9 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
     >
       <template #cell-label="{ row }">
         <span class="text-ink">{{ row.label }}</span>
+        <span v-if="row.advisory" :class="['ml-2', BADGE_BASE, toneClass('neutral')]"
+          >tracked, not required</span
+        >
       </template>
       <template #cell-state="{ row }">
         <span :class="[BADGE_BASE, toneClass(STATE_TONE[row.state])]">{{

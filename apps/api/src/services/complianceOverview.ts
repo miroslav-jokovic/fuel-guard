@@ -93,7 +93,7 @@ export async function getComplianceOverview(
     // leave the work queue.
     admin
       .from("drivers")
-      .select("id, full_name, status")
+      .select("id, full_name, status, cdl_number")
       .eq("org_id", orgId)
       .in("status", ["active", "on_leave"])
       .neq("identity_source", "efs")
@@ -125,6 +125,7 @@ export async function getComplianceOverview(
     id: string;
     full_name: string;
     status: string;
+    cdl_number: string | null;
   }[];
   const certs = (certsRes.data ?? []) as unknown as CertRow[];
   const records = (recordsRes.data ?? []) as unknown as RecordRow[];
@@ -139,6 +140,8 @@ export async function getComplianceOverview(
     const file = buildDqFile({
       today,
       includeHazmat: includesHazmat,
+      // §391.51(b)(8) applies to non-CDL drivers only (D8) — derived from the D6-synced field.
+      hasCdl: d.cdl_number != null && d.cdl_number !== "",
       certs: (certsBy.get(d.id) ?? []).map(toCert),
       records: (recordsBy.get(d.id) ?? []).map(toRecord),
       documents: (docsBy.get(d.id) ?? []).map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),

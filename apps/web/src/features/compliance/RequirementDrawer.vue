@@ -61,7 +61,12 @@ const form = reactive({
   expiresAt: "",
   qualifier: "H",
   trainingProviderName: "",
+  // §172.704(d) mandates the provider's ADDRESS and a description of the training MATERIALS on the
+  // record — capturable nowhere until D7; a training row without them is not a lawful record.
+  trainingProviderAddress: "",
+  trainingMaterials: "",
   trainingCertified: false,
+  notes: "",
   // qualification record
   occurredOn: "",
   coversUntil: "",
@@ -79,7 +84,10 @@ function reset(): void {
     expiresAt: "",
     qualifier: "H",
     trainingProviderName: "",
+    trainingProviderAddress: "",
+    trainingMaterials: "",
     trainingCertified: false,
+    notes: "",
     occurredOn: "",
     coversUntil: "",
     result: "",
@@ -130,12 +138,18 @@ async function save(): Promise<void> {
           ? (s.trainingType as (typeof HAZMAT_TRAINING_TYPES)[number])
           : null,
         trainingProviderName: isTraining.value ? form.trainingProviderName.trim() || null : null,
+        // §172.704(d): provider address and a description of the materials belong ON the record.
+        trainingProviderAddress: isTraining.value
+          ? form.trainingProviderAddress.trim() || null
+          : null,
+        trainingMaterials: isTraining.value ? form.trainingMaterials.trim() || null : null,
         trainingCertified: isTraining.value ? form.trainingCertified : null,
         identifier: form.identifier.trim() || null,
         issuingAuthority: form.issuingAuthority.trim() || null,
         issuedAt: form.issuedAt || null,
         expiresAt: form.expiresAt || null,
         documentId: documentId ?? null,
+        notes: form.notes.trim() || null,
       };
       await createCert.mutateAsync(body);
     } else {
@@ -196,6 +210,24 @@ async function save(): Promise<void> {
           </FormField>
 
           <FormField
+            v-if="isTraining"
+            v-slot="{ id }"
+            label="Provider address"
+            hint="§172.704(d) requires it on the record."
+          >
+            <BaseInput :id="id" v-model="form.trainingProviderAddress" placeholder="Street, city, state" />
+          </FormField>
+
+          <FormField
+            v-if="isTraining"
+            v-slot="{ id }"
+            label="Training materials"
+            hint="Description or location of the materials used (§172.704(d))."
+          >
+            <BaseInput :id="id" v-model="form.trainingMaterials" placeholder="Course name, manual, module…" />
+          </FormField>
+
+          <FormField
             v-slot="{ id }"
             label="Identifier"
             hint="Licence, certificate or policy number. Optional."
@@ -223,6 +255,10 @@ async function save(): Promise<void> {
           <BaseCheckbox v-if="isTraining" v-model="form.trainingCertified">
             I certify this training record is complete (§172.704(d)).
           </BaseCheckbox>
+
+          <FormField v-slot="{ id }" label="Notes" hint="Optional.">
+            <BaseInput :id="id" v-model="form.notes" placeholder="Optional" />
+          </FormField>
         </template>
 
         <template v-else>
