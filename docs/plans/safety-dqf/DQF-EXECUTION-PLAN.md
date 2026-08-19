@@ -107,12 +107,67 @@ Verified twice, by two independent paths — the service-role client in the scri
    2026-08-08 — the checklist, the drawer, the fleet table, the binder, the seeding path — has never
    had a row put through it by a real user.
 
-**This reorders the plan's own premise.** Previews (B1–B6) and alerts (C1–C5) make a surface people
-already use better. Nobody is using this one yet. Before more is built on top, the question worth
-answering is why zero of 266 drivers has a single certification: whether the seeding path was ever
-run, whether the page is reachable for the roles that would use it, and whether anyone has been
-asked to. That is a product question, not an engineering one, and it is the owner's call — recorded
-here rather than silently answered by continuing to build.
+**This reorders the plan's own premise, and step A2b establishes why.**
+
+### A2b · Why the seeding path was never run — **ANSWERED 2026-08-19**
+
+Investigated end to end. **Nothing is broken. The feature asks for data the product already receives
+and throws away.**
+
+Ruled out, each by checking rather than reasoning:
+
+| Suspected blocker | Finding |
+|---|---|
+| Role gating | Silvicom's 4 users are all `admin`; `SECTION_ACCESS.admin.fleet = "manage"` (`auth.ts:70`). Full access. |
+| Nav visibility | `nav.ts:122` shows Driver Qualification on `canViewSection(role,"fleet")` — no module gate, unlike HazmatGuard next to it. |
+| Route/module gate | `router/index.ts:202-206` requires auth only. |
+| The seed banner not rendering | Renders on `session.canManage && notStartedCount > 0` (`CompliancePage.vue:118`). Both true. |
+| API broken or slow at fleet scale | **Ran `getComplianceOverview` against production.** Silvicom: 248 rows in 213 ms, `truncated=false`, every driver `not_started` with 18 missing items and 5 groups. It works. |
+| Anyone ever tried and failed | `audit_logs` holds **1,706,947** rows and **zero** `compliance.*` actions, ever. The app is heavily used; this surface never has been. |
+
+**The actual cause.** All 248 active drivers have `identity_source='samsara'`, and of those 248:
+
+```
+cdl_number 0   cdl_expires_at 0   cdl_state 0   medical_card_expires_at 0   hire_date 0
+```
+
+Every credential column `0098` added is **empty for every driver**. The seeding panel's job is to
+turn paper into rows — but there is no paper in the system to turn, so seeding 248 drivers × 18
+items means hand-typing several thousand values sourced from a filing cabinet. Nobody was ever going
+to do that, and the UI politely asking them to is the whole story.
+
+**The unlock, found by probing Samsara read-only.** `GET /fleet/drivers` returns, for **100 of 100**
+drivers sampled:
+
+```
+licenseNumber   100/100
+licenseState    100/100
+```
+
+`samsaraDriverSync.ts:76-80` fetches those objects and maps **name, phone, username, samsara_driver_id
+only**. Nothing in the repo references `licenseNumber` or `licenseState` — verified by grep. The two
+fields that would start every qualification file are arriving on every sync and being discarded.
+
+**And licence number + state is exactly SambaSafety's input.** `POST /organization/v1/people/:personId/licenses`
+takes them; enrollment and MVR ordering follow; and an MVR returns CDL class, expiry, endorsements and
+medical-certification status — most of the §391.51 checklist, per driver, without anyone typing.
+
+So the chain that makes this feature real is:
+
+```
+Samsara licenseNumber + licenseState  (already arriving, discarded today)
+        → drivers.cdl_number / cdl_state          [new step D6]
+        → SambaSafety person + licence + enrolment [E3]
+        → MVR                                      [E4]
+        → certifications + qualification_records populated automatically
+```
+
+**D6 is now the highest-value step in this plan**, and it is small: extend one sync's field map. It
+must honour `0098`'s "enrich, never clobber" rule and DQ1's manual-row protection — a licence someone
+corrected by hand is not overwritten by telematics — and must never log the licence number, which is PII.
+
+**What this does NOT change.** Previews (B1–B6) and alerts (C1–C5) stay valuable, but they improve a
+surface that will only have content once D6 and Phase E put content in it. Sequence accordingly.
 
 ### A3 · Probe HEIC decode
 `documents.content_type` admits `image/heic` (G5). Write a throwaway script that runs `sharp(heicBuffer).metadata()`
@@ -390,6 +445,27 @@ one place (`lib/badges.ts`), with `missing` and `not_started` both rendering as 
 surviving in the drawer where it is actionable.
 **Done when:** no `.vue` file contains a status string literal not sourced from `badges.ts`.
 
+### D6 · Stop discarding the two fields that start every file — **the highest-value step here**
+`samsaraDriverSync.ts` maps name, phone, username and `samsara_driver_id` from a driver object that
+also carries `licenseNumber` and `licenseState`, populated for 100 of 100 drivers sampled (A2b). Map
+them onto `drivers.cdl_number` and `drivers.cdl_state`.
+
+**Three rules it must obey, all pre-existing:**
+1. **Enrich, never clobber** (`0098`) — a licence corrected by hand is not reverted by the next sync.
+   DQ1 already fixed exactly this bug for `full_name`/`phone`; this must not reintroduce it.
+2. **Manual rows keep their identity** — an `identity_source='manual'` row gets only its
+   `samsara_driver_id` refreshed, per DQ1.
+3. **Never log a licence number.** It is PII, and this repo already automated that lesson in
+   `redactCardXml` (`9a7a125`).
+
+**Not a `certifications` write.** A licence number is master data on the driver; a CDL *certification*
+with an issue and expiry date is evidence, and Samsara supplies no dates. D-DQ6 keeps `certifications`
+the single source of truth for qualification — this step fills the field that lets Phase E go and get
+the evidence, and stops there.
+**Done when:** a unit test proves a manual row's hand-entered `cdl_number` survives a sync that carries
+a different one, and that a telematics row with no licence gets one; and a production sync run leaves
+`count(cdl_number) > 0` where it is 0 today.
+
 ### D5 · Refresh the design contract
 `DESIGN-SYSTEM-CONTRACT.md §8.1` documents a deleted file and §8.2 a file that has since halved (G24).
 Rewrite both entries against the current tree, and add `DocumentPreview.vue` to §1.2 as the sanctioned
@@ -482,13 +558,17 @@ A1 A2 A3 A4  ──────────────────────�
       ├─ C1 → C2 → C3 → C4 → C5        (independent of B; can run in parallel)
       │
       ├─ D1 → D2 → D3 → D4 → D5        (after C5, which touches CompliancePage)
+      ├─ D6                            (independent, small, and gates everything Phase E can do)
       │
       └─ E1 → E2 → E3 → E4 → E5 → E6   (after A1)
                                         F1 → F2  (last; nothing depends on it)
 ```
 
-**Ship order if only one thing ships:** B7 (stops paying for orphans), then B1–B6 (previews), then C1–C3
-(alerts). Those three are the entire difference between the filing cabinet we have and what the market sells.
+**Ship order, revised by A2b:** **D6 first** — it is a one-sync field map and it is the only thing
+standing between an empty product and Phase E filling it. Then E1–E4 (SambaSafety: licence → MVR →
+certifications), which is what actually populates 248 files without anyone typing. Then B1–B6 (previews)
+and C1–C3 (alerts), which make a populated surface good — and which have nothing to act on until the
+first two land. B7 already shipped.
 
 ## Definition of done, per phase
 
