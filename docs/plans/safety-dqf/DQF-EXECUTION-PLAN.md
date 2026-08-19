@@ -1,9 +1,12 @@
 # DQF execution plan — documents, previews, alerts, SambaSafety, storage economics
 
-**Date:** 2026-08-18 · **Supersedes nothing** — `DQF-PLAN.md` stays the architecture record; this is the
-build order. Every claim below was read out of the codebase on the date above and carries its
-`file:line`. Where a fact could not be established from the repo or from a public source, the plan does
-not guess: acquiring the fact is itself a numbered step in Phase A.
+**Date:** 2026-08-18 · **Precision revision 2026-08-19** (G30–G36, D-DQ12–15, A6, C2/C3 horizon fix,
+C6, D7/D8, Phase G, the deferrals table) — every remaining owner decision is now taken and recorded;
+the regulatory encoding is verified against eCFR current through 2026-08-07. · **Supersedes nothing** —
+`DQF-PLAN.md` stays the architecture record; this is the build order. Every claim below was read out of
+the codebase on the date above and carries its `file:line`. Where a fact could not be established from
+the repo or from a public source, the plan does not guess: acquiring the fact is itself a numbered step
+in Phase A.
 
 ---
 
@@ -33,13 +36,21 @@ not guess: acquiring the fact is itself a numbered step in Phase A.
 | G20 | `QualificationFleetTable` already default-sorts by severity then soonest, and has "Needs attention" / "Due in 7/30 days" filters | `QualificationFleetTable.vue:83-101, 164-167` | The fleet list is **not** the weak link. Do not rewrite it. |
 | G21 | `RETENTION_FORBIDDEN` pins `certifications`, `qualification_records`, `documents`, `dq_exports` | `dataRetention.ts:148+` | Any purge feature must go **around** this list deliberately, with its own audited path. |
 | G22 | Gates: file ≤ **500** lines (warn 450), function ≤ **200** lines, `lint:tokens`, and `pnpm test` discovers every `supabase/tests/*.test.mjs` and fails a matrix that prints no `RESULT` line | `check-file-size.mjs:55`, `check-function-size.mjs:24`, `run-tests.mjs:1-30` | Every step below states which file it will grow and whether that file has headroom. |
-| G23 | Next free migration number is **0204** | `ls supabase/migrations \| tail -1` → `0203` | Numbers assigned per step, in order. |
+| G23 | Migration numbers are NOT assigned in this plan. An earlier revision pinned "0204 = B2", which went stale the moment 0203 landed out of band. The rule is: **take the next free number at landing time**; `lint:migrations` enforces global uniqueness. | `check-migration-versions.mjs` | A plan that hard-codes future migration numbers is asserting a fact about a moment it cannot see. |
 | G24 | `DESIGN-SYSTEM-CONTRACT.md §8` cites `DqFilePanel.vue` (deleted) and `CompliancePage.vue (332 ln)` (now 177) | contract `:577-606` vs. repo | The contract's anti-pattern section is stale. → Step D5. |
 | G25 | `developer.sambasafety.com` is **public** and is a **published Postman collection**, not an OpenAPI site. 108 requests; hosts `api-demo.sambasafety.io` / `api.sambasafety.io`; OAuth2 client-credentials + `X-Api-Key`; webhooks signed with `X-SambaSafety-Signature`; reports negotiable as `+pdf` / `+json` | collection committed at `docs/vendor/sambasafety-postman-collection.json`, analysed in `SAMBA-RECON.md` | Phase E can be written against a real definition. **Open:** the signature algorithm and signing secret — E5 is blocked on it. |
 | G26 | Every one of the 13 webhook event docs specifies `Authorization: Basic [encoded Client ID & Client Secret] (Optional)` on the callback | collection, Webhooks/Events (13/13) | **The callback is authenticable with credentials we already hold**, independent of the undocumented signature. E5 is not blocked. |
 | G27 | `POST /organization/v1/groups/:groupId/people` accepts **`customPersonId`** | collection, Create a Person | Our `drivers.id` goes there. Identity mapping needs **no join table** — Samba stores our key. |
 | G28 | The `qorta.motorvehiclereport` event carries `result`, `reason` (e.g. `ON DEMAND`), `mvrId`, `personId` and links to report/order/license | collection, webhook example | Continuous monitoring **pushes** us MVRs. We never poll, and we learn *why* an MVR was produced. |
 | G29 | Collection completeness, measured: 108 requests, **107** with typed parameter descriptions, **108** with response examples (avg 7 KB), 54 with request bodies | script over the committed collection | Sufficient to write the client against. Gaps are commercial, not technical — see A5. |
+
+| G30 | The 30-day "expiring" horizon is duplicated in FOUR places: `buildDqFile`'s default (`dqFile.ts:191`, applied by the overview at `complianceOverview.ts:136`, the driver page at `DriverQualificationPage.vue:97`, the binder at `dqBinder/gather.ts:210`) and a hand-rolled copy in `CertManager.vue:71-73`. The `expiringWithinDays` parameter exists and **no caller passes it.** | verified 2026-08-19 | **C2's 90/60-day thresholds cannot be fed from today's attention feed** — an item 60 days out is `current` and absent from `dqAttention`. The alert path must compute at a wider horizon (C3); the three UI/binder surfaces stay at 30 so the queue and the file keep agreeing. |
+| G31 | `notify()` delivery reaches the **driver app only**: `notification_events` are rendered by `apps/driver/app/notifications.tsx` via `/api/me/notifications`, push targets `device_push_tokens` (drivers' phones). The web app has **no notification inbox** — its NotificationsPage edits `organizations.notification_emails`. Office users have no push tokens. | verified 2026-08-19 | An office-facing alert emitted only through `notify()` lands nowhere an office user looks. Office delivery is email (G15) until C6 builds a web inbox. |
+| G32 | `qualification_records` kinds `drug_test`/`alcohol_test`/`previous_employer_*` are readable today by **every** role passing `canView` — dispatcher and auditor included — because the three read paths (`GET /qualification-records`, the overview, the binder gather) use the service-role client, which bypasses RLS. RLS restricts only the `driver` role to own rows (`0129:29-32`). | verified 2026-08-19 | §382.401 and §391.53 require controlled access. Phase G partitions these kinds; RLS alone cannot do it. |
+| G33 | Regulatory verification against eCFR (Title 49 current through 2026-08-07): **(1)** §391.51(b) was renumbered in 2022 — medical certification is (b)(6), SPE (b)(7), registry note (b)(8); the §391.27 violations list is gone. **(2)** For CDL holders the DQF medical document **is the CDLIS MVR** (§391.51(b)(6)(ii)); the paper-MEC window sunset 2025-06-22 and survives only via an FMCSA NRII waiver (60-day paper bridge, currently through **2026-10-11**, extended four times — track quarterly). **(3)** The registry-verification note (b)(8) is required for **non-CDL drivers only** post-2025-06-22. **(4)** **ELDT is not a DQF document** — §391.51(b) has no ELDT item; the retention obligation is the training provider's (§380.725). **(5)** §382.401 retention is four tiers: 5yr (positives/refusals/violations), 2yr (collection process), 1yr (negatives), indefinite-plus-2 (training). **(6)** Clearinghouse obligations unchanged since 2021; query records 3yr, satisfied by maintaining registration. | eCFR versioner API 2026-08-07 snapshot; FR API sweep of all FMCSA final rules 2025-01→2026-08 | Step D8 encodes (2)–(4); Phase G honours (5); F1's rules encode §391.51(d) + the §172.704 employment+90-days clock. **E7 gains a duty:** an ingested MVR carrying medical-certification status is the (b)(6)(ii) document of record for a CDL holder. |
+| G34 | Notification category `training_due` exists in the contract with a label and a driver-app icon and has **zero emitters** anywhere in the repo. | grep 2026-08-19 | C1 leaves it alone (driver-facing vocabulary, dormant per D-DQ13) and adds the `dq_*` categories beside it. |
+| G35 | The two §172.704(d)-mandated fields — `trainingProviderAddress`, `trainingMaterials` — are accepted by the contract (`complianceContract.ts:114-115`), the table and the RPC (`0127:30-31, :96-97`), and are capturable in **no UI**: `RequirementDrawer.vue` captures neither; `CertManager.vue` (org-only mount) captures neither. `notes` likewise. | verified 2026-08-19 | Step D7 closes it. |
+| G36 | Equipment certifications: contract and table accept `tractor`/`trailer` subjects; **no UI mounts a cert editor for either**; `VehicleDetailPage.vue` exists at `/vehicles/:id` (summary + fills only); **trailers have no detail page or route at all**; the hazmat gate reads only organization + driver certs (`services/qualification.ts:73-80`). | verified 2026-08-19 | Explicitly **deferred** — see "Deferred, with reasons" after Phase G. |
 
 **Two corrections to earlier verbal analysis, recorded so they are not re-inherited:** the fleet table
 does *not* sort by name (G20), and `dqAttention` is *not* unrendered (G19). Both were checked and were
@@ -333,6 +344,33 @@ is hidden for PDFs rather than present-and-broken.*
 reproduction; a lossy WebP of a medical card is not the record. Derivatives are additive storage, paid for
 by never shipping 25 MB to a browser that wanted 40 KB.
 
+**Four further decisions, taken 2026-08-19 (MJ):**
+
+**D-DQ12 — the A2c fix is (a) plus (c), approved.** `identity_source` gains `'efs'`; the 81 stubs are
+backfilled; the qualification surfaces filter them out; the 46 stubs matching Samsara-deactivated
+drivers become `terminated`. Formalised as step A6 below. Lands before E4 — nothing enrols a stub into
+a billed subscription.
+
+**D-DQ13 — the DQ file is company-only. Drivers do not see it.** The owner's words: "drivers do not
+need to see this files, this is for company only." DQF-PLAN's DQ5 (driver self-service) is **retired,
+not deferred**: no driver credentials screen, no driver-facing alerts, no driver upload path. C3
+therefore notifies office roles only. The dormant driver-scope RLS policies from 0127/0129/0146 stay
+in place — they are restrictive (they only narrow what the `driver` role could read) and dropping them
+would be a migration for no behaviour change; a comment in the next touching migration should note they
+are intentionally inert.
+
+**D-DQ14 — office alerting is email now, web inbox as a follow-up.** "Both": Phase C ships the email
+path (immediate email on newly-crossed thresholds + the weekly digest section) against the existing
+org-email channel (G15), AND C3 writes every alert through `notify()` anyway — the rows land in
+`notification_events` where the dedupe ledger lives (G14) and where C6's web inbox will find history
+waiting for it when it ships.
+
+**D-DQ15 — drug & alcohol and investigation-history records are restricted to `admin` +
+`safety_manager`.** No new role. Phase G implements it at three layers (RLS, API, UI) because the read
+paths are service-role (G32). Non-privileged roles keep seeing the checklist *state* of restricted
+items — a dispatcher may know a file is incomplete — but not the records, documents, or details behind
+them, and the binder excludes restricted kinds unless a privileged role asks for them.
+
 **D-DQ11 (added during A4, from research) — derivatives are generated by our own `sharp` pipeline, not by
 Supabase Image Transformations.** Supabase can resize on the fly through `createSignedUrl({transform})`,
 which is less code. Rejected for four reasons, in order of weight: it is **Pro-plan-gated and billed at
@@ -365,6 +403,27 @@ before they touch the repo**, following the precedent already set by `redactCard
 
 **Done when:** `SAMBA-RECON.md` §8 names the MVR product path, the Silvicom `groupId`, and the count of
 enrolled licences; and `scripts/samba-recon.mjs` re-runs idempotently with no write of any kind.
+
+### A6 · The stub fix — D-DQ12, approved, now a step
+One migration (next free number, G23) + one data pass + two code changes:
+1. **Migration:** extend the `drivers.identity_source` CHECK (`0098:26-27`) to admit `'efs'`, and
+   backfill `identity_source='efs'` for rows that are system-inserted (`audit_logs` actor null) with
+   `samsara_driver_id is null` — the 81 measured in A2c. The backfill predicate is written in the
+   migration with the count it expects to touch, so an unexpected match count fails loudly.
+2. **Data pass (production, owner-run per the SQL-editor pattern):** the 46 stubs whose names match
+   Samsara-deactivated drivers → `status='terminated'`, audited as `driver.updated`.
+3. **Provisioning honesty:** `efsIngest.ts:93` and `driverAttribution.ts:44` set
+   `identity_source: 'efs'` explicitly on every future stub.
+4. **Filter:** `complianceOverview.ts` adds `.neq("identity_source", "efs")`; E4's eligibility
+   predicate excludes `'efs'` rows; `QualificationSeedPanel`'s driver list follows automatically
+   (it reads the overview).
+**Not** a rename of the Samsara ambiguity insert (`samsaraDriverSync.ts:98-103`) — that path creates
+telemetry-linked rows and is out of scope here; if ambiguous-name duplicates recur, the reconcile
+panel already handles them post-hoc.
+**Done when:** a PGlite matrix proves the CHECK admits the three values and rejects a fourth; the
+overview test proves an `'efs'` row is absent from the response; and the production driver census
+(`status in ('active','on_leave') and identity_source <> 'efs'`) reads ~167, matching Samsara's
+active roster.
 
 ---
 
@@ -516,30 +575,51 @@ add env vars, register a weekly scheduler entry for buckets `compliance-docs` + 
 
 ## Phase C — Alerts *(the second priority)*
 
+> **Two facts shape this phase** (G30, G31): the attention feed the UIs render sees only 30 days out,
+> so the 90/60-day thresholds need the overview computed at a wider horizon — for the scheduler only;
+> and `notify()` alone reaches nobody at a desk, so the office path is email (D-DQ14), with the
+> `notify()` rows doubling as the dedupe ledger and the pre-populated history for C6's inbox.
+> Per D-DQ13 there are **no driver-facing alerts** in this phase or any other.
+
 ### C1 · Categories
 Add to `NOTIFICATION_CATEGORIES` (G13): `dq_expiring`, `dq_expired`, `dq_missing`, plus the two
 externally-sourced ones Phase E emits — `dq_license_status` (a licence was suspended, downgraded or
 reinstated) and `dq_mvr_received` (monitoring produced a new MVR, with its `reason`). Add labels in
-`NOTIFICATION_CATEGORY_LABELS`. Leave them **mutable** (not in `NON_MUTABLE_CATEGORIES`) — a driver who has
-already been told twice may silence it; the office copy is a separate emission.
+`NOTIFICATION_CATEGORY_LABELS`. Leave them **mutable** (not in `NON_MUTABLE_CATEGORIES`) — an office
+user who triages by email may silence the in-app copy once C6 gives them one. `training_due` (G34)
+stays untouched: it is driver-facing vocabulary, dormant under D-DQ13.
 **Done when:** `notificationsContract.test.ts` (which iterates every category, `:127`) passes unchanged.
 
-### C2 · `packages/shared/src/dqAlerts.ts` — the pure schedule
-`planDqAlerts(rows: DriverOverviewRow[], today, alreadySentKeys: Set<string>): DqAlert[]`.
+### C2 · Widen the overview's horizon — for the scheduler, without forking the UI's
+`getComplianceOverview(admin, orgId, today)` gains an options argument `{ expiringWithinDays?: number }`
+threaded straight into `buildDqFile` (the parameter exists and is dead today — G30). **No UI caller
+changes**: the route handler, the driver page and the binder keep the 30-day default, so the queue and
+the file keep agreeing (`complianceOverview.ts:20-23` stays true). Only C3 passes `91`.
+**Done when:** an overview test proves an item 60 days out is absent at the default horizon and present
+in `attention` at 91 — the assertion that would have caught this plan's own original defect.
+
+### C3 · `packages/shared/src/dqAlerts.ts` + `apps/api/src/services/dqAlertScheduler.ts`
+The pure schedule: `planDqAlerts(rows: DriverOverviewRow[], today, alreadySentKeys: Set<string>): DqAlert[]`.
 Thresholds **90 / 60 / 30 / 14 / 0 / overdue-weekly**. Each alert carries a `dedupeKey` of
 `dq:${driverId}:${itemKey}:${threshold}` so crossing 60 days emits once, ever, and a restart emits nothing.
-Consumes `DqAttentionItem` from `dqFile.ts` — **the same ranking the UI shows** (G19).
-**Done when:** ≥ 20 assertions, including: an item at exactly 60 days emits, at 59 does not re-emit the 60
-key, an overdue item emits weekly not daily, and a driver with `status='terminated'` emits nothing.
+Consumes `DqAttentionItem` from `dqFile.ts` — the same ranking the UI shows (G19) — computed at C2's
+91-day horizon.
 
-### C3 · `apps/api/src/services/dqAlertScheduler.ts`
-Copy `digestScheduler.ts` exactly (G16): `DQ_ALERTS_ENABLED` env flag, 6-hour interval, per-org guard.
-For each org: `getComplianceOverview` → `planDqAlerts` → for each alert, `notify()` to every membership in
-`rolesThatManage("fleet")` (G14 handles mutes/quiet-hours/dedupe), and — where the driver has a login —
-`notify()` the driver for their own items only.
+The scheduler copies `digestScheduler.ts` exactly (G16): `DQ_ALERTS_ENABLED` env flag, 6-hour interval,
+per-org guard. For each org:
+1. `getComplianceOverview(…, { expiringWithinDays: 91 })` → `planDqAlerts` with `alreadySentKeys`
+   read from `notification_events` dedupe keys.
+2. Each alert → `notify()` to every membership in `rolesThatManage("fleet")` — this is the **ledger and
+   the future inbox**, not the delivery (G31); `emit_notification`'s dedupe key is what makes a retried
+   scheduler silent.
+3. If any alert was **newly** emitted this run, ONE email to `organizations.notification_emails`
+   (respecting `notifications_enabled`, G15) listing the new items, worst first — not one email per
+   alert; a fleet crossing a renewal season must not send forty emails in an afternoon.
 Register in `schedulers.ts`.
-**Done when:** a test with a stubbed admin client proves two consecutive runs produce one `notify()` call per
-alert, and that `DQ_ALERTS_ENABLED=false` produces none.
+**Done when:** ≥ 20 assertions on the pure planner (an item at exactly 60 days emits; at 59 it does not
+re-emit the 60 key; an overdue item emits weekly not daily; a `terminated` or `identity_source='efs'`
+driver emits nothing); and a scheduler test with a stubbed admin client proves two consecutive runs
+produce one `notify()` per alert and at most one email, and `DQ_ALERTS_ENABLED=false` produces none.
 
 ### C4 · The weekly email section
 `digest.ts` already assembles and sends a weekly org email (G15). Add a **DQ section**: count expiring in 30
@@ -556,6 +636,18 @@ a click-to-filter that sets the existing `stateFilter` on `QualificationFleetTab
 a second filter model.
 **Done when:** clicking a tile changes the table's rows and the FilterBar chip appears, asserted in a
 component test.
+
+### C6 · The web notification inbox — the "both" half of D-DQ14, sequenced after C5
+The office half of the notification system the driver app already has: a bell in `AppShell.vue`'s top
+bar with an unread count, a panel listing `notification_events` for the signed-in user, mark-as-read
+writing `notification_reads`. The API surface exists for drivers at `/api/me/notifications`; this adds
+the office equivalent (same tables, `requireOrg` + office roles rather than `requireRole("driver")`).
+Scope discipline: **list, unread count, mark read, deep link** — no preferences UI (mutes/quiet hours
+already have a home in `notification_preferences` and can get an office UI later), no new categories.
+By the time this ships, C3 has been writing DQ alert rows for weeks — the inbox opens with history in
+it rather than empty.
+**Done when:** an office user sees a `dq_expired` event emitted by C3, the unread count decrements on
+read, and a `driver`-role session receives 403 from the office route.
 
 ---
 
@@ -617,6 +709,35 @@ a different one, and that a telematics row with no licence gets one; and a produ
 Rewrite both entries against the current tree, and add `DocumentPreview.vue` to §1.2 as the sanctioned
 document viewer so the next person does not build a second one.
 **Done when:** every path in §8 resolves.
+
+### D7 · Close the §172.704(d) capture gap (G35) — carried over from DQF-PLAN DQ3, dropped by an earlier revision
+Add `trainingProviderAddress`, `trainingMaterials` and `notes` to the training branch of
+`RequirementDrawer.vue` (it already captures `issuingAuthority` and the scan), and the same three to
+`CertManager.vue` for parity. No contract, table or API change — all three already accept the fields
+(G35); this is UI only.
+**Done when:** recording a hazmat training through the drawer with all §172.704(d) fields produces a
+`certifications` row carrying them, asserted end-to-end in the drawer's component test against the
+recorded request body.
+
+### D8 · Encode the verified regulatory state (G33) — three catalogue corrections
+1. **ELDT becomes advisory.** It is not a §391.51(b) document; the carrier holds no retention
+   obligation. The spec gains `advisory: true`: an advisory item never reports `missing`, never enters
+   `dqAttention`, and never counts against `complete` — it renders only when evidence exists, labelled
+   "tracked, not required". The catalogue comment already conceded this; the state machine now agrees.
+2. **The registry-verification note applies to non-CDL drivers only.** `DqFileInput` gains
+   `hasCdl: boolean` (the caller derives it from `drivers.cdl_number`, which D6 populates);
+   `medical_registry_verification`'s spec carries `appliesWhen: "no_cdl"`. A CDL holder's file no
+   longer reports a missing registry note that §391.51(b)(8) stopped requiring in June 2025.
+3. **The CDLIS MVR satisfies the medical item for CDL holders.** `medical_card`'s evidence for a
+   CDL holder is the CDLIS MVR (§391.51(b)(6)(ii)); E7 therefore writes, from an ingested MVR carrying
+   medical-certification status, a `medical_card` certification row whose `expires_at` is the MVR's
+   medical expiry and whose `document_id` cites the MVR PDF — the paper-card path stays for non-CDL
+   drivers and for the waiver bridge (through 2026-10-11; re-check quarterly, G33).
+All three are `packages/shared` changes with exhaustive tests; the API and both UIs consume them
+without modification because they render the computed file rather than re-deriving it (G19).
+**Done when:** a CDL driver's file with an ingested MVR reports medical `current` and no registry-note
+gap; a non-CDL driver's file still demands both; an ELDT-less file reports `complete`; and the
+18-item count assertions in `dqFile.test.ts` are updated deliberately rather than loosened.
 
 ---
 
@@ -776,44 +897,111 @@ still employed reports not purgeable.
 
 ---
 
+## Phase G — Restricted records (D-DQ15; closes DQF-PLAN's open question 2)
+
+**The restricted set**, with its citation per kind: `drug_test`, `alcohol_test` (§382.401(a): "secure
+location with controlled access"); `clearinghouse_full`, `clearinghouse_limited` (D&A program records —
+included as prudent practice; the §382.401 enumeration was not verified to name query records, and the
+plan says so rather than citing it); `previous_employer_inquiry`, `previous_employer_response`
+(§391.53(a)(1): access limited to those involved in the hiring decision). Privileged roles: `admin`,
+`safety_manager` (D-DQ15). The single source of truth is one exported constant —
+`RESTRICTED_QUALIFICATION_KINDS` in `packages/shared` — consumed by every layer below; a kind listed
+in two places is how one layer forgets.
+
+### G-1 · The shared vocabulary
+`RESTRICTED_QUALIFICATION_KINDS` + `canReadRestricted(role)` in `packages/shared/src/auth.ts` (beside
+the section matrix, which is where role questions are answered today).
+**Done when:** an exhaustive test pins the set, so adding a fifteenth record kind forces a decision
+about whether it is restricted.
+
+### G-2 · RLS — defence in depth, not the enforcement
+One migration (next free number): a **restrictive** policy on `qualification_records` and on
+`documents` denying the restricted kinds to non-privileged roles. This protects the PostgREST path
+(the web app reads some tables directly) and any future direct read; it does NOT protect the three
+service-role paths (G32), which is why G-3 exists.
+**Done when:** the RLS matrix proves a dispatcher's direct read returns zero restricted rows and an
+admin's returns them.
+
+### G-3 · The API layer — where enforcement actually lives
+The three service-role read paths filter by `canReadRestricted(req.auth.role)`:
+- `GET /api/compliance/qualification-records` drops restricted rows for non-privileged callers;
+- `getComplianceOverview` keeps counting restricted items' **state** (a dispatcher may know the file
+  is incomplete — D-DQ15) but nulls `evidenceDate`/`goodUntil` detail? **No** — simpler and honest:
+  the overview already carries no record payloads, only computed states; it needs no change, and a
+  test pins that it never grows one.
+- the binder gather **excludes restricted kinds by default**; a privileged role may pass
+  `includeRestricted: true`, which is recorded on the `dq_exports` ledger row.
+Writes: `POST /qualification-records` for a restricted kind requires a privileged role.
+**Done when:** route tests prove a dispatcher listing records sees none of the restricted kinds, a
+binder built by a fleet_manager contains no drug-test page, and the `includeRestricted` flag appears
+on the export ledger row when used.
+
+### G-4 · The UI
+`RequirementDrawer` and the qualification section render restricted items' state for everyone, and the
+record/renew affordance plus history/scan links only for privileged roles; others see the state badge
+with "Restricted — safety manager access" in place of the evidence. One gate:
+`session.canReadRestricted`, derived from the same shared predicate.
+**Done when:** a component test renders the drawer as dispatcher and asserts no restricted evidence or
+capture control is present.
+
+---
+
+## Deferred, with reasons — so absence reads as a decision, not an oversight
+
+| Deferred | Why | Re-opened by |
+|---|---|---|
+| **Driver self-service (old DQ5)** | **Retired**, not deferred — D-DQ13: the file is company-only. | An explicit owner reversal. |
+| **Equipment (tractor/trailer) certifications UI** (G36) | No consumer: the hazmat gate reads only org + driver certs; a capture UI for data nothing reads is inventory without a customer. Trailers also lack a detail page to host it. | The first gate or report that consumes an equipment cert — build the consumer and the capture together. |
+| **Web notification preferences UI** | `notification_preferences` exists and works; C6 ships list/read only. | Office users asking to mute categories. |
+| **Server-side PDF rasterisation** | D-DQ9 chose the browser's viewer; revisit only if the glyph-not-thumbnail experience for PDFs proves insufficient. | User feedback after B6. |
+| **ELP (English Language Proficiency) file item** | Guidance + NPRM only as of 2026-08; no documentation obligation exists (G33). | The ELP final rule, if it adds one. |
+
+---
+
 ## Sequencing
 
 ```
-A1 ✓  A2 ✓  A2b ✓  A2c ✓  A4 ✓      A3, A5 open
+A1 ✓  A2 ✓  A2b ✓  A2c ✓  A4 ✓  D-DQ12..15 ✓      A3, A5 open
       │
       ├─ B7 ✓                          (shipped — the sweep that was missing)
       ├─ B1 ✓ → B2 → B3 → B4 → B5 → B6 (previews; B5 adds BaseModal to the design system)
       ├─ B8 → B9                        (after B2 exists; B8 is a no-op until documents exist)
       │
-      ├─ C1 → C2 → C3 → C4 → C5         (independent of B)
+      ├─ C1 → C2 → C3 → C4 → C5 → C6    (independent of B; C2 gates C3; C6 after C5)
       │
       ├─ D1 → D2 → D3 → D4 → D5         (after C5, which touches CompliancePage)
-      ├─ D6                             (the field map — gates everything Phase E can do)
+      ├─ D6, D7, D8                     (D6 gates E4; D8 gates E7's medical write)
       │
-      └─ A2c-fix → D6 → A5 → E0 → E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9
+      ├─ G-1 → G-2 → G-3 → G-4          (before real drug-test rows exist — today there are zero)
+      │
+      └─ A6 → D6 → A5 → E0 → E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9
                                         F1 → F2  (last; nothing depends on it)
 ```
 
-**Two hard orderings inside Phase E, and both are about money or safety:**
+**Three hard orderings, all about money, law or safety:**
 
-1. **A2c's fix lands before E4.** 81 of 248 "active" drivers are EFS fuel-card name stubs. Enrolling
+1. **A6 lands before E4.** 81 of 248 "active" drivers are EFS fuel-card name stubs. Enrolling
    them is a per-driver monthly charge for people who do not work here, 46 of whom provably left.
 2. **E0 before everything else in E.** The vocabulary is what makes contract/behaviour/view a
    compile-checked triple instead of three files that agree by luck. EFS added its types before any
    capability consumed them, for the same reason.
+3. **Phase G before the first real drug-test row.** Production holds zero restricted records today
+   (A2); restricting access before content exists is a code change, after it is an incident report.
 
-**Ship order, revised by A2b and A2c:** **D6 first** — a one-sync field map, and the only thing between
-an empty product and Phase E filling it. Then A2c's fix, then E0–E7, which populates files without
-anyone typing. Then B1–B6 (previews) and C1–C5 (alerts), which make a populated surface good and have
-nothing to act on until the first two land. B7 and B1 have shipped.
+**Ship order, revised by A2b/A2c and the 2026-08-19 decisions:** **D6 first** — a one-sync field map,
+and the only thing between an empty product and Phase E filling it. Then A6 (the stub fix), then G-1..4
+(cheap now, expensive later), then E0–E7 with D8's catalogue corrections landing alongside E7. Then
+B2–B6 (previews) and C1–C6 (alerts), which make a populated surface good and have nothing to act on
+until the files have content. B7 and B1 have shipped.
 
 ## Definition of done, per phase
 
 | Phase | Gate |
 |---|---|
-| A | ✓ vendor collection committed and analysed; baseline measured; A2b/A2c answered; D-DQ9/10/11 recorded. Open: A3 (HEIC probe), A5 (recon script) |
+| A | ✓ vendor collection committed and analysed; baseline measured; A2b/A2c answered; D-DQ9..15 recorded. Open: A3 (HEIC probe), A5 (recon script), A6 (stub fix — approved, unbuilt) |
 | B | `pnpm test` green; `pnpm lint:filesize && pnpm lint:funcsize && pnpm --filter web lint:tokens` green; orphan count from A2 → 0 |
-| C | Two consecutive scheduler runs emit each alert once; digest email renders the DQ block |
-| D | `/compliance/:id` redirects; every §8 path in the design contract resolves; no status literal outside `badges.ts` |
-| E | Deleting any one artifact of any capability turns E8 red; an over-budget or step-up-less MVR order is refused with no vendor call; an accepted order settles `sent`, not `succeeded`; a replayed idempotency key issues no second vendor call; a half-applied sequence settles `partial` with its `step_index`; a 200-with-error-code surfaces as an error; a wrong-signature webhook has no side effect |
+| C | Two consecutive scheduler runs emit each alert once and at most one email; digest email renders the DQ block; a 60-day item is present at the 91-day horizon and absent at 30 (C2's assertion); office inbox shows C3's rows (C6) |
+| D | `/compliance/:id` redirects; every §8 path in the design contract resolves; no status literal outside `badges.ts`; §172.704(d) fields captured end-to-end (D7); a CDL driver's file demands no registry note and accepts an MVR as the medical document, a non-CDL driver's still demands both (D8) |
+| E | Deleting any one artifact of any capability turns E8 red; an over-budget or step-up-less MVR order is refused with no vendor call; an accepted order settles `sent`, not `succeeded`; a replayed idempotency key issues no second vendor call; a half-applied sequence settles `partial` with its `step_index`; a 200-with-error-code surfaces as an error; a wrong-signature webhook has no side effect; no `identity_source='efs'` driver is ever enrolled (A6) |
 | F | Purgeable report returns for a terminated driver; `RETENTION_FORBIDDEN` unchanged |
+| G | A dispatcher sees restricted items' state and no evidence, in RLS (direct read), API (route test) and UI (component test); the default binder carries no restricted page; `includeRestricted` is ledgered |
