@@ -32,7 +32,8 @@ export type JobKind =
   | "hazmat_analyze"
   | "pattern_sweep" // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
   | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
-  | "dq_binder"; // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
+  | "dq_binder" // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
+  | "document_derive"; // thumb + normalized WebP for one compliance document (DQF plan B2/B3)
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring

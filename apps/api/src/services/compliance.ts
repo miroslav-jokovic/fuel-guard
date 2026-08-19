@@ -92,7 +92,7 @@ export async function listQualificationRecords(
 export const DOCUMENT_URL_TTL_SEC = 300;
 
 const DOCUMENT_COLUMNS =
-  "id, subject_type, subject_id, kind, content_type, bytes, sha256, page, variant, captured_at, created_at, storage_path";
+  "id, subject_type, subject_id, kind, content_type, bytes, sha256, page, variant, captured_at, created_at, storage_path, derived_from";
 
 /**
  * Register a document and hand back a signed upload URL. The bytes never touch this process.
@@ -125,9 +125,15 @@ type DocumentDbRow = {
   id: string; subject_type: string; subject_id: string; kind: string;
   content_type: string; bytes: number | null; sha256: string; page: number; variant: string;
   captured_at: string | null; created_at: string; storage_path: string;
+  derived_from: string | null;
 };
 
-/** Every document for one subject, each with a short-lived signed download URL. */
+/**
+ * Every ORIGINAL for one subject, each with a short-lived signed URL — and its derivatives folded
+ * into `thumbUrl`/`normalizedUrl` (plan B4) rather than returned as sibling rows. One row per filed
+ * document keeps every consumer honest: a thumb is a rendering of evidence, not evidence, and a
+ * list that returned both would eventually see a thumb counted as a filed scan.
+ */
 export async function listDocuments(
   admin: SupabaseClient, orgId: string, q: DocumentListQuery,
 ): Promise<{ rows: DocumentRow[] } | ServiceError> {
@@ -140,9 +146,45 @@ export async function listDocuments(
   return { rows: await signDocumentRows(admin, docs) };
 }
 
-/** ONE batch Storage call for the whole set, never one round trip per row (D20). Signing failures
- *  degrade a single row to `url: null` rather than failing the page — the metadata is still the
- *  answer to "is this document on file", which is what a §391.51 review actually asks. */
+/**
+ * A signed URL that DOWNLOADS (plan B6). `<a download>` is ignored cross-origin — Firefox navigates,
+ * Safari honours it same-origin only, Chrome strips the filename — so the attachment disposition has
+ * to come from the server: Supabase's `download` option sets `Content-Disposition: attachment` with
+ * the filename we choose, and a plain link then downloads in every browser with no fetch and no
+ * 25 MB blob in memory. Filename: `{driver-last-name}-{kind}-{date}.{ext}` — what a folder of
+ * released documents needs to stay sortable.
+ */
+export async function signDocumentDownload(
+  admin: SupabaseClient, orgId: string, documentId: string,
+): Promise<{ url: string; filename: string; kind: string } | ServiceError> {
+  const { data, error } = await admin.from("documents")
+    .select("id, subject_type, subject_id, kind, content_type, storage_path, captured_at, created_at, variant")
+    .eq("org_id", orgId).eq("id", documentId).maybeSingle();
+  if (error) return err("query_failed", error.message);
+  const doc = data as (Pick<DocumentDbRow, "subject_type" | "subject_id" | "kind" | "content_type" | "storage_path" | "captured_at" | "created_at" | "variant"> & { id: string }) | null;
+  if (!doc) return err("not_found", "That document is not on file.");
+
+  let namePart = doc.subject_type;
+  if (doc.subject_type === "driver") {
+    const { data: d } = await admin.from("drivers").select("full_name")
+      .eq("org_id", orgId).eq("id", doc.subject_id).maybeSingle();
+    const last = ((d as { full_name?: string } | null)?.full_name ?? "").trim().split(/\s+/).pop();
+    if (last) namePart = last.toLowerCase().replace(/[^a-z0-9-]/g, "");
+  }
+  const ext = doc.content_type === "application/pdf" ? "pdf" : (doc.content_type.split("/")[1] ?? "bin");
+  const date = (doc.captured_at ?? doc.created_at).slice(0, 10);
+  const filename = `${namePart}-${doc.kind}-${date}.${ext}`;
+
+  const { data: signed, error: signErr } = await admin.storage.from(DOCUMENTS_BUCKET)
+    .createSignedUrl(doc.storage_path, DOCUMENT_URL_TTL_SEC, { download: filename });
+  if (signErr || !signed) return err("sign_failed", signErr?.message ?? "Could not sign the download.");
+  return { url: signed.signedUrl, filename, kind: doc.kind };
+}
+
+/** ONE batch Storage call for the whole set — originals AND derivatives, unchanged TTL — never one
+ *  round trip per row (D20). Signing failures degrade a single row to `url: null` rather than
+ *  failing the page — the metadata is still the answer to "is this document on file", which is what
+ *  a §391.51 review actually asks. */
 async function signDocumentRows(admin: SupabaseClient, docs: DocumentDbRow[]): Promise<DocumentRow[]> {
   const byPath = new Map<string, string>();
   if (docs.length > 0) {
@@ -150,18 +192,26 @@ async function signDocumentRows(admin: SupabaseClient, docs: DocumentDbRow[]): P
       .createSignedUrls(docs.map((d) => d.storage_path), DOCUMENT_URL_TTL_SEC);
     for (const s of signed ?? []) if (s.signedUrl && s.path) byPath.set(s.path, s.signedUrl);
   }
-  return docs.map((d) => ({
-    id: d.id,
-    subjectType: d.subject_type as DocumentRow["subjectType"],
-    subjectId: d.subject_id,
-    kind: d.kind,
-    contentType: d.content_type,
-    bytes: d.bytes,
-    sha256: d.sha256,
-    page: d.page,
-    variant: d.variant,
-    capturedAt: d.captured_at,
-    createdAt: d.created_at,
-    url: byPath.get(d.storage_path) ?? null,
-  }));
+  const derivativeUrl = (originalId: string, variant: string): string | null => {
+    const d = docs.find((x) => x.derived_from === originalId && x.variant === variant);
+    return d ? (byPath.get(d.storage_path) ?? null) : null;
+  };
+  return docs
+    .filter((d) => d.variant === "original")
+    .map((d) => ({
+      id: d.id,
+      subjectType: d.subject_type as DocumentRow["subjectType"],
+      subjectId: d.subject_id,
+      kind: d.kind,
+      contentType: d.content_type,
+      bytes: d.bytes,
+      sha256: d.sha256,
+      page: d.page,
+      variant: d.variant,
+      capturedAt: d.captured_at,
+      createdAt: d.created_at,
+      url: byPath.get(d.storage_path) ?? null,
+      thumbUrl: derivativeUrl(d.id, "thumb"),
+      normalizedUrl: derivativeUrl(d.id, "normalized"),
+    }));
 }

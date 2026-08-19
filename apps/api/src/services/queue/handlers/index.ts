@@ -2,6 +2,7 @@ import { registerHandler } from "../registry.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { dqBinderHandler } from "./dqBinder.js";
+import { documentDeriveHandler } from "./documentDerive.js";
 import { efsCardSyncHandler } from "./efsCardSync.js";
 import { efsSoapHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
@@ -59,4 +60,5 @@ export function registerAllHandlers(): void {
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
   registerHandler("data_retention", dataRetentionHandler);
   registerHandler("dq_binder", dqBinderHandler);
+  registerHandler("document_derive", documentDeriveHandler);
 }

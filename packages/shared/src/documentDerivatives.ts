@@ -126,7 +126,7 @@ export const DERIVATIVE_VERSION = "1.0.0";
  * append-only `documents` row (0146 has no UPDATE policy — a derivative can never be an edit of the
  * original). The `.thumb` / `.normalized` infix is for humans reading a bucket listing; nothing
  * parses it. **The machine-readable link from a derivative back to its original is
- * `documents.derived_from`, added in migration 0204 at plan step B2** — a storage path is not a
+ * `documents.derived_from`, added in migration 0206 at plan step B2** — a storage path is not a
  * foreign key, and treating it as one is how the next person ends up regex-matching object names.
  */
 export function derivativeStoragePath(

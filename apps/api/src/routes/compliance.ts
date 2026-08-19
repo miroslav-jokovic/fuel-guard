@@ -19,8 +19,10 @@ import {
   canReadRestricted,
   filterRestrictedRows,
   isRestrictedQualificationKind,
+  shouldDerive,
 } from "@fuelguard/shared";
 import { randomUUID } from "node:crypto";
+import { dispatchJob } from "../services/queue/dispatch.js";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -33,6 +35,7 @@ import {
   listQualificationRecords,
   registerDocument,
   listDocuments,
+  signDocumentDownload,
 } from "../services/compliance.js";
 import { getComplianceOverview } from "../services/complianceOverview.js";
 import { complianceExportsRouter } from "./complianceExports.js";
@@ -278,6 +281,18 @@ export function complianceRouter(): Router {
           page: body.page,
         },
       });
+      // Derivatives ride the queue, never this request (B3): the register call returns before the
+      // browser has even PUT the bytes, so waiting on sharp here could only ever time out. Enqueue
+      // failures are swallowed on purpose — a missing thumbnail must not fail a registration, and
+      // the backfill script (B8) is the catch-all for anything the queue dropped.
+      if (body.variant === "original" && shouldDerive(body.contentType)) {
+        await dispatchJob(admin, getAppLocals(req).env, "document_derive", {
+          orgId,
+          payload: { documentId: result.documentId },
+          dedupKey: `document_derive:${result.documentId}`,
+          requestedBy: req.auth!.userId,
+        }).catch(() => undefined);
+      }
       res.status(201).json(result);
     }),
   );
@@ -302,6 +317,38 @@ export function complianceRouter(): Router {
       // Phase G (D-DQ15): scans of restricted records are as restricted as the records. Service-role
       // read, so the filter lives here, mirroring the qualification-records list above.
       res.json({ documents: filterRestrictedRows(result.rows, req.auth!.role) });
+    }),
+  );
+
+  // One document, as a DOWNLOAD (plan B6): the signed URL carries Content-Disposition: attachment
+  // with the filename we choose — the only shape that downloads in every browser cross-origin.
+  // Reading somebody's medical card out of the system is worth a ledger line, so it is audited,
+  // and restricted kinds require the restricted read (Phase G).
+  router.get(
+    "/documents/:id/download",
+    requireOrg,
+    canView,
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const result = await signDocumentDownload(admin, orgId, String(req.params.id));
+      if ("code" in result) {
+        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
+        return;
+      }
+      if (isRestrictedQualificationKind(result.kind) && !canReadRestricted(req.auth!.role)) {
+        res.status(403).json(apiError("forbidden", "Downloading restricted records requires a safety manager or admin."));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.document_downloaded",
+        entity: "documents",
+        entityId: String(req.params.id),
+        meta: { filename: result.filename },
+      });
+      res.json({ url: result.url, filename: result.filename });
     }),
   );
 
