@@ -15,7 +15,7 @@ import UnitMileageDrawer from "@/features/fuelCards/UnitMileageDrawer.vue";
 import { useSessionStore } from "@/stores/session";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
+import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness, reachableSyncFloor } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
 import { AppButton as BaseButton } from "@fuelguard/ui";
@@ -165,11 +165,8 @@ function onSort(key: string): void {
 /** True when the API had more cards than it returned — see the limit note on the read route. */
 const truncated = computed(() => (query.data.value?.total ?? 0) > allRows.value.length);
 
-/** Oldest row wins: the banner should reflect the least fresh thing on screen, not the average. */
-const oldestSync = computed(() => {
-  const times = rows.value.map((r) => r.syncedAt).filter(Boolean).sort();
-  return times[0] ?? null;
-});
+/** Oldest REACHABLE row wins — see `reachableSyncFloor` for why absent cards must not count. */
+const oldestSync = computed(() => reachableSyncFloor(rows.value));
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
 
 const columns: DataTableColumn[] = [
