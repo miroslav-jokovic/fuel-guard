@@ -13,6 +13,7 @@ import {
   DQ_GROUP_LABELS,
   dqAttention,
   dqGroups,
+  isRestrictedQualificationKind,
   moduleEnabled,
   type DqGroup,
   type DqFileItem,
@@ -157,6 +158,10 @@ interface Row {
   documentUrl: string | null;
   /** True when the scan is a photo the cell can show a thumbnail of (PDFs get the icon link). */
   documentIsImage: boolean;
+  /** §382.401/§391.53 kinds (Phase G, D-DQ15): the STATE stays visible to every fleet role, but the
+   *  evidence and the capture affordances belong to admin + safety_manager. The API filters the
+   *  records/documents anyway — this flag is what replaces the dead affordance with an explanation. */
+  restricted: boolean;
 }
 const toRow = (i: DqFileItem): Row => {
   const doc = i.documentId ? docById.value.get(i.documentId) : undefined;
@@ -170,6 +175,7 @@ const toRow = (i: DqFileItem): Row => {
     expiryUnknown: i.expiryUnknown,
     documentUrl: doc?.url ?? null,
     documentIsImage: doc?.isImage ?? false,
+    restricted: i.spec.evidenceKinds.some(isRestrictedQualificationKind),
   };
 };
 
@@ -264,13 +270,20 @@ function closeDrawer(): void {
 }
 
 // ── drop first, classify after (D-DQ10) ──────────────────────────────────────────────
+// Restricted requirements (Phase G, D-DQ15) are absent from the classify list for roles that cannot
+// record them — the API would refuse the record anyway; the option must not offer a dead end.
 const dropItems = computed(() =>
-  file.value.items.map((i) => ({
-    key: i.spec.key,
-    label: i.spec.label,
-    // Every catalogue item names at least one evidence kind; the fallback only satisfies the index check.
-    evidenceKind: i.spec.evidenceKinds[0] ?? "other",
-  })),
+  file.value.items
+    .filter(
+      (i) =>
+        session.restrictedAccess || !i.spec.evidenceKinds.some(isRestrictedQualificationKind),
+    )
+    .map((i) => ({
+      key: i.spec.key,
+      label: i.spec.label,
+      // Every catalogue item names at least one evidence kind; the fallback only satisfies the index check.
+      evidenceKind: i.spec.evidenceKinds[0] ?? "other",
+    })),
 );
 
 /**
@@ -384,8 +397,13 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
         <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-documentUrl="{ row }">
+        <span
+          v-if="row.restricted && !session.restrictedAccess"
+          class="text-xs text-ink-muted"
+          >Restricted</span
+        >
         <a
-          v-if="row.documentUrl && row.documentIsImage"
+          v-else-if="row.documentUrl && row.documentIsImage"
           :href="row.documentUrl"
           target="_blank"
           rel="noopener"
@@ -414,7 +432,7 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       </template>
       <template #actions="{ row }">
         <KebabMenu
-          v-if="session.canManage"
+          v-if="session.canManage && !(row.restricted && !session.restrictedAccess)"
           :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
         >
           <BaseButton type="button" class="kebab-item" @click="openKey = row.key">

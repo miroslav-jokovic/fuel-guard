@@ -14,6 +14,8 @@ import { formatDate } from "@/lib/format";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
+import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 
 /**
  * The fleet qualification table — ONE ROW PER DRIVER.
@@ -30,10 +32,15 @@ const props = defineProps<{
   /** True while the page's binder request is in flight — disables the build button. */
   building?: boolean;
 }>();
-const emit = defineEmits<{ "build-binder": [driverIds: string[]] }>();
+const emit = defineEmits<{ "build-binder": [driverIds: string[], includeRestricted: boolean] }>();
 
 const toast = useToastStore();
+const session = useSessionStore();
 const query = useComplianceOverviewQuery();
+
+/** Phase G (D-DQ15): the default binder carries no §382.401/§391.53 evidence. Only a privileged
+ *  role sees the opt-in, and the ask is recorded on the export ledger server-side. */
+const includeRestricted = ref(false);
 
 /**
  * Binder selection lives with the table it selects from (the old design hid it on a different tab
@@ -55,8 +62,9 @@ function setSelected(next: Set<string>): void {
 }
 function buildBinder(): void {
   if (selected.value.size === 0) return;
-  emit("build-binder", [...selected.value]);
+  emit("build-binder", [...selected.value], session.restrictedAccess && includeRestricted.value);
   selected.value = new Set();
+  includeRestricted.value = false;
 }
 
 const search = ref("");
@@ -265,7 +273,10 @@ function onSort(key: string): void {
       <span v-if="atCap" class="text-sm text-brand-800">
         That is the most drivers one binder holds. Send the rest as a second binder.
       </span>
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex items-center gap-3">
+        <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
+          Include restricted records
+        </BaseCheckbox>
         <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
         <BaseButton variant="primary" size="sm" :disabled="props.building" @click="buildBinder">
           <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />

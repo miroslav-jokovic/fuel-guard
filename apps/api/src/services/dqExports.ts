@@ -29,6 +29,9 @@ export interface CreateExportInput {
   asAt: string;
   requirementKey?: string | null;
   documentId?: string | null;
+  /** Phase G (D-DQ15): a privileged, route-verified ask — recorded so "who exported a drug-test
+   *  page" is a ledger query. */
+  includeRestricted?: boolean;
 }
 
 export async function createExport(
@@ -46,6 +49,7 @@ export async function createExport(
       as_at: input.asAt,
       requirement_key: input.requirementKey ?? null,
       document_id: input.documentId ?? null,
+      include_restricted: input.includeRestricted ?? false,
       requested_by: requestedBy,
       // A streamed single document is finished the moment it is sent; only a binder is queued.
       status: input.kind === "document" ? "running" : "queued",

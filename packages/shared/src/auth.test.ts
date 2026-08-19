@@ -13,6 +13,11 @@ import {
   canManageSection,
   rolesThatManage,
   rolesThatCanView,
+  RESTRICTED_QUALIFICATION_KINDS,
+  canReadRestricted,
+  filterRestrictedRows,
+  QUALIFICATION_RECORD_KINDS,
+  USER_ROLES,
 } from "./index.js";
 
 describe("emailDomain", () => {
@@ -121,5 +126,44 @@ describe("inviteCreateSchema", () => {
   it("rejects a bad email or role", () => {
     expect(inviteCreateSchema.safeParse({ email: "x", role: "driver" }).success).toBe(false);
     expect(inviteCreateSchema.safeParse({ email: "x@y.com", role: "boss" }).success).toBe(false);
+  });
+});
+
+/**
+ * Phase G (D-DQ15) — the restricted-records vocabulary. The exhaustive classification below is the
+ * point, not a formality: every qualification-record kind must appear in exactly one of the two
+ * lists, so adding a sixteenth kind FORCES a decision about whether it is access-restricted rather
+ * than silently defaulting to world-readable.
+ */
+describe("restricted qualification records (Phase G)", () => {
+  const NOT_RESTRICTED = [
+    "employment_application", "mvr", "annual_mvr_review", "road_test", "cdl_equivalency",
+    "eldt", "spe_certificate", "medical_registry_verification", "accident",
+  ] as const;
+
+  it("classifies every qualification-record kind, exhaustively", () => {
+    const classified = [...RESTRICTED_QUALIFICATION_KINDS, ...NOT_RESTRICTED].sort();
+    expect(classified).toEqual([...QUALIFICATION_RECORD_KINDS].sort());
+  });
+
+  it("pins the restricted set", () => {
+    expect([...RESTRICTED_QUALIFICATION_KINDS].sort()).toEqual([
+      "alcohol_test", "clearinghouse_full", "clearinghouse_limited",
+      "drug_test", "previous_employer_inquiry", "previous_employer_response",
+    ]);
+  });
+
+  it("admin and safety_manager read restricted records; nobody else does", () => {
+    const allowed = USER_ROLES.filter((r) => canReadRestricted(r));
+    expect(allowed.sort()).toEqual(["admin", "safety_manager"]);
+    expect(canReadRestricted(null)).toBe(false);
+  });
+
+  it("filterRestrictedRows drops restricted kinds for a dispatcher and keeps them for a safety manager", () => {
+    const rows = [{ kind: "mvr" }, { kind: "drug_test" }, { kind: "previous_employer_response" }];
+    expect(filterRestrictedRows(rows, "dispatcher").map((r) => r.kind)).toEqual(["mvr"]);
+    expect(filterRestrictedRows(rows, "auditor").map((r) => r.kind)).toEqual(["mvr"]);
+    expect(filterRestrictedRows(rows, "safety_manager")).toHaveLength(3);
+    expect(filterRestrictedRows(rows, "admin")).toHaveLength(3);
   });
 });

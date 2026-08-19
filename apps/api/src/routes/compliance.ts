@@ -11,16 +11,14 @@ import {
   type QualificationRecordCreateRequest,
   rolesThatCanView,
   rolesThatManage,
-  binderRequestSchema,
-  type BinderRequest,
-  documentExportRequestSchema,
-  type DocumentExportRequest,
-  dqExportListQuerySchema,
   qualificationSeedSchema,
   expandQualificationSeed,
   filterAgainstExisting,
   type QualificationSeedRequest,
   type ExistingCertKey,
+  canReadRestricted,
+  filterRestrictedRows,
+  isRestrictedQualificationKind,
 } from "@fuelguard/shared";
 import { randomUUID } from "node:crypto";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
@@ -37,16 +35,7 @@ import {
   listDocuments,
 } from "../services/compliance.js";
 import { getComplianceOverview } from "../services/complianceOverview.js";
-import { buildDocumentExport } from "../services/dqBinder/index.js";
-import {
-  attachJob,
-  createExport,
-  listExports,
-  markDone,
-  markFailed,
-  signExport,
-} from "../services/dqExports.js";
-import { dispatchJob } from "../services/queue/dispatch.js";
+import { complianceExportsRouter } from "./complianceExports.js";
 
 /**
  * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, FuelGuard slice).
@@ -67,14 +56,6 @@ export function complianceRouter(): Router {
 
   const canView = requireRole(...rolesThatCanView("fleet"));
   const canManage = requireRole(...rolesThatManage("fleet"));
-  /**
-   * Who may see the export LEDGER. Wider than who may create an export — an internal auditor's whole
-   * job is reading the record of what left the building — and narrower than `canView`, which includes
-   * dispatch. Dispatch has access to a driver's file when they need a licence (D-BD10); a list of
-   * every driver whose records have been sent out is a different thing.
-   */
-  const canSeeExports = requireRole("admin", "fleet_manager", "safety_manager", "auditor");
-  const today = (): string => new Date().toISOString().slice(0, 10);
 
   // Create a certification (auto-supersedes the prior current one, §10.1). Client-generated id ⇒
   // idempotent replay. Every write is audited — these rows are the DQF a DOT auditor asks for.
@@ -191,6 +172,14 @@ export function complianceRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as QualificationRecordCreateRequest;
+      // Phase G (D-DQ15): recording a restricted kind is itself restricted — a role that cannot read
+      // drug-test results has no business writing them either.
+      if (isRestrictedQualificationKind(body.kind) && !canReadRestricted(req.auth!.role)) {
+        res
+          .status(403)
+          .json(apiError("forbidden", "Drug & alcohol and investigation-history records require a safety manager or admin."));
+        return;
+      }
       const result = await insertQualificationRecord(admin, orgId, req.auth!.userId, body);
       if ("code" in result) {
         res
@@ -227,7 +216,11 @@ export function complianceRouter(): Router {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
-      res.json({ records: result.rows });
+      // Phase G (D-DQ15): this read runs on the service role, so RLS (0205) cannot narrow it — the
+      // filter has to live here. Non-privileged fleet roles see no restricted rows at all.
+      res.json({
+        records: filterRestrictedRows(result.rows as Array<{ kind: string }>, req.auth!.role),
+      });
     }),
   );
 
@@ -306,185 +299,14 @@ export function complianceRouter(): Router {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
-      res.json({ documents: result.rows });
+      // Phase G (D-DQ15): scans of restricted records are as restricted as the records. Service-role
+      // read, so the filter lives here, mirroring the qualification-records list above.
+      res.json({ documents: filterRestrictedRows(result.rows, req.auth!.role) });
     }),
   );
 
-  // ── exports (DQ-BINDER-PLAN) ───────────────────────────────────────────────────────
-  //
-  // The auditor's ask, in one action: name a sample, get their §391.51 files as one PDF, in the
-  // order named. The ledger row is written FIRST and the job is enqueued against it, so a crash
-  // between the two leaves a visible queued export rather than nothing at all.
-  router.post(
-    "/exports/binder",
-    requireOrg,
-    canManage,
-    validateBody(binderRequestSchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      const { env } = getAppLocals(req);
-      const admin = getSupabaseAdmin(env);
-      const orgId = req.auth!.orgId!;
-      const body = res.locals.body as BinderRequest;
-      const asAt = body.asAt ?? today();
-
-      const created = await createExport(admin, orgId, req.auth!.userId, {
-        kind: "binder",
-        driverIds: body.driverIds,
-        asAt,
-      });
-      if ("code" in created) {
-        res.status(500).json(apiError(created.code, created.error));
-        return;
-      }
-
-      // Dedup on the EXPORT, not on (org, kind): two auditors' samples are two different questions and
-      // must be allowed to run at once, while a double-submit of the same one must not.
-      const job = await dispatchJob(admin, env, "dq_binder", {
-        orgId,
-        payload: { exportId: created.id },
-        dedupKey: `dq_binder:${created.id}`,
-        requestedBy: req.auth!.userId,
-      });
-      if ("conflict" in job) {
-        res.status(409).json(apiError("job_conflict", "That binder is already being assembled."));
-        return;
-      }
-      await attachJob(admin, created.id, job.jobId);
-
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "compliance.binder_requested",
-        entity: "dq_exports",
-        entityId: created.id,
-        meta: { driverIds: body.driverIds, asAt, jobId: job.jobId },
-      });
-      res.status(202).json({ exportId: created.id, jobId: job.jobId });
-    }),
-  );
-
-  // One requirement, stamped and streamed (D-BD10). Synchronous on purpose — it is one document, and
-  // a job for it would make the dispatcher wait for a queue to answer a question they asked out loud.
-  router.post(
-    "/exports/document",
-    requireOrg,
-    canManage,
-    validateBody(documentExportRequestSchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const body = res.locals.body as DocumentExportRequest;
-      const asAt = body.asAt ?? today();
-
-      const created = await createExport(admin, orgId, req.auth!.userId, {
-        kind: "document",
-        driverIds: [body.driverId],
-        asAt,
-        requirementKey: body.requirementKey,
-      });
-      if ("code" in created) {
-        res.status(500).json(apiError(created.code, created.error));
-        return;
-      }
-
-      try {
-        const out = await buildDocumentExport(admin, orgId, body.driverId, body.requirementKey, {
-          exportId: created.id,
-          asAt,
-          generatedAt: new Date().toISOString(),
-          generatedBy: req.auth!.email ?? req.auth!.userId,
-        });
-        // Nothing is STORED: the bytes go straight to the caller. The ledger row is the record, and a
-        // released page that is not also sitting in a bucket is one fewer copy to expire (D-BD4).
-        await markDone(admin, created.id, {
-          storagePath: null,
-          bytes: out.bytes.byteLength,
-          pages: out.pages,
-          driversCount: 1,
-          documentsCount: 1,
-          gapsCount: 0,
-        });
-        await writeAudit(admin, {
-          orgId,
-          actorId: req.auth!.userId,
-          action: "compliance.document_released",
-          entity: "dq_exports",
-          entityId: created.id,
-          meta: {
-            driverId: body.driverId,
-            requirementKey: body.requirementKey,
-            documentId: out.documentId,
-            asAt,
-          },
-        });
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${body.requirementKey}-${asAt}.pdf"`,
-        );
-        res.send(out.bytes);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Could not produce the document.";
-        await markFailed(admin, created.id, message);
-        res.status(400).json(apiError("export_failed", message));
-      }
-    }),
-  );
-
-  router.get(
-    "/exports",
-    requireOrg,
-    canSeeExports,
-    asyncHandler(async (req: Request, res: Response) => {
-      const parsed = dqExportListQuerySchema.safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json(apiError("bad_query", parsed.error.message));
-        return;
-      }
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await listExports(admin, req.auth!.orgId!, parsed.data.limit);
-      if ("code" in result) {
-        res.status(500).json(apiError(result.code, result.error));
-        return;
-      }
-      res.json({ exports: result.rows });
-    }),
-  );
-
-  // The ONLY way the bytes are reachable — the bucket has no client policy at all. Reading a binder
-  // is itself worth a ledger line, because "who downloaded it" and "who made it" are not the same
-  // question six months later.
-  router.get(
-    "/exports/:id/download",
-    requireOrg,
-    canSeeExports,
-    asyncHandler(async (req: Request, res: Response) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const result = await signExport(admin, orgId, String(req.params.id));
-      if ("code" in result) {
-        const status =
-          result.code === "not_found"
-            ? 404
-            : result.code === "not_ready"
-              ? 409
-              : result.code === "expired"
-                ? 410
-                : 500;
-        res.status(status).json(apiError(result.code, result.error));
-        return;
-      }
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "compliance.binder_downloaded",
-        entity: "dq_exports",
-        entityId: String(req.params.id),
-        meta: {},
-      });
-      res.json(result);
-    }),
-  );
+  // /exports/* — the binder and stamped-release surface, in its own module (500-line budget).
+  router.use(complianceExportsRouter());
 
   return router;
 }

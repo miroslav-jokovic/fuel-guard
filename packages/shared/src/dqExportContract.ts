@@ -51,6 +51,9 @@ export type DqExportStatus = (typeof DQ_EXPORT_STATUSES)[number];
 export const binderRequestSchema = z.object({
   driverIds: z.array(z.uuid()).min(1).max(DQ_EXPORT_MAX_DRIVERS),
   asAt: isoDateSchema,
+  /** Include §382.401/§391.53 restricted kinds (Phase G, D-DQ15). Privileged roles only — the API
+   *  refuses it otherwise, and the ask is recorded on the export ledger row. */
+  includeRestricted: z.boolean().optional(),
 });
 export type BinderRequest = z.infer<typeof binderRequestSchema>;
 

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildDqFile,
   dqGroups,
+  isRestrictedQualificationKind,
   type DqCertInput,
   type DqDocumentInput,
   type DqFileSummary,
@@ -155,6 +156,11 @@ export async function gatherSample(
   driverIds: string[],
   asAt: string,
   includeHazmat: boolean,
+  /** Phase G (D-DQ15): whether §382.401/§391.53 restricted evidence appears in the output. The
+   *  checklist STATE is always computed from everything (a file with a drug test on record must not
+   *  read "missing" and mislead the reader) — what this gates is the printed event list and the
+   *  embedded scan pages. Verified at the route/handler; this function trusts its caller. */
+  includeRestricted: boolean,
 ): Promise<{ drivers: DriverBinderData[]; missingIds: string[] }> {
   const [driversRes, certsRes, recordsRes, docsRes] = await Promise.all([
     admin
@@ -227,8 +233,16 @@ export async function gatherSample(
         file,
         groups: dqGroups(file),
         certHistory: myCerts.map(toHistoryRow),
-        events: myRecords.map(toEventRow),
-        documentsById: new Map(myDocs.map((x) => [x.id, toDocumentRef(x)])),
+        // The printed evidence honours D-DQ15: restricted events and scans stay out of a default
+        // binder, while `file` above was computed from everything so the states stay truthful.
+        events: myRecords
+          .filter((r) => includeRestricted || !isRestrictedQualificationKind(r.kind))
+          .map(toEventRow),
+        documentsById: new Map(
+          myDocs
+            .filter((x) => includeRestricted || !isRestrictedQualificationKind(x.kind))
+            .map((x) => [x.id, toDocumentRef(x)]),
+        ),
       } satisfies DriverBinderData;
     });
 

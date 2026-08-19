@@ -57,9 +57,9 @@ const orgSeeded = computed(() => {
 });
 
 const requestBinder = useRequestBinder();
-async function buildBinder(driverIds: string[]): Promise<void> {
+async function buildBinder(driverIds: string[], includeRestricted: boolean): Promise<void> {
   try {
-    await requestBinder.mutateAsync({ driverIds, asAt: null });
+    await requestBinder.mutateAsync({ driverIds, asAt: null, includeRestricted });
     tab.value = "exports";
     // It is a job, so the honest thing to say is what happens next and roughly when — not "Done".
     toast.success(
