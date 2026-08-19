@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { AppIcon, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@fuelguard/ui/icons";
 import { DQ_EXPORT_MAX_DRIVERS, type DqAttentionItem, type DqItemState } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -15,7 +15,6 @@ import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 
 /**
  * The fleet qualification table — ONE ROW PER DRIVER.
