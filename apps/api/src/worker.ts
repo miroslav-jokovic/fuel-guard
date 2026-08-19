@@ -60,6 +60,8 @@ const KIND_CAPS: Record<string, number> = {
   hazmat_extract: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
+  // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
+  document_derive: 2,
 };
 if (
   runsConsumer &&

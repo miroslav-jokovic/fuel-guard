@@ -268,6 +268,14 @@ export const documentRowSchema = z.object({
   createdAt: z.string(),
   /** Signed for a few minutes, or null when signing failed. Never a permanent link. */
   url: z.string().nullable(),
+  /**
+   * Signed URLs for this ORIGINAL's derivatives (plan B4), same TTL, same batch signing call.
+   * The list returns one row per original — derivative rows fold into these two fields instead of
+   * appearing as siblings, so no consumer ever renders a thumb as if it were a filed document.
+   * Null/absent until the `document_derive` job has run (or for PDFs, which have no derivatives).
+   */
+  thumbUrl: z.string().nullable().optional(),
+  normalizedUrl: z.string().nullable().optional(),
 });
 export type DocumentRow = z.infer<typeof documentRowSchema>;
 

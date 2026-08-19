@@ -77,6 +77,7 @@ export {
   InformationCircleIcon       as InformationCircleIcon,
   UnavailableIcon             as NoSymbolIcon,                   // ⚠ verify (⊘ vs. slashed-circle)
   EyeIcon                     as EyeIcon,
+  PrinterIcon                 as PrinterIcon,
   ViewOffIcon                 as EyeSlashIcon,
 
   // ── Objects / domain ────────────────────────────────────────────────────

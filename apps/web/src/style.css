@@ -199,3 +199,33 @@ body {
     outline-offset: -2px;
   }
 }
+
+/* ── printing a document preview (DQF plan B6) ────────────────────────────────────────────────────
+   The app had zero @media print rules before this. The only cross-origin-safe way to print a
+   signed-URL scan is to print OUR OWN document with everything but the preview hidden:
+   iframe.contentWindow.print() is blocked cross-origin, and a print popup is popup-blocked.
+   BaseModal's `printable` prop applies .print-target to its panel. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-target,
+  .print-target * {
+    visibility: visible;
+  }
+  .print-target {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    max-height: none;
+    box-shadow: none;
+  }
+  .print-target img {
+    max-width: 100%;
+    max-height: none;
+    page-break-inside: avoid;
+  }
+  @page {
+    margin: 12mm;
+  }
+}

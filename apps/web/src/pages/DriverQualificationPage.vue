@@ -4,9 +4,6 @@ import { useRoute } from "vue-router";
 import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
-  ClipboardDocumentCheckIcon,
-  EyeIcon,
 } from "@fuelguard/ui/icons";
 import {
   buildDqFile,
@@ -16,16 +13,15 @@ import {
   dqGroups,
   isRestrictedQualificationKind,
   moduleEnabled,
-  type DqGroup,
   type DqFileItem,
   type DqItemState,
+  type DocumentRow,
 } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -40,8 +36,8 @@ import {
 import DocumentDropCard from "@/features/compliance/DocumentDropCard.vue";
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
-import KebabMenu from "@/components/KebabMenu.vue";
-import { formatDate } from "@/lib/format";
+import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
+import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
 import { useExportDocument, useRequestBinder } from "@/composables/useDqExports";
 
 /**
@@ -129,12 +125,6 @@ const STATE_TONE: Record<DqItemState, string> = {
   expired: "danger",
   missing: "neutral",
 };
-const STATE_LABEL: Record<DqItemState, string> = {
-  current: "on file",
-  expiring: "due soon",
-  expired: "expired",
-  missing: "missing",
-};
 const GROUP_LINE: Record<DqItemState, string> = {
   current: "complete",
   expiring: "due soon",
@@ -145,30 +135,24 @@ const GROUP_LINE: Record<DqItemState, string> = {
 const showAll = ref(false);
 
 const docById = computed(() => {
-  const m = new Map<string, { url: string; isImage: boolean }>();
-  for (const d of docsQ.data.value ?? [])
-    if (d.url) m.set(d.id, { url: d.url, isImage: d.contentType.startsWith("image/") });
+  const m = new Map<string, DocumentRow>();
+  for (const d of docsQ.data.value ?? []) if (d.url) m.set(d.id, d);
   return m;
 });
 
-interface Row {
-  key: string;
-  label: string;
-  group: DqGroup;
-  state: DqItemState;
-  evidenceDate: string | null;
-  goodUntil: string | null;
-  expiryUnknown: boolean;
-  documentUrl: string | null;
-  /** True when the scan is a photo the cell can show a thumbnail of (PDFs get the icon link). */
-  documentIsImage: boolean;
-  /** §382.401/§391.53 kinds (Phase G, D-DQ15): the STATE stays visible to every fleet role, but the
-   *  evidence and the capture affordances belong to admin + safety_manager. The API filters the
-   *  records/documents anyway — this flag is what replaces the dead affordance with an explanation. */
-  restricted: boolean;
-  /** Tracked-not-required (D8): the item only renders because evidence exists; label it as such. */
-  advisory: boolean;
+// ── the viewer (B6): thumb in the cell, normalized in the modal, original only on Download ───────
+const previewDocId = ref<string | null>(null);
+const previewLabel = ref("");
+const previewDoc = computed(() =>
+  previewDocId.value ? (docById.value.get(previewDocId.value) ?? null) : null,
+);
+function openPreview(row: { documentId: string | null; label: string }): void {
+  if (!row.documentId) return;
+  previewDocId.value = row.documentId;
+  previewLabel.value = row.label;
 }
+
+type Row = RequirementRow;
 const toRow = (i: DqFileItem): Row => {
   const doc = i.documentId ? docById.value.get(i.documentId) : undefined;
   return {
@@ -179,8 +163,10 @@ const toRow = (i: DqFileItem): Row => {
     evidenceDate: i.evidenceDate,
     goodUntil: i.goodUntil,
     expiryUnknown: i.expiryUnknown,
+    documentId: i.documentId,
     documentUrl: doc?.url ?? null,
-    documentIsImage: doc?.isImage ?? false,
+    documentThumbUrl: doc?.thumbUrl ?? doc?.url ?? null,
+    documentIsImage: doc?.contentType.startsWith("image/") ?? false,
     restricted: i.spec.evidenceKinds.some(isRestrictedQualificationKind),
     advisory: i.spec.advisory === true,
   };
@@ -206,23 +192,6 @@ const hasRequirementFilter = computed(
   () => Boolean(requirementSearch.value.trim() || requirementGroup.value),
 );
 
-const columns: DataTableColumn[] = [
-  {
-    key: "label",
-    label: "Requirement",
-    headerClass: "min-w-[18rem]",
-    cellClass: "font-medium text-ink",
-  },
-  { key: "state", label: "Status", headerClass: "w-32" },
-  {
-    key: "evidenceDate",
-    label: "Evidence date",
-    headerClass: "w-36",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "goodUntil", label: "Good until", headerClass: "w-32", cellClass: "text-ink-secondary" },
-  { key: "documentUrl", label: "Scan", headerClass: "w-24" },
-];
 
 // ── releasing a document (D-BD10) ─────────────────────────────────────────────────────
 //
@@ -373,10 +342,8 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       </template>
     </FilterBar>
 
-    <DataTable
-      :columns="columns"
+    <RequirementTable
       :rows="filteredRows"
-      row-key="key"
       :loading="loading"
       :error="errorMessage"
       :retrying="retrying"
@@ -387,90 +354,12 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
             ? 'Nothing on file yet. Drop a document below to start.'
             : 'Nothing needs attention. This file is complete.'
       "
+      :releasing-key="releasing"
       @retry="retry"
-    >
-      <template #cell-label="{ row }">
-        <span class="text-ink">{{ row.label }}</span>
-        <span v-if="row.advisory" :class="['ml-2', BADGE_BASE, toneClass('neutral')]"
-          >tracked, not required</span
-        >
-      </template>
-      <template #cell-state="{ row }">
-        <span :class="[BADGE_BASE, toneClass(STATE_TONE[row.state])]">{{
-          STATE_LABEL[row.state]
-        }}</span>
-        <span v-if="row.expiryUnknown" class="mt-0.5 block text-xs text-warning-700"
-          >No expiry recorded.</span
-        >
-      </template>
-      <template #cell-evidenceDate="{ row }">
-        <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
-        <span v-else class="text-ink-tertiary">—</span>
-      </template>
-      <template #cell-goodUntil="{ row }">
-        <span v-if="row.goodUntil">{{ formatDate(row.goodUntil) }}</span>
-        <span v-else class="text-ink-tertiary">—</span>
-      </template>
-      <template #cell-documentUrl="{ row }">
-        <span
-          v-if="row.restricted && !session.restrictedAccess"
-          class="text-xs text-ink-muted"
-          >Restricted</span
-        >
-        <a
-          v-else-if="row.documentUrl && row.documentIsImage"
-          :href="row.documentUrl"
-          target="_blank"
-          rel="noopener"
-          class="inline-block"
-          :aria-label="`View scan for ${row.label}`"
-        >
-          <img
-            :src="row.documentUrl"
-            alt=""
-            loading="lazy"
-            class="h-8 w-12 rounded-control object-cover ring-1 ring-edge"
-          />
-        </a>
-        <a
-          v-else-if="row.documentUrl"
-          :href="row.documentUrl"
-          target="_blank"
-          rel="noopener"
-          class="inline-flex items-center gap-1 font-medium text-link hover:text-link-hover"
-          :aria-label="`View scan for ${row.label}`"
-        >
-          <AppIcon :icon="EyeIcon" class="size-4" aria-hidden="true" />
-          View
-        </a>
-        <span v-else class="text-ink-tertiary">—</span>
-      </template>
-      <template #actions="{ row }">
-        <KebabMenu
-          v-if="session.canManage && !(row.restricted && !session.restrictedAccess)"
-          :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
-        >
-          <BaseButton type="button" class="kebab-item" @click="openKey = row.key">
-            <AppIcon
-              :icon="row.state === 'missing' ? ClipboardDocumentCheckIcon : ArrowPathIcon"
-              class="size-4"
-              aria-hidden="true"
-            />
-            {{ row.state === "missing" ? "Record requirement" : "Renew requirement" }}
-          </BaseButton>
-          <BaseButton
-            v-if="row.documentUrl"
-            type="button"
-            class="kebab-item"
-            :disabled="releasing === row.key"
-            @click="release(row)"
-          >
-            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-            {{ releasing === row.key ? "Preparing…" : "Release stamped copy" }}
-          </BaseButton>
-        </KebabMenu>
-      </template>
-    </DataTable>
+      @open="openKey = $event"
+      @preview="openPreview"
+      @release="release"
+    />
 
     <DocumentDropCard
       v-if="session.canManage"
@@ -487,6 +376,13 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       :item-key="openKey"
       :preset-document="presetDoc"
       @close="closeDrawer"
+    />
+
+    <DocumentPreview
+      :open="previewDoc !== null"
+      :label="previewLabel"
+      :doc="previewDoc"
+      @close="previewDocId = null"
     />
   </div>
 </template>
