@@ -144,6 +144,8 @@ interface RawSamsaraDriver {
   phone?: string;
   username?: string;
   driverActivationStatus?: string;
+  licenseNumber?: string;
+  licenseState?: string;
 }
 
 export interface SamsaraDriver {
@@ -153,6 +155,10 @@ export interface SamsaraDriver {
   /** Samsara login handle — the alpha-code "Driver ID" (e.g. "aaron"). Null when unset. */
   username: string | null;
   active: boolean;
+  /** CDL number as Samsara holds it (populated 100/100 in the A2b probe). PII — never log it. */
+  licenseNumber: string | null;
+  /** Issuing state for the licence, e.g. "IL". */
+  licenseState: string | null;
 }
 
 interface RawAssignment {
@@ -460,6 +466,8 @@ export function parseSamsaraDrivers(response: { data?: RawSamsaraDriver[] }): Sa
       phone: clean(d.phone),
       username: clean(d.username),
       active: d.driverActivationStatus ? d.driverActivationStatus === "active" : true,
+      licenseNumber: clean(d.licenseNumber),
+      licenseState: clean(d.licenseState),
     }));
 }
 
