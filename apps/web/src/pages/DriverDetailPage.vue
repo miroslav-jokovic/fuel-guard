@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
 import type { Anomaly, Driver, FuelTransaction } from "@fuelguard/shared";
@@ -13,9 +13,47 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QualificationSection from "@/features/compliance/QualificationSection.vue";
+import { useRequestBinder } from "@/composables/useDqExports";
+import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
 
 const route = useRoute();
+const router = useRouter();
 const id = computed(() => String(route.params.id ?? ""));
+
+/**
+ * One driver, one page (DQF plan D1): the qualification file stops being a separate destination and
+ * becomes a section here, beside the fuel history it was always one click away from needing. The
+ * section rides the `?section=` query so /compliance/:id can REDIRECT here without breaking a
+ * bookmark or a binder deep link (D2).
+ */
+type Section = "profile" | "qualification" | "fuel";
+const SECTIONS: Array<{ value: Section; label: string }> = [
+  { value: "profile", label: "Profile" },
+  { value: "qualification", label: "Qualification" },
+  { value: "fuel", label: "Fuel" },
+];
+const section = computed<Section>(() => {
+  const s = String(route.query.section ?? "");
+  return s === "qualification" || s === "fuel" ? s : "profile";
+});
+function setSection(s: Section): void {
+  void router.replace({ query: { ...route.query, section: s === "profile" ? undefined : s } });
+}
+
+// The export action stays on the HOST header (D1's split): it belongs to the page, not the section.
+const session = useSessionStore();
+const toast = useToastStore();
+const requestBinder = useRequestBinder();
+async function exportWholeFile(): Promise<void> {
+  try {
+    await requestBinder.mutateAsync({ driverIds: [id.value], asAt: null });
+    toast.success("Building the file", "It appears under Exports on the qualification page shortly.");
+  } catch (e) {
+    toast.error("Could not start the export", e instanceof Error ? e.message : undefined);
+  }
+}
 const PAGE = 500;
 
 async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
@@ -110,12 +148,37 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Driver performance and fueling history">
+    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Profile, qualification file and fueling history">
       <template #actions>
-        <BaseButton :to="`/compliance/${id}`">Qualification file</BaseButton>
+        <BaseButton
+          v-if="section === 'qualification' && session.canManage"
+          variant="ghost"
+          :disabled="requestBinder.isPending.value"
+          @click="exportWholeFile"
+        >
+          {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
+        </BaseButton>
       </template>
     </PageHeader>
-    <BaseCard v-if="driver">
+
+    <nav class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm" role="tablist" aria-label="Driver sections">
+      <BaseButton
+        v-for="s in SECTIONS"
+        :key="s.value"
+        type="button"
+        role="tab"
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="section === s.value ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
+        :aria-selected="section === s.value"
+        @click="setSection(s.value)"
+      >
+        {{ s.label }}
+      </BaseButton>
+    </nav>
+
+    <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
+
+    <BaseCard v-if="section === 'profile' && driver">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
@@ -130,13 +193,13 @@ const fillColumns: DataTableColumn[] = [
       </dl>
     </BaseCard>
 
-    <BaseCard>
+    <BaseCard v-if="section === 'fuel'">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
       <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
       <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
     </BaseCard>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div v-if="section === 'fuel'" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
         <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">

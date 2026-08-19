@@ -205,12 +205,16 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Driver Qualification" },
   },
   {
-    // D-DQ7: the file is a page, not a drawer. Nested under the list it belongs to rather than
-    // added to the sidebar — this is a detail view, not a new section.
+    // D1/D2: the qualification file became a SECTION of the driver detail page — one driver, one
+    // page. This redirect is load-bearing: bookmarks, the fleet table's links, notification deep
+    // links and the binder's references all say /compliance/:id, and they all keep working.
     path: "/compliance/:id",
     name: "driver-qualification",
-    component: () => import("@/pages/DriverQualificationPage.vue"),
-    meta: { requiresAuth: true, title: "Driver Qualification", parent: "/compliance" },
+    redirect: (to) => ({
+      name: "driver-detail",
+      params: { id: to.params.id },
+      query: { section: "qualification" },
+    }),
   },
   {
     path: "/driver-performance",

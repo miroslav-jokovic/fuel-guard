@@ -576,76 +576,33 @@ Honourable mentions worth copying: `"Certificate staged"` / `"It is not presenti
 
 All of these pass `lint:tokens`. They are structural and typographic violations, and they are the reason a new screen written by copying these files would look wrong.
 
-### 8.1 `features/compliance/DqFilePanel.vue` (183 ln)
+**Rewritten 2026-08-19 (plan step D5).** The section previously indicted `DqFilePanel.vue` (deleted), the 332-line `CompliancePage.vue` (rewritten at 210 lines: FleetTable + attention strip, zero `align` keys, no local badge maps), `CertManager.vue`'s hand-rolled table (rebuilt on `DataTable` + `BADGE_BASE`), and `DriversPage.vue`'s two badge maps (moved into `lib/badges.ts` — `hosStatusBadge` / `appAccessBadge` — in D3). Those entries are resolved and removed; what follows is what REMAINS true against the current tree.
 
-| Line(s) | Violation |
-|---|---|
-| **132–171** | **A hand-rolled `<table>` where `DataTable` exists.** Four columns, a status column, a per-row action — this is exactly what `DataTable` is for. Fix: `DataTable` with `:sticky-header="false"` (like `HazmatEquipmentPage.vue:207`). |
-| **133** | Header row is `text-left text-xs uppercase tracking-wide text-ink-subtle`. The system's table header is `bg-surface-subtle text-ink-muted font-medium` with **no uppercase, no tracking, and `text-sm`** (`DataTable.vue:163,182`). Three separate deviations in one class string. |
-| **135–138, 143–152** | Cell padding is `py-1 pr-3` / `py-1.5 pr-3`. The system is `px-4 py-3` (or `px-4 py-2` dense). Rows here are ~50 % tighter than every other table in the app and have no left gutter. |
-| **142** | `border-t border-edge-subtle` per-row. The system uses `divide-y divide-edge-subtle` on `<tbody>`. |
-| **63–68, 148** | `STATE_CLASS` renders status as **bare coloured text** (`text-success-600` / `text-warning-600` / `text-danger-600`) instead of a badge. Every other status in the app is `[BADGE_BASE, toneClass(...)]`. A status column that is just tinted words does not read as a status. |
-| **120** | Loading is `<p class="mt-3 text-sm text-ink-muted">Loading…</p>` instead of the `TableSkeleton` that `DataTable` gives free. The panel visibly jumps height on load. |
-| **—** | **There is no error state at all.** `useCertificationsQuery` / `useQualificationRecordsQuery` / `useDocumentsQuery` expose `isError`/`refetch` and none is used. A failed fetch renders as a silently empty checklist — for a *compliance* file. `DataTable` would have given `ErrorState` + Retry free. |
-| **173–179 + 82–92** | Raw `<input type="file" class="hidden">` driven by a synthetic `.click()`. `FileDropzone` is the sanctioned uploader (`components/ui/FileDropzone.vue`, with `accept`, `busy`, `busyLabel`, drag-and-drop and keyboard support). This hidden-input trick is unreachable by keyboard except through the "Attach" button and gives no drop target. |
-| **127–130** | The summary line `"3 on file · 1 due soon · 0 expired · 2 missing"` is a bare `<p>`. Everywhere else in the app a set of counts is either badges or the FilterBar `count`. |
-| **113 + 114** | `<div class="space-y-6">` wrapping a single `<div>` child — dead wrapper. |
-
-### 8.2 `pages/CompliancePage.vue` (332 ln)
-
-The script half is exemplary (`FilterBar` with chips + `#more`, `toggleSort`/`sortRows`, `PAGE_SIZE`, page-reset watch). The template forks the visual language.
-
-| Line(s) | Violation |
-|---|---|
-| **99–103, 281–284** | **`QUAL_BADGE` is a hand-rolled badge map.** `bg-success-100 text-success-700` / `bg-danger-100 text-danger-700` / `bg-surface-muted text-ink-muted`, rendered with `class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"`. Three violations: (a) `rounded-full` where `BADGE_BASE` is `rounded-md`; (b) the `-100/-700` pair where the system is `-50/-700 + ring-{tone}-600/20`; (c) no ring at all. And it sits in the **same row** as a `<StatusBadge>` (line 279), so one table row shows two different badge shapes side by side. Fix: `toneClass('success'|'danger'|'neutral')` + `BADGE_BASE`. |
-| **290–293** | `+N more` counter is another hand-rolled pill: `shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted`. That is `toneClass('neutral')` re-typed badly, again `rounded-full`. |
-| **289** | `max-w-[30rem]` arbitrary width **inside a cell slot**. The contract puts widths in `headerClass` (`min-w-[20rem]` is already on line 225, so this fights its own column). |
-| **198–228** | Every column passes `align: "left"`. Only 4 files in the repo do this; the other ~20 table pages let DataTable centre. Compliance's grid therefore does not match Drivers/Trailers/Loads/Fuel log. Remove all four `align` keys. |
-| **267** | `dense` on a 4-column driver roster. `DriversPage`, `TrailersPage`, `VehiclesPage` — the peer roster pages — are not dense. `dense` is documented as "text-xs density for audit/sub tables" (`DataTable.vue:66`). A §391.51 roster is a primary table. |
-| **312–330** | **Both `SlideOver`s have no `#footer` and default `size="md"`.** They host `CertManager` — a full record-creation form with 7 fields and a submit. Compare `DriverAccessModal.vue:252,453` (`size="lg"` + a real footer). The submit button ends up buried mid-scroll inside the body. |
-| **320–324** | The drawer body composes `DqFilePanel` (which itself opens with `space-y-6` and an `h3`) then `<div class="border-t border-edge pt-5">` then `CertManager` (which *also* opens with `space-y-6` and contains its own `border-t border-edge pt-5` at line 91). Result: two nested `space-y-6` stacks and two dividers of different origin in one drawer. The sections should be siblings in one `space-y-6`, with the divider owned by exactly one level. |
-| **277** | `<button class="font-medium text-brand-600 hover:text-brand-500">` — correct classes, but no `type="button"`. Every other in-cell button in the repo sets it (`DispatchLoadsPage.vue:395`). |
-
-### 8.3 `features/hazmat/CertManager.vue` (124 ln)
-
-| Line(s) | Violation |
-|---|---|
-| **76–88** | **Second hand-rolled `<table>`.** Same header string as DqFilePanel (`text-left text-xs uppercase tracking-wide text-ink-subtle`), same `py-1 pr-3` / `py-1.5 pr-3` padding, same per-row `border-t`. Line 78 crams all four `<th>` onto one physical line. Use `DataTable` with `:sticky-header="false"`. |
-| **60–67, 85** | `statusOf()` returns bare text colours (`text-danger-600`, `text-warning-600`, `text-success-600`, `text-ink-muted`) — a status column rendered as tinted words instead of `BADGE_BASE + toneClass`. Identical mistake to DqFilePanel, duplicated. |
-| **74** | `<p v-if="isLoading" class="mt-2 text-sm text-ink-muted">Loading…</p>` — no skeleton. |
-| **75** | `<p v-else-if="!certs || certs.length === 0" class="mt-2 text-sm text-ink-muted">No records on file yet.</p>` — an empty state at `mt-2` left-aligned, where the system's is `px-6 py-10 text-center`. |
-| **—** | **No error state.** `useCertificationsQuery` returns `isError`/`refetch`; neither is destructured. Fetch failure renders as "No records on file yet." — i.e. it silently claims a driver has no CDL. |
-| **114–116** | `<label class="flex items-center gap-2 text-sm text-ink"><BaseCheckbox v-model="…" /> I certify …</label>` — **a `<label>` wrapping `BaseCheckbox`, which is itself a `<label>`.** Nested labels are invalid HTML and break click-to-toggle. `BaseCheckbox`'s default slot *is* the label: `<BaseCheckbox v-model="form.trainingCertified">I certify this training record is complete (§172.704(d)).</BaseCheckbox>`. Also re-declares `text-sm` and uses `text-ink` where the component's own label tone is `text-ink-secondary`. |
-| **117–120** | Submit is `<BaseButton variant="primary" size="sm">` inline in the body, with `saveError` rendered as a sibling `<p class="text-sm text-danger-600">`. Every other form in the app either puts `md`-size actions in the `SlideOver #footer` or uses `toast.error`. This component uses a *third* mechanism (local `saveError` ref) that no other file uses. |
-| **91** | `<div class="border-t border-edge pt-5">` duplicates the divider `CompliancePage.vue:322` already wrapped it in. |
-| **26, 33, 37, 56, 78** | Multiple statements per line / one-line function bodies throughout — inconsistent with every other `.vue` in `features/`. |
-
-### 8.4 `features/roster/*` — mostly good, with specific breaks
+### 8.1 `features/roster/*` — mostly good, with specific breaks
 
 `DriverAccessModal.vue`, `DriverAccessSummary.vue`, `DriverAccountAccessControl.vue` and `DriverCredentialHandoff.vue` are the **best-built drawer code in the repo**: `BaseCard`, `FormField`, `BaseInput`, `BaseButton`, `BADGE_BASE + toneClass`, `#footer` actions, `aria-labelledby`, `aria-live`, real busy labels. Copy their structure. The concrete breaks:
 
 | File:line | Violation |
 |---|---|
 | `DriverAccessModal.vue:263` | `min-h-[26rem]` — arbitrary magic height to fake vertical centring. Use `flex-1` inside the drawer body, or nothing. |
-| `DriverAccessModal.vue:418` | `<div class="mt-3 rounded-lg border border-danger-200 bg-danger-50 p-4">` — a hand-rolled card using **`border`** where the system's soft tint panel is `ring-1 ring-inset ring-danger-200` (cf. `DispatchLoadDetailPage.vue:336`, `DriverCredentialHandoff.vue:156`). Two of the app's three danger panels use `ring`; this one uses `border`. |
-| `DriverAccessModal.vue:276, 427, 375` + `DriverAccessSummary.vue:51` + `DriverAccountAccessControl.vue:112` + `DriverCredentialHandoff.vue:165,233` | `leading-6` / `leading-5` hand-set on body copy. 8 of the app's 12 total `leading-*` usages are in these four files. Nothing else in the codebase overrides line-height. Delete them. |
-| `DriverAccessModal.vue:342, 400` | `<BaseButton class="absolute inset-y-0 right-1 my-auto px-2">` — overriding the button's own padding to jam it inside an input. If a control needs an in-field adornment, it belongs in the input primitive (as `SearchInput`'s clear ✕ and `ComboSelect`'s chevron do), not as a positioned BaseButton. |
-| `DriverAccessSummary.vue:17-32`, `DriverAccountAccessControl.vue:94-107` | The tinted "icon tile" (`flex size-10 shrink-0 items-center justify-center rounded-lg bg-success-50 text-success-700`) is re-declared with a ternary in each file, at two different sizes (`size-10` vs `size-9`). The same pattern also exists at `HazmatPage.vue:60` and `HazmatEquipmentPage.vue:123` (both `bg-brand-50 text-brand-700`). Four call sites, three variants, no component. This should be a primitive. |
-| `DriverCredentialHandoff.vue:225` | `<div class="flex gap-3 rounded-lg bg-surface-subtle p-4 ring-1 ring-inset ring-edge">` — a re-implementation of `BaseCard` with a `surface-subtle` fill. |
-| `DriverAccessSummary.vue:38-49` | The badge is correct (`BADGE_BASE + toneClass`) but the tone is chosen by a **nested ternary inside the template's `:class` array**. Every other file computes this in `<script>`. |
+| `DriverAccessModal.vue:418` | A hand-rolled card using **`border border-danger-200`** where the system's soft tint panel is `ring-1 ring-inset ring-danger-200` (cf. `DriverCredentialHandoff.vue:156`). |
+| `DriverAccessModal.vue` + siblings | `leading-6` / `leading-5` hand-set on body copy — most of the app's `leading-*` usages live in these four files. Nothing else overrides line-height. Delete them. |
+| `DriverAccessModal.vue:342, 400` | `<BaseButton class="absolute inset-y-0 right-1 my-auto px-2">` — overriding button padding to jam it inside an input. In-field adornments belong in the input primitive (as `SearchInput`'s clear ✕ does). |
+| `DriverAccessSummary.vue` / `DriverAccountAccessControl.vue` / `HazmatPage.vue` / `HazmatEquipmentPage.vue` | The tinted "icon tile" (`flex size-10 … rounded-lg bg-success-50 text-success-700`) re-declared per file at two sizes. Four call sites, three variants, no component — should be a primitive. |
+| `DriverCredentialHandoff.vue:225` | A re-implementation of `BaseCard` with a `surface-subtle` fill. |
+| `DriverAccessSummary.vue:38-49` | Badge tone chosen by a nested ternary inside the template's `:class` array; every other file computes it in `<script>`. |
 
-### 8.5 Adjacent files that leak the same anti-patterns (fix while you're there)
+### 8.2 Adjacent files that leak the same anti-patterns (fix while you're there)
 
 | File:line | Violation |
 |---|---|
-| `pages/DriversPage.vue:28-37, 71-76, 265-289` | **Two hand-rolled badge maps** — `HOS_BADGE` (`bg-info-100 text-info-700`, `bg-warning-100 text-warning-700`, …) and `ACCESS_BADGE` (`bg-success-100 text-success-700`, …), rendered with `rounded` (line 269) and `rounded-full` (line 284) respectively. Three badge shapes in one table row alongside `<StatusBadge>` on line 291. All three should be `BADGE_BASE + toneClass`. |
-| `pages/DriversPage.vue:342, 373` | **`divide-border`, `border border-border` — these tokens do not exist.** There is no `--color-border` in `style.css` (the token is `edge`). These classes compile to nothing, so the list at 342 and the `<select>` at 373 render with **no border at all**. The linter can't see it because "border" isn't a banned hue. |
-| `pages/DriversPage.vue:371-379` | A raw `<select class="rounded border border-border bg-surface px-2 py-1 text-xs">` inside a drawer. `AppSelect` / `ComboSelect` exist. |
-| `pages/AssignmentsPage.vue:118`, `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | More `rounded-full px-2(.5) py-0.5 text-xs font-medium` hand-rolled badges. |
-| `features/hazmat/ReviewPanel.vue:161`, `features/anomalies/AnomalyDetail.vue:297`, `features/settings/EfsClientCertCard.vue:232,242,259` | The full `BaseInput`/textarea class string copy-pasted inline (including `focus:ring-brand-500` at 232/242/259 — the system's focus ring is `brand-600`). |
-| `docs/DESIGN-SYSTEM.md` §2, §3 | Stale: lists `TableToolbar` and `SortableTh` (deleted), says DataTable is "text left; `numeric` right" (it centres by default and `numeric` does not right-align), and says FilterBar search is `w-72` (it is `w-full lg:w-64`). `DataTable.vue:29-31` carries the same stale alignment claim. Fix the docs *and* the docblock, or the next engineer will trust them. |
+| `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | Hand-rolled `rounded-full px-2(.5) py-0.5 text-xs font-medium` badges. Badges are `BADGE_BASE + toneClass` and `rounded-md`, never `rounded-full`. |
+| `features/hazmat/ReviewPanel.vue:161`, `features/anomalies/AnomalyDetail.vue:297`, `features/settings/EfsClientCertCard.vue:232,242,259` | The full `BaseInput`/textarea class string copy-pasted inline (including `focus:ring-brand-500` — the system's focus ring is `brand-600`). |
+| `docs/DESIGN-SYSTEM.md` §2, §3 | Stale: lists `TableToolbar` and `SortableTh` (deleted), says DataTable is "text left; `numeric` right" (it centres by default and `numeric` does not right-align), and says FilterBar search is `w-72` (it is `w-full lg:w-64`). `DataTable.vue` carries the same stale alignment claim in its docblock. |
 
----
+### 8.3 Vocabulary rule the compliance rewrite established (D4)
+
+Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (OK / Expiring / Blocked) and `dqFileBadge` (OK / Blocked / Not started) — and from nowhere else. A `.vue` file carrying its own DQ status string literal is the regression to reject in review; the four-vocabulary drift this replaced is documented in `docs/plans/safety-dqf/DQF-EXECUTION-PLAN.md` D4.
 
 ## Quick checklist for a new list page
 
