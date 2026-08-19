@@ -21,6 +21,10 @@ import {
   filterAgainstExisting,
   type QualificationSeedRequest,
   type ExistingCertKey,
+  canReadRestricted,
+  filterRestrictedRows,
+  isRestrictedQualificationKind,
+  DQ_ITEMS,
 } from "@fuelguard/shared";
 import { randomUUID } from "node:crypto";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
@@ -191,6 +195,14 @@ export function complianceRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as QualificationRecordCreateRequest;
+      // Phase G (D-DQ15): recording a restricted kind is itself restricted — a role that cannot read
+      // drug-test results has no business writing them either.
+      if (isRestrictedQualificationKind(body.kind) && !canReadRestricted(req.auth!.role)) {
+        res
+          .status(403)
+          .json(apiError("forbidden", "Drug & alcohol and investigation-history records require a safety manager or admin."));
+        return;
+      }
       const result = await insertQualificationRecord(admin, orgId, req.auth!.userId, body);
       if ("code" in result) {
         res
@@ -227,7 +239,11 @@ export function complianceRouter(): Router {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
-      res.json({ records: result.rows });
+      // Phase G (D-DQ15): this read runs on the service role, so RLS (0205) cannot narrow it — the
+      // filter has to live here. Non-privileged fleet roles see no restricted rows at all.
+      res.json({
+        records: filterRestrictedRows(result.rows as Array<{ kind: string }>, req.auth!.role),
+      });
     }),
   );
 
@@ -306,7 +322,9 @@ export function complianceRouter(): Router {
         res.status(500).json(apiError(result.code, result.error));
         return;
       }
-      res.json({ documents: result.rows });
+      // Phase G (D-DQ15): scans of restricted records are as restricted as the records. Service-role
+      // read, so the filter lives here, mirroring the qualification-records list above.
+      res.json({ documents: filterRestrictedRows(result.rows, req.auth!.role) });
     }),
   );
 
@@ -326,11 +344,21 @@ export function complianceRouter(): Router {
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as BinderRequest;
       const asAt = body.asAt ?? today();
+      // Phase G (D-DQ15): the default binder carries no restricted pages; including them is an
+      // explicit, privileged, ledgered ask.
+      const includeRestricted = body.includeRestricted === true;
+      if (includeRestricted && !canReadRestricted(req.auth!.role)) {
+        res
+          .status(403)
+          .json(apiError("forbidden", "Including restricted records requires a safety manager or admin."));
+        return;
+      }
 
       const created = await createExport(admin, orgId, req.auth!.userId, {
         kind: "binder",
         driverIds: body.driverIds,
         asAt,
+        includeRestricted,
       });
       if ("code" in created) {
         res.status(500).json(apiError(created.code, created.error));
@@ -357,7 +385,7 @@ export function complianceRouter(): Router {
         action: "compliance.binder_requested",
         entity: "dq_exports",
         entityId: created.id,
-        meta: { driverIds: body.driverIds, asAt, jobId: job.jobId },
+        meta: { driverIds: body.driverIds, asAt, jobId: job.jobId, includeRestricted },
       });
       res.status(202).json({ exportId: created.id, jobId: job.jobId });
     }),
@@ -375,6 +403,17 @@ export function complianceRouter(): Router {
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as DocumentExportRequest;
       const asAt = body.asAt ?? today();
+      // Phase G (D-DQ15): releasing the evidence behind a restricted requirement is a privileged act.
+      const spec = DQ_ITEMS.find((i) => i.key === body.requirementKey);
+      if (
+        spec?.evidenceKinds.some(isRestrictedQualificationKind) &&
+        !canReadRestricted(req.auth!.role)
+      ) {
+        res
+          .status(403)
+          .json(apiError("forbidden", "Releasing restricted records requires a safety manager or admin."));
+        return;
+      }
 
       const created = await createExport(admin, orgId, req.auth!.userId, {
         kind: "document",

@@ -20,7 +20,7 @@ export const dqBinderHandler: JobHandler = async (ctx, job, report) => {
 
   const { data: row } = await ctx.admin
     .from("dq_exports")
-    .select("id, status, driver_ids, as_at, requested_by, created_at")
+    .select("id, status, driver_ids, as_at, requested_by, created_at, include_restricted")
     .eq("org_id", job.org_id)
     .eq("id", exportId)
     .maybeSingle();
@@ -31,6 +31,7 @@ export const dqBinderHandler: JobHandler = async (ctx, job, report) => {
     as_at: string;
     requested_by: string | null;
     created_at: string;
+    include_restricted: boolean | null;
   } | null;
 
   if (!exportRow) throw new Error(`export ${exportId} does not exist for this organization`);
@@ -61,6 +62,8 @@ export const dqBinderHandler: JobHandler = async (ctx, job, report) => {
         // because that is when the queue got to it misdates the record it is evidence of.
         generatedAt: exportRow.created_at,
         generatedBy,
+        // Phase G (D-DQ15): from the ledger row the route wrote after its privilege check.
+        includeRestricted: exportRow.include_restricted === true,
       },
       report,
     );

@@ -115,3 +115,42 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   // signature over, so nothing downstream has to trust the client about when it signed in.
   issuedAt: typeof c.iat === "number" ? c.iat : null,
 });
+
+// ── Restricted qualification records (Phase G, D-DQ15) ────────────────────────
+//
+// Federal law puts some safety-file records behind controlled access, narrower than the fleet
+// section's `canView`: §382.401(a) requires drug & alcohol testing records in "a secure location
+// with controlled access", and §391.53(a)(1) limits the investigation-history file to "those who
+// are involved in the hiring decision". The Clearinghouse query kinds are included as prudent
+// practice — they are D&A program records in substance, though §382.401's enumeration was not
+// verified to name them.
+//
+// THE SINGLE SOURCE OF TRUTH for which kinds are restricted and who may read them. Consumed by
+// three enforcement layers that must agree: the restrictive RLS policies (0205 — the PostgREST
+// path), the API filters in routes/compliance.ts (the service-role path, where RLS cannot help),
+// and the web UI's affordance gating. A kind listed in two places is how one layer forgets.
+export const RESTRICTED_QUALIFICATION_KINDS = [
+  "drug_test", // §382.401
+  "alcohol_test", // §382.401
+  "clearinghouse_full", // D&A program record (prudent, see above)
+  "clearinghouse_limited", // D&A program record (prudent, see above)
+  "previous_employer_inquiry", // §391.53(a)(1)
+  "previous_employer_response", // §391.53(a)(1)
+] as const;
+
+const RESTRICTED_KIND_SET: ReadonlySet<string> = new Set(RESTRICTED_QUALIFICATION_KINDS);
+
+export const isRestrictedQualificationKind = (kind: string): boolean =>
+  RESTRICTED_KIND_SET.has(kind);
+
+/** Who may read restricted records: admin + safety_manager (D-DQ15 — no new role). */
+export const canReadRestricted = (role: UserRole | null | undefined): boolean =>
+  role === "admin" || role === "safety_manager";
+
+/** The one filter both API read paths apply. Privileged roles see everything; others see no restricted rows. */
+export function filterRestrictedRows<T extends { kind: string }>(
+  rows: readonly T[],
+  role: UserRole | null | undefined,
+): T[] {
+  return canReadRestricted(role) ? [...rows] : rows.filter((r) => !RESTRICTED_KIND_SET.has(r.kind));
+}

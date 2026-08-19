@@ -36,6 +36,17 @@ describe("getComplianceOverview — the driver predicate", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("carries computed state only — no record payloads the restricted-kind filter could miss (Phase G)", async () => {
+    const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active" }]);
+    const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");
+    // A dispatcher may see restricted items' STATE (D-DQ15) but never the records behind them. The
+    // overview satisfies that by construction — it returns no evidence rows at all — and this pins
+    // the shape so a future field addition has to face the question.
+    expect(Object.keys(result.drivers[0]!).sort()).toEqual(
+      ["attention", "counts", "driver_id", "driver_name", "driver_status", "groups", "state"],
+    );
+  });
+
   it("computes a file for every returned driver even with zero evidence rows", async () => {
     const rec = makeRecorder([
       { id: "d1", full_name: "A Driver", status: "active" },

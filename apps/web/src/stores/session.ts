@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
 import type { UserRole } from "@fuelguard/shared";
-import { canManageFleet, isAdmin, isReadOnly } from "@fuelguard/shared";
+import { canManageFleet, canReadRestricted, isAdmin, isReadOnly } from "@fuelguard/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
 import { clearStepUp } from "@/lib/stepUp";
@@ -55,6 +55,8 @@ export const useSessionStore = defineStore("session", () => {
   const canManage = computed(() => canManageFleet(role.value));
   const admin = computed(() => isAdmin(role.value));
   const readOnly = computed(() => isReadOnly(role.value));
+  /** §382.401/§391.53 restricted records — admin + safety_manager only (Phase G, D-DQ15). */
+  const restrictedAccess = computed(() => canReadRestricted(role.value));
 
   async function init() {
     if (DEV_BYPASS) {
@@ -108,6 +110,7 @@ export const useSessionStore = defineStore("session", () => {
     canManage,
     admin,
     readOnly,
+    restrictedAccess,
     init,
     signIn,
     signOut,

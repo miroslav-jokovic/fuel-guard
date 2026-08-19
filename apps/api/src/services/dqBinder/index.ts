@@ -113,6 +113,9 @@ export interface BinderRequestContext {
   asAt: string;
   generatedAt: string;
   generatedBy: string;
+  /** Phase G (D-DQ15): from the export ledger row, where the route recorded the privileged ask.
+   *  Absent/false = the default binder, with no §382.401/§391.53 evidence in it. */
+  includeRestricted?: boolean;
 }
 
 export async function buildBinder(
@@ -132,6 +135,7 @@ export async function buildBinder(
     driverIds,
     req.asAt,
     includeHazmat,
+    req.includeRestricted === true,
   );
   if (drivers.length === 0) {
     throw new BinderError("None of the drivers requested are on this carrier's roster.");
@@ -210,7 +214,9 @@ export async function buildDocumentExport(
     gatherCarrier(admin, orgId),
     hazmatEnabled(admin, orgId),
   ]);
-  const { drivers } = await gatherSample(admin, orgId, [driverId], req.asAt, includeHazmat);
+  // includeRestricted true: the ROUTE has already refused a non-privileged caller asking for a
+  // restricted requirement, and a privileged release of one is exactly what this export is.
+  const { drivers } = await gatherSample(admin, orgId, [driverId], req.asAt, includeHazmat, true);
   const data = drivers[0];
   if (!data) throw new BinderError("That driver is not on this carrier's roster.");
 
