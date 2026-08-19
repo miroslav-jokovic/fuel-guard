@@ -376,6 +376,7 @@ const EnvSchema = z.object({
   // GovInfo API (api.govinfo.gov) — used for HMDB/regulatory data lookups. Optional; features
   // that need it will fail clearly when unset.
   GOVINFO_API_KEY: z.string().optional(),
+  PSP_API_KEY: z.string().optional(),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
