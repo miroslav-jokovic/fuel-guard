@@ -62,6 +62,85 @@ wrong.
 
 ---
 
+## Architecture — what Phase E copies from the EFS module, and what it deliberately does not
+
+**The question this answers.** The EFS card-control module (`docs/27-EFS-CAPABILITY-ARCHITECTURE.md`)
+is the most carefully-built surface in this product, and the reasonable instinct is "build DQF the same
+way". That instinct is right for exactly one part of this plan and wrong for the rest, so the boundary
+is drawn here rather than left to taste.
+
+### What the EFS architecture actually is
+
+```
+Capability  =  Contract  ×  Behaviour  ×  View
+Behaviour   =  Target  ×  Mutation  ×  Verification  ×  Governance
+```
+
+Three type-linked artifacts in three packages — browser-safe contract in `packages/shared`, behaviour
+in `apps/api`, view in `apps/web` — held together by a cross-registry fitness test
+(`apps/api/src/efs/registry.test.ts`) because nothing else can hold declarations that live in three
+places. Underneath: a five-phase orchestrator (prepare → plan → dispatch → verify → settle), a ledger
+row per mutation carrying an idempotency key and the request body, and a background reconciler that
+re-judges rows after the fact.
+
+It exists because of a specific failure: adding one write touched nine files with nothing enforcing
+that you touched all nine, and the orchestrator conflated targeting, mutating and verifying into one
+hardcoded path. Its thesis is one sentence — **"generalising dispatch is easy; generalising
+verification is the job."**
+
+### Where it applies here, and where copying it would be cargo-culting
+
+| Part of this plan | Direction | Architecture |
+|---|---|---|
+| **B — documents, derivatives, previews** | inbound / local | House conventions. We write to our own bucket; there is no vendor to disagree with us. |
+| **C — alerts** | outbound, but ours | House conventions plus `notify()`'s existing dedupe/mute/quiet-hours governance. |
+| **D — pages, IA, the Samsara licence field map** | local | House conventions. |
+| **E — SambaSafety** | **outbound mutation against a vendor** | **The EFS capability architecture.** |
+| **E's webhook receiver** | **inbound** | NOT a capability. Ingest, with signature/Basic verification and a queue. |
+
+A thumbnail generator has no landing to judge and no ledger to keep. Applying `Target × Mutation ×
+Verification × Governance` to it would be ceremony that makes the next reader look for a vendor that
+is not there. Phase E is the only place in this plan where a write leaves our control, can partially
+fail, can be replayed, and **costs money** — which is precisely the class the EFS architecture was
+built for.
+
+### The four adaptations, each stated rather than silently taken
+
+**1. `View` is optional, and its absence is CHECKED.** Every EFS capability is triggered by a human at
+a card drawer, so three artifacts are unconditional. Three of the four Samba capabilities are
+triggered by a sync, not a person. So the contract carries `userTriggered: boolean`, and the fitness
+test asserts **both directions**: `userTriggered: true` must have a view, `false` must not have one. A
+merely-permitted absence would let a real UI go missing and the test still pass.
+
+**2. There is no `echo` mutation kind.** EFS's echo exists because its SOAP API requires resubmitting
+the entire card document, so `assertEchoFidelity` guards against clobbering fields you never meant to
+touch. SambaSafety is JSON REST with per-resource endpoints; there is no document to echo. Samba
+capabilities are `direct` only — plus `sequence`, which is genuinely needed and is not a simplification
+(see 4).
+
+**3. `indeterminate` is the normal outcome for an MVR order, not an error.** The EFS `Landing` type is
+`landed | not_landed | indeterminate`, and `apps/api/src/efs/types.ts:94` already anticipates exactly
+this case in a comment — *"an ordering op whose fulfilment horizon is days, can say so"*. An MVR order
+is accepted immediately and the report arrives later by webhook. So `judge` returns `indeterminate` on
+a well-formed acceptance, the row settles `sent`, and the **webhook or the reconciler** is what moves
+it to `succeeded`. This is the one place where DQF exercises a branch of the EFS design that EFS itself
+never needed, and it works because the shape was drawn honestly the first time.
+
+**4. `sequence` is load-bearing from day one.** Enrolling a driver is person → licence → enrolment,
+three vendor writes that must not half-apply. EFS added `sequence` for one two-step operation and made
+`partial` a terminal-but-actionable state with a `step_index`; Samba needs it immediately. Recovery is
+re-running from `step_index`, which is safe because each step is idempotent on `customPersonId`.
+
+### The one thing NOT to copy
+
+**Do not build a `LedgerAdapter` seam.** EFS deliberately kept one ledger implementation and wrote the
+second down without building it, under the rule that an abstraction may only accommodate cases that
+exist in code today. Here four vendor operations exist on day one, so `samba_mutations` is a real
+table — but it is one table for one vendor, not a generic "integration mutations" abstraction serving
+a McLeod integration nobody has written yet.
+
+---
+
 ## Phase A — Facts to acquire (blocks only Phase E; start it first anyway)
 
 ### A1 · Acquire the SambaSafety API definition — **DONE 2026-08-18**
@@ -157,12 +236,12 @@ So the chain that makes this feature real is:
 ```
 Samsara licenseNumber + licenseState  (already arriving, discarded today)
         → drivers.cdl_number / cdl_state          [new step D6]
-        → SambaSafety person + licence + enrolment [E3]
-        → MVR                                      [E4]
+        → SambaSafety person + licence + enrolment [E4]
+        → MVR                                      [E5 order → E6 webhook → E7 ingest]
         → certifications + qualification_records populated automatically
 ```
 
-**D6 is now the highest-value step in this plan**, and it is small: extend one sync's field map. It
+**D6 is the highest-value step in this plan**, and it is small: extend one sync's field map. It
 must honour `0098`'s "enrich, never clobber" rule and DQ1's manual-row protection — a licence someone
 corrected by hand is not overwritten by telematics — and must never log the licence number, which is PII.
 
@@ -541,61 +620,145 @@ document viewer so the next person does not build a second one.
 
 ---
 
-## Phase E — SambaSafety *(gated on A1; nothing here is written before the spec is in the repo)*
+## Phase E — SambaSafety, as a capability module
 
-### E1 · Credentials, in the table that already exists
-`org_integrations` with `provider='sambasafety'` (G17): secrets in the row, non-secret settings in `config`
-(account id, demo/production, monitored-driver quota). Service-role only — it already has no client policies.
-**Migration:** none. **Done when:** a scratch script reads and writes the row through the admin client only.
+Built on the EFS architecture per the Architecture section above. Every write to SambaSafety is a
+capability; the webhook receiver is not.
 
-### E2 · `apps/api/src/services/samba/client.ts`
-Written against `docs/vendor/sambasafety-postman-collection.json`, never against prose. Concretely:
-`POST /oauth2/v1/token` with Basic(clientId:clientSecret) + `X-Api-Key`, `grant_type=client_credentials`,
-`scope=API`; cache the token for `expires_in` minus a margin; send `Authorization: Bearer` **and**
-`X-Api-Key` on every call; 429/5xx retry with jitter; persist every response body verbatim before parsing.
-**The non-obvious guard:** SambaSafety returns **application errors with HTTP 200** (`SAMBA-RECON.md` §6).
-A client that branches on status alone will file a failed MVR order as a success — so the response
-envelope is checked for an error `code` on every 200.
-**Done when:** a fixture test round-trips one MVR response, and a second fixture proves a `200` carrying
-`{"code":"B02"}` is surfaced as an error, not a success.
+**The four capabilities**, and why exactly these:
 
-### E3 · Enrollment sync
-`services/samba/enrollmentSync.ts`: our `drivers` (status `active`/`on_leave`, matching `complianceOverview.ts:95`)
-↔ Samba monitored drivers, joined on **`customPersonId` = our `drivers.id`** (G27) — no mapping table.
-Enrol on hire (`PUT /monitoring/v1/licenseenrollments/:licenseId` `{enrollmentType:'enrolled'}`), unenrol on termination. **Unenrolment is the cost control** — a
-monitored driver bills monthly whether or not they still work here.
-**Done when:** a matrix-style test proves a terminated driver is unenrolled exactly once and never re-enrolled.
+| key | What it mutates | `userTriggered` | Mutation | Landing |
+|---|---|---|---|---|
+| `samba_person_create` | a person in the Silvicom group | false — the sync creates it | direct | `landed` on a `personId` that reads back |
+| `samba_license_create` | a licence on that person | false | direct | `landed` on a licence that reads back |
+| `samba_enrollment_set` | monitoring on/off for a licence | false | direct | `landed` when the enrolment reads `enrolled`/`unenrolled` as asked |
+| `samba_mvr_order` | **an MVR order — this one bills** | **true** | direct | **`indeterminate`** on acceptance; the webhook settles it |
+| `samba_driver_onboard` | the three above, in order | false | **sequence** | per-step; `partial` with `step_index` on a half-apply |
 
-### E4 · MVR ingest → the tables we already have (G18)
-**Order the report twice, in two media types:** `Accept: application/vnd.sambasafety.platform.mvr+pdf`
-for the artifact an auditor expects, and `+json` for the fields that populate `qualification_records`.
-The PDF files into `documents` as `content_type='application/pdf'` — no rasteriser, no conversion.
-An MVR arrives → store the report bytes as a `documents` row (`kind='mvr'`, the HTML/PDF the vendor returns
-per G25) → insert a `qualification_records` row (`kind='mvr'` or `'annual_mvr_review'`) citing that document
-id. Both writes audited. **Zero schema change.**
-**Done when:** ingesting a fixture produces exactly one document row and one record row, and re-ingesting the
-same report id produces neither.
+### E0 · The vocabulary — **do this first, it is what makes the rest compile-checked**
+`packages/shared/src/samba/types.ts` + `apps/api/src/samba/types.ts`, modelled on
+`packages/shared/src/efs/types.ts` and `apps/api/src/efs/types.ts`, with the four adaptations named in
+the Architecture section. Include `defineContract`/`defineBehaviour` identity helpers — they look like
+no-ops and are the inference anchor that makes a contract change a compile error in the behaviour and
+the view rather than a runtime surprise on a real driver.
+**Done when:** the types compile with no capability written against them yet, exactly as EFS's did.
 
-### E5 · Webhooks — authenticated by Basic, hardened by signature later
-`POST /api/integrations/samba/webhook`, unauthenticated by session but verified against
-`X-SambaSafety-Signature`, replay-protected by `eventId`. Rejects before parsing. Enqueues a job; never
-processes inline. The payload is **HATEOAS, not data** — `{eventId, data:{orderId, links:[{rel,href}]}}` —
-so the handler follows `links[].href` to fetch the report and never treats the event body as the record.
-**Authentication (G26):** all 13 event docs specify `Authorization: Basic base64(clientId:clientSecret)`
-on the callback — credentials we already hold. Verify it with a **constant-time compare**, reject before
-parsing, and treat a missing header as a rejection (the vendor marks it "optional"; we do not).
-`X-SambaSafety-Signature` is verified **in addition** once the vendor states the algorithm — a strictly
-stronger check added later, not a precondition. Subscriptions: `POST|GET|PUT|DELETE /reports/v1/subscriptions`.
-**Done when:** a test proves a body with a wrong signature is rejected with no side effect, and a replayed
-event id is a no-op.
+### E1 · Credentials — no new table (G17)
+`org_integrations` with `provider='sambasafety'`: three secrets per environment (client id, client
+secret, api key — `SAMBA-RECON.md` §2), non-secret settings in `config` (`groupId` from A5, demo vs
+production, the MVR product path A5 pinned). Service-role only; it already has no client policies.
+**Done when:** a scratch script reads and writes the row through the admin client only, and `gitleaks`
+is clean.
 
-### E6 · Surface it
-An `Integrations` card on `OrgSettingsPage.vue` showing connection state and `last_synced_at`; on the driver's
-Qualification section, MVR rows show a *Source: SambaSafety* marker so a human-entered MVR and a pulled one
-are never confused.
-**Done when:** the marker renders from data, not from a heuristic on the record's shape.
+### E2 · `apps/api/src/samba/client.ts` — the vendor edge, and nothing else
+OAuth2 client-credentials with `X-Api-Key` on every call, token cached for `expires_in` minus a margin,
+429/5xx retry with jitter, every response body persisted verbatim before parsing.
 
----
+**The guard that must be structural, not remembered:** SambaSafety returns **application errors with
+HTTP 200** (`SAMBA-RECON.md` §6). The client checks the response envelope for an error `code` on every
+200 and converts it to a typed failure. A capability's `judge` must never be the first thing to notice.
+
+**Opts arrive built.** Following `ReadCtx`/`DispatchCtx`: the capability receives its retry policy and
+deadline and never constructs them, so pacing cannot become per-capability discretion.
+**Done when:** a fixture test round-trips one MVR response, and a second proves a `200` carrying
+`{"code":"B02"}` surfaces as an error.
+
+### E3 · `samba_mutations` — the ledger
+Migration **0205** (0204 is B2's `derived_from`). Mirrors `efs_card_mutations` minus the card-specific
+columns:
+
+```sql
+id, org_id, capability_key, driver_id, target_kind, target_ref,
+idempotency_key, request_body jsonb (redacted), status, step_index,
+attempts, vendor_ref, error, created_at, settled_at
+```
+
+`status` uses the **same six values** as the card ledger — `pending, sent, succeeded, failed,
+drift_detected, partial` — because an operator reading two integration surfaces should not learn two
+vocabularies. A partial unique index gives one in-flight mutation per `(capability_key, target_ref)`,
+as `uq_efs_card_mutations_one_pending` does.
+
+**`request_body` is not optional.** Without it the reconciler cannot re-judge a row it did not write,
+which is the exact defect EFS hit with its `direct` mutations before Step 3.9.
+**PII:** the body carries licence numbers. It is redacted on the way in, per `redactCardXml`.
+**Done when:** a migration matrix proves the one-in-flight index holds and that a replayed
+idempotency key returns the first outcome rather than issuing a second vendor call.
+
+### E4 · The three sync capabilities + the onboarding sequence
+`samba_person_create`, `samba_license_create`, `samba_enrollment_set`, composed by
+`samba_driver_onboard`.
+
+- **Target** — the driver, joined by `customPersonId = drivers.id` (G27). No mapping table, no
+  name-matching; name-matching a roster is what produced the `0203` damage and the A2c stubs.
+- **Who is eligible** — drivers with a `cdl_number` and `cdl_state` (which D6 supplies) that are
+  **not** EFS-provisioned stubs (A2c). **A2c's fix lands before this step**, or the sequence enrols
+  fuel-card names into a billed subscription.
+- **Verification** — `snapshot` reads the person/licence/enrolment back; `judge` asks whether it moved;
+  `reconcile` is the after-only predicate the background pass uses.
+- **Unenrolment on termination is the cost control** and is its own invocation of
+  `samba_enrollment_set`, not a special case inside the sync.
+**Done when:** a behaviour test proves a terminated driver is unenrolled exactly once and never
+re-enrolled, and a half-applied sequence settles `partial` with the failing `step_index`.
+
+### E5 · `samba_mvr_order` — the one that bills, and the only `userTriggered` capability
+**Governance is the point of this capability**, and it is the axis the pre-rewrite plan had nothing on:
+
+- **Step-up re-authentication** on order. It spends money and pulls a person's driving record.
+- **A per-org monthly MVR budget**, using the shape hazmat extraction already proved —
+  `withinBudget` + the `org_usage_month` counter incremented atomically with the write
+  (`0130_hazmat_run_counter.sql`). A runaway sync must hit a ceiling, not an invoice.
+- **A kill switch**, as `extractionEnabled` is for vision.
+- **The UT/CA/PA guard** (A5): a licence issued in a state whose access code is unconfigured is
+  refused by name, not attempted.
+
+**Landing is `indeterminate` by design.** Acceptance means accepted, not delivered — the row settles
+`sent` and E6's webhook moves it to `succeeded`. A `judge` that claimed `landed` here would be lying
+about a report that does not exist yet.
+**Done when:** an over-budget order is refused with no vendor call, an order without step-up is
+refused, and an accepted order settles `sent` rather than `succeeded`.
+
+### E6 · The webhook receiver — ingest, deliberately NOT a capability
+`POST /api/integrations/samba/webhook`. A capability is a write WE initiate; this is the vendor
+talking back, and modelling it as one would put an inbound handler in a registry whose fitness test is
+about outbound artifacts.
+
+- **Authentication (G26):** `Authorization: Basic base64(clientId:clientSecret)` — credentials we
+  already hold — verified with a **constant-time compare**, rejected before parsing. A missing header
+  is a rejection; the vendor calls it optional, we do not. `X-SambaSafety-Signature` is verified *in
+  addition* once the algorithm is documented (A1's open item) — strictly stronger, added later.
+- **Replay-protected by `eventId`.**
+- **The payload is HATEOAS, not data** — `{eventId, data:{orderId, links:[{rel,href}]}}`. The handler
+  follows `links[].href` to fetch the report and never treats the event body as the record.
+- **It settles the ledger row** for the matching `samba_mvr_order` — which is what makes E5's
+  `indeterminate` honest rather than an unanswered question.
+**Done when:** a wrong-signature body has no side effect, a replayed `eventId` is a no-op, and a
+`motorvehiclereport.received` event moves its ledger row `sent → succeeded`.
+
+### E7 · MVR ingest → the tables we already have (G18)
+Order the report in **two media types** (`SAMBA-RECON.md` §4): `application/vnd.sambasafety.platform.mvr+pdf`
+for the artifact an auditor expects, `+json` for the fields. The PDF files into `documents` as
+`content_type='application/pdf'`; the parsed fields insert a `qualification_records` row citing that
+document id. Both writes audited. **No schema change** — the kinds already exist.
+**Done when:** ingesting a fixture produces exactly one document row and one record row, and
+re-ingesting the same report id produces neither.
+
+### E8 · The cross-registry fitness test
+`apps/api/src/samba/registry.test.ts`, modelled on `apps/api/src/efs/registry.test.ts` — including its
+**non-empty-discovery guard**, which is not ceremony: a discovery that finds nothing makes every loop
+body vacuous and every assertion pass, which is exactly how `routeAuth.test.ts` once asserted 401s
+about routers it had never seen. Count first, then assert.
+
+Asserts: every contract has a behaviour; `userTriggered: true` has a view **and `false` does not**;
+every `capability_key` is unique and matches the ledger CHECK; every capability declares a `verify`
+with both `judge` and `reconcile`; every billing capability declares a budget and a step-up gate.
+**Done when:** deleting any one artifact of any capability turns the suite red.
+
+### E9 · Surface it
+An Integrations card on `OrgSettingsPage.vue` (connection state, `last_synced_at`, enrolled count vs
+eligible), and on the driver's Qualification section an MVR row marked **Source: SambaSafety** from
+data, never inferred from a record's shape — so a hand-entered MVR and a pulled one are never confused.
+The only capability View is `samba_mvr_order`'s confirmation, which must state the cost and the
+remaining monthly budget before the operator confirms.
 
 ## Phase F — Retention, closing D-DQ3 and D-DQ5
 
@@ -616,34 +779,41 @@ still employed reports not purgeable.
 ## Sequencing
 
 ```
-A1 A2 A3 A4  ──────────────────────────────────────────►  (A1 gates E only)
+A1 ✓  A2 ✓  A2b ✓  A2c ✓  A4 ✓      A3, A5 open
       │
-      ├─ B1 → B2 → B3 → B4 → B5 → B6   (previews; the visible win)
-      ├─ B7                            (independent; ship it first — it stops a live leak)
-      ├─ B8 → B9                       (after B2 exists)
+      ├─ B7 ✓                          (shipped — the sweep that was missing)
+      ├─ B1 ✓ → B2 → B3 → B4 → B5 → B6 (previews; B5 adds BaseModal to the design system)
+      ├─ B8 → B9                        (after B2 exists; B8 is a no-op until documents exist)
       │
-      ├─ C1 → C2 → C3 → C4 → C5        (independent of B; can run in parallel)
+      ├─ C1 → C2 → C3 → C4 → C5         (independent of B)
       │
-      ├─ D1 → D2 → D3 → D4 → D5        (after C5, which touches CompliancePage)
-      ├─ D6                            (independent, small, and gates everything Phase E can do)
+      ├─ D1 → D2 → D3 → D4 → D5         (after C5, which touches CompliancePage)
+      ├─ D6                             (the field map — gates everything Phase E can do)
       │
-      └─ E1 → E2 → E3 → E4 → E5 → E6   (after A1)
+      └─ A2c-fix → D6 → A5 → E0 → E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9
                                         F1 → F2  (last; nothing depends on it)
 ```
 
-**Ship order, revised by A2b:** **D6 first** — it is a one-sync field map and it is the only thing
-standing between an empty product and Phase E filling it. Then E1–E4 (SambaSafety: licence → MVR →
-certifications), which is what actually populates 248 files without anyone typing. Then B1–B6 (previews)
-and C1–C3 (alerts), which make a populated surface good — and which have nothing to act on until the
-first two land. B7 already shipped.
+**Two hard orderings inside Phase E, and both are about money or safety:**
+
+1. **A2c's fix lands before E4.** 81 of 248 "active" drivers are EFS fuel-card name stubs. Enrolling
+   them is a per-driver monthly charge for people who do not work here, 46 of whom provably left.
+2. **E0 before everything else in E.** The vocabulary is what makes contract/behaviour/view a
+   compile-checked triple instead of three files that agree by luck. EFS added its types before any
+   capability consumed them, for the same reason.
+
+**Ship order, revised by A2b and A2c:** **D6 first** — a one-sync field map, and the only thing between
+an empty product and Phase E filling it. Then A2c's fix, then E0–E7, which populates files without
+anyone typing. Then B1–B6 (previews) and C1–C5 (alerts), which make a populated surface good and have
+nothing to act on until the first two land. B7 and B1 have shipped.
 
 ## Definition of done, per phase
 
 | Phase | Gate |
 |---|---|
-| A | `docs/vendor/sambasafety-openapi.json` exists and parses; `STORAGE-BASELINE.md` has four numbers; A4 recorded as D-DQ9/D-DQ10 |
+| A | ✓ vendor collection committed and analysed; baseline measured; A2b/A2c answered; D-DQ9/10/11 recorded. Open: A3 (HEIC probe), A5 (recon script) |
 | B | `pnpm test` green; `pnpm lint:filesize && pnpm lint:funcsize && pnpm --filter web lint:tokens` green; orphan count from A2 → 0 |
 | C | Two consecutive scheduler runs emit each alert once; digest email renders the DQ block |
 | D | `/compliance/:id` redirects; every §8 path in the design contract resolves; no status literal outside `badges.ts` |
-| E | Fixture MVR ingests idempotently; a 200-with-error-code is surfaced as an error; a wrong-signature webhook has no side effect |
+| E | Deleting any one artifact of any capability turns E8 red; an over-budget or step-up-less MVR order is refused with no vendor call; an accepted order settles `sent`, not `succeeded`; a replayed idempotency key issues no second vendor call; a half-applied sequence settles `partial` with its `step_index`; a 200-with-error-code surfaces as an error; a wrong-signature webhook has no side effect |
 | F | Purgeable report returns for a terminated driver; `RETENTION_FORBIDDEN` unchanged |
