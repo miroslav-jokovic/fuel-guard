@@ -326,11 +326,30 @@ estimate (SambaSafety monitoring is priced per enrolled driver) would be inflate
 Recommendation: **(a) plus (c)**, and (a) lands before D6 so nothing enrols a stub into a paid
 monitoring subscription.
 
-### A3 · Probe HEIC decode
-`documents.content_type` admits `image/heic` (G5). Write a throwaway script that runs `sharp(heicBuffer).metadata()`
-in the API's own container image.
-**Done when:** the answer is recorded. If HEIC does not decode, B1 must either add `heic-convert` or the
-0146 constraint must be narrowed in a later migration — the plan branches here rather than guessing.
+### A3 · Probe HEIC decode — **ANSWERED 2026-08-19; the plan's own probe design would have lied**
+
+Measured against a real HEVC `.heic` (encoded with macOS `sips`), not assumed:
+
+1. **`sharp(heicBuffer).metadata()` SUCCEEDS** — it parses the container header only. The probe this
+   step originally prescribed would have reported support that does not exist.
+2. **Pixel decode FAILS**: `heif: Support for this compression format has not been built in` — the
+   prebuilt sharp/libvips binaries (libvips 8.18.3) carry HEIF-with-AV1 (the format entry's
+   `fileSuffix: [".avif"]` is the tell) and no libde265, so the iPhone default format does not decode.
+
+**The branch taken: neither of the two the step guessed at.** `heic-convert` transcodes to JPEG (a
+second lossy generation before the WebP encode), and narrowing 0146 would reject the format iPhones
+produce. Instead `heic-decode` (WASM libheif) decodes HEIC → raw RGBA which feeds sharp directly —
+one lossy encode total, no native build, and byte-identical behaviour on every platform because it
+is WASM. libheif applies the container's irot/imir transforms, so orientation survives.
+
+**The proof is a committed fixture, not a recorded claim:** `hevc-sample.heic` lives in the api test
+fixtures, and its test asserts BOTH directions — sharp alone still rejects it (so the day prebuilt
+libvips gains HEVC, the test fails and the WASM path becomes removable), and `deriveBytes` produces
+a bounded WebP from it. CI runs on linux-x64 — the deployment platform — so every CI run re-answers
+this step's question against the runtime that matters.
+
+Residual note: until the derive job has run, `DocumentPreview`'s fallback renders the ORIGINAL, and
+a `.heic` original does not render in non-Safari browsers — a transient of seconds, acceptable.
 
 ### A4 · Owner decisions — **TAKEN 2026-08-18 (MJ)**
 

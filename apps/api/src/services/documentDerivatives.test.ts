@@ -137,3 +137,19 @@ describe("deriveBytes", () => {
     expect(meta.height).toBeGreaterThan(meta.width!);
   });
 });
+
+describe("deriveBytes — HEVC HEIC (A3)", () => {
+  it("derives a WebP from a real HEVC .heic through the WASM decoder — the committed fixture running in CI (linux) IS the deployment-platform proof", async () => {
+    const { readFileSync } = await import("node:fs");
+    const heic = readFileSync(new URL("./__fixtures__/hevc-sample.heic", import.meta.url));
+    // Belt and braces: prove sharp ALONE still cannot decode it, so this test fails loudly the day
+    // prebuilt libvips gains HEVC and the WASM path becomes removable.
+    await expect(sharp(heic).resize(64).toBuffer()).rejects.toThrow(/compression format|heif/i);
+
+    const out = await deriveBytes(heic, DERIVATIVE_SPECS.find((s) => s.variant === "thumb")!, "image/heic");
+    const meta = await sharp(out).metadata();
+    expect(meta.format).toBe("webp");
+    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(320);
+    expect(Math.max(meta.width!, meta.height!)).toBeGreaterThan(0);
+  });
+});

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DERIVATIVE_CONTENT_TYPE,
@@ -48,13 +48,36 @@ interface OriginalRow {
   page: number;
 }
 
+/**
+ * The A3 answer, measured rather than assumed: prebuilt sharp/libvips PARSES a HEVC .heic header
+ * (`metadata()` succeeds — a probe built on it would lie) and FAILS on pixel decode with "Support
+ * for this compression format has not been built in" — libde265 is not in the prebuilt binaries.
+ * The branch taken: decode HEIC through `heic-decode` (WASM libheif — no native build, identical
+ * bytes-in/bytes-out on every platform) into raw RGBA and hand THAT to sharp. libheif applies the
+ * container's irot/imir transforms itself, so the upright orientation survives. The committed
+ * HEVC fixture test is the proof, and CI running it on linux is the deployment-platform answer.
+ */
+async function decodeToSharp(original: Buffer, contentType: string): Promise<Sharp> {
+  if (contentType === "image/heic") {
+    const { default: heicDecode } = await import("heic-decode"); // lazy — WASM init only when needed
+    const { width, height, data } = await heicDecode({ buffer: original });
+    return sharp(Buffer.from(data), { raw: { width, height, channels: 4 } });
+  }
+  // `.rotate()` with no args applies EXIF orientation — the one transform B1 allows besides the
+  // bounded resize and the encode.
+  return sharp(original).rotate();
+}
+
 /** Pure-ish core: original bytes → derivative bytes per one spec. Split from the I/O so the 200-line
  *  function budget holds and the transform is testable against a real buffer without a bucket. */
-export async function deriveBytes(original: Buffer, spec: DerivativeSpec): Promise<Buffer> {
-  // `.rotate()` with no args applies EXIF orientation — the one transform B1 allows besides the
-  // bounded resize and the encode. `withoutEnlargement` because enlarging invents no information.
-  return sharp(original)
-    .rotate()
+export async function deriveBytes(
+  original: Buffer,
+  spec: DerivativeSpec,
+  contentType = "image/jpeg",
+): Promise<Buffer> {
+  const input = await decodeToSharp(original, contentType);
+  // `withoutEnlargement` because enlarging invents no information.
+  return input
     .resize(spec.longEdgePx, spec.longEdgePx, { fit: "inside", withoutEnlargement: true })
     .webp({ quality: spec.quality })
     .toBuffer();
@@ -101,7 +124,7 @@ export async function deriveDocument(
   for (const spec of toRun) {
     let bytes: Buffer;
     try {
-      bytes = await deriveBytes(original, spec);
+      bytes = await deriveBytes(original, spec, row.content_type);
     } catch (e) {
       // The loud failure B1 demands for e.g. a sharp build without HEIC (plan A3) — never a silent
       // skip that would let DERIVABLE_CONTENT_TYPES quietly lie about intent.
