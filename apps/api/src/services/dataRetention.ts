@@ -130,7 +130,7 @@ export const RETENTION_RULES: RetentionRule[] = [
    * the worst of both: compliant, and out of pocket.
    *
    * Deleting the row is the whole mechanism. The object then has no row pointing at it, and the
-   * `load-photos` orphan sweep already running in hazmatStorageReconcileScheduler removes the bytes
+   * `load-photos` orphan sweep already running in storageReconcileScheduler removes the bytes
    * on its next pass after the 24-hour grace. Two mechanisms built for other reasons compose into
    * the policy, and neither had to change.
    */

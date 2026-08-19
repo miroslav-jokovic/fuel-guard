@@ -12,7 +12,7 @@ import { startEfsProcessingScheduler } from "./services/efsProcessingScheduler.j
 import { startEfsSoapCertExpiryWatcher } from "./services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
-import { startHazmatStorageReconcileScheduler } from "./services/hazmatStorageReconcileScheduler.js";
+import { startStorageReconcileScheduler } from "./services/storageReconcileScheduler.js";
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
 import { startDqExportSweeper } from "./services/dqExportSweeper.js";
 import { startPatternSweepScheduler } from "./services/patternSweepScheduler.js";
@@ -48,7 +48,7 @@ export function startAllSchedulers(env: Env): void {
   //                                  transaction feeds above are the ones that need minutes)
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
   startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
-  startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile
+  startStorageReconcileScheduler(env); // §13.5/M11 + DQF B7: nightly orphan sweep of every evidence bucket
   startNotificationPushScheduler(env); // Expo Push delivery of pending notification_events (5N/Phase 6)
   startDqExportSweeper(env); // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
   startPatternSweepScheduler(env); // durable enrichment requests survive queue dispatch outages

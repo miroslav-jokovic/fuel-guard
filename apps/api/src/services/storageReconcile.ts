@@ -135,3 +135,30 @@ export function reconcileLoadPhotoOrphans(
 ): Promise<StorageReconcileResult> {
   return reconcileBucketOrphans(admin, { bucket: "load-photos", table: "load_stop_photos", label: "load_stop_photos" }, opts);
 }
+
+/**
+ * The scans behind the driver qualification file (DQF execution plan B7).
+ *
+ * THE LEAK THIS CLOSES. `compliance-docs` (0146) shipped with the same register → signed-upload →
+ * signed-read pipeline as `hazmat`, but was never added here — so for every registration whose
+ * browser-side PUT then failed, and every upload whose row insert lost the race, the bytes stayed in
+ * the bucket and were billed forever with nothing pointing at them and nothing looking. Two buckets
+ * were swept and the third, which holds the most sensitive evidence in the product, was not.
+ *
+ * SAFE BECAUSE THE ASYMMETRY IS ALREADY BUILT. `reconcileBucketOrphans` deletes only objects that no
+ * row references and that are past the 24-hour grace, and it NEVER deletes a row — a `documents` row
+ * whose object has vanished is flagged loudly instead, which is exactly the §391.51 signal worth
+ * waking someone for. That asymmetry is what makes this safe to point at a compliance bucket:
+ * the failure mode it can cause is "we kept bytes we could have deleted", never "we deleted
+ * evidence".
+ *
+ * DERIVATIVES NEED NO SPECIAL CASE. A thumb or a normalized render is its own `documents` row with
+ * its own `storage_path` (plan B1/B2), so it appears in the same `select storage_path` this reads.
+ * A derivative whose row is gone is an orphan like any other.
+ */
+export function reconcileComplianceDocOrphans(
+  admin: SupabaseClient,
+  opts: { apply?: boolean; nowIso?: string } = {},
+): Promise<StorageReconcileResult> {
+  return reconcileBucketOrphans(admin, { bucket: "compliance-docs", table: "documents", label: "documents" }, opts);
+}
