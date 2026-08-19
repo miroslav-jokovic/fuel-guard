@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
+import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type AppSection, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import { AppSelect, AppTable } from "@fuelguard/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -143,7 +143,10 @@ async function changeRole(userId: string, newRole: string) {
 }
 
 // ── roles & permissions reference (from the shared section-capability matrix) ─────────────────
-const SECTION_LABELS: Record<string, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", fleet: "Fleet", admin: "Admin" };
+// Typed on AppSection, not Record<string, string>: the permissions table renders a column per
+// APP_SECTIONS entry, so a section added without a label here used to render an empty heading. Now
+// it does not compile.
+const SECTION_LABELS: Record<AppSection, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", fleet: "Fleet", recruitment: "Recruitment", admin: "Admin" };
 const showPerms = ref(false);
 const permMatrix = computed(() =>
   USER_ROLES.map((r) => ({

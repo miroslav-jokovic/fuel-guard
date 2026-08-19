@@ -7,8 +7,8 @@ import {
   type DocumentExportRequest,
   dqExportListQuerySchema,
   rolesThatManage,
-  canReadRestricted,
-  isRestrictedQualificationKind,
+  canReadAllRestricted,
+  canReadRestrictedKind,
   DQ_ITEMS,
 } from "@fuelguard/shared";
 import { requireOrg, requireRole } from "../middleware/auth.js";
@@ -63,8 +63,12 @@ export function complianceExportsRouter(): Router {
       const asAt = body.asAt ?? today();
       // Phase G (D-DQ15): the default binder carries no restricted pages; including them is an
       // explicit, privileged, ledgered ask.
+      // BOTH halves of the split (auth.ts): `dq_exports.include_restricted` is one boolean on a
+      // ledger row rendered later by a worker with no requester in hand, so a partial entitlement
+      // cannot be expressed in the artifact. A recruiter reads investigation history in the app and
+      // does not export a restricted binder.
       const includeRestricted = body.includeRestricted === true;
-      if (includeRestricted && !canReadRestricted(req.auth!.role)) {
+      if (includeRestricted && !canReadAllRestricted(req.auth!.role)) {
         res
           .status(403)
           .json(apiError("forbidden", "Including restricted records requires a safety manager or admin."));
@@ -122,13 +126,13 @@ export function complianceExportsRouter(): Router {
       const asAt = body.asAt ?? today();
       // Phase G (D-DQ15): releasing the evidence behind a restricted requirement is a privileged act.
       const spec = DQ_ITEMS.find((i) => i.key === body.requirementKey);
-      if (
-        spec?.evidenceKinds.some(isRestrictedQualificationKind) &&
-        !canReadRestricted(req.auth!.role)
-      ) {
+      // Per KIND here, unlike the binder above: this releases ONE requirement's evidence, so the
+      // reader's entitlement for that requirement is exactly the question, and a recruiter may
+      // release a previous-employer response under §391.53(a)(1).
+      if (spec?.evidenceKinds.some((k) => !canReadRestrictedKind(k, req.auth!.role))) {
         res
           .status(403)
-          .json(apiError("forbidden", "Releasing restricted records requires a safety manager or admin."));
+          .json(apiError("forbidden", "You are not permitted to release the evidence behind this requirement."));
         return;
       }
 

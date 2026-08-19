@@ -2,6 +2,8 @@ import {
   ArrowUpTrayIcon,
   BeakerIcon,
   ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  BuildingOffice2Icon,
   ClockIcon,
   Cog6ToothIcon,
   ExclamationTriangleIcon,
@@ -130,6 +132,17 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
           show: isStaff && moduleEnabled(modules, "hazmatguard"),
           badge: counts.hazmatReview,
         },
+      ],
+    },
+    {
+      // Recruitment is the hiring half of §391, and its OWN section in the capability matrix — not a
+      // corner of Fleet. Gating it on `fleet` (which is how it first shipped) let a dispatcher read
+      // every driver's former employers; §391.53(a)(1) puts that file with the people making the
+      // hiring decision. More lands here later; employment history is the first surface.
+      label: "Recruitment",
+      icon: ClipboardDocumentListIcon,
+      items: [
+        { name: "Employment History", to: "/recruitment", icon: BuildingOffice2Icon, show: canViewSection(role, "recruitment") },
       ],
     },
     {

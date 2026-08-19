@@ -16,9 +16,8 @@ import {
   filterAgainstExisting,
   type QualificationSeedRequest,
   type ExistingCertKey,
-  canReadRestricted,
+  canReadRestrictedKind,
   filterRestrictedRows,
-  isRestrictedQualificationKind,
   shouldDerive,
 } from "@fuelguard/shared";
 import { randomUUID } from "node:crypto";
@@ -177,7 +176,7 @@ export function complianceRouter(): Router {
       const body = res.locals.body as QualificationRecordCreateRequest;
       // Phase G (D-DQ15): recording a restricted kind is itself restricted — a role that cannot read
       // drug-test results has no business writing them either.
-      if (isRestrictedQualificationKind(body.kind) && !canReadRestricted(req.auth!.role)) {
+      if (!canReadRestrictedKind(body.kind, req.auth!.role)) {
         res
           .status(403)
           .json(apiError("forbidden", "Drug & alcohol and investigation-history records require a safety manager or admin."));
@@ -336,7 +335,7 @@ export function complianceRouter(): Router {
         res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
         return;
       }
-      if (isRestrictedQualificationKind(result.kind) && !canReadRestricted(req.auth!.role)) {
+      if (!canReadRestrictedKind(result.kind, req.auth!.role)) {
         res.status(403).json(apiError("forbidden", "Downloading restricted records requires a safety manager or admin."));
         return;
       }

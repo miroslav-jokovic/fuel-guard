@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import {
+  canWriteDriverLifecycle,
   driverCreateSchema,
   driverInviteSchema,
   driverUpdateSchema,
   deriveFullName,
+  touchesDriverLifecycle,
   isEmailDomainAllowed,
   resolveDriverUpdate,
   rolesThatCanView,
@@ -71,7 +73,20 @@ export function rosterDriversRouter(): Router {
   router.use(requireAuth);
 
   const canView = requireRole(...rolesThatCanView("fleet"));
-  const canManage = requireRole(...rolesThatManage("fleet"));
+  /**
+   * Create + edit a driver row, which is a RECRUITMENT action as much as a fleet one.
+   *
+   * An applicant is a `drivers` row — `driver_employment_history.driver_id` references it — so a
+   * recruiter cannot work without writing this table. Granting them `fleet: manage` to get there
+   * would also hand over vehicles, trailers and terminals through seventeen other policies, which is
+   * the leak the `recruitment` section was introduced to close. So the two section role-sets are
+   * UNIONED here, by name, on these two routes only, and migration 0212 mirrors it in
+   * `drivers_write`. Everything else on this router stays fleet-only, including enrolment for app
+   * access (admin + fleet_manager), which hands out a login.
+   */
+  const canWriteDriver = requireRole(
+    ...new Set([...rolesThatManage("fleet"), ...rolesThatManage("recruitment")]),
+  );
 
   // List the org's drivers (managers + dispatch/audit read).
   router.get(
@@ -93,11 +108,11 @@ export function rosterDriversRouter(): Router {
     }),
   );
 
-  // Create a roster driver (admin/fleet_manager/safety_manager).
+  // Create a roster driver — the fleet managers, plus the recruiter (see canWriteDriver).
   router.post(
     "/",
     requireOrg,
-    canManage,
+    canWriteDriver,
     validateBody(driverCreateSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -173,13 +188,27 @@ export function rosterDriversRouter(): Router {
   router.patch(
     "/:id",
     requireOrg,
-    canManage,
+    canWriteDriver,
     validateBody(driverUpdateSchema),
     asyncHandler(async (req, res) => {
+      const body = res.locals.body as DriverUpdateRequest;
+
+      // A recruiter edits the applicant's row but does not move them through their employment
+      // lifecycle: `status` and `termination_date` start the §391.51(c) retention clock and end the
+      // driver's app access (auth_driver_id() resolves only `active` rows). Refused FIRST — before
+      // the admin client is even constructed, so a rejected edit touches no database at all — and
+      // refused on the FIELD rather than on the value `terminated`, so un-terminating is closed with
+      // it. Migration 0213 mirrors this on the PostgREST path, which the service role here bypasses.
+      if (touchesDriverLifecycle(body) && !canWriteDriverLifecycle(req.auth!.role)) {
+        res
+          .status(403)
+          .json(apiError("forbidden", "Changing a driver's employment status is a fleet action."));
+        return;
+      }
+
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const id = String(req.params.id ?? "");
-      const body = res.locals.body as DriverUpdateRequest;
 
       // Read first: what an edit MEANS depends on the row's current state — whether telematics owns
       // it, whether a termination date already exists, what the untouched name parts are.

@@ -14,7 +14,11 @@ import {
   rolesThatManage,
   rolesThatCanView,
   RESTRICTED_QUALIFICATION_KINDS,
-  canReadRestricted,
+  canReadAllRestricted,
+  canWriteDriverLifecycle,
+  canReadInvestigationHistory,
+  canReadRestrictedKind,
+  canReadTestingRecords,
   filterRestrictedRows,
   QUALIFICATION_RECORD_KINDS,
   USER_ROLES,
@@ -86,16 +90,57 @@ describe("section capability matrix", () => {
     expect(canViewSection("safety_manager", "admin")).toBe(false);
   });
   it("admin manages everything incl. Admin; auditor views all but manages none; driver sees no section", () => {
-    for (const s of ["fuel", "dispatch", "safety", "fleet", "admin"] as const) expect(canManageSection("admin", s)).toBe(true);
+    for (const s of ["fuel", "dispatch", "safety", "fleet", "recruitment", "admin"] as const) expect(canManageSection("admin", s)).toBe(true);
     expect(canViewSection("auditor", "safety")).toBe(true);
     expect(canManageSection("auditor", "safety")).toBe(false);
     expect(canViewSection("driver", "fuel")).toBe(false);
     expect(sectionAccess(null, "fuel")).toBe("none");
   });
+  /**
+   * Recruitment (2026-08-19). These assertions exist because the section's whole point is the
+   * dispatcher row: the surface shipped gated on `fleet`, which handed a dispatcher every driver's
+   * former employers and their contact details. §391.53(a)(1) puts the investigation history with
+   * "those who are involved in the hiring decision", and this is where that is said once.
+   */
+  it("recruitment: hiring roles manage it, the auditor reads it, and the dispatcher cannot see it at all", () => {
+    expect(canManageSection("admin", "recruitment")).toBe(true);
+    expect(canManageSection("fleet_manager", "recruitment")).toBe(true);
+    expect(canManageSection("safety_manager", "recruitment")).toBe(true);
+    expect(canManageSection("recruiter", "recruitment")).toBe(true);
+    // The recruiter's whole shape: hiring, and nothing else. `fleet: view` is what lets them open a
+    // driver's §391.51 file at all (routes/compliance.ts gates on rolesThatCanView("fleet")); it is
+    // deliberately not "manage", which would also hand them vehicles and trailers.
+    expect(canViewSection("recruiter", "fleet")).toBe(true);
+    expect(canManageSection("recruiter", "fleet")).toBe(false);
+    for (const s of ["fuel", "dispatch", "safety", "hazmat", "admin"] as const) {
+      expect(canViewSection("recruiter", s)).toBe(false);
+    }
+    // A DOT audit is exactly the reader who asks for the §391.23 investigation file.
+    expect(canViewSection("auditor", "recruitment")).toBe(true);
+    expect(canManageSection("auditor", "recruitment")).toBe(false);
+    // The narrowing. A dispatcher reads Fleet to see who is on which truck; that is not a reason to
+    // read where somebody worked in 2022.
+    expect(canViewSection("dispatcher", "recruitment")).toBe(false);
+    expect(canViewSection("driver", "recruitment")).toBe(false);
+  });
+  /**
+   * The recruiter creates and edits an applicant's driver row and stops there. Terminating is a fleet
+   * act: it stamps `termination_date` (the §391.51(c) retention clock) and ends the driver's app
+   * access, since `auth_driver_id()` resolves only `active` rows.
+   */
+  it("driver lifecycle: the fleet managers move somebody's employment, the recruiter does not", () => {
+    const allowed = USER_ROLES.filter((r) => canWriteDriverLifecycle(r));
+    expect(allowed.sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
+    expect(canWriteDriverLifecycle("recruiter")).toBe(false);
+    expect(canWriteDriverLifecycle(null)).toBe(false);
+  });
   it("rolesThatManage/rolesThatCanView expose the matrix for guard building", () => {
     expect(rolesThatManage("dispatch").sort()).toEqual(["admin", "dispatcher", "fleet_manager"]);
     expect(rolesThatManage("safety").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
     expect(rolesThatManage("fleet").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
+    // Mirrored by driver_employment_history's write policy (0208) and its restrictive read (0209).
+    expect(rolesThatManage("recruitment").sort()).toEqual(["admin", "fleet_manager", "recruiter", "safety_manager"]);
+    expect(rolesThatCanView("recruitment").sort()).toEqual(["admin", "auditor", "fleet_manager", "recruiter", "safety_manager"]);
     expect(rolesThatCanView("fuel").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "safety_manager"]);
   });
 });
@@ -153,16 +198,48 @@ describe("restricted qualification records (Phase G)", () => {
     ]);
   });
 
-  it("admin and safety_manager read restricted records; nobody else does", () => {
-    const allowed = USER_ROLES.filter((r) => canReadRestricted(r));
+  /**
+   * The split (2026-08-19). One flag became two because the two regulations behind it are addressed
+   * to different people: §382.401(a) is a custody rule about testing records, §391.53(a)(1) puts the
+   * investigation history with "those who are involved in the hiring decision". A recruiter who
+   * cannot read a previous-employer response cannot do the job §391.23(a)(2) assigns them.
+   */
+  it("§382.401 testing records stay with admin + safety_manager — the split did not widen them", () => {
+    const allowed = USER_ROLES.filter((r) => canReadTestingRecords(r));
     expect(allowed.sort()).toEqual(["admin", "safety_manager"]);
-    expect(canReadRestricted(null)).toBe(false);
+    expect(canReadTestingRecords(null)).toBe(false);
+    expect(canReadTestingRecords("recruiter")).toBe(false);
   });
 
-  it("filterRestrictedRows drops restricted kinds for a dispatcher and keeps them for a safety manager", () => {
+  it("§391.53 investigation history adds the recruiter, and nobody else", () => {
+    const allowed = USER_ROLES.filter((r) => canReadInvestigationHistory(r));
+    expect(allowed.sort()).toEqual(["admin", "recruiter", "safety_manager"]);
+    expect(canReadInvestigationHistory(null)).toBe(false);
+    expect(canReadInvestigationHistory("fleet_manager")).toBe(false);
+  });
+
+  it("canReadRestrictedKind answers per KIND, because a recruiter's answer is no longer uniform", () => {
+    expect(canReadRestrictedKind("previous_employer_response", "recruiter")).toBe(true);
+    expect(canReadRestrictedKind("drug_test", "recruiter")).toBe(false);
+    expect(canReadRestrictedKind("clearinghouse_full", "recruiter")).toBe(false);
+    // An unrestricted kind is readable by anyone the section guard already admitted.
+    expect(canReadRestrictedKind("mvr", "dispatcher")).toBe(true);
+  });
+
+  it("a whole-file operation needs BOTH halves — the binder cannot express a partial grant", () => {
+    const allowed = USER_ROLES.filter((r) => canReadAllRestricted(r));
+    expect(allowed.sort()).toEqual(["admin", "safety_manager"]);
+    expect(canReadAllRestricted("recruiter")).toBe(false);
+  });
+
+  it("filterRestrictedRows drops per row, so a recruiter keeps the inquiry and loses the drug test", () => {
     const rows = [{ kind: "mvr" }, { kind: "drug_test" }, { kind: "previous_employer_response" }];
     expect(filterRestrictedRows(rows, "dispatcher").map((r) => r.kind)).toEqual(["mvr"]);
     expect(filterRestrictedRows(rows, "auditor").map((r) => r.kind)).toEqual(["mvr"]);
+    expect(filterRestrictedRows(rows, "recruiter").map((r) => r.kind)).toEqual([
+      "mvr",
+      "previous_employer_response",
+    ]);
     expect(filterRestrictedRows(rows, "safety_manager")).toHaveLength(3);
     expect(filterRestrictedRows(rows, "admin")).toHaveLength(3);
   });

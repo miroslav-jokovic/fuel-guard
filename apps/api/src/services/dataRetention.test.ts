@@ -28,6 +28,11 @@ describe("retention policy (the config itself)", () => {
   it("never lists a forbidden table (audit ledger, business records, identity)", () => {
     const listed = new Set(RETENTION_RULES.map((r) => r.table));
     expect(RETENTION_FORBIDDEN).toContain("efs_card_mutations");
+    // The §391.51 file and everything that dates it — the binder exists to reproduce this material
+    // years later (§390.32(d)), so a retention rule must never be able to reach it (D-BD12).
+    for (const t of ["certifications", "qualification_records", "documents", "driver_employment_history"]) {
+      expect(RETENTION_FORBIDDEN).toContain(t);
+    }
     for (const t of RETENTION_FORBIDDEN) expect(listed.has(t)).toBe(false);
   });
 

@@ -18,7 +18,9 @@ const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/g;
 const TEST_TITLE = /\b(?:it|describe)(?:\.each)?\s*(?:\([^)]*\)\s*)?\(\s*(["'`])([\s\S]*?)\1/g;
 const NO_TEST_CLAIM = "[no-test-claim]";
 // Pre-existing uncited proof claims. This list may only shrink; a moved or missing entry fails.
-const KNOWN_UNCITED = new Map([["apps/api/src/services/efsIngest.ts", 275]]);
+// Baseline of claims that predate this check. It may only SHRINK — efsIngest.ts's entry was
+// retired on 2026-08-19 by citing the four scenarios that actually prove the faithfulness contract.
+const KNOWN_UNCITED = new Map([]);
 
 function sourceRoots() {
   return ["apps", "packages"].flatMap((rootName) =>

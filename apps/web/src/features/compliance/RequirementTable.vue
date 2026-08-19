@@ -28,7 +28,8 @@ export interface RequirementRow {
   /** The 40 KB derivative for the cell (B4); falls back to the original until the derive job runs. */
   documentThumbUrl: string | null;
   documentIsImage: boolean;
-  /** Phase G (D-DQ15): state visible to everyone; evidence and capture only for restricted access. */
+  /** Phase G (D-DQ15): state visible to everyone; evidence and capture hidden when THIS reader
+   *  may not read the requirement's evidence kinds — resolved by the caller, per reader. */
   restricted: boolean;
   /** Tracked-not-required (D8): renders only because evidence exists; labelled as such. */
   advisory: boolean;
@@ -98,7 +99,7 @@ const columns: DataTableColumn[] = [
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <template #cell-documentUrl="{ row }">
-      <span v-if="row.restricted && !session.restrictedAccess" class="text-xs text-ink-muted"
+      <span v-if="row.restricted" class="text-xs text-ink-muted"
         >Restricted</span
       >
       <!-- The cell loads the 40 KB thumb, never the original (B4); clicking opens the viewer (B6),
@@ -132,7 +133,7 @@ const columns: DataTableColumn[] = [
     </template>
     <template #actions="{ row }">
       <KebabMenu
-        v-if="session.canManage && !(row.restricted && !session.restrictedAccess)"
+        v-if="session.canManage && !row.restricted"
         :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
       >
         <BaseButton type="button" class="kebab-item" @click="emit('open', row.key)">

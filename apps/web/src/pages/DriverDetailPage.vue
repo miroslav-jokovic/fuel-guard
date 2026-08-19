@@ -14,6 +14,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
+import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -28,15 +29,18 @@ const id = computed(() => String(route.params.id ?? ""));
  * section rides the `?section=` query so /compliance/:id can REDIRECT here without breaking a
  * bookmark or a binder deep link (D2).
  */
-type Section = "profile" | "qualification" | "fuel";
+type Section = "profile" | "qualification" | "employment" | "fuel";
 const SECTIONS: Array<{ value: Section; label: string }> = [
   { value: "profile", label: "Profile" },
   { value: "qualification", label: "Qualification" },
+  // Recruitment's surface on the driver page: the hiring paperwork sits beside the qualification
+  // file it feeds, because the §391.23(a)(2) inquiries an employer owes are half of both.
+  { value: "employment", label: "Employment" },
   { value: "fuel", label: "Fuel" },
 ];
 const section = computed<Section>(() => {
   const s = String(route.query.section ?? "");
-  return s === "qualification" || s === "fuel" ? s : "profile";
+  return s === "qualification" || s === "employment" || s === "fuel" ? s : "profile";
 });
 function setSection(s: Section): void {
   void router.replace({ query: { ...route.query, section: s === "profile" ? undefined : s } });
@@ -177,6 +181,8 @@ const fillColumns: DataTableColumn[] = [
     </nav>
 
     <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
+
+    <EmploymentHistorySection v-if="section === 'employment'" :driver-id="id" />
 
     <BaseCard v-if="section === 'profile' && driver">
       <div class="flex items-center justify-between">

@@ -1,0 +1,1904 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "PSP Rest Service API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://www.psp.fmcsa.dot.gov/PspRestService"
+    }
+  ],
+  "paths": {
+    "/Records": {
+      "post": {
+        "tags": [
+          "Records"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            },
+            "application/xml": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            },
+            "text/xml": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            },
+            "application/*+xml": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverReportResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverReportResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverReportResponse"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverReportResponse"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverReportResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Record": {
+      "post": {
+        "tags": [
+          "Records"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/*+xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/Record": {
+      "post": {
+        "tags": [
+          "Records"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            },
+            "application/*+xml": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordValidation"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthCodeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/DayMonitored45": {
+      "get": {
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/Token": {
+      "get": {
+        "tags": [
+          "Token"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              },
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthCodeRequest": {
+        "type": "object",
+        "properties": {
+          "authCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "returnType": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuthCodeResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusDetail": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pdf": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CrashRecord": {
+        "type": "object",
+        "properties": {
+          "driverLicenseNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLicenseState": {
+            "type": "string",
+            "nullable": true
+          },
+          "validDriversLicense": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLicenseClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "citationIssued": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportState": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportSeqNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "censusNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "finalStatusDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "cityCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "countyCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "truckBusIndicator": {
+            "type": "string",
+            "nullable": true
+          },
+          "trafficway": {
+            "type": "string",
+            "nullable": true
+          },
+          "roadAccessControl": {
+            "type": "string",
+            "nullable": true
+          },
+          "roadSurfaceCondition": {
+            "type": "string",
+            "nullable": true
+          },
+          "numberOfAxles": {
+            "type": "string",
+            "nullable": true
+          },
+          "cargoBodyType": {
+            "type": "string",
+            "nullable": true
+          },
+          "gvwr": {
+            "type": "string",
+            "nullable": true
+          },
+          "gvwRatingId": {
+            "type": "string",
+            "nullable": true
+          },
+          "vin": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleLicenseNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleLicenseState": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleHazMatPlacards": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleHazMatNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleHazMatMaterial": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleHazMatClassId": {
+            "type": "string",
+            "nullable": true
+          },
+          "censusSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "weatherCond": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleConf": {
+            "type": "string",
+            "nullable": true
+          },
+          "lightCond": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverCond": {
+            "type": "string",
+            "nullable": true
+          },
+          "hazMatReleased": {
+            "type": "string",
+            "nullable": true
+          },
+          "agency": {
+            "type": "string",
+            "nullable": true
+          },
+          "officerBadge": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehiclesInAccident": {
+            "type": "string",
+            "nullable": true
+          },
+          "fatalities": {
+            "type": "string",
+            "nullable": true
+          },
+          "injuries": {
+            "type": "string",
+            "nullable": true
+          },
+          "towAway": {
+            "type": "string",
+            "nullable": true
+          },
+          "federallyRecordable": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateRecordable": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetVersNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetSearchDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetSeqId": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportState": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadFirstByte": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadDOTNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadSearchIndicator": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "relatedFactors": {
+            "type": "string",
+            "nullable": true
+          },
+          "farsFlag": {
+            "type": "string",
+            "nullable": true
+          },
+          "censusSearchDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "addDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "changeDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "changeByUser": {
+            "type": "string",
+            "nullable": true
+          },
+          "changeByApplication": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetInputDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverFirstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverDOB": {
+            "type": "string",
+            "nullable": true
+          },
+          "carrierName": {
+            "type": "string",
+            "nullable": true
+          },
+          "notPreventable": {
+            "type": "string",
+            "nullable": true
+          },
+          "notPreventableDesc": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverInfoSummary": {
+        "type": "object",
+        "properties": {
+          "driverInspCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "driverOOSCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "driverOOSRate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleInspCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleOOSCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleOOSRate": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverInformationResponse": {
+        "type": "object",
+        "properties": {
+          "transKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusDetail": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLicenseNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLicenseState": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "middleInitial": {
+            "type": "string",
+            "nullable": true
+          },
+          "dob": {
+            "type": "string",
+            "nullable": true
+          },
+          "motorCarrierId": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalRefId": {
+            "type": "string",
+            "nullable": true
+          },
+          "privacyStatement": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverRecord": {
+            "$ref": "#/components/schemas/DriverRecord"
+          },
+          "authCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverConsent": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "dotNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "mcmisUploadDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverInfoSummary": {
+            "$ref": "#/components/schemas/DriverInfoSummary"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverQuery": {
+        "type": "object",
+        "properties": {
+          "dlFirstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dlLastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dlNum": {
+            "type": "string",
+            "nullable": true
+          },
+          "dlState": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverRecord": {
+        "type": "object",
+        "properties": {
+          "crashRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashRecord"
+            },
+            "nullable": true
+          },
+          "inspectionRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionRecord"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverReportResponse": {
+        "type": "object",
+        "properties": {
+          "driverInformationResponse": {
+            "$ref": "#/components/schemas/DriverInformationResponse"
+          },
+          "driverReportSummaryResponse": {
+            "$ref": "#/components/schemas/DriverReportSummaryResponse"
+          },
+          "authCodeURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionViolationSummary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionViolationSummaryRecord"
+            },
+            "nullable": true
+          },
+          "driverQueries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DriverQuery"
+            },
+            "nullable": true
+          },
+          "monitor": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DriverReportSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "numCrashes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numCrashesWithFatalities": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numCrashesWithInjuries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numTowaways": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numFatailities": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numInjuries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numHazmatReleases": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numVehicleInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numHazmatInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numOutOfServiceInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numVehicleOutOfServiceInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numHazmatOutOfServiceInspections": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "driverOutOfServiceRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "driverVehicleOutOfServiceRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "driverHazmatOutOfServiceRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "dotNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numCrashesNotPreventable": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionRecord": {
+        "type": "object",
+        "properties": {
+          "driverLicenseNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLicenseState": {
+            "type": "string",
+            "nullable": true
+          },
+          "usdotNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportState": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "startTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "endTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "registrationDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "region": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyInspectorKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "locationDescr": {
+            "type": "string",
+            "nullable": true
+          },
+          "countyCodeState": {
+            "type": "string",
+            "nullable": true
+          },
+          "countyCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionLevelId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceCenter": {
+            "type": "string",
+            "nullable": true
+          },
+          "censusSourceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionFacility": {
+            "type": "string",
+            "nullable": true
+          },
+          "shipperName": {
+            "type": "string",
+            "nullable": true
+          },
+          "shippingPaperNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "cargoTank": {
+            "type": "string",
+            "nullable": true
+          },
+          "hazMatInspectionType": {
+            "type": "string",
+            "nullable": true
+          },
+          "hazMatPlacardReqd": {
+            "type": "string",
+            "nullable": true
+          },
+          "aspenVersionNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetVersionNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetSearchDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "alcoholControlSubCheck": {
+            "type": "string",
+            "nullable": true
+          },
+          "drugInterdictionSearch": {
+            "type": "string",
+            "nullable": true
+          },
+          "drugInterdictionArrest": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeWeightEnforcement": {
+            "type": "string",
+            "nullable": true
+          },
+          "trafficEnforcement": {
+            "type": "string",
+            "nullable": true
+          },
+          "localEnforcementJurisdiction": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectorConfidenceLevel": {
+            "type": "string",
+            "nullable": true
+          },
+          "penCenMatch": {
+            "type": "string",
+            "nullable": true
+          },
+          "penField2": {
+            "type": "string",
+            "nullable": true
+          },
+          "penField3": {
+            "type": "string",
+            "nullable": true
+          },
+          "finalStatusDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "postAccidentIndicator": {
+            "type": "string",
+            "nullable": true
+          },
+          "grossCombVehicleWt": {
+            "type": "string",
+            "nullable": true
+          },
+          "defectVerification": {
+            "type": "string",
+            "nullable": true
+          },
+          "oosDefectVerification": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalHazMatSent": {
+            "type": "string",
+            "nullable": true
+          },
+          "violationsNotSent": {
+            "type": "string",
+            "nullable": true
+          },
+          "oosNotSent": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalViolations": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalOOSViolations": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalDriverViolations": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalDriverOOS": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalVehicleViolations": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalVehicleOOS": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalHazMatViolations": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalHazMatOOS": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetSeqId": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportState": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalReportNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalInspectionDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalStartTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadFirstByte": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadSearchIndicator": {
+            "type": "string",
+            "nullable": true
+          },
+          "censusSearchDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "mcmisAddDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "changeByUser": {
+            "type": "string",
+            "nullable": true
+          },
+          "changeDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "changedByApplication": {
+            "type": "string",
+            "nullable": true
+          },
+          "safetyNetInputDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceOffice": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverFirstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverDOB": {
+            "type": "string",
+            "nullable": true
+          },
+          "carrierName": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspectionViolations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionViolation"
+            },
+            "nullable": true
+          },
+          "driverType": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionViolation": {
+        "type": "object",
+        "properties": {
+          "inspViolationId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inspectionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "seqNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "partNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "partNoSection": {
+            "type": "string",
+            "nullable": true
+          },
+          "sectionDesc": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspViolUnit": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspUnitId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inspViolationCategoryId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outOfServiceIndicator": {
+            "type": "string",
+            "nullable": true
+          },
+          "defectVerificationId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "citationNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "partSectionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "postCrashFlag": {
+            "type": "string",
+            "nullable": true
+          },
+          "level6Oos": {
+            "type": "string",
+            "nullable": true
+          },
+          "inspPostAccidentInd": {
+            "type": "string",
+            "nullable": true
+          },
+          "citationResult": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "citationResultDesc": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionViolationSummaryRecord": {
+        "type": "object",
+        "properties": {
+          "violationNum": {
+            "type": "string",
+            "nullable": true
+          },
+          "violationDesc": {
+            "type": "string",
+            "nullable": true
+          },
+          "violationCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "violationOOSCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "authCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "isAdjudicated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "RecordRequest": {
+        "type": "object",
+        "properties": {
+          "authCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "dotNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverConsent": {
+            "type": "boolean"
+          },
+          "driverFirstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverLastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverDOB": {
+            "type": "string",
+            "nullable": true
+          },
+          "motorCarrierId": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalRefId": {
+            "type": "string",
+            "nullable": true
+          },
+          "licenseQueries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DriverQuery"
+            },
+            "nullable": true
+          },
+          "userIPAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "monitor": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordValidation": {
+        "type": "object",
+        "properties": {
+          "originalRequest": {
+            "$ref": "#/components/schemas/RecordRequest"
+          },
+          "validationIssues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "canRequestRecords": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorDescription": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusDetail": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusDescription": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "Please Add API Token",
+        "name": "api-key",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    { }
+  ],
+  "tags": [
+    {
+      "name": "Records"
+    },
+    {
+      "name": "Token"
+    }
+  ]
+}
