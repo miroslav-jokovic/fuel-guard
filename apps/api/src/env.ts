@@ -121,6 +121,14 @@ const EnvSchema = z.object({
     .default("true")
     .transform((s) => s.toLowerCase() !== "false"),
 
+  // Driver-qualification expiry alerts (DQF plan C3): ~6h sweep, threshold-crossing emails to the
+  // org's notification recipients + notification_events ledger rows. Dedupe keys make re-runs
+  // silent; DQ_ALERTS_ENABLED=false turns the sweep off entirely.
+  DQ_ALERTS_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
+
   // Whether THIS process also runs the background schedulers in-process (default true, single-service
   // deploy). Set RUN_SCHEDULERS_IN_PROCESS=false on the API service when a dedicated worker runs them.
   RUN_SCHEDULERS_IN_PROCESS: z

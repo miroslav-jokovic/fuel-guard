@@ -47,6 +47,34 @@ describe("getComplianceOverview — the driver predicate", () => {
     );
   });
 
+  it("a 60-day-out item is invisible at the default horizon and present at 91 (C2 — the assertion that would have caught the plan's own defect)", async () => {
+    const rec = () =>
+      createSupabaseRecorder({
+        tables: {
+          drivers: [{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D123" }],
+          certifications: [
+            {
+              subject_id: "d1", kind: "medical_card", qualifier: null, training_type: null,
+              issued_at: "2026-01-01", expires_at: "2026-10-18", document_id: null, // 60 days from TODAY
+            },
+          ],
+          qualification_records: [],
+          documents: [],
+        },
+        rpc: { org_module_enabled: false },
+      });
+    const TODAY = "2026-08-19";
+
+    const narrow = await getComplianceOverview(rec().client, ORG, TODAY);
+    expect(narrow.drivers[0]!.attention.map((a) => a.key)).not.toContain("medical_card");
+
+    const wide = await getComplianceOverview(rec().client, ORG, TODAY, { expiringWithinDays: 91 });
+    const medical = wide.drivers[0]!.attention.find((a) => a.key === "medical_card");
+    expect(medical).toBeDefined();
+    expect(medical!.state).toBe("expiring");
+    expect(medical!.daysRemaining).toBe(60);
+  });
+
   it("computes a file for every returned driver even with zero evidence rows", async () => {
     const rec = makeRecorder([
       { id: "d1", full_name: "A Driver", status: "active" },

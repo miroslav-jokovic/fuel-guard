@@ -6,10 +6,13 @@ import {
   computeAttributionHealth,
   computeOdometerHygiene,
   computeCapacityHealth,
+  buildDqDigestSection,
+  type DqDigestSection,
   type AttributionHealth,
   type OdometerHygieneCluster,
   type CapacityVehicleRow,
 } from "@fuelguard/shared";
+import { getComplianceOverview } from "./complianceOverview.js";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";
@@ -317,6 +320,16 @@ export async function generateAndSendDigest(
   if (!env.ANTHROPIC_API_KEY) return { sent: false, reason: "ai_unavailable", summary: null };
 
   const data = await buildDigestData(admin, orgId);
+  // C4: the DQ rollup rides the digest rather than its own email — one Monday email, not two. The
+  // AI summary never sees it (theft narrative and qualification rollup are different questions);
+  // best-effort, because a qualification hiccup must not sink the theft digest.
+  let dqSection: DqDigestSection | undefined;
+  try {
+    const overview = await getComplianceOverview(admin, orgId, new Date().toISOString().slice(0, 10));
+    dqSection = buildDqDigestSection(overview.drivers);
+  } catch (e) {
+    console.error("[digest] DQ section failed:", e instanceof Error ? e.message : e);
+  }
   let summary: string;
   try {
     summary = await callClaudeText(
@@ -349,6 +362,7 @@ export async function generateAndSendDigest(
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,
+    dq: dqSection,
   });
   const sent = await makeSender(env)({
     to: recipients,

@@ -29,6 +29,16 @@ export const NOTIFICATION_CATEGORIES = [
   "declined_alert",
   "efs_processing_failed",
   "efs_feed_stale",
+  // Driver qualification (DQF plan C1). The first three are our own clock (dqAlerts.ts); the last
+  // two are what Phase E's SambaSafety webhook emits — a licence status change, and a monitoring
+  // MVR with its reason. All five are office-facing (D-DQ13: the DQ file is company-only), mutable
+  // (an office user who triages by email may silence the in-app copy), and mirrored in the
+  // notification_events CHECK (0207).
+  "dq_expiring",
+  "dq_expired",
+  "dq_missing",
+  "dq_license_status",
+  "dq_mvr_received",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -51,6 +61,11 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   declined_alert: "Declined-card alerts",
   efs_processing_failed: "EFS processing failures",
   efs_feed_stale: "EFS feed freshness",
+  dq_expiring: "Qualification expirations",
+  dq_expired: "Qualification lapses",
+  dq_missing: "Qualification gaps",
+  dq_license_status: "Licence status changes",
+  dq_mvr_received: "New driving records",
 };
 
 /**

@@ -1,4 +1,5 @@
 import type { AnomalySeverity } from "./constants.js";
+import { renderDqDigestHtml, type DqDigestSection } from "./digestDq.js";
 
 export interface AnomalyEmailItem {
   unit: string;
@@ -37,6 +38,8 @@ export interface DigestStats {
    *  Informational (good news): record changes are never silent. */
   capacityAutoFixedUnits?: string[];
   topVehicles: { unit: string; count: number }[];
+  /** DQF plan C4 — the driver-qualification rollup block. Built by digestDq.ts; optional/additive. */
+  dq?: DqDigestSection;
   appUrl: string;
   /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
   health?: {
@@ -151,6 +154,7 @@ export function renderDigestEmail(
         `${stats.capacityAutoFixedUnits.length > 5 ? "…" : ""}` +
         ` — capacity checks now run at full precision there.</p>`
       : "") +
+    (stats.dq ? renderDqDigestHtml(stats.dq) : "") +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
   const text =
@@ -180,6 +184,11 @@ export function renderDigestEmail(
       : "") +
     (stats.capacityAutoFixedUnits?.length
       ? `Tank capacity auto-corrected: ${stats.capacityAutoFixedUnits.slice(0, 5).join(", ")}\n\n`
+      : "") +
+    (stats.dq && (stats.dq.expired > 0 || stats.dq.expiringSoon > 0 || stats.dq.notStarted > 0)
+      ? `Driver qualification: ${stats.dq.expired} expired, ${stats.dq.expiringSoon} due in 30 days, ${stats.dq.notStarted} not started\n` +
+        stats.dq.topPairs.map((p) => `  - ${p.driver} — ${p.label}, ${p.due}`).join("\n") +
+        "\n\n"
       : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };
