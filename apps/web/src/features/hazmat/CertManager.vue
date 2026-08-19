@@ -29,10 +29,12 @@ function labelForKind(k: string): string { return k.replace(/_/g, " ").replace(/
 const kindOptions = computed(() => (props.subjectType === "organization" ? ORG_KINDS : DRIVER_KINDS).map((k) => ({ value: k, label: labelForKind(k) })));
 const trainingTypeOptions = HAZMAT_TRAINING_TYPES.map((t) => ({ value: t, label: labelForKind(t) }));
 
-const form = reactive({ kind: "", qualifier: "", trainingType: "", trainingProviderName: "", trainingCertified: false, identifier: "", issuedAt: "", effectiveFrom: "", expiresAt: "" });
+// issuingAuthority + the two §172.704(d) fields + notes were accepted by the contract and the table
+// from 0127 and capturable nowhere until D7 — this form and RequirementDrawer close that together.
+const form = reactive({ kind: "", qualifier: "", trainingType: "", trainingProviderName: "", trainingProviderAddress: "", trainingMaterials: "", trainingCertified: false, identifier: "", issuingAuthority: "", issuedAt: "", effectiveFrom: "", expiresAt: "", notes: "" });
 const isEndorsement = computed(() => form.kind === "endorsement");
 const isTraining = computed(() => form.kind === "hazmat_training");
-function resetForm() { form.kind = ""; form.qualifier = ""; form.trainingType = ""; form.trainingProviderName = ""; form.trainingCertified = false; form.identifier = ""; form.issuedAt = ""; form.effectiveFrom = ""; form.expiresAt = ""; }
+function resetForm() { form.kind = ""; form.qualifier = ""; form.trainingType = ""; form.trainingProviderName = ""; form.trainingProviderAddress = ""; form.trainingMaterials = ""; form.trainingCertified = false; form.identifier = ""; form.issuingAuthority = ""; form.issuedAt = ""; form.effectiveFrom = ""; form.expiresAt = ""; form.notes = ""; }
 
 async function submit() {
   if (!form.kind) {
@@ -47,11 +49,15 @@ async function submit() {
     qualifier: isEndorsement.value ? (form.qualifier.trim().toUpperCase() || null) : null,
     trainingType: isTraining.value ? (form.trainingType as (typeof HAZMAT_TRAINING_TYPES)[number]) : null,
     trainingProviderName: isTraining.value ? (form.trainingProviderName.trim() || null) : null,
+    trainingProviderAddress: isTraining.value ? (form.trainingProviderAddress.trim() || null) : null,
+    trainingMaterials: isTraining.value ? (form.trainingMaterials.trim() || null) : null,
     trainingCertified: isTraining.value ? form.trainingCertified : null,
     identifier: form.identifier.trim() || null,
+    issuingAuthority: form.issuingAuthority.trim() || null,
     issuedAt: form.issuedAt || null,
     effectiveFrom: form.effectiveFrom || null,
     expiresAt: form.expiresAt || null,
+    notes: form.notes.trim() || null,
   };
   try {
     const r = await createCert.mutateAsync(body);
@@ -130,8 +136,17 @@ const columns: DataTableColumn[] = [
         <FormField v-if="isTraining" v-slot="{ id }" label="Training provider">
           <BaseInput :id="id" v-model="form.trainingProviderName" placeholder="Provider name" />
         </FormField>
+        <FormField v-if="isTraining" v-slot="{ id }" label="Provider address" hint="§172.704(d) requires it on the record.">
+          <BaseInput :id="id" v-model="form.trainingProviderAddress" placeholder="Street, city, state" />
+        </FormField>
+        <FormField v-if="isTraining" v-slot="{ id }" label="Training materials" hint="Description or location of the materials used (§172.704(d)).">
+          <BaseInput :id="id" v-model="form.trainingMaterials" placeholder="Course name, manual, module…" />
+        </FormField>
         <FormField v-slot="{ id }" label="Identifier" hint="Licence / policy / certificate number (optional).">
           <BaseInput :id="id" v-model="form.identifier" placeholder="Optional" />
+        </FormField>
+        <FormField v-slot="{ id }" label="Issuing authority" hint="Optional.">
+          <BaseInput :id="id" v-model="form.issuingAuthority" placeholder="Optional" />
         </FormField>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField v-slot="{ id }" label="Issued"><AppDateField :id="id" v-model="form.issuedAt" /></FormField>
@@ -141,6 +156,9 @@ const columns: DataTableColumn[] = [
         <BaseCheckbox v-if="isTraining" v-model="form.trainingCertified">
           I certify this training record is complete (§172.704(d)).
         </BaseCheckbox>
+        <FormField v-slot="{ id }" label="Notes" hint="Optional.">
+          <BaseInput :id="id" v-model="form.notes" placeholder="Optional" />
+        </FormField>
         <div>
           <BaseButton variant="primary" :disabled="saving" @click="submit">
             {{ saving ? "Saving…" : "Add record" }}

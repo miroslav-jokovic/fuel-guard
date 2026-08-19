@@ -122,6 +122,7 @@ interface DriverRow {
   hire_date: string | null;
   termination_date: string | null;
   status: string;
+  cdl_number: string | null;
 }
 
 export class BinderGatherError extends Error {}
@@ -165,7 +166,7 @@ export async function gatherSample(
   const [driversRes, certsRes, recordsRes, docsRes] = await Promise.all([
     admin
       .from("drivers")
-      .select("id, full_name, employee_id, hire_date, termination_date, status")
+      .select("id, full_name, employee_id, hire_date, termination_date, status, cdl_number")
       .eq("org_id", orgId)
       .in("id", driverIds),
     admin
@@ -216,6 +217,8 @@ export async function gatherSample(
       const file = buildDqFile({
         today: asAt,
         includeHazmat,
+        // §391.51(b)(8) applies to non-CDL drivers only (D8) — same derivation the overview uses.
+        hasCdl: d.cdl_number != null && d.cdl_number !== "",
         certs: currentCerts.map(toCertInput),
         records: myRecords.map(toRecordInput),
         documents: myDocs.map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),

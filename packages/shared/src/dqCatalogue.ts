@@ -106,6 +106,19 @@ export interface DqItemSpec {
   scope: DqScope;
   /** The retention rule, as text. Shown, never acted on. */
   retention: string;
+  /**
+   * Tracked, not required (D8 / G33). An advisory item never reports `missing`, never enters the
+   * attention feed, and never counts against `complete` — it renders only when evidence exists.
+   * ELDT is the case: §391.51(b) has no ELDT item and the retention obligation is the training
+   * provider's (§380.725), but carriers often keep the certificate anyway.
+   */
+  advisory?: boolean;
+  /**
+   * Conditional applicability (D8 / G33). "no_cdl": required only for drivers WITHOUT a CDL — the
+   * §391.51(b)(8) registry-verification note's CDL-holder variant sunset 2025-06-22; for CDL
+   * holders the CDLIS MVR carries the medical verification instead.
+   */
+  appliesWhen?: "no_cdl";
 }
 
 /**
@@ -182,7 +195,12 @@ export const DQ_ITEMS: readonly DqItemSpec[] = [
     recurrence: "one_time",
     group: "hiring",
     scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
+    // Verified against eCFR 2026-08 (plan G33): §391.51(b) has no ELDT item; §380.725 puts the
+    // retention obligation on the TRAINING PROVIDER, and the state (part 384) gates the CDL test on
+    // TPR data. Tracked as carrier practice, never demanded.
+    advisory: true,
+    retention:
+      "Not a §391.51(b) document — the retention obligation is the training provider's (§380.725). Kept here as practice, not requirement.",
   },
   {
     key: "cdl",
@@ -198,24 +216,31 @@ export const DQ_ITEMS: readonly DqItemSpec[] = [
   {
     key: "medical_card",
     label: "Medical examiner's certificate",
-    citation: "49 CFR §391.43 / §391.51(b)(7)",
+    // (b)(6) post-2022 renumbering (plan G33). For a CDL holder the document of record is the CDLIS
+    // MVR (§391.51(b)(6)(ii)) — E7's MVR ingest writes this item's evidence from it; the paper card
+    // stays lawful for non-CDL drivers and under the NRII waiver bridge (through 2026-10-11).
+    citation: "49 CFR §391.43 / §391.51(b)(6)",
     source: "certification",
     evidenceKinds: ["medical_card"],
     recurrence: "expiry",
     group: "medical",
     scope: "always",
-    retention: "Retained for 3 years from the date of issue (§391.51(d)(2)).",
+    retention: "Retained for 3 years from the date of issue (§391.51(d)).",
   },
   {
     key: "medical_registry_verification",
     label: "National Registry examiner verification",
-    citation: "49 CFR §391.23(m)",
+    citation: "49 CFR §391.23(m)(1) / §391.51(b)(8)(i)",
     source: "record",
     evidenceKinds: ["medical_registry_verification"],
     recurrence: "one_time",
     group: "medical",
     scope: "always",
-    retention: "Retained for 3 years from the date of the verification (§391.23(m)(2)).",
+    // Non-CDL drivers only since 2025-06-22 (plan G33): the CDL-holder variant, §391.51(b)(8)(ii),
+    // reads "Through June 22, 2025" — a CDL holder's file must not demand a note the regulation
+    // stopped requiring. hasCdl comes from drivers.cdl_number, which the D6 sync populates.
+    appliesWhen: "no_cdl",
+    retention: "Retained for 3 years from the date of the verification (§391.23(m)).",
   },
   {
     key: "drug_test_preemployment",
