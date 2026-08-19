@@ -13,12 +13,14 @@ function makeAdmin(existing: unknown[]) {
     identityUpdates: 0,
     /** Every per-driver update payload, in order — what "enrich, never clobber" is asserted against. */
     identityPatches: [] as Record<string, unknown>[],
+    /** Every insert payload — what the D6 licence mapping is asserted against on the create path. */
+    insertPayloads: [] as Record<string, unknown>[],
   };
   function builder(): any {
     let mode: string | null = null, payload: any = null, inIds: string[] | null = null;
     const b: any = {
       select() { mode = "select"; return b; },
-      insert() { mode = "insert"; captured.inserts++; return b; },
+      insert(p: any) { mode = "insert"; captured.inserts++; captured.insertPayloads.push(p); return b; },
       update(p: any) { mode = "update"; payload = p; return b; },
       eq() { return b; },
       not() { return b; },
@@ -113,5 +115,66 @@ describe("syncDriversFromSamsara — manual rows are not overwritten by the sync
       full_name: "Samsara Spelling",
       samsara_driver_id: "S1",
     });
+  });
+});
+
+/**
+ * D6 — the licence field map (DQF-EXECUTION-PLAN A2b). Samsara sends licenseNumber/licenseState on
+ * every driver; the sync used to discard them, which is why every qualification file started empty.
+ * The licence is ENRICH-ONLY: editing cdl_number does not claim a row for the office (it is not in
+ * DRIVER_IDENTITY_FIELDS), so the only thing protecting a hand-corrected licence on a telematics row
+ * is that the sync writes the field when empty and never after.
+ */
+describe("syncDriversFromSamsara — D6 licence enrichment", () => {
+  const roster = async () => [
+    { id: "S1", name: "Licenced Driver", driverActivationStatus: "active", licenseNumber: "D123-4567-8901", licenseState: "IL" },
+  ];
+
+  it("fills an EMPTY cdl_number on a telematics row", async () => {
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "Licenced Driver", phone: null, samsara_username: null, identity_source: "samsara", status: "active", cdl_number: null },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.identityPatches[0]).toMatchObject({ cdl_number: "D123-4567-8901", cdl_state: "IL" });
+  });
+
+  it("never overwrites a hand-entered cdl_number, even when Samsara carries a different one", async () => {
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "Licenced Driver", phone: null, samsara_username: null, identity_source: "samsara", status: "active", cdl_number: "CORRECTED-BY-OFFICE" },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.identityPatches[0]).not.toHaveProperty("cdl_number");
+    expect(captured.identityPatches[0]).not.toHaveProperty("cdl_state");
+  });
+
+  it("writes nothing but the provenance link to a MANUAL row, licence included", async () => {
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "Manual Person", phone: null, samsara_username: null, identity_source: "manual", status: "active", cdl_number: null },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.identityPatches).toEqual([{ samsara_driver_id: "S1" }]);
+  });
+
+  it("carries the licence onto a NEWLY created driver row", async () => {
+    const { admin, captured } = makeAdmin([]);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.insertPayloads[0]).toMatchObject({
+      cdl_number: "D123-4567-8901",
+      cdl_state: "IL",
+      status: "active",
+    });
+  });
+
+  it("omits the licence keys entirely when Samsara sends none (never writes null over a value)", async () => {
+    const bare = async () => [{ id: "S1", name: "No Licence", driverActivationStatus: "active" }];
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "No Licence", phone: null, samsara_username: null, identity_source: "samsara", status: "active", cdl_number: null },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", bare);
+    expect(captured.identityPatches[0]).not.toHaveProperty("cdl_number");
   });
 });

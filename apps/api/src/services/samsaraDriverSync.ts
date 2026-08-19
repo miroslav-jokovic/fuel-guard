@@ -20,6 +20,7 @@ interface ExistingDriver {
   samsara_username: string | null;
   identity_source: string | null;
   status: string | null;
+  cdl_number: string | null;
 }
 
 /**
@@ -49,7 +50,7 @@ export async function syncDriversFromSamsara(
 
   const { data: existingData } = await admin
     .from("drivers")
-    .select("id, samsara_driver_id, full_name, phone, samsara_username, identity_source, status")
+    .select("id, samsara_driver_id, full_name, phone, samsara_username, identity_source, status, cdl_number")
     .eq("org_id", orgId);
   const existing = (existingData ?? []) as ExistingDriver[];
 
@@ -79,6 +80,17 @@ export async function syncDriversFromSamsara(
     if (sd.phone) identity.phone = sd.phone;
     if (sd.username) identity.samsara_username = sd.username;
 
+    // The licence is ENRICH-ONLY (D6): Samsara supplies licenseNumber/licenseState on every driver,
+    // and until 2026-08 the sync discarded them — which is why no qualification file could ever be
+    // seeded (A2b). Unlike full_name/phone, editing cdl_number does NOT claim a row for the office
+    // (it is not in DRIVER_IDENTITY_FIELDS), so a hand-corrected licence on a telematics row is only
+    // safe if the sync writes the field WHEN EMPTY and never after. The licence number is PII: it
+    // goes in the patch and nowhere else — never into a log line or an error message.
+    const licence =
+      sd.licenseNumber && match?.cdl_number == null
+        ? { cdl_number: sd.licenseNumber, cdl_state: sd.licenseState }
+        : {};
+
     if (match) {
       // ENRICH, NEVER CLOBBER. 0098 documented this rule and the deactivation pass below honoured it,
       // but this line did not: until DQ1 it wrote `identity` over EVERY matched row, so an admin who
@@ -87,9 +99,12 @@ export async function syncDriversFromSamsara(
       // to prevent, so the two had to be fixed together.
       //
       // For a manual row we still refresh `samsara_driver_id`: that is the LINK, not the identity, and
-      // dropping it would strand the row from future matching. Everything the office typed stays.
+      // dropping it would strand the row from future matching. Everything the office typed stays —
+      // including the licence: a manual row gets no licence enrichment from telematics.
       const patch =
-        match.identity_source === "manual" ? { samsara_driver_id: sd.samsaraId } : identity;
+        match.identity_source === "manual"
+          ? { samsara_driver_id: sd.samsaraId }
+          : { ...identity, ...licence };
       await admin.from("drivers").update(patch).eq("id", match.id).eq("org_id", orgId);
       result.updated++;
       continue;
@@ -98,6 +113,7 @@ export async function syncDriversFromSamsara(
     const { error } = await admin.from("drivers").insert({
       org_id: orgId,
       ...identity,
+      ...licence,
       status: sd.active ? "active" : "inactive",
     });
     if (error) throw new Error(error.message);
