@@ -41,7 +41,8 @@ export async function attributeDrivers(admin: SupabaseClient, orgId: string): Pr
   if (toCreate.length) {
     const { data: created, error } = await admin
       .from("drivers")
-      .insert(toCreate.map((full_name) => ({ org_id: orgId, full_name, status: "active" })))
+      // identity_source 'efs' (0204): a fuel-card name is a payment identity, not an employee.
+      .insert(toCreate.map((full_name) => ({ org_id: orgId, full_name, status: "active", identity_source: "efs" })))
       .select("id, full_name");
     if (error) throw new Error(error.message);
     drivers = [...drivers, ...((created ?? []) as { id: string; full_name: string }[])];
