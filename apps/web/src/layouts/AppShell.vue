@@ -15,6 +15,7 @@ import { canViewSection, moduleEnabled } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";
+import NotificationBell from "@/components/NotificationBell.vue";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import { useThreadsQuery } from "@/features/messages/useMessages";
 import AppLogo from "@/components/AppLogo.vue";
@@ -331,6 +332,11 @@ async function signOut() {
               Back
             </RouterLink>
           </template>
+        </div>
+        <!-- The office bell (DQF plan C6): the web reader of the same per-user inbox the driver
+             app renders. -->
+        <div class="ml-auto flex items-center">
+          <NotificationBell />
         </div>
       </header>
       <main class="py-6">
