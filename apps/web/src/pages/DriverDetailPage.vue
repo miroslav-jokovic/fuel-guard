@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
@@ -110,7 +110,11 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Driver performance and fueling history" />
+    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Driver performance and fueling history">
+      <template #actions>
+        <BaseButton :to="`/compliance/${id}`">Qualification file</BaseButton>
+      </template>
+    </PageHeader>
     <BaseCard v-if="driver">
       <div class="flex items-center justify-between">
         <div>

@@ -1,272 +1,65 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
+import { computed, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
-import { ArrowDownTrayIcon, ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
-import { DQ_EXPORT_MAX_DRIVERS } from "@fuelguard/shared";
+import { ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
 import { useSessionStore } from "@/stores/session";
-import { useDriversQuery } from "@/composables/useDrivers";
-import { useAllDriverCertsQuery, useCertificationsQuery } from "@/composables/useCompliance";
-import { useTrailersQuery } from "@/composables/useTrailers";
+import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@fuelguard/ui";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
-import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import StatusBadge from "@/components/StatusBadge.vue";
 import SlideOver from "@/components/SlideOver.vue";
-import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
-import QualificationQueue from "@/features/compliance/QualificationQueue.vue";
+import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
 import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel.vue";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
-import {
-  certsByDriver,
-  labelForCode,
-  QUAL_LABEL,
-  QUAL_TONE,
-} from "@/features/compliance/qualificationRoster";
-import { buildQualificationRosterRows } from "@/features/compliance/qualificationRosterRows";
 
 /**
- * Driver Qualification (DQ redesign, D-DQ6).
+ * Driver Qualification. The page COMPOSES; every surface is a component.
  *
- * Three tabs, and the DEFAULT is the queue, not the roster. A safety manager's morning question is
- * "which qualification items need attention across my fleet"; an alphabetical roster answers a question
- * nobody asked. The roster stays as the second tab, because "show me everyone" is a real need — just
- * not the daily one.
- *
- * Clicking a driver opens their file at /compliance/:id (D-DQ7) rather than a drawer: eighteen
- * requirements, their documents and their history is a workspace, not a peek.
- *
- * The old roster — Each driver's row shows whether they are
- * hazmat-qualified (computed with the SAME qualifyDriver gate the analysis uses) and what is
- * missing/expired; clicking a driver opens a drawer to manage their certifications. The carrier's
- * own records (PHMSA registration, insurance) live behind the header button. Populating these is
- * what turns a hazmat load from "needs review" into a clear.
+ * Two tabs where there were four. The fleet table is one row per driver (queue and roster were two
+ * answers to one question and split the audience across tabs); binder selection lives on the table
+ * it selects from; and first-time seeding is a prompt that appears only while files are missing,
+ * instead of a permanent tab. Exports stay a tab — a job ledger is a genuinely different surface.
  */
 const session = useSessionStore();
-const {
-  data: drivers,
-  isLoading: driversLoading,
-  isError: driversFailed,
-  error: driversError,
-  refetch: refetchDrivers,
-  isFetching: driversFetching,
-} = useDriversQuery();
-const {
-  data: driverCerts,
-  isLoading: certsLoading,
-  isError: certsFailed,
-  error: certsError,
-  refetch: refetchCerts,
-  isFetching: certsFetching,
-} = useAllDriverCertsQuery();
+const toast = useToastStore();
 
-// F-H2 / F-P2. This page graded EVERY driver in EVERY organization against cargo-tank criteria —
-// `vehicleKind: "cargo_tank"` and `orgHasSecurityPlan: false` were both literals — so a fleet that has
-// never hauled a tank in its life saw every driver as "Action required" for want of an N/X endorsement.
-// Both now come from what the organization actually has.
-const trailersQ = useTrailersQuery();
+const overview = useComplianceOverviewQuery();
 const orgCertsQ = useCertificationsQuery(
   ref("organization"),
   computed(() => session.orgId ?? null),
 );
-const trailers = trailersQ.data;
-const orgCerts = orgCertsQ.data;
 
-/** Tank endorsements matter to a fleet that owns tank equipment. Unknown-type trailers do not count:
- *  an unset type is a prompt to set it, not a reason to fail every driver. */
-const fleetHasTanker = computed(() =>
-  (trailers.value ?? []).some((t) => t.trailer_type === "tanker"),
-);
-const vehicleKind = computed<"cargo_tank" | "van_or_flatbed">(() =>
-  fleetHasTanker.value ? "cargo_tank" : "van_or_flatbed",
-);
-const orgHasSecurityPlan = computed(() =>
-  (orgCerts.value ?? []).some((c) => c.kind === "security_plan" && !c.superseded_by),
-);
+type TabValue = "drivers" | "exports";
+const tab = ref<TabValue>("drivers");
+const TABS: Array<{ value: TabValue; label: string }> = [
+  { value: "drivers", label: "Drivers" },
+  { value: "exports", label: "Exports" },
+];
 
-const isLoading = computed(
-  () => driversLoading.value || certsLoading.value || trailersQ.isLoading.value || orgCertsQ.isLoading.value,
+const carrierOpen = ref(false);
+const setupOpen = ref(false);
+
+const seedDrivers = computed(() =>
+  (overview.data.value?.drivers ?? []).map((d) => ({
+    id: d.driver_id,
+    full_name: d.driver_name,
+    state: d.state,
+  })),
 );
-const isError = computed(
-  () =>
-    driversFailed.value ||
-    certsFailed.value ||
-    trailersQ.isError.value ||
-    orgCertsQ.isError.value,
+const notStartedCount = computed(
+  () => seedDrivers.value.filter((d) => d.state === "not_started").length,
 );
-const errorMessage = computed(() => {
-  const queryError =
-    driversError.value ??
-    certsError.value ??
-    trailersQ.error.value ??
-    orgCertsQ.error.value;
-  return queryError instanceof Error ? queryError.message : "Failed to load compliance records";
+const orgSeeded = computed(() => {
+  const kinds = new Set((orgCertsQ.data.value ?? []).map((c) => c.kind));
+  return kinds.has("phmsa_registration") && kinds.has("financial_responsibility");
 });
-const isFetching = computed(
-  () =>
-    driversFetching.value ||
-    certsFetching.value ||
-    trailersQ.isFetching.value ||
-    orgCertsQ.isFetching.value,
-);
-function refetch() {
-  void Promise.all([
-    refetchDrivers(),
-    refetchCerts(),
-    trailersQ.refetch(),
-    orgCertsQ.refetch(),
-  ]);
-}
 
-const today = new Date().toISOString().slice(0, 10);
-
-const certsBy = computed(() => certsByDriver(driverCerts.value ?? []));
-
-const rows = computed(() =>
-  buildQualificationRosterRows(
-    drivers.value ?? [],
-    certsBy.value,
-    today,
-    vehicleKind.value,
-    orgHasSecurityPlan.value,
-  ),
-);
-
-const search = ref("");
-const readyFilter = ref<string>("");
-const statusFilter = ref("");
-const issueFilter = ref("");
-const readyOptions = [
-  { value: "", label: "All qualifications" },
-  { value: "ready", label: "Ready" },
-  { value: "not_ready", label: "Action required" },
-  // Its own filter because it is its own job: onboarding a fleet is not the same task as chasing an
-  // expired medical card, and during a rollout this is the only list that matters.
-  { value: "not_started", label: "Not started" },
-];
-const statusOptions = computed(() => [
-  { value: "", label: "All employment statuses" },
-  ...[...new Set(rows.value.map((row) => row.status))]
-    .sort((a, b) => a.localeCompare(b))
-    .map((status) => ({ value: status, label: labelForCode(status) })),
-]);
-const issueOptions = computed(() => [
-  { value: "", label: "All issues" },
-  ...[...new Set(rows.value.flatMap((row) => row.issues))]
-    .sort((a, b) => a.localeCompare(b))
-    .map((issue) => ({ value: issue, label: issue })),
-]);
-
-const filtered = computed(() =>
-  rows.value.filter((r) => {
-    if (readyFilter.value === "ready" && !r.ready) return false;
-    if (readyFilter.value === "not_ready" && r.ready) return false;
-    if (readyFilter.value === "not_started" && r.state !== "not_started") return false;
-    if (statusFilter.value && r.status !== statusFilter.value) return false;
-    if (issueFilter.value && !r.issues.includes(issueFilter.value)) return false;
-    const term = search.value.trim().toLowerCase();
-    if (
-      term &&
-      ![r.full_name, r.status, r.issueSummary].some((value) => value.toLowerCase().includes(term))
-    )
-      return false;
-    return true;
-  }),
-);
-
-const chips = computed<FilterChip[]>(() =>
-  statusFilter.value
-    ? [{ key: "status", label: "Employment", value: labelForCode(statusFilter.value) }]
-    : [],
-);
-const moreCount = computed(() => (statusFilter.value ? 1 : 0));
-function removeChip(key: string) {
-  if (key === "status") statusFilter.value = "";
-}
-function clearAll() {
-  search.value = "";
-  readyFilter.value = "";
-  statusFilter.value = "";
-  issueFilter.value = "";
-}
-
-const sort = ref<SortState>({ key: "ready", dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
-const sorted = computed(() => sortRows(filtered.value, sort.value));
-
-const PAGE_SIZE = 20;
-const page = ref(1);
-watch([search, readyFilter, statusFilter, issueFilter], () => (page.value = 1));
-const pageRows = computed(() =>
-  sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
-);
-
-const columns: DataTableColumn[] = [
-  {
-    key: "full_name",
-    label: "Driver",
-    sortable: true,
-    headerClass: "min-w-[13rem]",
-    cellClass: "font-medium text-ink",
-  },
-  {
-    key: "status",
-    label: "Employment",
-    sortable: true,
-    headerClass: "min-w-[8rem]",
-  },
-  {
-    key: "ready",
-    label: "Qualification",
-    sortable: true,
-    headerClass: "min-w-[10rem]",
-  },
-  {
-    key: "issueSummary",
-    label: "Missing or expired",
-    headerClass: "min-w-[20rem]",
-    cellClass: "text-ink-secondary",
-  },
-];
-
-/**
- * The auditor's ask, on the surface they already use (D-BD2). An auditor names a sample of drivers;
- * ticking them here and pressing one button produces their §391.51 files as ONE PDF, in the order
- * they were named, ready to print or attach. Fifteen separate files would be fifteen print jobs.
- */
-const toast = useToastStore();
-const selected = ref<Set<string>>(new Set());
 const requestBinder = useRequestBinder();
-const atCap = computed(() => selected.value.size >= DQ_EXPORT_MAX_DRIVERS);
-function setSelected(next: Set<string>): void {
-  if (next.size <= DQ_EXPORT_MAX_DRIVERS) {
-    selected.value = next;
-    return;
-  }
-  selected.value = new Set([...next].slice(0, DQ_EXPORT_MAX_DRIVERS));
-  toast.warning(
-    "Binder limit reached",
-    `A binder can contain up to ${DQ_EXPORT_MAX_DRIVERS} drivers. Build this binder, then select the remaining drivers.`,
-  );
-}
-
-async function buildBinder(): Promise<void> {
-  const driverIds = [...selected.value];
-  if (driverIds.length === 0) return;
+async function buildBinder(driverIds: string[]): Promise<void> {
   try {
     await requestBinder.mutateAsync({ driverIds, asAt: null });
-    selected.value = new Set();
     tab.value = "exports";
     // It is a job, so the honest thing to say is what happens next and roughly when — not "Done".
     toast.success(
@@ -277,27 +70,6 @@ async function buildBinder(): Promise<void> {
     toast.error("Could not start the binder", e instanceof Error ? e.message : undefined);
   }
 }
-
-type TabValue = "queue" | "roster" | "exports" | "setup";
-const tab = ref<TabValue>("queue");
-// H-CS: the seeding tab appears only for managers, and its label carries the not-started count —
-// on a fleet's first day this is the loudest signal on the page, by design (F-H1: nothing clears
-// until these files exist).
-const notStartedCount = computed(() => rows.value.filter((r) => r.state === "not_started").length);
-const TABS = computed<Array<{ value: TabValue; label: string }>>(() => [
-  { value: "queue", label: "Needs attention" },
-  { value: "roster", label: "All drivers" },
-  ...(session.canManage
-    ? [{ value: "setup" as const, label: notStartedCount.value > 0 ? `Set up files (${notStartedCount.value})` : "Set up files" }]
-    : []),
-  { value: "exports", label: "Exports" },
-]);
-const carrierOpen = ref(false);
-const orgSeeded = computed(() => {
-  const kinds = new Set((orgCerts.value ?? []).map((c) => c.kind));
-  return kinds.has("phmsa_registration") && kinds.has("financial_responsibility");
-});
-const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name: r.full_name, state: r.state })));
 </script>
 
 <template>
@@ -326,9 +98,7 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
         role="tab"
         class="rounded-control px-3 py-1.5 font-medium transition"
         :class="
-          tab === t.value
-            ? 'bg-surface text-ink'
-            : 'text-ink-muted hover:text-ink-secondary'
+          tab === t.value ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'
         "
         :aria-selected="tab === t.value"
         :aria-controls="`qualification-panel-${t.value}`"
@@ -339,139 +109,56 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
     </nav>
 
     <div
-      v-if="tab === 'queue'"
-      id="qualification-panel-queue"
+      v-if="tab === 'drivers'"
+      id="qualification-panel-drivers"
       role="tabpanel"
-      aria-labelledby="qualification-tab-queue"
+      aria-labelledby="qualification-tab-drivers"
+      class="space-y-6"
     >
-      <QualificationQueue />
+      <div
+        v-if="session.canManage && notStartedCount > 0 && !setupOpen"
+        class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+      >
+        <span class="text-sm font-medium text-brand-800">
+          {{ notStartedCount }} {{ notStartedCount === 1 ? "driver has" : "drivers have" }} no
+          qualification file yet.
+        </span>
+        <BaseButton variant="ghost" size="sm" class="ml-auto" @click="setupOpen = true">
+          Set up files…
+        </BaseButton>
+      </div>
+
+      <template v-if="setupOpen">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-sm text-ink-muted">
+            Enter what is already on paper; existing records are never overwritten.
+          </p>
+          <BaseButton variant="ghost" size="sm" @click="setupOpen = false">
+            Back to drivers
+          </BaseButton>
+        </div>
+        <QualificationSeedPanel
+          :key="seedDrivers.length"
+          :drivers="seedDrivers"
+          :org-seeded="orgSeeded"
+          @seeded="setupOpen = false"
+        />
+      </template>
+
+      <QualificationFleetTable
+        v-else
+        :building="requestBinder.isPending.value"
+        @build-binder="buildBinder"
+      />
     </div>
 
     <div
-      v-else-if="tab === 'setup'"
-      id="qualification-panel-setup"
-      role="tabpanel"
-      aria-labelledby="qualification-tab-setup"
-    >
-      <QualificationSeedPanel :key="seedDrivers.length" :drivers="seedDrivers" :org-seeded="orgSeeded" @seeded="tab = 'roster'" />
-    </div>
-
-    <div
-      v-else-if="tab === 'exports'"
+      v-else
       id="qualification-panel-exports"
       role="tabpanel"
       aria-labelledby="qualification-tab-exports"
     >
       <ExportHistory />
-    </div>
-
-    <div
-      v-else
-      id="qualification-panel-roster"
-      role="tabpanel"
-      aria-labelledby="qualification-tab-roster"
-    >
-      <FilterBar
-        v-model:search="search"
-        search-placeholder="Search driver or compliance issue…"
-        :count="filtered.length"
-        count-label="drivers"
-        :chips="chips"
-        :more-count="moreCount"
-        @remove="removeChip"
-        @clear-all="clearAll"
-      >
-        <template #filters>
-          <FilterSelect v-model="readyFilter" label="Qualification" :options="readyOptions" />
-          <FilterSelect v-model="issueFilter" label="Issue" :options="issueOptions" />
-        </template>
-        <template #more>
-          <FilterSelect v-model="statusFilter" label="Employment" :options="statusOptions" block />
-        </template>
-      </FilterBar>
-
-      <div
-        v-if="selected.size > 0"
-        class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-      >
-        <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
-        <span v-if="atCap" class="text-sm text-brand-800">
-          That is the most drivers one binder holds. Send the rest as a second binder.
-        </span>
-        <div class="ml-auto flex items-center gap-2">
-          <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :disabled="requestBinder.isPending.value"
-            @click="buildBinder"
-          >
-            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-            {{ requestBinder.isPending.value ? "Building…" : "Build audit binder" }}
-          </BaseButton>
-        </div>
-      </div>
-
-      <DataTable
-        :columns="columns"
-        :rows="pageRows"
-        row-key="id"
-        selectable
-        :selected="selected"
-        :loading="isLoading"
-        :error="isError ? errorMessage : null"
-        :retrying="isFetching"
-        :sort="sort"
-        :empty-text="
-          (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
-        "
-        @update:selected="setSelected"
-        @sort="onSort"
-        @retry="refetch"
-      >
-        <template #cell-full_name="{ row }">
-          <RouterLink
-            :to="`/compliance/${row.id}`"
-            class="font-medium text-link hover:text-link-hover"
-          >
-            {{ row.full_name }}
-          </RouterLink>
-        </template>
-        <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
-        <template #cell-ready="{ row }">
-          <span :class="[BADGE_BASE, toneClass(QUAL_TONE[row.state])]">{{
-            QUAL_LABEL[row.state]
-          }}</span>
-        </template>
-        <template #cell-issueSummary="{ row }">
-          <span v-if="row.ready" class="text-ink-tertiary">—</span>
-          <div v-else class="flex min-w-0 items-center gap-2" :title="row.issueSummary">
-            <span class="truncate text-ink-secondary">{{ row.issues[0] }}</span>
-            <span
-              v-if="row.issues.length > 1"
-              :class="['shrink-0', BADGE_BASE, toneClass('neutral')]"
-            >
-              +{{ row.issues.length - 1 }} more
-            </span>
-          </div>
-        </template>
-        <template #actions="{ row }">
-          <KebabMenu v-if="session.canManage">
-            <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
-              >Open qualification file…</RouterLink
-            >
-          </KebabMenu>
-        </template>
-        <template #footer>
-          <TablePagination
-            :page="page"
-            :page-size="PAGE_SIZE"
-            :total="filtered.length"
-            :loading="isFetching"
-            @update:page="page = $event"
-          />
-        </template>
-      </DataTable>
     </div>
 
     <SlideOver

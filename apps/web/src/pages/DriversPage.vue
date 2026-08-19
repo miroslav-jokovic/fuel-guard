@@ -2,6 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { PlusIcon } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
+import { RouterLink } from "vue-router";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/composables/useDrivers";
@@ -300,6 +301,9 @@ async function onSubmit(input: DriverInput) {
           <BaseButton class="kebab-item" @click="openAccess(row)">
             {{ row.user_id ? "Manage app login…" : "Create app login…" }}
           </BaseButton>
+          <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
+            >Open qualification file…</RouterLink
+          >
         </KebabMenu>
       </template>
       <template #footer>

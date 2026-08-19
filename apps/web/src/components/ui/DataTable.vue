@@ -35,6 +35,9 @@ import type { SortState } from "@/lib/sort";
  * Selection appears ONLY when `selectable` (i.e. the page has bulk actions).
  * The header checkbox selects/clears the current page; indeterminate when partial.
  * Sticky header: thead pins while the table's own scroll area (max-h-[70vh]) scrolls.
+ * Expandable rows: pass `expanded` (a Set of row keys) and an #expanded="{ row }" slot; each
+ * expanded row renders a full-width detail row beneath it. The page owns the Set — the table
+ * only renders.
  */
 export interface DataTableColumn {
   key: string;
@@ -72,6 +75,8 @@ const props = withDefaults(
     /** Extra classes per row (tints, cursor). Selected tint is built in. */
     rowClass?: (row: Row) => string;
     embedded?: boolean;
+    /** Row keys whose #expanded detail row is currently shown. */
+    expanded?: Set<string>;
   }>(),
   {
     rowKey: "id",
@@ -87,6 +92,7 @@ const props = withDefaults(
     stickyHeader: true,
     rowClass: undefined,
     embedded: false,
+    expanded: undefined,
   },
 );
 
@@ -147,6 +153,8 @@ const skeletonCols = computed(
 
 const cellValue = (row: Row, col: DataTableColumn) => row[col.key];
 const isBlank = (v: unknown) => v == null || v === "";
+
+const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
 </script>
 
 <template>
@@ -203,9 +211,8 @@ const isBlank = (v: unknown) => v == null || v === "";
             </tr>
           </thead>
           <tbody class="divide-y divide-edge-subtle">
+            <template v-for="row in rows" :key="keyOf(row)">
             <tr
-              v-for="row in rows"
-              :key="keyOf(row)"
               class="hover:bg-surface-subtle"
               :class="[isSelected(row) ? 'bg-brand-50/40' : '', rowClass?.(row)]"
               @click="emit('row-click', row)"
@@ -233,6 +240,12 @@ const isBlank = (v: unknown) => v == null || v === "";
                 <slot name="actions" :row="row" />
               </td>
             </tr>
+            <tr v-if="isExpanded(row)" class="bg-surface-subtle/60">
+              <td :colspan="skeletonCols" class="px-6 py-3">
+                <slot name="expanded" :row="row" />
+              </td>
+            </tr>
+            </template>
           </tbody>
         </table>
       </div>
