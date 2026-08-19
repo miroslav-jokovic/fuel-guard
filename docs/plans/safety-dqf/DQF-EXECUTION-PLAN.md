@@ -77,12 +77,42 @@ not gate E5, because every event doc also specifies HTTP **Basic** auth on the c
 client id and secret (G26) — verifiable today. Ask the rep for the signature spec as hardening.
 **Done when:** both open items are recorded in `SAMBA-RECON.md` §3.
 
-### A2 · Baseline the storage bill
-Run against production (read-only, per the established `supabase db query --linked` path):
-count and `sum(bytes)` of `documents` grouped by `content_type` and `variant`; and `listAllObjects(admin, 'compliance-docs')`
-count via a scratch script. Record both numbers plus the delta (objects with no row = the G10 leak).
-**Done when:** `SAMBA-RECON.md`-style note `docs/plans/safety-dqf/STORAGE-BASELINE.md` states: rows, bytes,
-objects, orphan count, and the projected 12-month bytes at current upload rate.
+### A2 · Baseline the storage bill — **DONE 2026-08-19**
+`scripts/storage-baseline.mjs` — read-only, prints no PII, writes
+[`STORAGE-BASELINE.md`](./STORAGE-BASELINE.md). Re-runnable; also takes `--bucket`/`--table` so the
+other two evidence buckets can be measured the same way.
+
+**The measurement, and it is not what this plan assumed.**
+
+| | |
+|---|---|
+| Rows in `documents` | **0** |
+| Objects in `compliance-docs` | **0** |
+| Orphan objects | 0 |
+| `certifications` / `qualification_records` / `dq_exports` | **0 / 0 / 0** |
+| `drivers` | **266** |
+
+Verified twice, by two independent paths — the service-role client in the script, and
+`supabase db query --linked` — against project `nsjszqnfppczbnligxll`, which is the ref
+`apps/api/.env` points at and the ref `supabase/.temp/project-ref` records. This is production.
+
+**What it means, stated plainly rather than worked around:**
+
+1. **The orphan leak (G10) is real as a mechanism and has cost nothing.** There is no garbage to
+   sweep because there is nothing in the bucket. B7 still ships — it is the guard that makes the leak
+   impossible rather than merely absent — but it should not be described as recovering money.
+2. **B8 (backfill derivatives) is a no-op today.** It stays in the plan for the day it is not.
+3. **The far bigger finding: the DQF has never been used in production.** 266 drivers, zero
+   certifications, zero qualification records, zero documents, zero exports. Everything built since
+   2026-08-08 — the checklist, the drawer, the fleet table, the binder, the seeding path — has never
+   had a row put through it by a real user.
+
+**This reorders the plan's own premise.** Previews (B1–B6) and alerts (C1–C5) make a surface people
+already use better. Nobody is using this one yet. Before more is built on top, the question worth
+answering is why zero of 266 drivers has a single certification: whether the seeding path was ever
+run, whether the page is reachable for the roles that would use it, and whether anyone has been
+asked to. That is a product question, not an engineering one, and it is the owner's call — recorded
+here rather than silently answered by continuing to build.
 
 ### A3 · Probe HEIC decode
 `documents.content_type` admits `image/heic` (G5). Write a throwaway script that runs `sharp(heicBuffer).metadata()`
@@ -139,7 +169,7 @@ enrolled licences; and `scripts/samba-recon.mjs` re-runs idempotently with no wr
 
 ## Phase B — Documents: previews and storage economics *(the priority)*
 
-### B1 · `packages/shared/src/documentDerivatives.ts` — the pure spec
+### B1 · `packages/shared/src/documentDerivatives.ts` — the pure spec — **DONE 2026-08-19**
 Export `DERIVATIVE_SPECS` and `DERIVATIVE_VERSION`:
 - `thumb`: long edge **320 px**, WebP **q65**, stripped metadata — the file-table cell.
 - `normalized`: long edge **2000 px**, WebP **q82**, EXIF auto-orient only — the on-screen viewer.
@@ -147,8 +177,15 @@ No `.normalise()`, no `.median()`: G7's ruleset is tuned for a vision model, and
 a scanned medical card before a human reads it is a legibility change to evidence.
 Plus `shouldDerive(contentType)` → true only for `image/*`; PDFs are handled by A4's decision.
 **Files:** new file (~60 ln) + `documentDerivatives.test.ts`; barrel export in `packages/shared/src/index.ts`.
-**Done when:** `pnpm --filter @fuelguard/shared test` passes with ≥ 8 new assertions, including that the
-version string changes if any spec value changes.
+**Shipped with 19 assertions.** The version guard is a *fingerprint* derived from the specs and pinned
+by a test, rather than a hand-written constant nobody remembers to bump — editing a bound or a quality
+fails the suite until the change is acknowledged.
+
+**Found while building it, and it amends this plan:** G1 was right that `variant` needs no migration, but
+nothing links a derivative back to its original — `documents` has no parent column. Encoding the link in
+the storage path would make an object name a foreign key, which is how the next person ends up regex-
+matching bucket listings. **Migration 0204 adds `documents.derived_from uuid references documents(id)`**,
+at step B2 where the writer lives.
 
 ### B2 · `apps/api/src/services/documentDerivatives.ts` — generate and register
 Given a `documents` row id: download the original, run `sharp` per B1, compute a fresh SHA-256 (G4), upload
@@ -242,12 +279,20 @@ a print-specific popup window is blocked by popup blockers and loses the app's f
 the image branch renders `<img>` **and shows Print**; and an API test asserts the download URL carries a
 `Content-Disposition` filename and writes a `compliance.document_downloaded` audit row.
 
-### B7 · Close the orphan leak (G10) — migration **0204** not required; scheduler only
-Register `compliance-docs` in the reconcile scheduler alongside `hazmat`
-(`hazmatStorageReconcileScheduler.ts:27` becomes a two-entry list; rename the file to
-`storageReconcileScheduler.ts` since it is no longer hazmat-specific). Same 24-hour grace. Orphan **rows**
-stay flagged, never deleted (`storageReconcile.ts:20-24`).
-**Done when:** the scheduler test asserts both buckets are swept, and A2's orphan count drops on the next run.
+### B7 · Close the orphan leak (G10) — **DONE 2026-08-19**; scheduler only, no migration
+`reconcileComplianceDocOrphans` binds `compliance-docs` → `documents` on the already-generalised
+`reconcileBucketOrphans`, and the scheduler's bucket list becomes three entries. Same 24-hour grace.
+Orphan **rows** stay flagged, never deleted (`storageReconcile.ts:20-24`) — that asymmetry is what makes
+this safe to aim at a compliance bucket: it can keep bytes it could have deleted, never delete evidence.
+
+**Correction to G10:** the sweep already covered **two** buckets (`hazmat` and `load-photos`), not one.
+`compliance-docs` was the omission. The file is renamed `storageReconcileScheduler.ts` — it stopped being
+hazmat-specific at LD3, and a name saying "hazmat" on the code that decides the fate of every driver's
+medical-card scan misleads whoever reads it next.
+
+**Shipped with 4 assertions** pinning each bucket↔table binding (point `documents` at the wrong bucket and
+every object in it looks like an orphan) plus one proving a `documents` row whose object is missing is
+flagged and never deleted.
 
 ### B8 · Backfill derivatives for existing documents
 One-shot script `scripts/backfill-document-derivatives.mjs`: page `documents where variant='original' and content_type like 'image/%'`,
