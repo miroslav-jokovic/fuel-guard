@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkPspEnv } from "./lib/pspEnv.js";
 
 /**
  * Validated server environment. Secrets live ONLY here (api), never in the web bundle.
@@ -384,7 +385,12 @@ const EnvSchema = z.object({
   //
   // Tokens are PER ENVIRONMENT and expire after 60 days (§4.2). `PSP_ENVIRONMENT` decides the host,
   // and getting it wrong is not a harmless misconfiguration: a production request BILLS.
-  PSP_API_KEY: z.string().optional(),
+  //
+  // One variable per PSP ACCOUNT, selected by `PSP_ENVIRONMENT` — so a token cannot be paired
+  // with the other account's host. Why that is structural rather than a convention, and the two ways
+  // the pair can still be wrong, are in lib/pspEnv.ts.
+  PSP_API_KEY_UAT: z.string().optional(),
+  PSP_API_KEY_PRODUCTION: z.string().optional(),
   PSP_ENVIRONMENT: z.enum(["uat", "production"]).default("uat"),
   /** §5.4.1 requires a DOT number or a Motor Carrier ID; PSP refuses the request without one (§8.5 detail 10). */
   PSP_DOT_NUMBER: z.string().optional(),
@@ -394,6 +400,11 @@ const EnvSchema = z.object({
    * present is not consent to spend on it, and PSP bills on Success, Partial AND Failure (§8). An
    * integration that starts buying the moment a key lands in the environment is one nobody chose.
    */
+  /** The SECOND switch in front of production; neither means anything alone. See lib/pspEnv.ts. */
+  PSP_PRODUCTION_ACKNOWLEDGED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   PSP_ORDERS_ENABLED: z
     .enum(["true", "false"])
     .default("false")
@@ -426,6 +437,9 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
+// PSP token selection lives in lib/pspEnv.ts; re-exported so callers keep one import site.
+export { pspApiKey, pspApiKeyVar } from "./lib/pspEnv.js";
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
@@ -455,6 +469,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     (env as { SUPABASE_ANON_KEY?: string }).SUPABASE_ANON_KEY = source.VITE_SUPABASE_ANON_KEY;
     console.info("[env] SUPABASE_ANON_KEY taken from VITE_SUPABASE_ANON_KEY");
   }
+
+  checkPspEnv(env, source);
 
   // Auto-detect provider when MAIL_PROVIDER is left at the default "none". Brevo is preferred (it allows
   // single-sender verification with no DNS), so its key wins if both happen to be set.

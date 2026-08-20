@@ -5,7 +5,7 @@ import {
   type PspReport,
   type PspRequestDraft,
 } from "@fuelguard/shared";
-import type { Env } from "../env.js";
+import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
 
 /**
  * The FMCSA PSP vendor edge, and nothing else (HIRING-PLAN H7 / PSP-PLAN P4).
@@ -37,8 +37,13 @@ const HOSTS = {
 export type PspEnvironment = keyof typeof HOSTS;
 
 export class PspNotConfiguredError extends Error {
-  constructor() {
-    super("PSP is not configured: PSP_API_KEY is unset");
+  /**
+   * Names the variable for the environment actually selected, not a generic one. The failure this
+   * replaces looked identical whichever key was missing, and "PSP is not configured" sent more than
+   * one reader to the wrong file.
+   */
+  constructor(variable = "PSP_API_KEY_UAT") {
+    super(`PSP is not configured: ${variable} is unset`);
     this.name = "PspNotConfiguredError";
   }
 }
@@ -99,8 +104,11 @@ export function pspHost(env: Env): string {
 }
 
 function apiKey(env: Env): string {
-  if (!env.PSP_API_KEY) throw new PspNotConfiguredError();
-  return env.PSP_API_KEY;
+  // The token is chosen BY the environment, so the host and the account it authenticates against
+  // cannot disagree. `pspHost` reads the same `PSP_ENVIRONMENT` two lines up.
+  const key = pspApiKey(env);
+  if (!key) throw new PspNotConfiguredError(pspApiKeyVar(env));
+  return key;
 }
 
 async function call(

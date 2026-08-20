@@ -169,6 +169,32 @@ describe("parsing a report", () => {
     expect(r.inspections[0]!.violations).toHaveLength(2);
   });
 
+  it("converts PSP MMDDYYYY dates to ISO at the boundary", () => {
+    // Shapes taken verbatim from the first real UAT responses (2026-08-20): Gary Thomas's
+    // inspection 03072024 and Burton Litton's crash 07252024.
+    const report = parsePspReport({
+      driverInformationResponse: {
+        status: 0,
+        driverRecord: {
+          inspectionRecords: [{ inspectionDate: "03072024" }],
+          crashRecords: [{ reportDate: "07252024" }],
+        },
+      },
+    });
+    expect(report.inspections[0]?.inspectionDate).toBe("2024-03-07");
+    expect(report.crashes[0]?.reportDate).toBe("2024-07-25");
+  });
+
+  it("leaves a date it does not recognise alone rather than rearranging it", () => {
+    const report = parsePspReport({
+      driverInformationResponse: {
+        status: 0,
+        driverRecord: { inspectionRecords: [{ inspectionDate: "2024-03-07" }], crashRecords: [] },
+      },
+    });
+    expect(report.inspections[0]?.inspectionDate).toBe("2024-03-07");
+  });
+
   it("reads vendor numbers that arrive as strings", () => {
     const r = parsePspReport(success);
     expect(r.summary.driverInspCount).toBe(4);

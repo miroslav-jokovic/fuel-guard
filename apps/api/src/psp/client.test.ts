@@ -20,7 +20,7 @@ import {
  */
 
 const env = (over: Record<string, string> = {}) =>
-  loadEnv({ NODE_ENV: "test", PSP_API_KEY: "test-key", PSP_ENVIRONMENT: "uat", ...over } as NodeJS.ProcessEnv);
+  loadEnv({ NODE_ENV: "test", PSP_API_KEY_UAT: "test-key", PSP_ENVIRONMENT: "uat", ...over } as NodeJS.ProcessEnv);
 
 const draft: PspRequestDraft = {
   driverFirstName: "SUSAN",
@@ -52,7 +52,7 @@ const successBody = [
 
 describe("configuration", () => {
   it("refuses to call anything without a key, rather than sending an unauthenticated request", async () => {
-    await expect(requestRecord(env({ PSP_API_KEY: "" }), draft)).rejects.toBeInstanceOf(PspNotConfiguredError);
+    await expect(requestRecord(env({ PSP_API_KEY_UAT: "" }), draft)).rejects.toBeInstanceOf(PspNotConfiguredError);
   });
 
   /** Tokens are per environment; pointing a UAT token at production is not a harmless typo. */

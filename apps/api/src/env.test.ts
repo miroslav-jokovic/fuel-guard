@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadEnv } from "./env.js";
+import { loadEnv, pspApiKey, pspApiKeyVar } from "./env.js";
 
 const base = {
   NODE_ENV: "production",
@@ -22,6 +22,48 @@ describe("production environment validation", () => {
 
   it("keeps local development permissive", () => {
     expect(loadEnv({ NODE_ENV: "development" }).WEB_APP_URL).toBe("http://localhost:5173");
+  });
+});
+
+/**
+ * The PSP token pair — one variable per account, selected by `PSP_ENVIRONMENT`.
+ *
+ * There used to be a single `PSP_API_KEY` that nothing checked against the host, and on 2026-08-20
+ * the wrong token was loaded into it twice in one day. Both times the vendor answered §8.5 detail
+ * 32, "Your token is invalid" — an error that names the token and says nothing about the account.
+ * These cases pin the property that replaced it: a token for the other environment is now not
+ * merely wrong, it is unreadable.
+ */
+describe("PSP token selection", () => {
+  const dev = { NODE_ENV: "development" } as NodeJS.ProcessEnv;
+
+  it("reads the variable belonging to the selected environment", () => {
+    const uat = loadEnv({ ...dev, PSP_API_KEY_UAT: "u", PSP_API_KEY_PRODUCTION: "p" });
+    const prod = loadEnv({ ...dev, PSP_ENVIRONMENT: "production", PSP_API_KEY_UAT: "u", PSP_API_KEY_PRODUCTION: "p" });
+    expect(pspApiKey(uat)).toBe("u");
+    expect(pspApiKey(prod)).toBe("p");
+    expect(pspApiKeyVar(prod)).toBe("PSP_API_KEY_PRODUCTION");
+  });
+
+  it("cannot reach the other environment's token, so a mismatch is inexpressible", () => {
+    const prod = loadEnv({ ...dev, PSP_ENVIRONMENT: "production", PSP_API_KEY_UAT: "u" });
+    expect(pspApiKey(prod)).toBeNull();
+  });
+
+  it("treats an empty string as unset", () => {
+    expect(pspApiKey(loadEnv({ ...dev, PSP_API_KEY_UAT: "" }))).toBeNull();
+    expect(pspApiKey(loadEnv({ ...dev, PSP_API_KEY_UAT: "   " }))).toBeNull();
+  });
+
+  it("refuses two environments sharing one token", () => {
+    expect(() => loadEnv({ ...dev, PSP_API_KEY_UAT: "same", PSP_API_KEY_PRODUCTION: "same" }))
+      .toThrow(/same token/);
+  });
+
+  it("ignores the retired PSP_API_KEY rather than failing a deploy that still carries it", () => {
+    const env = loadEnv({ ...dev, PSP_API_KEY: "legacy" } as NodeJS.ProcessEnv);
+    expect(pspApiKey(env)).toBeNull();
+    expect((env as Record<string, unknown>).PSP_API_KEY).toBeUndefined();
   });
 });
 

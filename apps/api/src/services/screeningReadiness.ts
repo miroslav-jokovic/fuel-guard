@@ -41,6 +41,7 @@ export async function loadScreeningReadiness(
     orgDotNumber: (org as { dot_number: string | null } | null)?.dot_number ?? null,
     envDotNumber: env.PSP_DOT_NUMBER ?? null,
     envMotorCarrierId: env.PSP_MOTOR_CARRIER_ID ?? null,
+    environment: env.PSP_ENVIRONMENT,
   });
 
   return screeningReadiness(

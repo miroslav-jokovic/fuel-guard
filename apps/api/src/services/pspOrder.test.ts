@@ -16,7 +16,7 @@ const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const env = (over: Record<string, string> = {}) =>
   loadEnv({
     NODE_ENV: "test",
-    PSP_API_KEY: "test-key",
+    PSP_API_KEY_UAT: "test-key",
     PSP_ENVIRONMENT: "uat",
     PSP_ORDERS_ENABLED: "true",
     PSP_DOT_NUMBER: "43586",
@@ -104,6 +104,39 @@ describe("the gates, in the order legality → authority → budget → correctn
     const rec = seed({ auths: [...AUTHS, { id: "r", purpose: "psp", accepted_at: "2026-02-01T00:00:00Z", revokes: "a1" }] });
     const out = await orderPspRecord(rec.client, env(), input, deps());
     expect(out).toMatchObject({ code: "authorization_missing", missing: ["psp"] });
+  });
+
+  /**
+   * Two switches in front of production, not one. `PSP_ENVIRONMENT` looks like configuration and
+   * spends money, so a single wrong value in a copied `.env` or a deploy template must not be enough.
+   */
+  it("refuses production until it is acknowledged explicitly, and buys nothing", async () => {
+    const rec = seed();
+    const d = deps();
+    const out = await orderPspRecord(rec.client, env({ PSP_ENVIRONMENT: "production" }), input, d);
+    expect(out).toMatchObject({ code: "psp_disabled" });
+    expect((out as { message: string }).message).toContain("PSP_PRODUCTION_ACKNOWLEDGED");
+    expect(d.requestRecord).not.toHaveBeenCalled();
+    expect(rec.writtenRows("psp_requests")).toHaveLength(0);
+  });
+
+  it("allows production once both switches agree", async () => {
+    const rec = seed();
+    const d = deps();
+    const out = await orderPspRecord(
+      rec.client,
+      env({ PSP_ENVIRONMENT: "production", PSP_PRODUCTION_ACKNOWLEDGED: "true" }),
+      input,
+      d,
+    );
+    expect(out).not.toMatchObject({ code: "psp_disabled" });
+  });
+
+  /** UAT is the default, so the interlock must not stand in the way of the environment we test in. */
+  it("does not ask for the acknowledgement in UAT", async () => {
+    const rec = seed();
+    const out = await orderPspRecord(rec.client, env({ PSP_ENVIRONMENT: "uat" }), input, deps());
+    expect(out).not.toMatchObject({ code: "psp_disabled" });
   });
 
   it("refuses without a fresh re-authentication", async () => {
