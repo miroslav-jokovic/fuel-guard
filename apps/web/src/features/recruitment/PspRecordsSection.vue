@@ -2,8 +2,10 @@
 import { computed, reactive, ref, watch } from "vue";
 import {
   PSP_IMPORT_CONSENT_ATTESTATION,
+  PSP_SOURCE_LABELS,
   canReadInvestigationHistory,
-  isImportedPspRecord,
+  hasStructuredPspData,
+  pspRecordSource,
   rolesThatManage,
   type QualificationRecordRow,
 } from "@fuelguard/shared";
@@ -21,6 +23,8 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
 import { useImportPspRecord } from "@/features/recruitment/usePspImport";
+import PspOrderDrawer from "@/features/recruitment/PspOrderDrawer.vue";
+import { useDriverQuery } from "@/composables/useDrivers";
 
 /**
  * PSP records on the driver page — the ones we bought on the portal, filed rather than re-bought.
@@ -43,7 +47,9 @@ const driverId = computed(() => props.driverId);
 const session = useSessionStore();
 const toast = useToastStore();
 const recordsQ = useQualificationRecordsQuery(driverId);
+const driverQ = useDriverQuery(driverId);
 const importRecord = useImportPspRecord();
+const orderOpen = ref(false);
 
 /**
  * The same intersection the API guard is built from, derived from the same two predicates rather
@@ -99,14 +105,27 @@ const columns: DataTableColumn[] = [
   { key: "reference", label: "Reference" },
 ];
 
-/** Ordered records carry P2's counted projection; imported ones carry nothing, and say so. */
+/**
+ * Ordered records carry P2's counted projection; imported ones carry nothing, and say so.
+ *
+ * The question asked is "does this row hold structured data", not "was it imported" — a record whose
+ * source was never recorded answers no, which is the safe direction: rendering counts nothing
+ * produced is worse than declining to render counts that exist.
+ */
 function findings(row: QualificationRecordRow): string {
-  if (isImportedPspRecord(row.detail)) return "Not machine-read — read the PDF";
+  if (!hasStructuredPspData(row.detail)) return "Not machine-read — read the PDF";
   const inspections = row.detail.inspections;
   const crashes = row.detail.crashes;
   if (typeof inspections !== "number" || typeof crashes !== "number") return "—";
   return `${inspections} inspection${inspections === 1 ? "" : "s"} · ${crashes} crash${crashes === 1 ? "" : "es"}`;
 }
+
+/** Read from the row, never inferred from its shape (P9) — psp/provenance.ts says why. */
+const sourceLabel = (row: QualificationRecordRow): string => PSP_SOURCE_LABELS[pspRecordSource(row.detail)];
+const sourceTone = (row: QualificationRecordRow): string => {
+  const source = pspRecordSource(row.detail);
+  return source === "psp_api" ? "info" : source === "portal_import" ? "neutral" : "warning";
+};
 </script>
 
 <template>
@@ -121,9 +140,10 @@ function findings(row: QualificationRecordRow): string {
             for us to fetch it, because PSP keeps no list of past transactions.
           </p>
         </div>
-        <BaseButton v-if="canFile" variant="primary" @click="drawerOpen = true">
-          Import a PSP record
-        </BaseButton>
+        <div v-if="canFile" class="flex shrink-0 items-center gap-3">
+          <BaseButton @click="drawerOpen = true">Import a PSP record</BaseButton>
+          <BaseButton variant="primary" @click="orderOpen = true">Order a PSP record</BaseButton>
+        </div>
       </div>
     </BaseCard>
 
@@ -141,12 +161,10 @@ function findings(row: QualificationRecordRow): string {
           <span class="font-medium text-ink">{{ row.occurred_on }}</span>
         </template>
         <template #cell-source="{ row }">
-          <span :class="[BADGE_BASE, toneClass(isImportedPspRecord(row.detail) ? 'neutral' : 'info')]">
-            {{ isImportedPspRecord(row.detail) ? "Imported" : "Ordered" }}
-          </span>
+          <span :class="[BADGE_BASE, toneClass(sourceTone(row))]">{{ sourceLabel(row) }}</span>
         </template>
         <template #cell-findings="{ row }">
-          <span :class="isImportedPspRecord(row.detail) ? 'text-ink-muted' : 'text-ink'">
+          <span :class="hasStructuredPspData(row.detail) ? 'text-ink' : 'text-ink-muted'">
             {{ findings(row) }}
           </span>
         </template>
@@ -156,6 +174,13 @@ function findings(row: QualificationRecordRow): string {
         </template>
       </DataTable>
     </BaseCard>
+
+    <PspOrderDrawer
+      :open="orderOpen"
+      :driver-id="driverId"
+      :driver-name="driverQ.data.value?.full_name ?? 'this driver'"
+      @close="orderOpen = false"
+    />
 
     <SlideOver :open="drawerOpen" size="lg" title="Import a PSP record" @close="drawerOpen = false">
       <div class="space-y-6">

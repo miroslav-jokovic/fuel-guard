@@ -3,13 +3,13 @@ import {
   PSP_IMPORT_CONSENT_ATTESTATION,
   PSP_IMPORT_RESULT,
   PSP_PROGRAM_START,
-  isImportedPspRecord,
   pspImportDetail,
   pspImportSchema,
   pspImportUploadSchema,
   validatePspImport,
   type PspImport,
 } from "./import.js";
+import { isImportedPspRecord } from "./provenance.js";
 
 const TODAY = "2026-08-19";
 

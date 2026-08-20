@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { PSP_IMPORT_SOURCE } from "@fuelguard/shared";
+import { PSP_SOURCE_API, PSP_SOURCE_IMPORT } from "@fuelguard/shared";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 
 /**
@@ -27,7 +27,7 @@ const RECORDS = [
     performed_by: null,
     reference: "PSP-88231",
     document_id: "doc-1",
-    detail: { source: PSP_IMPORT_SOURCE, structured: false },
+    detail: { source: PSP_SOURCE_IMPORT, structured: false },
     created_at: "2026-08-19T00:00:00Z",
   },
   {
@@ -40,8 +40,25 @@ const RECORDS = [
     performed_by: null,
     reference: "auth-1",
     document_id: "doc-2",
-    detail: { inspections: 3, crashes: 0 },
+    detail: { source: PSP_SOURCE_API, inspections: 3, crashes: 0 },
     created_at: "2026-08-19T00:00:00Z",
+  },
+  /**
+   * A record from before `source` was written (P9). It must NOT be read as ordered on the strength
+   * of carrying counts: the field is the fact, and an absent one is answered "not recorded".
+   */
+  {
+    id: "r-legacy",
+    driver_id: "d1",
+    kind: "psp_report",
+    occurred_on: "2026-03-01",
+    covers_until: null,
+    result: "clean",
+    performed_by: null,
+    reference: "auth-legacy",
+    document_id: null,
+    detail: {},
+    created_at: "2026-03-01T00:00:00Z",
   },
   // A different kind on the same driver — the section shows PSP and nothing else.
   {
@@ -98,6 +115,12 @@ describe("PSP records on the driver page", () => {
     expect(text).toContain("Not machine-read");
     expect(text).toContain("3 inspections · 0 crashes");
     expect(text).not.toContain("0 inspections");
+  });
+
+  it("says a record with no recorded source is not recorded, rather than guessing", async () => {
+    const w = mountSection();
+    await settle(w);
+    expect(w.text()).toContain("Source not recorded");
   });
 
   it("shows only PSP records, whatever else is in the file", async () => {

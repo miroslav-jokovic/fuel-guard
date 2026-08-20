@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PSP_IMPORT_SOURCE } from "./provenance.js";
 
 /**
  * Importing a PSP record that was bought on the FMCSA portal — PSP-PLAN P14 (D-PSP9).
@@ -34,9 +35,6 @@ import { z } from "zod";
  * century.
  */
 export const PSP_PROGRAM_START = "2010-05-01";
-
-/** `qualification_records.detail.source` — what distinguishes an import from a purchase. */
-export const PSP_IMPORT_SOURCE = "portal_import";
 
 /**
  * `qualification_records.result` for an imported record.
@@ -151,7 +149,3 @@ export function pspImportDetail(input: PspImport, attestedBy: string): Record<st
   };
 }
 
-/** Did this record come from the portal rather than from the API? Read by anything that must not
- *  mistake an unread PDF for structured data. */
-export const isImportedPspRecord = (detail: Record<string, unknown> | null | undefined): boolean =>
-  (detail?.source ?? null) === PSP_IMPORT_SOURCE;

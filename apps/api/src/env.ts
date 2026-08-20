@@ -400,6 +400,15 @@ const EnvSchema = z.object({
     .transform((v) => v === "true"),
   /** Records per org per calendar month. A runaway loop must hit a ceiling, not an invoice. */
   PSP_MONTHLY_LIMIT: z.coerce.number().int().positive().default(50),
+  /**
+   * What one transaction costs, in USD — and NO default, deliberately (PSP-PLAN Q2 is unanswered).
+   *
+   * P9 says the confirmation states the cost before the operator commits. A number we invented would
+   * state it falsely, and the difference between "$10 per record" and "we have not been told the
+   * price" is exactly what somebody approving a spend needs to know. Unset, the confirmation says
+   * the transaction bills and shows the monthly budget instead; set, it also shows the amount.
+   */
+  PSP_UNIT_PRICE_USD: z.coerce.number().positive().optional(),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly

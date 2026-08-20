@@ -521,12 +521,41 @@ qualification page where an operator can order a fresh report under P6's gates.
 a repeated poll with the same `timeStamp` raises none, and no code path orders a record from the
 scheduler.
 
-### P9 · Surface it
+### P9 · Surface it — **DONE 2026-08-20**
 The PSP row on the driver's Qualification section, marked **Source: PSP** from data and never inferred
 from a record's shape. The order confirmation states the cost and the remaining monthly budget before
 the operator confirms — the same bar E5 sets for a Samba MVR. Design contract as ever: `PageHeader`
 carries no title, `DataTable` inside `BaseCard padding="none"`, badges only from `lib/badges.ts`,
 `SlideOver` with actions in `#footer`, toasts not banners.
+
+**Source is a written field, not a heuristic** (`psp/provenance.ts`). The ordered path now writes
+`detail.source = 'psp_api'`; the import writes `portal_import`; anything else reads `unknown` and
+says so. The shortcut this refuses — *"it has an inspection count, so it was ordered"* — is wrong in
+the one case that matters: an ordered record for a driver with no inspections has no counts either,
+and would be mislabelled an unread PDF. A clean record and an unexamined one look identical from the
+outside (D-PSP5), which is the whole reason the writer states the source. `hasStructuredPspData`
+asks the separate question a UI actually has — may I render counts — and answers **no** for an
+`unknown` record, because rendering a number nothing produced is the worse error.
+
+**The confirmation states the charge, and refuses to state a price it does not know.** The billing
+outcomes come from `PSP_STATUS` via the preflight (`billsOn`), never retyped in the client, so the
+sentence is *"PSP charges for success, partial, failure responses — including a search that matches
+nothing"*. `PSP_UNIT_PRICE_USD` has **no default** (Q2 is unanswered): unset, the drawer says the
+price is not configured and shows the monthly budget instead. A plausible invented figure is worse
+than an honest absence to somebody approving a spend.
+
+**The password comes last.** `pspOrderPreflight` runs the same `checkPspGates` the order runs, but
+with `stepUp: true`, so it never returns `step_up_required` — an operator learns the driver never
+signed the PSP disclosure *before* being asked to re-type anything. For the same reason the route
+does not use `requireFreshAuth()` as middleware: that would refuse first, ahead of the legality check
+the service deliberately orders first.
+
+**`monitor` is not exposed.** §5.4.1 allows enrolling a request in 45-day monitoring and the draft
+carries the flag, but P8 — the poll that would read what monitoring reports — does not exist. A
+switch whose consequence nothing listens to is not a feature.
+
+**Ordering remains OFF.** `PSP_ORDERS_ENABLED` defaults to false, and a route test pins that a
+deployment with a key configured still refuses with 503 and writes no ledger row.
 
 ### P10 · Second consumer — the risk signal, only once P7 is real
 `driverInfoSummary.driverOOSRate` into `services/entityRisk.ts` / `driverScore.ts`, read from
