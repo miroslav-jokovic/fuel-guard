@@ -111,6 +111,36 @@ const num = (v: unknown): number | null => {
 const count = (v: unknown): number => num(v) ?? 0;
 
 /**
+ * PSP dates arrive as `MMDDYYYY`; we hold ISO everywhere else. Converted HERE, at the boundary.
+ *
+ * ── WHAT PASSING THESE THROUGH ACTUALLY COST ───────────────────────────────────────────────────
+ * `client.ts` has `toPspDate` for the outbound direction and says the reason plainly — "PSP wants
+ * the date of birth as M/D/YYYY; we hold ISO everywhere else". The inbound mirror was missing, so
+ * `inspectionDate` and `reportDate` reached the domain as `"03072024"` while everything they are
+ * compared against is `"2024-03-07"`.
+ *
+ * `crossMatchEmployment` compares them as STRINGS: `within(date, startedOn, to)`. Every vendor date
+ * begins `0` or `1`, every ISO date begins `1` or `2`, so `"03072024" >= "2023-01-01"` is **false**
+ * and every window check failed. Observed on the first real response (UAT, 2026-08-20): Gary
+ * Thomas's seven inspections would have corroborated no declared employer at all, and the §391.23
+ * cross-match would have reported `no_psp_activity` for every one of them — silently, since a
+ * cross-match that finds nothing looks exactly like a driver with nothing to find.
+ *
+ * `employment.test.ts` never caught it because its fixtures build `PspInspectionRecord` directly
+ * with ISO dates — a format the vendor does not send. Pinned by "converts PSP MMDDYYYY dates to ISO
+ * at the boundary" and by "corroborates an employer from a vendor-shaped response".
+ *
+ * Anything that is not eight digits is returned untouched: an already-ISO value, or a shape nobody
+ * has seen, must not be silently rearranged into a plausible wrong date.
+ */
+export const fromPspDate = (v: unknown): string | null => {
+  const raw = str(v);
+  if (raw === null) return null;
+  const m = /^(\d{2})(\d{2})(\d{4})$/.exec(raw.trim());
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : raw;
+};
+
+/**
  * PSP's flag fields are free text: "Y", "yes", "1", "N". Anything that is not affirmative is false,
  * which is the safe direction for `outOfService` and — importantly — the CAUTIOUS direction for
  * `notPreventable`: an unparseable value leaves the crash counted, which is how it arrived.
@@ -139,7 +169,7 @@ function parseInspection(raw: unknown): PspInspectionRecord {
     inspectionId: str(i.inspectionId),
     reportState: str(i.reportState),
     reportNumber: str(i.reportNumber),
-    inspectionDate: str(i.inspectionDate),
+    inspectionDate: fromPspDate(i.inspectionDate),
     inspectionLevelId: str(i.inspectionLevelId),
     usdotNumber: str(i.usdotNumber),
     carrierName: str(i.carrierName),
@@ -154,7 +184,7 @@ function parseCrash(raw: unknown): PspCrashRecord {
   return {
     reportState: str(c.reportState),
     reportNumber: str(c.reportNumber),
-    reportDate: str(c.reportDate),
+    reportDate: fromPspDate(c.reportDate),
     // A crash carries the carrier in `censusNumber` or `uploadDOTNumber` depending on its source
     // (§5.4.3); neither is authoritative alone, so the first present one wins and the raw response
     // keeps both.

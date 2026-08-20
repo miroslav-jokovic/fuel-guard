@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { crossMatchEmployment, type DeclaredEmployment } from "./employment.js";
+import { parsePspReport } from "./parse.js";
 import type { PspCrashRecord, PspInspectionRecord } from "./parse.js";
 
 const ASOF = "2026-08-19";
@@ -161,5 +162,42 @@ describe("the honest case", () => {
     expect(out.employers[0]!.match).toBe("corroborated");
     expect(out.unlisted).toEqual([]);
     expect(out.undeclaredCrashes).toEqual([]);
+  });
+});
+
+/**
+ * The fixtures above build `PspInspectionRecord` by hand, with ISO dates. The vendor sends
+ * `MMDDYYYY`, so every case above was testing a shape PSP never produces — and the mismatch it
+ * therefore could not see made `within()` false for every real inspection (parse.ts `fromPspDate`).
+ *
+ * This case starts from a vendor-shaped response instead, so the format assumption is pinned at the
+ * only place that matters: end to end.
+ */
+describe("a real vendor response, parsed and cross-matched", () => {
+  it("corroborates an employer from a vendor-shaped response", () => {
+    const report = parsePspReport({
+      driverInformationResponse: {
+        status: 0,
+        driverRecord: {
+          crashRecords: [],
+          inspectionRecords: [
+            { inspectionDate: "03072024", usdotNumber: "111111", carrierName: "OLD CARRIER INC" },
+          ],
+        },
+      },
+    });
+
+    const out = crossMatchEmployment({
+      declared: [job({ id: "e1", startedOn: "2024-01-01", endedOn: "2024-12-31" })],
+      declaredAccidents: [],
+      inspections: report.inspections,
+      crashes: report.crashes,
+      ownDotNumber: "999999",
+      asOf: ASOF,
+      pulledOn: ASOF,
+    });
+
+    expect(out.employers[0]?.match).toBe("corroborated");
+    expect(out.employers[0]?.inspections).toBe(1);
   });
 });

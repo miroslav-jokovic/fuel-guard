@@ -209,6 +209,51 @@ An `Error` status does not bill (§8), so the blocker paid for four answers on t
 - **Our own preflight refused detail 10 before dispatch** — clearing `PSP_MOTOR_CARRIER_ID` never
   reached the network, which is the asymmetry in `status.ts` doing its job.
 
+## 5.2 It works — and the first response found a bug the suite could not (2026-08-20)
+
+**The blocker was account provisioning, not the token.** After `miki@silvicominc.com` was added as an
+admin and logged into the UAT portal, the **same token** — unrotated, `apitoken-uat.txt` untouched
+since 12:26 — returned `status: 0` on `POST /Records`. Nothing in the request changed. Detail 32 had
+been the account's entitlement all along, which is why re-minting would have been the wrong move.
+
+Gary Thomas: **status 0, 7 inspections, 0 crashes, `internalRefId` round-tripped, PDF 41,604 bytes
+with a real `%PDF` header.** Burton Litton: **status 0, 4 inspections, 4 crashes.**
+
+### What the responses settled
+
+- **The array is one entry, not one per licence.** Thomas has two licences and got **one**
+  `driverInformationResponse`; both `G12345678/GA` and `P123456789/PA` appear across its seven
+  inspection records, each carrying its own licence. `parsed[0]` drops nothing.
+- **The record is nested under `driverInformationResponse`**, and `monitor` sits on the array element
+  beside it — not inside. §5.4.1 reflects it exactly as documented; the earlier note that it was
+  missing was looking in the wrong object.
+- **`driverInfoSummary` carries no crash counts.** The crash figures come from
+  `driverReportSummaryResponse`, and they reconcile: Litton's four crashes, two with injuries, two
+  towaways.
+- **Thomas is not a Partial case.** Both licences matched, so status 0. Reaching status 4 needs one
+  good licence and one bad one — the roster alone will not produce it.
+- **`notPreventable` is null on all four of Litton's crashes** in the current UAT data, so §10.5 is
+  still unexercised despite the workbook listing him for it.
+
+### The bug
+
+`inspectionDate` and `reportDate` arrive as **`MMDDYYYY`** (`03072024`, `07252024`) and were passed
+through verbatim. `crossMatchEmployment` compares them as strings against ISO dates:
+`within("03072024", "2023-01-01", "2025-12-31")` is **false**, because every vendor date begins `0`
+or `1` and every ISO date begins `1` or `2`.
+
+So **every §391.23 cross-match would have reported `no_psp_activity` for every declared employer** —
+silently, because a cross-match that finds nothing looks exactly like a driver with nothing to find.
+Thomas's seven inspections would have corroborated no one.
+
+`employment.test.ts` could not catch it: its fixtures build `PspInspectionRecord` by hand with ISO
+dates, a shape the vendor never sends. `parse.ts` now converts at the boundary (`fromPspDate`, the
+mirror of `client.ts`'s `toPspDate`), and the case that pins it starts from a vendor-shaped response
+and runs the whole way through.
+
+**This is the argument for `response_raw` in one paragraph.** The projection was wrong, the evidence
+was not, and the fix cost a re-parse rather than a re-purchase.
+
 ### What to ask them
 
 Detail 32's own message is *"Please login and request a new token or contact customer support."* Both
