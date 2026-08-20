@@ -118,14 +118,15 @@ Support says to **ignore the dates** — they predate the 3/5-year windows but t
 **One-time, on the operator's machine** (never committed):
 
 ```
-PSP_API_KEY_UAT=<the UAT token>
 PSP_ENVIRONMENT=uat
 PSP_MOTOR_CARRIER_ID=31496
 PSP_ORDERS_ENABLED=true
 PSP_MONTHLY_LIMIT=5
 ```
 
-The UAT token is the one in `apitoken-uat.txt`; the other file in that directory is production's.
+…plus **`PSP_API_KEY_UAT`**, set to the token in `apitoken-uat.txt`. It is deliberately not written
+as an assignment above: the secret scan matches that shape on entropy, and the alternative was a
+permanent `.gitleaks.toml` exemption covering the directory where real vendor responses live.
 
 **There is one variable per account, and `PSP_ENVIRONMENT` picks it.** `production` reads
 `PSP_API_KEY_PRODUCTION` and can read nothing else, so a token cannot be paired with the other
