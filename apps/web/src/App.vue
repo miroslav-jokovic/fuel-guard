@@ -7,6 +7,7 @@ import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
+import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
 
 const route = useRoute();
 /** The page knows the carrier's name only after the invitation resolves; the header shows it then. */
@@ -23,6 +24,9 @@ const isApplyLayout = computed(() => route.meta.layout === "apply");
 </script>
 
 <template>
+  <!-- Which deployment this is. Above everything, including the sign-in page: the moment you most
+       need to know you are not on production is before you type a password into it. -->
+  <EnvironmentBanner />
   <!-- New-deploy banner: above every layout so it's visible on any page, not just the dashboard. -->
   <UpdateBanner />
   <RouterView v-if="isLabLayout" />
