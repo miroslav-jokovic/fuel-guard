@@ -799,14 +799,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "393.9(A)",
     "violationDesc": "INOPERABLE REQUIRED LAMP",
     "violationCount": 2,
     "violationOOSCount": 0,
-    "authCode": "963d1404-9463-46b9-a66f-3d5c31178404",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -814,7 +814,7 @@
     "violationDesc": "INOPERATIVE TURN SIGNAL RIGHT",
     "violationCount": 2,
     "violationOOSCount": 0,
-    "authCode": "963d1404-9463-46b9-a66f-3d5c31178404",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -822,7 +822,7 @@
     "violationDesc": "NO/DEFECTIVE TURN/HAZARD LAMP AS REQUIRED",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "963d1404-9463-46b9-a66f-3d5c31178404",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -830,7 +830,7 @@
     "violationDesc": "SPEEDING",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "963d1404-9463-46b9-a66f-3d5c31178404",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": true
    },
    {
@@ -838,7 +838,7 @@
     "violationDesc": "LOCAL LAWS (GENERAL)",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "963d1404-9463-46b9-a66f-3d5c31178404",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

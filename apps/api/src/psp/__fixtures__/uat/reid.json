@@ -673,14 +673,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "392.2W",
     "violationDesc": "SIZE AND WEIGHT",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": true
    },
    {
@@ -688,7 +688,7 @@
     "violationDesc": "LOG VIOLATION (GENERAL/FORM AND MANNER)",
     "violationCount": 3,
     "violationOOSCount": 0,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -696,7 +696,7 @@
     "violationDesc": "OPERATING A CMV WITHOUT A CDL",
     "violationCount": 1,
     "violationOOSCount": 1,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": true
    },
    {
@@ -704,7 +704,7 @@
     "violationDesc": "BRAKE TUBING AND HOSE ADEQUACY",
     "violationCount": 1,
     "violationOOSCount": 1,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -712,7 +712,7 @@
     "violationDesc": "BRAKE HOSE/TUBING CHAFFING AND/OR KINKING",
     "violationCount": 1,
     "violationOOSCount": 1,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": true
    },
    {
@@ -720,7 +720,7 @@
     "violationDesc": "BRAKE HOSE/TUBING CHAFFING AND/OR KINKING",
     "violationCount": 3,
     "violationOOSCount": 3,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -728,7 +728,7 @@
     "violationDesc": "NO SPARE FUSES AS REQUIRED",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "2c074269-ef05-4ff2-862f-a9b1a21560ab",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

@@ -516,14 +516,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "393.95(F)",
     "violationDesc": "NO / INSUFFICIENT WARNING DEVICES",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -531,7 +531,7 @@
     "violationDesc": "BRAKE ADJ IND CMV MFG >10/19/94 EXT AUTO ADJ",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -539,7 +539,7 @@
     "violationDesc": "TIRE-LOAD WEIGHT RATING/UNDER INFLATED",
     "violationCount": 2,
     "violationOOSCount": 2,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -547,7 +547,7 @@
     "violationDesc": "NO/DEFECTIVE LIGHTING DEVICES/REF/PROJECTED",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -555,7 +555,7 @@
     "violationDesc": "TIRE-FRONT TREAD DEPTH LESS THAN 4/32 OF INCH",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -563,7 +563,7 @@
     "violationDesc": "CLAMP/ROTO TYPE BRAKE(S) OUT-OF-ADJUSTMENT",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "7dca3ae5-0d53-4cd4-b877-ab28b6d47886",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

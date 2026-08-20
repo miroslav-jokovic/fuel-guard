@@ -210,7 +210,7 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "https://uat.psp.tylerapp.com/psp/byAuthCode/REDACTED-AUTHCODE",
   "inspectionViolationSummary": [],
   "driverQueries": [
    {

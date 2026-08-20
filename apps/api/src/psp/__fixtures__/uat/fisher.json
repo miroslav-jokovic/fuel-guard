@@ -411,14 +411,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "https://uat.psp.tylerapp.com/psp/byAuthCode/REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "395.8(F)(1)",
     "violationDesc": "DRIVERS RECORD OF DUTY STATUS NOT CURRENT",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "19001a65-20a9-418b-8fdb-79f0685e42c9",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -426,7 +426,7 @@
     "violationDesc": "SPEEDING",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "19001a65-20a9-418b-8fdb-79f0685e42c9",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

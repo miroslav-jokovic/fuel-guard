@@ -777,14 +777,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "https://uat.psp.tylerapp.com/psp/byAuthCode/REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "393.205(A)",
     "violationDesc": "WHEEL/RIM CRACKED OR BROKEN",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "e1c5c60a-c985-4545-9e73-c7067e4186d7",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -792,7 +792,7 @@
     "violationDesc": "FLAT TIRE OR FABRIC EXPOSED",
     "violationCount": 1,
     "violationOOSCount": 1,
-    "authCode": "e1c5c60a-c985-4545-9e73-c7067e4186d7",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -800,7 +800,7 @@
     "violationDesc": "LOCAL LAWS (GENERAL)",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "e1c5c60a-c985-4545-9e73-c7067e4186d7",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -808,7 +808,7 @@
     "violationDesc": "TIRE-PLY OR BELT MATERIAL EXPOSED",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "e1c5c60a-c985-4545-9e73-c7067e4186d7",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -816,7 +816,7 @@
     "violationDesc": "SPEEDING",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "e1c5c60a-c985-4545-9e73-c7067e4186d7",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

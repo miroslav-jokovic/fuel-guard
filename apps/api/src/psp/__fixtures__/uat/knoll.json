@@ -235,14 +235,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "395.8",
     "violationDesc": "LOG VIOLATION (GENERAL/FORM AND MANNER)",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "1dccf759-8670-4862-a028-27c3a2e8b76a",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],

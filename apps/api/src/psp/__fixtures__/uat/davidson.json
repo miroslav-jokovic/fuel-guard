@@ -837,14 +837,14 @@
    "dotNumber": 0,
    "numCrashesNotPreventable": 0
   },
-  "authCodeURL": "REDACTED-URL",
+  "authCodeURL": "REDACTED-AUTHCODE",
   "inspectionViolationSummary": [
    {
     "violationNum": "393.45",
     "violationDesc": "BRAKE TUBING AND HOSE ADEQUACY",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "8a5727ca-6bbd-48b5-b7b3-75e42b707c22",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -852,7 +852,7 @@
     "violationDesc": "BRAKE TUBING AND HOSE ADEQUACY",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "8a5727ca-6bbd-48b5-b7b3-75e42b707c22",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": true
    },
    {
@@ -860,7 +860,7 @@
     "violationDesc": "OIL AND/OR GREASE LEAK",
     "violationCount": 2,
     "violationOOSCount": 0,
-    "authCode": "8a5727ca-6bbd-48b5-b7b3-75e42b707c22",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -868,7 +868,7 @@
     "violationDesc": "TIRE-TREAD AND/OR SIDEWALL SEPARATION",
     "violationCount": 2,
     "violationOOSCount": 0,
-    "authCode": "8a5727ca-6bbd-48b5-b7b3-75e42b707c22",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    },
    {
@@ -876,7 +876,7 @@
     "violationDesc": "NO/DEFECTIVE LIGHTING DEVICES/REF/PROJECTED",
     "violationCount": 1,
     "violationOOSCount": 0,
-    "authCode": "8a5727ca-6bbd-48b5-b7b3-75e42b707c22",
+    "authCode": "REDACTED-AUTHCODE",
     "isAdjudicated": false
    }
   ],
