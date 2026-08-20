@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { registerDocument } from "./compliance.js";
 import {
   EMPLOYER_INQUIRIES,
   composeInquiry,
@@ -6,6 +7,7 @@ import {
   isDraftInquiry,
   type InquiryAttempt,
   type InquiryOutcome,
+  type EmployerResponseDocument,
   type InquiryOutcomeUpdate,
 } from "@fuelguard/shared";
 
@@ -232,6 +234,18 @@ export async function syncInquiryStatus(
  * A `no_response` is not a failure to record — §391.23(c)(1) accepts documented good-faith efforts in
  * place of a reply, so this is the moment the file becomes complete without one. The trigger in 0223
  * refuses any edit to what was SENT, so this can only ever add the outcome.
+ *
+ * ── THE STRUCTURED REPLY BELONGS TO `responded` AND NOWHERE ELSE ───────────────────────────────
+ * A documented non-response carrying an accident list is a contradiction — somebody either answered
+ * or they did not — and an answer with nothing recorded leaves the outcome column doing the work the
+ * §391.23(c)(2) record is supposed to do ("the information received"). Both are refused here rather
+ * than tidied up on read.
+ *
+ * ── AND NO QUALIFICATION RECORD IS FILED HERE ──────────────────────────────────────────────────
+ * Tempting, because the evidence has arrived. But D-HIRE2 draws the line at the hire: an applicant
+ * has no §391.51 file to put a record in, and H8 is what projects these into one at the moment they
+ * do. Filing early would mean writing driver-qualification evidence about somebody who may never be
+ * hired, which is the boundary the whole Recruitment section exists to keep.
  */
 export async function recordInquiryOutcome(
   admin: SupabaseClient,
@@ -248,13 +262,80 @@ export async function recordInquiryOutcome(
   const row = existing as { id: string; employment_id: string } | null;
   if (!row) return { code: "not_found", message: "That inquiry is not on file." };
 
+  if (body.outcome === "responded" && !body.response) {
+    return {
+      code: "response_required",
+      message: "Record what they said — §391.23(c)(2) asks for the information received, not only that it arrived.",
+    };
+  }
+  if (body.outcome !== "responded" && body.response) {
+    return {
+      code: "response_not_applicable",
+      message: "Only an answered inquiry carries a reply.",
+    };
+  }
+
   const { error } = await admin
     .from("employer_inquiries")
-    .update({ outcome: body.outcome, outcome_on: body.outcome_on, outcome_note: body.note ?? null })
+    .update({
+      outcome: body.outcome,
+      outcome_on: body.outcome_on,
+      outcome_note: body.note ?? null,
+      response: body.response ?? null,
+      document_id: body.document_id ?? null,
+    })
     .eq("id", inquiryId)
     .eq("org_id", orgId);
   if (error) return { code: "update_failed", message: error.message };
 
   await syncInquiryStatus(admin, orgId, row.employment_id);
   return { id: row.id, employmentId: row.employment_id };
+}
+
+/**
+ * Register the returned letter, and hand back a signed upload URL (E4).
+ *
+ * The bytes never pass through this process, and the KIND is composed here rather than accepted:
+ * `previous_employer_response` is what carries the §391.23(k)(2) read restriction (0211/0217), so a
+ * reply registered as `other` would be a reply anyone in the section could open.
+ *
+ * Deliberately not the generic `/api/compliance/documents` endpoint, which gates on
+ * `rolesThatManage("fleet")` — a recruiter has `fleet: view`, so the role that sent the letter could
+ * not file the answer to it. The same reasoning as the PSP import's own register step.
+ */
+export async function registerInquiryDocument(
+  admin: SupabaseClient,
+  orgId: string,
+  userId: string,
+  inquiryId: string,
+  body: EmployerResponseDocument,
+): Promise<{ documentId: string; uploadUrl: string; token: string; storagePath: string } | InquiryError> {
+  const { data: inquiry } = await admin
+    .from("employer_inquiries")
+    .select("id, driver_id")
+    .eq("id", inquiryId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  const row = inquiry as { id: string; driver_id: string } | null;
+  if (!row) return { code: "not_found", message: "That inquiry is not on file." };
+
+  const registered = await registerDocument(admin, orgId, userId, {
+    id: body.document_id,
+    subjectType: "driver",
+    subjectId: row.driver_id,
+    kind: "previous_employer_response",
+    contentType: body.content_type,
+    sha256: body.sha256,
+    bytes: body.bytes ?? null,
+    page: 1,
+    variant: "original",
+    capturedAt: null,
+  });
+  if ("code" in registered) return { code: registered.code, message: registered.error };
+  return {
+    documentId: registered.documentId,
+    uploadUrl: registered.uploadUrl,
+    token: registered.token,
+    storagePath: registered.storagePath,
+  };
 }

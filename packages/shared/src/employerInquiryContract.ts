@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { employerResponseSchema } from "./employerResponseContract.js";
 
 /**
  * The §391.23 previous-employer inquiry — what we ask, and how the asking is recorded
@@ -167,5 +168,13 @@ export const inquiryOutcomeSchema = z.object({
   }),
   outcome_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   note: z.string().max(1000).nullish(),
+  /**
+   * The structured reply (E4), when there is one. Required by the API for `responded` and refused
+   * for the others: a documented non-response with an accident list in it is a contradiction, and a
+   * reply with nothing recorded is the outcome column doing the work the record is supposed to do.
+   */
+  response: employerResponseSchema.nullish(),
+  /** The returned letter or fax, registered and uploaded first. */
+  document_id: z.uuid().nullish(),
 });
 export type InquiryOutcomeUpdate = z.infer<typeof inquiryOutcomeSchema>;

@@ -1,9 +1,11 @@
 import { Router } from "express";
 import {
   canReadInvestigationHistory,
+  employerResponseDocumentSchema,
   inquiryAttemptSchema,
   inquiryOutcomeSchema,
   rolesThatManage,
+  type EmployerResponseDocument,
   type InquiryAttempt,
   type InquiryOutcomeUpdate,
 } from "@fuelguard/shared";
@@ -18,6 +20,7 @@ import {
   previewInquiry,
   recordInquiryAttempt,
   recordInquiryOutcome,
+  registerInquiryDocument,
 } from "../../services/employerInquiry.js";
 
 /**
@@ -111,6 +114,26 @@ export function recruitmentInquiriesRouter(): Router {
     }),
   );
 
+  /** Register the returned letter before uploading it; the kind is forced server-side (E4). */
+  router.post(
+    "/inquiries/:id/document",
+    requireOrg,
+    canInvestigate,
+    validateBody(employerResponseDocumentSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await registerInquiryDocument(
+        admin, req.auth!.orgId!, req.auth!.userId, String(req.params.id ?? ""),
+        res.locals.body as EmployerResponseDocument,
+      );
+      if (isInquiryError(result)) {
+        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json(result);
+    }),
+  );
+
   /**
    * What came back, or that nothing did.
    *
@@ -129,7 +152,11 @@ export function recruitmentInquiriesRouter(): Router {
 
       const result = await recordInquiryOutcome(admin, orgId, String(req.params.id ?? ""), body);
       if (isInquiryError(result)) {
-        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.message));
+        const status =
+          result.code === "not_found" ? 404
+          : result.code === "update_failed" ? 500
+          : 422;
+        res.status(status).json(apiError(result.code, result.message));
         return;
       }
 
@@ -139,7 +166,15 @@ export function recruitmentInquiriesRouter(): Router {
         action: "compliance.employer_inquiry_answered",
         entity: "employer_inquiries",
         entityId: result.id,
-        meta: { employmentId: result.employmentId, outcome: body.outcome, outcomeOn: body.outcome_on },
+        // Counts, never contents: what a former employer said about a driver's accidents is
+        // §391.23(k) material and belongs in the row, not in a log every admin can read.
+        meta: {
+          employmentId: result.employmentId,
+          outcome: body.outcome,
+          outcomeOn: body.outcome_on,
+          accidentsReported: body.response?.accidents.length ?? null,
+          documentFiled: Boolean(body.document_id),
+        },
       });
 
       res.json({ id: result.id });

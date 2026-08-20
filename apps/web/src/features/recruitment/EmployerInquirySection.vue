@@ -23,6 +23,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useEmploymentHistoryQuery } from "@/features/recruitment/useEmployment";
+import InquiryResponseDrawer from "@/features/recruitment/InquiryResponseDrawer.vue";
 import {
   useInquiriesQuery,
   useInquiryPreview,
@@ -65,6 +66,13 @@ const canInvestigate = computed(() => {
 const owing = computed(() => (employmentQ.data.value ?? []).filter((e) => e.dot_regulated));
 
 const composeFor = ref<string | null>(null);
+/** The attempt whose answer is being recorded (E4). */
+const answering = ref<EmployerInquiry | null>(null);
+const declaredFor = computed(() => {
+  const employmentId = answering.value?.employment_id;
+  const row = (employmentQ.data.value ?? []).find((e) => e.id === employmentId);
+  return row ? { started_on: row.started_on, ended_on: row.ended_on } : null;
+});
 const preview = useInquiryPreview(composeFor);
 const form = reactive({ method: "email" as InquiryMethod, contacted_on: "", sent_to: "", note: "" });
 
@@ -200,12 +208,19 @@ const FORM_ID = "employer-inquiry-form";
         </template>
         <template #actions="{ row }">
           <div v-if="canInvestigate && row.outcome === 'awaiting'" class="flex items-center gap-2">
-            <BaseButton size="sm" @click="close(row, 'responded')">They answered</BaseButton>
+            <BaseButton size="sm" @click="answering = row">They answered</BaseButton>
             <BaseButton size="sm" @click="close(row, 'no_response')">Document no reply</BaseButton>
           </div>
         </template>
       </DataTable>
     </BaseCard>
+
+    <InquiryResponseDrawer
+      :inquiry="answering"
+      :declared="declaredFor"
+      :driver-id="driverId"
+      @close="answering = null"
+    />
 
     <SlideOver
       :open="composeFor !== null"
