@@ -281,6 +281,54 @@ Two of the six are gaps rather than passes, and they are written down as gaps: t
 check that stops one person's history landing on another's file has still never run against real
 data, and neither has the non-preventable crash rule.
 
+## 5.4 The dashboard path, in the QA org (2026-08-20)
+
+`psp:uat` proves the vendor edge. It cannot exercise the half the operator sees: the four gates, the
+step-up, the confirmation screen, the `psp_requests` ledger row, and the PDF landing in `documents`
+with a `qualification_records` row citing it. That needs a real driver and real authorizations.
+
+**They live in `FuelGuard EFS QA`** (`07fe4058-cc72-4a69-b3e9-29b4cf1c6a44`), seeded by
+`pnpm --filter @fuelguard/api seed:psp-qa` — dry run by default, `--apply` to write.
+
+| Driver | Licence | What the screens get |
+|---|---|---|
+| Burton Litton | `PA2336558`/PA | 4 crashes + 4 inspections — the richest record |
+| Joel Davidson | `TX3372976`/TX | 8 inspections, no crashes |
+| Jose Davis | `T123456789`/VA | 4 inspections, no crash |
+
+### Why that org and no other
+
+The only Supabase configured here is **production**. The QA org holds no real drivers and has a
+**null `dot_number`**, so tenant isolation keeps this out of Silvicom Inc's real DQ evidence and even
+a mistaken production run could not borrow their USDOT number. `documents` and
+`qualification_records` are append-only: seeding a real carrier would have no undo. The org id is a
+literal in the script, it verifies the org's **name and null DOT** before writing, and it refuses to
+run at all unless `PSP_ENVIRONMENT=uat` — fabricated consent has no business existing in an
+environment pointed at the account that bills and pulls real people's records.
+
+**The signatures are fabricated and they say so.** A `driver_authorizations` row records a person
+consenting to a background check; these record nobody. The instrument is composed from `DISCLOSURES`
+exactly as `routes/recruitment/authorizations.ts` composes it — a hand-written disclosure would drift
+and prove nothing about the real path — but `signed_name` carries a `(QA SEED)` marker, and
+`recorded_by` is null because no person recorded it.
+
+### Verified, up to the point a human has to click
+
+```
+PREFLIGHT   enabled true · uat · budget 0/5 · billsOn success, failure, partial · refusal none
+GATES  no step-up  → step_up_required          (authorization and config passed; stopped at authority)
+GATES  step-up     → PASSED — draft built
+       motorCarrierId 31496 · dotNumber (null) · PA2336558/PA · internalRefId = driver id
+```
+
+The budget reads 0 despite sixteen UAT orders that afternoon: the harness writes no ledger rows, so
+`billedThisMonth` correctly sees none. The first dashboard order will be the first row in
+`psp_requests`.
+
+**To finish it:** log in as `uncchicago85+efsqa@gmail.com` (the QA org's only member, an admin), open
+one of the three drivers, and order from the screening panel. The step-up is a real password prompt,
+which is why the last step is a person's and not a script's.
+
 ### What to ask them
 
 Detail 32's own message is *"Please login and request a new token or contact customer support."* Both
