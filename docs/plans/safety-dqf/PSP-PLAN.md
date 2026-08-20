@@ -837,9 +837,19 @@ A route test fails if anyone simplifies it back.
 **No migration.** `psp_report` was already a legal `documents.kind` and `qualification_records.kind`
 (0217), and the read restriction already rides on the kind. The import needed code, not schema.
 
+**The surface** — `features/recruitment/PspRecordsSection.vue` on the driver page's **Employment**
+tab, beside the history the record corroborates, with `usePspImport.ts` doing register → PUT → file.
+Not on the Qualification tab, and that is a consequence of the guard rather than a preference: that
+section's write affordances gate on `canManageFleet`, which a recruiter does not hold, so the entry
+point would have been invisible to exactly the role §391.53(a)(1) describes. The table renders an
+imported record's findings as **"Not machine-read — read the PDF"**; the ordered path's counted
+projection renders as counts. A component test fails if a zero ever appears there, and another fails
+if the button is offered to a fleet_manager the API would 403.
+
 **Still open:** an imported PDF is unread. If the violation index (P12) is ever wanted for historical
 records, the only route is OCR or hand transcription, and either one is a NEW record kind, not a
-quiet upgrade of this one.
+quiet upgrade of this one. P9 still owes the Qualification tab its own PSP row and the order
+confirmation that states the cost.
 
 ---
 
