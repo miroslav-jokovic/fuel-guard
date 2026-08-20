@@ -92,7 +92,10 @@ export function toPspDate(iso: string): string {
 }
 
 export function pspHost(env: Env): string {
-  return HOSTS[(env.PSP_ENVIRONMENT ?? "uat") as PspEnvironment];
+  // No `?? "uat"` here: the schema already defaults it, and a second fallback is a second source of
+  // truth for the same value — which is what `env.test.ts` refuses. Getting this one wrong is not
+  // cosmetic: the two hosts differ by whether a request bills.
+  return HOSTS[env.PSP_ENVIRONMENT as PspEnvironment];
 }
 
 function apiKey(env: Env): string {

@@ -389,6 +389,17 @@ const EnvSchema = z.object({
   /** §5.4.1 requires a DOT number or a Motor Carrier ID; PSP refuses the request without one (§8.5 detail 10). */
   PSP_DOT_NUMBER: z.string().optional(),
   PSP_MOTOR_CARRIER_ID: z.string().optional(),
+  /**
+   * The kill switch, and it defaults to OFF. `extractionEnabled` is the precedent: a credential being
+   * present is not consent to spend on it, and PSP bills on Success, Partial AND Failure (§8). An
+   * integration that starts buying the moment a key lands in the environment is one nobody chose.
+   */
+  PSP_ORDERS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /** Records per org per calendar month. A runaway loop must hit a ceiling, not an invoice. */
+  PSP_MONTHLY_LIMIT: z.coerce.number().int().positive().default(50),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
