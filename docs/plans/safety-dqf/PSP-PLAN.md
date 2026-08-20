@@ -446,6 +446,35 @@ Consent is deliberately NOT part of the verdict. The signed release is the order
 (`missingAuthorizations`); folding it in here would report every driver as unready for a reason that
 has nothing to do with their identity data, which is the one thing this report is about.
 
+#### P0b(ii) · The bulk path — migration 0221
+
+201 drivers is a lot of typing, and the value usually already exists in the carrier's payroll export.
+`/recruitment/screening` takes a CSV: a `date_of_birth` column plus anything to match on — driver id,
+employee number, licence number, or name. Drop it to preview, press again to write. The preview is
+not decoration: it is the only way somebody can see what the matching rules decided about THEIR file
+before anything lands.
+
+**Only `date_of_birth` is importable.** Licence number and state are the other screening identity
+fields, and the Samsara sync owns them under enrich-never-clobber (D6). A spreadsheet fighting a
+telematics sync over a driver's licence number is a worse problem than the 35 drivers it would fix.
+
+**Three refusals, each because the failure is silent and expensive:**
+
+- **An ambiguous name is rejected, never resolved by picking the first match.** A date of birth on
+  the wrong driver is a screening request about the wrong person, billed (§8), possibly filed against
+  somebody whose job depends on it. Two rows claiming one driver is the same failure and is refused
+  the same way.
+- **`03/04/1980` is refused rather than interpreted.** It is two real dates depending on where the
+  sheet came from, both pass validation, and the wrong one is invisible until PSP charges for a
+  `Failure`. ISO only, and the error names the fix.
+- **A date already on file is never overwritten**, and that rule lives in the WHERE clause
+  (`date_of_birth is null`), not only in the planner. The planner decides from a roster it read
+  moments earlier; the predicate closes the window between that read and the write. The behavioural
+  matrix pins exactly this — "a stale plan cannot clobber a value written since it was made".
+
+`applied` is reported separately from `matched` for the same reason: the difference is real, and
+telling somebody 40 dates landed when 39 did is how a bulk tool loses trust.
+
 ### P3 · Credentials — the carrier is the ORGANISATION (partly done 2026-08-20)
 
 The order path read `PSP_DOT_NUMBER` from the environment, which is correct for exactly one shape of

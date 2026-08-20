@@ -14,6 +14,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
 import { orderPspRecord, pspOrderPreflight } from "../../services/pspOrder.js";
 import { loadScreeningReadiness } from "../../services/screeningReadiness.js";
+import { dobCsvTemplate, importDriverDob } from "../../services/dobImport.js";
 import { fetchRecordPdf, requestRecord } from "../../psp/client.js";
 
 /**
@@ -41,6 +42,75 @@ export function recruitmentPspOrdersRouter(): Router {
   // read the report they would be spending the carrier's money on.
   const canOrder = requireRole(...rolesThatManage("recruitment").filter(canReadInvestigationHistory));
   const canViewSection = requireRole(...rolesThatCanView("recruitment"));
+  const canManageSection = requireRole(...rolesThatManage("recruitment"));
+
+  /** The template to fill in offline: one row per driver, the id that makes a match unambiguous. */
+  router.get(
+    "/screening-readiness/template.csv",
+    requireOrg,
+    canViewSection,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const csv = await dobCsvTemplate(admin, req.auth!.orgId!);
+      res.setHeader("content-type", "text/csv; charset=utf-8");
+      res.setHeader("content-disposition", 'attachment; filename="driver-dates-of-birth.csv"');
+      res.send(csv);
+    }),
+  );
+
+  /**
+   * Importing the filled-in sheet.
+   *
+   * The body is the FILE, not a resolved list of driver ids and dates. Matching a row to a person is
+   * where the safety rules live — refuse an ambiguous name, never overwrite, never guess a date
+   * format — and an endpoint that accepted the answer would let a caller write a date of birth onto
+   * any driver in their org without a file saying so. `dryRun` returns the same plan without writing.
+   *
+   * Gated on MANAGING the section: this writes to the roster, and the readiness report next door is
+   * the read-only half.
+   */
+  router.post(
+    "/screening-readiness/dob-import",
+    requireOrg,
+    canManageSection,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const body = (req.body ?? {}) as { csv?: unknown; dryRun?: unknown };
+      if (typeof body.csv !== "string" || body.csv.trim() === "") {
+        res.status(400).json(apiError("invalid_request", "Upload a CSV file."));
+        return;
+      }
+
+      const result = await importDriverDob(
+        admin, orgId, body.csv, new Date().toISOString().slice(0, 10),
+        { dryRun: body.dryRun === true },
+      );
+
+      if (result.applied > 0) {
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "roster.driver_dob_imported",
+          entity: "drivers",
+          // No single entity: the act was a file covering many drivers, and naming one of them would
+          // make the log read as an edit to that person.
+          entityId: undefined,
+          // Counts and refusal reasons only. A date of birth copied into an audit log every admin
+          // can read is a second, less protected copy of the driver's file — the rule the roster
+          // route already applies by keeping `date_of_birth` out of its audited values.
+          meta: {
+            applied: result.applied,
+            matched: result.matches.length,
+            rejected: result.rejects.length,
+            reasons: [...new Set(result.rejects.map((r) => r.reason))],
+          },
+        });
+      }
+
+      res.json(result);
+    }),
+  );
 
   /**
    * How much of the fleet could be screened at all (P0b).
