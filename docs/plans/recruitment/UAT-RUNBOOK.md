@@ -434,9 +434,22 @@ have called production while believing it was UAT. `VITE_*` is baked at build ti
 requires a rebuild rather than a restart. `ALLOWED_ORIGINS` and `WEB_APP_URL` were likewise still
 production URLs and now name the UAT web origin.
 
-## 5.6 Does UAT bill? (researched 2026-08-20)
+## 5.6 Does UAT bill? **No** (answered 2026-08-20)
 
-**No source says it does, and no source says it does not.** Written down because "UAT is free" has
+**Answered by looking, not by reasoning.** The operator opened the PSP UAT portal and found every
+test pull from that day listed and downloadable, with no charge attached. That is the vendor saying
+it directly, which is what none of the sources below manage to do.
+
+It also settles something the product copy had wrong. **The portal keeps a transaction history the
+REST API does not expose.** v3.9 has four endpoints — `/Token`, `/Records`, `/Record`,
+`/DayMonitored45` — and none lists past transactions; the last lists only records enrolled in 45-day
+monitoring. The PSP records section said *"PSP keeps no list of past transactions"*, which is false
+about the portal and true only about the API. Corrected to say the narrower thing, because a sentence
+that is wrong in the operator's own experience costs the rest of the paragraph its credibility.
+
+### The research this replaces, kept because the reasoning is the reusable part
+
+**No source said it does, and no source said it does not.** Written down because "UAT is free" has
 been assumed out loud several times and the assumption has never been checked.
 
 | Source | What it says |
