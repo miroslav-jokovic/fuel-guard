@@ -237,6 +237,22 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Applicants" },
   },
   {
+    // P0b. Shipped 2026-08-20 without this record — the page, its API and the applicant board's
+    // button all existed while the URL fell through to nothing, which kept the DOB import (the fix
+    // for a fleet with zero screenable drivers) unreachable. Registered 2026-08-20.
+    path: "/recruitment/screening",
+    name: "screening-readiness",
+    component: () => import("@/pages/ScreeningReadinessPage.vue"),
+    meta: { requiresAuth: true, title: "Screening Readiness", parent: "/recruitment" },
+  },
+  {
+    // E5 — the §391.23 queue, led by our §391.23(c)(1) deadline. Same omission as above, same day.
+    path: "/recruitment/inquiries",
+    name: "inquiry-queue",
+    component: () => import("@/pages/InquiryQueuePage.vue"),
+    meta: { requiresAuth: true, title: "Inquiry Queue", parent: "/recruitment" },
+  },
+  {
     path: "/driver-performance",
     name: "driver-performance",
     component: () => import("@/pages/DriverPerformancePage.vue"),
