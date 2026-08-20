@@ -74,6 +74,7 @@ export * from "./messagesContract.js";
 export * from "./rosterContract.js";
 export * from "./recruitmentContract.js";
 export * from "./authorizationContract.js";
+export * from "./applicationContract.js";
 export * from "./employmentCoverage.js";
 export * from "./idleRollup.js";
 export * from "./idleBreakdown.js";

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import {
+  EMPLOYED_DRIVER_STATUSES,
   canWriteDriverLifecycle,
   driverCreateSchema,
   driverInviteSchema,
@@ -95,10 +96,13 @@ export function rosterDriversRouter(): Router {
     canView,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
+      // The employed roster. An applicant is a drivers row (D-HIRE5) but not somebody the fleet
+      // manages yet; Recruitment lists them until they are hired.
       const { data, error } = await admin
         .from("drivers")
         .select(DRIVER_LIST_COLS)
         .eq("org_id", req.auth!.orgId!)
+        .in("status", [...EMPLOYED_DRIVER_STATUSES])
         .order("full_name", { ascending: true });
       if (error) {
         res.status(500).json(apiError("db_error", "Could not list drivers"));

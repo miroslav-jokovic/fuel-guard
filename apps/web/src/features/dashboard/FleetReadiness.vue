@@ -20,7 +20,11 @@ const { data: org } = useOrgSettingsQuery();
 
 // Active fleet only — retired vehicles shouldn't count as "missing" data.
 const fleet = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
-const activeDrivers = computed(() => (drivers.value ?? []).filter((d) => d.status !== "inactive"));
+// Was `status !== "inactive"`, which admitted every status added afterwards — `applicant` included,
+// so somebody who had merely applied counted toward fleet readiness. Inclusion, not exclusion.
+const activeDrivers = computed(() =>
+  (drivers.value ?? []).filter((d) => d.status === "active" || d.status === "on_leave"),
+);
 
 interface Row {
   label: string;

@@ -64,8 +64,40 @@ export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
  * roster UI and API agree on. NOTE: `auth_driver_id()` (0083) resolves only `status = 'active'`, so
  * a driver on leave or terminated keeps their roster record but stops resolving in the driver app.
  */
-export const DRIVER_STATUSES = ["active", "inactive", "on_leave", "terminated"] as const;
+/**
+ * Where somebody stands with the carrier. `applicant` (HIRING-PLAN.md D-HIRE5) is not an employment
+ * status at all — it is the state before there is any employment, and it exists here because
+ * `driver_employment_history` and `driver_authorizations` both reference `drivers`, so an applicant
+ * IS a drivers row. `drivers.status` is plain text with no enum and no CHECK, so this costs a
+ * constant rather than a migration.
+ *
+ * Two protections fall out and both are wanted: `auth_driver_id()` (0083) resolves only `active`
+ * rows, so an applicant can never reach the driver app; and `complianceOverview` selects
+ * `["active", "on_leave"]` by INCLUSION, so an applicant never appears in a §391.51 queue for a file
+ * that does not exist yet. Every OTHER status filter had to be checked by hand, because an exclusion
+ * list (`status !== "inactive"`) silently admits a status added later — which is exactly what
+ * happened to FleetReadiness.
+ */
+export const DRIVER_STATUSES = ["applicant", "active", "inactive", "on_leave", "terminated"] as const;
 export type DriverStatus = (typeof DRIVER_STATUSES)[number];
+
+export const DRIVER_STATUS_LABELS: Record<DriverStatus, string> = {
+  applicant: "Applicant",
+  active: "Active",
+  inactive: "Inactive",
+  on_leave: "On leave",
+  terminated: "Terminated",
+};
+
+/**
+ * The statuses that mean "we employ, or employed, this person". The roster, headcounts and every
+ * fleet surface read this rather than excluding `applicant` by name, so the next status added is a
+ * decision somebody makes here instead of a leak somebody finds later.
+ */
+export const EMPLOYED_DRIVER_STATUSES = DRIVER_STATUSES.filter((s) => s !== "applicant");
+
+export const isApplicantStatus = (status: string | null | undefined): boolean =>
+  status === "applicant";
 
 /** Anomaly severities (mirrors the `anomaly_severity` Postgres enum). */
 export const ANOMALY_SEVERITIES = ["low", "medium", "high", "critical"] as const;

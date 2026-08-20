@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { APP_NAME, USER_ROLES, MPG_FUEL_TYPES, RULE_IDS, runAllRules } from "./index.js";
+import {
+  APP_NAME,
+  DRIVER_STATUSES,
+  EMPLOYED_DRIVER_STATUSES,
+  MPG_FUEL_TYPES,
+  RULE_IDS,
+  USER_ROLES,
+  isApplicantStatus,
+  runAllRules,
+} from "./index.js";
 
 describe("shared constants", () => {
   it("exposes the app name", () => {
@@ -14,6 +23,20 @@ describe("shared constants", () => {
     expect(USER_ROLES).toContain("dispatcher");
     expect(USER_ROLES).toContain("safety_manager");
     expect(USER_ROLES).toContain("recruiter");
+  });
+
+  /**
+   * `applicant` is the state BEFORE employment, not a kind of employment (HIRING-PLAN.md D-HIRE5).
+   * Every roster and headcount surface reads EMPLOYED_DRIVER_STATUSES rather than excluding it by
+   * name, so the next status added is a decision somebody makes rather than a leak somebody finds.
+   */
+  it("separates the applicant from the employed statuses", () => {
+    expect(DRIVER_STATUSES).toContain("applicant");
+    expect(EMPLOYED_DRIVER_STATUSES).not.toContain("applicant");
+    expect([...EMPLOYED_DRIVER_STATUSES].sort()).toEqual(["active", "inactive", "on_leave", "terminated"]);
+    expect(isApplicantStatus("applicant")).toBe(true);
+    expect(isApplicantStatus("active")).toBe(false);
+    expect(isApplicantStatus(null)).toBe(false);
   });
 
   it("gates MPG rules to diesel + gasoline only (audit H1)", () => {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { getComplianceOverview } from "./complianceOverview.js";
@@ -22,6 +23,21 @@ function makeRecorder(drivers: unknown[]) {
     rpc: { org_module_enabled: false },
   });
 }
+
+/**
+ * D-HIRE5: an applicant is a `drivers` row, and the §391.51 queue must never admit one — there is no
+ * qualification file for somebody who is not employed, and listing them as "missing a medical card"
+ * would be a compliance finding against a person we have not hired. The overview selects by
+ * INCLUSION (`["active", "on_leave"]`), which is what makes that true; this pins it, because an
+ * exclusion list would have admitted the status silently.
+ */
+describe("applicant scoping", () => {
+  it("selects active and on_leave by inclusion, so a new status is never admitted by default", () => {
+    const src = readFileSync(new URL("./complianceOverview.ts", import.meta.url), "utf8");
+    expect(src).toContain('.in("status", ["active", "on_leave"])');
+    expect(src).not.toMatch(/neq\("status"/);
+  });
+});
 
 describe("getComplianceOverview — the driver predicate", () => {
   it("filters to employed, non-EFS drivers and stays org-scoped", async () => {
