@@ -16,7 +16,7 @@ const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const env = (over: Record<string, string> = {}) =>
   loadEnv({
     NODE_ENV: "test",
-    PSP_API_KEY: "test-key",
+    PSP_API_KEY_UAT: "test-key",
     PSP_ENVIRONMENT: "uat",
     PSP_ORDERS_ENABLED: "true",
     PSP_DOT_NUMBER: "43586",

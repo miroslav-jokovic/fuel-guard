@@ -8,8 +8,8 @@ import {
   validatePspRequest,
   type PspRequestDraft,
 } from "@fuelguard/shared";
-import { loadEnv, type Env } from "../env.js";
-import { PspError, fetchRecordPdf, pspHost, requestRecord } from "../psp/client.js";
+import { loadEnv, pspApiKey, pspApiKeyVar, type Env } from "../env.js";
+import { PspError, fetchMonitoringReport, fetchRecordPdf, pspHost, requestRecord } from "../psp/client.js";
 
 /**
  * Exercise the PSP vendor edge against the UAT account, and keep what comes back.
@@ -40,6 +40,7 @@ import { PspError, fetchRecordPdf, pspHost, requestRecord } from "../psp/client.
  * parse is the thing under test. If the projection is wrong the evidence survives and the parser is
  * fixed without buying the same record twice.
  *
+ *   pnpm psp:uat --verify-key               # does the configured token belong to this environment?
  *   pnpm psp:uat --list                     # the roster, no network
  *   pnpm psp:uat --driver thomas            # dry run: what would be sent, and what validation says
  *   pnpm psp:uat --driver thomas --order    # the live call
@@ -224,6 +225,38 @@ async function main(argv: string[]): Promise<number> {
     return i === -1 ? undefined : argv[i + 1];
   };
   const has = (name: string): boolean => argv.includes(name);
+
+  if (has("--verify-key")) {
+    // The check a fingerprint cannot perform. A token is 32 hex characters either way; nothing in its
+    // bytes says which account issued it, and comparing sha256 sums only ever proves two files
+    // differ. `GET /DayMonitored45` asks the service, neither mints nor bills, and is therefore
+    // allowed in BOTH environments — verifying the production key is when you most want it.
+    const env = loadEnv();
+    const variable = pspApiKeyVar(env);
+    console.log(`environment       ${env.PSP_ENVIRONMENT}`);
+    console.log(`reads             ${variable}`);
+    console.log(`host              ${pspHost(env)}`);
+    if (!pspApiKey(env)) {
+      console.error(`\n${variable} is unset. Nothing to verify.`);
+      return 1;
+    }
+    try {
+      const report = await fetchMonitoringReport(env);
+      console.log(`\nOK — ${variable} authenticates against the ${env.PSP_ENVIRONMENT} host.`);
+      console.log(`45-day monitoring report: ${report.length} record(s).`);
+      return 0;
+    } catch (e) {
+      const detail = e instanceof PspError ? e.detail : null;
+      console.error(`\nFAILED — ${e instanceof Error ? e.message : String(e)}`);
+      if (detail === 32) {
+        console.error(
+          `  Detail 32 here means this token is not the ${env.PSP_ENVIRONMENT} account's. A token for the\n`
+          + `  other environment answers exactly this way — check that ${variable} holds the right one.`,
+        );
+      }
+      return 1;
+    }
+  }
 
   if (has("--list") || argv.length === 0) {
     for (const [key, d] of Object.entries(ROSTER)) {

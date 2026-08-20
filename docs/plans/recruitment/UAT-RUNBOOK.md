@@ -67,8 +67,8 @@ Four things, and the first two are new:
 
 **Current state of `apps/api/.env` (2026-08-20, after the first run):** `PSP_ENVIRONMENT=uat`,
 `PSP_ORDERS_ENABLED=true`, `PSP_PRODUCTION_ACKNOWLEDGED=false`, `PSP_MOTOR_CARRIER_ID=31496`,
-`PSP_DOT_NUMBER` absent, and `PSP_API_KEY` now the **UAT** token rather than the production one it
-held (§5.1). **Nothing can reach production today** — item 2 is the switch that says so.
+`PSP_DOT_NUMBER` absent, and the token now in `PSP_API_KEY_UAT` — a variable the production host
+cannot read at all (§5.1). **Nothing can reach production today** — item 2 is the switch that says so.
 
 ---
 
@@ -118,11 +118,23 @@ Support says to **ignore the dates** — they predate the 3/5-year windows but t
 **One-time, on the operator's machine** (never committed):
 
 ```
-PSP_API_KEY=<the UAT token>
+PSP_API_KEY_UAT=<the UAT token, from docs/psp-docs/apitoken-uat.txt>
 PSP_ENVIRONMENT=uat
 PSP_MOTOR_CARRIER_ID=31496
 PSP_ORDERS_ENABLED=true
 PSP_MONTHLY_LIMIT=5
+```
+
+**There is one variable per account, and `PSP_ENVIRONMENT` picks it.** `production` reads
+`PSP_API_KEY_PRODUCTION` and can read nothing else, so a token cannot be paired with the other
+account's host. The retired `PSP_API_KEY` is no longer read; a deploy still carrying it boots and
+says so on startup rather than failing.
+
+Then confirm the token is the one you think it is — a check no fingerprint can perform, because a
+token is 32 hex characters either way and only the service knows which account issued it:
+
+```
+pnpm --filter @fuelguard/api psp:uat --verify-key
 ```
 
 **Leave `PSP_DOT_NUMBER` unset for UAT.** Sending a DOT number *and* a motor carrier ID that do not
@@ -164,6 +176,12 @@ first two both read the same host map, so a bad edit to that map would take them
 fail-closed property is what would have answered: `401 / errorCode 32`. Swapped for the UAT token,
 and the swap had to come first, because the mixed-up credential and the blocker below produce
 *the same error number* and the wrong one would have been blamed.
+
+It happened a second time the same afternoon, from the opposite direction: another session compared
+sha256 fingerprints, found the local key did not match `apitoken.txt`, and "corrected" it — to the
+production token, on Railway as well as locally. **A fingerprint can prove two files differ and can
+never say which account a token belongs to.** Only the service can, which is why `--verify-key`
+exists and why the key is now selected by environment instead of set by hand.
 
 **The UAT token authenticates on one endpoint and not the other.** Same token, same host, minutes
 apart, and verified again *after* the failures so nothing had been invalidated in between:
@@ -212,8 +230,10 @@ Support asked to be told, and to **issue a fresh token** for production. Note `G
 it is never called by anything automatic here, and a "connectivity check" must not be the thing that
 invalidates a live credential.
 
-Production additionally needs `PSP_PRODUCTION_ACKNOWLEDGED=true`, `PSP_DOT_NUMBER` **unset** (the org
-row supplies 1864495), and `organizations.dot_number` left as it is.
+Production additionally needs `PSP_API_KEY_PRODUCTION` set to the fresh token support issues,
+`PSP_PRODUCTION_ACKNOWLEDGED=true`, `PSP_DOT_NUMBER` **unset** (the org row supplies 1864495), and
+`organizations.dot_number` left as it is. Run `--verify-key` with `PSP_ENVIRONMENT=production` before
+trusting it: the probe neither mints nor bills, so it is safe in production too.
 
 ---
 

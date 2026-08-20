@@ -17,7 +17,7 @@ import {
   type PspReport,
   type PspRequestDraft,
 } from "@fuelguard/shared";
-import type { Env } from "../env.js";
+import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
 
 /**
  * Ordering a PSP record — P6 and P7 (HIRING-PLAN H7).
@@ -183,8 +183,11 @@ export async function checkPspGates(
         + "PSP_PRODUCTION_ACKNOWLEDGED=true to confirm that is intended.",
     };
   }
-  if (!env.PSP_API_KEY) {
-    return { code: "psp_not_configured", message: "PSP is not configured." };
+  if (!pspApiKey(env)) {
+    return {
+      code: "psp_not_configured",
+      message: `PSP is not configured: ${pspApiKeyVar(env)} is unset.`,
+    };
   }
 
   // 1. LEGALITY. PSP refuses the request without the driver's authorization (§8.5 detail 17) and so
@@ -471,7 +474,7 @@ export async function pspOrderPreflight(
     .maybeSingle();
 
   const base = {
-    enabled: env.PSP_ORDERS_ENABLED && Boolean(env.PSP_API_KEY),
+    enabled: env.PSP_ORDERS_ENABLED && pspApiKey(env) !== null,
     environment: env.PSP_ENVIRONMENT,
     carrier: await carrierIdentity(admin, env, input.orgId),
     budget,

@@ -76,7 +76,7 @@ const seed = (over: { auths?: unknown[] } = {}): SupabaseRecorder =>
 
 beforeAll(async () => {
   // A configured key with ordering OFF — the shape a real deployment has before somebody decides.
-  const app = createApp(loadEnv({ NODE_ENV: "test", PSP_API_KEY: "k", PSP_DOT_NUMBER: "43586" } as NodeJS.ProcessEnv));
+  const app = createApp(loadEnv({ NODE_ENV: "test", PSP_API_KEY_UAT: "k", PSP_DOT_NUMBER: "43586" } as NodeJS.ProcessEnv));
   app.locals.verifyToken = async (t: string): Promise<AuthContext> => {
     const found = CTX[t];
     if (!found) throw new Error("bad token");

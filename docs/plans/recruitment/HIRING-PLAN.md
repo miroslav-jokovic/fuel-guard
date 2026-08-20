@@ -61,7 +61,7 @@ surface is a **pipeline**, not a second compliance table.
 
 ## 1. PSP — tested 2026-08-19, and what the test settles
 
-`GET /DayMonitored45` with the configured `PSP_API_KEY`, against both hosts:
+`GET /DayMonitored45` with the token `PSP_ENVIRONMENT` selects, against both hosts:
 
 | Host | Result |
 |---|---|
