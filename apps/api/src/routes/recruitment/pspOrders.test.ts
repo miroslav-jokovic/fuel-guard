@@ -135,7 +135,11 @@ describe("the preflight", () => {
     // The kill switch is off, so ordering is not available even with a key configured.
     expect(body.enabled).toBe(false);
     expect(body.refusal?.code).toBe("psp_disabled");
-    expectOrgScoped(rec, ORG);
+    expectOrgScoped(rec, ORG, {
+      // `organizations` is filtered by its PRIMARY KEY, which IS the tenant id — there is no
+      // `org_id` column on the table that owns the concept. Same exemption dqAlertScheduler makes.
+      exempt: ["organizations"],
+    });
   });
 
   it("names the missing release rather than asking for a password first", async () => {

@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   canReadInvestigationHistory,
   pspOrderRequestSchema,
+  rolesThatCanView,
   rolesThatManage,
   type PspOrderRequest,
 } from "@fuelguard/shared";
@@ -12,6 +13,7 @@ import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
 import { orderPspRecord, pspOrderPreflight } from "../../services/pspOrder.js";
+import { loadScreeningReadiness } from "../../services/screeningReadiness.js";
 import { fetchRecordPdf, requestRecord } from "../../psp/client.js";
 
 /**
@@ -38,6 +40,30 @@ export function recruitmentPspOrdersRouter(): Router {
   // to read a §391.53(a)(1) record. Ordering adds a second argument for it — a fleet_manager cannot
   // read the report they would be spending the carrier's money on.
   const canOrder = requireRole(...rolesThatManage("recruitment").filter(canReadInvestigationHistory));
+  const canViewSection = requireRole(...rolesThatCanView("recruitment"));
+
+  /**
+   * How much of the fleet could be screened at all (P0b).
+   *
+   * Read-only and free, and gated on VIEWING the section rather than ordering: it reports names and
+   * which identity fields are blank, which is roster data anyone in Recruitment already sees. It
+   * discloses nothing about a §391.53 investigation, so tying it to the narrower ordering
+   * intersection would hide a work list from the people whose work it is.
+   */
+  router.get(
+    "/screening-readiness",
+    requireOrg,
+    canViewSection,
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      res.json(
+        await loadScreeningReadiness(
+          admin, env, req.auth!.orgId!, new Date().toISOString().slice(0, 10),
+        ),
+      );
+    }),
+  );
 
   /** What it would cost and what stands in the way. No vendor call, so this is free to ask. */
   router.get(
