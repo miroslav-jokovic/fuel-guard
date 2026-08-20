@@ -376,7 +376,19 @@ const EnvSchema = z.object({
   // GovInfo API (api.govinfo.gov) — used for HMDB/regulatory data lookups. Optional; features
   // that need it will fail clearly when unset.
   GOVINFO_API_KEY: z.string().optional(),
+  // ── FMCSA PSP (HIRING-PLAN H7) ────────────────────────────────────────────────────────────────
+  // The token is per PSP ACCOUNT, and an account belongs to a carrier. It lives in env rather than
+  // in `org_integrations` because exactly one org has a PSP account today, and a per-org table with
+  // one row in it is an abstraction accommodating a case that does not exist yet. When a second
+  // carrier arrives this moves, and PSP-PLAN P3 is where that is written down.
+  //
+  // Tokens are PER ENVIRONMENT and expire after 60 days (§4.2). `PSP_ENVIRONMENT` decides the host,
+  // and getting it wrong is not a harmless misconfiguration: a production request BILLS.
   PSP_API_KEY: z.string().optional(),
+  PSP_ENVIRONMENT: z.enum(["uat", "production"]).default("uat"),
+  /** §5.4.1 requires a DOT number or a Motor Carrier ID; PSP refuses the request without one (§8.5 detail 10). */
+  PSP_DOT_NUMBER: z.string().optional(),
+  PSP_MOTOR_CARRIER_ID: z.string().optional(),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly

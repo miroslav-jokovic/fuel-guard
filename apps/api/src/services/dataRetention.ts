@@ -187,6 +187,12 @@ export const RETENTION_FORBIDDEN = [
    * consent record that can be aged out is a consent record that cannot answer.
    */
   "driver_authorizations",
+  /**
+   * The PSP transaction ledger (0216). Every row is a purchase and a person's crash and violation
+   * history — the record of what we bought, on whose authorization, and what it said. An invoice
+   * reconciliation reads it, and so does anyone asking why a hiring decision went the way it did.
+   */
+  "psp_requests",
 ] as const;
 
 export interface RetentionTableResult {

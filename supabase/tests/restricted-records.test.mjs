@@ -307,5 +307,45 @@ ok(
   Number((await one(`select count(*)::int as n from driver_authorizations where id = $1`, [AUTH])).n) === 1,
 );
 
+// ── 0216: psp_requests — a purchase, and a person's whole violation history ──────────────────────
+// `$2` twice with two different target types makes Postgres refuse to deduce the parameter, so the
+// ref is passed separately rather than cast from the uuid.
+await db.query(
+  `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body, status, billed)
+     values ($1, $2, $3, 'k1', '{}'::jsonb, 'succeeded', true)`,
+  [ORG, DRIVER, DRIVER],
+);
+const PSPREQ = "select count(*)::int as n from psp_requests";
+await expect("recruiter reads the PSP requests they order", "recruiter", PSPREQ, 1);
+await expect("auditor reads them", "auditor", PSPREQ, 1);
+await expect("dispatcher reads none", "dispatcher", PSPREQ, 0);
+// No client write policy at all: every row is written by the order path, which is where the budget,
+// the step-up and the authorization gate live. A row a browser could insert is an ungated purchase.
+ok(
+  "nobody may INSERT a psp_request from the client — the order path owns it",
+  !(await writeAs(
+    "admin",
+    `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body)
+       values ('${ORG}', '${DRIVER}', 'x', 'k2', '{}'::jsonb)`,
+  )),
+);
+// One in flight per driver, or two operators clicking at once buy the same report twice.
+await db.query(
+  `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body, status)
+     values ($1, $2, $3, 'k3', '{}'::jsonb, 'pending')`,
+  [ORG, DRIVER, DRIVER],
+);
+let secondInFlight = true;
+try {
+  await db.query(
+    `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body, status)
+       values ($1, $2, $3, 'k4', '{}'::jsonb, 'pending')`,
+    [ORG, DRIVER, DRIVER],
+  );
+} catch {
+  secondInFlight = false;
+}
+ok("a second in-flight request for the same driver is refused", !secondInFlight);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -32,6 +32,15 @@ export interface PspRequestDraft {
   internalRefId: string;
   licenseQueries: readonly PspLicenceQuery[];
   driverConsent: boolean;
+  /**
+   * §5.4.1 makes this mandatory and never says what a system-to-system caller should put in it. The
+   * honest value is the IP of the operator who authorised the request, which makes it an audit fact
+   * rather than filler — but it is PSP-PLAN Q4 and unanswered, so it is optional here and the caller
+   * decides. Not validated: we have no rule to validate against.
+   */
+  userIPAddress?: string | null;
+  /** §5.4.1 — enrol this transaction in 45-day monitoring. Default false, and §6 explains the cost. */
+  monitor?: boolean;
 }
 
 export interface PspValidationIssue {
