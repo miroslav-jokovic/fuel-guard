@@ -5,11 +5,15 @@ import {
   PSP_STATUS,
   documentStoragePath,
   PSP_SOURCE_API,
+  buildPspDraft,
   isCleanRecord,
+  pspNameParts,
+  resolveCarrierIdentity,
   missingAuthorizations,
   validatePspRequest,
   type AuthorizationPurpose,
   type AuthorizationRow,
+  type CarrierIdentity,
   type PspReport,
   type PspRequestDraft,
 } from "@fuelguard/shared";
@@ -97,18 +101,12 @@ async function billedThisMonth(admin: SupabaseClient, orgId: string, now: Date):
 }
 
 /**
- * Names are split for PSP, which wants them separately and holds each to 20 characters (§8.5 details
- * 2, 25). `drivers.full_name` is NOT NULL and the structured parts are not, so this falls back to
- * splitting the full name — and the validator then refuses whatever that produced if it is not
- * something PSP will match on. Guessing badly and being refused for free beats not asking.
+ * Splitting a name for PSP now lives in `@fuelguard/shared` (psp/identity.ts), because the readiness
+ * report has to split it the SAME way — a report that judged a different name from the one the order
+ * sends would call a driver ready whom PSP then refuses, and PSP bills on Failure (§8). Kept as a
+ * named export here for the callers that already had it.
  */
-function nameParts(driver: DriverRow): { first: string; last: string } {
-  if (driver.first_name?.trim() && driver.last_name?.trim()) {
-    return { first: driver.first_name.trim(), last: driver.last_name.trim() };
-  }
-  const parts = driver.full_name.trim().split(/\s+/);
-  return { first: parts[0] ?? "", last: parts.length > 1 ? parts[parts.length - 1]! : "" };
-}
+const nameParts = pspNameParts;
 
 /**
  * Redact the request body before it is stored. It carries a licence number and a date of birth, and
@@ -130,6 +128,25 @@ function redactRequest(draft: PspRequestDraft): Record<string, unknown> {
       dlLastName: q.dlLastName,
     })),
   };
+}
+
+/**
+ * Which carrier is asking — the organisation's own DOT number, falling back to the deployment's.
+ *
+ * Org-filtered like every other read here: the service role bypasses RLS, and "read one row by the
+ * id I was given" is exactly the query that quietly crosses a tenant boundary when the id is wrong.
+ */
+async function carrierIdentity(admin: SupabaseClient, env: Env, orgId: string): Promise<CarrierIdentity> {
+  const { data } = await admin
+    .from("organizations")
+    .select("dot_number")
+    .eq("id", orgId)
+    .maybeSingle();
+  return resolveCarrierIdentity({
+    orgDotNumber: (data as { dot_number: string | null } | null)?.dot_number ?? null,
+    envDotNumber: env.PSP_DOT_NUMBER ?? null,
+    envMotorCarrierId: env.PSP_MOTOR_CARRIER_ID ?? null,
+  });
 }
 
 /**
@@ -190,28 +207,18 @@ export async function checkPspGates(
 
   // 4. CORRECTNESS — the cost control. A Failure costs the same as a hit (§8), so a licence number
   //    with a space in it is a purchase we can decline to make.
-  const { first, last } = nameParts(driver);
-  const draft: PspRequestDraft = {
-    driverFirstName: first,
-    driverLastName: last,
-    driverDOB: driver.date_of_birth ?? "",
-    dotNumber: env.PSP_DOT_NUMBER ?? null,
-    motorCarrierId: env.PSP_MOTOR_CARRIER_ID ?? null,
-    // Our key, stored by PSP and echoed on every response and on the 45-day report (§6), so a reply
-    // resolves back to a driver without a mapping table and without name-matching.
+  //
+  // The carrier on the request is THIS ORG, not the deployment (psp/identity.ts). `internalRefId` is
+  // our key, stored by PSP and echoed on every response and on the 45-day report (§6), so a reply
+  // resolves back to a driver without a mapping table and without name-matching.
+  const draft = buildPspDraft({
+    driver,
+    carrier: await carrierIdentity(admin, env, input.orgId),
     internalRefId: input.driverId,
-    driverConsent: true,
+    consent: true,
     userIPAddress: input.userIPAddress ?? null,
     monitor: input.monitor === true,
-    licenseQueries: [
-      {
-        dlNum: driver.cdl_number ?? "",
-        dlState: driver.cdl_state ?? "",
-        dlFirstName: first,
-        dlLastName: last,
-      },
-    ],
-  };
+  });
   const issues = validatePspRequest(draft, new Date().toISOString().slice(0, 10));
   if (issues.length > 0) {
     return {
@@ -409,7 +416,7 @@ export async function orderPspRecord(
   return { requestId, report, ...filed, clean: isCleanRecord(report) };
 }
 
-export { billedThisMonth, nameParts, redactRequest, ingestReport };
+export { billedThisMonth, carrierIdentity, nameParts, redactRequest, ingestReport };
 export type { DriverRow };
 
 /**
@@ -429,6 +436,8 @@ export async function pspOrderPreflight(
 ): Promise<{
   enabled: boolean;
   environment: string;
+  /** Who the request would name as the requesting carrier — the org's own number, or the fallback. */
+  carrier: CarrierIdentity;
   budget: { used: number; limit: number; remaining: number };
   unitPriceUsd: number | null;
   /** The §8.5 outcomes that carry the transaction fee, read from the status table, never listed here. */
@@ -449,6 +458,7 @@ export async function pspOrderPreflight(
   const base = {
     enabled: env.PSP_ORDERS_ENABLED && Boolean(env.PSP_API_KEY),
     environment: env.PSP_ENVIRONMENT,
+    carrier: await carrierIdentity(admin, env, input.orgId),
     budget,
     unitPriceUsd: env.PSP_UNIT_PRICE_USD ?? null,
     billsOn,

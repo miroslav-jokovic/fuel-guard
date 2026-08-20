@@ -95,7 +95,13 @@ const hiring = ref<PipelineApplicant | null>(null);
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Applicants, and what each one is waiting on before they can be screened" />
+    <PageHeader description="Applicants, and what each one is waiting on before they can be screened">
+      <template #actions>
+        <!-- The fleet-wide version of the same question. An applicant's stage says what THEY owe;
+             readiness says what WE are missing before anyone can be screened at all (P0b). -->
+        <BaseButton to="/recruitment/screening">Screening readiness</BaseButton>
+      </template>
+    </PageHeader>
 
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <BaseCard v-for="s in APPLICANT_STAGES" :key="s" padding="sm">

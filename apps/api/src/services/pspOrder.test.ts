@@ -135,7 +135,11 @@ describe("the gates, in the order legality → authority → budget → correctn
   it("scopes every read to the org", async () => {
     const rec = seed();
     await orderPspRecord(rec.client, env(), input, deps());
-    expectOrgScoped(rec, ORG);
+    expectOrgScoped(rec, ORG, {
+      // `organizations` is filtered by its PRIMARY KEY, which IS the tenant id — there is no
+      // `org_id` column on the table that owns the concept. Same exemption dqAlertScheduler makes.
+      exempt: ["organizations"],
+    });
   });
 
   /** Every refusal happens before the ledger row, so a declined order leaves nothing to explain. */
@@ -277,6 +281,10 @@ describe("the preflight", () => {
     const rec = seed();
     await pspOrderPreflight(rec.client, env(), { orgId: ORG, driverId: DRIVER });
     expect(rec.writes()).toHaveLength(0);
-    expectOrgScoped(rec, ORG);
+    expectOrgScoped(rec, ORG, {
+      // `organizations` is filtered by its PRIMARY KEY, which IS the tenant id — there is no
+      // `org_id` column on the table that owns the concept. Same exemption dqAlertScheduler makes.
+      exempt: ["organizations"],
+    });
   });
 });

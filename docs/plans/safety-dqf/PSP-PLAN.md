@@ -422,6 +422,45 @@ without it.
 Not verified in a browser — the vite dev server crashes in this environment for unrelated reasons, so
 `vue-tsc` and the unit suites are the check, per the standing note.
 
+### P0b · Screening readiness — **DONE 2026-08-20**
+
+**Measured, not guessed.** With P9 shipped, the carrier number configured and the unit price set, a
+production count on 2026-08-20 read: **201 active drivers, a licence for 166, a date of birth for
+ZERO.** Every gate was built and not one PSP request could have been made — `validatePspRequest`
+refuses without a date of birth (§8.5 details 1, 27). The integration was complete and unusable, and
+nothing in the product said so; the failure would have surfaced one driver at a time, at the moment
+somebody tried to spend money.
+
+`/recruitment/screening` is the fleet-wide answer: how many drivers can be screened, what is blocking
+the rest ranked by how many each field blocks, and the missing date of birth editable in the row
+where it is missing. P0's identity card stays — it is the right surface when you are already looking
+at one driver's file — but it made fixing 201 drivers a 201-visit job.
+
+**The verdict is the validator's.** Every row is judged by `validatePspRequest` over a draft built by
+`buildPspDraft` — the same two functions the order path runs, now shared (`psp/identity.ts`). A page
+with its own checklist would eventually call somebody ready whom PSP refuses, and **PSP bills on
+Failure**, so the disagreement would cost a transaction fee to discover rather than merely being
+wrong. A test pins that the report's gaps equal the order path's own issues for the same driver.
+
+Consent is deliberately NOT part of the verdict. The signed release is the order path's gate
+(`missingAuthorizations`); folding it in here would report every driver as unready for a reason that
+has nothing to do with their identity data, which is the one thing this report is about.
+
+### P3 · Credentials — the carrier is the ORGANISATION (partly done 2026-08-20)
+
+The order path read `PSP_DOT_NUMBER` from the environment, which is correct for exactly one shape of
+deployment: one carrier per install. **This is not that** — there are two organisations in the
+database, so an environment-level carrier number files every request under one of them. A request
+about the second org's driver would go out under the first org's identity, against the first org's
+account-holder agreement.
+
+That is a misattribution rather than an untidiness: a PSP record is obtained by a named carrier with
+that driver's written consent, and the name on the request is part of what makes it lawful.
+`resolveCarrierIdentity` now prefers `organizations.dot_number` and falls back to the environment,
+the preflight reports which answered, and the readiness page shows a `No carrier DOT number` badge
+when neither does. The API TOKEN is still per-deployment — one account holder's key — and that is the
+remaining half of P3.
+
 ### P1 · `driver_authorizations` — the reusable consent module (migration 0208)
 The §3.1(a) table. Columns: `org_id, driver_id, purpose ('psp'|'mvr'|'clearinghouse'|'drug_alcohol'),
 disclosure_text, accepted_at, accepted_via, accepted_by, evidence_document_id, revoked_at`. RLS
