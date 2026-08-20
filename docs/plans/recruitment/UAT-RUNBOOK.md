@@ -344,6 +344,34 @@ store the result before the process ends, or ask support the sharper question fi
 Asking before minting is worth the delay: if the account is not provisioned for `/Records`, a fresh
 token changes nothing and we would have spent the one credential we have to learn it.
 
+### What Railway holds (2026-08-20)
+
+`@fleetguard/api` is the only service with PSP variables. Set with `--skip-deploys`, so they take
+effect on the next deploy rather than triggering one:
+
+| Variable | Value |
+|---|---|
+| `PSP_API_KEY_UAT` | the UAT token |
+| `PSP_API_KEY_PRODUCTION` | the production token — inert until all three switches below flip |
+| `PSP_ENVIRONMENT` | `uat` |
+| `PSP_ORDERS_ENABLED` | `false` |
+| `PSP_PRODUCTION_ACKNOWLEDGED` | `false` |
+| `PSP_MOTOR_CARRIER_ID` | `31496` |
+| `PSP_API_KEY` | **retired.** Still present, still holding the production token, read by nothing. |
+
+The last four are set explicitly rather than left to their schema defaults: a deploy whose safety
+depends on knowing what a variable defaults to is a deploy nobody can audit by looking at it.
+
+`PSP_MOTOR_CARRIER_ID` is safe to leave set even in production. `resolveCarrierIdentity` gives the
+org row absolute precedence there, and Silvicom's holds 1864495, so it returns `motorCarrierId: null`
+and the UAT carrier ID is discarded — the detail-34 mismatch cannot form.
+
+**One Railway environment exists, named `production`.** So the two tokens are separated as
+*variables* and cannot be mispaired with a host, but the deployed API is a single process with a
+single `PSP_ENVIRONMENT`: it is UAT **or** production, never both at once. Genuinely separate testing
+and production deployments would be a second Railway environment, which is an infrastructure decision
+rather than a configuration one.
+
 ### Moving to production, when the time comes
 
 Support asked to be told, and to **issue a fresh token** for production. Note `GET /Token` **mints** —
