@@ -786,12 +786,83 @@ inspection under our own DOT number is never reported as an unlisted employer; a
 returns a candidate a human must confirm and never an automatic link; and an inspection under a DOT
 number absent from the application produces exactly one proposed inquiry.
 
+**P14 · The records the carrier already owns — the import path. DONE 2026-08-19.**
+
+The API cannot fetch a record we already bought. Five endpoints, none of which lists past
+transactions, and `/Record` needs an `authCode` that expires 120 hours after the request that
+produced it (§7). A carrier arriving with a drawer of PSP PDFs can therefore get them into the
+qualification file only by filing them — and buying them again would be paying a second time for a
+record we already hold lawfully, on a driver who already signed for the first one.
+
+**D-PSP9 — an import attests, it does not re-consent.** The ordered path (P6) refuses without a live
+signed `psp` authorization in `driver_authorizations`, because we are about to make the request. An
+import is the opposite situation: the pull already happened, on the portal, under the account-holder
+agreement, before this driver had a row in this system, and the consent that authorised it is on
+paper and may predate FuelGuard by years. Requiring a digital authorization would refuse to file
+lawfully obtained evidence, and the workaround would be back-dating a signature into the table that
+exists precisely so signatures are never back-dated. So the instrument matches the fact: a named
+person, at a recorded time, affirming that the written consent exists and is retained
+(`PSP_IMPORT_CONSENT_ATTESTATION`, served by the API so nobody attests to client-authored words).
+
+**The import claims nothing about the report.** `result` is `imported`, never `clean` — the ordered
+path derives `clean` from `isCleanRecord(report)`, a computed fact about structured data, and nothing
+computed anything here. `detail` carries `structured: false` and **no counts at all**: writing
+`inspections: 0` would have been the easy shape and the dangerous one, because zero inspections is a
+meaningful claim about a driver (D-PSP5) and the cross-check would then corroborate employment
+history against numbers nobody produced. An absent field cannot be misread that way. The consequence
+is worth stating plainly: **an imported record satisfies the file but does not feed the cross-check.**
+
+**No `psp_requests` row.** That ledger records transactions WE made — it settles a status, stores
+what PSP charged, and is what an invoice reconciles against. An import is not a transaction, and
+inventing a row for it would put a purchase we never made into the reconciliation.
+
+What shipped:
+
+- **`packages/shared/src/psp/import.ts`** — the two schemas, the `PSP_PROGRAM_START` bound (May 2010,
+  because the date is hand-typed off a PDF header and `1011-03-04` is a date Postgres stores
+  happily), the attestation text and the `detail` builder. Pure; 10 tests.
+- **`apps/api/src/services/pspImport.ts`** — register the PDF (signed upload URL, bytes never touch
+  the API), then file it. Refuses a document belonging to another driver, a document not filed as
+  `psp_report`, and a second filing of the same PDF. 11 tests, `expectOrgScoped` on both paths.
+- **`apps/api/src/routes/recruitment/psp.ts`** — `GET /psp-imports/attestation`,
+  `POST /psp-imports/document`, `POST /psp-imports`, audited as `compliance.psp_record_imported`.
+
+**The guard is an intersection, and that is the part worth remembering.**
+`rolesThatManage("recruitment")` includes `fleet_manager`, and `canReadInvestigationHistory` does
+not. Filing a PSP report as a fleet_manager would mean attesting to the consent behind a document
+they are not permitted to open — evidence filed into a class the filer cannot read, check or
+correct. So the route gates on **both**, derived from the two predicates rather than listed by hand.
+A route test fails if anyone simplifies it back.
+
+**No migration.** `psp_report` was already a legal `documents.kind` and `qualification_records.kind`
+(0217), and the read restriction already rides on the kind. The import needed code, not schema.
+
+**The surface** — `features/recruitment/PspRecordsSection.vue` on the driver page's **Employment**
+tab, beside the history the record corroborates, with `usePspImport.ts` doing register → PUT → file.
+Not on the Qualification tab, and that is a consequence of the guard rather than a preference: that
+section's write affordances gate on `canManageFleet`, which a recruiter does not hold, so the entry
+point would have been invisible to exactly the role §391.53(a)(1) describes. The table renders an
+imported record's findings as **"Not machine-read — read the PDF"**; the ordered path's counted
+projection renders as counts. A component test fails if a zero ever appears there, and another fails
+if the button is offered to a fleet_manager the API would 403.
+
+**Still open:** an imported PDF is unread. If the violation index (P12) is ever wanted for historical
+records, the only route is OCR or hand transcription, and either one is a NEW record kind, not a
+quiet upgrade of this one. P9 still owes the Qualification tab its own PSP row and the order
+confirmation that states the cost.
+
 ---
 
 ## 6. Open questions
 
 **Blocking:**
-- **Q1 — Is the token we hold UAT or production?** They are different tokens on different hosts (§4).
+- ~~**Q1 — Is the token we hold UAT or production?**~~ **ANSWERED 2026-08-19: a UAT token has been
+  obtained**, so P3–P7 can be proven end-to-end against the guide's test drivers with nobody's
+  privacy involved and nothing billed. The production key still exists and still bills on Success,
+  Partial AND Failure — `PSP_ENVIRONMENT` is the switch that decides which one a request reaches, and
+  it has exactly one source of truth (the env schema default) for that reason. The original question,
+  kept because the reasoning still governs the environment split:
+  They are different tokens on different hosts (§4).
   A production token means every test request is a real charge against a real account-holder
   agreement; a UAT token means we can build the whole path today against the guide's own test data
   (§9.1.1: SUSAN GODFREY / PA, GARY THOMAS / GA+PA, JOSE DAVIS / VA, `dotNumber` 43586). **If it is a

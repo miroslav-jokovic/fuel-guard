@@ -15,6 +15,7 @@ import { viz, areaFill } from "@/features/dashboard/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
+import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -182,7 +183,13 @@ const fillColumns: DataTableColumn[] = [
 
     <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
 
-    <EmploymentHistorySection v-if="section === 'employment'" :driver-id="id" />
+    <template v-if="section === 'employment'">
+      <EmploymentHistorySection :driver-id="id" />
+      <!-- Beside the employment history it corroborates, and where the recruiter already is: the
+           Qualification section's write affordances gate on canManageFleet, which a recruiter is
+           not (PSP-PLAN P14). -->
+      <PspRecordsSection :driver-id="id" />
+    </template>
 
     <BaseCard v-if="section === 'profile' && driver">
       <div class="flex items-center justify-between">

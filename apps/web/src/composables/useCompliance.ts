@@ -103,7 +103,7 @@ export function useDocumentsQuery(subjectType: Ref<string>, subjectId: Ref<strin
 
 /** Lowercase hex SHA-256 of the bytes — §390.32(c) integrity evidence, computed before the upload so
  *  the register records the hash of exactly what was sent. */
-async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
