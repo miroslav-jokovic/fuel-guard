@@ -74,3 +74,7 @@ fg2.tar.gz
 
 # Gradle build state inside the local native module
 apps/driver/modules/capture-native/android/.gradle/
+
+# PSP vendor material: the protocol guide is CONFIDENTIAL-footered on all 80 pages and
+# apitoken.txt is a live credential. Neither may enter git history (Q-H1, 2026-08-19).
+docs/psp-docs/

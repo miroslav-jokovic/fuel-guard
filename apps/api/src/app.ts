@@ -52,6 +52,7 @@ import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { recruitmentEmploymentRouter } from "./routes/recruitment/employment.js";
 import { recruitmentAuthorizationsRouter } from "./routes/recruitment/authorizations.js";
+import { recruitmentPspRouter } from "./routes/recruitment/psp.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
@@ -261,6 +262,7 @@ export function createApp(env: Env): Express {
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
   app.use("/api/recruitment", recruitmentEmploymentRouter()); // applicant pipeline + §391.21(b)(10)-(11) history
   app.use("/api/recruitment", recruitmentAuthorizationsRouter()); // the signed disclosures a screening pull needs
+  app.use("/api/recruitment", recruitmentPspRouter()); // PSP records already bought on the portal (P14)
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
