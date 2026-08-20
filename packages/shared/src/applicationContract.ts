@@ -55,6 +55,12 @@ export const applicationEmployerSchema = z
     city: z.string().max(120).nullish(),
     state: z.string().max(40).nullish(),
     phone: z.string().max(40).nullish(),
+    /**
+     * Where a §391.23(a)(2) inquiry is sent. Optional, because an applicant may genuinely not know
+     * it and a required field they cannot answer is a form they abandon — the office can add one
+     * later, and a posted letter is an equally good contact under §391.23(c)(2).
+     */
+    email: z.email().max(200).nullish().or(z.literal("").transform(() => null)),
     position_held: z.string().max(120).nullish(),
     started_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
     ended_on: isoDateSchema,

@@ -117,19 +117,36 @@ itself cannot represent a good-faith effort.
 
 ## 5. Steps
 
-**E1 · Close the two data gaps.** `address_line1` (and `employer_email`) on
+**E1 · Close the two data gaps — DONE 2026-08-20 (migration 0222).** `address_line1` (and `employer_email`) on
 `driver_employment_history`; carry `address_line1` through 0220's projection instead of dropping it;
 ask for the employer's email on the application.
 **Done when:** an applicant's typed employer address survives into the history row, and a §391.23(c)(2)
 record can name an address without an office retyping one.
 
-**E2 · The letter as a versioned artifact.** `EMPLOYER_INQUIRIES` beside `DISCLOSURES`: one document
+**E2 · The letter as a versioned artifact — DONE 2026-08-20 for §391.23(d).**
+`EMPLOYER_INQUIRIES.safety_performance` is **`v1`, not a draft**: it asks for what the regulation
+names, in the regulation's own terms, and needed no legal review to be correct about that. The
+§40.25 letter is `v0-draft` and the API refuses to record one, because it rests on a consent whose
+wording is unsettled (Q-H3).
+ `EMPLOYER_INQUIRIES` beside `DISCLOSURES`: one document
 for the §391.23(d) request, one for the §40.25 D&A request, each with `version`, `body`, and the
 citation it rests on. Server-composed, stored verbatim on the row that sends it.
 **Done when:** the exact words sent to an employer in March are still readable in September, and a
 later wording change is visible in the data rather than silent.
 
-**E3 · Send, and make the §391.23(c)(2) record.** A new `employer_inquiries` table — one row per
+**E3 · Send, and make the §391.23(c)(2) record — DONE 2026-08-20 (migration 0223).**
+`employer_inquiries` is one row per ATTEMPT. The employer's name and address are **copied onto the
+row as contacted** rather than joined: the employment row is editable, and somebody fixing a typo in
+2027 must not silently rewrite where we wrote to in 2026 — the same reason `driver_authorizations`
+stores `disclosure_text` rather than a version pointer. An append-only trigger refuses every edit to
+what was sent while still allowing an outcome to be added, and `inquiry_status` is now DERIVED from
+these rows rather than typed.
+
+**The route does not send email, and that is the decision rather than an omission.** Q-PEI2 is
+unanswered, and §391.23(c)(2) asks for a record of "the date the previous employer was contacted, or
+the attempts made" — not for proof that we operated the mail server. So the letter is composed, the
+operator sends it however that employer actually answers, and the record is made either way (D-PEI6).
+ A new `employer_inquiries` table — one row per
 contact **attempt**, carrying employer name and address as sent, the manner (email/post/phone/fax),
 the date, the wording version, and the outcome. `driver_employment_history.inquiry_status` becomes
 derived from these rows rather than typed.
@@ -163,7 +180,7 @@ employer's original words.
 ## 6. What is blocked, and what is not
 
 **Unblocked, needs nothing from anyone:** E1, E3, E4, E5, E7, and the §391.23(d) half of E2. This is
-the majority of the feature and it is buildable today.
+the majority of the feature and it is buildable today. **E1–E3 shipped 2026-08-20.**
 
 **Blocked on the disclosure wording (Q-H3):** the §40.25 D&A request, which needs the driver's
 specific written consent (§40.25(a)(1)) — the same `v0-draft` problem as PSP, affecting only the

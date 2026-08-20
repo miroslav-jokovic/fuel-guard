@@ -50,7 +50,14 @@ const draft = defineModel<ApplicationDraft>({ required: true });
             <BaseInput :id="id" v-model="employer.usdot_number" placeholder="Optional" />
           </FormField>
         </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FormField
+          v-slot="{ id }"
+          label="Street address"
+          hint="§391.23 requires us to record where we wrote to."
+        >
+          <BaseInput :id="id" v-model="employer.address_line1" />
+        </FormField>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <FormField v-slot="{ id }" label="City">
             <BaseInput :id="id" v-model="employer.city" />
           </FormField>
@@ -59,6 +66,9 @@ const draft = defineModel<ApplicationDraft>({ required: true });
           </FormField>
           <FormField v-slot="{ id }" label="Phone" hint="So we can contact them.">
             <BaseInput :id="id" v-model="employer.phone" type="tel" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Email" hint="Optional, if you know it.">
+            <BaseInput :id="id" v-model="employer.email" type="email" placeholder="Optional" />
           </FormField>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">

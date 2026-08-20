@@ -16,6 +16,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
+import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
@@ -188,6 +189,8 @@ const fillColumns: DataTableColumn[] = [
       <!-- The application comes first because it PRODUCES the history below it (H5, D-HIRE2). -->
       <ApplicationInviteCard :driver-id="id" :driver-status="driver?.status ?? ''" />
       <EmploymentHistorySection :driver-id="id" />
+      <!-- The §391.23 investigation of the history above it (EMPLOYER-INQUIRY-PLAN E3). -->
+      <EmployerInquirySection :driver-id="id" />
       <!-- Beside the employment history it corroborates, and where the recruiter already is: the
            Qualification section's write affordances gate on canManageFleet, which a recruiter is
            not (PSP-PLAN P14). -->

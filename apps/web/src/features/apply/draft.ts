@@ -30,6 +30,7 @@ export interface DraftEmployer {
   city: string;
   state: string;
   phone: string;
+  email: string;
   position_held: string;
   started_on: string;
   ended_on: string;
@@ -85,7 +86,7 @@ export const emptyAddress = (): DraftAddress => ({
 });
 
 export const emptyEmployer = (): DraftEmployer => ({
-  employer_name: "", usdot_number: "", address_line1: "", city: "", state: "", phone: "",
+  employer_name: "", usdot_number: "", address_line1: "", city: "", state: "", phone: "", email: "",
   position_held: "", started_on: "", ended_on: "",
   // Both default TRUE because the applicant is being asked about driving jobs, and the cost of the
   // two defaults is asymmetric: a warehouse job wrongly marked DOT-regulated produces an inquiry
@@ -173,6 +174,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
         city: text(e.city),
         state: text(e.state),
         phone: text(e.phone),
+        email: text(e.email),
         position_held: text(e.position_held),
         started_on: e.started_on,
         ended_on: text(e.ended_on),

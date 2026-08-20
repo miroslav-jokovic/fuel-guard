@@ -4,6 +4,7 @@ import { recruitmentAuthorizationsRouter } from "./authorizations.js";
 import { recruitmentPspRouter } from "./psp.js";
 import { recruitmentPspOrdersRouter } from "./pspOrders.js";
 import { recruitmentHireRouter } from "./hire.js";
+import { recruitmentInquiriesRouter } from "./inquiries.js";
 import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
 
 /**
@@ -22,6 +23,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentPspRouter()); // PSP records already bought on the portal (P14)
   router.use(recruitmentPspOrdersRouter()); // ordering a record, which spends money (P9)
   router.use(recruitmentApplicationInvitesRouter()); // the link that carries an applicant to the form (H5)
+  router.use(recruitmentInquiriesRouter()); // the §391.23 previous-employer inquiry record (E3)
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
   return router;
 }
