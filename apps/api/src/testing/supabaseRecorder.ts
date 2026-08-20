@@ -199,6 +199,13 @@ export function createSupabaseRecorder(opts: {
         filters: () => [],
       });
       const r = typeof opts.rpc === "function" ? opts.rpc(fn, args) : opts.rpc?.[fn];
+      // A scripted `{ error }` passes through as a FAILED call, the same shape a table fixture uses.
+      // Added when the hire path had to prove it turns the transaction's own refusal (SQLSTATE
+      // HA010, "somebody hired them first") into an answer rather than a 500 — a recorder that can
+      // only succeed forces that test to hand-roll a client, and then it is not testing this one.
+      if (r !== null && typeof r === "object" && "error" in r && (r as { error?: unknown }).error) {
+        return { data: null, error: (r as { error: unknown }).error };
+      }
       return { data: r ?? null, error: null };
     },
     storage: {

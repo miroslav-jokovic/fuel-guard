@@ -5,9 +5,11 @@ import {
   APPLICANT_REQUIREMENT_LABELS,
   APPLICANT_STAGES,
   APPLICANT_STAGE_LABELS,
+  canWriteDriverLifecycle,
   type ApplicantStage,
 } from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -15,7 +17,9 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { useSessionStore } from "@/stores/session";
 import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
+import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 
 /**
  * Recruitment — the applicant pipeline (HIRING-PLAN.md H6).
@@ -77,6 +81,16 @@ const columns: DataTableColumn[] = [
 function openApplicant(id: string): void {
   void router.push({ name: "driver-detail", params: { id }, query: { section: "employment" } });
 }
+
+/**
+ * Hiring is not a recruitment act, and the affordance says so. `drivers.status` starts the
+ * §391.51(c) retention clock and decides driver-app access, so 0213 refuses a recruiter's status
+ * change in a trigger — offering them a Hire button would be offering an action the database
+ * blocks. They see everything else on this board.
+ */
+const session = useSessionStore();
+const canHire = computed(() => canWriteDriverLifecycle(session.role));
+const hiring = ref<PipelineApplicant | null>(null);
 </script>
 
 <template>
@@ -140,10 +154,22 @@ function openApplicant(id: string): void {
           <span v-if="row.date_of_birth_recorded" :class="[BADGE_BASE, toneClass('success')]">Ready</span>
           <span v-else :class="[BADGE_BASE, toneClass('caution')]">No date of birth</span>
         </template>
+        <template #actions="{ row }">
+          <KebabMenu v-if="canHire">
+            <BaseButton class="kebab-item" @click="hiring = row">Hire…</BaseButton>
+          </KebabMenu>
+        </template>
         <template #footer>
           <TablePagination v-model:page="page" :total="rows.length" :page-size="PAGE_SIZE" />
         </template>
       </DataTable>
     </BaseCard>
+
+    <HireDrawer
+      :open="hiring !== null"
+      :driver-id="hiring?.driver_id ?? null"
+      :full-name="hiring?.full_name ?? ''"
+      @close="hiring = null"
+    />
   </div>
 </template>
