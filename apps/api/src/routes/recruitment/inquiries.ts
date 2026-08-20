@@ -10,6 +10,7 @@ import {
   type InquiryOutcomeUpdate,
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
+import { loadInquiryQueue } from "../../services/inquiryQueue.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
@@ -46,6 +47,23 @@ export function recruitmentInquiriesRouter(): Router {
 
   const canInvestigate = requireRole(
     ...rolesThatManage("recruitment").filter(canReadInvestigationHistory),
+  );
+
+  /**
+   * The fleet-wide queue (E5): every file with §391.23 work left, closest to its own deadline first.
+   *
+   * Same guard as everything else here. The rows name drivers and former employers, which is exactly
+   * what §391.23(k)(2) says to keep away from anyone not involved in the hiring decision — a queue
+   * is not less restricted than the records it summarises.
+   */
+  router.get(
+    "/inquiry-queue",
+    requireOrg,
+    canInvestigate,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json(await loadInquiryQueue(admin, req.auth!.orgId!, new Date().toISOString().slice(0, 10)));
+    }),
   );
 
   /** The letter this employer would get, composed but not recorded. */

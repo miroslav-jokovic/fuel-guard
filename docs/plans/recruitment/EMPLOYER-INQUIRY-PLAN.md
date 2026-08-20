@@ -179,7 +179,26 @@ projecting to a `previous_employer_response` qualification record with `result`.
 **Done when:** a returned form files itself into the driver's §391.51 file, and an employer's refusal
 to answer is captured as a documented answer rather than left blank.
 
-**E5 · The queue, driven by OUR clock.** Derived state per employer — not sent, sent, overdue,
+**E5 · The queue, driven by OUR clock — DONE 2026-08-20.**
+`/recruitment/inquiries` leads with §391.23(c)(1) — thirty days from the date employment begins to
+have replies **or documented good-faith efforts** in the file. The employer's own thirty days
+(§391.23(g)(1)) appear as context on each row and never as the headline, because a queue built on
+their clock says *"wait, they still have eleven days"* and one built on ours says *"you have eleven
+days to have this documented, and a second attempt is documentation"*. Only the second sentence
+describes something the carrier can act on.
+
+**`documented` is DONE, not outstanding.** An employer who never answered but was chased and written
+down closes the obligation; showing them as forever open would report a lawful file as incomplete —
+the failure D-PSP1 named in a different costume.
+
+**Applicants are in the queue with no deadline at all**, ordered last. §391.23(c)(1) has no date to
+count from until somebody is hired, so they are not late for anything — but sending before the hire
+is exactly how a carrier makes that deadline, and hiding them would hide the cheapest work on the
+list.
+
+Files with nothing outstanding are omitted entirely: a queue padded with finished work is a queue
+nobody reads.
+ Derived state per employer — not sent, sent, overdue,
 answered, documented non-response — with the §391.23(c)(1) 30-day deadline measured from the hire
 date, surfaced on the applicant pipeline and the driver's Employment tab.
 **Done when:** a recruiter can see every inquiry due, and every hire whose 30-day file deadline is

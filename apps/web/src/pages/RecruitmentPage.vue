@@ -99,6 +99,7 @@ const hiring = ref<PipelineApplicant | null>(null);
       <template #actions>
         <!-- The fleet-wide version of the same question. An applicant's stage says what THEY owe;
              readiness says what WE are missing before anyone can be screened at all (P0b). -->
+        <BaseButton to="/recruitment/inquiries">Safety-history inquiries</BaseButton>
         <BaseButton to="/recruitment/screening">Screening readiness</BaseButton>
       </template>
     </PageHeader>
