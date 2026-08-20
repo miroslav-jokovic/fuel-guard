@@ -65,8 +65,10 @@ Four things, and the first two are new:
 4. **The four order gates** — authorization, step-up, budget, validation — all refuse before the
    ledger row exists.
 
-**Current state of `apps/api/.env`:** `PSP_ENVIRONMENT` unset (defaults `uat`),
-`PSP_ORDERS_ENABLED` unset (defaults `false`). **Nothing can reach production today.**
+**Current state of `apps/api/.env` (2026-08-20, after the first run):** `PSP_ENVIRONMENT=uat`,
+`PSP_ORDERS_ENABLED=true`, `PSP_PRODUCTION_ACKNOWLEDGED=false`, `PSP_MOTOR_CARRIER_ID=31496`,
+`PSP_DOT_NUMBER` absent, and `PSP_API_KEY` now the **UAT** token rather than the production one it
+held (§5.1). **Nothing can reach production today** — item 2 is the switch that says so.
 
 ---
 
@@ -131,6 +133,78 @@ order. The gates refuse in that order and each refusal is free.
 
 **Read the ledger row before anything else.** `psp_requests.response_raw` is stored whole, so if the
 projection is wrong the evidence survives and the parser is fixed without re-buying anything.
+
+### The harness
+
+`pnpm --filter @fuelguard/api psp:uat` is the one place `POST /Records` may be called by hand. It
+stops at the vendor edge and writes nothing to any database, and that is deliberate: `orderPspRecord`
+needs a `drivers` row and signed `driver_authorizations`, and it appends to `documents` and
+`qualification_records` — evidence tables, append-only, pinned in `RETENTION_FORBIDDEN`. The only
+Supabase this repo is configured against is production. Seeding fourteen synthetic FMCSA test drivers
+there to learn the shape of a vendor response would put undeletable rows into the carrier's real DQ
+evidence. Proving the request shape, the parser and the round-trip does not require that; the full
+order through the app does, and it needs a database somebody chose on purpose.
+
+```
+pnpm --filter @fuelguard/api psp:uat --list                    # the roster, no network
+pnpm --filter @fuelguard/api psp:uat --driver thomas           # dry run: what would be sent
+pnpm --filter @fuelguard/api psp:uat --driver thomas --order   # the live call
+```
+
+Three guards must agree before anything is sent: `PSP_ENVIRONMENT=uat`, `PSP_PRODUCTION_ACKNOWLEDGED`
+not true, and the resolved host compared against the UAT literal. The third is not redundant — the
+first two both read the same host map, so a bad edit to that map would take them together.
+
+## 5.1 What the first run found (2026-08-20)
+
+**Two things were wrong, and only one of them is ours.**
+
+**`apps/api/.env` held the PRODUCTION token while `PSP_ENVIRONMENT=uat`** — byte-identical to
+`docs/psp-docs/apitoken.txt`, not to `apitoken-uat.txt`. Nothing could have worked, and §3's
+fail-closed property is what would have answered: `401 / errorCode 32`. Swapped for the UAT token,
+and the swap had to come first, because the mixed-up credential and the blocker below produce
+*the same error number* and the wrong one would have been blamed.
+
+**The UAT token authenticates on one endpoint and not the other.** Same token, same host, minutes
+apart, and verified again *after* the failures so nothing had been invalidated in between:
+
+| | |
+|---|---|
+| `GET /DayMonitored45` | **200** — `success:1`, `errorCode:0` |
+| `POST /Records` | **400** — `statusDetail 32`, *"Your token is invalid"* |
+
+Reproduced on Thomas (two licences) and Davis (one), so it is neither driver- nor licence-count
+specific. This is not our client: the rejection body echoes `originalRequest` **verbatim**, which
+means PSP parsed the payload and got as far as the auth check before refusing.
+
+### What the refusal proved for free
+
+An `Error` status does not bill (§8), so the blocker paid for four answers on the way past:
+
+- **The request shape is accepted.** Field names, the `M/D/YYYY` date of birth, the array-of-one
+  wrapper, and `monitor` reflected in `originalRequest` exactly as §5.4.2 says it should be.
+- **`internalRefId` survives the round trip** — through `originalRequest`, at least. A success
+  response has still never been seen, so the driver-resolution design is not yet proven end to end.
+- **The validation response is a bare object, not an array.** §5.4.2's example shows one shape and
+  §5's shows the other; the client already read both (`Array.isArray(parsed) ? parsed[0] : parsed`),
+  and now one of them is observed rather than hedged against.
+- **Our own preflight refused detail 10 before dispatch** — clearing `PSP_MOTOR_CARRIER_ID` never
+  reached the network, which is the asymmetry in `status.ts` doing its job.
+
+### What to ask them
+
+Detail 32's own message is *"Please login and request a new token or contact customer support."* Both
+halves are the operator's, and the first one is not automatic: `GET /Token` **mints**, the guide never
+says whether minting invalidates the current token, and nothing here may call it on a schedule or as a
+retry. So either mint deliberately from `https://uat.psp.tylerapp.com/home` (Login.gov + MFA) and
+store the result before the process ends, or ask support the sharper question first:
+
+> Our UAT token (account *Silvicom, Inc - UAT*, motorCarrierId 31496) returns `success: 1` on
+> `GET /DayMonitored45` but `statusDetail 32 — "Your token is invalid"` on `POST /Records`, same host
+> and same `api-key` header. Is the UAT account entitled to record requests yet?
+
+Asking before minting is worth the delay: if the account is not provisioned for `/Records`, a fresh
+token changes nothing and we would have spent the one credential we have to learn it.
 
 ### Moving to production, when the time comes
 
