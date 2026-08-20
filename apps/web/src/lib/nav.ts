@@ -142,7 +142,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       label: "Recruitment",
       icon: ClipboardDocumentListIcon,
       items: [
-        { name: "Employment History", to: "/recruitment", icon: BuildingOffice2Icon, show: canViewSection(role, "recruitment") },
+        { name: "Applicants", to: "/recruitment", icon: BuildingOffice2Icon, show: canViewSection(role, "recruitment") },
       ],
     },
     {

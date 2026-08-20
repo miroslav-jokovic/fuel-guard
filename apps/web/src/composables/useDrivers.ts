@@ -1,5 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import { EMPLOYED_DRIVER_STATUSES } from "@fuelguard/shared";
 import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -59,9 +60,13 @@ export function useDriversQuery() {
   return useQuery({
     queryKey: driversKey,
     queryFn: async (): Promise<Driver[]> => {
+      // Applicants are excluded by the SHARED list rather than by name: Fleet > Drivers is the
+      // employed roster, and somebody who has only applied belongs in Recruitment until they are
+      // hired (HIRING-PLAN.md D-HIRE5).
       const { data, error } = await supabase
         .from("drivers")
         .select(DRIVER_COLS)
+        .in("status", [...EMPLOYED_DRIVER_STATUSES])
         .order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as Driver[];

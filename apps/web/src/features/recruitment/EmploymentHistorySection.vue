@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import {
   employmentCoverage,
+  CMV_WINDOW_YEARS,
   EMPLOYMENT_SOURCE_LABELS,
   EMPLOYMENT_WINDOW_YEARS,
   GAP_TOLERANCE_DAYS,
@@ -55,6 +56,7 @@ const toPeriod = (r: EmploymentHistory): EmploymentPeriod => ({
   startedOn: r.started_on,
   endedOn: r.ended_on,
   dotRegulated: r.dot_regulated,
+  operatedCmv: r.operated_cmv,
   inquiryStatus: r.inquiry_status as EmploymentPeriod["inquiryStatus"],
 });
 
@@ -125,47 +127,68 @@ const sourceLabel = (s: string): string =>
         <div>
           <h3 class="text-sm font-semibold text-ink">Employment history</h3>
           <p class="mt-1 text-sm text-ink-muted">
-            §391.21(b)(10) asks for the {{ EMPLOYMENT_WINDOW_YEARS }} years before the application —
-            {{ coverage.windowStart }} to {{ coverage.windowEnd }}<template v-if="driverQ.data.value?.hire_date">, measured from the hire date</template>.
+            §391.21(b)(10) asks for every employer in the {{ EMPLOYMENT_WINDOW_YEARS }} years before
+            the application; (b)(11) adds the {{ CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS }} years
+            before that, but only where the applicant drove a commercial vehicle<template v-if="driverQ.data.value?.hire_date">. Measured from the hire date</template>.
           </p>
         </div>
         <BaseButton v-if="session.canManage" variant="primary" @click="openAdd">Add employer</BaseButton>
       </div>
 
-      <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div>
-          <dt class="text-ink-muted">Employers in window</dt>
-          <dd class="font-medium text-ink">{{ coverage.employersInWindow }}</dd>
+      <!-- Two lists, two rules. Only the first carries a gap figure — see the note below it. -->
+      <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="rounded-surface bg-surface-muted p-3">
+          <p class="text-xs font-medium text-ink-secondary">
+            All employment · {{ coverage.segmentA.start }} → {{ coverage.segmentA.end }}
+          </p>
+          <dl class="mt-2 grid grid-cols-3 gap-2 text-sm">
+            <div>
+              <dt class="text-ink-muted">Employers</dt>
+              <dd class="font-medium text-ink">{{ coverage.segmentA.employers }}</dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Gaps</dt>
+              <dd class="font-medium" :class="coverage.segmentA.gaps.length ? 'text-ink' : 'text-ink-muted'">
+                {{ coverage.segmentA.gaps.length || "None" }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Inquiries due</dt>
+              <dd class="font-medium" :class="coverage.inquiriesOutstanding.length ? 'text-ink' : 'text-ink-muted'">
+                {{ coverage.inquiriesOutstanding.length || "None" }}
+              </dd>
+            </div>
+          </dl>
         </div>
-        <div>
-          <dt class="text-ink-muted">Unexplained gaps</dt>
-          <dd class="font-medium" :class="coverage.gaps.length ? 'text-ink' : 'text-ink-muted'">
-            {{ coverage.gaps.length || "None" }}
-          </dd>
+        <div class="rounded-surface bg-surface-muted p-3">
+          <p class="text-xs font-medium text-ink-secondary">
+            Commercial driving only · {{ coverage.segmentB.start }} → {{ coverage.segmentB.end }}
+          </p>
+          <dl class="mt-2 grid grid-cols-3 gap-2 text-sm">
+            <div>
+              <dt class="text-ink-muted">CMV employers</dt>
+              <dd class="font-medium text-ink">{{ coverage.segmentB.cmvEmployers }}</dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Other listed</dt>
+              <dd class="font-medium text-ink-muted">{{ coverage.segmentB.otherEmployers }}</dd>
+            </div>
+          </dl>
+          <!-- No gap figure here, deliberately: (b)(11) asks only for the CMV jobs, so a stretch
+               without one is somebody who was not driving. -->
+          <p class="mt-2 text-xs text-ink-muted">
+            No gaps are reported here — time not spent driving is not a gap to explain.
+          </p>
         </div>
-        <div>
-          <dt class="text-ink-muted">Inquiries not sent</dt>
-          <dd class="font-medium" :class="coverage.inquiriesOutstanding.length ? 'text-ink' : 'text-ink-muted'">
-            {{ coverage.inquiriesOutstanding.length || "None" }}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-ink-muted">Awaiting response</dt>
-          <dd class="font-medium" :class="coverage.inquiriesAwaitingResponse.length ? 'text-ink' : 'text-ink-muted'">
-            {{ coverage.inquiriesAwaitingResponse.length || "None" }}
-          </dd>
-        </div>
-      </dl>
+      </div>
 
-      <!-- The threshold is carrier practice, not regulation, and the copy says so — a flagged gap is
-           a question for the applicant, never a federal finding. -->
-      <ul v-if="coverage.gaps.length" class="mt-4 space-y-1 text-sm">
-        <li v-for="g in coverage.gaps" :key="g.from" class="text-ink-secondary">
+      <ul v-if="coverage.segmentA.gaps.length" class="mt-4 space-y-1 text-sm">
+        <li v-for="g in coverage.segmentA.gaps" :key="g.from" class="text-ink-secondary">
           <span :class="[BADGE_BASE, toneClass('warning')]">{{ g.days }} days</span>
           <span class="ml-2">{{ g.from }} → {{ g.to }} is not accounted for.</span>
         </li>
       </ul>
-      <p v-if="coverage.gaps.length" class="mt-2 text-xs text-ink-muted">
+      <p v-if="coverage.segmentA.gaps.length" class="mt-2 text-xs text-ink-muted">
         Breaks under {{ GAP_TOLERANCE_DAYS }} days are not shown. The FMCSA sets no gap threshold;
         this one is carrier practice.
       </p>

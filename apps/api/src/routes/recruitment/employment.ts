@@ -1,22 +1,24 @@
 import { Router } from "express";
 import {
+  applicantProgress,
   employmentCoverage,
   employmentHistoryCreateSchema,
   employmentHistoryUpdateSchema,
   rolesThatCanView,
   rolesThatManage,
   type EmploymentHistoryCreate,
+  type AuthorizationRow,
   type EmploymentHistoryUpdate,
   type EmploymentPeriod,
 } from "@fuelguard/shared";
-import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../lib/appLocals.js";
+import { writeAudit } from "../../lib/audit.js";
 
 /**
- * Recruitment — the §391.21(b)(10) employment list and its §391.23(a)(2) inquiry state (0208).
+ * Recruitment — the applicant pipeline (H6) and the §391.21(b)(10)-(11) employment list (0208).
  *
  * `recruitment` is its OWN section in the capability matrix (`packages/shared/src/auth.ts`), so these
  * guards are derived from it rather than borrowed from `fleet`. That boundary is the point: gated on
@@ -30,7 +32,7 @@ import { writeAudit } from "../lib/audit.js";
  */
 
 const HISTORY_COLS =
-  "id, driver_id, employer_name, usdot_number, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
+  "id, driver_id, employer_name, usdot_number, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, operated_cmv, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
 
 interface HistoryRow {
   id: string;
@@ -39,6 +41,7 @@ interface HistoryRow {
   started_on: string;
   ended_on: string | null;
   dot_regulated: boolean;
+  operated_cmv: boolean | null;
   inquiry_status: string;
 }
 
@@ -49,10 +52,11 @@ const toPeriod = (r: HistoryRow): EmploymentPeriod => ({
   startedOn: r.started_on,
   endedOn: r.ended_on,
   dotRegulated: r.dot_regulated,
+  operatedCmv: r.operated_cmv,
   inquiryStatus: r.inquiry_status as EmploymentPeriod["inquiryStatus"],
 });
 
-export function recruitmentRouter(): Router {
+export function recruitmentEmploymentRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
@@ -60,73 +64,104 @@ export function recruitmentRouter(): Router {
   const canManage = requireRole(...rolesThatManage("recruitment"));
 
   /**
-   * The fleet queue: one row per active driver with what their hiring file looks like.
+   * The APPLICANT pipeline — who is waiting on what (H6).
    *
-   * The coverage is computed HERE from the same pure function the driver page calls, never a second
-   * SQL approximation of it — the fleet table and the driver page disagreeing about whether somebody
-   * has a gap is the failure mode `qualification` already had to design out (D3).
+   * This replaced a fleet table of every driver with their gaps and inquiry state, which restated
+   * what the qualification page already owns. The boundary that fixes it is D-HIRE2: Recruitment
+   * owns the APPLICANT, DQF owns the DRIVER. Once this lists applicants, the two surfaces are not
+   * looking at the same people and the duplication has nowhere to come from.
    *
-   * `asOf` is the driver's hire date when we have one: §391.21(b)(10)'s window ends at the
-   * application, so measuring a five-year employee's history against TODAY would invent three years
-   * of gap nobody was ever required to list.
+   * Employment history for somebody already hired is still reachable — on their own driver page,
+   * where it belongs, rather than in a second fleet-wide table here.
+   *
+   * The stage is computed by the SAME pure function the page would call, never a second SQL
+   * approximation of it: a pipeline that disagrees with the file it summarises is worse than no
+   * pipeline. `asOf` is the application date when we have one, which for now is the row's creation.
    */
   router.get(
-    "/roster",
+    "/pipeline",
     requireOrg,
     canView,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const today = new Date().toISOString().slice(0, 10);
 
-      const { data: drivers, error: driversError } = await admin
+      const { data: applicants, error: applicantsError } = await admin
         .from("drivers")
-        .select("id, full_name, status, hire_date, date_of_birth")
+        .select("id, full_name, status, hire_date, date_of_birth, created_at")
         .eq("org_id", orgId)
-        .neq("status", "terminated")
-        .order("full_name", { ascending: true });
-      if (driversError) {
-        res.status(500).json(apiError("db_error", "Could not list drivers"));
+        .eq("status", "applicant")
+        .order("created_at", { ascending: true });
+      if (applicantsError) {
+        res.status(500).json(apiError("db_error", "Could not list applicants"));
         return;
       }
 
-      const { data: history, error: historyError } = await admin
-        .from("driver_employment_history")
-        .select(HISTORY_COLS)
-        .eq("org_id", orgId);
-      if (historyError) {
-        res.status(500).json(apiError("db_error", "Could not load employment history"));
+      const ids = (applicants ?? []).map((a) => a.id);
+      if (ids.length === 0) {
+        res.json({ applicants: [] });
         return;
       }
 
-      const byDriver = new Map<string, HistoryRow[]>();
-      for (const row of (history ?? []) as HistoryRow[]) {
-        const list = byDriver.get(row.driver_id);
+      const [history, auths] = await Promise.all([
+        admin
+          .from("driver_employment_history")
+          .select(HISTORY_COLS)
+          .eq("org_id", orgId)
+          .in("driver_id", ids),
+        admin
+          .from("driver_authorizations")
+          .select("id, driver_id, purpose, accepted_at, revokes")
+          .eq("org_id", orgId)
+          .in("driver_id", ids),
+      ]);
+      if (history.error || auths.error) {
+        res.status(500).json(apiError("db_error", "Could not load the pipeline"));
+        return;
+      }
+
+      const historyBy = new Map<string, HistoryRow[]>();
+      for (const row of (history.data ?? []) as HistoryRow[]) {
+        const list = historyBy.get(row.driver_id);
         if (list) list.push(row);
-        else byDriver.set(row.driver_id, [row]);
+        else historyBy.set(row.driver_id, [row]);
+      }
+      const authsBy = new Map<string, AuthorizationRow[]>();
+      for (const row of (auths.data ?? []) as Array<AuthorizationRow & { driver_id: string }>) {
+        const list = authsBy.get(row.driver_id);
+        if (list) list.push(row);
+        else authsBy.set(row.driver_id, [row]);
       }
 
-      const rows = (drivers ?? []).map((d) => {
-        const own = byDriver.get(d.id) ?? [];
-        const coverage = employmentCoverage(own.map(toPeriod), d.hire_date ?? today);
+      const rows = (applicants ?? []).map((a) => {
+        const own = historyBy.get(a.id) ?? [];
+        const asOf = String(a.created_at ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+        const coverage = employmentCoverage(own.map(toPeriod), asOf);
+        // Segment A only. §391.21(b)(11) asks for CMV jobs alone, so a stretch without one is
+        // somebody who was not driving, and a pipeline that chased it would chase every applicant.
+        const gapDays = coverage.segmentA.gaps.reduce((sum, g) => sum + g.days, 0);
+        const progress = applicantProgress({
+          employerCount: own.length,
+          gapDays,
+          authorizations: authsBy.get(a.id) ?? [],
+        });
         return {
-          driver_id: d.id,
-          full_name: d.full_name,
-          status: d.status,
-          hire_date: d.hire_date,
-          // The value itself never leaves the roster API — this surface only needs to know whether
-          // the driver can be screened at all (PSP-PLAN.md P0), and a date of birth on a fleet-wide
-          // list is a personal file printed 200 times over.
-          date_of_birth_recorded: Boolean(d.date_of_birth),
+          driver_id: a.id,
+          full_name: a.full_name,
+          applied_on: asOf,
+          // Whether they can be screened at all — the value never leaves the roster API.
+          date_of_birth_recorded: Boolean(a.date_of_birth),
           employers: own.length,
-          employers_in_window: coverage.employersInWindow,
-          gap_days: coverage.gaps.reduce((sum, g) => sum + g.days, 0),
-          inquiries_outstanding: coverage.inquiriesOutstanding.length,
-          inquiries_awaiting: coverage.inquiriesAwaitingResponse.length,
+          employers_in_window: coverage.segmentA.employers,
+          cmv_employers: coverage.segmentB.cmvEmployers,
+          gap_days: gapDays,
+          stage: progress.stage,
+          outstanding: progress.outstanding,
+          releases_complete: progress.releasesComplete,
         };
       });
 
-      res.json({ drivers: rows });
+      res.json({ applicants: rows });
     }),
   );
 

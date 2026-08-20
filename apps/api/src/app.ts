@@ -50,7 +50,8 @@ import { meHazmatRouter } from "./routes/meHazmat.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
-import { recruitmentRouter } from "./routes/recruitment.js";
+import { recruitmentEmploymentRouter } from "./routes/recruitment/employment.js";
+import { recruitmentAuthorizationsRouter } from "./routes/recruitment/authorizations.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
@@ -258,7 +259,8 @@ export function createApp(env: Env): Express {
   // /api/auth strictLimiter above, which is the right budget for a password oracle.
   app.use("/api/auth", authStepUpRouter());
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
-  app.use("/api/recruitment", recruitmentRouter()); // §391.21(b)(10) employment history + §391.23(a)(2) inquiries
+  app.use("/api/recruitment", recruitmentEmploymentRouter()); // applicant pipeline + §391.21(b)(10)-(11) history
+  app.use("/api/recruitment", recruitmentAuthorizationsRouter()); // the signed disclosures a screening pull needs
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
