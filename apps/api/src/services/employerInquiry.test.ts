@@ -188,11 +188,69 @@ describe("the derived status", () => {
     expect(rec.writtenRows("driver_employment_history")[0]!.inquiry_status).toBe("responded");
   });
 
+  it("refuses an answer with nothing recorded — §391.23(c)(2) wants the information received", async () => {
+    const rec = seed({ inquiries: [{ id: "inq-1", employment_id: EMP }] });
+    const out = await recordInquiryOutcome(rec.client, ORG, "inq-1", {
+      outcome: "responded",
+      outcome_on: "2026-09-01",
+    });
+    expect(isInquiryError(out) && out.code).toBe("response_required");
+    expect(rec.writtenRows("employer_inquiries")).toHaveLength(0);
+  });
+
+  /** Somebody either answered or they did not; a non-response carrying an accident list is neither. */
+  it("refuses a reply attached to a documented non-response", async () => {
+    const rec = seed({ inquiries: [{ id: "inq-1", employment_id: EMP }] });
+    const out = await recordInquiryOutcome(rec.client, ORG, "inq-1", {
+      outcome: "no_response",
+      outcome_on: "2026-09-20",
+      response: {
+        employment_confirmed: true,
+        accidents: [],
+        reports_no_accidents: true,
+      },
+    });
+    expect(isInquiryError(out) && out.code).toBe("response_not_applicable");
+  });
+
+  it("stores what the employer said on the attempt that asked", async () => {
+    const rec = seed({ inquiries: [{ id: "inq-1", employment_id: EMP }] });
+    await recordInquiryOutcome(rec.client, ORG, "inq-1", {
+      outcome: "responded",
+      outcome_on: "2026-09-01",
+      response: {
+        employment_confirmed: true,
+        verified_started_on: "2023-01-15",
+        accidents: [],
+        reports_no_accidents: true,
+      },
+      document_id: "99999999-9999-4999-8999-999999999999",
+    });
+    const patch = rec.writtenRows("employer_inquiries")[0]!;
+    expect((patch.response as { verified_started_on?: string }).verified_started_on).toBe("2023-01-15");
+    expect(patch.document_id).toBe("99999999-9999-4999-8999-999999999999");
+  });
+
+  /**
+   * D-HIRE2 draws the line at the hire: an applicant has no §391.51 file to put a record in, and H8
+   * is what projects these into one at the moment they do.
+   */
+  it("files no qualification record — that is the hire's job", async () => {
+    const rec = seed({ inquiries: [{ id: "inq-1", employment_id: EMP }] });
+    await recordInquiryOutcome(rec.client, ORG, "inq-1", {
+      outcome: "responded",
+      outcome_on: "2026-09-01",
+      response: { employment_confirmed: true, accidents: [], reports_no_accidents: true },
+    });
+    expect(rec.writtenRows("qualification_records")).toHaveLength(0);
+  });
+
   it("moves the employment row when an outcome is recorded", async () => {
     const rec = seed({ inquiries: [{ id: "inq-1", employment_id: EMP, outcome: "responded", outcome_on: "2026-09-01", contacted_on: "2026-08-01" }] });
     const out = await recordInquiryOutcome(rec.client, ORG, "inq-1", {
       outcome: "responded",
       outcome_on: "2026-09-01",
+      response: { employment_confirmed: true, accidents: [], reports_no_accidents: true },
     });
     expect(isInquiryError(out)).toBe(false);
     expect(rec.writtenRows("driver_employment_history")).toHaveLength(1);

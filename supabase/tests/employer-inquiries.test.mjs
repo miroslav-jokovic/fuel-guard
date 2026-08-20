@@ -206,5 +206,38 @@ const writeAs = async (role) => {
 ok("not even a recruiter may write one from the client", !(await writeAs("recruiter")));
 ok("nor an admin", !(await writeAs("admin")));
 
+
+// ── 0224: the information received (§391.23(c)(2)'s third element) ─────────────────────────────
+await db.query(
+  `update employer_inquiries
+      set response = $2::jsonb,
+          outcome = 'responded',
+          outcome_on = '2026-09-25'
+    where id = $1`,
+  [A2, JSON.stringify({
+    employment_confirmed: true,
+    verified_started_on: "2023-01-15",
+    reports_no_accidents: false,
+    accidents: [{ occurred_on: "2024-03-04", nature: "Rear-ended", fatalities: 0, injuries: 1, hazmat_spill: false }],
+  })],
+);
+ok(
+  "the employer's answer is stored on the attempt that asked",
+  (await one(`select response -> 'verified_started_on' as d from employer_inquiries where id = $1`, [A2])).d === "2023-01-15",
+);
+ok(
+  "and the §390.15(b)(1) elements survive the round trip",
+  Number((await one(
+    `select jsonb_array_length(response -> 'accidents') as n from employer_inquiries where id = $1`, [A2],
+  )).n) === 1,
+);
+
+// The answer may be added and corrected; the QUESTION may not. This is the line 0223's trigger draws
+// and 0224 must not have moved.
+ok(
+  "recording an answer still cannot rewrite the letter that asked",
+  await refuses(`update employer_inquiries set body_sent = 'different question' where id = $1`, [A2]),
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

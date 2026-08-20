@@ -153,7 +153,27 @@ derived from these rows rather than typed.
 **Done when:** sending an inquiry writes a record an auditor can read without asking anyone what
 happened, and a second attempt is a second row rather than an overwrite.
 
-**E4 · Capture what comes back.** Structured answers (dates of employment, position, accidents per
+**E4 · Capture what comes back — DONE 2026-08-20 (migration 0224).**
+The reply lives on the ATTEMPT that produced it (`employer_inquiries.response`), so it cannot drift
+away from the letter it answers. The accidents inside it reuse `applicationAccidentSchema` — the
+applicant's own §391.21(b)(7) shape — because §391.23(d) asks the EMPLOYER about the same three years
+the application asks the DRIVER about, and two answers to one question belong in one shape. That is
+what makes HIRING-PLAN §4's second cross-match a comparison rather than a data-cleaning exercise.
+
+**Three rules the API enforces rather than tidying up on read:** an answer must carry what was said
+(§391.23(c)(2) wants "the information received", not only that it arrived); a documented
+non-response may not carry a reply; and an empty accident list must say it is empty, because
+otherwise it means "they reported none" or "we have not asked" depending on who is reading.
+
+**Date disagreements are reported, never applied.** When the employer's dates differ from the
+applicant's by more than a month, the drawer says so and stops. Correcting the application from the
+reply would edit a document somebody certified as true under §391.21(b), which is the one thing that
+document may never have done to it — the difference is a conversation with the driver, not an
+arithmetic result.
+
+**No qualification record is filed here**, deliberately: D-HIRE2 draws the line at the hire, an
+applicant has no §391.51 file to put one in, and H8 is what projects these at the moment they do.
+ Structured answers (dates of employment, position, accidents per
 §390.15(b)(1), whether the employer will not answer) plus the letter or fax as a `document`,
 projecting to a `previous_employer_response` qualification record with `result`.
 **Done when:** a returned form files itself into the driver's §391.51 file, and an employer's refusal
