@@ -258,11 +258,59 @@ no PSP endpoint lists past transactions. It satisfies the file and does NOT feed
 imported PDF has been read by nobody, and PSP-PLAN D-PSP9 says why an invented `inspections: 0` would
 be worse than an absent one.
 
-**H8 · Hire → the DQF handoff** (D-HIRE2). One transaction: status to `active`, the application filed
-as `employment_application`, the PSP report as `psp_report`, each employer response as
-`previous_employer_response`.
-**Done when:** hiring an applicant produces a §391.51 file whose hiring group is already satisfied by
-the evidence Recruitment collected, with nothing re-entered by hand.
+**H8 · Hire → the DQF handoff** (D-HIRE2) — **DONE 2026-08-19.**
+
+**The handoff moves nothing, and that is D-HIRE5 paying out.** An applicant is a `drivers` row, so
+the PSP report, the scans and every qualification record Recruitment gathered are ALREADY filed
+against this driver id. The step that looked like a migration of evidence between two worlds turns
+out to be a PROJECTION of one thing: `driver_employment_history` carries the §391.23(a)(2) inquiry
+state as three mutable columns, and §391.51(b) wants it as dated, append-only records. That is all
+the handoff writes.
+
+**D-HIRE7 — never invent a date.** `occurred_on` is NOT NULL, and a history row saying `sent` with no
+`inquiry_sent_on` offers two choices: file it under a date nobody recorded, or leave it out and say
+so. A wrong date in a §391.51 file is worse than a missing row — it is a false fact in the one place
+a carrier is asserting facts — so every such row is REPORTED instead, as a named employer with a
+reason a person can act on. The hire drawer shows that list before the button, because hiring is the
+last moment it is cheap to fix.
+
+**Hire is a fact, not a permission.** Nothing refuses to record a hire because the file is
+incomplete. The carrier hired somebody; a product that declines to write that down does not prevent
+the hire, it stops describing reality — and the driver would then have no §391.51 file at all rather
+than one with a named gap. The response and the audit entry both carry what was filed AND what is
+still outstanding, so the gap is never something nobody was told about.
+
+What shipped:
+
+- **`packages/shared/src/hireHandoff.ts`** — the projection rules, the `HIRE_DATE_MAX_FUTURE_DAYS`
+  bound (the date anchors the (b)(10) window and the §391.51(c) clock, so a decade-out typo is worth
+  refusing), and `hiringGapsAfterHire`, which never reports an advisory item as missing. Pure; 14 tests.
+- **Migration `0218`** — `hire_applicant(...)`, service-role only on the 0174/0178/0183 convention.
+  `for update` on the driver row, because two operators pressing Hire when a decision is announced is
+  not exotic; a second hire raises **HA010**, which the API turns into an answer rather than a 500.
+  The insert carries a `not exists` guard on `detail->>'employment_id'`, so a retry after a dropped
+  response files nothing. **The rules are NOT restated in SQL** — the function takes the drafts as
+  jsonb, because two versions of §391.23 would drift.
+- **`apps/api/src/services/hireApplicant.ts` + `routes/recruitment/hire.ts`** — plan, call, audit,
+  plus `GET /drivers/:id/hire-preview` computed by the same function the hire runs, so the
+  confirmation cannot promise something the button does not do.
+- **Web** — `HireDrawer.vue`, opened from the pipeline row.
+
+**A recruiter may not press it, and the reason is already machine-enforced.** Hiring flips
+`drivers.status`, which starts the §391.51(c) clock and decides driver-app access; `0213` refuses a
+recruiter's status change in a trigger. A hire endpoint that admitted them would authorise a call the
+database then blocks. They get the preview — the read that shows an undated inquiry while there is
+still time — and the Hire button is gated on `canWriteDriverLifecycle` in the API, in the trigger and
+in the UI, all derived from the one predicate.
+
+**Verified by:** `pnpm typecheck`, `pnpm lint`, the 15 repo gates and full `pnpm test`, including a
+new PGlite matrix `hire-applicant` (17 assertions) that proves the two halves land together, that a
+replay files nothing, that an active driver's hire date is never re-stamped, and that the function is
+executable by `service_role` alone.
+
+**Still open:** the `employment_application` record. H5 owns the artifact, and until an application
+exists there is nothing to file — filing a scan under the hire date would be inventing the date this
+step exists to refuse.
 
 ---
 
