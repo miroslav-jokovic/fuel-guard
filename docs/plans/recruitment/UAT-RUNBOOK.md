@@ -372,6 +372,65 @@ single `PSP_ENVIRONMENT`: it is UAT **or** production, never both at once. Genui
 and production deployments would be a second Railway environment, which is an infrastructure decision
 rather than a configuration one.
 
+## 5.5 A deployed UAT environment (2026-08-20)
+
+Railway project `serene-elegance` now has a second environment, **`uat`**, duplicated from
+`production`. It exists so the dashboard path can be exercised on a real deploy rather than only on a
+laptop.
+
+| | |
+|---|---|
+| Web | `https://fleetguardweb-uat.up.railway.app` |
+| API | `https://fleetguardapi-uat.up.railway.app` |
+
+### What is switched off there, and why each one matters
+
+Duplicating an environment copies **everything**, including the credentials and the switches that
+make a process do real work. Every one of these was set **in the same command that created the
+environment**, so there was never a boot with the inherited value:
+
+- **`RUN_SCHEDULERS_IN_PROCESS=false`.** The load-bearing one. `docs/WORKER-DEPLOYMENT.md` states the
+  invariant: schedulers run in exactly ONE process fleet-wide. A duplicate with the inherited `true`
+  would have been a second scheduler owner against the **same production database**, and
+  rebuild-on-boot is named there as the one scheduler with no job-ledger guard.
+- **`BREVO_API_KEY` and `RESEND_API_KEY` blanked.** Setting `MAIL_PROVIDER=none` does **not** disable
+  mail: `loadEnv` treats `none` as "nobody chose" and auto-selects a provider whenever a key is
+  present, so an explicit `none` is indistinguishable from the default. Blanking the keys is the only
+  thing that actually stops a second environment sending real customer email — the weekly digest
+  scheduler being the obvious way that happens by itself.
+- **`EFS_SOAP_ENABLED`, `EFS_CARD_CONTROL_ENABLED`, `EFS_CARD_CONTROL_PROBE_ENABLED`,
+  `EFS_ALLOW_PRODUCTION_PROBE` all false.** `EFS_SOAP_ENDPOINT_URL` points at `ws.efsllc.com`, the
+  real one.
+- **`PSP_API_KEY_PRODUCTION` blanked.** Production is not merely gated in this environment, it is
+  absent: flipping all three switches would find no token to spend with.
+
+### What is switched ON
+
+`PSP_ENVIRONMENT=uat`, `PSP_API_KEY_UAT` set, `PSP_ORDERS_ENABLED=true`, `PSP_MONTHLY_LIMIT=5`.
+Ordering is the point of the environment, and UAT does not bill.
+
+### The one thing this environment is NOT
+
+**It shares the production Supabase.** `SUPABASE_URL` is the same project. This is app-level
+isolation — a separate API, a separate web build, separate PSP credentials — and **not** data
+isolation. Anything ordered here writes to the real database.
+
+That is workable because `FuelGuard EFS QA` (§5.4) is the sandbox org and tenant isolation scopes
+rows to it. It is only workable **if you log in there as the QA org's member**. Signing into UAT as a
+Silvicom user and ordering would append to Silvicom's real DQ evidence, and `documents` and
+`qualification_records` are append-only.
+
+Real data isolation would need a second Supabase project with its own migration pipeline —
+`migrate.yml` auto-applies to production Supabase on merge to main and knows about one database.
+That is a project, not a configuration change.
+
+### Deploy wiring worth knowing
+
+The duplicate inherited `VITE_API_URL` pointing at the **production** API, so the UAT web app would
+have called production while believing it was UAT. `VITE_*` is baked at build time, so correcting it
+requires a rebuild rather than a restart. `ALLOWED_ORIGINS` and `WEB_APP_URL` were likewise still
+production URLs and now name the UAT web origin.
+
 ### Moving to production, when the time comes
 
 Support asked to be told, and to **issue a fresh token** for production. Note `GET /Token` **mints** —
