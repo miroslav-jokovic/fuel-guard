@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkPspEnv } from "./lib/pspEnv.js";
 
 /**
  * Validated server environment. Secrets live ONLY here (api), never in the web bundle.
@@ -385,20 +386,9 @@ const EnvSchema = z.object({
   // Tokens are PER ENVIRONMENT and expire after 60 days (§4.2). `PSP_ENVIRONMENT` decides the host,
   // and getting it wrong is not a harmless misconfiguration: a production request BILLS.
   //
-  // ── ONE VARIABLE PER ACCOUNT, SELECTED BY ENVIRONMENT ──────────────────────────────────────────
-  // There used to be a single `PSP_API_KEY`, and nothing checked that its account matched the host
-  // `PSP_ENVIRONMENT` chose. Twice on 2026-08-20 the wrong one was loaded — once by a copied value,
-  // once by an agent that compared sha256 fingerprints and picked the file whose name lacked `-uat`.
-  // Both times the symptom was §8.5 detail 32, "Your token is invalid", which names the token and
-  // says nothing about the account it belongs to.
-  //
-  // Neither direction can spend money — a token answers 401 against the other environment's host,
-  // observed both ways — so this is not a spend control. It is a diagnosability control, and the
-  // thing being designed out is a mismatch that is possible to express at all. Now the pairing is
-  // structural: `production` reads the production variable and can read nothing else.
-  //
-  // A token cannot be told from its own bytes; only the service can say which account it belongs to.
-  // `pnpm --filter @fuelguard/api psp:uat --verify-key` is that check, and it costs nothing.
+  // One variable per PSP ACCOUNT, selected by `PSP_ENVIRONMENT` — so a token cannot be paired
+  // with the other account's host. Why that is structural rather than a convention, and the two ways
+  // the pair can still be wrong, are in lib/pspEnv.ts.
   PSP_API_KEY_UAT: z.string().optional(),
   PSP_API_KEY_PRODUCTION: z.string().optional(),
   PSP_ENVIRONMENT: z.enum(["uat", "production"]).default("uat"),
@@ -410,18 +400,7 @@ const EnvSchema = z.object({
    * present is not consent to spend on it, and PSP bills on Success, Partial AND Failure (§8). An
    * integration that starts buying the moment a key lands in the environment is one nobody chose.
    */
-  /**
-   * The SECOND switch in front of production, and it exists because one is not enough.
-   *
-   * `PSP_ENVIRONMENT` decides the host, and flipping it from `uat` to `production` is a one-word
-   * edit that turns every subsequent order into a real charge against a live account-holder
-   * agreement — and into a real person's crash and violation history. That is too much consequence
-   * for a value that looks like configuration.
-   *
-   * So production needs BOTH: the environment set to `production` AND this acknowledged explicitly.
-   * A typo, a copied `.env`, or a deploy template that carries the wrong value cannot start spending
-   * on its own, because neither switch means anything without the other.
-   */
+  /** The SECOND switch in front of production; neither means anything alone. See lib/pspEnv.ts. */
   PSP_PRODUCTION_ACKNOWLEDGED: z
     .enum(["true", "false"])
     .default("false")
@@ -458,16 +437,8 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-/** The PSP token for the environment currently selected, or null. Empty strings count as unset. */
-export function pspApiKey(env: Env): string | null {
-  const key = env.PSP_ENVIRONMENT === "production" ? env.PSP_API_KEY_PRODUCTION : env.PSP_API_KEY_UAT;
-  return key && key.trim() !== "" ? key : null;
-}
-
-/** Which variable `pspApiKey` reads — so a refusal can name the one that is missing. */
-export function pspApiKeyVar(env: Env): string {
-  return env.PSP_ENVIRONMENT === "production" ? "PSP_API_KEY_PRODUCTION" : "PSP_API_KEY_UAT";
-}
+// PSP token selection lives in lib/pspEnv.ts; re-exported so callers keep one import site.
+export { pspApiKey, pspApiKeyVar } from "./lib/pspEnv.js";
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse(source);
@@ -499,29 +470,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     console.info("[env] SUPABASE_ANON_KEY taken from VITE_SUPABASE_ANON_KEY");
   }
 
-  // ── The two PSP tokens must be two different tokens ──────────────────────────────────────────
-  // Setting both to the same string says the same account is UAT and production at once. That is
-  // never true, and it would restore exactly the confusion this pair was split to end, so it is a
-  // hard failure rather than a warning. It cannot fire on a deploy that has only one of them set.
-  if (
-    env.PSP_API_KEY_UAT
-    && env.PSP_API_KEY_PRODUCTION
-    && env.PSP_API_KEY_UAT === env.PSP_API_KEY_PRODUCTION
-  ) {
-    throw new Error(
-      "Invalid environment configuration: PSP_API_KEY_UAT and PSP_API_KEY_PRODUCTION hold the same "
-      + "token. They are different accounts and must be different tokens.",
-    );
-  }
-
-  // The retired variable. Warn rather than throw: a deploy still carrying it would otherwise fail to
-  // boot on the release that renames it, and taking the API down is a worse outcome than PSP
-  // reporting itself unconfigured — which is the honest state, since nothing reads this any more.
-  if (source.PSP_API_KEY && !pspApiKey(env)) {
-    console.info(
-      `[env] PSP_API_KEY is no longer read. Rename it to ${pspApiKeyVar(env)} (PSP is unconfigured until you do).`,
-    );
-  }
+  checkPspEnv(env, source);
 
   // Auto-detect provider when MAIL_PROVIDER is left at the default "none". Brevo is preferred (it allows
   // single-sender verification with no DNS), so its key wins if both happen to be set.
