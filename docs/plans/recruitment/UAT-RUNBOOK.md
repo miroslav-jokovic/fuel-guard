@@ -254,6 +254,33 @@ and runs the whole way through.
 **This is the argument for `response_raw` in one paragraph.** The projection was wrong, the evidence
 was not, and the fix cost a re-parse rather than a re-purchase.
 
+## 5.3 All fourteen, replayed as a suite (2026-08-20)
+
+Every driver in the workbook was ordered. **All fourteen returned `status: 0`.** UAT does not bill —
+confirmed by the account owner — which is what made running the whole set the right move rather than
+a sampled one.
+
+The responses are committed verbatim to `apps/api/src/psp/__fixtures__/uat/` (only `authCode` and
+`authCodeURL` redacted) and replayed by `apps/api/src/psp/uatResponses.test.ts`. They are kept
+**whole**, at roughly 88% unread fields, because a fixture trimmed to what the parser reads today
+could never have caught the date defect — and cannot catch the next one either. The suite asserts
+invariants rather than snapshots: a snapshot pins the projection including whatever it gets wrong.
+
+### What the fourteen settled
+
+| Shape | Result |
+|---|---|
+| **Cases 88–91, carrier information unavailable** | **Real — 9 records.** Null USDOT (Davis, an inspection), null carrier name (six crashes), or **both** (Hines). `crossMatchEmployment` skips them on `!a.usdot`; now proven against the data instead of the types. |
+| **Jurisdictions NT / ON / GU / VI** | All four round-tripped `status: 0` — Knoll, Cross, Hines, Carter. The enumeration earns its length. |
+| **Crash carrier field** | A crash record has **no `usdotNumber` key at all** across all 14. It is `censusNumber`, falling back to `uploadDOTNumber` — which `parseCrash` already read correctly. |
+| **Dates** | All **47** are `MMDDYYYY`. The §5.2 fix is validated across the whole set, not one response. |
+| **Cases 15–35, additional DLs** | **Not reachable this way.** No response returned a licence we did not ask for. These need requests with deliberately mismatched names; ordering the roster as-is will never produce them. |
+| **§10.5 `notPreventable`** | **Null on all 14 crashes**, Barger and Litton included, despite the workbook listing both. `flag()` reads null as false, which leaves the crash counted — the cautious direction — but the true branch is unexercised. A test fails when UAT gains the data, rather than the gap sitting silent. |
+
+Two of the six are gaps rather than passes, and they are written down as gaps: the additional-DL
+check that stops one person's history landing on another's file has still never run against real
+data, and neither has the non-preventable crash rule.
+
 ### What to ask them
 
 Detail 32's own message is *"Please login and request a new token or contact customer support."* Both
