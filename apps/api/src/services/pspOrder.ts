@@ -146,6 +146,7 @@ async function carrierIdentity(admin: SupabaseClient, env: Env, orgId: string): 
     orgDotNumber: (data as { dot_number: string | null } | null)?.dot_number ?? null,
     envDotNumber: env.PSP_DOT_NUMBER ?? null,
     envMotorCarrierId: env.PSP_MOTOR_CARRIER_ID ?? null,
+    environment: env.PSP_ENVIRONMENT,
   });
 }
 
@@ -167,6 +168,20 @@ export async function checkPspGates(
 ): Promise<PspRefusal | { draft: PspRequestDraft }> {
   if (!env.PSP_ORDERS_ENABLED) {
     return { code: "psp_disabled", message: "PSP ordering is switched off for this deployment." };
+  }
+
+  // The production interlock. `PSP_ENVIRONMENT` is a one-word edit that turns every subsequent order
+  // into a real charge against a live account-holder agreement and a real person's violation history,
+  // so it is not allowed to be the only thing standing there. Both switches, or neither means
+  // anything — a typo, a copied `.env` or a deploy template carrying the wrong value cannot start
+  // spending on its own.
+  if (env.PSP_ENVIRONMENT === "production" && !env.PSP_PRODUCTION_ACKNOWLEDGED) {
+    return {
+      code: "psp_disabled",
+      message:
+        "PSP is pointed at PRODUCTION, where every request is a real charge. Set "
+        + "PSP_PRODUCTION_ACKNOWLEDGED=true to confirm that is intended.",
+    };
   }
   if (!env.PSP_API_KEY) {
     return { code: "psp_not_configured", message: "PSP is not configured." };

@@ -12,7 +12,10 @@ import { loadEnv } from "../env.js";
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const TODAY = "2026-08-20";
 const env = (over: Record<string, string> = {}) =>
-  loadEnv({ NODE_ENV: "test", ...over } as NodeJS.ProcessEnv);
+  // PRODUCTION by default here on purpose. Readiness asks whether the REAL carrier can screen a
+  // real driver, and since 0217-era identity became environment-aware the org's DOT number is only
+  // consulted for the production account — in UAT it belongs to a carrier that does not exist.
+  loadEnv({ NODE_ENV: "test", PSP_ENVIRONMENT: "production", ...over } as NodeJS.ProcessEnv);
 
 const driver = (over: Record<string, unknown> = {}) => ({
   id: "d1",
@@ -62,7 +65,7 @@ describe("screening readiness", () => {
     expect(statuses?.args).toEqual(["status", ["active", "applicant"]]);
   });
 
-  it("uses the organisation's DOT number over the deployment's", async () => {
+  it("uses the organisation's DOT number over the deployment's, in production", async () => {
     const rec = seed([driver()], "1864495");
     const out = await loadScreeningReadiness(rec.client, env({ PSP_DOT_NUMBER: "43586" }), ORG, TODAY);
     expect(out.summary.carrierSource).toBe("organization");

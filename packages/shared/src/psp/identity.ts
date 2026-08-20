@@ -30,14 +30,40 @@ export function resolveCarrierIdentity(input: {
   orgDotNumber?: string | null;
   envDotNumber?: string | null;
   envMotorCarrierId?: string | null;
+  /**
+   * Which PSP account the request is going to. REQUIRED, and the reason is not tidiness.
+   *
+   * ── The UAT account is a DIFFERENT CARRIER ──────────────────────────────────────────────────
+   * `organizations.dot_number` holds the carrier's REAL USDOT number — Silvicom's is 1864495, and it
+   * identifies them to FMCSA in production and nowhere else. PSP's test environment issued a separate
+   * account, "Silvicom, Inc - UAT", with its own `motorCarrierId` (31496). The two are not the same
+   * carrier and the numbers are not interchangeable.
+   *
+   * Before this parameter existed the org row won unconditionally and returned `motorCarrierId: null`,
+   * so a UAT request would have sent the production USDOT number, silently discarded the UAT motor
+   * carrier ID, and come back as §8.5 detail 18 — "The Motor Carrier ID or DOT Number provided is not
+   * correct" — on every single driver, with nothing in the error pointing at the cause.
+   */
+  environment: "uat" | "production";
 }): CarrierIdentity {
+  const envDot = input.envDotNumber?.trim();
+  const envMc = input.envMotorCarrierId?.trim();
+
+  // In the test environment the org row is the WRONG carrier, so it is not consulted at all. The
+  // credentials for a test account come from the environment that also holds its token — the two
+  // belong to the same PSP account and must travel together.
+  if (input.environment === "uat") {
+    if (envDot || envMc) {
+      return { dotNumber: envDot || null, motorCarrierId: envMc || null, source: "environment" };
+    }
+    return { dotNumber: null, motorCarrierId: null, source: "none" };
+  }
+
   const org = input.orgDotNumber?.trim();
   if (org) return { dotNumber: org, motorCarrierId: null, source: "organization" };
 
-  const env = input.envDotNumber?.trim();
-  const mc = input.envMotorCarrierId?.trim();
-  if (env || mc) {
-    return { dotNumber: env || null, motorCarrierId: mc || null, source: "environment" };
+  if (envDot || envMc) {
+    return { dotNumber: envDot || null, motorCarrierId: envMc || null, source: "environment" };
   }
   return { dotNumber: null, motorCarrierId: null, source: "none" };
 }

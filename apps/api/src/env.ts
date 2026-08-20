@@ -394,6 +394,22 @@ const EnvSchema = z.object({
    * present is not consent to spend on it, and PSP bills on Success, Partial AND Failure (§8). An
    * integration that starts buying the moment a key lands in the environment is one nobody chose.
    */
+  /**
+   * The SECOND switch in front of production, and it exists because one is not enough.
+   *
+   * `PSP_ENVIRONMENT` decides the host, and flipping it from `uat` to `production` is a one-word
+   * edit that turns every subsequent order into a real charge against a live account-holder
+   * agreement — and into a real person's crash and violation history. That is too much consequence
+   * for a value that looks like configuration.
+   *
+   * So production needs BOTH: the environment set to `production` AND this acknowledged explicitly.
+   * A typo, a copied `.env`, or a deploy template that carries the wrong value cannot start spending
+   * on its own, because neither switch means anything without the other.
+   */
+  PSP_PRODUCTION_ACKNOWLEDGED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   PSP_ORDERS_ENABLED: z
     .enum(["true", "false"])
     .default("false")
