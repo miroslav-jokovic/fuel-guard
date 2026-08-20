@@ -105,6 +105,10 @@ function verifyAdoption() {
     "DispatchLoadFormPage.vue", // embedded drawer form, not a routed page
     "PlaceholderPage.vue", // unrouted scaffold
     "PublicPlacardCalculatorPage.vue", // public tool with its own public layout
+    // H5b: the applicant's own §391.21 form. `PageHeader` carries the app's breadcrumb and
+    // route-title chrome, and this page is rendered in ApplyLayout for somebody with no session and
+    // no app around them — there is no workspace for a header to sit in.
+    "ApplyPage.vue",
     "auth/AcceptInvitePage.vue",
     "auth/DriverAppRedirectPage.vue",
     "auth/LoginPage.vue",

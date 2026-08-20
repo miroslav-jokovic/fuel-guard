@@ -261,6 +261,39 @@ instruments are draft, so H5b can say so rather than presenting an unsignable fo
 certification somebody can edit afterwards is not a certification. A correction is a new
 application.
 
+**H5b — the applicant's page — DONE 2026-08-20.** `/apply/:token`, public, in its own `ApplyLayout`.
+
+**Its own layout, not `PublicLayout`.** That one is a marketing surface: HazmatGuard across the top
+and a Sign in button. Both are wrong for somebody applying to a CARRIER who has no account —
+offering a sign-in is a dead end for a person already being asked for their date of birth by a
+stranger. The header carries the carrier's name; the footer says who is processing the form, because
+a person handing over personal data is owed the name of whoever holds it.
+
+**Nothing on the page uses `apiFetch`.** It attaches the Supabase bearer and the step-up header, and
+a recruiter signed in on the same browser would have their identity ride along on the applicant's
+submission. A test asserts neither header is present.
+
+**Validation is the server's own schema, run locally.** `driverApplicationSchema.safeParse` turns a
+400 into an inline list of what is missing and makes it impossible for the two layers to disagree
+about what §391.21 requires. The draft is a separate all-strings type: binding inputs straight to the
+contract would mean defaulting fields the applicant never entered, and a default on this form is a
+fact asserted on somebody's behalf about their own history.
+
+**The disclosures are shown read-only, and there is no checkbox.** Shown, so nobody is asked weeks
+later to sign four documents they have never seen — hiding them would let an applicant submit
+believing the process was complete. Unsignable, because the server refuses a `v0-draft` signature and
+because a consent tickbox sitting inside an application form beside twenty other fields is the exact
+arrangement FCRA §604(b)(2) forbids. When the wording is final each instrument gets its own signing
+step. A test asserts no "I authorize" checkbox exists on the page.
+
+**A new employer row defaults to DOT-regulated and CMV-driving**, and the asymmetry is the argument:
+a warehouse job wrongly marked regulated produces an inquiry nobody owed, while a driving job wrongly
+marked otherwise silently drops a §391.23(a)(2) obligation the carrier must discharge.
+
+**The recruiter's side** is `ApplicationInviteCard` on the driver's Employment tab, above the history
+it produces. The link is displayed once and the card says so — the server keeps only a fingerprint,
+so there is no resend, only a new invitation.
+
 **H6 · Recruitment becomes a pipeline — DONE 2026-08-19.**
 
 `/api/recruitment/pipeline` lists **applicants**, not drivers, and that boundary is what removes the
