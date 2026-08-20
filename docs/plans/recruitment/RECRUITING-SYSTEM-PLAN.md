@@ -321,18 +321,29 @@ one list and record the answers in §6, struck through in place.
 **Done when:** every Q-REC entry in §6 is either answered in place or explicitly deferred by the
 owner, and the standing blockers have a current status line each.
 
-### R0b · Reconcile the design system's paper with its gates — small, standalone, before R1's UI
+### R0b · Reconcile the design system's paper with its gates — DONE 2026-08-20 (no migrations)
 
-The canonical contract and the live gates disagree (§4's ⚠). One PR: update
-`docs/DESIGN-SYSTEM-CONTRACT.md` to what `ui-system-inventory.mjs` and `check-design-tokens.mjs`
-actually enforce (`App*` imports, no `text-ink-subtle`, named shadows, radius tokens
-`detail/control/surface/overlay/dialog`, the unknown-colour-role rule); decide and document
-whether new list pages adopt `DataWorkspace` (the newer wrapper `DriversPage`/`TrailersPage`
-already use); fix the two shipped regressions (`InquiryQueuePage.vue`'s local `STATE_TONE`
-record → `lib/badges.ts`; missing `TablePagination`/search on the two 201-row recruitment pages);
-and resolve `BADGE_BASE`'s `capitalize` against the sentence-case rule once, centrally.
-**Done when:** a session reading only the contract writes code the gates accept, and no
-recruitment page carries a local tone map or an unpaginated roster table.
+The canonical contract and the live gates disagreed (§4's ⚠). **What shipped:**
+- `docs/DESIGN-SYSTEM-CONTRACT.md` reconciled with the gates: the primitive inventory moved to
+  `@fuelguard/ui` (§1.1, with the old→new name map; the previous "import `Base*` locally" rule is
+  marked superseded in place), the token linter's six rules listed (§4.1), `text-ink-subtle` →
+  `ink-tertiary`/`ink-disabled` (§4.2), badge anatomy `rounded-detail` with no case transform
+  (§2.4/§4.3), shape-role radii and named elevations (§3.4/§3.5), and every prescriptive class
+  string re-verified against the current source.
+- **Decision recorded (§5.2b):** new list pages compose `DataWorkspace` → `FilterBar embedded` →
+  `DataTable embedded`; existing standalone-cards pages are left alone. `DriversPage` is the
+  reference.
+- `InquiryQueuePage` and `ScreeningReadinessPage` rebuilt on that shell — which also removed a
+  third, unflagged defect: both wrapped a non-embedded `DataTable` in an outer `BaseCard`, drawing
+  a card inside a card. Both gained search, a domain-noun count, and `TablePagination`; the local
+  `STATE_TONE` record moved to `lib/badges.ts` as `inquiryStateTone`.
+- `BADGE_BASE` dropped `capitalize` (it title-cased sentence-case labels); twelve raw-token call
+  sites pinned it locally as visible markers of unmapped vocabularies, and four lowercase literals
+  became proper labels ("Still held", "Superseded", "Fired", "Co-driver"/"Driver").
+- Corrected in this plan: `AppRadioGroup` exists in `@fuelguard/ui` (R7's audit claim was stale).
+
+**Verified by:** `vue-tsc`, 360 web tests, `lint:ui-adoption`, `pnpm --filter web lint:tokens`,
+eslint — all green.
 
 ### R1 · Leads
 
@@ -586,9 +597,10 @@ updates it in place before its Phase 0:
   `text-white/25` fails the unknown-colour-role rule (the watermark needs a tokens.css role),
   `text-xl` sits outside the six-size scale, and the mockup's badge anatomy (border pills,
   `rounded-full`) contradicts `lib/badges.ts` — the mockup stays a sketch, the system stays the
-  law. The learner surfaces need **primitives in `packages/ui` first** (a radio/choice control
-  does not exist; raw `<button>`/`<input>` in pages/features is a zero-tolerance gate with no
-  exemption list), and the token-link pages get a `layout: "training"` in `App.vue` on the
+  law. The learner surfaces build on the `packages/ui` primitives — **`AppRadioGroup` already exists**
+  (corrected 2026-08-20: the audit that claimed no radio primitive existed was itself stale), and
+  anything still missing (custom video controls) lands in `packages/ui` first, because raw
+  `<button>`/`<input>` in pages/features is a zero-tolerance gate with no exemption list — and the token-link pages get a `layout: "training"` in `App.vue` on the
   `ApplyLayout` precedent, `public: true` + `noindex` route meta, and `allowedHeaderExceptions`
   entries with reasons.
 Then execute its Phase 0+1 (buckets, provider, schema) and Phases 2/3 as the refreshed document

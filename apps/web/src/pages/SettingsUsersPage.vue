@@ -317,7 +317,7 @@ onMounted(load);
       <h3 class="text-base font-semibold text-ink">Invitations</h3>
       <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
         <template #cell-status="{ row }">
-          <span :class="[BADGE_BASE, inviteTone(row.status)]">{{ row.status }}</span>
+          <span :class="[BADGE_BASE, inviteTone(row.status), 'capitalize']">{{ row.status }}</span>
         </template>
         <template #actions="{ row }">
           <KebabMenu v-if="row.status === 'pending' || row.status === 'revoked' || row.status === 'expired'">

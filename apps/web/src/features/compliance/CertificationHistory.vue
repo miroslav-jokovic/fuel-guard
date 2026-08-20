@@ -110,7 +110,7 @@ const columns: DataTableColumn[] = [
           }}</span>
         </template>
         <template #cell-standing="{ row }">
-          <span :class="[BADGE_BASE, toneClass('neutral')]">superseded</span>
+          <span :class="[BADGE_BASE, toneClass('neutral')]">Superseded</span>
           <span class="mt-0.5 block text-xs text-ink-tertiary">{{ row.standing }}</span>
         </template>
       </DataTable>

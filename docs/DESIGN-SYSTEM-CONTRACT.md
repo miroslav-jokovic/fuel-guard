@@ -1,6 +1,16 @@
 # FuelGuard Design Contract
 
-Derived from the code at `/sessions/rcw-01qhmrx3kcevgjmhgrqetsvy/mnt/FuelGuard`. Everything below is measured from real files, not from `docs/DESIGN-SYSTEM.md` (which is partly stale — noted where it diverges).
+Derived from the code. Everything below is measured from real files, not from `docs/DESIGN-SYSTEM.md` (which is partly stale — noted where it diverges).
+
+**Reconciled with the gates 2026-08-20 (recruiting plan R0b).** The primitives had moved into
+`@fuelguard/ui` and the gates had grown rules this document predated — a session reading only this
+file wrote code `lint:ui-adoption` and `lint:tokens` rejected. The gates are the law; when this
+document and a gate script disagree, the script has moved again and this file needs another pass.
+The two scripts to read: `scripts/ui-system-inventory.mjs` (structure: PageHeader required, zero
+raw `<button>/<input>/<select>/<table>` in `pages/` + `features/`, no local primitive clones, no
+`text-ink-subtle`) and `apps/web/scripts/check-design-tokens.mjs` (colour: raw palette hues, hex,
+inline colour styles, `*-neutral-*` edges, generic `shadow-sm/md/lg/xl/2xl`, and any `bg-*`/`text-*`
+role not defined in `packages/ui/src/tokens.css`).
 
 ---
 
@@ -8,8 +18,10 @@ Derived from the code at `/sessions/rcw-01qhmrx3kcevgjmhgrqetsvy/mnt/FuelGuard`.
 
 | Thing | Path |
 |---|---|
-| Tokens + `@font-face` + `@layer components` | `apps/web/src/style.css` |
+| Colour/radius/shadow tokens (single source) | `packages/ui/src/tokens.css` |
+| App-level `@font-face` + `@layer components` | `apps/web/src/style.css` |
 | Token linter | `apps/web/scripts/check-design-tokens.mjs` (`pnpm --filter web lint:tokens`) |
+| Structure linter | `scripts/ui-system-inventory.mjs` (`pnpm lint:ui-adoption`) |
 | Badge vocabulary | `apps/web/src/lib/badges.ts` |
 | Sort helper | `apps/web/src/lib/sort.ts` |
 | Page shell | `apps/web/src/layouts/AppShell.vue` |
@@ -23,18 +35,40 @@ There is **no `tailwind.config.js`**. This is Tailwind v4; all theme extension h
 
 ## 1. Component inventory
 
-### 1.1 `apps/web/src/components/ui/` — the primitives
+### 1.1 The primitives live in `@fuelguard/ui` — `packages/ui/src/components/`
+
+**Moved 2026-08 and enforced by `lint:ui-adoption`:** the form/surface primitives were consolidated
+into the shared package so `apps/web`, `apps/admin` and future apps share one look. A local clone in
+`apps/web/src/components/ui/` (`BaseButton.vue`, `BaseCard.vue`, `BaseInput.vue`,
+`BaseCheckbox.vue`, `BaseSwitch.vue`, `ComboSelect.vue`, `FormField.vue`, `SearchInput.vue`) now
+**fails the build**. Import from the barrel; the established idiom keeps the old local names:
+
+```ts
+import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@fuelguard/ui";
+```
+
+The barrel (`packages/ui/src/index.ts`) exports: `AppButton`, `AppInput` (alias `AppTextField`),
+`AppCard` (alias `AppSurface`), `AppIcon`, `AppCheckbox`, `AppTextarea`, `AppSelect`, `AppSwitch`,
+`AppTable`, `AppPageHeader`, `AppIconButton`, `AppNumberField`, **`AppRadioGroup`**,
+`AppSearchField`, `AppDateField`, `AppDateTimeField`, `AppDateRangePicker`, `AppInputGroup`,
+`AppFormField`, `AppCombobox`, `AppBadge`. Old-name mapping: `BaseCard→AppCard`,
+`BaseButton→AppButton`, `BaseInput→AppInput`, `BaseCheckbox→AppCheckbox`, `BaseSwitch→AppSwitch`,
+`FormField→AppFormField`, `ComboSelect→AppCombobox`, `SearchInput→AppSearchField`.
+
+Anatomy is the source file, not this table — the load-bearing token facts as of 2026-08-20:
+buttons are `rounded-control`; cards are `rounded-surface bg-surface shadow-card ring-1
+ring-edge-subtle` (variants `bordered`/`raised`, paddings `none|sm|md`); shadows come only from the
+named elevations (`shadow-card`, `shadow-card-raised`, `shadow-overlay`, `shadow-dialog`); radii
+only from the shape roles (`rounded-detail|control|surface|overlay|dialog`). Generic `shadow-sm/md/
+lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
+
+### 1.1b `apps/web/src/components/ui/` — the web-local composites
 
 | Component | Props (defaults) | Slots / events | What it is FOR |
 |---|---|---|---|
-| **`PageHeader.vue`** (19 ln) | `description?: string` | default (overrides description), `#actions` | The **first row of every page**. The page *title* is NOT here — it lives in the AppShell top bar from `route.meta.title`. This is only a muted one-line description + right-aligned actions. Renders `flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`, description as `<p class="text-sm text-ink-muted">`, actions as `flex shrink-0 flex-wrap items-center gap-2`. |
-| **`BaseCard.vue`** (20 ln) | `padding?: "none"\|"sm"\|"md"` (md), `as?: string` (div) | default | The **one raised surface**: `rounded-lg bg-surface shadow-sm ring-1 ring-edge`. `md`→`p-5`, `sm`→`p-4` (filter bars/compact), `none`→`overflow-hidden` (tables/lists that own their padding, and clips to the radius). |
-| **`BaseButton.vue`** (53 ln) | `variant` (secondary), `size` (md), `type` (button), `block`, `disabled`, `to?: RouteLocationRaw` | default | The **one button**. Renders `<RouterLink>` when `to` is set and not disabled, else `<button>`. Base: `inline-flex items-center justify-center whitespace-nowrap rounded-md font-semibold transition-colors` + `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600` + `disabled:pointer-events-none disabled:opacity-50`. Variants verbatim: `primary: bg-brand-600 text-ink-inverse shadow-sm hover:bg-brand-500`, `secondary: bg-surface text-ink-secondary ring-1 ring-inset ring-edge-strong hover:bg-surface-subtle`, `danger: bg-danger-600 text-ink-inverse shadow-sm hover:bg-danger-500`, `soft: bg-surface-muted text-ink-secondary hover:bg-neutral-200`, `ghost: text-ink-muted hover:text-ink-secondary`. Sizes: `sm: gap-x-1 px-2.5 py-1.5 text-sm`, `md: gap-x-1.5 px-3 py-2 text-sm`. **Both sizes are `text-sm`** — there is no large button. |
-| **`BaseInput.vue`** (25 ln) | `modelValue?: string\|number\|null` (""), `invalid?: boolean` | `inheritAttrs:false`, all native attrs fall through | The one text input. `block w-full rounded-md border-0 bg-surface px-3 py-1.5 text-base text-ink ring-1 ring-inset placeholder:text-ink-subtle focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm`. Ring is `ring-edge-strong focus:ring-brand-600`, or `ring-danger-400 focus:ring-danger-500` when `invalid`. `text-base` on mobile is deliberate (iOS focus-zoom). |
-| **`BaseCheckbox.vue`** (27 ln) | `modelValue?: boolean`, `disabled?: boolean` | default = **inline label** | Renders its own `<label class="inline-flex items-center gap-2 text-sm text-ink-secondary">`. Box: `size-4 shrink-0 rounded border-edge-strong accent-brand-600`. **Never wrap this in another `<label>`.** |
-| **`BaseSwitch.vue`** (32 ln) | `modelValue?: boolean`, `disabled?: boolean` | — | `role="switch"` toggle for *immediate* settings (not form fields). `h-6 w-11`, on = `bg-brand-600`, off = `bg-ink-subtle`. Label lives at the call site; pass `aria-label` if nothing labels it. |
-| **`FormField.vue`** (32 ln) | `label?`, `hint?`, `error?`, `required?`, `id?` | default slot receives `{ id }` | Label + control + error/hint. Label: `block text-sm font-medium text-ink-secondary`, required marker `<span class="text-danger-600"> *</span>`. Control wrapper gets `mt-1` when a label exists. Error: `mt-1 text-sm text-danger-600`. Hint (only when no error): `mt-1 text-xs text-ink-muted`. |
-| **`ComboSelect.vue`** (111 ln) | `modelValue: string`, `options: {value,label}[]`, `id?`, `placeholder?` ("Select…"), `disabled?` | — | The **form-field** searchable select — it *is* a `BaseInput` with a droplist. Click shows all options; typing filters; blur discards a half-typed non-match. Use inside `FormField`. **Not** for toolbars. |
+| **`PageHeader.vue`** | `description?: string` | default (overrides description), `#actions` | The **first row of every page**. The page *title* is NOT here — it lives in the AppShell top bar from `route.meta.title`. This is only a muted one-line description + right-aligned actions. |
+| **`DataWorkspace.vue`** | `as?` | default | The **list-page shell** (see §5.2b): one `AppCard padding="none"` with `divide-y divide-edge-subtle`, holding an `embedded` FilterBar row above an `embedded` DataTable. |
+| **`SettingsSection.vue`** | see source | — | Settings-page section wrapper. |
 | **`FilterSelect.vue`** (156 ln) | `modelValue: string`, `options`, `label: string`, `disabled?`, `block?` | — | The **toolbar** filter. Trigger reads `"Risk ▾"` idle / `"Risk: Review ✕"` active with a brand tint (`bg-brand-50/60 text-brand-800 ring-brand-600/30`). `""` option = "no filter". Auto-adds an inline search box when `options.length > 8`. `block` = full width, for use inside the FilterBar `#more` popover. |
 | **`FilterBar.vue`** (146 ln) | `search?`, `searchPlaceholder?` ("Search…"), `count?: number\|null`, `countLabel?` ("results"), `chips?: FilterChip[]`, `moreCount?: number` | `#filters`, `#more`, `#actions`; emits `update:search`, `remove(key)`, `clear-all` | The **one table toolbar**. Full API in §5. |
 | **`DataTable.vue`** (240 ln) | see §5.2 | see §5.2 | The **one data table**. |
@@ -46,28 +80,32 @@ There is **no `tailwind.config.js`**. This is Tailwind v4; all theme extension h
 | Component | Props | For |
 |---|---|---|
 | **`SlideOver.vue`** (97) | `open: boolean`, `title: string`, `description?`, `size?: "md"\|"lg"` (md) | The one drawer. `md`→`max-w-md`, `lg`→`max-w-lg`. Structure in §6. |
-| **`KebabMenu.vue`** (80) | `block?`, `placement?: Placement` (bottom-end), `triggerLabel?`, `tone?: "default"\|"sidebar"` | The one dropdown menu. Default trigger is `⋮`; `#trigger` slot for toolbar dropdowns. Children must be `<button class="kebab-item">`. Panel: `z-[9999] w-48 origin-top-right py-1 rounded-md bg-surface shadow-lg ring-1 ring-edge`, teleported to body with a `z-[9998]` click-catcher. |
+| **`KebabMenu.vue`** (80) | `block?`, `placement?: Placement` (bottom-end), `triggerLabel?`, `tone?: "default"\|"sidebar"` | The one dropdown menu. Default trigger is `⋮`; `#trigger` slot for toolbar dropdowns. Children must be `<button class="kebab-item">`. Panel: `z-[9999] w-48 origin-top-right py-1 rounded-control bg-surface shadow-overlay ring-1 ring-edge`, teleported to body with a `z-[9998]` click-catcher. |
 | **`StatusBadge.vue`** (25) | `status: string` | Maps `active/resolved`→success, `maintenance/investigating`→warning, `open`→brand, else neutral, and renders `[BADGE_BASE, cls]`. |
 | **`TablePagination.vue`** (80) | `page`, `pageSize?` (20), `total`, `loading?`; emits `update:page` | The table `#footer`. `flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6`. Left: `Showing <b>1</b>–<b>20</b> of <b>1,204</b>` / `No results`. Right: "Page [n] of N" jump input (hidden below `sm`, only when `totalPages > 1`) + Prev/Next `BaseButton size="sm"`. |
 | **`TableSkeleton.vue`** (17) | `rows?` (6), `cols?` (5) | Shimmer rows. Only DataTable calls it; you should not. |
 | **`ErrorState.vue`** (24) | `message?` ("Something went wrong while loading this data."), `retrying?`; emits `retry` | Warning icon + message + Retry button (`Retrying…` while busy). Only DataTable calls it directly; use it standalone for non-table fetch failures. |
-| **`SearchInput.vue`** (58) | `modelValue`, `placeholder?` ("Search…"), `debounce?` (250) | Debounced, `.trim()`-ed search box with magnifier + clear ✕. FilterBar owns it; use directly only outside a table. |
-| **`AppSelect.vue`** (119) | `modelValue`, `options: SelectOption[]`, `placeholder?`, `disabled?`, `id?`, `ariaLabel?` | Non-searchable form select. Trigger matches BaseInput metrics (`px-3 py-1.5 text-sm ring-1 ring-inset ring-edge-strong`), panel matches the KebabMenu recipe. Min width `8rem`. |
+| *(search box)* | — | `AppSearchField` from `@fuelguard/ui` (the local `SearchInput.vue` clone is gate-banned). FilterBar owns it; use directly only outside a table. |
+| *(form select)* | — | `AppSelect` from `@fuelguard/ui`. Non-searchable form select; trigger matches the input metrics, panel matches the KebabMenu recipe. |
 | **`DateRangeFilter.vue`** (105) | `from?`, `to?`, `presets?` (true), `label?` ("Dates"), `maxDate?` (today) | Toolbar date range on VueDatePicker. Trigger is byte-identical to FilterSelect's trigger classes. Values are `YYYY-MM-DD`; pass `maxDate=null` for future-facing ranges such as DQ deadlines. `partialRange` MUST stay false. |
 | **`VehicleSelect.vue`** (204) | `modelValue`, `vehicles: Vehicle[]`, `placeholder?` ("All vehicles"), `disabled?` | Legacy typeahead for vehicles. New code should use `FilterSelect`/`ComboSelect`. |
 | **`DocumentPreview.vue`** (features/compliance) | `open`, `label`, `doc: DocumentRow \| null`; emits `close` | The **sanctioned document viewer** (DQF plan B6) — the only place a compliance scan renders full-size. In `BaseModal size="xl" printable`. Images show the `normalized` variant (original only via the server-signed Download); PDFs get the browser's viewer in an iframe and **no Print button** (D-DQ9). Do not build a second viewer. |
-| **`ToastContainer.vue`** (126) | — | Renders `useToastStore()`. Card: `rounded-lg border-l-4 shadow-lg ring-1 ring-edge`, title `text-sm font-semibold text-ink`, message `mt-0.5 text-sm leading-snug text-ink-muted`, progress bar `h-0.5`. |
+| **`ToastContainer.vue`** (126) | — | Renders `useToastStore()`. Card: `rounded-surface border-l-4 shadow-overlay ring-1 ring-edge-subtle`, title `text-sm font-semibold text-ink`, message `mt-0.5 text-sm leading-snug text-ink-muted`, progress bar `h-0.5`. |
 | **`UpdateBanner.vue`**, **`AppLogo.vue`**, **`BaseChart.vue`**, **`SparkLine.vue`** | — | App-update prompt; logo; ECharts/canvas wrapper; inline sparkline. |
 
 **There is no `EmptyState` component and no `Skeleton` component.** Empty state = `DataTable`'s `empty-text` prop / `#empty` slot (`px-6 py-10 text-center text-sm text-ink-muted`). Skeleton = `TableSkeleton`, invoked only by DataTable. `SortableTh` and `TableToolbar` are referenced by `docs/DESIGN-SYSTEM.md` but **were deleted** (commit `df8a2c2`) — sorting is inside DataTable, the toolbar is FilterBar. Do not resurrect them.
 
-### 1.3 `packages/ui/src/`
+### 1.3 Icons
 
-Barrel `@fuelguard/ui` exports `AppButton`, `AppInput`, `AppCard`, `AppIcon`; `@fuelguard/ui/icons` exports the curated icon set (147-line barrel over HugeIcons Stroke Rounded).
+`@fuelguard/ui/icons` exports the curated icon set (a barrel over HugeIcons Stroke Rounded).
+`AppIcon`: `<AppIcon :icon="XIcon" class="size-4" aria-hidden="true" />`. Size comes from Tailwind
+`size-*` (never the `size` prop), colour from `currentColor` via `text-*`, `strokeWidth` defaults
+1.5. **Never import from `@hugeicons/core-free-icons` directly** — add to `packages/ui/src/icons.ts`
+first.
 
-- `AppButton.vue` / `AppInput.vue` / `AppCard.vue` are **byte-identical clones** of `BaseButton` / `BaseInput` / `BaseCard`, intentionally, so `apps/admin` and `apps/web` share one look.
-- **Rule:** inside `apps/web`, always import the `Base*` versions from `@/components/ui/`. Only `AppIcon` is imported from `@fuelguard/ui` in web code.
-- `AppIcon`: `<AppIcon :icon="XIcon" class="size-4" aria-hidden="true" />`. Size comes from Tailwind `size-*` (never the `size` prop), colour from `currentColor` via `text-*`, `strokeWidth` defaults 1.5. **Never import from `@hugeicons/core-free-icons` directly** — add to `packages/ui/src/icons.ts` first.
+> **Superseded 2026-08-20:** this section used to say "always import the `Base*` versions from
+> `@/components/ui/`; only `AppIcon` comes from `@fuelguard/ui`". That is now exactly backwards —
+> see §1.1. The gate fails local clones; the barrel is the home.
 
 ---
 
@@ -105,7 +143,7 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 267 font-medium    239 font-semibold    41 font-mono    32 font-bold    17 font-normal
 ```
 
-`font-bold` is reserved for **KPI numbers** (`text-2xl font-bold`). Headings are `font-semibold`. Emphasis inside body text is `font-medium`. `font-normal` only ever appears as a unit-suffix inside a bold KPI (e.g. `text-base font-normal text-ink-subtle` after `$12,431`).
+`font-bold` is reserved for **KPI numbers** (`text-2xl font-bold`). Headings are `font-semibold`. Emphasis inside body text is `font-medium`. `font-normal` only ever appears as a unit-suffix inside a bold KPI (e.g. `text-base font-normal text-ink-tertiary` after `$12,431`).
 
 ### 2.4 The prescriptive type table
 
@@ -124,7 +162,7 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 | Table primary cell (name/id) | `cellClass: "font-medium text-ink"` | `DriversPage.vue:145`, `TrailersPage.vue:80` |
 | Table secondary cell | `cellClass: "text-ink-secondary"` | everywhere |
 | In-cell link | `font-medium text-brand-600 hover:text-brand-500` | `DispatchLoadsPage.vue:395`, `CompliancePage.vue:277` |
-| Empty cell | `<span class="text-ink-subtle">—</span>` (automatic) | `DataTable.vue:226` |
+| Empty cell | `<span class="text-ink-tertiary">—</span>` (automatic) | `DataTable.vue` |
 | Form label | `block text-sm font-medium text-ink-secondary` | `FormField.vue:23` |
 | Form hint | `mt-1 text-xs text-ink-muted` | `FormField.vue:30` |
 | Form error | `mt-1 text-sm text-danger-600` | `FormField.vue:29` |
@@ -132,9 +170,9 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 | Error state | `text-sm text-ink-secondary`, `max-w-md`, centered | `ErrorState.vue:18` |
 | KPI label | `text-xs font-medium tracking-wide text-ink-muted uppercase` | `FuelLogPage.vue:254` |
 | KPI value | `mt-1 text-2xl font-bold text-ink` | `FuelLogPage.vue:255` |
-| KPI sub-caption | `mt-0.5 text-xs text-ink-subtle` | `FuelLogPage.vue:256` |
+| KPI sub-caption | `mt-0.5 text-xs text-ink-tertiary` | `FuelLogPage.vue` |
 | Result count | `whitespace-nowrap text-sm text-ink-muted` | `FilterBar.vue:122` |
-| Badge | `BADGE_BASE` → `inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium capitalize` | `lib/badges.ts:16` |
+| Badge | `BADGE_BASE` → `inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium` — **no case transform**; labels own their sentence-case casing (see §4.3) | `lib/badges.ts` |
 
 ### 2.5 Arbitrary values — sanctioned vs not
 
@@ -187,11 +225,15 @@ Full width with small gutters — tables use the whole screen. There is no `max-
 - Narrow pages add `mx-auto max-w-2xl` (settings/forms) or `max-w-3xl` (content).
 - Two-column detail layouts: `grid grid-cols-1 gap-6 lg:grid-cols-[…]` (`HazmatEquipmentPage.vue:120`).
 - KPI grids: `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. Divided-KPI strip inside one `BaseCard padding="none"`: `dl.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6`, each cell `px-5 py-4` (`FuelLogPage.vue:252`).
-- Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:185-189`, `DispatchLoadsPage.vue:320-324` — identical).
-- Tab strip: `flex gap-1 rounded-lg bg-surface-muted p-1 text-sm` with items `rounded-md px-3 py-1.5 font-medium`, active `bg-surface text-ink shadow-sm` (`DispatchLoadsPage.vue:284-291`).
+- Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:190`, `DispatchLoadsPage.vue:352` — identical).
+- Tab strip: `flex gap-1 rounded-surface bg-surface-muted p-1 text-sm` with items `rounded-control px-3 py-1.5 font-medium` (`DispatchLoadsPage.vue:314`).
 
 ### 3.4 The standard card
-`<BaseCard>` = `p-5`. `<BaseCard padding="sm">` = `p-4` (FilterBar). `<BaseCard padding="none">` = table/list host. Never hand-write `rounded-lg bg-surface shadow-sm ring-1 ring-edge`.
+`<BaseCard>` (= `AppCard`) = `p-5`. `padding="sm"` = `p-4` (FilterBar). `padding="none"` =
+table/list host. Never hand-write the card recipe (`rounded-surface bg-surface shadow-card ring-1
+ring-edge-subtle`) — and note `shadow-sm` no longer exists here: generic elevations fail
+`lint:tokens`; the named ones are `shadow-card`, `shadow-card-raised`, `shadow-overlay`,
+`shadow-dialog`.
 
 Soft tint panel (inline note/alert, *not* a card):
 ```html
@@ -219,7 +261,10 @@ Measured from `DriverAccessModal.vue` (the best drawer in the repo) and `CertMan
 - Heading→subtext: `mt-1`. Subtext→content: `mt-4` (forms) or `mt-3` (cards/lists).
 - Forms: `space-y-4` between fields; two-up groups `grid grid-cols-1 gap-4 sm:grid-cols-2` (or `gap-3` / `grid-cols-2` in the older fleet forms).
 - Optional divider between sections: `<div class="border-t border-edge pt-5">`.
-- Radius: `rounded-md` for controls, `rounded-lg` for cards/panels. `rounded-full` **only** for the switch knob, avatars and the FilterBar count pill — **not** for badges.
+- Radius comes from the shape roles in `tokens.css`, not raw steps: `rounded-detail` (badges,
+  chips), `rounded-control` (buttons, inputs, checkboxes), `rounded-surface` (cards, panels,
+  tint notes), `rounded-overlay` / `rounded-dialog` (popovers, modals). `rounded-full` **only**
+  for the switch knob, avatars and the FilterBar count pill — **not** for badges.
 
 ---
 
@@ -227,22 +272,31 @@ Measured from `DriverAccessModal.vue` (the best drawer in the repo) and `CertMan
 
 ### 4.1 What the linter forbids — `apps/web/scripts/check-design-tokens.mjs`
 
-It walks every `.vue|.ts|.css|.html` under `apps/web/src` (skipping `*.test.ts`) and fails the build on three regexes:
+It walks every `.vue|.ts|.css|.html` under `apps/web/src` (skipping `*.test.ts`) and fails the build on **six** rules (three more than this section used to list — updated 2026-08-20):
 
-```js
-BANNED_HUES = "(?:slate|gray|zinc|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|
-                 sky|blue|indigo|violet|purple|fuchsia|pink|rose)"
-UTIL_PREFIX = "(?:bg|text|ring|border|divide|placeholder|outline|decoration|fill|stroke|
-                 accent|caret|from|via|to|shadow)"
-
-1. "raw palette utility"    →  /\b{UTIL_PREFIX}-{BANNED_HUES}-\d+(?:\/\d+)?\b/g
-2. "hex color"              →  /#[0-9a-fA-F]{3,8}\b/g
-3. "inline color style"     →  /style="[^"]*(?:color|background)[^"]*"/g
+```
+1. raw palette utility      — {bg|text|ring|border|…}-{slate|red|…}-N
+2. raw neutral edge utility — {ring|border|divide|outline}-neutral-N  (use semantic edge tokens)
+3. generic elevation        — shadow-{sm|md|lg|xl|2xl}               (use shadow-card/overlay/dialog)
+4. unknown colour role      — any {bg|text|ring|…}-<suffix> inside a class binding whose suffix is
+                              neither a --color-* role read live from packages/ui/src/tokens.css nor
+                              a structural word. This is the `border-line` lesson: Tailwind emits
+                              nothing for an unknown role, so the misspelling is invisible on screen
+                              and to every hue rule.
+5. hex color
+6. inline color style
 ```
 
-Allow-list is exactly two files: `style.css` (defines the tokens) and `features/dashboard/chartTheme.ts` (jsdom canvas fallbacks). Per-line escape hatch: a trailing `// token-check-disable-line` comment.
+Allow-list is exactly two files: `style.css` (defines app-level pieces) and `features/dashboard/chartTheme.ts` (jsdom canvas fallbacks). Per-line escape hatch: a trailing `// token-check-disable-line` comment.
 
-**Not caught by the linter, but still forbidden by the contract:** `border-*` where `ring-*` is the idiom; `rounded-full` badges; hand-rolled badge/button/card markup; non-existent tokens like `border-border` (silently renders nothing).
+**Enforced by `lint:ui-adoption` rather than here:** `text-ink-subtle` is **banned outright**
+(deprecated — use `text-ink-tertiary` for de-emphasized values like the blank-cell em-dash, and
+`text-ink-disabled` for disabled states), local primitive clones fail, and raw
+`<button>/<input>/<select>` and visible `<table>` elements in `pages/` + `features/` are
+zero-tolerance with **no exemption list** (the only exemption list that exists is for missing
+`PageHeader` on session-free pages).
+
+**Not caught by either gate, but still forbidden by the contract:** `border-*` where `ring-*` is the idiom; `rounded-full` badges; hand-rolled badge/button/card markup.
 
 ### 4.2 The semantic roles and their rule
 
@@ -258,7 +312,9 @@ Neutrals (a future `.dark {}` re-points these; **always prefer these over `neutr
 | `ink` | `text-ink` | headings, primary cell values, KPI numbers |
 | `ink-secondary` | `text-ink-secondary` | body copy, form labels, secondary cell text, kebab items |
 | `ink-muted` | `text-ink-muted` | descriptions, captions, table headers, result counts, hints |
-| `ink-subtle` | `text-ink-subtle` | placeholders, disabled, icons at rest, the em-dash `—` |
+| `ink-tertiary` | `text-ink-tertiary` | de-emphasized values: the em-dash `—`, sub-captions, icons at rest |
+| `ink-disabled` | `text-ink-disabled` | disabled control text |
+| ~~`ink-subtle`~~ | *(banned)* | The role still exists in `tokens.css` for legacy CSS, but the **utility is banned by `lint:ui-adoption`** — use `ink-tertiary`/`ink-disabled` |
 | `ink-inverse` | `text-ink-inverse` | text on brand/danger fills |
 | `edge-subtle` | `divide-edge-subtle`, `border-edge-subtle` | row dividers, pagination top border |
 | `edge` | `ring-edge`, `border-edge`, `divide-edge` | card rings, drawer header/footer borders, popover rings |
@@ -288,20 +344,26 @@ const SOFT = {
   success: "bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20",
   info:    "bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20",
   brand:   "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/20",
-  neutral: "bg-surface-subtle text-ink-muted ring-1 ring-inset ring-neutral-500/20",
+  neutral: "bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge",
 } as const;
 
 export const BADGE_BASE =
-  "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium capitalize";
+  "inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium";
 
 export const toneClass = (key: string): string => SOFT[key as BadgeTone] ?? SOFT.neutral;
 ```
+
+**Casing (changed 2026-08-20, R0b):** `BADGE_BASE` no longer carries `capitalize` — it title-cased
+every word, so sentence-case labels from the label maps rendered wrong ("No response" →
+"No Response"). Labels own their casing. A badge that renders a raw machine token adds
+`capitalize` at its own call site; each such site marks a vocabulary that has not been given a
+label map yet.
 
 Plus domain mappers, all returning `toneClass(...)`: `severityTone` (critical→danger, high→caution, medium→warning, else neutral), `statusTone`, `txnStatusTone` (alert→danger, review→warning, verified→success, else neutral), `inviteTone`, `suspicionTone`.
 
 **Contract:**
 1. Every badge is `:class="[BADGE_BASE, toneClass('success')]"` or `:class="[BADGE_BASE, severityTone(row.severity)]"`, or `<StatusBadge :status="…" />`.
-2. Badges are `rounded-md`, `px-2 py-0.5`, `text-xs font-medium`. **Never `rounded-full`.**
+2. Badges are `rounded-detail`, `px-2 py-0.5`, `text-xs font-medium`. **Never `rounded-full`.**
 3. Fill is always the `-50` tint with a `-600/20` inset ring. **Never the `-100`/`-700` pair.**
 4. A new tone means a new entry in `SOFT` — not a local `Record<string, string>` in a page.
 
@@ -339,17 +401,44 @@ Slots: `#cell-<key>="{ row, value }"`, `#actions="{ row }"`, `#footer`, `#empty`
 
 Behaviour it owns, so you don't:
 
-- **Wrapper**: `<BaseCard padding="none">`. Never wrap a DataTable in another card.
+- **Wrapper**: DataTable renders its **own** `BaseCard padding="none"` unless you pass
+  `embedded` (then it renders a bare `div` for use inside `DataWorkspace` — §5.2b). Either way:
+  **never wrap a DataTable in another card** — an outer `<BaseCard padding="none">` around a
+  non-embedded DataTable draws a card inside a card (this shipped twice in recruitment before R0b
+  caught it).
 - **State precedence** (`:150-157`): `loading` → `<TableSkeleton :cols="…">`; else `error` → `<ErrorState :message :retrying @retry>`; else `rows.length === 0` → `<div class="px-6 py-10 text-center text-sm text-ink-muted">{{ emptyText }}</div>`; else the table + `#footer`. **The footer/pagination does not render in any of the three non-happy states.**
 - **Alignment** (`:128-129`): `align === "left" → text-left`, `align === "right" → text-right`, **everything else → `text-center`**. This is deliberate (commit `5c5449b` "uniform center-aligned grid"). ⚠️ **Landmine:** `numeric: true` only adds `tabular-nums`; it does **not** right-align. The docblock at `DataTable.vue:29-31` and `docs/DESIGN-SYSTEM.md §3` both still claim "text left, numeric right" and are **stale**.
   **Rule: omit `align` entirely.** 20+ pages do. The four that pass `align: "left"` (CompliancePage, HazmatLoadsPage, HazmatEquipmentPage, HazmatReviewPage) are a visible fork.
 - **Padding** (`:131-140`): `px-4 py-3`, or `px-4 py-2` when `dense`. First column gets `pl-6` (unless `selectable`); last gets `pr-6` (unless there's an actions column).
 - **Header**: `bg-surface-subtle text-ink-muted shadow-[inset_0_-1px_0_0_var(--edge)]`, `sticky top-0 z-10` inside a `max-h-[70vh] overflow-y-auto` scroller. Sortable headers are a `<button class="group inline-flex items-center gap-1 hover:text-ink-secondary">` with `ChevronUp`/`ChevronDown`/`ChevronUpDown` at `size-3.5`.
 - **Body**: `divide-y divide-edge-subtle`; rows `hover:bg-surface-subtle`; selected rows `bg-brand-50/40`.
-- **Blank cells**: `<span class="text-ink-subtle">—</span>` automatically. Don't write `|| "—"` in a cell slot unless the fallback is a word ("Unassigned", "N/A").
+- **Blank cells**: `<span class="text-ink-tertiary">—</span>` automatically. Don't write `|| "—"` in a cell slot unless the fallback is a word ("Unassigned", "N/A").
 - **Actions column**: `w-12 pl-2 pr-6 text-right`, `@click.stop`, header is `<span class="sr-only">Actions</span>`. Appears only when you provide `#actions`.
 - **Selection**: leading `w-10 pl-6 pr-2` checkbox column, header checkbox toggles the current page with indeterminate state. **Only render `selectable` when the page has bulk actions.**
 - **Density**: `dense` is `text-xs` + `px-4 py-2`, for audit/sub-tables. Roster/entity tables are not dense.
+
+### 5.2b DataWorkspace — the standard list-page shell (decision, R0b 2026-08-20)
+
+New list pages compose toolbar and table as **one surface**:
+
+```html
+<DataWorkspace>
+  <FilterBar v-model:search="search" embedded search-placeholder="Search …"
+             :count="filtered.length" count-label="<noun>">
+    <template #filters>…</template>
+  </FilterBar>
+  <DataTable :columns :rows="pageRows" embedded …>
+    …
+    <template #footer><TablePagination … /></template>
+  </DataTable>
+</DataWorkspace>
+```
+
+`DataWorkspace` is one `AppCard padding="none"` with `divide-y divide-edge-subtle`; the `embedded`
+props stop FilterBar and DataTable drawing their own cards. `DriversPage.vue` is the reference.
+The older shape — standalone `FilterBar` card above a standalone `DataTable` card — remains valid
+on existing pages; do not churn them, but do not copy it into new ones either. A lone table with
+no toolbar still uses plain `DataTable` (its own card).
 
 ### 5.3 Sorting
 
@@ -400,7 +489,7 @@ Rules encoded in the component and honoured by the good pages:
 1. `v-model:search` + `search-placeholder` naming the searchable fields: `"Search unit, make, model, plate…"`, `"Search load #, driver, unit, commodity…"`, `"Search name, driver ID, employee ID, phone…"`. Ellipsis is `…`, not `...`.
 2. `:count="filtered.length"` + `count-label="trailers"` — always a **domain noun**, never "results". Renders `count.toLocaleString()`.
 3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (the trigger shows its own active value — do **not** also add a chip for these).
-4. `#more` holds **secondary** dimensions as `<FilterSelect … block />`. Popover: `w-72 rounded-md bg-surface p-4 text-sm shadow-lg ring-1 ring-edge`, inner `space-y-3`. `:more-count` badges how many are active.
+4. `#more` holds **secondary** dimensions as `<FilterSelect … block />`. Popover: `w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle`, inner `space-y-3`. `:more-count` badges how many are active.
 5. `:chips` mirror **only the `#more` filters**, with `@remove` and `@clear-all`:
    ```ts
    const chips = computed<FilterChip[]>(() => {
@@ -596,7 +685,7 @@ All of these pass `lint:tokens`. They are structural and typographic violations,
 
 | File:line | Violation |
 |---|---|
-| `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | Hand-rolled `rounded-full px-2(.5) py-0.5 text-xs font-medium` badges. Badges are `BADGE_BASE + toneClass` and `rounded-md`, never `rounded-full`. |
+| `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | Hand-rolled `rounded-full px-2(.5) py-0.5 text-xs font-medium` badges. Badges are `BADGE_BASE + toneClass` and `rounded-detail`, never `rounded-full`. |
 | `features/hazmat/ReviewPanel.vue:161`, `features/anomalies/AnomalyDetail.vue:297`, `features/settings/EfsClientCertCard.vue:232,242,259` | The full `BaseInput`/textarea class string copy-pasted inline (including `focus:ring-brand-500` — the system's focus ring is `brand-600`). |
 | `docs/DESIGN-SYSTEM.md` §2, §3 | Stale: lists `TableToolbar` and `SortableTh` (deleted), says DataTable is "text left; `numeric` right" (it centres by default and `numeric` does not right-align), and says FilterBar search is `w-72` (it is `w-full lg:w-64`). `DataTable.vue` carries the same stale alignment claim in its docblock. |
 
@@ -608,12 +697,12 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 
 1. Root `<div class="space-y-6">`. Title comes from `route.meta.title` — do not render an `<h1>`.
 2. `<PageHeader description="One or two sentences.">` + `#actions` with at most one `variant="primary"`.
-3. `<FilterBar v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove` + `@clear-all`.
+3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove` + `@clear-all`.
 4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Widths in `headerClass`. Tone in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
-5. `<DataTable :columns :rows="pageRows" row-key="id" :loading :error :retrying :sort :empty-text @sort @retry>` — never hand-roll loading/error/empty.
+5. `<DataTable :columns :rows="pageRows" embedded row-key="id" :loading :error :retrying :sort :empty-text @sort @retry>` — never hand-roll loading/error/empty, and never wrap it in a card of your own.
 6. `#actions` → `<KebabMenu v-if="session.canManage">` with `.kebab-item` buttons, destructive last with `.kebab-item-danger`.
 7. `#footer` → `<TablePagination :page :page-size="PAGE_SIZE" :total="filtered.length" @update:page>`; `watch` every filter to reset `page` to 1.
 8. Badges only via `BADGE_BASE + toneClass` / `StatusBadge`.
 9. Drawer via `<SlideOver>`; actions in `#footer`; body sections `space-y-6` with `h3.text-sm.font-semibold.text-ink`.
 10. Mutations: `try { await mutateAsync(); toast.success("Thing updated"); } catch (e) { toast.error("Could not save thing", e instanceof Error ? e.message : undefined); }`
-11. Run `pnpm --filter web lint:tokens` — but remember it only catches colour. The structural rules above are on you.
+11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption` — between them they catch colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones and `text-ink-subtle`. The remaining structural rules above are on you.

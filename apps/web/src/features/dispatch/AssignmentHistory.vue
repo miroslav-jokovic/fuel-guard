@@ -181,12 +181,12 @@ const stamp = (v: string): string =>
       <template #cell-from_at="{ row }">{{ stamp(row.from_at) }}</template>
       <template #cell-to_at="{ row }">
         <span v-if="row.to_at">{{ stamp(row.to_at) }}</span>
-        <span v-else :class="[BADGE_BASE, toneClass('brand')]">still held</span>
+        <span v-else :class="[BADGE_BASE, toneClass('brand')]">Still held</span>
       </template>
       <template #cell-held="{ row }">{{ held(row) }}</template>
       <template #cell-seat="{ row }">
         <span :class="[BADGE_BASE, toneClass(row.seat === 'driver' ? 'neutral' : 'info')]">
-          {{ row.seat === "co_driver" ? "co-driver" : row.seat }}
+          {{ row.seat === "co_driver" ? "Co-driver" : "Driver" }}
         </span>
       </template>
 

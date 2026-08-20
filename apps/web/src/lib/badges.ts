@@ -12,8 +12,17 @@ const SOFT = {
 
 export type BadgeTone = keyof typeof SOFT;
 
-/** Base classes for a pill badge; combine with a tone from the helpers below. */
-export const BADGE_BASE = "inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium capitalize";
+/**
+ * Base classes for a pill badge; combine with a tone from the helpers below.
+ *
+ * Deliberately NO `capitalize` (removed 2026-08-20, recruiting plan R0b): the transform title-cased
+ * every word, so the label maps' sentence-case strings rendered wrong — "No response" became
+ * "No Response" — and the copy rule (contract §7.1) lost to a utility class. Labels own their
+ * casing. A badge that still renders a raw machine token adds `capitalize` at its own call site;
+ * each such site is a vocabulary that has not been mapped yet, which is exactly why it should stay
+ * visible rather than papered over here.
+ */
+export const BADGE_BASE = "inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium";
 
 /** Soft badge classes for a semantic tone (unknown keys fall back to neutral). */
 export const toneClass = (key: string): string => SOFT[key as BadgeTone] ?? SOFT.neutral;
@@ -115,6 +124,24 @@ export function dqFileBadge(state: string): DqBadge {
     default:
       return { label: state, tone: "neutral" };
   }
+}
+
+/**
+ * §391.23 inquiry-queue state (`inquiryQueue.ts` `InquiryState`) → tone. Labels come from
+ * `INQUIRY_STATE_LABELS` in shared — the label and the colour deliberately live in the two
+ * canonical homes rather than in a page-local `Record`, which is the drift D4 closed.
+ * `documented` is neutral for the same reason `no_response` is success-toned below: a documented
+ * good-faith effort discharges §391.23(c)(1), so it must never read as a problem.
+ */
+export function inquiryStateTone(state: string): string {
+  return toneClass(
+    state === "not_sent" ? "warning"
+    : state === "awaiting" ? "info"
+    : state === "overdue" ? "danger"
+    : state === "answered" ? "success"
+    : state === "undeliverable" ? "caution"
+    : "neutral",
+  );
 }
 
 /**

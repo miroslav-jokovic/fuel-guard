@@ -117,14 +117,14 @@ const {
       @retry="refetch"
     >
       <template #cell-severity="{ row }">
-        <span :class="[BADGE_BASE, severityTone(row.severity)]">{{ row.severity }}</span>
+        <span :class="[BADGE_BASE, severityTone(row.severity), 'capitalize']">{{ row.severity }}</span>
       </template>
       <template #cell-type="{ row }">{{ formatRuleId(row.rule_id) }}</template>
       <template #cell-vehicle="{ row }">{{ unit(row.vehicle_id) }}</template>
       <template #cell-trailer="{ row }">{{ pairedTrailer(row.vehicle_id) }}</template>
       <template #cell-driver="{ row }">{{ driverName(row) }}</template>
       <template #cell-status="{ row }">
-        <span :class="[BADGE_BASE, statusTone(row.status)]">{{ row.status }}</span>
+        <span :class="[BADGE_BASE, statusTone(row.status), 'capitalize']">{{ row.status }}</span>
       </template>
       <template #cell-when="{ row }">
         <span :title="`Detected ${fmt(row.created_at)}`">{{ fmt(row.fueled_at ?? row.created_at) }}</span>

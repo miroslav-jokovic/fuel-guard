@@ -30,7 +30,7 @@ const {
 
     <!-- ① Header badges + rule label -->
     <div class="flex flex-wrap items-center gap-2">
-      <span :class="[BADGE_BASE, severityTone(anomaly.severity)]">{{ anomaly.severity }}</span>
+      <span :class="[BADGE_BASE, severityTone(anomaly.severity), 'capitalize']">{{ anomaly.severity }}</span>
       <StatusBadge :status="anomaly.status" />
       <span class="text-xs text-ink-muted" :title="anomaly.rule_id">{{ formatRuleId(anomaly.rule_id) }}</span>
     </div>
@@ -127,7 +127,7 @@ const {
             <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold uppercase', axisClass(s.axis)]">
               {{ s.axis }}
             </span>
-            <span :class="[BADGE_BASE, severityTone(s.severity)]">{{ s.severity }}</span>
+            <span :class="[BADGE_BASE, severityTone(s.severity), 'capitalize']">{{ s.severity }}</span>
           </div>
           <div class="min-w-0 flex-1">
             <div class="mb-1 flex items-center gap-2">

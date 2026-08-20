@@ -386,7 +386,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
                 >
                   {{ outstandingSlots(stop).length }} photo{{ outstandingSlots(stop).length === 1 ? "" : "s" }} missing
                 </span>
-                <span :class="[BADGE_BASE, toneClass(stopTone(stop.status))]">{{ stop.status ?? "pending" }}</span>
+                <span :class="[BADGE_BASE, toneClass(stopTone(stop.status)), 'capitalize']">{{ stop.status ?? "pending" }}</span>
               </div>
             </div>
             <p class="mt-0.5 text-xs text-ink-muted">{{ apptLabel(stop.appointment_start, stop.appointment_end) }}</p>
