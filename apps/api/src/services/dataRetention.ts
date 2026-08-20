@@ -191,6 +191,15 @@ export const RETENTION_FORBIDDEN = [
    */
   "driver_employment_history",
   /**
+   * The §391.23(c)(2) written record of every previous-employer inquiry (0223).
+   *
+   * This one is not merely evidence OF the investigation — when nobody answers, it IS the
+   * investigation: §391.23(c)(1) accepts "documentation of good faith efforts" in place of a reply,
+   * so pruning the attempts would delete the only proof the file was ever completed lawfully. It
+   * keeps the §391.53(a)(1) clock its qualification records keep.
+   */
+  "employer_inquiries",
+  /**
    * The signed disclosures and authorizations (0215). The legal basis for a screening pull outlives
    * the pull: an FCRA or §391.23 challenge asks what the driver was told and when they agreed, and a
    * consent record that can be aged out is a consent record that cannot answer.

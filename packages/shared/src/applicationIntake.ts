@@ -98,9 +98,12 @@ export interface ApplicationDriverPatch {
 export interface ApplicationEmploymentRow {
   employer_name: string;
   usdot_number: string | null;
+  /** §391.23(c)(2) requires the previous employer's name AND address in the record of the inquiry. */
+  employer_address_line1: string | null;
   employer_city: string | null;
   employer_state: string | null;
   employer_phone: string | null;
+  employer_email: string | null;
   position_held: string | null;
   started_on: string;
   ended_on: string | null;
@@ -122,9 +125,11 @@ const employmentRow = (e: ApplicationEmployer): ApplicationEmploymentRow => ({
   // The contract names these for the FORM the applicant fills in; the table names them for the
   // employer they describe. Mapped once, here, rather than by a column rename that would break the
   // §391.21(b) field labels a driver reads.
+  employer_address_line1: e.address_line1 ?? null,
   employer_city: e.city ?? null,
   employer_state: e.state ?? null,
   employer_phone: e.phone ?? null,
+  employer_email: e.email ?? null,
   position_held: e.position_held ?? null,
   started_on: e.started_on,
   ended_on: e.ended_on ?? null,

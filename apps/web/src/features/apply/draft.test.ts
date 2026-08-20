@@ -14,8 +14,9 @@ const complete = (): ApplicationDraft => ({
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "pa", cdl_expires_at: "2029-01-01",
   employers: [{
-    employer_name: "Old Carrier", usdot_number: "123456", address_line1: "", city: "Joliet", state: "IL",
-    phone: "555-0100", position_held: "Driver", started_on: "2023-01-01", ended_on: "2025-06-30",
+    employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
+    phone: "555-0100", email: "hr@oldcarrier.test", position_held: "Driver",
+    started_on: "2023-01-01", ended_on: "2025-06-30",
     operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
     subject_to_fmcsr: true, safety_sensitive: true,
   }],
@@ -89,5 +90,28 @@ describe("what the form sends", () => {
     const fresh = emptyDraft().employers[0]!;
     expect(fresh.dot_regulated).toBe(true);
     expect(fresh.operated_cmv).toBe(true);
+  });
+});
+
+/**
+ * §391.23(c)(2) requires the previous employer's name AND address in the record of every inquiry,
+ * and the form has always asked for the address — 0220's projection was throwing it away (0222).
+ * Pinned here at the point it enters the document, because that is where it was lost.
+ */
+describe("what a §391.23 inquiry will need later", () => {
+  it("carries the employer's address and email into the certified application", () => {
+    const parsed = parse(complete());
+    expect(parsed.success).toBe(true);
+    const employer = parsed.success ? parsed.data.employers[0] : null;
+    expect(employer?.address_line1).toBe("12 Depot Rd");
+    expect(employer?.email).toBe("hr@oldcarrier.test");
+  });
+
+  it("sends an unfilled email as null rather than as an empty string", () => {
+    const draft = complete();
+    draft.employers[0]!.email = "";
+    const parsed = parse(draft);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success ? parsed.data.employers[0]?.email : "x").toBeNull();
   });
 });

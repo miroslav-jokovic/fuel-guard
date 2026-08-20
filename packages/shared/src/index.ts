@@ -13,6 +13,7 @@ export * from "./complianceContract.js";
 export * from "./complianceSeed.js";
 export * from "./dqExportContract.js";
 export * from "./driverDobCsv.js";
+export * from "./employerInquiryContract.js";
 export * from "./dqFile.js";
 export * from "./dqAlerts.js";
 export * from "./digestDq.js";
