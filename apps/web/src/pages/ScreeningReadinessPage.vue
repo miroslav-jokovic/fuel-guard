@@ -16,6 +16,7 @@ import {
   screeningReadinessKey,
   useScreeningReadinessQuery,
 } from "@/features/recruitment/useScreeningReadiness";
+import DobImportCard from "@/features/recruitment/DobImportCard.vue";
 
 /**
  * Screening readiness (PSP-PLAN P0b) — the page that answers "how many drivers can we screen".
@@ -115,6 +116,9 @@ const columns: DataTableColumn[] = [
         Nothing is missing. Every driver here has what a screening request needs.
       </p>
     </BaseCard>
+
+    <!-- The bulk path sits above the row-by-row one: with 201 drivers to fix, typing is the fallback. -->
+    <DobImportCard v-if="canEdit" />
 
     <FilterBar>
       <FilterSelect
