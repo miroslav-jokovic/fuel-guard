@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   INQUIRY_STATE_LABELS,
   INVESTIGATION_FILE_DAYS,
@@ -10,8 +10,10 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import TablePagination from "@/components/TablePagination.vue";
+import { BADGE_BASE, inquiryStateTone, toneClass } from "@/lib/badges";
 import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitment/useInquiryQueue";
 
 /**
@@ -31,26 +33,30 @@ import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitme
 const queueQ = useInquiryQueueQuery();
 
 const filter = ref("all");
-const rows = computed<InquiryQueueRow[]>(() => {
-  const all = queueQ.data.value?.rows ?? [];
-  if (filter.value === "overdue") return all.filter((r) => r.daysToDeadline !== null && r.daysToDeadline < 0);
+const search = ref("");
+const PAGE_SIZE = 20;
+const page = ref(1);
+watch([filter, search], () => (page.value = 1));
+
+const filtered = computed<InquiryQueueRow[]>(() => {
+  let all = queueQ.data.value?.rows ?? [];
+  if (filter.value === "overdue") all = all.filter((r) => r.daysToDeadline !== null && r.daysToDeadline < 0);
   if (filter.value === "chase") {
-    return all.filter((r) => r.outstanding.some((e) => e.state === "overdue" || e.state === "undeliverable"));
+    all = all.filter((r) => r.outstanding.some((e) => e.state === "overdue" || e.state === "undeliverable"));
   }
-  if (filter.value === "applicants") return all.filter((r) => r.status === "applicant");
-  return all;
+  if (filter.value === "applicants") all = all.filter((r) => r.status === "applicant");
+  const q = search.value.trim().toLowerCase();
+  if (!q) return all;
+  return all.filter(
+    (r) =>
+      r.name.toLowerCase().includes(q) ||
+      r.outstanding.some((e) => e.employerName.toLowerCase().includes(q)),
+  );
 });
 
-const summary = computed(() => queueQ.data.value?.summary ?? null);
+const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
-const STATE_TONE: Record<InquiryState, string> = {
-  not_sent: "warning",
-  awaiting: "info",
-  overdue: "danger",
-  answered: "success",
-  documented: "neutral",
-  undeliverable: "caution",
-};
+const summary = computed(() => queueQ.data.value?.summary ?? null);
 
 /** The deadline as a person reads it, rather than a signed integer. */
 function deadlineLabel(row: InquiryQueueRow): string {
@@ -104,23 +110,31 @@ const columns: DataTableColumn[] = [
       </p>
     </BaseCard>
 
-    <FilterBar>
-      <FilterSelect
-        v-model="filter"
-        label="Show"
-        :options="[
-          { value: 'all', label: 'Everything outstanding' },
-          { value: 'overdue', label: 'Past the deadline' },
-          { value: 'chase', label: 'Ready to chase or document' },
-          { value: 'applicants', label: 'Applicants' },
-        ]"
-      />
-    </FilterBar>
-
-    <BaseCard padding="none">
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search driver, former employer…"
+        :count="filtered.length"
+        count-label="files"
+      >
+        <template #filters>
+          <FilterSelect
+            v-model="filter"
+            label="Show"
+            :options="[
+              { value: 'all', label: 'Everything outstanding' },
+              { value: 'overdue', label: 'Past the deadline' },
+              { value: 'chase', label: 'Ready to chase or document' },
+              { value: 'applicants', label: 'Applicants' },
+            ]"
+          />
+        </template>
+      </FilterBar>
       <DataTable
         :columns="columns"
-        :rows="rows"
+        :rows="pageRows"
+        embedded
         row-key="driverId"
         :loading="queueQ.isLoading.value"
         :error="queueQ.isError.value ? (queueQ.error.value?.message ?? 'Could not load the queue.') : null"
@@ -143,7 +157,7 @@ const columns: DataTableColumn[] = [
         <template #cell-employers="{ row }">
           <ul class="space-y-1">
             <li v-for="employer in row.outstanding" :key="employer.employmentId" class="text-sm">
-              <span :class="[BADGE_BASE, toneClass(STATE_TONE[employer.state as InquiryState] ?? 'neutral')]">
+              <span :class="[BADGE_BASE, inquiryStateTone(employer.state)]">
                 {{ INQUIRY_STATE_LABELS[employer.state as InquiryState] }}
               </span>
               <span class="ml-2 text-ink-secondary">{{ employer.employerName }}</span>
@@ -153,7 +167,16 @@ const columns: DataTableColumn[] = [
             </li>
           </ul>
         </template>
+        <template #footer>
+          <TablePagination
+            :page="page"
+            :page-size="PAGE_SIZE"
+            :total="filtered.length"
+            :loading="queueQ.isFetching.value"
+            @update:page="page = $event"
+          />
+        </template>
       </DataTable>
-    </BaseCard>
+    </DataWorkspace>
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { screeningFieldLabel, rolesThatManage, type ScreeningRow } from "@fuelguard/shared";
 import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@fuelguard/ui";
@@ -7,7 +7,9 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -46,12 +48,21 @@ const canEdit = computed(() => {
 });
 
 const filter = ref("all");
-const rows = computed<ScreeningRow[]>(() => {
-  const all = readinessQ.data.value?.rows ?? [];
-  if (filter.value === "ready") return all.filter((r) => r.ready);
-  if (filter.value === "blocked") return all.filter((r) => !r.ready);
-  return all;
+const search = ref("");
+const PAGE_SIZE = 20;
+const page = ref(1);
+watch([filter, search], () => (page.value = 1));
+
+const filtered = computed<ScreeningRow[]>(() => {
+  let all = readinessQ.data.value?.rows ?? [];
+  if (filter.value === "ready") all = all.filter((r) => r.ready);
+  if (filter.value === "blocked") all = all.filter((r) => !r.ready);
+  const q = search.value.trim().toLowerCase();
+  if (!q) return all;
+  return all.filter((r) => r.name.toLowerCase().includes(q));
 });
+
+const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const summary = computed(() => readinessQ.data.value?.summary ?? null);
 
@@ -120,22 +131,30 @@ const columns: DataTableColumn[] = [
     <!-- The bulk path sits above the row-by-row one: with 201 drivers to fix, typing is the fallback. -->
     <DobImportCard v-if="canEdit" />
 
-    <FilterBar>
-      <FilterSelect
-        v-model="filter"
-        label="Show"
-        :options="[
-          { value: 'all', label: 'Everyone' },
-          { value: 'blocked', label: 'Cannot be screened' },
-          { value: 'ready', label: 'Ready to screen' },
-        ]"
-      />
-    </FilterBar>
-
-    <BaseCard padding="none">
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search driver…"
+        :count="filtered.length"
+        count-label="drivers"
+      >
+        <template #filters>
+          <FilterSelect
+            v-model="filter"
+            label="Show"
+            :options="[
+              { value: 'all', label: 'Everyone' },
+              { value: 'blocked', label: 'Cannot be screened' },
+              { value: 'ready', label: 'Ready to screen' },
+            ]"
+          />
+        </template>
+      </FilterBar>
       <DataTable
         :columns="columns"
-        :rows="rows"
+        :rows="pageRows"
+        embedded
         row-key="driverId"
         :loading="readinessQ.isLoading.value"
         :error="readinessQ.isError.value ? (readinessQ.error.value?.message ?? 'Could not load screening readiness.') : null"
@@ -170,7 +189,16 @@ const columns: DataTableColumn[] = [
           <span v-else-if="needsDob(row)" class="text-ink-muted">Not recorded</span>
           <span v-else class="text-ink-muted">On file</span>
         </template>
+        <template #footer>
+          <TablePagination
+            :page="page"
+            :page-size="PAGE_SIZE"
+            :total="filtered.length"
+            :loading="readinessQ.isFetching.value"
+            @update:page="page = $event"
+          />
+        </template>
       </DataTable>
-    </BaseCard>
+    </DataWorkspace>
   </div>
 </template>

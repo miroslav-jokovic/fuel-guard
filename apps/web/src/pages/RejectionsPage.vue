@@ -304,7 +304,7 @@ const columns: DataTableColumn[] = [
           </div>
           <span
             v-if="selectedRow.suspicion_level && selectedRow.suspicion_level !== 'clear'"
-            :class="[BADGE_BASE, suspicionTone(selectedRow.suspicion_level)]"
+            :class="[BADGE_BASE, suspicionTone(selectedRow.suspicion_level), 'capitalize']"
             >{{ selectedRow.suspicion_level }}</span
           >
           <span v-else class="text-xs text-ink-tertiary">Clear</span>

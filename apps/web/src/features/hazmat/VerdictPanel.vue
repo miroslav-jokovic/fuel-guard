@@ -101,8 +101,8 @@ const loadProfile = computed(() => {
 
     <!-- ── what kind of load this is (H-MX) ──────────────────────────────────────────────────── -->
     <div v-if="loadProfile" class="flex flex-wrap items-center gap-2">
-      <span :class="[BADGE_BASE, toneClass('brand')]">{{ loadProfile.packaging }}</span>
-      <span v-if="loadProfile.freight" :class="[BADGE_BASE, toneClass('neutral')]">{{ loadProfile.freight }}</span>
+      <span :class="[BADGE_BASE, toneClass('brand'), 'capitalize']">{{ loadProfile.packaging }}</span>
+      <span v-if="loadProfile.freight" :class="[BADGE_BASE, toneClass('neutral'), 'capitalize']">{{ loadProfile.freight }}</span>
       <span class="text-xs text-ink-muted">{{ loadProfile.scope }}</span>
     </div>
 
@@ -271,7 +271,7 @@ const loadProfile = computed(() => {
       <h3 class="text-sm font-semibold text-ink">Prohibited placards</h3>
       <ul class="mt-2 space-y-2">
         <li v-for="(p, i) in v.placards.prohibited" :key="i" class="text-sm text-ink-secondary">
-          <span :class="[BADGE_BASE, toneClass('danger')]">{{ humanize(p.placard) }}</span>
+          <span :class="[BADGE_BASE, toneClass('danger'), 'capitalize']">{{ humanize(p.placard) }}</span>
           <div class="mt-0.5"><CitationText :citations="p.because" /></div>
         </li>
       </ul>
@@ -340,7 +340,7 @@ const loadProfile = computed(() => {
         <ul class="mt-3 space-y-2">
           <li v-for="(t, i) in v.trace" :key="i" class="border-b border-edge pb-2 text-sm last:border-0">
             <div class="flex items-center gap-2">
-              <span :class="[BADGE_BASE, toneClass(t.fired ? 'brand' : 'neutral')]">{{ t.fired ? "fired" : "—" }}</span>
+              <span :class="[BADGE_BASE, toneClass(t.fired ? 'brand' : 'neutral')]">{{ t.fired ? "Fired" : "—" }}</span>
               <span class="font-mono text-xs text-ink-secondary">{{ t.ruleId }}</span>
             </div>
             <p v-if="t.note" class="mt-1 text-ink-muted">{{ t.note }}</p>

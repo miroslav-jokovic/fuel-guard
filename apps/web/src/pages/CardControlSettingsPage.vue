@@ -275,7 +275,7 @@ async function run(): Promise<void> {
       <div class="space-y-4">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="text-sm font-medium text-ink">Result</h2>
-          <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement))]">{{ result.entitlement }}</span>
+          <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement)), 'capitalize']">{{ result.entitlement }}</span>
           <span class="text-sm text-ink-muted">{{ result.environment }}</span>
         </div>
         <p class="text-sm leading-6 text-ink">{{ result.verdict }}</p>

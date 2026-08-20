@@ -21,5 +21,6 @@ const cls = computed(() => {
 </script>
 
 <template>
-  <span :class="[BADGE_BASE, cls]">{{ status }}</span>
+  <!-- Raw machine token; `capitalize` locally since BADGE_BASE no longer transforms case (R0b). -->
+  <span :class="[BADGE_BASE, cls, 'capitalize']">{{ status }}</span>
 </template>
