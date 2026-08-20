@@ -135,24 +135,3 @@ export const employmentHistoryListResponseSchema = z.object({
   history: z.array(employmentHistorySchema),
 });
 
-/** One row of the fleet-level Recruitment table: a driver plus what their file looks like. */
-export const recruitmentRosterRowSchema = z.object({
-  driver_id: z.uuid(),
-  full_name: z.string(),
-  status: z.string(),
-  hire_date: z.string().nullable(),
-  date_of_birth_recorded: z.boolean(),
-  employers: z.number(),
-  /** §391.21(b)(10) — the 3 years, all employment. */
-  employers_in_window: z.number(),
-  gap_days: z.number(),
-  /** §391.21(b)(11) — years 3-10, CMV only. No gap figure: absence there is not a defect. */
-  cmv_employers: z.number(),
-  inquiries_outstanding: z.number(),
-  inquiries_awaiting: z.number(),
-});
-export type RecruitmentRosterRow = z.infer<typeof recruitmentRosterRowSchema>;
-
-export const recruitmentRosterResponseSchema = z.object({
-  drivers: z.array(recruitmentRosterRowSchema),
-});

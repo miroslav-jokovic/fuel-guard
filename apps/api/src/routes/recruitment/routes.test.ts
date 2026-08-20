@@ -3,10 +3,10 @@ import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@fuelguard/shared";
 import { DISCLOSURES } from "@fuelguard/shared";
-import { createApp } from "../app.js";
-import { loadEnv } from "../env.js";
-import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { closeTestServer } from "../testing/httpServer.js";
+import { createApp } from "../../app.js";
+import { loadEnv } from "../../env.js";
+import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../testing/httpServer.js";
 
 /**
  * Recruitment routes — §391.21(b)(10) employment history (0208).
@@ -23,7 +23,7 @@ import { closeTestServer } from "../testing/httpServer.js";
  */
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
-vi.mock("../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+vi.mock("../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER_ORG = "11111111-2222-4333-8444-555555555555";
@@ -60,11 +60,18 @@ const call = (path: string, init: RequestInit & { token?: string } = {}) => {
 };
 
 /** A driver hired 2026-01-01 whose only declared employer left a year-long hole before the hire. */
-const seed = (over: { drivers?: unknown[]; history?: unknown[] } = {}): SupabaseRecorder =>
+const seed = (over: { drivers?: unknown[]; history?: unknown[]; auths?: unknown[] } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       drivers: over.drivers ?? [
-        { id: DRIVER, full_name: "A Driver", status: "active", hire_date: "2026-01-01", date_of_birth: null },
+        {
+          id: DRIVER,
+          full_name: "An Applicant",
+          status: "applicant",
+          hire_date: null,
+          date_of_birth: null,
+          created_at: "2026-01-01T00:00:00Z",
+        },
       ],
       driver_employment_history: over.history ?? [
         {
@@ -79,7 +86,7 @@ const seed = (over: { drivers?: unknown[]; history?: unknown[] } = {}): Supabase
       ],
       // The recorder returns this row from `.select().single()` after an insert, the same way the
       // employment fixture does — the assertions below read the WRITE, not this.
-      driver_authorizations: [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
+      driver_authorizations: over.auths ?? [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
       audit_logs: [],
     },
   });
@@ -106,14 +113,14 @@ describe("gating — the fleet section matrix decides, not a hand-written role l
   it("refuses an unauthenticated request", async () => {
     rec = seed();
     holder.client = rec.client;
-    expect((await call("/roster")).status).toBe(401);
+    expect((await call("/pipeline")).status).toBe(401);
   });
 
   it("lets the hiring roles and the auditor read", async () => {
     for (const token of ["admin", "fleet", "safety", "recruiter", "auditor"]) {
       rec = seed();
       holder.client = rec.client;
-      expect((await call("/roster", { token })).status).toBe(200);
+      expect((await call("/pipeline", { token })).status).toBe(200);
     }
   });
 
@@ -127,7 +134,7 @@ describe("gating — the fleet section matrix decides, not a hand-written role l
     for (const token of ["dispatcher", "driver"]) {
       rec = seed();
       holder.client = rec.client;
-      expect((await call("/roster", { token })).status).toBe(403);
+      expect((await call("/pipeline", { token })).status).toBe(403);
       expect((await call(`/drivers/${DRIVER}/employment`, { token })).status).toBe(403);
       // Refused in middleware — no query ran at all.
       expect(rec.queries).toHaveLength(0);
@@ -160,10 +167,10 @@ describe("gating — the fleet section matrix decides, not a hand-written role l
 });
 
 describe("org scoping — the service role bypasses RLS, so the query must scope itself", () => {
-  it("scopes every read behind the fleet roster", async () => {
+  it("scopes every read behind the pipeline", async () => {
     rec = seed();
     holder.client = rec.client;
-    await call("/roster", { token: "admin" });
+    await call("/pipeline", { token: "admin" });
     expectOrgScoped(rec, ORG);
   });
 
@@ -215,32 +222,61 @@ describe("org scoping — the service role bypasses RLS, so the query must scope
   });
 });
 
-describe("the fleet roster reports the SAME arithmetic the driver page does", () => {
-  it("measures the window from the hire date, and reports the gap it leaves", async () => {
-    rec = seed();
-    holder.client = rec.client;
-    const body = (await (await call("/roster", { token: "admin" })).json()) as {
-      drivers: Array<Record<string, number | boolean>>;
+/**
+ * H6/D-HIRE2. This endpoint used to list every non-terminated driver with their gaps and inquiry
+ * state, which restated what the qualification page owns. It lists APPLICANTS now, so the two
+ * surfaces are not looking at the same people and the duplication has nowhere to come from.
+ */
+describe("the pipeline lists applicants, and derives their stage", () => {
+  const body = async (token = "admin") =>
+    (await (await call("/pipeline", { token })).json()) as {
+      applicants: Array<Record<string, unknown>>;
     };
-    const row = body.drivers[0]!;
-    // Window is 2023-01-01 → 2026-01-01 (the hire date). The employer covers it until 2024-06-01,
-    // so the remainder is an unexplained gap — and measuring against TODAY instead would have
-    // invented eight more months of it.
-    expect(row.employers_in_window).toBe(1);
-    expect(row.gap_days).toBeGreaterThan(500);
-    expect(row.inquiries_outstanding).toBe(1);
-    // The value never leaves the roster API; only whether the driver can be screened at all.
+
+  it("returns an applicant with everything outstanding", async () => {
+    rec = seed({ history: [], auths: [] });
+    holder.client = rec.client;
+    const row = (await body()).applicants[0]!;
+    expect(row.stage).toBe("not_started");
+    expect(row.outstanding).toEqual([
+      "employment_history",
+      "fcra_disclosure",
+      "psp",
+      "previous_employer",
+    ]);
     expect(row.date_of_birth_recorded).toBe(false);
   });
 
-  it("reports a driver with no history recorded as empty rather than as one enormous gap count", async () => {
-    rec = seed({ history: [] });
+  it("moves an applicant along as the history lands, from the SAME function the page calls", async () => {
+    rec = seed();
     holder.client = rec.client;
-    const body = (await (await call("/roster", { token: "admin" })).json()) as {
-      drivers: Array<Record<string, number>>;
-    };
-    expect(body.drivers[0]!.employers).toBe(0);
-    expect(body.drivers[0]!.inquiries_outstanding).toBe(0);
+    const row = (await body()).applicants[0]!;
+    // The seeded employer covers 2022-2024 against an application date of 2026-01-01, so the
+    // §391.21(b)(10) window has a hole and the stage says so without listing it as a chase item.
+    expect(row.stage).toBe("history_incomplete");
+    expect(row.gap_days as number).toBeGreaterThan(0);
+    expect(row.outstanding).not.toContain("employment_history");
+  });
+
+  /**
+   * Asserted on the QUERY, not on the result. The recorder returns its fixture whatever filters were
+   * applied — that is what makes `expectOrgScoped` possible — so "the response was empty" would prove
+   * only that the fixture was empty. What has to be true is that the endpoint ASKED for applicants.
+   */
+  it("asks for applicants only — a hired driver is the qualification page's subject", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    await call("/pipeline", { token: "admin" });
+    const q = rec.forTable("drivers")[0]!;
+    expect(q.filters()).toContainEqual({ col: "status", val: "applicant" });
+  });
+
+  it("goes looking for nothing when there are no applicants", async () => {
+    rec = seed({ drivers: [] });
+    holder.client = rec.client;
+    expect((await body()).applicants).toEqual([]);
+    expect(rec.forTable("driver_employment_history")).toHaveLength(0);
+    expect(rec.forTable("driver_authorizations")).toHaveLength(0);
   });
 });
 

@@ -225,10 +225,29 @@ of D-HIRE6, the releases as separate signed documents per D-HIRE3.
 **Done when:** a used or expired token is refused, a submitted application is immutable, and the four
 releases exist as four rows with four disclosure versions.
 
-**H6 · Recruitment becomes a pipeline** — applicants by stage (invited → applied → releases signed →
-screening ordered → decision), replacing the fleet table that restated DQF.
-**Done when:** the page answers "who is waiting on what" and no longer renders an inquiry-state column
-the DQF page already owns.
+**H6 · Recruitment becomes a pipeline — DONE 2026-08-19.**
+
+`/api/recruitment/pipeline` lists **applicants**, not drivers, and that boundary is what removes the
+duplication rather than any column change: once the two surfaces are not looking at the same people,
+DQF has nothing to restate. Employment history for somebody hired is still reachable on their own
+driver page, where a §391.51 file is.
+
+**The stage is derived, never stored.** `applicantPipeline.ts` computes it from the rows that already
+exist, so the board cannot disagree with the file it summarises — the failure a status column invites
+is somebody recording an authorization and forgetting to advance it. A revoked release moves an
+applicant backwards with no column to update, and a test pins that.
+
+**Only the derivable stages exist.** The sketch was invited → applied → releases → screening ordered →
+decision; there is no invitation record until H5 and no screening ledger until H7, so modelling those
+would be designing against an imagined shape. The **requirement list** is the extension point instead:
+H5 adds `application`, H7 adds `psp_report`, and neither renumbers anything.
+
+A gap names a stage (`history_incomplete`) without ever appearing on the outstanding list — the
+applicant answered, the answer needs a conversation, and telling a recruiter to go and collect a
+document that does not exist is worse than saying nothing.
+
+The router split into `routes/recruitment/{employment,authorizations}.ts` on the `routes/roster/`
+pattern when it hit the 500-line budget.
 
 **H7 · PSP client + the cross-match** — PSP-PLAN P2–P7, then P13, now unblocked by H1.
 **Done when:** PSP-PLAN's own done-whens, plus: a corroboration report distinguishes the two segments

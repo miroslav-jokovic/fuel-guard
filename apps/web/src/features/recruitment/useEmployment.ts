@@ -1,25 +1,42 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
+  ApplicantRequirement,
+  ApplicantStage,
   EmploymentHistory,
   EmploymentHistoryCreate,
   EmploymentHistoryUpdate,
-  RecruitmentRosterRow,
 } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment` — the §391.21(b)(10) employment list (0208). */
 
-const rosterKey = ["recruitment", "roster"] as const;
+const pipelineKey = ["recruitment", "pipeline"] as const;
+
+/** One applicant, as the pipeline reports them. The stage is DERIVED server-side by the same pure
+ *  function this app could call — never a stored column that can drift from the file. */
+export interface PipelineApplicant {
+  driver_id: string;
+  full_name: string;
+  applied_on: string;
+  date_of_birth_recorded: boolean;
+  employers: number;
+  employers_in_window: number;
+  cmv_employers: number;
+  gap_days: number;
+  stage: ApplicantStage;
+  outstanding: ApplicantRequirement[];
+  releases_complete: boolean;
+}
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 
-export function useRecruitmentRosterQuery() {
+export function usePipelineQuery() {
   return useQuery({
-    queryKey: rosterKey,
-    queryFn: async (): Promise<RecruitmentRosterRow[]> => {
-      const res = await apiFetch<{ drivers: RecruitmentRosterRow[] }>("/api/recruitment/roster");
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load recruitment.");
-      return res.data.drivers;
+    queryKey: pipelineKey,
+    queryFn: async (): Promise<PipelineApplicant[]> => {
+      const res = await apiFetch<{ applicants: PipelineApplicant[] }>("/api/recruitment/pipeline");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the pipeline.");
+      return res.data.applicants;
     },
   });
 }
@@ -38,13 +55,13 @@ export function useEmploymentHistoryQuery(driverId: Ref<string>) {
   });
 }
 
-/** Every mutation invalidates the driver's list AND the fleet roster — the roster's gap arithmetic
- *  is derived from these rows, so a stale roster would contradict the page you just edited. */
+/** Every mutation invalidates the driver's list AND the pipeline — the pipeline's stage is derived
+ *  from these rows, so a stale board would contradict the page you just edited. */
 function useInvalidate() {
   const qc = useQueryClient();
   return (driverId: string) => {
     void qc.invalidateQueries({ queryKey: historyKey(driverId) });
-    void qc.invalidateQueries({ queryKey: rosterKey });
+    void qc.invalidateQueries({ queryKey: pipelineKey });
   };
 }
 

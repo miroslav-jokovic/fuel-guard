@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import {
+  APPLICANT_REQUIREMENT_LABELS,
+  APPLICANT_STAGES,
+  APPLICANT_STAGE_LABELS,
+  type ApplicantStage,
+} from "@fuelguard/shared";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -9,77 +15,88 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { useRecruitmentRosterQuery } from "@/features/recruitment/useEmployment";
+import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 
 /**
- * Recruitment — the fleet view of the §391.21(b)(10) hiring file.
+ * Recruitment — the applicant pipeline (HIRING-PLAN.md H6).
  *
- * The queue, not the workspace: it answers "whose file needs work" and hands off to the driver page
- * to do it, the same split the qualification file uses (D1/D3). The gap arithmetic is computed by the
- * API from `employmentCoverage`, the SAME pure function the driver page calls — a second
- * approximation here is how a fleet table and a detail page come to disagree about one driver.
+ * This replaced a fleet table of every driver with their gaps and safety-history inquiry state,
+ * which restated what the driver qualification page already owns. The boundary that fixes it is
+ * D-HIRE2: **Recruitment owns the applicant, DQF owns the driver.** Once this lists applicants the
+ * two surfaces are not looking at the same people, and the duplication has nowhere to come from.
+ *
+ * Employment history for somebody already hired has not gone anywhere — it is on their driver page,
+ * where a §391.51 file is, rather than in a second fleet-wide table here.
+ *
+ * Every stage is DERIVED, server-side, by the same pure function this page could call. There is no
+ * stage column to advance and therefore none to forget.
  */
 const router = useRouter();
-const rosterQ = useRecruitmentRosterQuery();
+const pipelineQ = usePipelineQuery();
 
 const PAGE_SIZE = 25;
 const search = ref("");
-const filter = ref("all");
+const stage = ref("all");
 const page = ref(1);
 
-const FILTERS = [
-  { value: "all", label: "All drivers" },
-  { value: "attention", label: "Needs attention" },
-  { value: "nothing", label: "Nothing recorded" },
-  { value: "inquiries", label: "Inquiries outstanding" },
+const STAGE_FILTERS = [
+  { value: "all", label: "All applicants" },
+  ...APPLICANT_STAGES.map((s) => ({ value: s, label: APPLICANT_STAGE_LABELS[s] })),
 ];
 
 const rows = computed(() => {
-  const all = rosterQ.data.value ?? [];
   const q = search.value.trim().toLowerCase();
-  return all
-    .filter((r) => (q ? r.full_name.toLowerCase().includes(q) : true))
-    .filter((r) => {
-      if (filter.value === "nothing") return r.employers === 0;
-      if (filter.value === "inquiries") return r.inquiries_outstanding > 0;
-      if (filter.value === "attention") {
-        return r.employers === 0 || r.gap_days > 0 || r.inquiries_outstanding > 0;
-      }
-      return true;
-    });
+  return (pipelineQ.data.value ?? [])
+    .filter((a) => (q ? a.full_name.toLowerCase().includes(q) : true))
+    .filter((a) => stage.value === "all" || a.stage === stage.value);
 });
-
 const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
+/** Counts per stage, so the filter bar says how much work sits behind each word. */
+const counts = computed(() => {
+  const out = new Map<ApplicantStage, number>();
+  for (const a of pipelineQ.data.value ?? []) out.set(a.stage, (out.get(a.stage) ?? 0) + 1);
+  return out;
+});
+
+const STAGE_TONE: Record<ApplicantStage, string> = {
+  not_started: "neutral",
+  history_incomplete: "warning",
+  awaiting_releases: "caution",
+  ready_to_screen: "success",
+};
+
 const columns: DataTableColumn[] = [
-  { key: "full_name", label: "Driver" },
+  { key: "full_name", label: "Applicant" },
+  { key: "stage", label: "Stage" },
+  { key: "outstanding", label: "Waiting on" },
   { key: "employers", label: "Employers", numeric: true },
-  { key: "gap_days", label: "Unexplained gap", numeric: true },
-  { key: "inquiries", label: "Safety-history inquiries" },
   { key: "screening", label: "Screening identity" },
 ];
 
-/**
- * One driver's headline. "Nothing recorded" is a distinct state from "recorded and has a gap" — an
- * empty file is a transcription that has not happened, and a gap is a question for the applicant.
- */
-function fileBadge(r: { employers: number; gap_days: number }): { label: string; tone: string } {
-  if (r.employers === 0) return { label: "Nothing recorded", tone: "neutral" };
-  if (r.gap_days > 0) return { label: `${r.gap_days}d gap`, tone: "warning" };
-  return { label: "Covered", tone: "success" };
-}
-
-function openDriver(id: string): void {
+function openApplicant(id: string): void {
   void router.push({ name: "driver-detail", params: { id }, query: { section: "employment" } });
 }
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Employment history declared on the application, and the §391.23(a)(2) inquiries it obliges" />
+    <PageHeader description="Applicants, and what each one is waiting on before they can be screened" />
 
-    <FilterBar v-model:search="search" search-placeholder="Search drivers…" :count="rows.length" count-label="drivers">
-      <FilterSelect v-model="filter" label="Show" :options="FILTERS" />
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <BaseCard v-for="s in APPLICANT_STAGES" :key="s" padding="sm">
+        <p class="text-sm font-medium text-ink">{{ APPLICANT_STAGE_LABELS[s] }}</p>
+        <p class="mt-2 text-2xl font-bold text-ink">{{ counts.get(s) ?? 0 }}</p>
+      </BaseCard>
+    </div>
+
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search applicants…"
+      :count="rows.length"
+      count-label="applicants"
+    >
+      <FilterSelect v-model="stage" label="Stage" :options="STAGE_FILTERS" />
     </FilterBar>
 
     <BaseCard padding="none">
@@ -87,35 +104,38 @@ function openDriver(id: string): void {
         :columns="columns"
         :rows="paged"
         row-key="driver_id"
-        :loading="rosterQ.isLoading.value"
-        :error="rosterQ.isError.value ? (rosterQ.error.value?.message ?? 'Could not load recruitment.') : null"
-        :retrying="rosterQ.isFetching.value"
-        empty-text="No drivers match this filter."
+        :loading="pipelineQ.isLoading.value"
+        :error="pipelineQ.isError.value ? (pipelineQ.error.value?.message ?? 'Could not load the pipeline.') : null"
+        :retrying="pipelineQ.isFetching.value"
         :row-class="() => 'cursor-pointer'"
-        @row-click="(row: { driver_id: string }) => openDriver(row.driver_id)"
+        @row-click="(row: PipelineApplicant) => openApplicant(row.driver_id)"
       >
+        <template #empty>
+          <!-- Honest rather than reassuring: nobody has applied, and the surface that creates an
+               applicant is H5. Saying "no results" would imply a filter hid something. -->
+          <p class="text-sm text-ink-muted">
+            No applicants yet. Somebody becomes an applicant when they start an application; hired
+            drivers and their qualification files live under Driver Qualification.
+          </p>
+        </template>
         <template #cell-full_name="{ row }">
           <span class="font-medium text-ink">{{ row.full_name }}</span>
-          <span v-if="row.hire_date" class="ml-2 text-xs text-ink-muted">hired {{ row.hire_date }}</span>
+          <span class="ml-2 text-xs text-ink-muted">applied {{ row.applied_on }}</span>
+        </template>
+        <template #cell-stage="{ row }">
+          <span :class="[BADGE_BASE, toneClass(STAGE_TONE[row.stage as ApplicantStage])]">
+            {{ APPLICANT_STAGE_LABELS[row.stage as ApplicantStage] }}
+          </span>
+        </template>
+        <template #cell-outstanding="{ row }">
+          <span v-if="row.outstanding.length === 0" class="text-ink-muted">Nothing</span>
+          <span v-else class="text-ink-secondary">
+            {{ row.outstanding.map((r: keyof typeof APPLICANT_REQUIREMENT_LABELS) => APPLICANT_REQUIREMENT_LABELS[r]).join(", ") }}
+          </span>
         </template>
         <template #cell-employers="{ row }">
-          {{ row.employers_in_window }}<span class="text-ink-muted"> in window</span>
+          {{ row.employers_in_window }}<span class="text-ink-muted"> · {{ row.cmv_employers }} CMV</span>
         </template>
-        <template #cell-gap_days="{ row }">
-          <span :class="[BADGE_BASE, toneClass(fileBadge(row).tone)]">{{ fileBadge(row).label }}</span>
-        </template>
-        <template #cell-inquiries="{ row }">
-          <span v-if="row.inquiries_outstanding > 0" :class="[BADGE_BASE, toneClass('danger')]">
-            {{ row.inquiries_outstanding }} not sent
-          </span>
-          <span v-else-if="row.inquiries_awaiting > 0" :class="[BADGE_BASE, toneClass('warning')]">
-            {{ row.inquiries_awaiting }} awaiting
-          </span>
-          <span v-else-if="row.employers_in_window > 0" :class="[BADGE_BASE, toneClass('success')]">Complete</span>
-          <span v-else class="text-ink-muted">—</span>
-        </template>
-        <!-- Whether the driver can be screened at all (PSP, MVR, Clearinghouse) — the value itself
-             never leaves the roster API, only whether it is on file. -->
         <template #cell-screening="{ row }">
           <span v-if="row.date_of_birth_recorded" :class="[BADGE_BASE, toneClass('success')]">Ready</span>
           <span v-else :class="[BADGE_BASE, toneClass('caution')]">No date of birth</span>

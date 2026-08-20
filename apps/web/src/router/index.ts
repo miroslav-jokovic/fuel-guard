@@ -222,7 +222,7 @@ const routes: RouteRecordRaw[] = [
     path: "/recruitment",
     name: "recruitment",
     component: () => import("@/pages/RecruitmentPage.vue"),
-    meta: { requiresAuth: true, title: "Recruitment" },
+    meta: { requiresAuth: true, title: "Applicants" },
   },
   {
     path: "/driver-performance",
