@@ -86,6 +86,7 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   drug_test: "Drug test",
   alcohol_test: "Alcohol test",
   accident: "Accident record",
+  psp_report: "PSP crash and inspection record",
   other: "Other document",
 };
 
@@ -185,6 +186,24 @@ export const DQ_ITEMS: readonly DqItemSpec[] = [
     group: "hiring",
     scope: "always",
     retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
+  },
+  {
+    /**
+     * PSP is VOLUNTARY (D-PSP1). §391.23 requires the driving record and the previous-employer
+     * investigation; FMCSA's own screening programme is in neither list, so a carrier that never buys
+     * one has a lawful §391.51 file. Advisory, exactly like ELDT below and for the same reason —
+     * reporting it `missing` would paint every compliant driver red.
+     */
+    key: "psp_report",
+    label: "PSP crash and inspection record",
+    citation: "FMCSA Pre-Employment Screening Program (voluntary)",
+    source: "record",
+    evidenceKinds: ["psp_report"],
+    recurrence: "one_time",
+    group: "hiring",
+    scope: "always",
+    advisory: true,
+    retention: "Retained for the duration of employment plus 3 years (§391.51(c)) when kept.",
   },
   {
     key: "eldt",

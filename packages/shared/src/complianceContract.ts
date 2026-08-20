@@ -41,7 +41,7 @@ export const QUALIFICATION_RECORD_KINDS = [
   "employment_application", "mvr", "annual_mvr_review", "road_test",
   "cdl_equivalency", "previous_employer_inquiry", "previous_employer_response",
   "clearinghouse_full", "clearinghouse_limited", "eldt", "spe_certificate",
-  "medical_registry_verification", "drug_test", "alcohol_test", "accident",
+  "medical_registry_verification", "drug_test", "alcohol_test", "accident", "psp_report",
 ] as const;
 export const qualificationRecordKindSchema = z.enum(QUALIFICATION_RECORD_KINDS);
 export type QualificationRecordKind = (typeof QUALIFICATION_RECORD_KINDS)[number];

@@ -195,6 +195,9 @@ describe("restricted qualification records (Phase G)", () => {
     expect([...RESTRICTED_QUALIFICATION_KINDS].sort()).toEqual([
       "alcohol_test", "clearinghouse_full", "clearinghouse_limited",
       "drug_test", "previous_employer_inquiry", "previous_employer_response",
+      // 0217. Investigation history, not a testing record — so the recruiter who ordered it can
+      // read it, which is the whole reason the split exists.
+      "psp_report",
     ]);
   });
 
@@ -220,6 +223,9 @@ describe("restricted qualification records (Phase G)", () => {
 
   it("canReadRestrictedKind answers per KIND, because a recruiter's answer is no longer uniform", () => {
     expect(canReadRestrictedKind("previous_employer_response", "recruiter")).toBe(true);
+    // The recruiter spends the money on this one; they must be able to open it.
+    expect(canReadRestrictedKind("psp_report", "recruiter")).toBe(true);
+    expect(canReadRestrictedKind("psp_report", "dispatcher")).toBe(false);
     expect(canReadRestrictedKind("drug_test", "recruiter")).toBe(false);
     expect(canReadRestrictedKind("clearinghouse_full", "recruiter")).toBe(false);
     // An unrestricted kind is readable by anyone the section guard already admitted.

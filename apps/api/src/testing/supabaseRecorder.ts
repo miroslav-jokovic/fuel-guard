@@ -76,6 +76,13 @@ export interface SupabaseRecorder {
   writtenRows(table: string): Record<string, unknown>[];
   /** Every `.rpc()` call, in order. */
   rpcs(): Array<{ fn: string; args: unknown }>;
+  /**
+   * Every Storage call, in order — the THIRD surface a service writes to, after PostgREST and GoTrue.
+   * Added when the PSP order path filed a PDF: a fake with no `storage` makes `admin.storage.from()`
+   * throw, and a test that works around that by injecting the upload proves nothing about the code
+   * that ships.
+   */
+  storageCalls(): Array<{ bucket: string; fn: string; args: unknown[] }>;
   reset(): void;
 }
 
@@ -98,9 +105,12 @@ export function createSupabaseRecorder(opts: {
   rpc?: Record<string, unknown> | ((fn: string, args: unknown) => unknown);
   /** Scripted `auth.admin.*` responses (e.g. a createUser that fails); everything is recorded either way. */
   auth?: Record<string, (...args: any[]) => unknown>;
+  /** Scripted Storage responses, keyed by method (`upload`, `createSignedUrl`, …). */
+  storage?: Record<string, (...args: any[]) => unknown>;
 } = {}): SupabaseRecorder {
   const queries: RecordedQuery[] = [];
   const authCalls: RecordedAuthCall[] = [];
+  const storageOps: Array<{ bucket: string; fn: string; args: unknown[] }> = [];
   /** Per-table read cursor for `pages` fixtures. */
   const pageCursor = new Map<string, number>();
 
@@ -191,6 +201,23 @@ export function createSupabaseRecorder(opts: {
       const r = typeof opts.rpc === "function" ? opts.rpc(fn, args) : opts.rpc?.[fn];
       return { data: r ?? null, error: null };
     },
+    storage: {
+      from: (bucket: string) =>
+        new Proxy(
+          {},
+          {
+            get(_t, prop: string | symbol) {
+              if (typeof prop === "symbol") return undefined;
+              return async (...args: unknown[]) => {
+                storageOps.push({ bucket, fn: prop, args });
+                const handler = opts.storage?.[prop];
+                // Default is SUCCESS with no body — the shape `upload` returns on the happy path.
+                return handler ? await handler(...args) : { data: { path: String(args[0] ?? "") }, error: null };
+              };
+            },
+          },
+        ),
+    },
     auth: {
       // Any admin method is accepted and recorded — a credentials service writes to GoTrue as well as to
       // PostgREST, and "which auth call happened, with what" is exactly the kind of fact the old fakes
@@ -215,6 +242,7 @@ export function createSupabaseRecorder(opts: {
     client,
     queries,
     authCalls,
+    storageCalls: () => storageOps,
     forTable: (table: string) => queries.filter((q) => q.table === table),
     writes: () => queries.filter((q) => q.write !== null),
     writtenRows: (table: string) =>

@@ -97,7 +97,7 @@ describe("the capability registries agree with each other", () => {
   });
 
   it("covers every intent the ledger's CHECK constraint permits", () => {
-    const permitted = checkValuesFromMigrations(/check\s*\(\s*intent\s+in\s*\(([^)]*)\)/gi);
+    const permitted = checkValuesFromMigrations(/check\s*\(\s*intent\s+in\s*\(([^)]*)\)/gi, "efs_card_mutations");
     expect(permitted.length, "intent CHECK not found in the migration directory").toBeGreaterThan(0);
     const declared = new Set(Object.values(CARD_CAPABILITY_CONTRACTS).map((c) => c.intent));
     for (const intent of permitted) {
@@ -111,7 +111,7 @@ describe("the capability registries agree with each other", () => {
   });
 
   it("keeps the status vocabulary in step with the ledger's CHECK constraint", () => {
-    const permitted = checkValuesFromMigrations(/check\s*\(\s*status\s+in\s*\(([^)]*)\)/gi);
+    const permitted = checkValuesFromMigrations(/check\s*\(\s*status\s+in\s*\(([^)]*)\)/gi, "efs_card_mutations");
     expect(permitted.length, "status CHECK not found in the migration directory").toBeGreaterThan(0);
     // `cardMutationSchema.status` is `z.enum(CARD_MUTATION_STATUSES)`, and the drawer's history view
     // parses through it. A status the database accepts and this list omits is a row that renders as
@@ -289,12 +289,32 @@ describe("the capability registries agree with each other", () => {
  * 0190 widened the status CHECK four migrations after 0177 declared it; a single-file reader would
  * still be asserting the old five (docs/27 §7.2).
  */
-function checkValuesFromMigrations(pattern: RegExp): string[] {
+/**
+ * Read a CHECK constraint's permitted values out of the migration directory.
+ *
+ * `table` is not optional in spirit, even though the signature allows it. This used to take the LAST
+ * `check (status in (…))` in the whole directory and call it the card ledger's — which was true only
+ * by accident, because `0177_efs_card_mutations.sql` happened to be the highest-numbered file with
+ * one. `0216_psp_requests.sql` added a second status vocabulary and this test started asserting the
+ * card ledger's statuses against PSP's. Scoping to the table that owns the constraint is what makes
+ * the answer true rather than lucky.
+ *
+ * The scoping is heuristic — the nearest preceding `create table` / `alter table` names the owner —
+ * which is enough for this schema and is honest about being a regex over SQL rather than a parser.
+ */
+function checkValuesFromMigrations(pattern: RegExp, table?: string): string[] {
   const dir = fileURLToPath(new URL("../../../../supabase/migrations/", import.meta.url));
+  const TABLE_DECL = /(?:create|alter)\s+table(?:\s+if\s+not\s+exists)?\s+(?:public\.)?([a-z_][a-z0-9_]*)/gi;
   let values: string[] = [];
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
     const sql = readFileSync(`${dir}${file}`, "utf8");
+    if (table && !sql.includes(table)) continue;
+    // Where each table's DDL starts, so a match can be attributed to the table above it.
+    const decls = [...sql.matchAll(TABLE_DECL)].map((m) => ({ at: m.index ?? 0, name: m[1]! }));
     for (const match of sql.matchAll(new RegExp(pattern.source, pattern.flags))) {
+      const at = match.index ?? 0;
+      const owner = [...decls].reverse().find((d) => d.at < at)?.name;
+      if (table && owner !== table) continue;
       values = [...(match[1] ?? "").matchAll(/'([^']+)'/g)].map((m) => m[1]!);
     }
   }

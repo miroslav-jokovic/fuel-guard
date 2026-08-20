@@ -192,6 +192,13 @@ export const TESTING_RECORD_KINDS = [
 export const INVESTIGATION_HISTORY_KINDS = [
   "previous_employer_inquiry",
   "previous_employer_response",
+  /**
+   * The FMCSA PSP record (0217). Investigation history rather than a testing record, and the
+   * consequence is concrete: `canReadInvestigationHistory` includes the recruiter, so the person who
+   * spent the money can open the document. Filing it with the §382.401 records would have left a
+   * recruiter able to buy a report they are not permitted to read.
+   */
+  "psp_report",
 ] as const;
 
 /** Every kind that is restricted at all, from either rule. Order preserved from before the split so
