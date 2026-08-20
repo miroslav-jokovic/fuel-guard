@@ -181,6 +181,12 @@ export const RETENTION_FORBIDDEN = [
    * mutability is not the same axis as retention, and `drivers` sits on this list for the same reason.
    */
   "driver_employment_history",
+  /**
+   * The signed disclosures and authorizations (0215). The legal basis for a screening pull outlives
+   * the pull: an FCRA or §391.23 challenge asks what the driver was told and when they agreed, and a
+   * consent record that can be aged out is a consent record that cannot answer.
+   */
+  "driver_authorizations",
 ] as const;
 
 export interface RetentionTableResult {

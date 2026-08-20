@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@fuelguard/shared";
+import { DISCLOSURES } from "@fuelguard/shared";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
@@ -76,6 +77,9 @@ const seed = (over: { drivers?: unknown[]; history?: unknown[] } = {}): Supabase
           inquiry_status: "pending",
         },
       ],
+      // The recorder returns this row from `.select().single()` after an insert, the same way the
+      // employment fixture does — the assertions below read the WRITE, not this.
+      driver_authorizations: [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
       audit_logs: [],
     },
   });
@@ -237,6 +241,137 @@ describe("the fleet roster reports the SAME arithmetic the driver page does", ()
     };
     expect(body.drivers[0]!.employers).toBe(0);
     expect(body.drivers[0]!.inquiries_outstanding).toBe(0);
+  });
+});
+
+describe("authorizations (0215) — the legal basis for a screening pull", () => {
+  const grant = {
+    driver_id: DRIVER,
+    purpose: "psp",
+    method: "wet_signature",
+    signed_name: "A Driver",
+  };
+
+  it("scopes the read to the org and the driver", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    await call(`/drivers/${DRIVER}/authorizations`, { token: "admin" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  /**
+   * The whole point of the contract's shape: a caller says WHO signed and HOW, never WHAT they
+   * signed. A client-authored disclosure is worth nothing in an audit, and FCRA §604(b)(2) makes the
+   * wording legally load-bearing.
+   */
+  it("composes the disclosure server-side and ignores nothing, because the client cannot send one", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "recruiter",
+      body: JSON.stringify(grant),
+    });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written.disclosure_text).toBe(DISCLOSURES.psp.body);
+    expect(written.intent_statement).toBe(DISCLOSURES.psp.intent);
+    expect(written.disclosure_version).toBe(DISCLOSURES.psp.version);
+    expect(written.org_id).toBe(ORG);
+  });
+
+  it("rejects a body that tries to supply its own wording", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ ...grant, disclosure_text: "whatever we felt like" }),
+    });
+    expect(res.status).toBe(400);
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+  });
+
+  it("captures the ESIGN attribution evidence, which cannot be reconstructed later", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ ...grant, method: "esign", esign_consent: true }),
+    });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written.esign_consent_at).toBeTruthy();
+    expect(written.accepted_user_agent).toBeDefined();
+  });
+
+  it("refuses an e-signature without consent to transact electronically", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ ...grant, method: "esign" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("audits which instrument was signed, and never its text", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
+    const meta = rec.writtenRows("audit_logs")[0]!.meta as Record<string, unknown>;
+    expect(meta.purpose).toBe("psp");
+    expect(meta.disclosureVersion).toBe(DISCLOSURES.psp.version);
+    expect(JSON.stringify(meta)).not.toContain(DISCLOSURES.psp.body.slice(0, 40));
+  });
+
+  it("refuses to hang an authorization off another org's driver", async () => {
+    rec = createSupabaseRecorder({ tables: { drivers: [], driver_authorizations: [], audit_logs: [] } });
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify(grant),
+    });
+    expect(res.status).toBe(404);
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+  });
+
+  it("records a revocation as a ROW naming the grant, never as an edit", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER }],
+        driver_authorizations: [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
+        audit_logs: [],
+      },
+    });
+    holder.client = rec.client;
+    const res = await call("/authorizations/revoke", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ revokes: ROW, reason: "Applicant withdrew" }),
+    });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written.revokes).toBe(ROW);
+    expect(written.revoke_reason).toBe("Applicant withdrew");
+    // Append-only: nothing was updated.
+    expect(rec.forTable("driver_authorizations").filter((q) => q.write?.method === "update")).toHaveLength(0);
+  });
+
+  it("refuses a WRITE from a role that may only view", async () => {
+    for (const token of ["dispatcher", "auditor", "driver"]) {
+      rec = seed();
+      holder.client = rec.client;
+      const res = await call("/authorizations", {
+        method: "POST",
+        token,
+        body: JSON.stringify(grant),
+      });
+      expect(res.status).toBe(403);
+    }
   });
 });
 

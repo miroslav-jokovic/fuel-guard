@@ -58,6 +58,7 @@ export const employmentHistorySchema = z.object({
   started_on: z.string(),
   ended_on: z.string().nullable(),
   dot_regulated: z.boolean(),
+  operated_cmv: z.boolean().nullable(),
   subject_to_fmcsr: z.boolean().nullable(),
   safety_sensitive: z.boolean().nullable(),
   reason_for_leaving: z.string().nullable(),
@@ -93,6 +94,8 @@ const employmentFields = {
   started_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
   ended_on: isoDateSchema,
   dot_regulated: z.boolean().default(true),
+  /** §391.21(b)(11): did the applicant operate a CMV here? Nullish = not stated, never assumed. */
+  operated_cmv: z.boolean().nullish(),
   subject_to_fmcsr: z.boolean().nullish(),
   safety_sensitive: z.boolean().nullish(),
   reason_for_leaving: z.string().max(500).nullish(),
@@ -119,6 +122,7 @@ export const employmentHistoryUpdateSchema = z
     employer_name: employmentFields.employer_name.optional(),
     started_on: employmentFields.started_on.optional(),
     dot_regulated: z.boolean().optional(),
+    operated_cmv: z.boolean().nullish(),
     inquiry_status: z.enum(EMPLOYMENT_INQUIRY_STATUSES).optional(),
     source: z.enum(EMPLOYMENT_SOURCES).optional(),
   })
@@ -139,8 +143,11 @@ export const recruitmentRosterRowSchema = z.object({
   hire_date: z.string().nullable(),
   date_of_birth_recorded: z.boolean(),
   employers: z.number(),
+  /** §391.21(b)(10) — the 3 years, all employment. */
   employers_in_window: z.number(),
   gap_days: z.number(),
+  /** §391.21(b)(11) — years 3-10, CMV only. No gap figure: absence there is not a defect. */
+  cmv_employers: z.number(),
   inquiries_outstanding: z.number(),
   inquiries_awaiting: z.number(),
 });

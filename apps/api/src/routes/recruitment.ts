@@ -1,11 +1,16 @@
 import { Router } from "express";
 import {
+  DISCLOSURES,
+  authorizationGrantSchema,
+  authorizationRevokeSchema,
   employmentCoverage,
   employmentHistoryCreateSchema,
   employmentHistoryUpdateSchema,
   rolesThatCanView,
   rolesThatManage,
   type EmploymentHistoryCreate,
+  type AuthorizationGrant,
+  type AuthorizationRevoke,
   type EmploymentHistoryUpdate,
   type EmploymentPeriod,
 } from "@fuelguard/shared";
@@ -30,7 +35,7 @@ import { writeAudit } from "../lib/audit.js";
  */
 
 const HISTORY_COLS =
-  "id, driver_id, employer_name, usdot_number, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
+  "id, driver_id, employer_name, usdot_number, employer_city, employer_state, employer_phone, employer_email, position_held, started_on, ended_on, dot_regulated, operated_cmv, subject_to_fmcsr, safety_sensitive, reason_for_leaving, inquiry_status, inquiry_sent_on, inquiry_response_on, source, notes, created_at, updated_at";
 
 interface HistoryRow {
   id: string;
@@ -39,6 +44,7 @@ interface HistoryRow {
   started_on: string;
   ended_on: string | null;
   dot_regulated: boolean;
+  operated_cmv: boolean | null;
   inquiry_status: string;
 }
 
@@ -49,6 +55,7 @@ const toPeriod = (r: HistoryRow): EmploymentPeriod => ({
   startedOn: r.started_on,
   endedOn: r.ended_on,
   dotRegulated: r.dot_regulated,
+  operatedCmv: r.operated_cmv,
   inquiryStatus: r.inquiry_status as EmploymentPeriod["inquiryStatus"],
 });
 
@@ -119,8 +126,12 @@ export function recruitmentRouter(): Router {
           // list is a personal file printed 200 times over.
           date_of_birth_recorded: Boolean(d.date_of_birth),
           employers: own.length,
-          employers_in_window: coverage.employersInWindow,
-          gap_days: coverage.gaps.reduce((sum, g) => sum + g.days, 0),
+          // §391.21(b)(10) and (b)(11) are reported separately, and only the first carries a gap
+          // figure: (b)(11) asks for CMV jobs alone, so a stretch without one is somebody who was
+          // not driving, not a hole (HIRING-PLAN.md D-HIRE1).
+          employers_in_window: coverage.segmentA.employers,
+          gap_days: coverage.segmentA.gaps.reduce((sum, g) => sum + g.days, 0),
+          cmv_employers: coverage.segmentB.cmvEmployers,
           inquiries_outstanding: coverage.inquiriesOutstanding.length,
           inquiries_awaiting: coverage.inquiriesAwaitingResponse.length,
         };
@@ -294,6 +305,165 @@ export function recruitmentRouter(): Router {
       });
 
       res.json({ ok: true });
+    }),
+  );
+
+  // ── Authorizations (0215, H1) ─────────────────────────────────────────────────────────────────
+  //
+  // The legal basis for every screening pull. Nothing here is a checkbox: one row is one document,
+  // because FCRA §604(b)(2) requires the disclosure to consist SOLELY of the disclosure.
+
+  const AUTH_COLS =
+    "id, driver_id, purpose, disclosure_version, disclosure_text, method, signed_name, intent_statement, esign_consent_at, accepted_at, evidence_document_id, revokes, revoke_reason, created_at";
+
+  router.get(
+    "/drivers/:driverId/authorizations",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { data, error } = await admin
+        .from("driver_authorizations")
+        .select(AUTH_COLS)
+        .eq("org_id", req.auth!.orgId!)
+        .eq("driver_id", String(req.params.driverId ?? ""))
+        .order("accepted_at", { ascending: false });
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not load authorizations"));
+        return;
+      }
+      res.json({ authorizations: data ?? [] });
+    }),
+  );
+
+  router.post(
+    "/authorizations",
+    requireOrg,
+    canManage,
+    validateBody(authorizationGrantSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const body = res.locals.body as AuthorizationGrant;
+
+      const { data: driver } = await admin
+        .from("drivers")
+        .select("id")
+        .eq("id", body.driver_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!driver) {
+        res.status(404).json(apiError("not_found", "Driver not found"));
+        return;
+      }
+
+      // THE SERVER COMPOSES THE INSTRUMENT. The request carries who signed and how, never what they
+      // signed — a client-authored disclosure is worth nothing in an audit, and the contract has no
+      // field to send one in. Same rule as `hazmat_reviews.attestation` (0092, D8).
+      const doc = DISCLOSURES[body.purpose];
+
+      const { data, error } = await admin
+        .from("driver_authorizations")
+        .insert({
+          org_id: orgId,
+          driver_id: body.driver_id,
+          purpose: body.purpose,
+          disclosure_version: doc.version,
+          disclosure_text: doc.body,
+          intent_statement: doc.intent,
+          method: body.method,
+          signed_name: body.signed_name,
+          esign_consent_at: body.method === "esign" ? new Date().toISOString() : null,
+          // ESIGN attribution evidence. `trust proxy` is set in app.ts, so req.ip is the client's.
+          accepted_ip: req.ip ?? null,
+          accepted_user_agent: req.get("user-agent") ?? null,
+          evidence_document_id: body.evidence_document_id ?? null,
+          recorded_by: req.auth!.userId,
+        })
+        .select(AUTH_COLS)
+        .single();
+      if (error || !data) {
+        res.status(500).json(apiError("db_error", "Could not record the authorization"));
+        return;
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.authorization_recorded",
+        entity: "driver_authorizations",
+        entityId: data.id,
+        // The version, never the text: which instrument was signed is the auditable fact, and the
+        // row itself holds the wording. `signed_name` is the driver's name — not copied here.
+        meta: {
+          driverId: body.driver_id,
+          purpose: body.purpose,
+          disclosureVersion: doc.version,
+          method: body.method,
+        },
+      });
+
+      res.status(201).json({ authorization: data });
+    }),
+  );
+
+  /** Revocation is a ROW, not an edit — the table is append-only, and "what did we hold at the
+   *  moment we made the request" has to stay answerable. */
+  router.post(
+    "/authorizations/revoke",
+    requireOrg,
+    canManage,
+    validateBody(authorizationRevokeSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const body = res.locals.body as AuthorizationRevoke;
+
+      const { data: grant } = await admin
+        .from("driver_authorizations")
+        .select("id, driver_id, purpose, revokes")
+        .eq("id", body.revokes)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!grant || grant.revokes !== null) {
+        res.status(404).json(apiError("not_found", "Authorization not found"));
+        return;
+      }
+
+      const doc = DISCLOSURES[grant.purpose as keyof typeof DISCLOSURES];
+      const { data, error } = await admin
+        .from("driver_authorizations")
+        .insert({
+          org_id: orgId,
+          driver_id: grant.driver_id,
+          purpose: grant.purpose,
+          // Carried from the grant so the revocation names what was withdrawn, not a newer wording.
+          disclosure_version: doc?.version ?? "unknown",
+          disclosure_text: "",
+          intent_statement: "",
+          method: "verbal_documented",
+          signed_name: "",
+          revokes: grant.id,
+          revoke_reason: body.reason,
+          recorded_by: req.auth!.userId,
+        })
+        .select(AUTH_COLS)
+        .single();
+      if (error || !data) {
+        res.status(500).json(apiError("db_error", "Could not record the revocation"));
+        return;
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.authorization_revoked",
+        entity: "driver_authorizations",
+        entityId: data.id,
+        meta: { driverId: grant.driver_id, purpose: grant.purpose, revokes: grant.id },
+      });
+
+      res.status(201).json({ authorization: data });
     }),
   );
 

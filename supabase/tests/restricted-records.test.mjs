@@ -270,5 +270,42 @@ ok(
   await writeAs("admin", `update drivers set status = 'active' where id = '${GONE}'`),
 );
 
+// ── 0215: driver_authorizations — the legal basis, behind the same section boundary ─────────────
+const AUTH = (
+  await one(
+    `insert into driver_authorizations
+       (org_id, driver_id, purpose, disclosure_version, disclosure_text, method, signed_name, intent_statement)
+     values ($1, $2, 'psp', 'v0-draft', 'text', 'wet_signature', 'A Driver', 'I authorize')
+     returning id`,
+    [ORG, DRIVER],
+  )
+).id;
+const AUTHS = "select count(*)::int as n from driver_authorizations";
+await expect("recruiter reads the authorizations they collect", "recruiter", AUTHS, 1);
+await expect("auditor reads them — the basis for a pull is auditable", "auditor", AUTHS, 1);
+await expect("dispatcher reads none", "dispatcher", AUTHS, 0);
+ok(
+  "recruiter may record an authorization",
+  await writeAs(
+    "recruiter",
+    `insert into driver_authorizations
+       (org_id, driver_id, purpose, disclosure_version, disclosure_text, method, signed_name, intent_statement)
+     values ('${ORG}', '${DRIVER}', 'fcra_disclosure', 'v0-draft', 't', 'esign', 'A Driver', 'i')`,
+  ),
+);
+// Append-only: evidence of consent that can be edited is not evidence (CLAUDE.md). Asserted on the
+// ROW rather than on an exception — with RLS and no UPDATE/DELETE policy the statement matches zero
+// rows and SUCCEEDS, so "did it throw" would have passed while the row quietly changed.
+await writeAs("admin", `update driver_authorizations set signed_name = 'Someone Else' where id = '${AUTH}'`);
+ok(
+  "an UPDATE changes nothing — append-only by the absence of a policy",
+  (await one(`select signed_name from driver_authorizations where id = $1`, [AUTH])).signed_name === "A Driver",
+);
+await writeAs("admin", `delete from driver_authorizations where id = '${AUTH}'`);
+ok(
+  "a DELETE removes nothing",
+  Number((await one(`select count(*)::int as n from driver_authorizations where id = $1`, [AUTH])).n) === 1,
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
