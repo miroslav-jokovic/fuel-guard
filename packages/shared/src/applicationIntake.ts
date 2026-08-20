@@ -1,0 +1,164 @@
+import { z } from "zod";
+import { driverApplicationSchema, type ApplicationEmployer, type DriverApplication } from "./applicationContract.js";
+import { AUTHORIZATION_PURPOSES, type AuthorizationPurpose } from "./authorizationContract.js";
+
+/**
+ * The applicant-facing intake — invitation, submission, and what a submission becomes (H5).
+ *
+ * ── THE INVITATION IS A CREDENTIAL ─────────────────────────────────────────────────────────────
+ * The link is the only thing between an anonymous request and a form that accepts a date of birth
+ * and a Social Security number, so it is generated with 256 bits of entropy, stored only as a
+ * SHA-256, spent on first successful submission, and expires. `invites.token` (0033) is the
+ * counter-example this deliberately does not follow: it is stored in plaintext and never presented,
+ * which is safe only because it is inert.
+ *
+ * ── WHY THE TTL IS SHORT BY DEFAULT AND BOUNDED ABSOLUTELY ─────────────────────────────────────
+ * A hiring conversation is days, not months. Fourteen days covers "I'll do it this weekend" twice
+ * over; the 60-day ceiling exists because an invitation that outlives the vacancy is a live
+ * credential nobody is thinking about any more.
+ */
+
+export const INVITE_TTL_DAYS_DEFAULT = 14;
+export const INVITE_TTL_DAYS_MAX = 60;
+
+export const applicationInviteCreateSchema = z.object({
+  driver_id: z.uuid(),
+  /** Where the link is being sent, recorded so a recruiter can see who was invited. */
+  email: z.email().max(200).nullish(),
+  expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).default(INVITE_TTL_DAYS_DEFAULT),
+});
+export type ApplicationInviteCreate = z.infer<typeof applicationInviteCreateSchema>;
+
+/**
+ * §391.21(b)(2) requires the Social Security number on the application (D-HIRE6).
+ *
+ * Nine digits, and nothing clever: no formatting accepted, because a value that arrives three ways
+ * is a value stored three ways, and this is the one field in the product where a duplicate in the
+ * wrong format is a second copy of the worst thing we hold. Optional in the schema — a carrier whose
+ * MVR vendor accepts the last four should be able to collect nothing more, and that has to be the
+ * easy configuration rather than a discipline somebody remembers.
+ */
+export const ssnSchema = z.string().regex(/^\d{9}$/, "A Social Security number is nine digits");
+
+/** The four digits that may be stored in the clear. Everything else is sealed or discarded. */
+export const ssnLast4 = (ssn: string): string => ssn.slice(-4);
+
+export const applicationSubmitSchema = z.object({
+  application: driverApplicationSchema,
+  ssn: ssnSchema.nullish(),
+});
+export type ApplicationSubmit = z.infer<typeof applicationSubmitSchema>;
+
+/**
+ * One release, signed by the applicant.
+ *
+ * A separate call per instrument, which is D-HIRE3 expressed in the transport: FCRA §604(b)(2)
+ * requires the disclosure to be "in a document that consists SOLELY of the disclosure", and a
+ * request body carrying four consents at once is one document carrying four consents. The applicant
+ * sees one, signs one, sends one.
+ */
+export const applicationReleaseSchema = z.object({
+  purpose: z.enum(AUTHORIZATION_PURPOSES),
+  signed_name: z.string().min(1).max(200),
+  /** ESIGN intent, affirmed on the instrument itself — not inherited from the application. */
+  esign_consent: z.literal(true),
+});
+export type ApplicationRelease = z.infer<typeof applicationReleaseSchema>;
+
+/**
+ * Is this disclosure wording still a draft?
+ *
+ * Every instrument in `DISCLOSURES` ships as `v0-draft` placeholder text, written by an engineer,
+ * pending counsel (HIRING-PLAN Q-H3). The public signing endpoint refuses those versions, and the
+ * gate is deliberately tied to the HAZARD rather than to a feature flag: when real wording lands the
+ * versions become `v1` and the refusal disappears by itself. A flag would have to be remembered, and
+ * the thing to be remembered would be "stop collecting signatures on text no lawyer has read".
+ */
+export const isDraftDisclosure = (version: string): boolean => version.startsWith("v0");
+
+/** Purposes an applicant is asked to sign, in the order they are presented. */
+export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
+  "fcra_disclosure",
+  "psp",
+  "previous_employer",
+  "drug_alcohol",
+];
+
+// ── what a submission becomes ─────────────────────────────────────────────────
+
+/** The `drivers` columns the application can fill. Applied with coalesce — never overwriting. */
+export interface ApplicationDriverPatch {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  cdl_number: string;
+  cdl_state: string;
+}
+
+export interface ApplicationEmploymentRow {
+  employer_name: string;
+  usdot_number: string | null;
+  employer_city: string | null;
+  employer_state: string | null;
+  employer_phone: string | null;
+  position_held: string | null;
+  started_on: string;
+  ended_on: string | null;
+  dot_regulated: boolean;
+  operated_cmv: boolean;
+  reason_for_leaving: string | null;
+  /**
+   * §40.25(j)'s two questions, carried across rather than left in the payload. They decide what a
+   * previous-employer inquiry must ASK — a job that was not safety-sensitive owes no drug-and-alcohol
+   * history — so they belong on the row the inquiry is chased from, not only in the document.
+   */
+  subject_to_fmcsr: boolean | null;
+  safety_sensitive: boolean | null;
+}
+
+const employmentRow = (e: ApplicationEmployer): ApplicationEmploymentRow => ({
+  employer_name: e.employer_name,
+  usdot_number: e.usdot_number ?? null,
+  // The contract names these for the FORM the applicant fills in; the table names them for the
+  // employer they describe. Mapped once, here, rather than by a column rename that would break the
+  // §391.21(b) field labels a driver reads.
+  employer_city: e.city ?? null,
+  employer_state: e.state ?? null,
+  employer_phone: e.phone ?? null,
+  position_held: e.position_held ?? null,
+  started_on: e.started_on,
+  ended_on: e.ended_on ?? null,
+  dot_regulated: e.dot_regulated,
+  operated_cmv: e.operated_cmv,
+  reason_for_leaving: e.reason_for_leaving ?? null,
+  subject_to_fmcsr: e.subject_to_fmcsr ?? null,
+  safety_sensitive: e.safety_sensitive ?? null,
+});
+
+/**
+ * Project a certified application into the rows the rest of the product reads.
+ *
+ * ── EVERY DECLARED EMPLOYER BECOMES A ROW, INCLUDING THE ONES OUTSIDE BOTH WINDOWS ─────────────
+ * `employmentSegments` decides what the applicant was REQUIRED to list. This decides what they DID
+ * list, and the two are not the same question. Dropping an employer because it fell outside
+ * §391.21(b)(10)-(11) would delete part of a document somebody certified as true and complete, and
+ * would also throw away the corroboration the PSP cross-match needs — an inspection under a carrier
+ * the applicant mentioned voluntarily still corroborates.
+ *
+ * The application row keeps the document whole regardless; this is about what becomes queryable.
+ */
+export function planApplicationIntake(application: DriverApplication): {
+  driverPatch: ApplicationDriverPatch;
+  employment: ApplicationEmploymentRow[];
+} {
+  return {
+    driverPatch: {
+      first_name: application.first_name,
+      last_name: application.last_name,
+      date_of_birth: application.date_of_birth as string,
+      cdl_number: application.cdl_number,
+      cdl_state: application.cdl_state,
+    },
+    employment: application.employers.map(employmentRow),
+  };
+}

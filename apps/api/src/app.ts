@@ -43,6 +43,7 @@ import { jobsRouter } from "./routes/jobs.js";
 import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { publicHazmatRouter } from "./routes/publicHazmat.js";
+import { publicApplicationRouter } from "./routes/publicApplication.js";
 import { complianceRouter } from "./routes/compliance.js";
 import { driverAppSettingsRouter } from "./routes/driverAppSettings.js";
 import { meRouter } from "./routes/me.js";
@@ -130,6 +131,24 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
  * app.locals.verifyToken to bypass real JWKS verification.
  */
+/**
+ * The two unauthenticated surfaces, mounted together so the risk they share is stated once.
+ *
+ * Both answer requests from nobody. The hazmat calculator persists nothing and reasons about
+ * chemicals; the application intake accepts a date of birth, a licence number and possibly a Social
+ * Security number, so it takes a tighter bucket of its own. A 256-bit token is not guessable at 20
+ * tries a minute or at 20 million — the limit is what stops a leaked link being replayed at volume
+ * while it is still live, and what keeps an anonymous caller from mapping the surface.
+ */
+function mountPublic(app: Express): void {
+  app.use("/api/public/hazmat", publicHazmatRouter());
+  app.use(
+    "/api/public/application",
+    rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }),
+    publicApplicationRouter(),
+  );
+}
+
 export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });
@@ -286,7 +305,7 @@ export function createApp(env: Env): Express {
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
-  app.use("/api/public/hazmat", publicHazmatRouter()); // M7: public, unauthenticated calculator + HMT lookup
+  mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)

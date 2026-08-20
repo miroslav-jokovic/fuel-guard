@@ -170,6 +170,15 @@ export const RETENTION_FORBIDDEN = [
   "certifications",
   "qualification_records",
   "documents",
+  /**
+   * H5 — the §391.21 application and the invitation that produced it. The application is the
+   * document the applicant CERTIFIED as true and complete, and every §391.23 inquiry, the PSP
+   * cross-match and the §391.51(b)(1) record all point back at it; pruning it would leave the file
+   * citing evidence that no longer exists. The invitation stays because it is the provenance of an
+   * unauthenticated signature — who was invited, when it expired, when it was spent.
+   */
+  "driver_applications",
+  "application_invitations",
   /** The export ledger (0152). The bytes expire after seven days; the row that says who pulled a
    *  driver's medical card out of the system does not (D-BD9). */
   "dq_exports",
