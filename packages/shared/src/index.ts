@@ -77,6 +77,8 @@ export * from "./authorizationContract.js";
 export * from "./applicationContract.js";
 export * from "./applicantPipeline.js";
 export * from "./hireHandoff.js";
+export * from "./psp/order.js";
+export * from "./psp/provenance.js";
 export * from "./psp/status.js";
 export * from "./psp/validate.js";
 export * from "./psp/parse.js";

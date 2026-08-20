@@ -252,7 +252,7 @@ pattern when it hit the 500-line budget.
 **H7 · PSP client + the cross-match** — PSP-PLAN P2–P7, then P13, now unblocked by H1.
 **Done when:** PSP-PLAN's own done-whens, plus: a corroboration report distinguishes the two segments
 and never reports a Segment B gap.
-**P2, P4–P7, P13 and P14 done 2026-08-19.** P14 is the import path for records the carrier already
+**P2, P4–P7, P13 and P14 done 2026-08-19; P9 done 2026-08-20.** P14 is the import path for records the carrier already
 bought on the portal — no vendor call, no fee, and the only way those PDFs can enter the file, since
 no PSP endpoint lists past transactions. It satisfies the file and does NOT feed the cross-match: an
 imported PDF has been read by nobody, and PSP-PLAN D-PSP9 says why an invented `inspections: 0` would

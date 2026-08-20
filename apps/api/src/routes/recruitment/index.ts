@@ -2,6 +2,7 @@ import { Router } from "express";
 import { recruitmentEmploymentRouter } from "./employment.js";
 import { recruitmentAuthorizationsRouter } from "./authorizations.js";
 import { recruitmentPspRouter } from "./psp.js";
+import { recruitmentPspOrdersRouter } from "./pspOrders.js";
 import { recruitmentHireRouter } from "./hire.js";
 
 /**
@@ -18,6 +19,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentEmploymentRouter()); // applicant pipeline + §391.21(b)(10)-(11) history
   router.use(recruitmentAuthorizationsRouter()); // the signed disclosures a screening pull needs
   router.use(recruitmentPspRouter()); // PSP records already bought on the portal (P14)
+  router.use(recruitmentPspOrdersRouter()); // ordering a record, which spends money (P9)
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
   return router;
 }

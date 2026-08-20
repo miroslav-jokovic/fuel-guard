@@ -2,7 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DOCUMENTS_BUCKET,
+  PSP_STATUS,
   documentStoragePath,
+  PSP_SOURCE_API,
   isCleanRecord,
   missingAuthorizations,
   validatePspRequest,
@@ -43,16 +45,33 @@ export interface PspOrderResult {
   clean: boolean;
 }
 
-export interface PspOrderInput {
+/**
+ * What the GATES need, which is less than an order needs.
+ *
+ * Split out so the preflight does not have to invent a user id it has no use for. It used to pass
+ * `userId: ""`, and a fabricated value in a struct is the kind of thing that is harmless until
+ * somebody adds a gate that reads it.
+ */
+export interface PspGateInput {
   orgId: string;
   driverId: string;
-  userId: string;
   /** Whether the caller presented a fresh re-authentication on THIS request. */
   stepUp: boolean;
-  /** §5.4.1 requires it and never defines it for a system-to-system caller (PSP-PLAN Q4). */
+  /**
+   * Request-SHAPING rather than gate-deciding, but the gates hand back the draft they validated, so
+   * the draft's inputs belong here. Both are optional: the preflight builds a draft only to run the
+   * validator over it and never sends one.
+   *
+   * §5.4.1 requires `userIPAddress` and never defines it for a system-to-system caller (Q4).
+   * `monitor` enrols the transaction in 45-day monitoring — off unless asked for; §6 explains why,
+   * and nothing asks for it until P8 exists to read what it reports.
+   */
   userIPAddress?: string | null;
-  /** §5.4.1 — enrol in 45-day monitoring. Off unless asked for; §6 explains why. */
   monitor?: boolean;
+}
+
+export interface PspOrderInput extends PspGateInput {
+  userId: string;
 }
 
 interface DriverRow {
@@ -113,12 +132,21 @@ function redactRequest(draft: PspRequestDraft): Record<string, unknown> {
   };
 }
 
-/** Every refusal, in the order legality → authority → budget → correctness. */
+/**
+ * Every refusal, in the order legality → authority → budget → correctness.
+ *
+ * `opts.authority` exists for the preflight, which asks what stands in the way BEFORE anybody has
+ * been asked for a password. It used to get that answer by passing `stepUp: true` — asserting
+ * something false to skip a check — and this says the same thing truthfully: run every gate except
+ * the one about who is asking. The ORDER path never passes it, so there is no way to skip the
+ * password on a request that spends money.
+ */
 export async function checkPspGates(
   admin: SupabaseClient,
   env: Env,
-  input: PspOrderInput,
+  input: PspGateInput,
   driver: DriverRow,
+  opts: { authority?: boolean } = {},
 ): Promise<PspRefusal | { draft: PspRequestDraft }> {
   if (!env.PSP_ORDERS_ENABLED) {
     return { code: "psp_disabled", message: "PSP ordering is switched off for this deployment." };
@@ -145,7 +173,7 @@ export async function checkPspGates(
   }
 
   // 2. AUTHORITY. It spends money and pulls a person's record.
-  if (!input.stepUp) {
+  if (opts.authority !== false && !input.stepUp) {
     return { code: "step_up_required", message: "Confirm your password to order a PSP record." };
   }
 
@@ -242,7 +270,16 @@ async function ingestReport(
       document_id: documentId,
       // The projection, never the raw response: `psp_requests.response_raw` is the evidence, and a
       // second whole copy in the file would be a second thing to redact and to purge.
-      detail: { summary: report.summary, inspections: report.inspections.length, crashes: report.crashes.length },
+      //
+      // `source` is STATED here rather than inferred downstream (P9). A reader cannot tell an
+      // ordered record for a driver with no inspections from an unread import by looking at the
+      // counts, because both have none — see psp/provenance.ts.
+      detail: {
+        source: PSP_SOURCE_API,
+        summary: report.summary,
+        inspections: report.inspections.length,
+        crashes: report.crashes.length,
+      },
       created_by: input.userId,
     })
     .select("id")
@@ -294,6 +331,10 @@ export async function orderPspRecord(
       internal_ref_id: draft.internalRefId,
       idempotency_key: idempotencyKey,
       request_body: redactRequest(draft),
+      // The rate at the moment we decided to spend (0219). Stamped here rather than at settle so it
+      // survives a settle that never completes, and null when nobody has told us the price (Q2) —
+      // which reads as "we were not told", not as "free".
+      unit_price_usd: env.PSP_UNIT_PRICE_USD ?? null,
       status: "sent",
       monitor: draft.monitor === true,
       created_by: input.userId,
@@ -370,3 +411,57 @@ export async function orderPspRecord(
 
 export { billedThisMonth, nameParts, redactRequest, ingestReport };
 export type { DriverRow };
+
+/**
+ * What ordering this record would cost and what stands in its way — P9's confirmation, computed
+ * without touching the vendor.
+ *
+ * ── STEP-UP IS NOT REPORTED AS A BLOCKER HERE ──────────────────────────────────────────────────
+ * `checkPspGates` refuses in the order legality → authority → budget → correctness, and the preview
+ * runs it with `stepUp: true` on purpose. Asking somebody to re-type their password and only THEN
+ * telling them the driver never signed the disclosure is the wrong order to learn things in. The
+ * password is the last step before spending, not the first step towards finding out whether we may.
+ */
+export async function pspOrderPreflight(
+  admin: SupabaseClient,
+  env: Env,
+  input: { orgId: string; driverId: string },
+): Promise<{
+  enabled: boolean;
+  environment: string;
+  budget: { used: number; limit: number; remaining: number };
+  unitPriceUsd: number | null;
+  /** The §8.5 outcomes that carry the transaction fee, read from the status table, never listed here. */
+  billsOn: string[];
+  refusal: PspRefusal | null;
+}> {
+  const used = await billedThisMonth(admin, input.orgId, new Date());
+  const budget = { used, limit: env.PSP_MONTHLY_LIMIT, remaining: Math.max(0, env.PSP_MONTHLY_LIMIT - used) };
+  const billsOn = Object.values(PSP_STATUS).filter((s) => s.billed).map((s) => s.outcome);
+
+  const { data: driver } = await admin
+    .from("drivers")
+    .select(DRIVER_COLS)
+    .eq("id", input.driverId)
+    .eq("org_id", input.orgId)
+    .maybeSingle();
+
+  const base = {
+    enabled: env.PSP_ORDERS_ENABLED && Boolean(env.PSP_API_KEY),
+    environment: env.PSP_ENVIRONMENT,
+    budget,
+    unitPriceUsd: env.PSP_UNIT_PRICE_USD ?? null,
+    billsOn,
+  };
+  if (!driver) {
+    return { ...base, refusal: { code: "invalid_request", message: "Driver not found", issues: [] } };
+  }
+
+  const gated = await checkPspGates(
+    admin, env,
+    { orgId: input.orgId, driverId: input.driverId, stepUp: false },
+    driver as DriverRow,
+    { authority: false },
+  );
+  return { ...base, refusal: "code" in gated ? gated : null };
+}

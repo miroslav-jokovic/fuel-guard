@@ -49,6 +49,13 @@ const createRecord = useCreateQualificationRecord();
 const upload = useUploadDocument();
 
 const spec = computed(() => DQ_ITEMS.find((i) => i.key === props.itemKey) ?? null);
+/**
+ * PSP is filed by its own two paths and refused by this one (0219's CHECK, mirrored in the contract).
+ * A record here would have no `detail.source`, and provenance is what tells a later reader whether
+ * the row carries structured data or is a PDF nobody has read. So the drawer points rather than
+ * offering a form that cannot succeed.
+ */
+const isPspReport = computed(() => spec.value?.key === "psp_report");
 const isCertification = computed(() => spec.value?.source === "certification");
 const isEndorsement = computed(() => spec.value?.evidenceKinds[0] === "endorsement");
 const isTraining = computed(() => spec.value?.evidenceKinds[0] === "hazmat_training");
@@ -182,7 +189,13 @@ async function save(): Promise<void> {
 
 <template>
   <SlideOver :open="open" size="lg" :title="spec?.label ?? 'Requirement'" @close="emit('close')">
-    <div v-if="spec" class="space-y-6">
+    <p v-if="isPspReport" class="text-sm text-ink-muted">
+      PSP records are filed from the driver's Employment tab — import the PDF you bought on the FMCSA
+      portal, or order a fresh record there. Both record where the report came from, which this form
+      cannot.
+    </p>
+
+    <div v-else-if="spec" class="space-y-6">
       <div class="space-y-4">
         <template v-if="isCertification">
           <FormField
@@ -315,8 +328,10 @@ async function save(): Promise<void> {
 
     <template #footer>
       <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="saving || !ready" @click="save">
+        <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">
+          {{ isPspReport ? "Close" : "Cancel" }}
+        </BaseButton>
+        <BaseButton v-if="!isPspReport" variant="primary" :disabled="saving || !ready" @click="save">
           <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
           {{ saving ? "Saving…" : "Record it" }}
         </BaseButton>

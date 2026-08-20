@@ -195,7 +195,29 @@ export const qualificationRecordCreateSchema = z.object({
   reference: z.string().max(200).nullish(),
   documentId: z.uuid().nullish(),
   detail: z.record(z.string(), z.unknown()).default({}),
-});
+})
+  .superRefine((v, ctx) => {
+    /**
+     * A PSP record cannot be filed through the generic endpoint (0219).
+     *
+     * The CHECK constraint added there requires `detail.source` on every `psp_report` row, because
+     * provenance is what tells a reader whether the row carries structured data or is an unread PDF
+     * (P9). This form has no field for it and no way to know the answer, so without this rule the
+     * request would reach Postgres, violate the constraint, and come back as a 500 — a database
+     * error where the honest answer is "that is not this endpoint's job".
+     *
+     * The two paths that legitimately write one both state their source and neither comes through
+     * here: `/api/recruitment/psp-orders` (ordered) and `/api/recruitment/psp-imports` (portal PDF).
+     */
+    if (v.kind === "psp_report") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["kind"],
+        message:
+          "File a PSP record from the driver's Employment tab — import the PDF you bought, or order one",
+      });
+    }
+  });
 export type QualificationRecordCreateRequest = z.infer<typeof qualificationRecordCreateSchema>;
 
 export const qualificationRecordRowSchema = z.object({

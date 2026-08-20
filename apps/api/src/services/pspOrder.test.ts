@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { loadEnv } from "../env.js";
 import { PspError } from "../psp/client.js";
-import { orderPspRecord, type PspOrderInput } from "./pspOrder.js";
+import { orderPspRecord, pspOrderPreflight, type PspOrderInput } from "./pspOrder.js";
 
 /**
  * The order path. §8 charges the transaction fee on Success, Partial AND Failure, so every assertion
@@ -225,5 +225,58 @@ describe("the order itself", () => {
     const out = await orderPspRecord(rec.client, env(), input, d);
     expect((out as { recordId: string | null }).recordId).toBe("rec-1");
     expect(rec.writtenRows("documents")).toHaveLength(0);
+  });
+});
+
+/**
+ * 0219's hardening, from the service side.
+ *
+ * The price is the half of invoice reconciliation `billed` does not carry: WHETHER PSP charged is a
+ * fact about the transaction, WHAT the rate was is a fact about the day, and only the row can hold
+ * the second one. A deployment nobody has told the price stores null — which reads as "we were not
+ * told", never as "free".
+ */
+describe("what the ledger row records about money", () => {
+  it("stamps the rate in effect when the request was made", async () => {
+    const rec = seed();
+    await orderPspRecord(rec.client, env({ PSP_UNIT_PRICE_USD: "12.5" }), input, deps());
+    expect(rec.writtenRows("psp_requests")[0]!.unit_price_usd).toBe(12.5);
+  });
+
+  it("stores null when nobody has told us the price, rather than zero", async () => {
+    const rec = seed();
+    await orderPspRecord(rec.client, env(), input, deps());
+    expect(rec.writtenRows("psp_requests")[0]!.unit_price_usd).toBeNull();
+  });
+});
+
+/**
+ * The preflight asks the same gates the order asks, minus the one about who is asking — and it says
+ * so with `{ authority: false }` rather than by claiming a step-up that has not happened.
+ */
+describe("the preflight", () => {
+  it("names the missing release instead of asking for a password first", async () => {
+    const rec = seed({ auths: [] });
+    const out = await pspOrderPreflight(rec.client, env(), { orgId: ORG, driverId: DRIVER });
+    expect(out.refusal?.code).toBe("authorization_missing");
+  });
+
+  it("never answers step_up_required, whatever else is wrong", async () => {
+    const rec = seed({ auths: [] });
+    const out = await pspOrderPreflight(rec.client, env(), { orgId: ORG, driverId: DRIVER });
+    expect(out.refusal?.code).not.toBe("step_up_required");
+  });
+
+  it("reads the billing outcomes from the §8.5 table rather than a second list", async () => {
+    const rec = seed();
+    const out = await pspOrderPreflight(rec.client, env(), { orgId: ORG, driverId: DRIVER });
+    expect([...out.billsOn].sort()).toEqual(["failure", "partial", "success"]);
+  });
+
+  it("makes no vendor call and writes nothing", async () => {
+    const rec = seed();
+    await pspOrderPreflight(rec.client, env(), { orgId: ORG, driverId: DRIVER });
+    expect(rec.writes()).toHaveLength(0);
+    expectOrgScoped(rec, ORG);
   });
 });
