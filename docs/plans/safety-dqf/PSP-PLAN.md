@@ -995,8 +995,22 @@ confirmation that states the cost.
   agreement; a UAT token means we can build the whole path today against the guide's own test data
   (§9.1.1: SUSAN GODFREY / PA, GARY THOMAS / GA+PA, JOSE DAVIS / VA, `dotNumber` 43586). **If it is a
   production token, get a UAT one before anyone writes a client.**
-- **Q2 — What is the per-transaction price, and what is the monthly ceiling MJ wants?** P6's budget
-  gate needs a number, and the answer decides whether PSP is per-hire or fleet-wide.
+- ~~**Q2 — What is the per-transaction price?**~~ **Answered 2026-08-20, from the carrier's own July
+  invoice (`docs/psp-docs/Invoice-072026.pdf`, gitignored): $10.00 per record.** 93 searches, $930.00,
+  billed to customer account 13737 and itemised **per user email** rather than per carrier — so the
+  invoice attributes spend to the person who ordered. FMCSA's published schedule agrees and adds an
+  annual subscription the invoice does not itemise: $100 for carriers with 100+ power units, $25
+  below that. `PSP_UNIT_PRICE_USD=10` in production is therefore correct rather than assumed.
+  **The monthly ceiling is still MJ's to set** — `PSP_MONTHLY_LIMIT` defaults to 50, and the invoice
+  shows 93 searches in July, so the default would have stopped that month's real work at roughly half.
+- **Q2b — Does the UAT environment bill?** **Unresolved, and researched rather than assumed.** The
+  guide's §8 says accounts are charged for Success, Partial and Failure with **no environment
+  qualifier anywhere in v3.9**; FMCSA's public pages describe only the production schedule; and the
+  test environment is not publicly documented at all. What is known: UAT is a **separate account**
+  (`Silvicom, Inc - UAT`, motorCarrierId 31496) from the invoiced production account 13737, the test
+  drivers are synthetic, and support issued the account expressly to be exercised. That is strong
+  circumstantial evidence and not a vendor statement. The billing contact is on the invoice —
+  **PSPBilling@tylertech.com** — and it is a better address for this than PSPhelp.
 - ~~**Q3 — What is "the PAI key" for?**~~ **Answered 2026-08-19 (MJ): the Pilot API, for fuel
   prices.** Unrelated to driver qualification — it belongs beside `pilotPriceIngest.ts` /
   `postedPriceIngest.ts`, not in this plan or in Phase E. Nothing here waits on it.

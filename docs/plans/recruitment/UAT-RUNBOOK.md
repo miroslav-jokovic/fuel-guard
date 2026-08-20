@@ -434,6 +434,40 @@ have called production while believing it was UAT. `VITE_*` is baked at build ti
 requires a rebuild rather than a restart. `ALLOWED_ORIGINS` and `WEB_APP_URL` were likewise still
 production URLs and now name the UAT web origin.
 
+## 5.6 Does UAT bill? (researched 2026-08-20)
+
+**No source says it does, and no source says it does not.** Written down because "UAT is free" has
+been assumed out loud several times and the assumption has never been checked.
+
+| Source | What it says |
+|---|---|
+| Guide v3.9 §8 | *"Accounts are charged the transaction fee for 'Success,' 'Partial' and 'Failure'"* — **no environment qualifier anywhere in the document** |
+| Guide §9 | A "build a sample API client in the test environment" walkthrough, i.e. the environment exists to be exercised |
+| FMCSA public pages | $10 per search plus an annual subscription — $100 at 100+ power units, $25 below. Production only; the test environment is not publicly documented at all |
+| The carrier's July invoice | $10.00 × 93 searches = $930.00, customer account **13737**, itemised per user email |
+
+**What the invoice settles and what it cannot.** It confirms the production rate, so
+`PSP_UNIT_PRICE_USD=10` is measured rather than guessed (PSP-PLAN Q2 is now answered). It cannot
+speak to UAT: it is dated 07/31/2026, and the UAT account did not exist until 2026-08-20.
+
+**The circumstantial case that UAT is free** — a separate account (`Silvicom, Inc - UAT`,
+motorCarrierId 31496) from the invoiced production account 13737; synthetic test drivers with no real
+record behind them; a workbook of 107 scenarios support supplied expressly to be run. Sixteen orders
+were placed on 2026-08-20 and no charge has appeared. None of that is a vendor statement.
+
+**`PSP_UNIT_PRICE_USD` is therefore unset in the UAT environment.** It was inherited from the
+duplicate and would have made the confirmation screen say *"$10.00 per record"* on every test order —
+a number that is right for production and, on the balance of evidence, wrong there. Unset, the drawer
+says the price is not configured, which is the honest state.
+
+The screen still says the transaction *bills*, because `billsOn` comes from the §8.5 status table and
+that table has no environment column. Making it say otherwise would mean writing "no charge" into
+product copy on an unverified premise, which is the same mistake in the other direction.
+
+**To settle it**, ask **PSPBilling@tylertech.com** (the address on the invoice, better suited than
+PSPhelp): does the UAT account `Silvicom, Inc - UAT` (motorCarrierId 31496) accrue transaction fees,
+or is it exempt? Worth answering before production, where the same question has real money behind it.
+
 ### Moving to production, when the time comes
 
 Support asked to be told, and to **issue a fresh token** for production. Note `GET /Token` **mints** —
