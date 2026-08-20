@@ -4,6 +4,7 @@ import { recruitmentAuthorizationsRouter } from "./authorizations.js";
 import { recruitmentPspRouter } from "./psp.js";
 import { recruitmentPspOrdersRouter } from "./pspOrders.js";
 import { recruitmentHireRouter } from "./hire.js";
+import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -20,6 +21,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentAuthorizationsRouter()); // the signed disclosures a screening pull needs
   router.use(recruitmentPspRouter()); // PSP records already bought on the portal (P14)
   router.use(recruitmentPspOrdersRouter()); // ordering a record, which spends money (P9)
+  router.use(recruitmentApplicationInvitesRouter()); // the link that carries an applicant to the form (H5)
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
   return router;
 }

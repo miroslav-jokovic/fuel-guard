@@ -225,6 +225,42 @@ of D-HIRE6, the releases as separate signed documents per D-HIRE3.
 **Done when:** a used or expired token is refused, a submitted application is immutable, and the four
 releases exist as four rows with four disclosure versions.
 
+**H5a — the intake, server side — DONE 2026-08-20 (migration 0220).** The applicant-facing web page
+is H5b and is not built yet.
+
+**The invitation is a credential and is stored like one.** 256 bits, SHA-256 in the table, compared
+in constant time, single-use, expiring — default 14 days, hard ceiling 60. `invites.token` (0033) is
+the counter-example: plaintext, and safe only because `routes/invites.ts:308` records that it is
+never presented. This one IS presented, and it is the only thing between an anonymous request and a
+form that accepts a date of birth and a Social Security number.
+
+**Every bad link fails identically.** Expired, revoked, spent, never existed → one code, one message,
+one 404. Distinguishing them would let an anonymous caller learn that a token EXISTED, which is a
+fact about a person applying for a job at a named carrier. A test enumerates all four and asserts the
+message is byte-identical.
+
+**Submission is one transaction** (`submit_driver_application`): the application is filed, the
+invitation is spent, the driver's identity fields are filled, the employment list becomes rows, and
+the §391.51(b)(1) record cites the application. The driver patch uses `coalesce` on the TARGET side —
+a licence number a recruiter already typed off the physical card survives the applicant's answer.
+
+**D-HIRE6, implemented as stated.** Nine digits or nothing; the last four in a column; the full value
+ONLY as a secretBox envelope bound to the org. Where sealing is not configured the full value is
+**dropped**, not stored in the clear — a deployment without an encryption key must not be the one
+that keeps nine digits readable. A test asserts the number never reaches the transaction's arguments.
+
+**Q-H3 is enforced in code, not by a flag.** `isDraftDisclosure(version)` refuses to record a
+signature on any instrument whose version starts with `v0`, and every shipped disclosure is
+`v0-draft`. **So the release-signing endpoint currently refuses everything, on purpose.** The gate is
+tied to the hazard rather than to a switch: when counsel's wording lands and the versions become
+`v1`, it opens by itself. A flag would have to be remembered, and what would need remembering is
+"stop collecting signatures on text no lawyer has read". The applicant's page is told which
+instruments are draft, so H5b can say so rather than presenting an unsignable form.
+
+**Immutable at the database level.** `driver_applications` raises on UPDATE and DELETE (DA010): a
+certification somebody can edit afterwards is not a certification. A correction is a new
+application.
+
 **H6 · Recruitment becomes a pipeline — DONE 2026-08-19.**
 
 `/api/recruitment/pipeline` lists **applicants**, not drivers, and that boundary is what removes the
