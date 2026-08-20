@@ -557,6 +557,37 @@ switch whose consequence nothing listens to is not a feature.
 **Ordering remains OFF.** `PSP_ORDERS_ENABLED` defaults to false, and a route test pins that a
 deployment with a key configured still refuses with 503 and writes no ledger row.
 
+#### P9a · The hardening, before the first order (migration 0219)
+
+Three gaps in the above, closed while `psp_requests` is empty and there are **zero** `psp_report`
+records in production — each one cheap now and expensive after the first purchase.
+
+**The rate goes on the row.** `PSP_UNIT_PRICE_USD` is deployment configuration: one value, correct
+only right now. A vendor price change silently re-prices every past row. `billed` records WHETHER PSP
+charged; `psp_requests.unit_price_usd` now records WHAT the rate was, stamped at INSERT — before the
+vendor call, so it survives a settle that never completes — and null when nobody has told us (Q2),
+which reads as "we were not told", never as "free". **This is the half of invoice reconciliation the
+boolean cannot carry.** A per-org rate table with effective dates is the enterprise shape and is
+deliberately NOT built: the price is still unknown, and a second source for it would be the drift
+this column exists to prevent. The snapshot means adding one later needs no rework.
+
+**`{ authority: false }` replaces `stepUp: true`.** The preflight used to skip the password gate by
+asserting a step-up that had not happened. `checkPspGates` now takes an explicit gate selection, and
+the input type it needs (`PspGateInput`) no longer includes the `userId` the preflight had to invent.
+The order path never passes the flag, so nothing can skip the password on a request that spends.
+
+**Provenance became a closed set.** A CHECK on `qualification_records` requires
+`detail.source in ('psp_api','portal_import')` for `kind = 'psp_report'`. `pspRecordSource` stays
+defensive about `unknown` for rows written before it, but nothing new may omit it. **Written the
+wrong way first:** `detail ->> 'source' in (...)` is NULL when the key is absent, a CHECK passes on
+NULL, and the constraint would have caught a typo while waving through the omission — the likelier
+mistake. `coalesce(..., '')` is the fix and the behavioural matrix is what caught it.
+
+The consequence, handled rather than discovered in production: the generic
+`POST /api/compliance/qualification-records` can no longer file a PSP record — it has no field for
+the source and no way to know it. The contract refuses it with a message naming the two paths that
+can, and the requirement drawer points there instead of offering a form that cannot succeed.
+
 ### P10 · Second consumer — the risk signal, only once P7 is real
 `driverInfoSummary.driverOOSRate` into `services/entityRisk.ts` / `driverScore.ts`, read from
 `qualification_records.detail` and not from any PSP table (§3.1(c)). Listed last on purpose: it is the

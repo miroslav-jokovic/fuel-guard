@@ -347,5 +347,43 @@ try {
 }
 ok("a second in-flight request for the same driver is refused", !secondInFlight);
 
+
+// ── 0219: provenance is a closed set, and the rate is on the row ───────────────────────────────
+// P9 made the source of a PSP record a written field rather than a heuristic, and `pspRecordSource`
+// answers `unknown` for anything it does not recognise. That reader stays defensive for rows written
+// before this constraint — but there is no reason to keep ACCEPTING new rows that do not say. The
+// failure this closes is a typo: `psp-api` in a jsonb blob writes successfully and then reads as
+// unknown forever, in the field that decides whether a UI may render inspection counts.
+const insertRecord = async (kind, detail) => {
+  try {
+    await db.query(
+      `insert into qualification_records (org_id, driver_id, kind, occurred_on, detail)
+         values ($1, $2, $3, '2026-08-01', $4::jsonb)`,
+      [ORG, DRIVER, kind, detail],
+    );
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+ok("an ordered PSP record states psp_api", await insertRecord("psp_report", '{"source":"psp_api"}'));
+ok("an imported PSP record states portal_import", await insertRecord("psp_report", '{"source":"portal_import"}'));
+ok("a PSP record with NO source is refused", !(await insertRecord("psp_report", "{}")));
+ok("a typo'd source is refused at the write, not read as unknown forever", !(await insertRecord("psp_report", '{"source":"psp-api"}')));
+// Scoped to the one kind: `detail` is shared by every kind and constraining the others would be
+// inventing rules for evidence 0219 knows nothing about.
+ok("other kinds are untouched by the rule", await insertRecord("mvr", "{}"));
+
+ok(
+  "psp_requests records the rate in effect, so an invoice can be reconciled",
+  Number(
+    (await one(
+      `select count(*)::int as n from information_schema.columns
+        where table_schema = 'public' and table_name = 'psp_requests' and column_name = 'unit_price_usd'`,
+    )).n,
+  ) === 1,
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

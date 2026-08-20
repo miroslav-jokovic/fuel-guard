@@ -45,16 +45,33 @@ export interface PspOrderResult {
   clean: boolean;
 }
 
-export interface PspOrderInput {
+/**
+ * What the GATES need, which is less than an order needs.
+ *
+ * Split out so the preflight does not have to invent a user id it has no use for. It used to pass
+ * `userId: ""`, and a fabricated value in a struct is the kind of thing that is harmless until
+ * somebody adds a gate that reads it.
+ */
+export interface PspGateInput {
   orgId: string;
   driverId: string;
-  userId: string;
   /** Whether the caller presented a fresh re-authentication on THIS request. */
   stepUp: boolean;
-  /** §5.4.1 requires it and never defines it for a system-to-system caller (PSP-PLAN Q4). */
+  /**
+   * Request-SHAPING rather than gate-deciding, but the gates hand back the draft they validated, so
+   * the draft's inputs belong here. Both are optional: the preflight builds a draft only to run the
+   * validator over it and never sends one.
+   *
+   * §5.4.1 requires `userIPAddress` and never defines it for a system-to-system caller (Q4).
+   * `monitor` enrols the transaction in 45-day monitoring — off unless asked for; §6 explains why,
+   * and nothing asks for it until P8 exists to read what it reports.
+   */
   userIPAddress?: string | null;
-  /** §5.4.1 — enrol in 45-day monitoring. Off unless asked for; §6 explains why. */
   monitor?: boolean;
+}
+
+export interface PspOrderInput extends PspGateInput {
+  userId: string;
 }
 
 interface DriverRow {
@@ -115,12 +132,21 @@ function redactRequest(draft: PspRequestDraft): Record<string, unknown> {
   };
 }
 
-/** Every refusal, in the order legality → authority → budget → correctness. */
+/**
+ * Every refusal, in the order legality → authority → budget → correctness.
+ *
+ * `opts.authority` exists for the preflight, which asks what stands in the way BEFORE anybody has
+ * been asked for a password. It used to get that answer by passing `stepUp: true` — asserting
+ * something false to skip a check — and this says the same thing truthfully: run every gate except
+ * the one about who is asking. The ORDER path never passes it, so there is no way to skip the
+ * password on a request that spends money.
+ */
 export async function checkPspGates(
   admin: SupabaseClient,
   env: Env,
-  input: PspOrderInput,
+  input: PspGateInput,
   driver: DriverRow,
+  opts: { authority?: boolean } = {},
 ): Promise<PspRefusal | { draft: PspRequestDraft }> {
   if (!env.PSP_ORDERS_ENABLED) {
     return { code: "psp_disabled", message: "PSP ordering is switched off for this deployment." };
@@ -147,7 +173,7 @@ export async function checkPspGates(
   }
 
   // 2. AUTHORITY. It spends money and pulls a person's record.
-  if (!input.stepUp) {
+  if (opts.authority !== false && !input.stepUp) {
     return { code: "step_up_required", message: "Confirm your password to order a PSP record." };
   }
 
@@ -305,6 +331,10 @@ export async function orderPspRecord(
       internal_ref_id: draft.internalRefId,
       idempotency_key: idempotencyKey,
       request_body: redactRequest(draft),
+      // The rate at the moment we decided to spend (0219). Stamped here rather than at settle so it
+      // survives a settle that never completes, and null when nobody has told us the price (Q2) —
+      // which reads as "we were not told", not as "free".
+      unit_price_usd: env.PSP_UNIT_PRICE_USD ?? null,
       status: "sent",
       monitor: draft.monitor === true,
       created_by: input.userId,
@@ -429,8 +459,9 @@ export async function pspOrderPreflight(
 
   const gated = await checkPspGates(
     admin, env,
-    { orgId: input.orgId, driverId: input.driverId, userId: "", stepUp: true },
+    { orgId: input.orgId, driverId: input.driverId, stepUp: false },
     driver as DriverRow,
+    { authority: false },
   );
   return { ...base, refusal: "code" in gated ? gated : null };
 }
