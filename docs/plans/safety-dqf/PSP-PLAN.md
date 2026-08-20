@@ -1006,8 +1006,10 @@ confirmation that states the cost.
 - ~~**Q2b — Does the UAT environment bill?**~~ **Answered 2026-08-20 (MJ, from the UAT portal): it
   does not.** The portal lists every test pull made that day and offers each for download, with no
   charge attached — the vendor saying directly what none of the documents below manage to say.
-  It also settles that **the portal keeps a transaction history the REST API does not expose**:
-  v3.9 has four endpoints and none lists past transactions. The research is kept below because
+  It also settles that **the portal keeps a 120-hour window the REST API does not expose** — the
+  same 5 days §8.5 detail 28 gives the `authCode` — and that a **PII Masking** switch exists there
+  which, if enabled, masks CDL numbers to the last 4 digits in reports and would break the
+  returned-licence assertion in `parse.ts`. The research is kept below because
   the reasoning is the reusable part. **Was unresolved, and researched rather than assumed.** The
   guide's §8 says accounts are charged for Success, Partial and Failure with **no environment
   qualifier anywhere in v3.9**; FMCSA's public pages describe only the production schedule; and the
