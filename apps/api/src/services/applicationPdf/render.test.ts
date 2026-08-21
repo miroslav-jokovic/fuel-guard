@@ -319,3 +319,68 @@ describe("the questionnaire section", () => {
     expect(pdfText(pdf)).not.toContain("the carrier's own questions");
   });
 });
+
+/**
+ * §391.21(b)(6), both halves — and the one field on the document that is not a (b) paragraph.
+ *
+ * A9 first shipped the equipment grid as a carrier question, because the owner's packet is where it
+ * was found. The packet turns out to be a near-verbatim copy of FMCSA's own sample application, and
+ * the grid is the regulation's: (b)(6) requires "the type of equipment ... which he/she has
+ * operated". So it renders under (b)(6), where an auditor with the CFR open will look for it.
+ */
+describe("the equipment experience", () => {
+  const withEquipment = (over: Record<string, unknown> = {}) =>
+    input({
+      application: {
+        ...APPLICATION,
+        equipment_experience: [
+          { equipment_class: "tractor_semi_trailer", equipment_type: "Reefer", from: "2019-04", to: "2023-08", approx_miles: 420000 },
+          { equipment_class: "bus", equipment_type: null, from: "2016-01", to: null, approx_miles: null },
+        ],
+        ...over,
+      } as unknown as DriverApplication,
+    });
+
+  it("prints the equipment under §391.21(b)(6), in the regulation's own words", async () => {
+    const pdf = pdfText(await renderApplicationPdf(withEquipment()));
+    expect(pdf).toContain("§391.21(b)(6)");
+    // The label, not the stored token — a qualification file is read by people.
+    expect(pdf).toContain("Tractor and semi-trailer");
+    expect(pdf).toContain("Reefer");
+    expect(pdf).toContain("420000");
+  });
+
+  it("says 'present' for equipment the driver still drives, and prints no invented miles", async () => {
+    const pdf = pdfText(await renderApplicationPdf(withEquipment()));
+    expect(pdf).toContain("present");
+    expect(pdf).toContain("Bus");
+  });
+
+  /** Every application filed before this field existed has none of it. */
+  it("renders a payload that predates the field", async () => {
+    const pdf = await renderApplicationPdf(input());
+    expect(pdf.byteLength).toBeGreaterThan(1000);
+    expect(pdfText(pdf)).toContain("§391.21(b)(6)");
+  });
+});
+
+/**
+ * Other names — printed beside the name they qualify, and labelled with the paragraph they serve.
+ *
+ * ⚠ NOT (b)(2). That paragraph is "The applicant's name, address, date of birth, and social security
+ * number" and FMCSA's own sample application asks for no other name. It is on the document because
+ * §391.23(a)(2) is unanswerable without it.
+ */
+describe("other names on the document", () => {
+  it("prints them when the driver gave any", async () => {
+    const pdf = pdfText(await renderApplicationPdf(input({
+      application: { ...APPLICATION, other_names: ["Susan Smith"] } as unknown as DriverApplication,
+    })));
+    expect(pdf).toContain("Also known as");
+    expect(pdf).toContain("Susan Smith");
+  });
+
+  it("prints nothing at all when they gave none, which is the normal case", async () => {
+    expect(pdfText(await renderApplicationPdf(input()))).not.toContain("Also known as");
+  });
+});

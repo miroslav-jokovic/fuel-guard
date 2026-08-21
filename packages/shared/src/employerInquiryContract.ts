@@ -125,6 +125,35 @@ export function composeInquiry(
     .replaceAll("{{window}}", fields.window);
 }
 
+/**
+ * The driver, as the previous employer would recognise them — §391.23(a)(2).
+ *
+ * The whole point of collecting a former name is this line. A carrier writing to an employer a driver
+ * worked for under a maiden name, using only the name on today's licence, asks about somebody those
+ * records do not contain: the reply comes back "no record of this person", and a clean three-year
+ * safety history is indistinguishable from an absent one. Naming both is what makes the inquiry
+ * answerable, and `employer_inquiries` stores the composed body, so the file shows exactly which name
+ * was asked about.
+ *
+ * Duplicates and blanks are dropped rather than printed — a driver who typed their own current name
+ * into the "other names" box should not produce "Susan Godfrey (also known as Susan Godfrey)".
+ */
+export function driverNameForInquiry(
+  fullName: string,
+  otherNames: readonly string[] | null | undefined,
+): string {
+  const current = fullName.trim();
+  const seen = new Set([current.toLowerCase()]);
+  const also: string[] = [];
+  for (const name of otherNames ?? []) {
+    const trimmed = name.trim();
+    if (trimmed === "" || seen.has(trimmed.toLowerCase())) continue;
+    seen.add(trimmed.toLowerCase());
+    also.push(trimmed);
+  }
+  return also.length === 0 ? current : `${current} (also known as ${also.join(", ")})`;
+}
+
 /** The employment period, in the words the letter uses. An open-ended job reads as "to the present". */
 export const inquiryWindow = (startedOn: string, endedOn: string | null): string =>
   `${startedOn} to ${endedOn ?? "the present"}`;

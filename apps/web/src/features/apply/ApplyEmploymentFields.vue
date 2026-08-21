@@ -5,9 +5,14 @@ import {
   AppInput as BaseInput,
   AppDateField,
   AppFormField as FormField,
+  AppSelect as BaseSelect,
 } from "@fuelguard/ui";
-import { emptyEmployer, type ApplicationDraft } from "@/features/apply/draft";
+import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@fuelguard/shared";
+import { emptyEmployer, emptyEquipment, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
+
+/** The classes §391.21(b)(6) and FMCSA's own form name, in the order that form lists them. */
+const EQUIPMENT_OPTIONS = EQUIPMENT_CLASSES.map((value) => ({ value, label: EQUIPMENT_CLASS_LABELS[value] }));
 
 /**
  * §391.21(b)(10) and (b)(11) — and the reason the instructions below are worded so carefully.
@@ -95,11 +100,55 @@ const copy = APPLY_COPY.employment;
       <BaseButton @click="draft.employers.push(emptyEmployer())">{{ copy.add }}</BaseButton>
     </template>
 
-    <!-- §391.21(b)(6): "the nature and extent of the applicant's experience in the operation of
-         motor vehicles, including the type of equipment". It reads as the preamble to (b)(10)
-         rather than as a licence detail, so it is answered here. -->
+    <!-- §391.21(b)(6) asks for two things in one sentence: "the nature and extent of the applicant's
+         experience in the operation of motor vehicles, INCLUDING THE TYPE OF EQUIPMENT ... which
+         he/she has operated". The narrative answers the first half; the rows below answer the second,
+         laid out as FMCSA's own sample application lays it out. Either satisfies the paragraph, and
+         a cross-field rule refuses a document with neither. -->
     <FormField v-slot="{ id }" :label="copy.experience" :hint="copy.experienceHint">
       <BaseInput :id="id" v-model="draft.experience" placeholder="Optional" />
     </FormField>
+
+    <div class="space-y-3">
+      <div>
+        <p class="text-sm font-medium text-ink">{{ copy.equipmentHeading }}</p>
+        <p class="mt-1 text-xs text-ink-muted">{{ copy.equipmentIntro }}</p>
+      </div>
+
+      <div
+        v-for="(row, i) in draft.equipment_experience"
+        :key="i"
+        class="space-y-3 rounded-surface bg-surface-muted p-4"
+      >
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField v-slot="{ id }" :label="copy.equipmentClass">
+            <BaseSelect :id="id" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
+          </FormField>
+          <FormField v-slot="{ id }" :label="copy.equipmentType" :hint="copy.equipmentTypeHint">
+            <BaseInput :id="id" v-model="row.equipment_type" />
+          </FormField>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField v-slot="{ id }" :label="copy.equipmentFrom" :hint="copy.equipmentMonthHint">
+            <BaseInput :id="id" v-model="row.from" placeholder="2021-03" />
+          </FormField>
+          <FormField v-slot="{ id }" :label="copy.equipmentTo" :hint="copy.equipmentToHint">
+            <BaseInput :id="id" v-model="row.to" placeholder="2024-08" />
+          </FormField>
+          <FormField v-slot="{ id }" :label="copy.equipmentMiles" :hint="copy.equipmentMilesHint">
+            <BaseInput :id="id" v-model="row.approx_miles" inputmode="numeric" />
+          </FormField>
+        </div>
+        <div class="flex justify-end">
+          <BaseButton variant="ghost" size="sm" @click="draft.equipment_experience.splice(i, 1)">
+            {{ copy.remove }}
+          </BaseButton>
+        </div>
+      </div>
+
+      <BaseButton variant="secondary" @click="draft.equipment_experience.push(emptyEquipment())">
+        {{ copy.addEquipment }}
+      </BaseButton>
+    </div>
   </section>
 </template>

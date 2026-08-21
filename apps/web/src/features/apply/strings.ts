@@ -72,6 +72,12 @@ export const APPLY_COPY = {
     email: "Email",
     phone: "Phone",
     optional: "Optional.",
+    /** §391.23(a)(2). Asked with its reason in the same breath, like the SSN below. */
+    otherNames: "Any other names you have been known by",
+    otherNamesHint:
+      "Optional. Maiden names and former legal names. We ask because your previous employers are required to verify your last three years, and they cannot find you under a name their records do not have.",
+    addOtherName: "Add a name",
+    remove: "Remove",
     ssn: "Social Security number",
     /** Q-H2. The number is optional, and the reason it is asked at all is stated in one sentence. */
     ssnHint:
@@ -144,6 +150,20 @@ export const APPLY_COPY = {
     remove: "Remove",
     experience: "Driving experience",
     experienceHint: "Optional — equipment, routes, years.",
+    /** §391.21(b)(6)'s second half, laid out as FMCSA's own sample application lays it out. */
+    equipmentHeading: "Equipment you have driven",
+    equipmentIntro:
+      "§391.21(b)(6) asks which types of vehicle you have operated. Add a line for each — or describe it above instead, whichever is easier.",
+    equipmentClass: "Class of equipment",
+    equipmentType: "Type",
+    equipmentTypeHint: "Van, tank, flat, and so on.",
+    equipmentFrom: "From",
+    equipmentMonthHint: "Month and year, as 2021-03.",
+    equipmentTo: "Until",
+    equipmentToHint: "Blank if you still drive it.",
+    equipmentMiles: "Approximate total miles",
+    equipmentMilesHint: "A rough number is fine.",
+    addEquipment: "Add equipment",
   },
 
   safety: {

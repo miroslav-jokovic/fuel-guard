@@ -53,7 +53,6 @@ describe("the definition", () => {
       "legally_work",
       "proof_of_age",
       "may_contact_employers",
-      "driving_experience",
       "education",
       "military_service",
       "military_when",
@@ -63,13 +62,19 @@ describe("the definition", () => {
   });
 
   /** The packet asks for three, and says why they may not be relatives or former supervisors. */
-  it("asks for three references and the four classes of equipment the packet lists", () => {
-    const refs = SILVICOM_DRIVER_V1.questions.find((q) => q.id === "references");
-    expect(refs?.maxRows).toBe(3);
-    const grid = SILVICOM_DRIVER_V1.questions.find((q) => q.id === "driving_experience");
-    const classes = grid?.columns?.find((c) => c.id === "equipment_class")?.options;
-    expect(classes).toHaveLength(4);
-    expect(classes?.[0]).toBe("Straight truck");
+  it("asks for three references", () => {
+    expect(SILVICOM_DRIVER_V1.questions.find((q) => q.id === "references")?.maxRows).toBe(3);
+  });
+
+  /**
+   * ⚠ The driving-experience grid was here and is not any more. It is §391.21(b)(6) — the paragraph
+   * requires "the type of equipment ... which he/she has operated", and FMCSA's own sample
+   * application lays it out as exactly that grid — so it lives in `driverApplicationSchema` as
+   * `equipment_experience`. A regulated answer sitting in a blob D-APP12 projects nowhere is not what
+   * §391.51 wants to find.
+   */
+  it("does not ask for driving experience, which is the regulation's question and not the carrier's", () => {
+    expect(SILVICOM_DRIVER_V1.questions.map((q) => q.id)).not.toContain("driving_experience");
   });
 
   it("is addressed by id and version, so an answer set can find its own questions", () => {
@@ -97,9 +102,6 @@ describe("the answers", () => {
       position: "Company driver",
       legally_work: true,
       may_contact_employers: true,
-      driving_experience: [
-        { equipment_class: "Straight truck", equipment_type: "Van", from: "2019-01-01", to: "2021-06-01", approx_miles: 180000 },
-      ],
       references: [{ full_name: "Ann Reyes", years_known: 6, phone: "555-0134" }],
     });
     expect(parsed.success).toBe(true);
@@ -122,6 +124,9 @@ describe("the answers", () => {
       email: "s@example.test", phone: "555-0111",
       addresses: [{ line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: null }],
       cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
+      // §391.21(b)(6) is the regulation's own requirement and is answered here; the point of the
+      // assertion below is that the CARRIER's questions are what does not make a document refusable.
+      experience: "Eight years, dry van and reefer.",
       accidents: [], declares_no_accidents: true,
       violations: [], declares_no_violations: true,
       licence_ever_denied: false,
@@ -143,7 +148,7 @@ describe("the answers", () => {
    */
   it("does not narrow a stored select answer to today's options", () => {
     const parsed = schema.safeParse({
-      driving_experience: [{ equipment_class: "A class this version no longer offers" }],
+      education: [{ school: "A school", graduated: true, graduated_when: "1999" }],
     });
     expect(parsed.success).toBe(true);
   });
@@ -163,6 +168,7 @@ describe("questionnaire answers are projected nowhere", () => {
     email: "s@example.test", phone: "555-0111",
     addresses: [{ line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: null }],
     cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
+    experience: "Eight years, dry van and reefer.",
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,

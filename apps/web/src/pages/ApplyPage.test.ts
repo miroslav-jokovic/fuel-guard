@@ -44,7 +44,10 @@ const COMPLETE_DRAFT = {
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "PA", cdl_class: "", cdl_expires_at: "2029-01-01",
   additional_licences: [],
-  experience: "", accidents: [], declares_no_accidents: true,
+  // §391.21(b)(6) is mandatory content, and a draft that answers neither half of it cannot pass the
+  // employment screen — which is the rule working, not the fixture being fussy.
+  experience: "Eight years, dry van and reefer.", equipment_experience: [],
+  accidents: [], declares_no_accidents: true,
   violations: [], declares_no_violations: true,
   licence_ever_denied: false, licence_denial_detail: "",
   employers: [{

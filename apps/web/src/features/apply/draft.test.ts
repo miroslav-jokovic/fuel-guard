@@ -15,6 +15,8 @@ import {
 
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §391.21(b)(6): a complete application answers at least one half of it.
+  experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
@@ -42,7 +44,10 @@ describe("what the form sends", () => {
   it("sends null for a blank optional field, never an empty string", () => {
     const sent = toApplication(complete()) as Record<string, unknown>;
     expect(sent.middle_name).toBeNull();
-    expect(sent.experience).toBeNull();
+    // ⚠ `experience` used to be the example here and no longer can be: §391.21(b)(6) is mandatory
+    // content, so a complete application answers it. `cdl_class` is genuinely optional — (b)(5) asks
+    // for the licence, and the class is detail some drivers leave blank.
+    expect(sent.cdl_class).toBeNull();
     expect((sent.addresses as Array<Record<string, unknown>>)[0]!.to).toBeNull();
   });
 

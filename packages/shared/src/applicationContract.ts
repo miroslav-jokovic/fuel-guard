@@ -43,6 +43,63 @@ import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employ
 
 // ── (b)(3) residence history ──────────────────────────────────────────────────
 
+/**
+ * §391.21(b)(6)'s equipment, as the regulation and the government's own form both structure it.
+ *
+ * ── WHY THIS IS A REGULATED FIELD AND NOT A CARRIER QUESTION ──────────────────────────────────
+ * (b)(6) reads, verbatim: "The nature and extent of the applicant's experience in the operation of
+ * motor vehicles, INCLUDING THE TYPE OF EQUIPMENT (such as buses, trucks, truck tractors,
+ * semitrailers, full trailers, and pole trailers) WHICH HE/SHE HAS OPERATED". The paragraph asks for
+ * two things in one sentence — a narrative extent, and an enumeration of equipment — and `experience`
+ * alone answers only the first half.
+ *
+ * FMCSA's own sample driver employment application (csa.fmcsa.dot.gov, read 2026-08-21) lays the
+ * second half out as exactly this grid: class of equipment × type × date from × date to × approximate
+ * total miles. A9 first shipped it as carrier material because the owner's packet is where it was
+ * found; the packet turns out to be a near-verbatim copy of the government's form, and the grid is
+ * the regulation's, not the carrier's. A (b)(6) answer sitting in `questionnaire_answers` — which
+ * D-APP12 projects nowhere — is not what §391.51 wants to find in a qualification file.
+ *
+ * ⚠ The class list is FMCSA's form's, plus `bus`, which (b)(6)'s own parenthetical names first and
+ * that form omits. `other` carries its own free-text type, which is what the "(VAN, TANK, FLAT, ETC.)"
+ * column is for.
+ */
+export const EQUIPMENT_CLASSES = [
+  "straight_truck",
+  "tractor_semi_trailer",
+  "tractor_two_trailers",
+  "tractor_tanker",
+  "bus",
+  "other",
+] as const;
+export type EquipmentClass = (typeof EQUIPMENT_CLASSES)[number];
+
+export const EQUIPMENT_CLASS_LABELS: Record<EquipmentClass, string> = {
+  straight_truck: "Straight truck",
+  tractor_semi_trailer: "Tractor and semi-trailer",
+  tractor_two_trailers: "Tractor and two trailers",
+  tractor_tanker: "Tractor and tanker",
+  bus: "Bus",
+  other: "Other",
+};
+
+export const applicationEquipmentSchema = z.object({
+  equipment_class: z.enum(EQUIPMENT_CLASSES),
+  /** The "(VAN, TANK, FLAT, ETC.)" column on FMCSA's form — free text, because that list is open. */
+  equipment_type: z.string().max(120).nullish(),
+  // Months, not days. A driver recalls the year and the season they drove a tanker; asking for the
+  // day invites an invented one, and (b)(6) asks for extent rather than for dates to the day — which
+  // is the same reason the address history (b)(3) is months.
+  from: z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM"),
+  to: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM").nullish(),
+  ),
+  /** "APPROX # OF MILES (TOTAL)". Approximate by the form's own word, so it is never required. */
+  approx_miles: z.coerce.number().int().min(0).max(100_000_000).nullish(),
+}).strict();
+export type ApplicationEquipment = z.infer<typeof applicationEquipmentSchema>;
+
 export const applicationAddressSchema = z.object({
   line1: z.string().min(1).max(200),
   line2: z.string().max(200).nullish(),
@@ -178,6 +235,28 @@ export const driverApplicationObject = z
     middle_name: z.string().max(100).nullish(),
     last_name: z.string().min(1).max(100),
     date_of_birth: dateOfBirthSchema,
+    /**
+     * ⚠ NOT a §391.21(b) field, and deliberately here anyway — the one place this schema carries
+     * something the numbered paragraphs do not ask for.
+     *
+     * Checked against the primary sources 2026-08-21 rather than assumed: (b)(2) is exactly "The
+     * applicant's name, address, date of birth, and social security number", and FMCSA's own sample
+     * application asks for first/middle/last and no other name at all. Search results claiming the
+     * FMCSRs require aliases are wrong.
+     *
+     * It earns its place under **§391.23(a)(2)** instead. The carrier must investigate the previous
+     * three years of employment, and a driver who worked under a maiden name is a driver whose former
+     * employer cannot find them — the inquiry goes out addressed to somebody the records do not know.
+     * That is also where the owner's packet asks for it: not on its application pages, but on the "10
+     * year employment history background verification log", which is the office worksheet
+     * `employer_inquiries` replaces.
+     *
+     * So it is Part 391 material and not carrier material, which is why it is here and not in
+     * `questionnaire_answers` — and it is the difference that matters, because D-APP12 projects
+     * questionnaire answers NOWHERE, and this field's entire value is being projected onto the
+     * inquiry that goes out.
+     */
+    other_names: z.array(z.string().min(1).max(120)).default([]),
     email: z.email().max(200),
     phone: z.string().min(7).max(40),
     // (b)(3) — every address for the preceding 3 years.
@@ -193,8 +272,13 @@ export const driverApplicationObject = z
     // applicant holding only one licence — which §383.21 makes the normal case — answers this by
     // adding nothing.
     additional_licences: z.array(applicationLicenceSchema).default([]),
-    // (b)(6) — experience, in the applicant's own words.
+    /**
+     * (b)(6), both halves of it. `experience` is the "nature and extent" in the applicant's own
+     * words; `equipment_experience` is the "type of equipment ... which he/she has operated" the same
+     * sentence goes on to require. A cross-field rule below refuses a document with neither.
+     */
     experience: z.string().max(4000).nullish(),
+    equipment_experience: z.array(applicationEquipmentSchema).default([]),
     // (b)(7)(8)(9) — self-declared history. Empty arrays are ANSWERS, not omissions; `declares_none`
     // makes the difference explicit so a blank form and a clean record are never confused.
     accidents: z.array(applicationAccidentSchema),
@@ -264,6 +348,20 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
     path: "employers",
     message: "List your employers, or confirm you have not been employed",
     check: (v) => v.employers === undefined || v.employers.length > 0 || v.declares_no_employment === true,
+  },
+  {
+    /**
+     * §391.21(b)(6) is mandatory content of the application form, and until now this schema let it be
+     * entirely blank — `experience` was nullish and there was nothing else. Either half of the
+     * paragraph's sentence satisfies it, and a driver can always answer one: they can name the
+     * equipment they have driven even if they will not write a paragraph about it.
+     */
+    path: "equipment_experience",
+    message: "§391.21(b)(6): describe your driving experience, or list the equipment you have driven",
+    check: (v) =>
+      v.equipment_experience === undefined
+      || v.equipment_experience.length > 0
+      || Boolean(v.experience?.trim()),
   },
   {
     path: "licence_denial_detail",

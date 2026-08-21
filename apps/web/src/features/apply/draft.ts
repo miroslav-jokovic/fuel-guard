@@ -2,6 +2,7 @@ import {
   questionnaireForApplicant,
   questionnaireRef,
   type DriverApplication,
+  type EquipmentClass,
   type QuestionnaireQuestion,
 } from "@fuelguard/shared";
 
@@ -71,6 +72,15 @@ export interface DraftViolation {
   penalty: string;
 }
 
+/** §391.21(b)(6) — one class of equipment the applicant has operated, and for how long. */
+export interface DraftEquipment {
+  equipment_class: EquipmentClass | "";
+  equipment_type: string;
+  from: string;
+  to: string;
+  approx_miles: string;
+}
+
 /** §391.21(b)(5) — one of the other unexpired licences or permits the applicant holds. */
 export interface DraftLicence {
   issuing_authority: string;
@@ -83,6 +93,8 @@ export interface ApplicationDraft {
   first_name: string;
   middle_name: string;
   last_name: string;
+  /** §391.23(a)(2) — the names a previous employer would know them by. Not a (b)(2) field. */
+  other_names: string[];
   date_of_birth: string;
   email: string;
   phone: string;
@@ -92,6 +104,7 @@ export interface ApplicationDraft {
   cdl_class: string;
   cdl_expires_at: string;
   experience: string;
+  equipment_experience: DraftEquipment[];
   accidents: DraftAccident[];
   declares_no_accidents: boolean;
   violations: DraftViolation[];
@@ -147,15 +160,22 @@ export const emptyViolation = (): DraftViolation => ({
   occurred_on: "", offence: "", state: "", penalty: "",
 });
 
+export const emptyEquipment = (): DraftEquipment => ({
+  equipment_class: "", equipment_type: "", from: "", to: "", approx_miles: "",
+});
+
 export const emptyLicence = (): DraftLicence => ({
   issuing_authority: "", number: "", expires_at: "", kind: "",
 });
 
 export const emptyDraft = (): ApplicationDraft => ({
-  first_name: "", middle_name: "", last_name: "", date_of_birth: "", email: "", phone: "",
+  first_name: "", middle_name: "", last_name: "", other_names: [], date_of_birth: "", email: "", phone: "",
   addresses: [emptyAddress()],
   cdl_number: "", cdl_state: "", cdl_class: "", cdl_expires_at: "",
   experience: "",
+  // Empty, like `additional_licences`: a pre-added blank row invites an invented answer, and
+  // §391.21(b)(6) is satisfied by the narrative alone for a driver who would rather write one.
+  equipment_experience: [],
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
   licence_ever_denied: false, licence_denial_detail: "",
@@ -217,6 +237,8 @@ export function toApplication(draft: ApplicationDraft): unknown {
     first_name: draft.first_name.trim(),
     middle_name: text(draft.middle_name),
     last_name: draft.last_name.trim(),
+    // Blank rows dropped, like every other repeated field on this form.
+    other_names: draft.other_names.map((n) => n.trim()).filter((n) => n !== ""),
     date_of_birth: draft.date_of_birth,
     email: draft.email.trim(),
     phone: draft.phone.trim(),
@@ -242,6 +264,17 @@ export function toApplication(draft: ApplicationDraft): unknown {
         kind: text(l.kind),
       })),
     experience: text(draft.experience),
+    // §391.21(b)(6)'s equipment. A row with no class chosen is an accidental "Add another", not an
+    // answer — the same rule the addresses, employers and licences follow.
+    equipment_experience: draft.equipment_experience
+      .filter((e) => e.equipment_class !== "" && e.from.trim() !== "")
+      .map((e) => ({
+        equipment_class: e.equipment_class,
+        equipment_type: text(e.equipment_type),
+        from: e.from,
+        to: text(e.to),
+        approx_miles: e.approx_miles.trim() === "" ? null : num(e.approx_miles),
+      })),
     accidents: draft.accidents
       .filter((a) => a.occurred_on || a.nature.trim())
       .map((a) => ({
@@ -324,6 +357,7 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     first_name: draft.first_name,
     middle_name: draft.middle_name,
     last_name: draft.last_name,
+    other_names: draft.other_names,
     date_of_birth: draft.date_of_birth,
     email: draft.email,
     phone: draft.phone,
@@ -333,6 +367,7 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     cdl_class: draft.cdl_class,
     cdl_expires_at: draft.cdl_expires_at,
     experience: draft.experience,
+    equipment_experience: draft.equipment_experience,
     accidents: draft.accidents,
     declares_no_accidents: draft.declares_no_accidents,
     violations: draft.violations,
@@ -376,6 +411,9 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     first_name: str("first_name"),
     middle_name: str("middle_name"),
     last_name: str("last_name"),
+    other_names: Array.isArray(payload.other_names)
+      ? (payload.other_names as unknown[]).filter((n): n is string => typeof n === "string")
+      : base.other_names,
     date_of_birth: str("date_of_birth"),
     email: str("email"),
     phone: str("phone"),
@@ -385,6 +423,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     cdl_class: str("cdl_class"),
     cdl_expires_at: str("cdl_expires_at"),
     experience: str("experience"),
+    equipment_experience: rows<DraftEquipment>("equipment_experience", base.equipment_experience),
     accidents: rows<DraftAccident>("accidents", base.accidents),
     declares_no_accidents: bool("declares_no_accidents"),
     violations: rows<DraftViolation>("violations", base.violations),

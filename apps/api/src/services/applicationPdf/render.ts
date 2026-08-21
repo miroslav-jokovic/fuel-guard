@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   APPLICATION_SECTION_CITATIONS,
+  EQUIPMENT_CLASS_LABELS,
   questionnaireByRef,
   readableAnswers,
   type ApplicationEmployer,
@@ -100,6 +101,27 @@ const yesNo = (v: boolean): string => (v ? "Yes" : "No");
  * §390.32(d) failure the PDF exists to prevent.
  */
 const blank = (v: string | null | undefined): string => (v && v.trim() !== "" ? v : "—");
+
+/**
+ * §391.21(b)(6)'s equipment, laid out as the paragraph and FMCSA's own form both put it.
+ *
+ * One labelled block per class rather than a five-column grid: the sheet is 612pt wide and a driver's
+ * qualification file is read on a screen as often as on paper. `blank()` throughout, because this
+ * renders STORED payloads — every application filed before this field existed has none of it, and a
+ * derivative that throws on an old payload is a file that cannot be produced.
+ */
+function equipmentExperience(doc: PDFKit.PDFDocument, rows: ReadonlyArray<Record<string, unknown>>): void {
+  if (rows.length === 0) return;
+  doc.moveDown(0.3);
+  for (const row of rows) {
+    const cls = String(row.equipment_class ?? "other") as keyof typeof EQUIPMENT_CLASS_LABELS;
+    field(doc, "Equipment", EQUIPMENT_CLASS_LABELS[cls] ?? String(row.equipment_class ?? "—"));
+    field(doc, "Type", blank(row.equipment_type as string | null));
+    field(doc, "From / to", `${blank(row.from as string)} — ${row.to ? String(row.to) : "present"}`);
+    field(doc, "Approximate miles", row.approx_miles == null ? "—" : String(row.approx_miles));
+    rule(doc);
+  }
+}
 
 /**
  * The carrier's own questions and what the driver answered (A9, D-APP12).
@@ -273,6 +295,13 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
 
   paragraph(doc, "§391.21(b)(2)", "Applicant");
   field(doc, "Name", blank([a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" ")));
+  // ⚠ Not (b)(2) — that paragraph lists name, address, date of birth and social security number and
+  // nothing else. Printed here because it belongs beside the name it qualifies, and labelled with the
+  // paragraph it actually serves: an employer cannot verify three years for a driver whose former
+  // records are under another name (§391.23(a)(2)).
+  if ((a.other_names ?? []).length > 0) {
+    field(doc, "Also known as", (a.other_names ?? []).join(", "));
+  }
   field(doc, "Date of birth", date(a.date_of_birth));
   field(doc, "Email", blank(a.email));
   field(doc, "Phone", blank(a.phone));
@@ -302,7 +331,10 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   }
 
   paragraph(doc, "§391.21(b)(6)", "Experience and equipment");
+  // The paragraph asks for two things in one sentence: "the nature and extent of the applicant's
+  // experience" — the narrative — and "the type of equipment ... which he/she has operated".
   body(doc, blank(a.experience));
+  equipmentExperience(doc, (a.equipment_experience ?? []) as ReadonlyArray<Record<string, unknown>>);
 
   paragraph(doc, "§391.21(b)(7)", "Accidents in the past 3 years");
   if ((a.accidents ?? []).length === 0) {

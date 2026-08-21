@@ -1173,7 +1173,7 @@ itself — whether a finger draws a legible line on a real phone — is the one 
 component test genuinely cannot answer. It is decoration, so shipping it unproven costs a squiggle
 rather than a record; but the first real applicant is the first real test of it.
 
-### A9 · The carrier questionnaire — DONE 2026-08-21 (no migration)
+### A9 · The carrier questionnaire — DONE 2026-08-21 (migration 0231)
 
 **Prerequisites:** A3. **Input required: the owner's Excel application** — this step's build begins
 by transcribing it (§6).
@@ -1208,16 +1208,18 @@ flow, and not one of those answers has touched §391.21's schema or the qualific
   holds and knowing none of the carrier's questions by name. Answers autosave with the rest of the
   draft (they carry no SSN and no D-APP3 field).
 - `render.ts` prints them as their own section — see the deviation below.
+- **And two corrections to the regulated contract**, made after checking the primary sources rather
+  than the packet — see "What the sources actually say" below: `equipment_experience` (§391.21(b)(6))
+  and `other_names` (§391.23(a)(2), migration 0231).
 
 **⚠ Four deviations from this step's text, each with its reason.**
 
-1. **A `table` question kind, which the plan's type list does not have.** Three of the four things the
-   packet actually asks for are grids: driving experience by class of equipment, education, and three
-   references. Flattening the experience grid alone would have produced sixteen scalar fields whose
-   names encode their row and column — a table pretending not to be one, and unreadable in the
-   rendered document. One more kind models what the paper is. On screen the rows are stacked cards,
-   not a grid: nine in ten of these are filled on a phone, and a five-column table is a horizontal
-   scroll inside a form, which is where drivers stop.
+1. **A `table` question kind, which the plan's type list does not have.** Two of the things the packet
+   asks for are grids: education, and three references. Flattening either would have produced scalar
+   fields whose names encode their row and column — a table pretending not to be one, and unreadable
+   in the rendered document. One more kind models what the paper is. On screen the rows are stacked
+   cards, not a grid: nine in ten of these are filled on a phone, and a five-column table is a
+   horizontal scroll inside a form, which is where drivers stop.
 2. **There is no `required` flag, although the step asks for one.** A flag has to be enforced
    somewhere and there are only two places. In the wizard alone it breaks the property A3 built the
    wizard on — the client validates with the server's own object, so the two can never disagree. In
@@ -1241,19 +1243,53 @@ flow, and not one of those answers has touched §391.21's schema or the qualific
    that reads as a feature and is really an unused join. The day a second carrier's form differs, the
    selection becomes a column and `questionnaireForApplicant` grows an argument.
 
-**⚠ One thing found while transcribing, raised and not silently decided.** The packet's
-driving-experience grid is a structured version of **§391.21(b)(6)** — "the nature and extent of the
-applicant's experience in the operation of motor vehicles, including the type of equipment". The
-contract already discharges (b)(6) with `experience`, free text on the employment screen, and that is
-what the rendered document prints for that paragraph. The grid therefore ships as carrier material
-that adds detail rather than as the regulated field. If the owner would rather the grid BE (b)(6),
-that is a change to `driverApplicationSchema` and to the renderer — a contract change, not a
-questionnaire change — and it should be made deliberately, because a (b)(6) answer sitting in an
-unprojected blob is not what §391.51 wants to find.
+### What the sources actually say — two corrections A9 made to itself
 
-⚠ **Pile 1's alias gap is still open and is not A9's.** §6.1 noted the packet asks for aliases on the
-verification log and the contract has no field. Nothing here adds one: it is §391.21 material, so it
-belongs to the regulated schema and to whoever next opens it.
+Both of these were raised as open questions when the questionnaire was first transcribed, and both
+were then settled against **primary sources** rather than against the packet or a search summary.
+The sources: §391.21(b) read verbatim on Cornell LII, and **FMCSA's own sample driver employment
+application** (`csa.fmcsa.dot.gov/SafetyPlanner/documents/Forms/Drivers_Employment_Application_508.pdf`),
+both read 2026-08-21. ⚠ ecfr.gov still redirects to a bot-check and cannot be fetched.
+
+**1. The driving-experience grid IS §391.21(b)(6). It moved into the regulated contract.**
+
+(b)(6) verbatim: *"The nature and extent of the applicant's experience in the operation of motor
+vehicles, **including the type of equipment (such as buses, trucks, truck tractors, semitrailers, full
+trailers, and pole trailers) which he/she has operated**"*. The paragraph asks for two things in one
+sentence, and `experience` — free text — answered only the first. FMCSA's own sample application lays
+the second out as exactly the grid the owner's packet contains, column for column: class of equipment
+× type (VAN, TANK, FLAT, ETC.) × date from × date to × approximate total miles. **The packet is a
+near-verbatim copy of the government's form**; the grid is the regulation's, not the carrier's.
+
+So `equipment_experience` is now a regulated field on the employment screen, rendered under (b)(6),
+and the questionnaire no longer asks for it. Two further consequences, both deliberate:
+  - the class list is FMCSA's form's, **plus `bus`** — which (b)(6)'s own parenthetical names first and
+    that form omits;
+  - a cross-field rule now refuses a document that answers **neither** half of the sentence. (b)(6) is
+    mandatory content of the application form and this schema previously accepted it blank, because
+    `experience` was nullish and there was nothing else. Either half satisfies it, and a driver can
+    always give one.
+
+**2. Aliases are NOT a §391.21 field — the plan's §6.1 note was right about the gap and wrong about
+where it belongs.** (b)(2) verbatim is *"The applicant's name, address, date of birth, and social
+security number"*, and FMCSA's sample application asks for first, middle and last name and **no other
+name anywhere on its four pages**. ⚠ Secondary sources asserting that the FMCSRs require aliases are
+simply wrong, and were not taken at face value.
+
+It earns its place under **§391.23(a)(2)** instead: the carrier must investigate the previous three
+years, and a driver who drove under a maiden name is a driver that employer's records do not contain
+— the inquiry goes out naming somebody they have never heard of, the reply is "no record", and a clean
+safety history is indistinguishable from an absent one. That is also exactly where the owner's packet
+asks for it: nowhere on its application pages, and once on the "10 year employment history background
+verification log", which is the office worksheet `employer_inquiries` (0223) replaced.
+
+So `other_names` is on the identity screen, cited §391.23 rather than to any (b) paragraph, and —
+this is the part that matters — it is **projected**. 0231 adds `drivers.other_names`, the intake fills
+it, and `driverNameForInquiry` puts it in the letter: *"Susan Godfrey (also known as Susan Smith)"*.
+It is deliberately NOT questionnaire material for that reason: D-APP12 projects questionnaire answers
+nowhere, and this field's entire value is being projected. A fact we asked for, stored and never used
+would be the same write-only failure that made A9 render its questionnaire rather than merely collect
+it.
 
 **Verified by:** `pnpm test` — `questionnaireContract.test.ts` (13) checks the definition is
 internally coherent, carries every question §6.1's pile 2 lists, survives a version this build has
@@ -1262,6 +1298,16 @@ answers and proves none of them reaches the driver patch or the employment rows,
 reserved EEO key is invisible to anything that reads answers; `render.test.ts` gains five, including
 that a `no` is distinguishable from an unanswered question and that an EEO payload prints nothing;
 `draft.test.ts` gains five on the round-trip, including that `false` survives and whitespace does not.
+For the two corrections: `applicationContract.test.ts` gains seven — that a document answering neither
+half of (b)(6) is refused, that either half satisfies it, that a day-precision date and a class the
+regulation does not name are both refused, and that `other_names` defaults to none; `render.test.ts`
+gains five more (the equipment prints under (b)(6) with its label rather than its stored token, an
+open-ended row reads "present", a payload predating the field still renders, and "Also known as"
+appears only when there is one); `employerInquiryContract.test.ts` is new and pins the line the whole
+alias field exists for, including that a driver who types their own name is not introduced to
+themselves; the `application-intake` matrix pins that the names are projected onto `drivers` and that
+an application naming none leaves the column NULL rather than `{}` — "we never asked" and "they said
+none" are different facts.
 `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
 **Not verified in a browser** — same reason as every step since A1.
 
@@ -1344,16 +1390,21 @@ TRANSPORTATION VERIFICATION PURPOSE ONLY — THIS IS NOT AN EMPLOYMENT APPLICATI
 
 **1. The §391.21(b) application we have already built.** Identity, three years of addresses, licences,
 accidents, convictions, licence denials, ten-year employment history, the certification. It maps onto
-`driverApplicationSchema` closely enough that no contract change falls out of it — ⚠ with one
+`driverApplicationSchema` closely enough that almost no contract change falls out of it — ⚠ ~~with one
 addition worth noting: the packet asks for **aliases** on the verification log, which the contract has
-no field for.
+no field for.~~ **RESOLVED by A9 (0231):** aliases are not §391.21 material at all — (b)(2) does not
+list one and FMCSA's own sample application does not ask — but they are §391.23(a)(2) material, and
+the packet asks for them exactly where that is true: on the verification log, not on its application
+pages. `other_names` now exists, cited to §391.23, and is projected into the inquiry letter.
 
 **2. Carrier-specific questions — the actual A9 material, and there are few.** Position applied for ·
 "How did you hear about this company?" · "Can you legally work in the USA?" · "Do you have proof of
-age?" · "May we contact your previous employers?" · a **driving-experience grid** (class of equipment
-× type × dates from/to × approximate total miles, for straight truck / tractor-semi / tractor-two-
-trailers / other) · education and training · military service · **three personal references** (name,
-years known, phone, explicitly not relatives or former supervisors). That is the questionnaire.
+age?" · "May we contact your previous employers?" · ~~a **driving-experience grid**~~ · education and
+training · military service · **three personal references** (name, years known, phone, explicitly not
+relatives or former supervisors). That is the questionnaire.
+⚠ **The driving-experience grid was listed here and does not belong.** It is §391.21(b)(6) — the
+paragraph names the equipment types itself, and FMCSA's own sample application lays it out as exactly
+this grid. A9 moved it into `driverApplicationSchema`; see A9's "What the sources actually say".
 
 **3. ⚠ Instruments the carrier has ALREADY drafted — this changes A0.** The packet carries its own
 wording for most of what counsel was being asked to write from scratch: an FCRA disclosure and

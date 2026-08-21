@@ -16,6 +16,9 @@ import { toApplication } from "./draft";
 
 const complete = (): ApplicationDraft => ({
   ...emptyDraft(),
+  // §391.21(b)(6) is mandatory content of the application form, so a draft that passes every screen
+  // answers at least one half of it.
+  experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],

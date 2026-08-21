@@ -160,6 +160,12 @@ export interface ApplicationDriverPatch {
   date_of_birth: string;
   cdl_number: string;
   cdl_state: string;
+  /**
+   * §391.23(a)(2). The names a previous employer would have known this driver by — projected onto
+   * `drivers` because the previous-employer inquiry is composed from there, and a maiden name that
+   * stayed in the application payload would be a fact we hold and never use.
+   */
+  other_names: string[];
 }
 
 export interface ApplicationEmploymentRow {
@@ -230,6 +236,7 @@ export function planApplicationIntake(application: DriverApplication): {
       date_of_birth: application.date_of_birth as string,
       cdl_number: application.cdl_number,
       cdl_state: application.cdl_state,
+      other_names: application.other_names ?? [],
     },
     employment: application.employers.map(employmentRow),
   };

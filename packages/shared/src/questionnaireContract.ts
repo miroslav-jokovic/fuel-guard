@@ -112,6 +112,13 @@ export const EEO_ANSWER_KEY = "eeo";
  * question's substance, scope or implication — several of these strings sit on a document somebody
  * signs, and changing what one asks is counsel's to do and not an engineer's.
  *
+ * ⚠ THE DRIVING-EXPERIENCE GRID IS NOT HERE, AND IT WAS. A9 first transcribed it as a carrier
+ * question, because the owner's packet is where it was found. Checked against the primary sources
+ * afterwards, it is the regulation's: §391.21(b)(6) requires "the type of equipment ... which he/she
+ * has operated", and FMCSA's own sample application lays that out as exactly this grid. It now lives
+ * in `driverApplicationSchema` as `equipment_experience`, where a (b)(6) answer belongs — a regulated
+ * answer sitting in a blob D-APP12 projects nowhere is not what §391.51 wants to find.
+ *
  * ⚠ WHAT IS DELIBERATELY ABSENT. The packet's other three piles are not questions:
  *   · pile 1 is the §391.21(b) application, which `driverApplicationSchema` already collects;
  *   · pile 3 is the instruments the carrier has drafted, which is A0's material, not A9's;
@@ -159,25 +166,6 @@ export const SILVICOM_DRIVER_V1: QuestionnaireDefinition = {
        * contradiction a person should look at — it is not something the form can resolve.
        */
       hint: "We are required to check your safety performance history either way; this tells us how you would prefer we go about it.",
-    },
-    {
-      id: "driving_experience",
-      label: "Your driving experience",
-      kind: "table",
-      hint: "One row per kind of equipment you have driven. Leave out anything you have not.",
-      columns: [
-        {
-          id: "equipment_class",
-          label: "Class of equipment",
-          kind: "select",
-          options: ["Straight truck", "Tractor — semi trailer", "Tractor — two trailers", "Other"],
-        },
-        { id: "equipment_type", label: "Type", kind: "text" },
-        { id: "from", label: "From", kind: "date" },
-        { id: "to", label: "To", kind: "date" },
-        { id: "approx_miles", label: "Approximate total miles", kind: "number" },
-      ],
-      maxRows: 8,
     },
     {
       id: "education",

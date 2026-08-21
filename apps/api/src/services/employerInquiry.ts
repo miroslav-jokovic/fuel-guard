@@ -3,6 +3,7 @@ import { registerDocument } from "./compliance.js";
 import {
   EMPLOYER_INQUIRIES,
   composeInquiry,
+  driverNameForInquiry,
   inquiryWindow,
   isDraftInquiry,
   type InquiryAttempt,
@@ -73,12 +74,17 @@ async function loadContext(
   const row = employment as EmploymentRow;
 
   const [{ data: driver }, { data: org }] = await Promise.all([
-    admin.from("drivers").select("full_name").eq("id", row.driver_id).eq("org_id", orgId).maybeSingle(),
+    admin.from("drivers").select("full_name, other_names").eq("id", row.driver_id).eq("org_id", orgId).maybeSingle(),
     admin.from("organizations").select("name").eq("id", orgId).maybeSingle(),
   ]);
   return {
     employment: row,
-    driverName: (driver as { full_name?: string } | null)?.full_name ?? "the applicant",
+    // §391.23(a)(2): both names, so the employer can find the person being asked about. See
+    // `driverNameForInquiry` for why a maiden name decides whether an inquiry is answerable at all.
+    driverName: driverNameForInquiry(
+      (driver as { full_name?: string } | null)?.full_name ?? "the applicant",
+      (driver as { other_names?: string[] | null } | null)?.other_names,
+    ),
     carrier: (org as { name?: string } | null)?.name ?? "The carrier",
   };
 }

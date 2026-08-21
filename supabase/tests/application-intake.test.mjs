@@ -113,6 +113,9 @@ const PAYLOAD = JSON.stringify({ first_name: "Susan", last_name: "Godfrey", cert
 const PATCH = JSON.stringify({
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   cdl_number: "PA334554", cdl_state: "PA",
+  // §391.23(a)(2), added by 0231. The whole value of the field is that it is PROJECTED: a maiden name
+  // that stayed in the payload would be something we asked for, stored, and never used.
+  other_names: ["Susan Smith", "Susan Marie Smith"],
 });
 const EMPLOYMENT = JSON.stringify([
   {
@@ -148,6 +151,10 @@ ok(
 ok(
   "the driver's identity is filled in from what they declared",
   (await one(`select cdl_number from drivers where id = $1`, [APPLICANT])).cdl_number === "PA334554",
+);
+ok(
+  "the names a previous employer would know are projected onto the driver (§391.23(a)(2), 0231)",
+  (await one(`select other_names from drivers where id = $1`, [APPLICANT])).other_names?.length === 2,
 );
 ok(
   "every declared employer becomes a row, marked as coming from the application",
@@ -204,6 +211,20 @@ ok(
 ok(
   "while a field nobody had filled is taken from the application",
   String((await one(`select date_of_birth from drivers where id = $1`, [CHECKED])).date_of_birth).includes("1980"),
+);
+// An application that lists no other name leaves the column NULL rather than writing `{}`: "we never
+// asked" and "they said none" are different facts, and array_agg over no rows gives that for free.
+const NO_ALIAS = (
+  await one(`insert into drivers (org_id, full_name, status) values ($1,'No Alias','applicant') returning id`, [ORG])
+).id;
+await db.query(
+  `select public.submit_driver_application($1,$2,$3,$4::jsonb,'No Alias','203.0.113.9','UA','1111',null,
+     '{"first_name":"No"}'::jsonb,'[]'::jsonb)`,
+  [ORG, await invite(ORG, NO_ALIAS), NO_ALIAS, PAYLOAD],
+);
+ok(
+  "an application that names no other name leaves the column null, not an empty array",
+  (await one(`select other_names from drivers where id = $1`, [NO_ALIAS])).other_names === null,
 );
 
 // ── immutability: a certification somebody can edit afterwards is not a certification ──────────
