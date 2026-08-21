@@ -214,6 +214,21 @@ export const APPLY_COPY = {
     failed: "That did not go through. Check your signal and try again.",
   },
 
+  signing: {
+    adoptHeading: "Your signature",
+    adoptIntro: (carrier: string, count: number): string =>
+      `${carrier} needs you to sign ${count} authorizations before you fill in the application. Type your name once — each document is then one tap, and you will see exactly what you are signing.`,
+    adoptLabel: "Type your full name",
+    adoptHint: "This is your signature. Type it as it appears on your licence.",
+    adoptAction: "Use this as my signature",
+    counter: (n: number, total: number): string => `${n} of ${total}`,
+    sign: "I agree — sign this",
+    signing: "Signing…",
+    /** The carrier's outstanding act, said as the carrier's — the driver can do nothing about it. */
+    notFinal:
+      "This carrier has not published its final wording for this document yet, so it cannot be signed today. They have been told. You can still fill in your application.",
+  },
+
   unlock: {
     heading: "Pick up where you left off",
     body: (carrier: string): string =>

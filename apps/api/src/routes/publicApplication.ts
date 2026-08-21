@@ -20,6 +20,7 @@ import {
   recordRelease,
   releasesForApplicant,
   resolveInvitation,
+  signedReleases,
   submitApplication,
 } from "../services/applicationIntake.js";
 
@@ -83,12 +84,16 @@ export function publicApplicationRouter(): Router {
       // What they typed last time (A2). The body is withheld once a date of birth is in it — see
       // `applicationDraft.ts` for why the bare link is not enough to read one back (D-APP16).
       const draft = await loadDraft(admin, invitation.org_id, invitation.id);
+      // Which of the four this link has already collected, so a resumed ceremony opens on the next
+      // one rather than asking for a signature the driver has already given (A5).
+      const signed = await signedReleases(admin, invitation.org_id, invitation.id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
         carrier: (org as { name?: string } | null)?.name ?? "the carrier",
         expiresAt: invitation.expires_at,
         releases: releasesForApplicant(),
+        releasesSigned: signed,
         // Where this driver stopped (D-APP1). Three dates and nothing else — the page opens on the
         // step they had reached instead of on a blank form they have already filled in once.
         phases: phasesOf(invitation),
@@ -230,13 +235,15 @@ export function publicApplicationRouter(): Router {
             ? 404
             : result.code === "disclosure_not_final"
                 || result.code === "releases_complete"
+                || result.code === "release_already_signed"
                 || result.code === "esign_consent_required"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
         return;
       }
-      res.status(201).json({ ok: true });
+      // How far the ceremony got, so the page can move to the next instrument without refetching.
+      res.status(201).json({ ok: true, signedCount: result.signedCount, completed: result.completed });
     }),
   );
 

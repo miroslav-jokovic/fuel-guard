@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@fuelguard/shared";
 import { loadEnv } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import {
@@ -236,6 +237,99 @@ describe("the Social Security number", () => {
  * The gate that keeps a real signature off placeholder wording (Q-H3). Tied to the version string,
  * so it opens by itself when counsel's text lands rather than waiting for somebody to clear a flag.
  */
+/**
+ * A5, the ceremony — proved against a stubbed NON-DRAFT `DISCLOSURES`, which is what lets this ship
+ * before A0. The four instruments become four rows, each carrying its own text and its own version,
+ * and the fourth closes the phase.
+ */
+describe("the signing ceremony", () => {
+  /** Publish counsel's wording for one test. Both gates open on the version string alone. */
+  const publish = () => {
+    for (const purpose of APPLICATION_RELEASE_ORDER) {
+      vi.spyOn(DISCLOSURES[purpose], "version", "get").mockReturnValue("v1");
+    }
+    vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  const consented = () => invitation({ consented_at: "2026-08-21T09:00:00Z" });
+
+  const ceremonyRec = (inv = consented(), rpc: Record<string, unknown> = { authorization_id: "auth-1", signed_count: 1, completed: false }) =>
+    createSupabaseRecorder({
+      tables: { application_invitations: [inv], driver_authorizations: [{ id: "auth-1" }] },
+      rpc: { record_driver_release: rpc },
+    });
+
+  it("hands the transaction the SERVER's text, version and intent — never the client's", async () => {
+    publish();
+    const rec = ceremonyRec();
+    const result = await recordRelease(
+      rec.client, TOKEN,
+      // A client trying to author its own disclosure has nowhere to put one: the body carries the
+      // purpose, the name and the affirmation, and that is the whole schema.
+      { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result)).toBe(false);
+    const args = rec.rpcs()[0]!.args as Record<string, unknown>;
+    expect(args.p_purpose).toBe("psp");
+    expect(args.p_version).toBe("v1");
+    expect(args.p_text).toBe(DISCLOSURES.psp.body);
+    expect(args.p_intent).toBe(DISCLOSURES.psp.intent);
+    expect(args.p_signed_name).toBe("Susan Godfrey");
+    // The count comes from the shared vocabulary, so a fifth instrument is one array entry.
+    expect(args.p_expected_count).toBe(APPLICATION_RELEASE_ORDER.length);
+    // ESIGN attribution, the same three facts every signature here carries.
+    expect(args.p_ip).toBe("203.0.113.9");
+    expect(args.p_user_agent).toBe("Mozilla/5.0");
+  });
+
+  it("reports the ceremony closing on the last instrument", async () => {
+    publish();
+    const rec = ceremonyRec(consented(), { authorization_id: "auth-4", signed_count: 4, completed: true });
+    const result = await recordRelease(
+      rec.client, TOKEN, { purpose: "drug_alcohol", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) ? null : result.completed).toBe(true);
+    expect(isIntakeError(result) ? null : result.signedCount).toBe(4);
+  });
+
+  it("turns a double-tap into the answer the page can act on", async () => {
+    publish();
+    const rec = createSupabaseRecorder({
+      tables: { application_invitations: [consented()] },
+      rpc: { record_driver_release: { error: { code: "DR023", message: "release_already_signed" } } },
+    });
+    const result = await recordRelease(
+      rec.client, TOKEN, { purpose: "psp", signed_name: "S", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) && result.code).toBe("release_already_signed");
+  });
+
+  it("refuses to sign at all before the electronic-records consent", async () => {
+    publish();
+    // No `consented_at`: §390.32(d) is not satisfied, so there is nothing to sign electronically yet.
+    const rec = ceremonyRec(invitation());
+    const result = await recordRelease(
+      rec.client, TOKEN, { purpose: "psp", signed_name: "S", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) && result.code).toBe("esign_consent_required");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("refuses once the ceremony is closed, before it reaches the database", async () => {
+    publish();
+    const rec = ceremonyRec(invitation({
+      consented_at: "2026-08-21T09:00:00Z",
+      releases_completed_at: "2026-08-21T09:05:00Z",
+    }));
+    const result = await recordRelease(
+      rec.client, TOKEN, { purpose: "psp", signed_name: "S", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) && result.code).toBe("releases_complete");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+});
+
 describe("signing a release", () => {
   it("refuses while the disclosure is draft wording, and says why", async () => {
     const rec = seed();

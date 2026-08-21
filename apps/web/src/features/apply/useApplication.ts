@@ -72,6 +72,8 @@ export interface ApplyInvitation {
   carrier: string;
   expiresAt: string;
   releases: ApplyRelease[];
+  /** Which instruments this link has already collected, so a resumed ceremony skips them (A5). */
+  releasesSigned: AuthorizationPurpose[];
   phases: ApplyPhases;
   draft: ApplyDraft;
   esignConsent: ApplyEsignConsent;
@@ -149,3 +151,20 @@ export const unlockApplicationDraft = (token: string, dateOfBirth: string): Prom
 /** Agree to transact electronically. The body is empty: the server composes what was agreed to. */
 export const giveEsignConsent = (token: string): Promise<{ ok: true }> =>
   publicFetch<{ ok: true }>(`/${token}/consent`, { method: "POST", body: "{}" });
+
+/**
+ * Sign one instrument (A5).
+ *
+ * The body carries who signed and how — never what they signed. The server composes the disclosure
+ * text and the intent sentence from `DISCLOSURES` and stores them on the row, which is what makes the
+ * signature worth anything when the file is read years later.
+ */
+export const signRelease = (
+  token: string,
+  purpose: AuthorizationPurpose,
+  signedName: string,
+): Promise<{ signedCount: number; completed: boolean }> =>
+  publicFetch<{ signedCount: number; completed: boolean }>(`/${token}/release`, {
+    method: "POST",
+    body: JSON.stringify({ purpose, signed_name: signedName, esign_consent: true }),
+  });

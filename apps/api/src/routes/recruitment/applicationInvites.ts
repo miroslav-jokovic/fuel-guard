@@ -34,7 +34,12 @@ export function recruitmentApplicationInvitesRouter(): Router {
   const canView = requireRole(...rolesThatCanView("recruitment"));
   const canInvite = requireRole(...rolesThatManage("recruitment"));
 
-  const INVITE_COLS = "id, driver_id, email, expires_at, used_at, revoked_at, created_at";
+  // ⚠ `submitted_at` and not `used_at` since A5. 0225 replaced the single-use fuse with dated phase
+  // stamps and kept `used_at` as a mirror for exactly three readers, of which this was one; the
+  // column is dropped once this code is provably deployed (see A5's entry in the plan for why the
+  // drop is its own step and not this migration).
+  const INVITE_COLS =
+    "id, driver_id, email, expires_at, consented_at, releases_completed_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",
@@ -142,7 +147,10 @@ export function recruitmentApplicationInvitesRouter(): Router {
         .update({ revoked_at: new Date().toISOString() })
         .eq("id", String(req.params.id ?? ""))
         .eq("org_id", orgId)
-        .is("used_at", null)
+        // An invitation that has been submitted through is spent, whatever else it did; revoking it
+        // would take back a link the driver already used. The other phases do not block a revoke —
+        // a carrier may withdraw an application somebody has half-signed.
+        .is("submitted_at", null)
         .select(INVITE_COLS)
         .maybeSingle();
       if (error) {

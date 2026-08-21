@@ -734,7 +734,7 @@ now covers 90 tables); `pnpm typecheck`; `pnpm lint`; `lint:filesize`, `lint:fun
 `expectOrgScoped` holds with `application_invitations` exempted and the reason beside it.
 **Not verified in a browser** — the apply page needs a real minted invitation to reach.
 
-### A5 · The signing ceremony
+### A5 · The signing ceremony — DONE 2026-08-21 (migration 0228)
 
 **Prerequisites:** A1, A4. Real signatures additionally need A0 — the ceremony is verified against a
 non-draft test fixture, so this step does not wait.
@@ -758,9 +758,66 @@ four distinct `disclosure_version` values and four distinct `intent_statement`s.
 **Done when:** four signatures exist as four rows, each carrying the exact text signed, and no single
 control in the UI can produce more than one of them.
 
+**What shipped.**
+- `0228_release_ceremony.sql`: `driver_authorizations.invitation_id` (nullable — staff-recorded
+  signatures have no link, and neither does anything written before today), a unique index on
+  `(invitation_id, purpose)` where `revokes is null`, and `record_driver_release`. The RPC files one
+  signature and **stamps `releases_completed_at` when the last one lands**, in the same transaction:
+  a signature without the stamp would leave the ceremony asking for an instrument already signed.
+  `p_expected_count` is `APPLICATION_RELEASE_ORDER.length`, passed in — the vocabulary stays in
+  TypeScript (0218/0220's division), so a fifth instrument is one array entry, not a migration.
+- ⚠ **Why the signature now names the link.** "Has this driver signed the four?" is the wrong
+  question: a rehire may have signed the same purposes a year ago on a different application, and
+  those do not discharge a new screen — PSP's account agreement requires a signed authorization *in
+  advance of each request* (§4). The right question is whether THIS session collected them, and it
+  was unaskable without `invitation_id`. The unique index is per link for the same reason.
+- `POST /:token/release` is unchanged, as the plan said; the service beneath it gained the
+  transaction and now returns `signedCount` / `completed` so the page advances without refetching.
+  `GET /:token` serves `releasesSigned`, so a resumed ceremony opens on the next instrument.
+- Web `features/apply/signing/`: adoption once (typed name, rendered in a system script face — no
+  webfont, so it cannot fail to load on a truck-stop connection), then one screen per instrument with
+  a "2 of 4" counter, its served text, its own intent sentence and its own control. **The index only
+  advances on a 201**, which is what makes skipping impossible. A `disclosure_not_final` refusal
+  renders as the carrier's problem, in those words.
+- The office can now see a state that could not exist before: `inviteState` gains **`signing`** — the
+  driver opened the link, agreed to sign electronically, and is part-way through the authorizations.
+
+**⚠ Two deliberate deviations from this step's text, both with reasons.**
+
+1. **`used_at` is NOT dropped here.** Every reader is gone (the staff `INVITE_COLS`, the revoke
+   guard's `.is("used_at", null)`, and the web `inviteState` fold — all three now read
+   `submitted_at`), but the column stays until a later step. `migrate.yml` and Railway finish at
+   different times and in no guaranteed order; 2026-08-20 recorded a Railway incident holding deploys
+   in a queue for hours while CI stayed green. If the migration lands first, the deployed old code's
+   `select … used_at` returns a PostgREST error and the recruiter's invitation list breaks until the
+   deploy catches up. Expand then contract: the drop is a one-line migration in **A6**, by which time
+   reader-free code is provably live. Cost of waiting: one line. Cost of not: a recruiter-facing 400
+   during a platform incident.
+2. **The drawn signature mark is not collected yet.** D-APP8 makes it decoration that is never
+   required, and A8 is what gives it somewhere to be stored (`documents`, kind `other`, promoted at
+   submit). A canvas whose output is silently discarded is worse than no canvas, so the adoption
+   screen ships with the typed name — the signature of record — and A8 adds the mark beside it.
+
+**⚠ And the ceremony is skipped while any instrument is draft**, for the reason A4's gate is armed by
+A0: `POST /:token/release` refuses draft wording with a 409, so a ceremony gated on it would be a wall
+across a working application. While the wording is outstanding the instruments are shown read-only on
+the last screen as they were before A5 — nobody should be asked weeks later to sign four documents
+they have never seen — and the ceremony opens by itself when A0 publishes.
+
+**Verified by:** `pnpm test` (new matrix `release-ceremony` 19 passed — four rows with four distinct
+texts and four distinct intents, the fourth stamping the phase, the same instrument refused twice on
+one link and accepted again on a new one, and a signature outliving the deleted invitation that
+carried it); the service tests run against a **stubbed non-draft `DISCLOSURES`**, which is what lets
+this ship before A0; `useSigningCeremony.test.ts` pins that a failed signature does not advance;
+`pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**Not verified in a browser** — the apply page needs a real minted invitation to reach.
+
 ### A6 · The rendered application PDF
 
-**Prerequisites:** A5.
+**Prerequisites:** A5. ⚠ **Also carries two small debts from earlier steps:** drop
+`application_invitations.used_at` (A5 removed its last reader; the drop waits for that code to be
+provably deployed), and print §391.21(b)(1)'s carrier name and address — which needs the address
+column §6 now asks the owner for, and prints the name alone until it exists.
 
 **Build.** `apps/api/src/services/applicationPdf.ts` on `dqBinder/pdfDraw.ts`'s toolkit: the §391.21
 application laid out in the regulation's own order, then the certification block, then one page per

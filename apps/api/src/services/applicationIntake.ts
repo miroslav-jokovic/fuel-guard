@@ -202,6 +202,11 @@ export const RELEASES_COMPLETE: IntakeError = {
   message: "Every authorization on this link has already been signed.",
 };
 
+export const RELEASE_ALREADY_SIGNED: IntakeError = {
+  code: "release_already_signed",
+  message: "You have already signed this one.",
+};
+
 export interface SubmitContext {
   ip: string | null;
   userAgent: string | null;
@@ -277,6 +282,11 @@ export async function submitApplication(
  * database exactly the thing the regulation forbids on paper. A half-signed set is a real state that
  * the pipeline already knows how to describe — `applicantProgress` reports which releases are
  * outstanding — rather than an inconsistency to be prevented.
+ *
+ * ⚠ It IS one transaction per SIGNATURE, since A5 (0228). That is not the same thing: the row and
+ * the `releases_completed_at` stamp the last one triggers are the same fact written twice, and a
+ * signature filed without the stamp would leave the ceremony asking for an instrument already
+ * signed. Four documents, four acts, four transactions — and the fourth also closes the phase.
  */
 export async function recordRelease(
   admin: SupabaseClient,
@@ -284,16 +294,15 @@ export async function recordRelease(
   body: ApplicationRelease,
   ctx: SubmitContext,
   now: Date,
-): Promise<{ id: string } | IntakeError> {
+): Promise<{ id: string; signedCount: number; completed: boolean } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
   // A signature given electronically by somebody who never agreed to sign electronically is the
   // gap §390.32(d) exists to close (A4).
   const consent = requireEsignConsent(invitation);
   if (consent) return consent;
-  // This path's own phase. Nothing stamps `releases_completed_at` until A5 closes the ceremony on
-  // the fourth instrument; the refusal ships with the column so the phase is enforced from the
-  // migration that created it rather than from whenever a caller appears.
+  // This path's own phase (D-APP1). The transaction checks it again under a lock; this is the cheap
+  // refusal that keeps a finished ceremony from reaching the database at all.
   if (invitation.releases_completed_at) return RELEASES_COMPLETE;
 
   const doc = DISCLOSURES[body.purpose];
@@ -306,26 +315,57 @@ export async function recordRelease(
     };
   }
 
-  const { data, error } = await admin
+  const { data, error } = await admin.rpc("record_driver_release", {
+    p_org: invitation.org_id,
+    p_invitation: invitation.id,
+    p_driver: invitation.driver_id,
+    p_purpose: body.purpose,
+    p_version: doc.version,
+    p_text: doc.body,
+    p_intent: doc.intent,
+    p_signed_name: body.signed_name,
+    p_ip: ctx.ip,
+    p_user_agent: ctx.userAgent,
+    // The vocabulary lives here, not in the migration: a fifth instrument is a change to one array.
+    p_expected_count: APPLICATION_RELEASE_ORDER.length,
+  });
+  if (error) {
+    if (error.code === "DR023" || /already_signed/.test(error.message)) return RELEASE_ALREADY_SIGNED;
+    if (error.code === "DR022" || /releases_already_complete/.test(error.message)) return RELEASES_COMPLETE;
+    if (
+      error.code === "DR020"
+      || error.code === "DR021"
+      || /invitation_unusable|invitation_not_found/.test(error.message)
+    ) {
+      return { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
+    }
+    return { code: "sign_failed", message: error.message };
+  }
+  const row = data as { authorization_id?: string; signed_count?: number; completed?: boolean } | null;
+  return {
+    id: String(row?.authorization_id ?? ""),
+    signedCount: Number(row?.signed_count ?? 0),
+    completed: Boolean(row?.completed),
+  };
+}
+
+/**
+ * Which instruments this link has already collected — so a resumed ceremony picks up at the next one.
+ *
+ * Keyed on the INVITATION and not on the driver: a rehire may have signed the same purposes a year
+ * ago on a different application, and those signatures do not discharge this one. PSP's account
+ * agreement is explicit that a signed authorization is required in advance of each request.
+ */
+export async function signedReleases(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+): Promise<AuthorizationPurpose[]> {
+  const { data } = await admin
     .from("driver_authorizations")
-    .insert({
-      org_id: invitation.org_id,
-      driver_id: invitation.driver_id,
-      purpose: body.purpose,
-      disclosure_version: doc.version,
-      disclosure_text: doc.body,
-      intent_statement: doc.intent,
-      method: "esign",
-      signed_name: body.signed_name,
-      esign_consent_at: now.toISOString(),
-      accepted_ip: ctx.ip,
-      accepted_user_agent: ctx.userAgent,
-      // No `recorded_by`: nobody in the carrier recorded this. The applicant signed it themselves,
-      // and a staff id here would misattribute the act to whoever sent the link.
-      recorded_by: null,
-    })
-    .select("id")
-    .single();
-  if (error || !data) return { code: "sign_failed", message: error?.message ?? "Could not record the signature." };
-  return { id: (data as { id: string }).id };
+    .select("purpose")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .is("revokes", null);
+  return ((data ?? []) as Array<{ purpose: AuthorizationPurpose }>).map((r) => r.purpose);
 }

@@ -12,7 +12,9 @@ const invite = (over: Partial<ApplicationInvitation> = {}): ApplicationInvitatio
   driver_id: "d1",
   email: null,
   expires_at: "2026-09-01T00:00:00Z",
-  used_at: null,
+  consented_at: null,
+  releases_completed_at: null,
+  submitted_at: null,
   revoked_at: null,
   created_at: "2026-08-19T00:00:00Z",
   ...over,
@@ -24,16 +26,31 @@ describe("an invitation's state", () => {
   });
 
   it("is used once the applicant has submitted", () => {
-    expect(inviteState(invite({ used_at: "2026-08-19T10:00:00Z" }), NOW)).toBe("used");
+    expect(inviteState(invite({ submitted_at: "2026-08-19T10:00:00Z" }), NOW)).toBe("used");
+  });
+
+  /**
+   * A5. Before the ceremony existed nobody could be here: the link was open until it was spent, and
+   * "the driver is part-way through signing" was a state the office could not see because nothing
+   * called the signing endpoint.
+   */
+  it("is signing once the driver has consented but not yet sent it", () => {
+    expect(inviteState(invite({ consented_at: "2026-08-19T09:00:00Z" }), NOW)).toBe("signing");
+    expect(
+      inviteState(invite({ consented_at: "2026-08-19T09:00:00Z", releases_completed_at: "2026-08-19T09:05:00Z" }), NOW),
+    ).toBe("signing");
   });
 
   /** A spent link stays "submitted" even past its expiry — what happened outranks what lapsed. */
   it("reports a used link as used even after it would have expired", () => {
-    expect(inviteState(invite({ used_at: "2026-08-19T10:00:00Z", expires_at: "2026-08-01T00:00:00Z" }), NOW)).toBe("used");
+    expect(inviteState(invite({ submitted_at: "2026-08-19T10:00:00Z", expires_at: "2026-08-01T00:00:00Z" }), NOW)).toBe("used");
   });
 
   it("is revoked when a recruiter closed it", () => {
     expect(inviteState(invite({ revoked_at: "2026-08-19T11:00:00Z" }), NOW)).toBe("revoked");
+    // Revoking a half-signed application is a thing a carrier may do; the signatures already given
+    // stay, because a signature is evidence of what somebody consented to.
+    expect(inviteState(invite({ consented_at: "2026-08-19T09:00:00Z", revoked_at: "2026-08-19T11:00:00Z" }), NOW)).toBe("revoked");
   });
 
   it("is expired once the window has passed", () => {
