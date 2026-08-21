@@ -12,6 +12,7 @@ import {
   type AuthorizationPurpose,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
+import { ensureApplicationPdf } from "./applicationPdf/file.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 
 /**
@@ -264,10 +265,29 @@ export async function submitApplication(
     }
     return { code: "submit_failed", message: error.message };
   }
-  return {
-    applicationId: String((data as { application_id?: string } | null)?.application_id ?? ""),
-    driverId: invitation.driver_id,
-  };
+  const applicationId = String((data as { application_id?: string } | null)?.application_id ?? "");
+
+  /**
+   * Render the §391.51(b)(1) document, best effort (A6, D-APP9).
+   *
+   * Deliberately after the transaction and deliberately unable to fail it. The evidence — the
+   * payload, the signed rows, the consent — is committed and append-only; this produces a PDF from
+   * it. Trading an irreplaceable submission for a regenerable derivative would be the wrong way
+   * round, and `ensureApplicationPdf` is idempotent, so the recruiter's first download renders
+   * whatever this call could not.
+   */
+  if (applicationId) {
+    try {
+      await ensureApplicationPdf(admin, invitation.org_id, applicationId);
+    } catch (e) {
+      console.error("[application] could not render the application PDF", {
+        applicationId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  return { applicationId, driverId: invitation.driver_id };
 }
 
 /**

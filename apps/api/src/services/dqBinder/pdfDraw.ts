@@ -65,12 +65,17 @@ export function winAnsi(text: string): string {
  * the WHOLE binder after the merge, when the total page count is finally known and the scanned pages
  * can be stamped identically — see `merge.ts`. Drawing them here would number each fragment 1 of 1.
  */
-export function newDrawing(title: string): Drawing {
+export function newDrawing(title: string, opts: { bufferPages?: boolean } = {}): Drawing {
   const doc = new PDFDocument({
     size: "LETTER",
     margins: { top: MARGIN, bottom: MARGIN + 18, left: MARGIN, right: MARGIN },
     info: { Title: title },
     autoFirstPage: true,
+    // Opt-in, because the binder deliberately does NOT want it (see the note above): its footers are
+    // stamped across the merged file. A document that stands alone — the rendered §391.21
+    // application (A6) — needs its pages held open so the footer pass can revisit them once the total
+    // count is known, which is what `bufferedPageRange` and `switchToPage` require.
+    bufferPages: opts.bufferPages === true,
   });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));

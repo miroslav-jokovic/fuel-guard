@@ -241,6 +241,34 @@ ok(
   (await count(`select count(*)::int as n from driver_applications where driver_id = $1`, [STRANGER])) === 0,
 );
 
+// ── A6: the §391.51(b)(1) record learns which document it cites ────────────────────────────────
+// The PDF is drawn FROM the application, so it cannot exist inside the transaction that files it.
+// `attach_application_document` is the one narrow act that closes that gap afterwards.
+const DOC = (
+  await one(
+    // `documents.id` carries no default: the API mints the uuid so the storage path can be built
+    // from it before the row exists (the `pspOrder.ts` filing pattern).
+    `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, bytes, sha256)
+       values (gen_random_uuid(),$1,'driver',$2,'employment_application',$3,'application/pdf',1024,repeat('a',64)) returning id`,
+    [ORG, APPLICANT, `${ORG}/driver/${APPLICANT}/app.pdf`],
+  )
+).id;
+const attached = (await one(`select public.attach_application_document($1,$2,$3) as r`, [ORG, result.application_id, DOC])).r;
+ok("the citation is attached", attached === true);
+ok(
+  "and the qualification record points at the document",
+  (await one(
+    `select document_id from qualification_records where kind = 'employment_application' and reference = $1`,
+    [result.application_id],
+  )).document_id === DOC,
+);
+// Idempotent by design: the PDF is regenerable, but the record cites the first one filed. A second
+// render losing the race must not silently repoint evidence at a different copy.
+const second = (await one(`select public.attach_application_document($1,$2,$3) as r`, [ORG, result.application_id, DOC])).r;
+ok("attaching twice is a no-op, not a second answer", second === false);
+const crossAttach = (await one(`select public.attach_application_document($1,$2,$3) as r`, [OTHER_ORG, result.application_id, DOC])).r;
+ok("and another org cannot attach to it at all", crossAttach === false);
+
 // ── neither table is reachable from a browser session ──────────────────────────────────────────
 ok(
   "the intake function is service_role only",

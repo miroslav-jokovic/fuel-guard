@@ -86,3 +86,31 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
   if (Date.parse(invite.expires_at) <= now.getTime()) return "expired";
   return invite.consented_at ? "signing" : "open";
 }
+
+/**
+ * The submitted application itself (A6).
+ *
+ * PSP's §0.2 lesson applied before it can repeat: a document filed only where somebody would have to
+ * go looking is a document nobody reads. The recruiter asks about the application on the driver's
+ * page, so the PDF is offered there. The server renders it on demand if the submit-time render did
+ * not land, which is also what makes "logged and retried" true.
+ */
+export interface SubmittedApplication {
+  id: string;
+  certified_at: string;
+  signed_name: string;
+}
+
+export function useDriverApplicationQuery(driverId: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["recruitment", "application", driverId.value] as const),
+    enabled: computed(() => Boolean(driverId.value)),
+    queryFn: async (): Promise<{ application: SubmittedApplication | null; documentUrl: string | null }> => {
+      const res = await apiFetch<{ application: SubmittedApplication | null; documentUrl: string | null }>(
+        `/api/recruitment/drivers/${driverId.value}/application`,
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the application.");
+      return res.data;
+    },
+  });
+}

@@ -812,7 +812,7 @@ this ship before A0; `useSigningCeremony.test.ts` pins that a failed signature d
 `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
 **Not verified in a browser** — the apply page needs a real minted invitation to reach.
 
-### A6 · The rendered application PDF
+### A6 · The rendered application PDF — DONE 2026-08-21 (migration 0229)
 
 **Prerequisites:** A5. ⚠ **Also carries two small debts from earlier steps:** drop
 `application_invitations.used_at` (A5 removed its last reader; the drop waits for that code to be
@@ -836,6 +836,65 @@ submit. `lint:filesize` (the service starts split if it approaches 450 lines).
 **Done when:** a recruiter opens one PDF and sees the whole application with every signature and
 every date on it — and PSP's §0.2-style lesson holds: it is offered from the screen the recruiter
 actually uses, not filed only where they would have to go looking.
+
+**What shipped.**
+- `services/applicationPdf/render.ts` — §391.21(b)(1) through (b)(12) in the regulation's own order,
+  each block naming the paragraph it discharges, then the certification, then one page per instrument
+  and one for the 7001(c) consent. Each instrument prints **the text stored on its row**, not today's
+  constant: a page showing current wording beside an old signature would misrepresent what somebody
+  agreed to. The SSN is deliberately absent — the last place nine digits belong is a document a
+  recruiter emails.
+- `services/applicationPdf/file.ts` — render → upload → `documents` row with the bytes' sha256 →
+  `attach_application_document`. `0229` adds that RPC, which sets `document_id` **only where it is
+  null**, only on an `employment_application` record, only for the owning org: a general "update a
+  qualification record" path would be a way to rewrite evidence.
+- Called after the submit transaction, wrapped so it **cannot fail the submission** (D-APP9), and
+  called again by the recruiter's route.
+
+**⚠ Three corrections and deviations, each with its reason.**
+
+1. **The sha256 cannot be in the footer.** A6's text asks for it; a file cannot contain the hash of
+   its own bytes — changing the footer changes the bytes, which changes the hash, forever. The footer
+   carries the digest of the **source** instead: the certified payload the page was drawn from, which
+   is stable and is what "identifies its own source" has to mean for a derivative. The hash of the
+   bytes lives on the `documents` row, where it can.
+2. **"Logged and retried" is `ensureApplicationPdf`, not a job kind.** It files a PDF if none is filed
+   and returns the existing one if there is, so the same function serves the submit path (immediately,
+   best effort) and the recruiter's download (on demand). A failed render heals the first time
+   anybody asks for the document — for a derivative that is a better guarantee than a queue, with
+   nothing to register, no `KIND_CAPS` entry and no fleet-wide invariant to keep.
+3. **Every field is rendered through a null-tolerant helper**, including ones the contract marks
+   required, because this reads STORED payloads: a row filed before A3a has no `additional_licences`,
+   and a renderer that throws on an old payload is a qualification file that cannot be produced —
+   precisely the §390.32(d) failure the PDF exists to prevent.
+
+**⚠ A pdfkit trap that cost time, worth adding to the harness-facts list.** Text drawn below the
+bottom margin is treated as overflowed content and **auto-adds a page**, so stamping a footer at the
+foot of the sheet silently doubles the document — and the extra pages arrive after
+`bufferedPageRange()` was read, so the "page N of M" printed on them is wrong too. It presents as
+"every page added two pages". The fix is to zero `doc.page.margins.bottom` around the footer write and
+restore it. Related: `newDrawing` gained an opt-in `bufferPages` flag, because the binder deliberately
+does not want one (its footers are stamped across the merged file) and a standalone document does.
+
+**And the two debts from earlier steps are paid.**
+- `application_invitations.used_at` is **dropped**. A5 removed its last three readers; this migration
+  waited until that code was verified live (deployment 6a1cffc7, schema 0228) so no deployed reader
+  could break. ⚠ **The function that still wrote it went first**: `submit_driver_application`'s live
+  body stamped `used_at` as well as `submitted_at`, and dropping the column under it would have left
+  every submission raising 42703 — a schema change that compiles, deploys and breaks the one
+  unauthenticated write path in the product.
+- **§391.21(b)(1)** now has somewhere to live: `organizations.legal_address`, nullable, printed when
+  present. The renderer prints the carrier's name alone until the owner supplies one, so a missing
+  input costs one line rather than the document. §6 still tracks the ask — this is the schema half.
+
+**Verified by:** `pnpm test` (the `application-intake` matrix gained the citation RPC — attached once,
+a no-op the second time, and refused across orgs; `application-session` proves the dropped column is
+gone); `render.test.ts` inflates and decodes the PDF's own content streams so the assertions read what
+is actually on the page (⚠ pdfkit deflates its streams AND emits kerned **hex** runs — grepping the
+raw bytes finds nothing and makes every such assertion vacuous); a determinism test; a test that a
+thrown renderer leaves the submission standing; `expectOrgScoped` across the whole filing path.
+`pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**Not verified in a browser** — the recruiter card is covered by the API tests behind it.
 
 ### A7 · The web capture provider
 
@@ -974,7 +1033,7 @@ regardless.
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
 | **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
 | **Whether Silvicom wants an EEO section** | Owner | A9 supports one and excludes it from every recruiter-facing projection. Absent an instruction, no EEO questions are defined. |
-| **The carrier's legal name and address** (⚠ new, 2026-08-21) | Owner | §391.21(b)(1) requires the employing motor carrier's name AND address on the application, and `organizations` has no address column — so A6's renderer cannot print one and the rendered document would be short of a paragraph the regulation names. A6 ships the block reading from the org and printing the name alone until the address exists; adding it is one migration plus one owner answer. |
+| **The carrier's legal name and address** (⚠ new, 2026-08-21) | Owner | §391.21(b)(1) requires the employing motor carrier's name AND address on the application. ⚠ **The schema half is done** — `organizations.legal_address` landed in 0229 and A6's renderer prints it when present — so this is now purely an owner input: one `update organizations set legal_address = …` and every application rendered afterwards carries the paragraph. Until then the document prints the carrier's name alone. |
 
 ---
 
