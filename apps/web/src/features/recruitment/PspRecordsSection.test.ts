@@ -76,8 +76,22 @@ const RECORDS = [
   },
 ];
 
+/**
+ * Documents are a SEPARATE call from records, and the difference is the point of the report column.
+ * `doc-2` signs; `doc-1` is on file with `url: null`, which is what `signDocumentRows` returns when
+ * batch signing fails for a row — it degrades that row rather than failing the page.
+ */
+const DOCUMENTS = [
+  { id: "doc-1", kind: "psp_report", url: null },
+  { id: "doc-2", kind: "psp_report", url: "https://storage.example/signed/doc-2.pdf" },
+];
+
 vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(async () => ({ ok: true, data: { records: RECORDS } })),
+  apiFetch: vi.fn(async (url: string) =>
+    url.startsWith("/api/compliance/documents")
+      ? { ok: true, data: { documents: DOCUMENTS } }
+      : { ok: true, data: { records: RECORDS } },
+  ),
 }));
 vi.mock("@/lib/supabase", () => ({
   supabase: { storage: { from: () => ({}) }, auth: { getSession: async () => ({ data: { session: null } }) } },
@@ -128,6 +142,33 @@ describe("PSP records on the driver page", () => {
     await settle(w);
     expect(w.text()).toContain("PSP-88231");
     expect(w.text()).not.toContain("r-mvr");
+  });
+
+  /**
+   * The gap this column closed. A record ordered on 2026-08-20 was filed correctly — bytes in
+   * storage, sha256 recorded, `document_id` set — and the operator could not find the PDF, because
+   * this table showed four columns and none of them was the report. §7's authCode dies after 120
+   * hours, so a report unreachable from the screen that bought it is one somebody re-buys.
+   */
+  it("offers the report itself for a record that has one", async () => {
+    const w = mountSection();
+    await settle(w);
+    const link = w.findAll("a").find((a) => a.text() === "Download");
+    expect(link).toBeDefined();
+    expect(link!.attributes("href")).toBe("https://storage.example/signed/doc-2.pdf");
+    expect(link!.attributes("rel")).toContain("noopener");
+  });
+
+  /**
+   * A document on file that would not sign this minute. Neither a dead link nor an em dash: one
+   * offers evidence that does not open, the other says nothing was bought. Both are lies about
+   * evidence, and this file is the §391.51 record.
+   */
+  it("says a filed report is unavailable rather than pretending it is absent", async () => {
+    const w = mountSection();
+    await settle(w);
+    expect(w.text()).toContain("Unavailable");
+    expect(w.findAll("a").filter((a) => a.text() === "Download")).toHaveLength(1);
   });
 
   it("offers the import to a recruiter", async () => {

@@ -21,7 +21,7 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useQualificationRecordsQuery } from "@/composables/useCompliance";
+import { useDocumentsQuery, useQualificationRecordsQuery } from "@/composables/useCompliance";
 import { useImportPspRecord } from "@/features/recruitment/usePspImport";
 import PspOrderDrawer from "@/features/recruitment/PspOrderDrawer.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
@@ -47,6 +47,27 @@ const driverId = computed(() => props.driverId);
 const session = useSessionStore();
 const toast = useToastStore();
 const recordsQ = useQualificationRecordsQuery(driverId);
+const subjectType = ref("driver");
+/**
+ * The report itself, not just the fact of it.
+ *
+ * A record was ordered on 2026-08-20 and the operator could not find the PDF: it was filed
+ * correctly — bytes in storage, sha256 recorded, `qualification_records.document_id` pointing at it —
+ * and this table simply never offered it. The only way to reach it was the Qualification tab, which
+ * is the tab a recruiter does not open, and this is the panel whose entire subject is PSP records.
+ *
+ * It matters more here than elsewhere because the alternative is not "look somewhere else": §7's
+ * `authCode` dies after 120 hours, so a report that cannot be found from the screen that bought it
+ * is one somebody eventually re-buys at $10.
+ */
+const docsQ = useDocumentsQuery(subjectType, driverId);
+
+/** Signed for minutes and re-signed on refetch — never stored, never rendered as a permanent link. */
+const reportUrl = computed(() => {
+  const m = new Map<string, string>();
+  for (const d of docsQ.data.value ?? []) if (d.url) m.set(d.id, d.url);
+  return m;
+});
 const driverQ = useDriverQuery(driverId);
 const importRecord = useImportPspRecord();
 const orderOpen = ref(false);
@@ -103,6 +124,7 @@ const columns: DataTableColumn[] = [
   { key: "source", label: "Source" },
   { key: "findings", label: "Findings" },
   { key: "reference", label: "Reference" },
+  { key: "report", label: "Report" },
 ];
 
 /**
@@ -171,6 +193,26 @@ const sourceTone = (row: QualificationRecordRow): string => {
         </template>
         <template #cell-reference="{ row }">
           <span v-if="row.reference" class="font-mono text-xs text-ink-secondary">{{ row.reference }}</span>
+          <span v-else class="text-ink-muted">—</span>
+        </template>
+        <!--
+          Three states, and the middle one is the reason this is not a one-liner. A document can be
+          on file with no link this minute: `signDocumentRows` degrades a row to `url: null` rather
+          than failing the page. Saying "Unavailable" is the honest word for that — rendering a dead
+          link, or an em dash as though nothing had been bought, would both be lies about evidence.
+        -->
+        <template #cell-report="{ row }">
+          <a
+            v-if="row.document_id && reportUrl.get(row.document_id)"
+            :href="reportUrl.get(row.document_id)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs font-medium text-ink-secondary hover:text-link"
+          >
+            Download
+          </a>
+          <span v-else-if="row.document_id && docsQ.isLoading.value" class="text-xs text-ink-muted">Loading…</span>
+          <span v-else-if="row.document_id" class="text-xs text-ink-muted">Unavailable</span>
           <span v-else class="text-ink-muted">—</span>
         </template>
       </DataTable>
