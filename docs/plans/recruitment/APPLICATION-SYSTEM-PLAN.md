@@ -1169,6 +1169,10 @@ is counsel's to change and not an engineer's.
 **A1 → A2 → A3a → A4 → A5 → A6 → A7 → A8 → A9 → A10 → A11**, with **A0 running in parallel from the
 start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1 opens**.
 
+⚠ **Position as of 2026-08-21 evening: A1–A7 are DONE and live (schema 0229). The next step is A8.**
+`HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
+the harness facts that cost time, which are not repeated here.
+
 **A3b (prefill) is deliberately out of that line.** It depends only on A3a, nothing depends on it, and
 half of it waits on R1/R2 for a leads table that does not exist. Slot it wherever it fits; the form is
 complete without it.
