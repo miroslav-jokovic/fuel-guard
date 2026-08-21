@@ -1173,7 +1173,7 @@ itself — whether a finger draws a legible line on a real phone — is the one 
 component test genuinely cannot answer. It is decoration, so shipping it unproven costs a squiggle
 rather than a record; but the first real applicant is the first real test of it.
 
-### A9 · The carrier questionnaire
+### A9 · The carrier questionnaire — DONE 2026-08-21 (migration 0231)
 
 **Prerequisites:** A3. **Input required: the owner's Excel application** — this step's build begins
 by transcribing it (§6).
@@ -1195,6 +1195,121 @@ by transcribing it (§6).
 tests above; a test that Silvicom's transcribed definition round-trips.
 **Done when:** the owner's Excel exists as a versioned definition, a driver answers it inside the same
 flow, and not one of those answers has touched §391.21's schema or the qualification file.
+
+**What shipped.**
+- `packages/shared/src/questionnaireContract.ts` — the definition type, `SILVICOM_DRIVER_V1`
+  transcribed from `APPLICATION.xlsx` (read out of the workbook itself, not from §6.1's summary),
+  `questionnaireAnswersSchema`, and `readableAnswers`. Eleven questions, addressed as
+  `silvicom_driver@v1`.
+- `driverApplicationSchema` gains `questionnaire_version` and `questionnaire_answers` — the one
+  contract change D-APP12 budgeted for, after which the carrier's form changes without touching
+  anything §391.21 numbers.
+- A `questions` wizard screen between `safety` and `documents`, rendering whatever the definition
+  holds and knowing none of the carrier's questions by name. Answers autosave with the rest of the
+  draft (they carry no SSN and no D-APP3 field).
+- `render.ts` prints them as their own section — see the deviation below.
+- **And two corrections to the regulated contract**, made after checking the primary sources rather
+  than the packet — see "What the sources actually say" below: `equipment_experience` (§391.21(b)(6))
+  and `other_names` (§391.23(a)(2), migration 0231).
+
+**⚠ Four deviations from this step's text, each with its reason.**
+
+1. **A `table` question kind, which the plan's type list does not have.** Two of the things the packet
+   asks for are grids: education, and three references. Flattening either would have produced scalar
+   fields whose names encode their row and column — a table pretending not to be one, and unreadable
+   in the rendered document. One more kind models what the paper is. On screen the rows are stacked
+   cards, not a grid: nine in ten of these are filled on a phone, and a five-column table is a
+   horizontal scroll inside a form, which is where drivers stop.
+2. **There is no `required` flag, although the step asks for one.** A flag has to be enforced
+   somewhere and there are only two places. In the wizard alone it breaks the property A3 built the
+   wizard on — the client validates with the server's own object, so the two can never disagree. In
+   the schema it lets a carrier's own question refuse a §391.21 application, which is the opposite of
+   the decision A8a already took for photographs. A flag enforced in neither place is decoration that
+   reads as a rule. So the questionnaire blocks nothing, both validators accept everything, and they
+   agree exactly. If the carrier later wants an answer mandatory, the honest shape is an
+   `APPLICATION_CROSS_FIELD_RULES` entry — one place, both validators — and that is a decision to make
+   rather than inherit. The reasoning is written at the type, where the next person will meet it.
+3. **The answers ARE rendered into the application PDF, and the step does not mention the renderer.**
+   Checked against D-APP12 rather than assumed: it names three places the answers must not reach —
+   `drivers`, `driver_employment_history`, DQF items — and this document is none of them; it is a
+   derivative of the payload the answers live in. It had to be done, because
+   `GET /drivers/:id/application` serves the PDF **and nothing else of the application's content**, so
+   a questionnaire left out of it is a form collected and read by nobody. It is a separate section
+   after everything the regulation numbers, under a heading that says whose questions they are, so a
+   reader with the CFR open is never told §391.21 asks for a driver's references. ⚠ The reserved `eeo`
+   key never appears on it, pinned by a test.
+4. **No org column, and definitions "org-scoped by id" means the id is the scope.** Spending a
+   migration on a column that would hold the same value in every row of a one-row table is generality
+   that reads as a feature and is really an unused join. The day a second carrier's form differs, the
+   selection becomes a column and `questionnaireForApplicant` grows an argument.
+
+### What the sources actually say — two corrections A9 made to itself
+
+Both of these were raised as open questions when the questionnaire was first transcribed, and both
+were then settled against **primary sources** rather than against the packet or a search summary.
+The sources: §391.21(b) read verbatim on Cornell LII, and **FMCSA's own sample driver employment
+application** (`csa.fmcsa.dot.gov/SafetyPlanner/documents/Forms/Drivers_Employment_Application_508.pdf`),
+both read 2026-08-21. ⚠ ecfr.gov still redirects to a bot-check and cannot be fetched.
+
+**1. The driving-experience grid IS §391.21(b)(6). It moved into the regulated contract.**
+
+(b)(6) verbatim: *"The nature and extent of the applicant's experience in the operation of motor
+vehicles, **including the type of equipment (such as buses, trucks, truck tractors, semitrailers, full
+trailers, and pole trailers) which he/she has operated**"*. The paragraph asks for two things in one
+sentence, and `experience` — free text — answered only the first. FMCSA's own sample application lays
+the second out as exactly the grid the owner's packet contains, column for column: class of equipment
+× type (VAN, TANK, FLAT, ETC.) × date from × date to × approximate total miles. **The packet is a
+near-verbatim copy of the government's form**; the grid is the regulation's, not the carrier's.
+
+So `equipment_experience` is now a regulated field on the employment screen, rendered under (b)(6),
+and the questionnaire no longer asks for it. Two further consequences, both deliberate:
+  - the class list is FMCSA's form's, **plus `bus`** — which (b)(6)'s own parenthetical names first and
+    that form omits;
+  - a cross-field rule now refuses a document that answers **neither** half of the sentence. (b)(6) is
+    mandatory content of the application form and this schema previously accepted it blank, because
+    `experience` was nullish and there was nothing else. Either half satisfies it, and a driver can
+    always give one.
+
+**2. Aliases are NOT a §391.21 field — the plan's §6.1 note was right about the gap and wrong about
+where it belongs.** (b)(2) verbatim is *"The applicant's name, address, date of birth, and social
+security number"*, and FMCSA's sample application asks for first, middle and last name and **no other
+name anywhere on its four pages**. ⚠ Secondary sources asserting that the FMCSRs require aliases are
+simply wrong, and were not taken at face value.
+
+It earns its place under **§391.23(a)(2)** instead: the carrier must investigate the previous three
+years, and a driver who drove under a maiden name is a driver that employer's records do not contain
+— the inquiry goes out naming somebody they have never heard of, the reply is "no record", and a clean
+safety history is indistinguishable from an absent one. That is also exactly where the owner's packet
+asks for it: nowhere on its application pages, and once on the "10 year employment history background
+verification log", which is the office worksheet `employer_inquiries` (0223) replaced.
+
+So `other_names` is on the identity screen, cited §391.23 rather than to any (b) paragraph, and —
+this is the part that matters — it is **projected**. 0231 adds `drivers.other_names`, the intake fills
+it, and `driverNameForInquiry` puts it in the letter: *"Susan Godfrey (also known as Susan Smith)"*.
+It is deliberately NOT questionnaire material for that reason: D-APP12 projects questionnaire answers
+nowhere, and this field's entire value is being projected. A fact we asked for, stored and never used
+would be the same write-only failure that made A9 render its questionnaire rather than merely collect
+it.
+
+**Verified by:** `pnpm test` — `questionnaireContract.test.ts` (13) checks the definition is
+internally coherent, carries every question §6.1's pile 2 lists, survives a version this build has
+never served, and — the ones that matter — runs the **real projection** over an application carrying
+answers and proves none of them reaches the driver patch or the employment rows, and that the
+reserved EEO key is invisible to anything that reads answers; `render.test.ts` gains five, including
+that a `no` is distinguishable from an unanswered question and that an EEO payload prints nothing;
+`draft.test.ts` gains five on the round-trip, including that `false` survives and whitespace does not.
+For the two corrections: `applicationContract.test.ts` gains seven — that a document answering neither
+half of (b)(6) is refused, that either half satisfies it, that a day-precision date and a class the
+regulation does not name are both refused, and that `other_names` defaults to none; `render.test.ts`
+gains five more (the equipment prints under (b)(6) with its label rather than its stored token, an
+open-ended row reads "present", a payload predating the field still renders, and "Also known as"
+appears only when there is one); `employerInquiryContract.test.ts` is new and pins the line the whole
+alias field exists for, including that a driver who types their own name is not introduced to
+themselves; the `application-intake` matrix pins that the names are projected onto `drivers` and that
+an application naming none leaves the column NULL rather than `{}` — "we never asked" and "they said
+none" are different facts.
+`pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**Not verified in a browser** — same reason as every step since A1.
 
 ### A10 · Abandonment recovery
 
@@ -1260,11 +1375,11 @@ regardless.
 | Input | Owner | What the code does |
 |---|---|---|
 | **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. ⚠ Since A4 this text also **arms the 7001(c) gate**: publishing it is what makes the consent required on every write path, and until then the application runs exactly as it did before. A4 shipped the six clauses as placeholders with a statutory citation each, so counsel's pass is six named strings rather than a blank page. |
-| ~~**The Excel application**~~ | Owner | **ARRIVED 2026-08-21** — `APPLICATION.xlsx`, committed beside this plan. ⚠ **It is not a questionnaire; it is a 31-page contractor packet**, and what it contains changes A9 and A0. See §6.1 below before transcribing anything. |
+| ~~**The Excel application**~~ | Owner | **ARRIVED 2026-08-21, and TRANSCRIBED by A9 the same day** — `APPLICATION.xlsx`, committed beside this plan. ⚠ **It is not a questionnaire; it is a 31-page contractor packet**, and what it contains changed A9 and still changes A0. §6.1 is the inventory; pile 2 now exists in code as `silvicom_driver@v1`. Piles 3 and 4 remain outstanding work for A0 and for the R-side steps respectively. |
 | **Which documents a driver must photograph** | Owner | **A8a shipped** the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. The screen asks for the first four; adding a slot later is one enum entry plus one mapping line, and no migration column changes. ⚠ **None of them is required to send the application**, and the reason is written beside `APPLICATION_CAPTURE_REQUIRED`: §391.21 asks for no photograph, and a camera that will not open must not cost the carrier a candidate. If the owner wants one made mandatory, that is one array entry. |
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
 | **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
-| **Whether Silvicom wants an EEO section** | Owner | A9 supports one and excludes it from every recruiter-facing projection. Absent an instruction, no EEO questions are defined. |
+| **Whether Silvicom wants an EEO section** | Owner | **A9 shipped the exclusion and defined no questions.** The reserved `questionnaire_answers.eeo` key is dropped by `readableAnswers` and never reaches the rendered document — pinned by a test that puts a marker string in it and greps the PDF. Adding questions later needs no change to the exclusion, which is the point of building it before there is anything to exclude. |
 | ~~**The carrier's legal name and address**~~ | Owner | **ANSWERED 2026-08-21**, from the packet's own letterhead, which repeats it on all 31 pages: **Silvicom Inc, 1301 Armitage Ave, Melrose Park IL 60160** (safety contact `safety1@silvicominc.com`, 708-236-5732 ext 2). The schema half landed in 0229. All that remains is one production `update organizations set legal_address = …`, which is an owner act (writes go through the SQL editor), after which every rendered application carries §391.21(b)(1) in full. |
 
 ### 6.1 What the owner's packet actually contains — read before A9 or A0
@@ -1275,16 +1390,21 @@ TRANSPORTATION VERIFICATION PURPOSE ONLY — THIS IS NOT AN EMPLOYMENT APPLICATI
 
 **1. The §391.21(b) application we have already built.** Identity, three years of addresses, licences,
 accidents, convictions, licence denials, ten-year employment history, the certification. It maps onto
-`driverApplicationSchema` closely enough that no contract change falls out of it — ⚠ with one
+`driverApplicationSchema` closely enough that almost no contract change falls out of it — ⚠ ~~with one
 addition worth noting: the packet asks for **aliases** on the verification log, which the contract has
-no field for.
+no field for.~~ **RESOLVED by A9 (0231):** aliases are not §391.21 material at all — (b)(2) does not
+list one and FMCSA's own sample application does not ask — but they are §391.23(a)(2) material, and
+the packet asks for them exactly where that is true: on the verification log, not on its application
+pages. `other_names` now exists, cited to §391.23, and is projected into the inquiry letter.
 
 **2. Carrier-specific questions — the actual A9 material, and there are few.** Position applied for ·
 "How did you hear about this company?" · "Can you legally work in the USA?" · "Do you have proof of
-age?" · "May we contact your previous employers?" · a **driving-experience grid** (class of equipment
-× type × dates from/to × approximate total miles, for straight truck / tractor-semi / tractor-two-
-trailers / other) · education and training · military service · **three personal references** (name,
-years known, phone, explicitly not relatives or former supervisors). That is the questionnaire.
+age?" · "May we contact your previous employers?" · ~~a **driving-experience grid**~~ · education and
+training · military service · **three personal references** (name, years known, phone, explicitly not
+relatives or former supervisors). That is the questionnaire.
+⚠ **The driving-experience grid was listed here and does not belong.** It is §391.21(b)(6) — the
+paragraph names the equipment types itself, and FMCSA's own sample application lays it out as exactly
+this grid. A9 moved it into `driverApplicationSchema`; see A9's "What the sources actually say".
 
 **3. ⚠ Instruments the carrier has ALREADY drafted — this changes A0.** The packet carries its own
 wording for most of what counsel was being asked to write from scratch: an FCRA disclosure and
@@ -1348,9 +1468,8 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
-⚠ **Position as of 2026-08-21: A1–A8b are DONE (schema 0230). The next step is A9**, whose input has
-arrived — read §6.1 before transcribing anything, because the owner's packet is a 31-page contractor
-binder and only one of its four piles is A9's.
+⚠ **Position as of 2026-08-21: A1–A9 are DONE (schema 0230). The next step is A10**, the abandonment
+sweep — it needs no input from anybody and extends a scheduler that already runs.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
 the harness facts that cost time, which are not repeated here.
 

@@ -1,4 +1,10 @@
-import type { DriverApplication } from "@fuelguard/shared";
+import {
+  questionnaireForApplicant,
+  questionnaireRef,
+  type DriverApplication,
+  type EquipmentClass,
+  type QuestionnaireQuestion,
+} from "@fuelguard/shared";
 
 /**
  * The form's own working shape (H5b).
@@ -66,6 +72,15 @@ export interface DraftViolation {
   penalty: string;
 }
 
+/** §391.21(b)(6) — one class of equipment the applicant has operated, and for how long. */
+export interface DraftEquipment {
+  equipment_class: EquipmentClass | "";
+  equipment_type: string;
+  from: string;
+  to: string;
+  approx_miles: string;
+}
+
 /** §391.21(b)(5) — one of the other unexpired licences or permits the applicant holds. */
 export interface DraftLicence {
   issuing_authority: string;
@@ -78,6 +93,8 @@ export interface ApplicationDraft {
   first_name: string;
   middle_name: string;
   last_name: string;
+  /** §391.23(a)(2) — the names a previous employer would know them by. Not a (b)(2) field. */
+  other_names: string[];
   date_of_birth: string;
   email: string;
   phone: string;
@@ -87,6 +104,7 @@ export interface ApplicationDraft {
   cdl_class: string;
   cdl_expires_at: string;
   experience: string;
+  equipment_experience: DraftEquipment[];
   accidents: DraftAccident[];
   declares_no_accidents: boolean;
   violations: DraftViolation[];
@@ -98,6 +116,15 @@ export interface ApplicationDraft {
   certified: boolean;
   signed_name: string;
   additional_licences: DraftLicence[];
+  /**
+   * The carrier's own questions (A9, D-APP12).
+   *
+   * A loose record rather than a typed shape, and deliberately: the questions are DATA — a versioned
+   * definition in shared — so a typed draft field per question would put the carrier's form back in
+   * the code that D-APP12 exists to keep it out of. Scalars are strings or booleans; a `table`
+   * question's answer is an array of row records.
+   */
+  questionnaire: Record<string, unknown>;
   /**
    * §391.21(b)(2)'s Social Security number — the one field that is NOT part of the application
    * payload and NOT autosaved (D-APP3).
@@ -133,15 +160,22 @@ export const emptyViolation = (): DraftViolation => ({
   occurred_on: "", offence: "", state: "", penalty: "",
 });
 
+export const emptyEquipment = (): DraftEquipment => ({
+  equipment_class: "", equipment_type: "", from: "", to: "", approx_miles: "",
+});
+
 export const emptyLicence = (): DraftLicence => ({
   issuing_authority: "", number: "", expires_at: "", kind: "",
 });
 
 export const emptyDraft = (): ApplicationDraft => ({
-  first_name: "", middle_name: "", last_name: "", date_of_birth: "", email: "", phone: "",
+  first_name: "", middle_name: "", last_name: "", other_names: [], date_of_birth: "", email: "", phone: "",
   addresses: [emptyAddress()],
   cdl_number: "", cdl_state: "", cdl_class: "", cdl_expires_at: "",
   experience: "",
+  // Empty, like `additional_licences`: a pre-added blank row invites an invented answer, and
+  // §391.21(b)(6) is satisfied by the narrative alone for a driver who would rather write one.
+  equipment_experience: [],
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
   licence_ever_denied: false, licence_denial_detail: "",
@@ -150,8 +184,40 @@ export const emptyDraft = (): ApplicationDraft => ({
   // Empty by default: §383.21 forbids a CMV driver holding more than one licence, so the normal
   // answer to "any others?" is none, and a pre-added blank row would invite an invented one.
   additional_licences: [],
+  questionnaire: {},
   ssn: "",
 });
+
+/** One blank row for a `table` question — every column empty, which is what "not answered" is. */
+export const emptyQuestionRow = (q: QuestionnaireQuestion): Record<string, unknown> =>
+  Object.fromEntries((q.columns ?? []).map((c) => [c.id, c.kind === "boolean" ? false : ""]));
+
+/**
+ * The answers, with what nobody answered taken out.
+ *
+ * Blank strings become absent rather than `""` — the same rule the rest of this file follows, because
+ * the schema's nullish fields mean "not answered" and an empty string is an answer of nothing. Table
+ * rows the driver added and left completely blank are dropped, exactly as an accidental "Add another"
+ * click is dropped from addresses, employers and licences.
+ */
+export function cleanQuestionnaire(answers: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(answers)) {
+    if (typeof value === "string") {
+      if (value.trim() !== "") out[key] = value.trim();
+    } else if (Array.isArray(value)) {
+      const rows = value.filter((row) =>
+        row && typeof row === "object"
+        && Object.values(row as Record<string, unknown>).some(
+          (v) => (typeof v === "string" && v.trim() !== "") || typeof v === "number" || v === true,
+        ));
+      if (rows.length > 0) out[key] = rows;
+    } else if (value !== null && value !== undefined) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 
 const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
 const num = (v: string): number => {
@@ -171,6 +237,8 @@ export function toApplication(draft: ApplicationDraft): unknown {
     first_name: draft.first_name.trim(),
     middle_name: text(draft.middle_name),
     last_name: draft.last_name.trim(),
+    // Blank rows dropped, like every other repeated field on this form.
+    other_names: draft.other_names.map((n) => n.trim()).filter((n) => n !== ""),
     date_of_birth: draft.date_of_birth,
     email: draft.email.trim(),
     phone: draft.phone.trim(),
@@ -196,6 +264,17 @@ export function toApplication(draft: ApplicationDraft): unknown {
         kind: text(l.kind),
       })),
     experience: text(draft.experience),
+    // §391.21(b)(6)'s equipment. A row with no class chosen is an accidental "Add another", not an
+    // answer — the same rule the addresses, employers and licences follow.
+    equipment_experience: draft.equipment_experience
+      .filter((e) => e.equipment_class !== "" && e.from.trim() !== "")
+      .map((e) => ({
+        equipment_class: e.equipment_class,
+        equipment_type: text(e.equipment_type),
+        from: e.from,
+        to: text(e.to),
+        approx_miles: e.approx_miles.trim() === "" ? null : num(e.approx_miles),
+      })),
     accidents: draft.accidents
       .filter((a) => a.occurred_on || a.nature.trim())
       .map((a) => ({
@@ -232,9 +311,27 @@ export function toApplication(draft: ApplicationDraft): unknown {
         safety_sensitive: e.safety_sensitive,
       })),
     declares_no_employment: draft.declares_no_employment,
+    /**
+     * The carrier's questions (A9). The version is stamped only when something was actually answered:
+     * an application nobody answered a carrier question on should not claim to have been filed
+     * against a questionnaire. The client bundles the definition it displayed, so the ref and the
+     * answers cannot disagree within a session.
+     */
+    ...questionnaireFields(draft),
     certified: draft.certified,
     signed_name: draft.signed_name.trim(),
   } satisfies Record<keyof DriverApplication | string, unknown>;
+}
+
+function questionnaireFields(draft: ApplicationDraft): Record<string, unknown> {
+  const answers = cleanQuestionnaire(draft.questionnaire);
+  if (Object.keys(answers).length === 0) {
+    return { questionnaire_version: null, questionnaire_answers: null };
+  }
+  return {
+    questionnaire_version: questionnaireRef(questionnaireForApplicant()),
+    questionnaire_answers: answers,
+  };
 }
 
 /**
@@ -260,6 +357,7 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     first_name: draft.first_name,
     middle_name: draft.middle_name,
     last_name: draft.last_name,
+    other_names: draft.other_names,
     date_of_birth: draft.date_of_birth,
     email: draft.email,
     phone: draft.phone,
@@ -269,6 +367,7 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     cdl_class: draft.cdl_class,
     cdl_expires_at: draft.cdl_expires_at,
     experience: draft.experience,
+    equipment_experience: draft.equipment_experience,
     accidents: draft.accidents,
     declares_no_accidents: draft.declares_no_accidents,
     violations: draft.violations,
@@ -278,6 +377,10 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     employers: draft.employers,
     declares_no_employment: draft.declares_no_employment,
     additional_licences: draft.additional_licences,
+    // A9: the carrier's answers autosave like every other answer. They hold no Social Security
+    // number and no field D-APP3 protects — the definition is fixed in code, so nothing the driver
+    // types here can name a key the questionnaire did not ask for.
+    questionnaire: draft.questionnaire,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
     // certification is an act performed once, at submit, on the whole finished document. A saved
     // "I certify" checkbox would restore a certification the driver made about answers they have
@@ -308,6 +411,9 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     first_name: str("first_name"),
     middle_name: str("middle_name"),
     last_name: str("last_name"),
+    other_names: Array.isArray(payload.other_names)
+      ? (payload.other_names as unknown[]).filter((n): n is string => typeof n === "string")
+      : base.other_names,
     date_of_birth: str("date_of_birth"),
     email: str("email"),
     phone: str("phone"),
@@ -317,6 +423,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     cdl_class: str("cdl_class"),
     cdl_expires_at: str("cdl_expires_at"),
     experience: str("experience"),
+    equipment_experience: rows<DraftEquipment>("equipment_experience", base.equipment_experience),
     accidents: rows<DraftAccident>("accidents", base.accidents),
     declares_no_accidents: bool("declares_no_accidents"),
     violations: rows<DraftViolation>("violations", base.violations),
@@ -326,5 +433,9 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     employers: rows<DraftEmployer>("employers", base.employers),
     declares_no_employment: bool("declares_no_employment"),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
+    questionnaire:
+      payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)
+        ? (payload.questionnaire as Record<string, unknown>)
+        : base.questionnaire,
   };
 }

@@ -63,6 +63,8 @@ describe("what a submitted application becomes", () => {
       date_of_birth: "1980-04-01",
       cdl_number: "PA334554",
       cdl_state: "PA",
+      // §391.23(a)(2) — projected so the previous-employer inquiry can name both (0231).
+      other_names: [],
     });
   });
 

@@ -95,6 +95,9 @@ describe("the application itself", () => {
     cdl_number: "D123456",
     cdl_state: "IL",
     cdl_expires_at: "2028-01-01",
+    // §391.21(b)(6). The paragraph is mandatory content, and this fixture answered neither half of it
+    // until the rule below existed — which is what the rule is for.
+    experience: "Eight years, dry van and reefer.",
     accidents: [],
     declares_no_accidents: true,
     violations: [],
@@ -158,5 +161,92 @@ describe("the application itself", () => {
       ],
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+/**
+ * §391.21(b)(6), both halves of one sentence.
+ *
+ * The paragraph reads: "The nature and extent of the applicant's experience in the operation of motor
+ * vehicles, including the type of equipment (such as buses, trucks, truck tractors, semitrailers,
+ * full trailers, and pole trailers) which he/she has operated". Until this rule existed the schema
+ * accepted a document that answered neither — `experience` was nullish and there was nothing else —
+ * which is mandatory content of the application form left blank.
+ */
+describe("§391.21(b)(6)", () => {
+  const base = {
+    first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-03-14",
+    email: "s@example.test", phone: "555-0100",
+    addresses: [{ line1: "1 Road", city: "Chicago", state: "IL", postal_code: "60601", from: "2020-01", to: null }],
+    cdl_number: "D123456", cdl_state: "IL", cdl_expires_at: "2028-01-01",
+    accidents: [], declares_no_accidents: true,
+    violations: [], declares_no_violations: true,
+    licence_ever_denied: false,
+    employers: [], declares_no_employment: true,
+    certified: true as const, signed_name: "Susan Godfrey",
+  };
+
+  it("refuses a document that answers neither the narrative nor the equipment", () => {
+    const parsed = driverApplicationSchema.safeParse(base);
+    expect(parsed.success).toBe(false);
+    expect(JSON.stringify(parsed.error?.issues)).toContain("391.21(b)(6)");
+  });
+
+  it("is satisfied by the narrative alone — a driver who would rather write a sentence", () => {
+    expect(driverApplicationSchema.safeParse({ ...base, experience: "Eight years, dry van." }).success).toBe(true);
+  });
+
+  /** The half FMCSA's own sample application lays out as a grid, and the half a driver can always answer. */
+  it("is satisfied by the equipment alone", () => {
+    const parsed = driverApplicationSchema.safeParse({
+      ...base,
+      equipment_experience: [
+        { equipment_class: "tractor_semi_trailer", equipment_type: "Reefer", from: "2019-04", to: null, approx_miles: 420000 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("keeps the months it is given and refuses a day-precision date", () => {
+    const row = { equipment_class: "bus", from: "2019-04-01" };
+    expect(driverApplicationSchema.safeParse({ ...base, equipment_experience: [row] }).success).toBe(false);
+  });
+
+  it("refuses a class the regulation and FMCSA's form do not name", () => {
+    const row = { equipment_class: "hovercraft", from: "2019-04" };
+    expect(driverApplicationSchema.safeParse({ ...base, equipment_experience: [row] }).success).toBe(false);
+  });
+});
+
+/**
+ * Other names — §391.23(a)(2), not §391.21(b)(2).
+ *
+ * Checked against the primary sources: (b)(2) is "The applicant's name, address, date of birth, and
+ * social security number", and FMCSA's own sample application asks for no other name. It is optional
+ * for that reason, and it defaults to an empty list rather than to null so the projection has
+ * something total to read.
+ */
+describe("other names", () => {
+  const base = {
+    first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-03-14",
+    email: "s@example.test", phone: "555-0100",
+    addresses: [{ line1: "1 Road", city: "Chicago", state: "IL", postal_code: "60601", from: "2020-01", to: null }],
+    cdl_number: "D123456", cdl_state: "IL", cdl_expires_at: "2028-01-01",
+    experience: "Eight years.",
+    accidents: [], declares_no_accidents: true,
+    violations: [], declares_no_violations: true,
+    licence_ever_denied: false,
+    employers: [], declares_no_employment: true,
+    certified: true as const, signed_name: "Susan Godfrey",
+  };
+
+  it("defaults to none, because the regulation does not ask for one", () => {
+    const parsed = driverApplicationSchema.parse(base);
+    expect(parsed.other_names).toEqual([]);
+  });
+
+  it("carries the names a previous employer would know", () => {
+    const parsed = driverApplicationSchema.parse({ ...base, other_names: ["Susan Smith"] });
+    expect(parsed.other_names).toEqual(["Susan Smith"]);
   });
 });

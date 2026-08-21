@@ -98,6 +98,9 @@ const APPLICATION = {
     first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
     email: "s@example.test", phone: "5550111", addresses: [{ line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: null }],
     cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
+    // §391.21(b)(6) is mandatory content of the application form; a fixture standing in for a
+    // certified document answers at least one half of it.
+    experience: "Eight years, dry van and reefer.",
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,
