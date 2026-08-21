@@ -165,6 +165,11 @@ describe("the applicant's page", () => {
     await advance(w);
     expect(w.text()).toContain("Your driving record");
     await advance(w);
+    // A9: the carrier's own questions — and the screen says they are the carrier's, because unlike
+    // every other screen in this wizard it discharges no CFR paragraph (D-APP12).
+    expect(w.text()).toContain("The carrier's own questions");
+    expect(w.text()).toContain("How did you hear about this company?");
+    await advance(w);
     // A8: the photographs are taken while the driver still has the documents in their hand.
     expect(w.text()).toContain("Your documents");
     expect(w.text()).toContain("Front of your licence");

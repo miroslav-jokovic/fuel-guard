@@ -187,3 +187,67 @@ describe("coming back to a saved draft", () => {
     expect(fromDraftPayload(null)).toEqual(emptyDraft());
   });
 });
+
+/**
+ * The carrier's questions through the same conversion (A9, D-APP12).
+ *
+ * The definition is data, so the round-trip is the test that matters: what the driver typed has to
+ * come back as what the driver typed, and what they left blank has to come back as unanswered rather
+ * than as an empty answer.
+ */
+describe("the questionnaire", () => {
+  const answered = (): ApplicationDraft => ({
+    ...complete(),
+    questionnaire: {
+      position: "Company driver",
+      legally_work: true,
+      may_contact_employers: false,
+      heard_from: "   ",
+      references: [
+        { full_name: "Ann Reyes", years_known: 6, phone: "555-0134" },
+        // Added and left blank — an accidental "Add another" is not a reference.
+        { full_name: "", years_known: "", phone: "" },
+      ],
+    },
+  });
+
+  it("stamps the version only when something was actually answered", () => {
+    const blank = toApplication(complete()) as Record<string, unknown>;
+    expect(blank.questionnaire_version).toBeNull();
+    expect(blank.questionnaire_answers).toBeNull();
+
+    const filled = toApplication(answered()) as Record<string, unknown>;
+    expect(filled.questionnaire_version).toBe("silvicom_driver@v1");
+  });
+
+  it("drops what nobody answered, and keeps false, which is an answer", () => {
+    const answers = (toApplication(answered()) as Record<string, unknown>)
+      .questionnaire_answers as Record<string, unknown>;
+    expect(answers.position).toBe("Company driver");
+    // `false` is a real answer to "may we contact your previous employers?" and must survive.
+    expect(answers.may_contact_employers).toBe(false);
+    // Whitespace is not an answer.
+    expect("heard_from" in answers).toBe(false);
+    expect(answers.references).toHaveLength(1);
+  });
+
+  it("produces a document the contract still accepts", () => {
+    const parsed = driverApplicationSchema.safeParse({
+      ...(toApplication(answered()) as Record<string, unknown>),
+      certified: true,
+      signed_name: "Susan Godfrey",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("autosaves and restores the answers", () => {
+    const restored = fromDraftPayload(toDraftPayload(answered()));
+    expect(restored.questionnaire.position).toBe("Company driver");
+    expect(restored.questionnaire.may_contact_employers).toBe(false);
+  });
+
+  it("survives a saved questionnaire that is not an object", () => {
+    const restored = fromDraftPayload({ questionnaire: "not an object" } as unknown as Record<string, unknown>);
+    expect(restored.questionnaire).toEqual({});
+  });
+});

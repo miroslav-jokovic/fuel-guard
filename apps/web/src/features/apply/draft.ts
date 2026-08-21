@@ -1,4 +1,9 @@
-import type { DriverApplication } from "@fuelguard/shared";
+import {
+  questionnaireForApplicant,
+  questionnaireRef,
+  type DriverApplication,
+  type QuestionnaireQuestion,
+} from "@fuelguard/shared";
 
 /**
  * The form's own working shape (H5b).
@@ -99,6 +104,15 @@ export interface ApplicationDraft {
   signed_name: string;
   additional_licences: DraftLicence[];
   /**
+   * The carrier's own questions (A9, D-APP12).
+   *
+   * A loose record rather than a typed shape, and deliberately: the questions are DATA — a versioned
+   * definition in shared — so a typed draft field per question would put the carrier's form back in
+   * the code that D-APP12 exists to keep it out of. Scalars are strings or booleans; a `table`
+   * question's answer is an array of row records.
+   */
+  questionnaire: Record<string, unknown>;
+  /**
    * §391.21(b)(2)'s Social Security number — the one field that is NOT part of the application
    * payload and NOT autosaved (D-APP3).
    *
@@ -150,8 +164,40 @@ export const emptyDraft = (): ApplicationDraft => ({
   // Empty by default: §383.21 forbids a CMV driver holding more than one licence, so the normal
   // answer to "any others?" is none, and a pre-added blank row would invite an invented one.
   additional_licences: [],
+  questionnaire: {},
   ssn: "",
 });
+
+/** One blank row for a `table` question — every column empty, which is what "not answered" is. */
+export const emptyQuestionRow = (q: QuestionnaireQuestion): Record<string, unknown> =>
+  Object.fromEntries((q.columns ?? []).map((c) => [c.id, c.kind === "boolean" ? false : ""]));
+
+/**
+ * The answers, with what nobody answered taken out.
+ *
+ * Blank strings become absent rather than `""` — the same rule the rest of this file follows, because
+ * the schema's nullish fields mean "not answered" and an empty string is an answer of nothing. Table
+ * rows the driver added and left completely blank are dropped, exactly as an accidental "Add another"
+ * click is dropped from addresses, employers and licences.
+ */
+export function cleanQuestionnaire(answers: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(answers)) {
+    if (typeof value === "string") {
+      if (value.trim() !== "") out[key] = value.trim();
+    } else if (Array.isArray(value)) {
+      const rows = value.filter((row) =>
+        row && typeof row === "object"
+        && Object.values(row as Record<string, unknown>).some(
+          (v) => (typeof v === "string" && v.trim() !== "") || typeof v === "number" || v === true,
+        ));
+      if (rows.length > 0) out[key] = rows;
+    } else if (value !== null && value !== undefined) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 
 const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
 const num = (v: string): number => {
@@ -232,9 +278,27 @@ export function toApplication(draft: ApplicationDraft): unknown {
         safety_sensitive: e.safety_sensitive,
       })),
     declares_no_employment: draft.declares_no_employment,
+    /**
+     * The carrier's questions (A9). The version is stamped only when something was actually answered:
+     * an application nobody answered a carrier question on should not claim to have been filed
+     * against a questionnaire. The client bundles the definition it displayed, so the ref and the
+     * answers cannot disagree within a session.
+     */
+    ...questionnaireFields(draft),
     certified: draft.certified,
     signed_name: draft.signed_name.trim(),
   } satisfies Record<keyof DriverApplication | string, unknown>;
+}
+
+function questionnaireFields(draft: ApplicationDraft): Record<string, unknown> {
+  const answers = cleanQuestionnaire(draft.questionnaire);
+  if (Object.keys(answers).length === 0) {
+    return { questionnaire_version: null, questionnaire_answers: null };
+  }
+  return {
+    questionnaire_version: questionnaireRef(questionnaireForApplicant()),
+    questionnaire_answers: answers,
+  };
 }
 
 /**
@@ -278,6 +342,10 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     employers: draft.employers,
     declares_no_employment: draft.declares_no_employment,
     additional_licences: draft.additional_licences,
+    // A9: the carrier's answers autosave like every other answer. They hold no Social Security
+    // number and no field D-APP3 protects — the definition is fixed in code, so nothing the driver
+    // types here can name a key the questionnaire did not ask for.
+    questionnaire: draft.questionnaire,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
     // certification is an act performed once, at submit, on the whole finished document. A saved
     // "I certify" checkbox would restore a certification the driver made about answers they have
@@ -326,5 +394,9 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     employers: rows<DraftEmployer>("employers", base.employers),
     declares_no_employment: bool("declares_no_employment"),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
+    questionnaire:
+      payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)
+        ? (payload.questionnaire as Record<string, unknown>)
+        : base.questionnaire,
   };
 }

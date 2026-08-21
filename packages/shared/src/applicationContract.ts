@@ -207,6 +207,21 @@ export const driverApplicationObject = z
     // (b)(10) + (b)(11) — one list, sorted into two by dates and `operated_cmv`.
     employers: z.array(applicationEmployerSchema),
     declares_no_employment: z.boolean(),
+    /**
+     * The carrier's own questions (A9, D-APP12) — the ONE contract change this plan makes for them,
+     * after which a carrier's form changes without touching anything §391.21 numbers.
+     *
+     * ⚠ Two fields and not one. The answers are meaningless without the exact questions that produced
+     * them, so the definition's `id@version` is stored beside them — `questionnaireByRef` is what
+     * turns a stored answer set back into something a reader can be shown. Nullish because every
+     * application filed before A9 has neither, and because a driver who answers nothing has answered.
+     *
+     * ⚠ These are projected NOWHERE. Not to `drivers`, not to `driver_employment_history`, and they
+     * create no DQF item — pinned by `questionnaire answers are projected nowhere`. They are rendered
+     * into the application PDF, which is a derivative of this payload rather than a projection of it.
+     */
+    questionnaire_version: z.string().max(120).nullish(),
+    questionnaire_answers: z.record(z.string(), z.unknown()).nullish(),
     // The certification. §391.21(b) closes by requiring the applicant to sign that everything is
     // true and complete, and that sentence is the whole legal weight of the document.
     certified: z.literal(true),

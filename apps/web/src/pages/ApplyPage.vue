@@ -8,6 +8,7 @@ import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
 import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
 import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
+import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
 import CertifyFields from "@/features/apply/CertifyFields.vue";
@@ -328,6 +329,8 @@ async function send(): Promise<void> {
       <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" />
       <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
       <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
+      <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
+      <QuestionnaireFields v-else-if="wizard.section.value === 'questions'" v-model="draft" />
       <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
            the draft, which is why this screen takes the token and not the form. -->
       <DocumentCaptureFields

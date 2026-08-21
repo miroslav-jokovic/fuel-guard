@@ -173,6 +173,16 @@ export const APPLY_COPY = {
   },
 
   /**
+   * A9. The carrier's own questions. Only the two controls need words here — everything else on the
+   * screen comes from the versioned definition in shared, which is the point of D-APP12: the
+   * carrier's form changes without an engineer editing a string.
+   */
+  questions: {
+    addRow: "Add another",
+    removeRow: "Remove",
+  },
+
+  /**
    * A8. The screen asks for photographs of documents a driver is carrying, which is a moment where
    * the house rule — state the fact, then the next action — earns its keep twice: once for why the
    * carrier wants them, and once for what to do when a photograph is refused. A rejection that says

@@ -247,3 +247,75 @@ describe("the drawn signature mark", () => {
     expect(pdfText(await renderApplicationPdf(input({ signatureMark: PNG })))).toContain("Susan Godfrey");
   });
 });
+
+/**
+ * The carrier's own questions on the document (A9, D-APP12).
+ *
+ * The staff route serves this PDF and nothing else of the application's content, so this section is
+ * the ONLY place a recruiter ever sees what the driver answered — which is why it is rendered at all,
+ * and why the one thing that must never appear on it is tested rather than assumed.
+ */
+describe("the questionnaire section", () => {
+  const answered = (over: Record<string, unknown> = {}) =>
+    input({
+      application: {
+        ...APPLICATION,
+        questionnaire_version: "silvicom_driver@v1",
+        questionnaire_answers: {
+          position: "Company driver",
+          legally_work: true,
+          may_contact_employers: false,
+          references: [{ full_name: "Ann Reyes", years_known: 6, phone: "555-0134" }],
+          ...over,
+        },
+      } as unknown as DriverApplication,
+    });
+
+  it("prints the answers under a heading that says whose questions they are", async () => {
+    const pdf = pdfText(await renderApplicationPdf(answered()));
+    expect(pdf).toContain("the carrier's own questions");
+    expect(pdf).toContain("Company driver");
+    expect(pdf).toContain("Ann Reyes");
+    // The version, so a reader knows which wording produced these answers.
+    expect(pdf).toContain("silvicom_driver");
+  });
+
+  /** Three states, not two: answered no is a different fact from never answered. */
+  it("distinguishes a 'no' from a question nobody answered", async () => {
+    const pdf = pdfText(await renderApplicationPdf(answered()));
+    expect(pdf).toContain("May we contact your previous employers?");
+    expect(pdf).toContain("No");
+    // `heard_from` was never answered and must not appear as a blank row.
+    expect(pdf).not.toContain("How did you hear about this company?");
+  });
+
+  /** ⚠ The assertion this section exists to be safe for. */
+  it("never prints the reserved EEO answers, which the hiring decision must not see", async () => {
+    const pdf = pdfText(await renderApplicationPdf(answered({ eeo: { race: "UNIQUE-EEO-STRING" } })));
+    expect(pdf).not.toContain("UNIQUE-EEO-STRING");
+    expect(pdf).not.toContain("eeo");
+  });
+
+  it("renders nothing at all when the driver answered nothing", async () => {
+    const pdf = pdfText(await renderApplicationPdf(input()));
+    expect(pdf).not.toContain("the carrier's own questions");
+  });
+
+  /**
+   * `payload` is historical jsonb: a document filed against a definition this build no longer carries
+   * must still be producible, which is the §390.32(d) property the whole renderer is built on.
+   */
+  it("survives a questionnaire version this build has never heard of", async () => {
+    const pdf = await renderApplicationPdf(
+      input({
+        application: {
+          ...APPLICATION,
+          questionnaire_version: "silvicom_driver@v99",
+          questionnaire_answers: { position: "Company driver" },
+        } as unknown as DriverApplication,
+      }),
+    );
+    expect(pdf.byteLength).toBeGreaterThan(1000);
+    expect(pdfText(pdf)).not.toContain("the carrier's own questions");
+  });
+});

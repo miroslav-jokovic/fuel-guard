@@ -18,6 +18,12 @@ import { driverApplicationObject, type DriverApplicationFields } from "./applica
  * without giving it a home. A field the form never renders is a field the driver never answers and
  * the server then refuses at submit, which is the worst possible place to discover it.
  *
+ * ── THE ONE SCREEN WHOSE FIELDS ARE NOT THE REGULATION'S (A9) ─────────────────────────────────
+ * `questions` owns `questionnaire_version` and `questionnaire_answers`, and no §391.21(b) paragraph.
+ * That is D-APP12 made visible in the map: the carrier's own questions travel in the same payload and
+ * are answered in the same flow, and a reader checking this file against the CFR can see at a glance
+ * which screen is not the CFR's.
+ *
  * ── THE ONE SCREEN THAT OWNS NO CONTRACT FIELD ────────────────────────────────────────────────
  * `documents` (A8's capture step) collects photographs, not answers: nothing it produces belongs in
  * `driverApplicationSchema`, because §391.21(b) is a form and a licence photograph is not one of its
@@ -32,6 +38,7 @@ export const APPLICATION_SECTION_ORDER = [
   "licence",
   "employment",
   "safety",
+  "questions",
   "documents",
   "review",
   "certify",
@@ -45,6 +52,7 @@ export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   licence: "Your licence",
   employment: "Where you have worked",
   safety: "Your driving record",
+  questions: "The carrier's own questions",
   documents: "Your documents",
   review: "Check your answers",
   certify: "Sign and send",
@@ -57,6 +65,9 @@ export const APPLICATION_SECTION_CITATIONS: Record<ApplicationSection, string | 
   licence: "§391.21(b)(5)",
   employment: "§391.21(b)(6), (b)(10), (b)(11)",
   safety: "§391.21(b)(7), (b)(8), (b)(9)",
+  // Null, and emphatically so: these are the CARRIER's questions, and printing a CFR citation beside
+  // them would tell a driver the regulation asks something it does not (A9, D-APP12).
+  questions: null,
   // Null, and honestly so: §391.21(b) enumerates twelve paragraphs and none of them is a photograph.
   // The screen exists because §391.51's file is assembled from documents the driver is holding right
   // now, not because the application form asks for them.
@@ -89,6 +100,9 @@ export const APPLICATION_SECTION_KEYS: Record<
     "licence_ever_denied",
     "licence_denial_detail",
   ],
+  // The two fields A9 added — the only place in this map where a screen owns keys that discharge no
+  // §391.21(b) paragraph at all, which is exactly what D-APP12 separated them out to be.
+  questions: ["questionnaire_version", "questionnaire_answers"],
   // Nothing of its own: photographs are staged in `application_captures`, not in the certified
   // payload, so this screen owns no §391.21(b) field (A8, D-APP10).
   documents: [],
