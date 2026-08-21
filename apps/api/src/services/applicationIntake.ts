@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_RELEASE_ORDER,
   DISCLOSURES,
+  esignConsentRequired,
   isDraftDisclosure,
   planApplicationIntake,
   ssnLast4,
@@ -175,6 +176,27 @@ export const ALREADY_SUBMITTED: IntakeError = {
   message: "This application has already been sent. Reopen the link to see what the carrier received.",
 };
 
+/**
+ * §390.32(d): an electronic record satisfying a Part 300–399 document requirement must include proof
+ * of consent per 15 U.S.C. 7001(c). §391.21 is such a requirement, so the consent is the first act on
+ * the link and every other write path calls this before doing anything (A4, D-APP5).
+ *
+ * `null` means carry on. It refuses only when the consent could actually have been given — see
+ * `esignConsentRequired`: an unpublished document cannot gate anything, because nobody could pass it.
+ *
+ * It lives HERE rather than beside the rest of A4 so the dependency runs one way: `esignConsent.ts`
+ * needs `resolveInvitation`, and a service importing back from it would make a cycle out of two
+ * modules that are only related by sequence.
+ */
+export const CONSENT_REQUIRED: IntakeError = {
+  code: "esign_consent_required",
+  message: "Agree to sign and receive these documents electronically before you go on.",
+};
+
+export function requireEsignConsent(invitation: { consented_at: string | null }): IntakeError | null {
+  return esignConsentRequired(invitation.consented_at) ? CONSENT_REQUIRED : null;
+}
+
 export const RELEASES_COMPLETE: IntakeError = {
   code: "releases_complete",
   message: "Every authorization on this link has already been signed.",
@@ -196,6 +218,10 @@ export async function submitApplication(
 ): Promise<{ applicationId: string; driverId: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  // §390.32(d): an electronic §391.21 application must include proof of 7001(c) consent, so the
+  // consent comes first or the document we file is not the one the regulation asked for (A4).
+  const consent = requireEsignConsent(invitation);
+  if (consent) return consent;
   // The submit phase is this path's own to spend (D-APP1). Said plainly rather than neutrally: only
   // the holder of the token reaches this, `GET /:token` already told them the application is in, and
   // "your link is not valid" for a link that plainly is would send them back to the recruiter for a
@@ -261,6 +287,10 @@ export async function recordRelease(
 ): Promise<{ id: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  // A signature given electronically by somebody who never agreed to sign electronically is the
+  // gap §390.32(d) exists to close (A4).
+  const consent = requireEsignConsent(invitation);
+  if (consent) return consent;
   // This path's own phase. Nothing stamps `releases_completed_at` until A5 closes the ceremony on
   // the fourth instrument; the refusal ships with the column so the phase is enforced from the
   // migration that created it rather than from whenever a caller appears.

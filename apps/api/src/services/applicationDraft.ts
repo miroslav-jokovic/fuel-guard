@@ -9,6 +9,7 @@ import {
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
+  requireEsignConsent,
   resolveInvitation,
   type IntakeError,
 } from "./applicationIntake.js";
@@ -120,6 +121,11 @@ export async function saveDraft(
 ): Promise<{ updatedAt: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  // A4: the consent is the first act on the link, so nothing writes before it. A draft holds a date
+  // of birth, and storing one for somebody who has not agreed to transact electronically is the
+  // thing §390.32(d) asks us to be able to disprove.
+  const consent = requireEsignConsent(invitation);
+  if (consent) return consent;
   // Nothing to draft once the application is filed: the certified payload is the record from then
   // on, and a draft written afterwards could only ever disagree with it.
   if (invitation.submitted_at) return ALREADY_SUBMITTED;

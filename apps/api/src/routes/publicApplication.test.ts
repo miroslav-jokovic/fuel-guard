@@ -1,11 +1,12 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { closeTestServer } from "../testing/httpServer.js";
 import { hashInvitationToken } from "../services/applicationIntake.js";
+import { ESIGN_CONSENT } from "@fuelguard/shared";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -25,10 +26,32 @@ const TOKEN = "b".repeat(43);
 let server: Server;
 let baseUrl: string;
 
+/**
+ * One request, from its own address.
+ *
+ * ⚠ This surface is rate limited to 20 requests a minute per IP (`app.ts:147`), stacked with
+ * `/api/public`'s 60 — the intersection A2's autosave budget is built on. Every test in this file
+ * shares one Express instance, so without a distinct `X-Forwarded-For` the twenty-first assertion in
+ * the file starts failing with 429 and the failure looks like whatever that test was about. `trust
+ * proxy` is set in `app.ts`, so this is also what makes `req.ip` the applicant's address in
+ * production. The limiter itself is pinned by its own test below rather than by accident.
+ */
+let callSeq = 0;
 const call = (path: string, init: RequestInit = {}) =>
   fetch(`${baseUrl}/api/public/application${path}`, {
     ...init,
-    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+    headers: {
+      "content-type": "application/json",
+      "x-forwarded-for": `203.0.113.${(callSeq++ % 250) + 1}`,
+      ...(init.headers ?? {}),
+    },
+  });
+
+/** The same address every time — for the one test that is about the limiter. */
+const callFromOneAddress = (path: string, init: RequestInit = {}) =>
+  fetch(`${baseUrl}/api/public/application${path}`, {
+    ...init,
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7", ...(init.headers ?? {}) },
   });
 
 const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
@@ -50,6 +73,7 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
     rpc: {
       submit_driver_application: { application_id: "app-1" },
       save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" },
+      record_esign_consent: { consent_id: "c-1" },
     },
   });
 
@@ -131,6 +155,22 @@ describe("opening the link", () => {
     expect(body.error.code).toBe("invalid_link");
     expect(JSON.stringify(body)).not.toContain(ORG);
     expect(JSON.stringify(body)).not.toContain(DRIVER);
+  });
+});
+
+/**
+ * The only thing standing between a leaked link and an automated replay, and the budget every
+ * autosave in A2 is sized against. Worth one test that it is actually mounted.
+ */
+describe("the rate limit", () => {
+  it("cuts off a caller hammering one link", async () => {
+    holder.client = seed().client;
+    let sawLimit = false;
+    for (let i = 0; i < 25 && !sawLimit; i++) {
+      const res = await callFromOneAddress(`/${TOKEN}`);
+      if (res.status === 429) sawLimit = true;
+    }
+    expect(sawLimit).toBe(true);
   });
 });
 
@@ -272,6 +312,97 @@ describe("the saved draft", () => {
     expect(unlocked.status).toBe(404);
     expect(((await saved.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
     expect(((await unlocked.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
+  });
+});
+
+/**
+ * A4 — §390.32(d) requires an electronic §391.21 application to include proof of 15 U.S.C. 7001(c)
+ * consent, so it is the first act on the link and every other write path refuses before it.
+ *
+ * ⚠ The gate is armed by A0, not by A4: while the wording is `v0-draft` no consent can be recorded,
+ * so requiring one would refuse every write with no way through and take the live application
+ * offline. Both branches are pinned below, the closed one against a published version.
+ */
+describe("the ESIGN consent", () => {
+  const publish = () => vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+  afterEach(() => vi.restoreAllMocks());
+
+  it("is served with the link, as text the server composed", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { esignConsent: { body: string; draft: boolean; required: boolean } };
+    // Six clauses, in the statute's order — the disclosure 7001(c)(1) actually enumerates.
+    expect(body.esignConsent.body).toContain("You can have these on paper instead");
+    expect(body.esignConsent.body).toContain("What you need to read and keep these records");
+    expect(body.esignConsent.draft).toBe(true);
+    // Not asked for while it cannot be recorded.
+    expect(body.esignConsent.required).toBe(false);
+  });
+
+  it("leaves every write path open while the wording is draft", async () => {
+    holder.client = seed().client;
+    const saved = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    expect(saved.status).toBe(200);
+  });
+
+  it("closes every write path the moment the text is published", async () => {
+    publish();
+    holder.client = seed().client;
+    const saved = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    const sent = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    const signed = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    for (const res of [saved, sent, signed]) expect(res.status).toBe(409);
+    expect(((await saved.json()) as { error: { code: string } }).error.code).toBe("esign_consent_required");
+    expect(((await sent.json()) as { error: { code: string } }).error.code).toBe("esign_consent_required");
+    expect(((await signed.json()) as { error: { code: string } }).error.code).toBe("esign_consent_required");
+  });
+
+  it("opens them again once the driver has consented", async () => {
+    publish();
+    holder.client = seed({ consented_at: "2026-08-21T09:00:00Z" }).client;
+    const saved = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    expect(saved.status).toBe(200);
+  });
+
+  it("refuses to record a consent to draft wording", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("records one against published wording, composed server-side", async () => {
+    publish();
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
+    expect(res.status).toBe(201);
+    const args = rec.rpcs()[0]!.args as Record<string, unknown>;
+    expect(args.p_version).toBe("v1");
+    // The request said nothing about what was consented to, and could not have.
+    expect(String(args.p_text)).toContain("You can have these on paper instead");
+  });
+
+  it("tells an anonymous caller with a bad token nothing", async () => {
+    publish();
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
   });
 });
 

@@ -129,9 +129,161 @@ export const DISCLOSURES: Record<AuthorizationPurpose, DisclosureDocument> = {
   },
 };
 
+/**
+ * Is this wording still a draft?
+ *
+ * Every instrument here ships as `v0-draft` placeholder text, written by an engineer, pending
+ * counsel (HIRING-PLAN Q-H3). The public signing endpoint refuses those versions, and the gate is
+ * deliberately tied to the HAZARD rather than to a feature flag: when real wording lands the
+ * versions become `v1` and the refusal disappears by itself. A flag would have to be remembered, and
+ * the thing to be remembered would be "stop collecting signatures on text no lawyer has read".
+ *
+ * ⚠ ONE predicate, since A4. There were two: `isDraftDisclosure` in `applicationIntake.ts`
+ * (`startsWith("v0")`, the ENFORCEMENT path that refuses to record a signature) and
+ * `disclosuresAreDraft` here (`endsWith("-draft")`, the one the UI reads). They agree on every string
+ * in use today and diverge on the first one somebody writes carelessly — `"v1-draft"` would be
+ * enforced as final and displayed as draft, which is the worst possible way round. The union of both
+ * tests is the safe reading, and it lives here, beside the documents it judges.
+ *
+ * A4 pulled this forward from A0's checklist rather than adding a THIRD copy for the ESIGN consent.
+ */
+export const isDraftDisclosure = (version: string): boolean =>
+  version.startsWith("v0") || version.endsWith("-draft");
+
 /** True while any disclosure is still carrying draft wording — the UI should say so out loud. */
 export const disclosuresAreDraft = (): boolean =>
-  Object.values(DISCLOSURES).some((d) => d.version.endsWith("-draft"));
+  Object.values(DISCLOSURES).some((d) => isDraftDisclosure(d.version))
+  || isDraftDisclosure(ESIGN_CONSENT.version);
+
+// ── the sixth document: consent to transact electronically (A4, D-APP5) ───────
+
+/**
+ * The clauses 15 U.S.C. 7001(c)(1) requires a consumer to be given BEFORE they consent.
+ *
+ * Read verbatim from the statute on 2026-08-21 (Cornell LII), not recalled. 49 CFR §390.32(d) is why
+ * they matter to a trucking product at all: an electronic record satisfying a Part 300–399 document
+ * requirement must "include proof of consent per 15 U.S.C. 7001(c)". §391.21(b) is such a
+ * requirement, so the application the driver fills in on their phone needs this consent behind it or
+ * the electronic record is not the document the regulation asked for.
+ *
+ * ── WHY THE DOCUMENT IS A RECORD OF CLAUSES AND NOT ONE `body` STRING ─────────────────────────
+ * Because 7001(c) does not ask for a disclosure "about" electronic records — it enumerates six
+ * things the consumer must be told, and a prose blob can be missing one with nobody noticing until a
+ * §390.32(d) challenge. Splitting it means counsel's pass (A0) fills in six named strings, the type
+ * system refuses a document with a clause missing, and a reader with the statute open can check us
+ * clause by clause — the same argument `applicationContract.ts` makes for following §391.21(b)'s
+ * numbering.
+ *
+ * The stored text is still one string: `esignConsentBody()` composes it server-side, in statutory
+ * order, so what the driver saw is reproducible from the version alone.
+ */
+export const ESIGN_CONSENT_CLAUSES = [
+  "paper_option",
+  "withdrawal_right",
+  "scope",
+  "withdrawal_procedure",
+  "paper_copy",
+  "system_requirements",
+] as const;
+export type EsignConsentClause = (typeof ESIGN_CONSENT_CLAUSES)[number];
+
+/** What each clause must say, and the statutory cite it discharges — for the reader and the audit. */
+export const ESIGN_CONSENT_CLAUSE_CITATIONS: Record<EsignConsentClause, string> = {
+  paper_option: "15 U.S.C. 7001(c)(1)(B)(i)(I)",
+  withdrawal_right: "15 U.S.C. 7001(c)(1)(B)(i)(II)",
+  scope: "15 U.S.C. 7001(c)(1)(B)(ii)",
+  withdrawal_procedure: "15 U.S.C. 7001(c)(1)(B)(iii)",
+  paper_copy: "15 U.S.C. 7001(c)(1)(B)(iv)",
+  system_requirements: "15 U.S.C. 7001(c)(1)(C)(i)",
+};
+
+export const ESIGN_CONSENT_CLAUSE_LABELS: Record<EsignConsentClause, string> = {
+  paper_option: "You can have these on paper instead",
+  withdrawal_right: "You can change your mind",
+  scope: "What this consent covers",
+  withdrawal_procedure: "How to withdraw, and how to update your contact details",
+  paper_copy: "How to get a paper copy afterwards",
+  system_requirements: "What you need to read and keep these records",
+};
+
+export interface EsignConsentDocument {
+  /** Bumped whenever any clause or the intent changes by a character. Stored on every row. */
+  version: string;
+  title: string;
+  citation: string;
+  clauses: Record<EsignConsentClause, string>;
+  /** The sentence the driver affirms. 7001(c)(1)(C)(ii)'s consent, given in the browser they read it in. */
+  intent: string;
+}
+
+/**
+ * PLACEHOLDER TEXT, marked as such, exactly like `DISCLOSURES` (Q-H3).
+ *
+ * ⚠ It is NOT in `AUTHORIZATION_PURPOSES` and must never be added: those are SCREENING
+ * authorizations — each one unlocks a call to a vendor or a former employer through
+ * `SCREENING_PREREQUISITES` and `hasLiveAuthorization`. This unlocks nothing and authorises nobody
+ * to pull anything; it is the driver agreeing to do business on a screen instead of on paper. Adding
+ * it to that list would make a PSP pull look satisfiable by the wrong consent.
+ */
+export const ESIGN_CONSENT: EsignConsentDocument = {
+  version: "v0-draft",
+  title: "Agreeing to sign and receive these documents electronically",
+  citation: "15 U.S.C. 7001(c); 49 CFR §390.32(d)",
+  clauses: {
+    paper_option:
+      "You do not have to do any of this electronically. If you would rather fill in this "
+      + "application on paper and sign it by hand, tell the carrier and they will send you one.",
+    withdrawal_right:
+      "You can withdraw this consent at any time. If you withdraw it before you have sent your "
+      + "application, this link stops working and the carrier will send you a paper form instead; "
+      + "nothing you have already signed is undone, and there is no fee either way.",
+    scope:
+      "This consent covers this job application and the authorizations that go with it — nothing "
+      + "else, and nothing after you are hired.",
+    withdrawal_procedure:
+      "To withdraw your consent, or to give the carrier a new email address or phone number, "
+      + "contact the carrier directly using the details in the message that sent you this link.",
+    paper_copy:
+      "After you have sent your application you can ask the carrier for a paper copy of anything "
+      + "you signed, at no charge.",
+    system_requirements:
+      "You need a device with a current web browser and an internet connection to read and sign "
+      + "these documents, and either a printer or somewhere to save a PDF if you want to keep your "
+      + "own copy.",
+  },
+  intent:
+    "I agree to sign this application and its authorizations electronically, and to receive the "
+    + "records that go with them electronically.",
+};
+
+/**
+ * Must this link carry a 7001(c) consent before anything else may be written to it?
+ *
+ * ⚠ The gate is armed by A0, not by A4. Requiring it unconditionally today would take the
+ * application offline: the document is `v0-draft`, no consent may be recorded against text no lawyer
+ * has read, and the gate would refuse every write with no way through it. So the requirement is tied
+ * to the same hazard the signing gate is tied to — while the wording is draft the link behaves as it
+ * did before A4, and the moment counsel's text is published the gate closes by itself on every write
+ * path. A flag would have to be remembered, and what would need remembering is "start requiring the
+ * consent the regulation requires".
+ */
+export const esignConsentRequired = (
+  consentedAt: string | null,
+  doc: EsignConsentDocument = ESIGN_CONSENT,
+): boolean => !isDraftDisclosure(doc.version) && !consentedAt;
+
+/**
+ * The exact text the driver is shown and the row stores — composed here, never sent by a client.
+ *
+ * In statutory order, each clause labelled, so the stored string is reproducible from the version and
+ * a reader can find the paragraph a challenge is about. Same rule as the disclosures: the API
+ * composes what was agreed to, because a client-authored record of consent is worth nothing.
+ */
+export function esignConsentBody(doc: EsignConsentDocument = ESIGN_CONSENT): string {
+  return ESIGN_CONSENT_CLAUSES.map(
+    (clause) => `${ESIGN_CONSENT_CLAUSE_LABELS[clause]}\n${doc.clauses[clause]}`,
+  ).join("\n\n");
+}
 
 // ── the wire shape ────────────────────────────────────────────────────────────
 

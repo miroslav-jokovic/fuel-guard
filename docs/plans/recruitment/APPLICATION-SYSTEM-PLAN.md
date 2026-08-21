@@ -648,7 +648,7 @@ certifying "true and complete" must be able to see what they are certifying and 
 hand whoever holds the link that driver's date of birth, licence number and address history — the leak
 D-APP16 exists to prevent, re-opened through a different door.
 
-### A4 · The ESIGN consent gate
+### A4 · The ESIGN consent gate — DONE 2026-08-21 (migration 0227)
 
 **Prerequisites:** A1.
 
@@ -671,6 +671,68 @@ D-APP16 exists to prevent, re-opened through a different door.
 before consent; a second consent on the same invitation refuses.
 **Done when:** nothing on the link is reachable without a stored 7001(c) consent, and the stored row
 reproduces the exact text the driver saw.
+
+**⚠ The decision that changed this step's shape: the gate is armed by A0, not by A4.**
+"Nothing else on the link is reachable until a consent exists" cannot ship as an unconditional rule
+today. `ESIGN_CONSENT.version` is `v0-draft`, no consent may be recorded against text no lawyer has
+read, and an unconditional gate would therefore refuse **every write on the live application** with no
+way through it — taking a working production capability offline to enforce a rule nobody could
+satisfy. So the requirement is tied to the same hazard the signing gate is tied to: while the wording
+is draft the link behaves exactly as it did before A4, and the moment A0 publishes the reviewed text
+the gate closes by itself on the draft save, the release and the submit. That is `DISCLOSURES`' own
+argument — *a flag would have to be remembered, and what would need remembering is "start requiring
+the consent the regulation requires"*. Both branches are pinned by tests, the closed one against a
+published version.
+
+**What shipped.**
+- `0227_esign_consents.sql`: evidence-side, **EI010-family guard (`EC010`) that fires for the service
+  role too** — the exact mirror of 0226's prunable draft, and each header states which side of the
+  line it is on and why. `withdrawn_at` may be set once and never unset: withdrawing is a fact ABOUT a
+  consent (7001(c)(1)(B)(i)(II) makes it a right), and un-withdrawing is a new consent, not an edit.
+  `record_esign_consent` files the row and stamps the invitation's phase in one transaction, with its
+  own SQLSTATEs (EC020/EC021/EC022) on 0225's model. The table joins `RETENTION_FORBIDDEN` in the same
+  PR — a consent that can be aged out cannot answer the question it exists to answer, and pruning it
+  would retroactively turn every application it stands behind into a record FMCSA does not recognise.
+- ⚠ **The document is a record of CLAUSES, not one `body` string.** 15 U.S.C. 7001(c)(1) was read
+  verbatim (Cornell LII, 2026-08-21) and enumerates six things the consumer must be told before
+  consenting: the paper option (c)(1)(B)(i)(I), the right to withdraw and what withdrawal costs
+  (c)(1)(B)(i)(II), the scope (c)(1)(B)(ii), how to withdraw and update contact details
+  (c)(1)(B)(iii), how to get a paper copy and any fee (c)(1)(B)(iv), and the hardware/software
+  statement (c)(1)(C)(i). A prose blob can be missing one with nobody noticing until a §390.32(d)
+  challenge; a `Record<EsignConsentClause, string>` cannot, and it makes A0's pass six named strings
+  with a citation each. `esignConsentBody()` composes the stored text server-side in statutory order.
+- `ESIGN_CONSENT` is **not** in `AUTHORIZATION_PURPOSES` and must never be: those unlock vendor calls
+  through `SCREENING_PREREQUISITES`, and this unlocks nothing. Adding it would make a PSP pull look
+  satisfiable by the wrong consent.
+- `POST /api/public/application/:token/consent` — the body carries nothing; version, text and intent
+  are composed from `ESIGN_CONSENT`. `GET /:token` serves the document with a `required` flag, so the
+  page never asks for a consent the API would refuse.
+- Web: `EsignConsentGate.vue` as the first screen, the whole served text on it (7001(c)(1)(C)(ii)'s
+  "manner that reasonably demonstrates that the consumer can access information" is a button under the
+  text they just read, in the browser they will use for the rest of it). Autosave is disabled behind
+  the gate — a "Not saved" banner on a screen the driver has not been allowed to reach would be a lie
+  about their signal.
+- ⚠ **A0's checklist item for unifying the draft predicates is DONE, pulled forward.** There were two
+  — `isDraftDisclosure` (`startsWith("v0")`, enforcement) and `disclosuresAreDraft` (`endsWith("-draft")`,
+  display) — agreeing on every string in use and diverging on `"v1-draft"`, which would have been
+  enforced as final and shown as draft. The union now lives once, in `authorizationContract.ts`, beside
+  the documents it judges. A4 pulled it forward rather than adding a third copy for the sixth document.
+
+**⚠ A test-harness fact that cost time here, worth adding to the 2026-08-19 list.** The public
+application surface's real rate limiter (20/min per IP) runs in the route tests too, and every test in
+`publicApplication.test.ts` shares one Express instance — so the twenty-first request in the FILE
+starts returning 429 and the failure looks like whatever that test was about (it surfaced as "expected
+429 to be 400" on an unrelated assertion). `trust proxy` is set, so each call now carries its own
+`X-Forwarded-For`; the limiter itself is pinned by one deliberate test that hammers a single address.
+
+**Verified by:** `pnpm test` (new matrix `esign-consents` 20 passed — including the service role
+being refused an UPDATE and a DELETE, which is the assertion the trigger style was chosen for; `rls`
+now covers 90 tables); `pnpm typecheck`; `pnpm lint`; `lint:filesize`, `lint:funcsize`,
+`lint:migrations`, `lint:rls`, `lint:upserts`, `lint:tests`, `lint:secrets`, `lint:boundaries`,
+`lint:comment-claims`, `lint:tokens-parity`, `lint:ui-adoption`, `lint:ui-contrast`,
+`pnpm --filter web lint:tokens`. The `RETENTION_FORBIDDEN` guard test picks up the new table.
+`expectOrgScoped` holds with `application_invitations` exempted and the reason beside it.
+**Not verified in a browser** — the apply page needs a real minted invitation to reach.
 
 ### A5 · The signing ceremony
 
@@ -849,7 +911,7 @@ regardless.
 
 | Input | Owner | What the code does |
 |---|---|---|
-| **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. |
+| **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. ⚠ Since A4 this text also **arms the 7001(c) gate**: publishing it is what makes the consent required on every write path, and until then the application runs exactly as it did before. A4 shipped the six clauses as placeholders with a statutory citation each, so counsel's pass is six named strings rather than a blank page. |
 | **The Excel application** | Owner | A9 begins with its transcription. Until it arrives, A1–A8 and A10–A11 are unaffected: the questionnaire is additive and nullable by construction. |
 | **Which documents a driver must photograph** | Owner | A8 ships the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. Adding a slot later is one enum entry plus one mapping line. |
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |

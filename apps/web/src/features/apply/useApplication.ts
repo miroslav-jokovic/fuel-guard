@@ -52,12 +52,29 @@ export interface ApplyDraft {
   updatedAt: string | null;
 }
 
+/**
+ * The 15 U.S.C. 7001(c) consent, served like every other instrument (A4).
+ *
+ * `required` is false while the wording is draft: the page must not ask for a consent the server
+ * would refuse to record. It becomes true by itself the day counsel's text is published (A0).
+ */
+export interface ApplyEsignConsent {
+  version: string;
+  title: string;
+  citation: string;
+  body: string;
+  intent: string;
+  draft: boolean;
+  required: boolean;
+}
+
 export interface ApplyInvitation {
   carrier: string;
   expiresAt: string;
   releases: ApplyRelease[];
   phases: ApplyPhases;
   draft: ApplyDraft;
+  esignConsent: ApplyEsignConsent;
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -128,3 +145,7 @@ export const unlockApplicationDraft = (token: string, dateOfBirth: string): Prom
     method: "POST",
     body: JSON.stringify({ date_of_birth: dateOfBirth }),
   });
+
+/** Agree to transact electronically. The body is empty: the server composes what was agreed to. */
+export const giveEsignConsent = (token: string): Promise<{ ok: true }> =>
+  publicFetch<{ ok: true }>(`/${token}/consent`, { method: "POST", body: "{}" });

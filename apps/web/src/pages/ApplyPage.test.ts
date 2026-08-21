@@ -216,6 +216,66 @@ describe("the applicant's page", () => {
   });
 
   /**
+   * A4/D-APP5. §390.32(d) makes an electronic §391.21 application conditional on including proof of
+   * 15 U.S.C. 7001(c) consent, so it is the first thing on the link — and asked for only when the
+   * server says it can be recorded, which is not until counsel's wording is published (A0).
+   */
+  it("asks for the electronic-records consent before anything else, once it can be recorded", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "Agreeing to sign electronically", citation: "15 U.S.C. 7001(c)",
+        body: "You can have these on paper instead\nYou do not have to do any of this electronically.",
+        intent: "I agree to sign this application electronically.", draft: false, required: true,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Before you start");
+    // The whole served text, not a summary — 7001(c) enumerates what the driver must be told.
+    expect(w.text()).toContain("You do not have to do any of this electronically.");
+    // And the form is not reachable behind it.
+    expect(w.text()).not.toContain("Step 1 of 7");
+  });
+
+  it("does not ask while the wording is still draft, because nothing could record it", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v0-draft", title: "Agreeing to sign electronically", citation: "15 U.S.C. 7001(c)",
+        body: "Placeholder.", intent: "I agree.", draft: true, required: false,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).not.toContain("Before you start");
+    expect(w.text()).toContain("Step 1 of 7");
+  });
+
+  it("goes straight to the form for a driver who already consented", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "Agreeing to sign electronically", citation: "15 U.S.C. 7001(c)",
+        body: "Text.", intent: "I agree.", draft: false, required: true,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).not.toContain("Before you start");
+    expect(w.text()).toContain("Step 1 of 7");
+  });
+
+  /**
    * A2/D-APP16. The link is a session and A10 re-sends it by email; an email is forwarded and a
    * phone is shared, so a draft holding a date of birth is not something the bare link reads back.
    */
