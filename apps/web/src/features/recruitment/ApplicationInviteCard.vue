@@ -4,7 +4,7 @@ import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, Ap
 import { rolesThatManage } from "@fuelguard/shared";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { applicationInviteBadge, BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -71,13 +71,8 @@ async function revokeInvite(row: ApplicationInvitation): Promise<void> {
   }
 }
 
-const STATE_TONE: Record<string, string> = {
-  open: "info", used: "success", revoked: "neutral", expired: "warning",
-};
-const STATE_LABEL: Record<string, string> = {
-  open: "Open", used: "Submitted", revoked: "Revoked", expired: "Expired",
-};
 const stateOf = (row: ApplicationInvitation) => inviteState(row, new Date());
+const stateBadge = (row: ApplicationInvitation) => applicationInviteBadge(stateOf(row));
 
 const columns: DataTableColumn[] = [
   { key: "created_at", label: "Sent" },
@@ -143,8 +138,8 @@ const columns: DataTableColumn[] = [
         </template>
         <template #cell-expires_at="{ row }">{{ row.expires_at.slice(0, 10) }}</template>
         <template #cell-state="{ row }">
-          <span :class="[BADGE_BASE, toneClass(STATE_TONE[stateOf(row)] ?? 'neutral')]">
-            {{ STATE_LABEL[stateOf(row)] }}
+          <span :class="[BADGE_BASE, toneClass(stateBadge(row).tone)]">
+            {{ stateBadge(row).label }}
           </span>
         </template>
         <template #actions="{ row }">

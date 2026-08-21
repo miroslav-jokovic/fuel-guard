@@ -79,6 +79,29 @@ export function dqItemBadge(state: string): DqBadge {
   }
 }
 
+/**
+ * Application-invitation state (`InviteState`) → badge.
+ *
+ * The last local tone `Record` in a .vue file, moved here 2026-08-21 as A1's UI-touching PR
+ * (RECRUITING-SYSTEM-PLAN §4 flagged it by file and line so nobody would copy it). "Submitted" for
+ * `used` deliberately: the machine token predates 0225, and since then a submitted link is not used
+ * up — it reopens to what the driver sent. The label was always the honest word for it.
+ */
+export function applicationInviteBadge(state: string): DqBadge {
+  switch (state) {
+    case "open":
+      return { label: "Open", tone: "info" };
+    case "used":
+      return { label: "Submitted", tone: "success" };
+    case "revoked":
+      return { label: "Revoked", tone: "neutral" };
+    case "expired":
+      return { label: "Expired", tone: "warning" };
+    default:
+      return { label: state, tone: "neutral" };
+  }
+}
+
 /** HOS duty status → badge (moved from DriversPage per D3 — the contract's §8 flagged the local
  *  map, and its -100/-700 pairs, as the violation). */
 export function hosStatusBadge(status: string): DqBadge {

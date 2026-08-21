@@ -38,7 +38,8 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
         ? [{
             id: "inv-1", org_id: ORG, driver_id: DRIVER,
             token_hash: hashInvitationToken(TOKEN),
-            expires_at: "2099-01-01T00:00:00Z", used_at: null, revoked_at: null,
+            expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+            consented_at: null, releases_completed_at: null, submitted_at: null,
             ...over,
           }]
         : [],
@@ -91,6 +92,17 @@ describe("opening the link", () => {
     expect(body.releases.every((r) => r.draft)).toBe(true);
   });
 
+  it("hands back the phase stamps, and nothing else about the session", async () => {
+    holder.client = seed({ consented_at: "2026-08-20T09:00:00Z" }).client;
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { phases: Record<string, string | null> };
+    expect(body.phases).toEqual({
+      consentedAt: "2026-08-20T09:00:00Z",
+      releasesCompletedAt: null,
+      submittedAt: null,
+    });
+  });
+
   it("tells an anonymous caller nothing about who exists", async () => {
     holder.client = seed(null).client;
     const res = await call(`/${TOKEN}`);
@@ -125,12 +137,53 @@ describe("submitting", () => {
     expect(res.status).toBe(400);
   });
 
-  it("refuses a submission on a spent link and files nothing", async () => {
-    const rec = seed({ used_at: "2026-08-01T00:00:00Z" });
+  it("refuses a second submission with a conflict, not a dead link, and files nothing", async () => {
+    const rec = seed({ submitted_at: "2026-08-01T00:00:00Z" });
     holder.client = rec.client;
     const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
-    expect(res.status).toBe(404);
+    // 409, not 404: the link is perfectly good — it is this phase that is spent (A1, D-APP1).
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already_submitted");
     expect(rec.rpcs()).toHaveLength(0);
+  });
+});
+
+/**
+ * §0.2, pinned at the boundary that made it a defect.
+ *
+ * `POST /:token/release` resolves the same token the submission spent. Until 0225 that meant the
+ * signing `ApplyPage.vue` promised the driver answered 404 the moment they sent their application.
+ */
+describe("the link survives its own submission", () => {
+  it("still opens after submission, showing what was sent", async () => {
+    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z" }).client;
+    const res = await call(`/${TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { phases: { submittedAt: string } }).phases.submittedAt).toBe(
+      "2026-08-01T00:00:00Z",
+    );
+  });
+
+  it("still reaches the signing endpoint after submission", async () => {
+    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z" }).client;
+    const res = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    // 409 for DRAFT WORDING — the carrier's outstanding act (Q-H3) — and not 404 for a dead link,
+    // which is the whole difference A1 makes. A0 turns this same call into a signature.
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+  });
+
+  it("refuses a fifth signature once the ceremony is closed", async () => {
+    holder.client = seed({ releases_completed_at: "2026-08-01T00:00:00Z" }).client;
+    const res = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("releases_complete");
   });
 });
 

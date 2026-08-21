@@ -5,6 +5,7 @@ import {
   hashInvitationToken,
   isIntakeError,
   mintInvitationToken,
+  phasesOf,
   recordRelease,
   resolveInvitation,
   sealSsn,
@@ -29,8 +30,10 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   driver_id: DRIVER,
   token_hash: hashInvitationToken(TOKEN),
   expires_at: "2026-09-01T00:00:00Z",
-  used_at: null,
   revoked_at: null,
+  consented_at: null,
+  releases_completed_at: null,
+  submitted_at: null,
   ...over,
 });
 
@@ -80,13 +83,13 @@ describe("the token", () => {
 });
 
 /**
- * Expired, revoked, spent, never existed — one refusal, one message. Telling them apart would let an
+ * Expired, revoked, never existed — one refusal, one message. Telling them apart would let an
  * anonymous caller learn that a token EXISTED, which is a fact about a person applying for a job.
+ * (A spent PHASE is no longer one of these — see "the link is a session" below.)
  */
 describe("every bad link fails the same way", () => {
   const cases: Array<[string, Record<string, unknown> | null]> = [
     ["no such invitation", null],
-    ["already used", invitation({ used_at: "2026-08-19T00:00:00Z" })],
     ["revoked", invitation({ revoked_at: "2026-08-19T00:00:00Z" })],
     ["expired", invitation({ expires_at: "2026-08-01T00:00:00Z" })],
   ];
@@ -106,6 +109,70 @@ describe("every bad link fails the same way", () => {
   });
 });
 
+/**
+ * A1, and the defect it exists to fix (APPLICATION-SYSTEM-PLAN §0.2).
+ *
+ * Before 0225 a submitted application killed the token, and `POST /:token/release` resolves through
+ * the same function — so the per-instrument signing the applicant's page promises was unreachable
+ * through the link that promised it. The link is a session now: revocation and expiry kill all of
+ * it, and a spent phase is refused only by the path that spends it.
+ */
+describe("the link is a session, not a fuse", () => {
+  it("still resolves after the application has been submitted", async () => {
+    const inv = invitation({ submitted_at: "2026-08-19T00:00:00Z" });
+    const result = await resolveInvitation(seed(inv).client, TOKEN, NOW);
+    expect(isIntakeError(result)).toBe(false);
+  });
+
+  it("hands the page the three phase stamps so it opens where the driver stopped", async () => {
+    const inv = invitation({
+      consented_at: "2026-08-19T00:00:00Z",
+      releases_completed_at: "2026-08-19T00:05:00Z",
+      submitted_at: null,
+    });
+    const result = await resolveInvitation(seed(inv).client, TOKEN, NOW);
+    if (isIntakeError(result)) throw new Error("expected a live invitation");
+    expect(phasesOf(result)).toEqual({
+      consentedAt: "2026-08-19T00:00:00Z",
+      releasesCompletedAt: "2026-08-19T00:05:00Z",
+      submittedAt: null,
+    });
+  });
+
+  it("lets a driver sign a release on the link they already submitted through", async () => {
+    // The point of A1: this reaches the WORDING gate (Q-H3) instead of a dead-link refusal. When A0
+    // publishes the v1 text this same call records a signature.
+    const inv = invitation({ submitted_at: "2026-08-19T00:00:00Z" });
+    const result = await recordRelease(
+      seed(inv).client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
+  });
+
+  it("refuses a second submission, and says so rather than pretending the link is broken", async () => {
+    const rec = seed(invitation({ submitted_at: "2026-08-19T00:00:00Z" }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("already_submitted");
+    // And nothing reached the transaction — the refusal is before the write, not a rollback.
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("refuses a release once the ceremony is complete, without touching the other phases", async () => {
+    const rec = seed(invitation({ releases_completed_at: "2026-08-19T00:00:00Z" }));
+    const result = await recordRelease(
+      rec.client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
+    );
+    expect(isIntakeError(result) && result.code).toBe("releases_complete");
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+    // A finished ceremony does not stop the application being sent.
+    const submitted = await submitApplication(
+      seed(invitation({ releases_completed_at: "2026-08-19T00:00:00Z" })).client,
+      env(), TOKEN, APPLICATION, CTX, NOW,
+    );
+    expect(isIntakeError(submitted)).toBe(false);
+  });
+});
+
 describe("submitting", () => {
   it("hands the transaction the org and driver the TOKEN resolved to, never a client value", async () => {
     const rec = seed();
@@ -120,13 +187,17 @@ describe("submitting", () => {
     expect(args.p_user_agent).toBe("Mozilla/5.0");
   });
 
-  it("turns the transaction's spent-link race into the same neutral refusal", async () => {
+  /** The FOR UPDATE lock's two verdicts, each turned into the answer that fits it. */
+  it.each([
+    ["DA021", "application_invitation_unusable", "invalid_link"],
+    ["DA022", "application_already_submitted", "already_submitted"],
+  ])("turns the transaction's %s into %s", async (code, message, expected) => {
     const rec = createSupabaseRecorder({
       tables: { application_invitations: [invitation()], organizations: [{ name: "S" }] },
-      rpc: { submit_driver_application: { error: { code: "DA021", message: "application_invitation_spent" } } },
+      rpc: { submit_driver_application: { error: { code, message } } },
     });
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
-    expect(isIntakeError(result) && result.code).toBe("invalid_link");
+    expect(isIntakeError(result) && result.code).toBe(expected);
   });
 });
 

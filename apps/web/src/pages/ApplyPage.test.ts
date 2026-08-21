@@ -84,6 +84,26 @@ describe("the applicant's page", () => {
     expect(checkboxLabels).not.toContain("I authorize");
   });
 
+  /**
+   * A1. The link is a session now (D-APP1): submitting spends one phase, not the token, so a driver
+   * who closes the tab and clicks the same email again is shown what happened instead of being told
+   * their own application link is broken.
+   */
+  it("shows what was sent when the link is reopened after submission", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T10:00:00Z" },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Your application is in");
+    // And the form is gone — there is nothing here to fill in or send a second time.
+    expect(w.text()).not.toContain("Send my application");
+    // The old copy promised a later signing step through a link this page had just closed.
+    expect(w.text()).not.toContain("you will be asked to sign");
+  });
+
   it("says one thing about a dead link, whatever killed it", async () => {
     fetchMock.mockResolvedValue(dead());
     const w = mountPage();

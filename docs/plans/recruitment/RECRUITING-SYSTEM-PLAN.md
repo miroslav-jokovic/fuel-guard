@@ -329,9 +329,9 @@ wrong — and every driver gets a real §391.31 test.
 - Every new state vocabulary ships as a pair: the machine tokens in shared **plus** an exported
   label map beside them (the `INQUIRY_STATE_LABELS` pattern), and tones added in `lib/badges.ts`
   **only** — no `.vue` file carries a status literal or a local tone `Record` (R0b removed
-  `InquiryQueuePage.vue`'s instance; ⚠ one survivor remains — `ApplicationInviteCard.vue:74`'s
-  `STATE_TONE`, verified 2026-08-21 — fold its removal into the next UI-touching PR; nobody
-  copies it).
+  `InquiryQueuePage.vue`'s instance; the last survivor, `ApplicationInviteCard.vue`'s `STATE_TONE`,
+  went with A1 on 2026-08-21 — it is `applicationInviteBadge` in `lib/badges.ts` now. There is no
+  known instance left; a new one is a regression, not a precedent).
 - List pages over the roster (leads, annual round, the board): `FilterBar` with search and a
   domain-noun count, `TablePagination` in the table footer, and empty-state copy in the house
   voice (fact, then next action). 201 rows with a lone filter select is not a list page.
@@ -457,12 +457,13 @@ whole thing landing in DQF — is **A0–A11** in
 [`APPLICATION-SYSTEM-PLAN.md`](./APPLICATION-SYSTEM-PLAN.md). Its decisions are `D-APP1`–`D-APP15`;
 its execution protocol is §4 of this document, unchanged.
 
-⚠ **It opens with a live defect.** `resolveInvitation` kills the token on `used_at`, which
-`submit_driver_application` stamps — and `POST /:token/release` resolves through the same function.
-The signing that `ApplyPage.vue:83–85` promises the driver after submission is therefore
-unreachable through the link that promised it. Nobody has hit it because every instrument is
-`v0-draft` and the gate refuses drafts; **publishing counsel's v1 wording is what would expose it**,
-so A1 lands before A0 is exercised.
+⚠ **It opened with a live defect, and A1 closed it (2026-08-21, migration 0225).**
+`resolveInvitation` killed the token on `used_at`, which `submit_driver_application` stamps — and
+`POST /:token/release` resolves through the same function — so the signing `ApplyPage.vue` promised
+the driver after submission was unreachable through the link that promised it. The invitation is now
+a session with three phase stamps (D-APP1): revocation and expiry kill all of it, and each write path
+refuses only its own spent phase. **A2 is the next step**; see that plan's §5 register for what
+shipped.
 
 ### R3 · MVR orders — demo environment first
 
