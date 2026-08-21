@@ -20,7 +20,7 @@ function goodOcr(over: Partial<OcrEvidence> = {}): OcrEvidence {
   };
 }
 
-function input(metrics: Partial<ImageMetrics>, ocr = goodOcr(), platform: "ios" | "android" = "ios"): GateInput {
+function input(metrics: Partial<ImageMetrics>, ocr = goodOcr(), platform: "ios" | "android" | "web" = "ios"): GateInput {
   return { metrics: { longEdgePx: 1600, ...metrics }, ocr, platform };
 }
 
@@ -74,5 +74,46 @@ describe("evaluateGate — §5 legibility", () => {
   it("confidence is only secondary — a low confidence with good geometry still cautions to TEXT_ILLEGIBLE", () => {
     const r = evaluateGate(input({ blurVariance: 300 }, goodOcr({ meanConfidence: 0.1 })), cfg);
     expect(r.reasons).toContain("TEXT_ILLEGIBLE");
+  });
+});
+
+/**
+ * The `web` platform (A7 / D-APP11) — the applicant's own browser, reached from the application link.
+ *
+ * ⚠ It deliberately carries no thresholds of its own, and that is the finding rather than a shortcut.
+ * The web provider measures ONE metric, `longEdgePx`, so a web-specific blur or glare floor would be a
+ * number the gate never reads; and the one threshold that does apply — the resolution floor — is
+ * pinned to the server's authoritative usability gate, where a client-side divergence would either
+ * reject photographs the server accepts or spend a driver's bandwidth on ones it will refuse.
+ */
+describe("evaluateGate — the web platform", () => {
+  const webMetrics = { longEdgePx: 1600 };
+  const noOcr = (): OcrEvidence => ({ ...goodOcr(), available: false });
+
+  it("holds the same resolution floor the server holds", () => {
+    const under = evaluateGate(input({ longEdgePx: 900 }, noOcr(), "web"), cfg);
+    expect(under.reasons).toContain("RESOLUTION_TOO_LOW");
+    expect(under.passed).toBe(false);
+
+    const over = evaluateGate(input(webMetrics, noOcr(), "web"), cfg);
+    expect(over.passed).toBe(true);
+  });
+
+  it("reaches the same verdict as the driver app's JS fallback for the same measurements", () => {
+    // The two providers measure identically, so they must decide identically: a licence photographed
+    // in the driver app and one photographed from the application link are the same photograph.
+    const web = evaluateGate(input(webMetrics, noOcr(), "web"), cfg);
+    const android = evaluateGate(input(webMetrics, noOcr(), "android"), cfg);
+    expect(web.passed).toBe(android.passed);
+    expect(web.score).toBe(android.score);
+    expect(web.checks.map((c) => `${c.name}:${c.status}`)).toEqual(
+      android.checks.map((c) => `${c.name}:${c.status}`),
+    );
+  });
+
+  it("degrades legibility closed, because a browser runs no OCR", () => {
+    const r = evaluateGate(input(webMetrics, noOcr(), "web"), cfg);
+    expect(r.ocrDegraded).toBe(true);
+    expect(r.checks.find((c) => c.name === "ocrLegibility")?.status).toBe("na");
   });
 });

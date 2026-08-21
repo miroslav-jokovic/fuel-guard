@@ -896,7 +896,7 @@ thrown renderer leaves the submission standing; `expectOrgScoped` across the who
 `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
 **Not verified in a browser** — the recruiter card is covered by the API tests behind it.
 
-### A7 · The web capture provider
+### A7 · The web capture provider — DONE 2026-08-21 (no migration)
 
 **Prerequisites:** A3.
 
@@ -916,6 +916,60 @@ thrown renderer leaves the submission standing; `expectOrgScoped` across the who
 never calls the upload path; the existing capture-engine suite stays green.
 **Done when:** a driver photographs a CDL on a phone, a blurry one is refused before it costs
 bandwidth, and the accepted image is EXIF-free and under the configured size.
+
+**⚠ The instruction about thresholds cannot be followed as written, and should not be.** A7 says the
+`web` platform gets "its own thresholds in `config.ts`, chosen from measured samples rather than
+copied from Android (D-APP11) — borrowing would be an assumption, and this plan does not make those."
+Building it produced three reasons that is the wrong shape, and they are worth keeping:
+
+1. **There are no measured samples and none can be obtained without shipping first.** A number
+   invented from nothing is the same assumption as a number copied from Android, wearing a better hat.
+2. **The web provider measures exactly one metric**, `longEdgePx` — the plan says so itself two
+   sentences later. A web-specific blur or glare floor would be a threshold the gate never reads,
+   because the check is `na`. A number that does nothing is worse than no number: the next reader
+   believes it was measured.
+3. **The one threshold that does apply must not diverge.** `config.ts`'s own header pins the
+   resolution floor to the server's authoritative usability gate and says client and server must
+   agree. A client floor above the server's rejects photographs the server would accept; one below
+   spends a driver's bandwidth on photographs the server then refuses.
+
+So `web` ships as a platform token with no numbers of its own, the reasoning is written into
+`config.ts` where the next person will meet it, and a test asserts the web path reaches the **same
+verdict as the driver app's JS fallback for the same measurements** — because a licence photographed
+in the driver app and one photographed from the application link are the same photograph. If a
+measured re-shoot rate later justifies a web-specific floor, it arrives as a signed config override,
+which is what that file exists for.
+
+**What shipped.**
+- `capture-engine`: `GateInput.platform` gains `"web"`, `platformOverrides` gains a `web` entry for
+  totality (inert — no OCR runs in a browser), and the package stays pure and zero-dependency.
+- `features/apply/capture/webImageIo.ts` — the browser half behind an interface: `createImageBitmap`
+  → canvas downscale → WebP q80 with a **type-checked** JPEG fallback (a browser that cannot encode
+  WebP hands back a PNG or a null rather than failing loudly, so the check is on `blob.type`, not on
+  truthiness) → `crypto.subtle` sha256. ⚠ `imageOrientation: "from-image"` is not optional: EXIF
+  orientation is part of what is being discarded, and without it a portrait photograph re-encodes
+  sideways.
+- **EXIF stripping is a property of the pipeline, not a step.** Decoding to a bitmap and re-encoding
+  through a canvas yields pixels and nothing else, so the original file's metadata — on a phone, the
+  GPS coordinates of wherever the driver photographed their licence — cannot survive. There is no
+  `stripExif()` to forget to call.
+- `webFileProvider.ts` — the third implementation of the engine's provider seam, mirroring the driver
+  app's JS fallback deliberately. ⚠ Resolution is measured on the **original**, before the downscale:
+  gating the resized copy would be circular, since everything is resized to the same long edge.
+- A rejected capture returns `{ ok: false, reason }` with **no page**, so there is nothing for a
+  caller to upload, and its object URL is revoked rather than left for the browser to collect — a
+  driver re-shooting four times should not accumulate four rejected photographs in a phone's memory.
+
+**Verified by:** `pnpm test` — `webFileProvider.test.ts` pins the property the step exists for (a
+photograph that fails the gate never becomes a page, so nothing can be uploaded), that unmeasurable
+checks are `na` rather than silent passes, and that the original long edge is what the gate sees;
+`gate.test.ts` gains the web platform, including the same-verdict-as-the-fallback assertion. The IO is
+behind an interface so all of it runs without a camera, a canvas or a GPU. `pnpm typecheck`;
+`pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens` — `lint:boundaries`
+confirms `capture-engine` stayed clean of `@fuelguard/*` and of clocks.
+**No UI yet, by design:** A8 owns the capture screen, the slots and the upload. A7 is the provider it
+will call, and shipping a screen with nowhere to put the bytes would be the dead-screen mistake A3a
+already declined to make.
 
 ### A8 · Staged captures, filed at submit
 
