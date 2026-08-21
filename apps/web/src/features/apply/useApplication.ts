@@ -91,13 +91,18 @@ export function useApplyInvitationQuery(token: Ref<string>) {
 
 export function useSubmitApplication(token: Ref<string>) {
   return useMutation({
-    mutationFn: (application: DriverApplication) =>
+    /**
+     * The certified document and, if the driver gave one, the Social Security number.
+     *
+     * The SSN travels HERE and only here (D-APP3): it never enters a draft, so this request is the
+     * first and last time it crosses the wire, and the server seals it into a secretBox envelope
+     * bound to the org or keeps only the last four. §391.21(b)(2) lists it; D-HIRE6 makes it
+     * optional, because PSP matches on name, licence, state and date of birth and never needs it.
+     */
+    mutationFn: (body: { application: DriverApplication; ssn: string | null }) =>
       publicFetch<{ applicationId: string }>(`/${token.value}`, {
         method: "POST",
-        // No SSN. §391.21(b)(2) asks for it and the API accepts it, but nothing collects it here
-        // until a vendor actually needs it (D-HIRE6) — the field that is never rendered is the one
-        // that cannot leak.
-        body: JSON.stringify({ application, ssn: null }),
+        body: JSON.stringify(body),
       }),
   });
 }

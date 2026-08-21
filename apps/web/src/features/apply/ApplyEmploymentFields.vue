@@ -6,8 +6,8 @@ import {
   AppDateField,
   AppFormField as FormField,
 } from "@fuelguard/ui";
-import { CMV_WINDOW_YEARS, EMPLOYMENT_WINDOW_YEARS } from "@fuelguard/shared";
 import { emptyEmployer, type ApplicationDraft } from "@/features/apply/draft";
+import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * §391.21(b)(10) and (b)(11) — and the reason the instructions below are worded so carefully.
@@ -19,22 +19,14 @@ import { emptyEmployer, type ApplicationDraft } from "@/features/apply/draft";
  * itself, because the boundary is ours to compute and not theirs to remember.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+const copy = APPLY_COPY.employment;
 </script>
 
 <template>
   <section class="space-y-4">
-    <div>
-      <h2 class="text-base font-semibold text-ink">Where you have worked</h2>
-      <p class="mt-1 text-sm text-ink-muted">
-        List every job — driving or not — from the last {{ EMPLOYMENT_WINDOW_YEARS }} years. For the
-        {{ CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS }} years before that, list only the jobs where
-        you drove a commercial vehicle. Time you were not driving is not a gap you need to explain.
-      </p>
-    </div>
+    <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
 
-    <BaseCheckbox v-model="draft.declares_no_employment">
-      I have not been employed during this period
-    </BaseCheckbox>
+    <BaseCheckbox v-model="draft.declares_no_employment">{{ copy.none }}</BaseCheckbox>
 
     <template v-if="!draft.declares_no_employment">
       <div
@@ -43,68 +35,71 @@ const draft = defineModel<ApplicationDraft>({ required: true });
         class="space-y-4 rounded-surface bg-surface-muted p-4"
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Employer">
+          <FormField v-slot="{ id }" :label="copy.employer">
             <BaseInput :id="id" v-model="employer.employer_name" />
           </FormField>
-          <FormField v-slot="{ id }" label="USDOT number" hint="Optional — leave blank if you do not know it.">
+          <FormField v-slot="{ id }" :label="copy.usdot" :hint="copy.usdotHint">
             <BaseInput :id="id" v-model="employer.usdot_number" placeholder="Optional" />
           </FormField>
         </div>
         <FormField
           v-slot="{ id }"
-          label="Street address"
-          hint="§391.23 requires us to record where we wrote to."
+          :label="copy.address"
+          :hint="copy.addressHint"
         >
           <BaseInput :id="id" v-model="employer.address_line1" />
         </FormField>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <FormField v-slot="{ id }" label="City">
+          <FormField v-slot="{ id }" :label="copy.city">
             <BaseInput :id="id" v-model="employer.city" />
           </FormField>
-          <FormField v-slot="{ id }" label="State">
+          <FormField v-slot="{ id }" :label="copy.state">
             <BaseInput :id="id" v-model="employer.state" maxlength="2" />
           </FormField>
-          <FormField v-slot="{ id }" label="Phone" hint="So we can contact them.">
+          <FormField v-slot="{ id }" :label="copy.phone" :hint="copy.phoneHint">
             <BaseInput :id="id" v-model="employer.phone" type="tel" />
           </FormField>
-          <FormField v-slot="{ id }" label="Email" hint="Optional, if you know it.">
+          <FormField v-slot="{ id }" :label="copy.email" :hint="copy.emailHint">
             <BaseInput :id="id" v-model="employer.email" type="email" placeholder="Optional" />
           </FormField>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-slot="{ id }" label="Position">
+          <FormField v-slot="{ id }" :label="copy.position">
             <BaseInput :id="id" v-model="employer.position_held" />
           </FormField>
-          <FormField v-slot="{ id }" label="From">
+          <FormField v-slot="{ id }" :label="copy.from">
             <AppDateField :id="id" v-model="employer.started_on" />
           </FormField>
-          <FormField v-slot="{ id }" label="Until" hint="Blank if you work there now.">
+          <FormField v-slot="{ id }" :label="copy.to" :hint="copy.toHint">
             <AppDateField :id="id" v-model="employer.ended_on" />
           </FormField>
         </div>
-        <FormField v-slot="{ id }" label="Reason for leaving" hint="§391.21(b)(10) asks for it.">
+        <FormField v-slot="{ id }" :label="copy.reason" :hint="copy.reasonHint">
           <BaseInput :id="id" v-model="employer.reason_for_leaving" />
         </FormField>
 
         <div class="space-y-2">
-          <BaseCheckbox v-model="employer.operated_cmv">I drove a commercial vehicle in this job</BaseCheckbox>
-          <BaseCheckbox v-model="employer.dot_regulated">This employer was DOT-regulated</BaseCheckbox>
+          <BaseCheckbox v-model="employer.operated_cmv">{{ copy.operatedCmv }}</BaseCheckbox>
+          <BaseCheckbox v-model="employer.dot_regulated">{{ copy.dotRegulated }}</BaseCheckbox>
           <!-- §40.25(j): asked of the applicant because the answer is theirs, and a yes changes what
                §40.25 obliges the carrier to chase from that employer. -->
-          <BaseCheckbox v-model="employer.safety_sensitive">
-            This job was safety-sensitive under DOT drug and alcohol rules
-          </BaseCheckbox>
-          <BaseCheckbox v-model="employer.subject_to_fmcsr">
-            This job was subject to the federal motor carrier safety regulations
-          </BaseCheckbox>
+          <BaseCheckbox v-model="employer.safety_sensitive">{{ copy.safetySensitive }}</BaseCheckbox>
+          <BaseCheckbox v-model="employer.subject_to_fmcsr">{{ copy.subjectToFmcsr }}</BaseCheckbox>
         </div>
 
         <div v-if="draft.employers.length > 1" class="flex justify-end">
-          <BaseButton variant="ghost" size="sm" @click="draft.employers.splice(i, 1)">Remove</BaseButton>
+          <BaseButton variant="ghost" size="sm" @click="draft.employers.splice(i, 1)">{{ copy.remove }}</BaseButton>
         </div>
       </div>
 
-      <BaseButton @click="draft.employers.push(emptyEmployer())">Add another employer</BaseButton>
+      <BaseButton @click="draft.employers.push(emptyEmployer())">{{ copy.add }}</BaseButton>
     </template>
+
+    <!-- §391.21(b)(6): "the nature and extent of the applicant's experience in the operation of
+         motor vehicles, including the type of equipment". It reads as the preamble to (b)(10)
+         rather than as a licence detail, so it is answered here. -->
+    <FormField v-slot="{ id }" :label="copy.experience" :hint="copy.experienceHint">
+      <BaseInput :id="id" v-model="draft.experience" placeholder="Optional" />
+    </FormField>
   </section>
 </template>

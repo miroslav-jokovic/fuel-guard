@@ -32,11 +32,42 @@ const RELEASES = [
   },
 ];
 
+/**
+ * A draft complete enough to walk the wizard with. Every screen validates against the server's own
+ * schema, so a test that clicks Next five times is also a test that the sections' field sets are
+ * right — a field on the wrong screen strands the driver on a step they cannot pass.
+ */
+const COMPLETE_DRAFT = {
+  first_name: "Susan", middle_name: "", last_name: "Godfrey", date_of_birth: "1980-04-01",
+  email: "s@example.test", phone: "555-0111",
+  addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
+  cdl_number: "PA334554", cdl_state: "PA", cdl_class: "", cdl_expires_at: "2029-01-01",
+  additional_licences: [],
+  experience: "", accidents: [], declares_no_accidents: true,
+  violations: [], declares_no_violations: true,
+  licence_ever_denied: false, licence_denial_detail: "",
+  employers: [{
+    employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet",
+    state: "IL", phone: "555-0100", email: "", position_held: "Driver",
+    started_on: "2023-01-01", ended_on: "2025-06-30",
+    operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
+    subject_to_fmcsr: true, safety_sensitive: true,
+  }],
+  declares_no_employment: false,
+};
+
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
 const mountPage = () =>
   mount(ApplyPage, { global: { plugins: [VueQueryPlugin] } });
+
+/** The primary control at the bottom of a step — Next, then Check my answers, then Send. */
+const advance = async (w: ReturnType<typeof mountPage>) => {
+  const buttons = w.findAll("button");
+  await buttons[buttons.length - 1]!.trigger("click");
+  await settle(w);
+};
 
 const settle = async (w: ReturnType<typeof mountPage>) => {
   for (let i = 0; i < 12; i++) {
@@ -62,26 +93,106 @@ describe("the applicant's page", () => {
     expect(Object.keys(headers).map((h) => h.toLowerCase())).not.toContain("x-step-up-token");
   });
 
-  it("shows the carrier's name and the disclosure wording the server served", async () => {
+  it("shows the carrier's name on the first screen", async () => {
     fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
     const w = mountPage();
     await settle(w);
 
     expect(w.text()).toContain("Silvicom Inc");
-    expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
   });
 
-  /** Read-only: marked as not final, and with nothing on the page that could record a signature. */
-  it("presents draft disclosures as unsignable", async () => {
-    fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
+  /**
+   * Read-only: marked as not final, and with nothing on the page that could record a signature.
+   *
+   * They live on the last screen since A3 — the driver sees them beside the certification rather
+   * than half-way down a form, and still sees them, so nobody is asked weeks later to sign four
+   * documents they have never read.
+   */
+  it("presents draft disclosures as unsignable, on the screen where they sign", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
     const w = mountPage();
     await settle(w);
 
+    // identity → addresses → licence → employment → safety → review → certify
+    for (let i = 0; i < 6; i++) await advance(w);
+
+    expect(w.text()).toContain("Sign and send");
+    // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
+    // in the client bundle where a build could change it.
+    expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
     expect(w.text()).toContain("Not final");
     expect(w.text()).toContain("nothing here is being signed today");
-    // The only checkbox on the page is the §391.21(b) certification of the application itself.
+    // The only checkbox on the screen is the §391.21(b)(12) certification of the application itself.
     const checkboxLabels = w.findAll("label").map((l) => l.text()).join(" ");
     expect(checkboxLabels).not.toContain("I authorize");
+  });
+
+  /** The wizard, end to end — and a working proof that every screen's field set validates. */
+  it("walks one screen at a time and ends on the certification", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain("About you");
+    // §391.21(b)(2) — the paragraph is named on the screen that discharges it.
+    expect(w.text()).toContain("§391.21(b)(2)");
+
+    await advance(w);
+    expect(w.text()).toContain("Where you have lived");
+    await advance(w);
+    expect(w.text()).toContain("Your licence");
+    // §391.21(b)(5)'s "each": the list the schema carried no field for until A3.
+    expect(w.text()).toContain("Any other licences or permits");
+    await advance(w);
+    expect(w.text()).toContain("Where you have worked");
+    await advance(w);
+    expect(w.text()).toContain("Your driving record");
+    await advance(w);
+    // Nobody certifies what they cannot see (§391.21(b)(12)).
+    expect(w.text()).toContain("Check your answers");
+    expect(w.text()).toContain("Susan Godfrey");
+    await advance(w);
+    expect(w.text()).toContain("Send my application");
+  });
+
+  /** Forward is gated on the screen being complete; the driver is told what is missing. */
+  it("refuses to advance past an incomplete screen and names the field", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    await advance(w);
+    expect(w.text()).toContain("Before you can go on");
+    expect(w.text()).toContain("first_name");
+    // And it did not move on.
+    expect(w.text()).toContain("Step 1 of 7");
+  });
+
+  /** The saved section is where a resumed session opens. */
+  it("resumes on the screen the driver had reached", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "employment", updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Where you have worked");
+    expect(w.text()).toContain("Step 4 of 7");
   });
 
   /**
@@ -134,7 +245,7 @@ describe("the applicant's page", () => {
 
     // Before a date of birth is typed there is nothing to protect, so no question is asked.
     expect(w.text()).not.toContain("Pick up where you left off");
-    expect(w.text()).toContain("Send my application");
+    expect(w.text()).toContain("Step 1 of 7");
     expect((w.find("input[autocomplete=\"given-name\"]").element as HTMLInputElement).value).toBe("Susan");
   });
 
