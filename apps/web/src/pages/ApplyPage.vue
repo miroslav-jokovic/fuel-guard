@@ -38,7 +38,18 @@ watch(() => invitation.data.value?.carrier, (name) => emit("carrier", name ?? nu
 
 const draft = reactive<ApplicationDraft>(emptyDraft());
 const issues = ref<Array<{ path: string; message: string }>>([]);
-const submitted = ref(false);
+const justSent = ref(false);
+
+/**
+ * Submitted is a fact about the link, not a fact about this browser tab (D-APP1).
+ *
+ * Until 0225 it could only ever be local state, because submitting killed the token and a reopened
+ * link answered "not valid" — a driver who closed the tab and clicked their email again was told
+ * their own application link was broken. The server now carries the phase, so reopening shows what
+ * happened; `justSent` still exists because the same page must say it in the same moment, before the
+ * query refetches.
+ */
+const submitted = computed(() => justSent.value || Boolean(invitation.data.value?.phases?.submittedAt));
 
 const draftModel = computed({
   get: () => draft as ApplicationDraft,
@@ -59,7 +70,7 @@ async function send(): Promise<void> {
   }
   try {
     await submit.mutateAsync(parsed.data);
-    submitted.value = true;
+    justSent.value = true;
   } catch (e) {
     issues.value = [{ path: "form", message: e instanceof Error ? e.message : "Could not send the application." }];
   }
@@ -74,17 +85,24 @@ async function send(): Promise<void> {
   <BaseCard v-else-if="invitation.isError.value">
     <h1 class="text-lg font-semibold text-ink">This link is not valid</h1>
     <p class="mt-2 text-sm text-ink-muted">
-      It may have expired, or already been used. Ask the carrier who invited you for a new one.
+      It may have expired, or the carrier may have replaced it. Ask the carrier who invited you for a
+      new one.
     </p>
   </BaseCard>
 
+  <!-- What happened, not what will (A1). The old copy promised signing that this page could not
+       deliver — submitting killed the link the promise was made on — and D-APP4 moves the signing
+       ahead of the certification, so there is no longer a later step to promise. -->
   <BaseCard v-else-if="submitted">
     <h1 class="text-lg font-semibold text-ink">Your application is in</h1>
     <p class="mt-2 text-sm text-ink-muted">
-      {{ invitation.data.value?.carrier }} has it. If they take it further you will be asked to sign
-      the authorisations you read on this page — each one separately, and each one on its own.
+      {{ invitation.data.value?.carrier }} has it, certified in your name under 49 CFR §391.21(b).
+      They will contact you about what happens next.
     </p>
-    <p class="mt-2 text-sm text-ink-muted">This link is now closed and cannot be used again.</p>
+    <p class="mt-2 text-sm text-ink-muted">
+      You can close this page. Your link still opens to this message, and it cannot be used to send a
+      second application.
+    </p>
   </BaseCard>
 
   <div v-else-if="invitation.data.value" class="space-y-8">

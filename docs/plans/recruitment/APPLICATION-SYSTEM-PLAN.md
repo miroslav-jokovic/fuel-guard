@@ -80,6 +80,10 @@ Nobody has hit this in production because `DISCLOSURES` is entirely `v0-draft` a
 drafts, so no signature has ever been attempted. **The bug is latent behind a blocker, and publishing
 the v1 text is what would expose it.** A1 fixes it before A0 can.
 
+⚠ **Fixed 2026-08-21 by A1 (migration 0225).** This section is kept as the argument for the shape the
+rest of the plan is built on — the link is a session, not a fuse — not as a live defect. Do not
+re-derive it; read A1's "What shipped".
+
 ### 0.3 What is genuinely missing
 
 Save-and-resume; a signing ceremony over multiple documents; web-side camera capture; the ESIGN
@@ -391,7 +395,7 @@ waits on this commit.
 **Done when:** `disclosuresAreDraft()` returns false, and one end-to-end signature lands in the
 `FuelGuard EFS QA` org (`07fe4058-…`, the sandbox with a null `dot_number`) — never against Silvicom.
 
-### A1 · The invitation becomes a resumable session
+### A1 · The invitation becomes a resumable session — DONE 2026-08-21 (migration 0225)
 
 **Prerequisites:** none. **Fixes §0.2, and must land before A0 can be exercised.**
 
@@ -414,6 +418,38 @@ revoked token refuses every phase; an expired token refuses every phase; the bac
 existing row's behaviour identical. `expectOrgScoped` on every touched service query.
 **Done when:** a driver can sign, close the browser, reopen the same link, and be on the next step —
 and the same link cannot re-sign what it already signed or re-submit what it already sent.
+
+**What shipped.**
+- `0225_application_invitation_phases.sql`: `consented_at`, `releases_completed_at`, `submitted_at`
+  on `application_invitations`, backfilled `submitted_at := used_at` (exact, not approximate —
+  `used_at` had exactly one writer). `submit_driver_application` re-expressed as phases from **0222's**
+  body, splitting one refusal into two: **DA021** the credential is dead (revoked or expired),
+  **DA022** the credential is live and the submit phase is spent. DA020 unchanged.
+- `resolveInvitation` refuses only `revoked_at` / `expires_at` and returns the phase stamps;
+  `used_at` is **out of the public path's select entirely** so that path has one source of truth.
+  It survives on the staff side (`INVITE_COLS`, the revoke guard's `.is("used_at", null)`, the web
+  `inviteState` fold) and is still stamped for them — A5 removes the last reader and drops it.
+- `submitApplication` refuses `already_submitted`; `recordRelease` refuses `releases_complete`
+  (nothing stamps that column until A5, and the refusal ships with the column anyway). Both are
+  **409, not 404**: a spent phase is a conflict on a good link, and only its holder can reach it, so
+  saying so discloses nothing that `GET` did not. `invalid_link`'s neutrality is untouched.
+- `GET /:token` returns `phases`; `ApplyPage.vue` opens on the submitted state when the server says
+  so rather than only when this tab did it, and its post-submit copy states what happened instead of
+  promising a signing step through a link it had just closed. The dead-link card stopped saying
+  "already been used", which stopped being one of the ways a link dies.
+- ⚠ RECRUITING-SYSTEM-PLAN §4's last surviving local tone record is gone: `STATE_TONE` /
+  `STATE_LABEL` in `ApplicationInviteCard.vue` are now `applicationInviteBadge` in `lib/badges.ts`,
+  folded into this UI-touching PR as that plan required.
+
+**Verified by:** `pnpm test` (393-table `rls`, `application-intake` 21 — its spent-link assertion now
+reads DA022 — and the new `application-session` matrix, 14 passed, which pins the backfill by
+replaying it over a simulated pre-0225 row); `pnpm typecheck`; `pnpm lint`; `lint:filesize`,
+`lint:funcsize`, `lint:migrations`, `lint:rls`, `lint:upserts`, `lint:tests`, `lint:secrets`,
+`lint:boundaries`, `lint:comment-claims`, `lint:tokens-parity`, `lint:ui-adoption`,
+`lint:ui-contrast`, `pnpm --filter web lint:tokens`. The §0.2 defect is pinned at the boundary that
+created it: `publicApplication.test.ts` "the link survives its own submission" proves
+`POST /:token/release` after a submission reaches the **draft-wording** gate (409
+`disclosure_not_final`) instead of a dead link — the same call A0 turns into a signature.
 
 ### A2 · Drafts and autosave
 

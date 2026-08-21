@@ -142,8 +142,8 @@ const result = (await submit(ORG, INV, APPLICANT)).rows[0].r;
 ok("the certified application is filed", (await count(`select count(*)::int as n from driver_applications where driver_id = $1`, [APPLICANT])) === 1);
 ok("the transaction returns the application id", Boolean(result.application_id));
 ok(
-  "the invitation is spent in the same transaction",
-  (await one(`select used_at from application_invitations where id = $1`, [INV])).used_at !== null,
+  "the invitation's submit phase is spent in the same transaction",
+  (await one(`select submitted_at from application_invitations where id = $1`, [INV])).submitted_at !== null,
 );
 ok(
   "the driver's identity is filled in from what they declared",
@@ -176,7 +176,10 @@ try {
 } catch (e) {
   replay = e;
 }
-ok("a spent invitation is refused", replay?.code === "DA021", String(replay?.code));
+// DA021 until 0225, DA022 since: the submit PHASE is spent, and the link itself is still alive so
+// the driver can reach the signing ceremony through it (D-APP1). The phases have their own matrix,
+// application-session.test.mjs; what is pinned here is that a second application cannot be filed.
+ok("a spent invitation is refused", replay?.code === "DA022", String(replay?.code));
 ok(
   "and the second attempt filed nothing",
   (await count(`select count(*)::int as n from driver_applications where driver_id = $1`, [APPLICANT])) === 1,
@@ -189,7 +192,7 @@ try {
 } catch (e) {
   expired = e;
 }
-ok("an expired invitation is refused", expired?.code === "DA021");
+ok("an expired invitation is refused", expired?.code === "DA021", String(expired?.code));
 
 // ── the application never overwrites a value somebody checked against a document ───────────────
 const INV2 = await invite(ORG, CHECKED);

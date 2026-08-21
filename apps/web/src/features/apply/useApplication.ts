@@ -22,10 +22,26 @@ export interface ApplyRelease {
   draft: boolean;
 }
 
+/**
+ * Where the driver stopped last time (D-APP1, migration 0225).
+ *
+ * The link is a session, not a fuse: it survives a submission so the signing ceremony the page
+ * promises stays reachable through it. These three dates are what let the page open on the step the
+ * driver had reached rather than on a form they have already filled in once. `consentedAt` and
+ * `releasesCompletedAt` are stamped by A4 and A5 and are null until then — the page reads them
+ * defensively rather than pretending the field will not exist.
+ */
+export interface ApplyPhases {
+  consentedAt: string | null;
+  releasesCompletedAt: string | null;
+  submittedAt: string | null;
+}
+
 export interface ApplyInvitation {
   carrier: string;
   expiresAt: string;
   releases: ApplyRelease[];
+  phases: ApplyPhases;
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
