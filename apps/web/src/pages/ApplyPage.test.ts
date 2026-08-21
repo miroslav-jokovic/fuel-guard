@@ -216,6 +216,76 @@ describe("the applicant's page", () => {
   });
 
   /**
+   * A5/D-APP7 + D-APP4. The instruments are signed BEFORE the form: §391.21(b)'s certification is the
+   * last act of an application, so anything that must happen with it happens first, or it needs a
+   * second link — and a second touch is what loses people.
+   */
+  it("puts the signing ceremony between the consent and the form", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: [],
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    // Adoption first, once.
+    expect(w.text()).toContain("Your signature");
+    expect(w.text()).toContain("Type your full name");
+    // And the form is not reachable behind it.
+    expect(w.text()).not.toContain("Step 1 of 7");
+  });
+
+  it("goes straight to the form when the ceremony is already finished", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: ["fcra_disclosure", "psp"],
+      phases: {
+        consentedAt: "2026-08-21T09:00:00Z",
+        releasesCompletedAt: "2026-08-21T09:10:00Z",
+        submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).not.toContain("Your signature");
+    expect(w.text()).toContain("Step 1 of 7");
+  });
+
+  /**
+   * Q-H3. While any instrument is draft the server refuses those signatures, so a ceremony gated on
+   * them would be a wall across the application — it is skipped, and they are shown read-only at the
+   * end as they were before A5, so nobody is asked weeks later to sign what they have never seen.
+   */
+  it("skips the ceremony while the wording is draft, and still shows the instruments", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      releasesSigned: [],
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).not.toContain("Your signature");
+    expect(w.text()).toContain("Step 1 of 7");
+    for (let i = 0; i < 6; i++) await advance(w);
+    expect(w.text()).toContain("Not final");
+    expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
+  });
+
+  /**
    * A4/D-APP5. §390.32(d) makes an electronic §391.21 application conditional on including proof of
    * 15 U.S.C. 7001(c) consent, so it is the first thing on the link — and asked for only when the
    * server says it can be recorded, which is not until counsel's wording is published (A0).

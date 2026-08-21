@@ -91,6 +91,8 @@ export function applicationInviteBadge(state: string): DqBadge {
   switch (state) {
     case "open":
       return { label: "Open", tone: "info" };
+    case "signing":
+      return { label: "Signing", tone: "brand" };
     case "used":
       return { label: "Submitted", tone: "success" };
     case "revoked":

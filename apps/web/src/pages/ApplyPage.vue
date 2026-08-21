@@ -12,6 +12,7 @@ import ReviewFields from "@/features/apply/ReviewFields.vue";
 import CertifyFields from "@/features/apply/CertifyFields.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
+import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import { driverApplicationSchema } from "@fuelguard/shared";
 import {
@@ -44,6 +45,16 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * agreed to transact electronically, so that agreement is the first screen. While the wording is
  * still draft nothing is asked and the link behaves as it did before — the server says which, and
  * the page does not decide it for itself.
+ *
+ * ── THE AUTHORIZATIONS ARE SIGNED BEFORE THE FORM, NOT AFTER (A5, D-APP4) ─────────────────────
+ * §391.21(b)'s certification is the LAST act of an application, and submitting is what makes the
+ * application exist — so anything that has to happen with it has to happen before it, or it needs a
+ * second link, and the market's whole finding is that a second touch loses people. The order on this
+ * page is therefore: consent → the four instruments → the form → review → certify.
+ *
+ * While any instrument is still draft wording the ceremony is skipped entirely and the instruments
+ * are shown read-only on the last screen, as they were before A5 — the server refuses those
+ * signatures (Q-H3), and a ceremony nobody can complete would be a wall across the application.
  *
  * ── IT SAVES ITSELF, AND SOMETIMES ASKS WHO IS READING (A2) ───────────────────────────────────
  * Coming back to a draft that already holds a date of birth costs one question — the date of birth
@@ -106,7 +117,7 @@ watch(
 const autosave = useApplicationDraft(token, draft, {
   // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
   // the driver has not been allowed to reach yet would be a lie about their signal.
-  enabled: computed(() => autosaveEnabled.value && !consentNeeded.value),
+  enabled: computed(() => autosaveEnabled.value && !consentNeeded.value && !ceremonyNeeded.value),
   section: computed(() => wizard.furthestSection.value),
 });
 const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
@@ -139,6 +150,25 @@ async function agree(): Promise<void> {
     consenting.value = false;
   }
 }
+
+// ── The signing ceremony (A5) ─────────────────────────────────────────────────────────────────
+const ceremonyDone = ref(false);
+const releases = computed(() => invitation.data.value?.releases ?? []);
+/**
+ * Skipped while any instrument is draft: `POST /:token/release` refuses those with a 409, so a
+ * ceremony gated on them would be a wall the driver could not get past. It opens by itself when A0
+ * publishes, exactly like the consent gate.
+ */
+const ceremonyAvailable = computed(
+  () => releases.value.length > 0 && releases.value.every((r) => !r.draft),
+);
+const ceremonyNeeded = computed(
+  () =>
+    ceremonyAvailable.value
+    && !consentNeeded.value
+    && !invitation.data.value?.phases?.releasesCompletedAt
+    && !ceremonyDone.value,
+);
 
 const unlockDob = ref("");
 const unlockFailed = ref(false);
@@ -217,6 +247,18 @@ async function send(): Promise<void> {
     />
   </BaseCard>
 
+  <!-- A5/D-APP7: four instruments, four screens, four acts. FCRA §604(b)(2) requires each
+       disclosure to stand alone, so there is nothing else on screen while one is showing. -->
+  <BaseCard v-else-if="ceremonyNeeded">
+    <SigningCeremony
+      :token="token"
+      :releases="releases"
+      :already-signed="invitation.data.value?.releasesSigned ?? []"
+      :carrier="invitation.data.value?.carrier ?? ''"
+      @done="ceremonyDone = true"
+    />
+  </BaseCard>
+
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
        question, asked only when there is something to protect. -->
   <BaseCard v-else-if="locked">
@@ -284,9 +326,11 @@ async function send(): Promise<void> {
       <CertifyFields v-else v-model="draft" />
     </BaseCard>
 
-    <!-- The instruments are shown on the last screen, unsigned. Q-H3: nothing here can record a
-         signature while the wording is draft, and A5 gives them their own ceremony. -->
-    <BaseCard v-if="wizard.isLast.value">
+    <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
+         still draft and the server refuses those signatures). Nobody should be asked weeks later to
+         sign four documents they have never seen; once A0 publishes, they are signed up front
+         instead and this disappears. -->
+    <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
       <DisclosurePanel :releases="invitation.data.value.releases" />
     </BaseCard>
 

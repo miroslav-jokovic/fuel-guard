@@ -9,7 +9,10 @@ export interface ApplicationInvitation {
   driver_id: string;
   email: string | null;
   expires_at: string;
-  used_at: string | null;
+  /** The three dated phases 0225 replaced the single-use fuse with (D-APP1). */
+  consented_at: string | null;
+  releases_completed_at: string | null;
+  submitted_at: string | null;
   revoked_at: string | null;
   created_at: string;
 }
@@ -63,11 +66,23 @@ export function useRevokeApplicationInvite() {
   });
 }
 
-/** What an invitation is doing right now — derived, never a stored status column. */
-export type InviteState = "open" | "used" | "revoked" | "expired";
+/**
+ * What an invitation is doing right now — derived, never a stored status column.
+ *
+ * ⚠ Folds on `submitted_at` since A5, not `used_at`. They said the same thing while the link was a
+ * one-shot fuse; since 0225 it is a session with three spendable phases, and `used_at` survived only
+ * as a mirror for this fold and two API reads. All three are gone now, and the column is dropped once
+ * this code is provably deployed.
+ *
+ * `signing` is a real state and a useful one for the office: it means the driver opened the link,
+ * agreed to sign electronically and started working through the authorizations. Before A5 nobody
+ * could be in it, because nothing called the signing endpoint.
+ */
+export type InviteState = "open" | "signing" | "used" | "revoked" | "expired";
 
 export function inviteState(invite: ApplicationInvitation, now: Date): InviteState {
-  if (invite.used_at) return "used";
+  if (invite.submitted_at) return "used";
   if (invite.revoked_at) return "revoked";
-  return Date.parse(invite.expires_at) <= now.getTime() ? "expired" : "open";
+  if (Date.parse(invite.expires_at) <= now.getTime()) return "expired";
+  return invite.consented_at ? "signing" : "open";
 }
