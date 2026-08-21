@@ -434,9 +434,44 @@ have called production while believing it was UAT. `VITE_*` is baked at build ti
 requires a rebuild rather than a restart. `ALLOWED_ORIGINS` and `WEB_APP_URL` were likewise still
 production URLs and now name the UAT web origin.
 
-## 5.6 Does UAT bill? (researched 2026-08-20)
+## 5.6 Does UAT bill? **No** (answered 2026-08-20)
 
-**No source says it does, and no source says it does not.** Written down because "UAT is free" has
+**Answered by looking, not by reasoning.** The operator opened the PSP UAT portal and found every
+test pull from that day listed and downloadable, with no charge attached. That is the vendor saying
+it directly, which is what none of the sources below manage to do.
+
+### What the portal's own dashboard shows
+
+All **14** requests from 2026-08-20 are listed — last name, licence, state, `Requested By`
+`miki@silvicominc`, an unchecked **Monitor** box on every row (we send `monitor: false`), and a
+**Download** button each. No charge column, no amount.
+
+**The list is a 120-hour window, not a history.** The page says so itself: *"PSP records are
+displayed below for 5 days (120 hours) from the time of record request."* That is the same 120 hours
+§8.5 detail 28 gives the `authCode`, which is a coherence worth noticing — the portal and the API
+expire a record's retrievability together.
+
+So the product copy was *nearly* right and wrong in a way worth fixing. It said *"PSP keeps no list
+of past transactions"*. PSP keeps a **five-day** list, in the portal, and the REST API exposes none
+of it: v3.9 has four endpoints — `/Token`, `/Records`, `/Record`, `/DayMonitored45` — and the last
+covers only records enrolled in 45-day monitoring. The copy now says the narrower, true thing: we
+cannot fetch a record we did not buy, because retrieval needs the `authCode` from the request that
+bought it.
+
+### PII masking is a vendor-side switch that would change what we parse
+
+The portal carries a **PII Masking** setting, currently **Disabled**. Enabled, it masks *"Driver Date
+of Birth (DOB) Year"* and *"CDL numbers, excluding the last 4 digits"* **in PSP reports**.
+
+That is not cosmetic for us. `parse.ts` reads `driverLicenseNumber` back and the order path asserts
+the returned licence is one we asked for — the check that stops one person's history landing on
+another's file. Against `XXXXX6789` that assertion has nothing to match, and every response would
+look like a licence we never requested. **Nobody should enable it without changing the projection
+first**, and nothing in our code would currently tell us it had been switched on.
+
+### The research this replaces, kept because the reasoning is the reusable part
+
+**No source said it does, and no source said it does not.** Written down because "UAT is free" has
 been assumed out loud several times and the assumption has never been checked.
 
 | Source | What it says |
