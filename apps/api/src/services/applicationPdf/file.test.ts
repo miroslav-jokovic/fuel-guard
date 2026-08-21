@@ -110,3 +110,79 @@ describe("filing the application PDF", () => {
     });
   });
 });
+
+/**
+ * Finding the drawn mark (A8b, D-APP8).
+ *
+ * The mark files as kind `other`, which is what a promoted `ssn_card` files as too — so `documents`
+ * alone cannot say which row is the signature. The staged `application_captures` row is the index,
+ * and A8a's identity property is what turns it into an answer: `documents.id` IS the capture id.
+ */
+describe("the drawn signature mark", () => {
+  const CAPTURE = "aaaaaaaa-1111-4111-8111-111111111111";
+  const PNG = Buffer.from("iVBORw0KGgo=", "base64");
+
+  const withMark = (over: {
+    captures?: Record<string, unknown>[];
+    documents?: Record<string, unknown>[];
+    download?: (path: string) => unknown;
+  }) =>
+    createSupabaseRecorder({
+      tables: {
+        driver_applications: [APPLICATION_ROW],
+        organizations: [{ name: "Silvicom Inc", legal_address: null }],
+        driver_authorizations: [],
+        esign_consents: [],
+        qualification_records: [{ document_id: null }],
+        application_captures: over.captures ?? [],
+        documents: over.documents ?? [],
+      },
+      rpc: { attach_application_document: true },
+      storage: {
+        upload: () => ({ error: null }),
+        download: (path: string) =>
+          over.download ? over.download(path) : { data: new Blob([PNG]), error: null },
+      },
+    });
+
+  it("reads the promoted copy out of the evidence bucket, found by the capture's own id", async () => {
+    const rec = withMark({
+      captures: [{ id: CAPTURE, storage_path: `${ORG}/inv-1/${CAPTURE}.png` }],
+      documents: [{ storage_path: `${ORG}/driver/${DRIVER}/${CAPTURE}.png` }],
+    });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const downloads = rec.storageCalls().filter((c) => c.fn === "download");
+    expect(downloads).toHaveLength(1);
+    // `compliance-docs`, not the staging bucket: the promoted copy is permanent and on the same side
+    // of the evidence line as the document being drawn.
+    expect(downloads[0]?.bucket).toBe("compliance-docs");
+    expect(downloads[0]?.args[0]).toBe(`${ORG}/driver/${DRIVER}/${CAPTURE}.png`);
+    // The two new reads carry their own tenant filter, like every other query on this path.
+    // `organizations` is filtered by primary key, which IS the tenant id (the same exemption above).
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("falls back to the staged object when nothing has been promoted yet", async () => {
+    const rec = withMark({ captures: [{ id: CAPTURE, storage_path: `${ORG}/inv-1/${CAPTURE}.png` }] });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const downloads = rec.storageCalls().filter((c) => c.fn === "download");
+    expect(downloads[0]?.bucket).toBe("application-captures");
+  });
+
+  it("downloads nothing at all when this session drew no mark — the normal case", async () => {
+    const rec = withMark({});
+    const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(filed?.rendered).toBe(true);
+    expect(rec.storageCalls().filter((c) => c.fn === "download")).toEqual([]);
+  });
+
+  /** An ornament must never cost the §391.51(b)(1) record it decorates. */
+  it("still files the document when the mark cannot be read", async () => {
+    const rec = withMark({
+      captures: [{ id: CAPTURE, storage_path: `${ORG}/inv-1/${CAPTURE}.png` }],
+      download: () => { throw new Error("storage is down"); },
+    });
+    const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(filed?.rendered).toBe(true);
+  });
+});

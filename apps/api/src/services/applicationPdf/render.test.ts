@@ -41,6 +41,8 @@ const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => 
   certifiedAt: "2026-08-21T18:00:00Z",
   signedName: "Susan Godfrey",
   applicantIp: "203.0.113.9",
+  // Null is the normal case and always will be — the mark is decoration (D-APP8).
+  signatureMark: null,
   authorizations: [
     {
       purpose: "fcra_disclosure", disclosure_version: "v1",
@@ -205,5 +207,43 @@ describe("the source digest", () => {
   it("appears on the page, so a printed sheet names what it came from", async () => {
     const pdf = pdfText(await renderApplicationPdf(input()));
     expect(pdf).toContain(sourceDigest(APPLICATION, "11111111-2222-4333-8444-555555555555").slice(0, 16));
+  });
+});
+
+/**
+ * The drawn mark (A8b, D-APP8).
+ *
+ * It is decoration, and these assertions are all the same assertion said three ways: the document is
+ * produced with it, without it, and in spite of it. §391.51(b)(1) asks for a record that can be
+ * reproduced; an ornament that could stop it being reproduced would be a worse bargain than no
+ * ornament at all — which is exactly the argument A5 used for not collecting one until it had
+ * somewhere to live.
+ */
+describe("the drawn signature mark", () => {
+  /** The smallest valid PNG: 1×1, fully transparent. pdfkit decodes it; nothing else is needed. */
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  it("draws it and still produces a document", async () => {
+    const withMark = await renderApplicationPdf(input({ signatureMark: PNG }));
+    const without = await renderApplicationPdf(input({ signatureMark: null }));
+    expect(withMark.byteLength).toBeGreaterThan(1000);
+    // Present in one and not the other, which is the only honest way to assert an image landed:
+    // pdfkit's content streams are deflated, so grepping the bytes for anything proves nothing.
+    expect(withMark.byteLength).toBeGreaterThan(without.byteLength);
+  });
+
+  /** The bytes came from a canvas on a stranger's phone, through a bucket. */
+  it("produces the document anyway when the mark will not decode", async () => {
+    const pdf = await renderApplicationPdf(input({ signatureMark: Buffer.from("not a png at all") }));
+    expect(pdf.byteLength).toBeGreaterThan(1000);
+    // And the document is whole: the certification is still on it.
+    expect(pdfText(pdf)).toContain("true and complete");
+  });
+
+  it("changes nothing about the document's text — it is an ornament, not content", async () => {
+    expect(pdfText(await renderApplicationPdf(input({ signatureMark: PNG })))).toContain("Susan Godfrey");
   });
 });
