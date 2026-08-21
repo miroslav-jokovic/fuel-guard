@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from "vue";
 import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@fuelguard/shared";
 import { signRelease, type ApplyRelease } from "@/features/apply/useApplication";
+import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 
 /**
  * The ceremony (A5, D-APP7).
@@ -19,6 +20,13 @@ import { signRelease, type ApplyRelease } from "@/features/apply/useApplication"
  * Skip. There is no way to reach instrument three without instrument two having landed, because the
  * index only advances on a 201 — a UI that let somebody jump would produce a half-signed set that
  * looked complete.
+ *
+ * ── AND THE ONE THING IT REFUSES TO LET FAIL (A8b) ────────────────────────────────────────────
+ * The drawn mark. It is staged once, at adoption, into A8a's `signature_mark` slot — and if that
+ * upload fails, adoption still succeeds and the ceremony carries on. D-APP8 makes the mark
+ * decoration: the signature of record is the typed name stored beside the exact disclosure text, and
+ * a driver blocked from signing four federally-required authorizations because a PNG would not
+ * upload would be a product that had confused the ornament for the thing.
  */
 
 export type CeremonyState = "adopting" | "signing" | "done" | "unavailable";
@@ -27,9 +35,13 @@ export function useSigningCeremony(
   token: Ref<string>,
   releases: Ref<ApplyRelease[]>,
   alreadySigned: Ref<AuthorizationPurpose[]>,
+  options: { stage?: typeof stageCapture; io?: CaptureIo } = {},
 ) {
   const adoptedName = ref("");
   const adopted = ref(false);
+  /** The drawn mark, if the driver gave one. Null is the normal case and always will be. */
+  const markBlob = ref<Blob | null>(null);
+  const stage = options.stage ?? stageCapture;
   const index = ref(0);
   const working = ref(false);
   const error = ref<string | null>(null);
@@ -52,10 +64,27 @@ export function useSigningCeremony(
    * technology"; what carries legal weight is the tuple already stored — the intent statement, the
    * exact text, the version, the timestamp, the IP and the user agent. A drawn mark adds no legal
    * weight and adds a failure mode (a driver on a cracked screen who cannot produce one), so it is
-   * never required — and it is not collected here at all until A8 gives it somewhere to be stored.
+   * never required.
+   *
+   * ⚠ The mark is awaited rather than fired and forgotten, and the failure is swallowed rather than
+   * surfaced. Awaited, because the submit transaction promotes whatever is staged AT THAT MOMENT and
+   * a driver who signs four instruments quickly could otherwise certify an application whose mark had
+   * not landed. Swallowed, because it is decoration: a PNG that would not upload must not stand
+   * between a driver and four federally-required signatures.
    */
-  function adopt(): boolean {
+  async function adopt(): Promise<boolean> {
     if (adoptedName.value.trim().length < 2) return false;
+    const blob = markBlob.value;
+    if (blob) {
+      working.value = true;
+      try {
+        await stage(token.value, "signature_mark", blob, "image/png", options.io);
+      } catch {
+        /* decoration; see above */
+      } finally {
+        working.value = false;
+      }
+    }
     adopted.value = true;
     return true;
   }
@@ -88,6 +117,7 @@ export function useSigningCeremony(
 
   return {
     adoptedName,
+    markBlob,
     adopted: computed(() => adopted.value),
     current,
     total,

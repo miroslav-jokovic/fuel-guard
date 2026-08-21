@@ -4,6 +4,7 @@ import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormFie
 import type { AuthorizationPurpose } from "@fuelguard/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
 import { useSigningCeremony } from "@/features/apply/signing/useSigningCeremony";
+import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -37,8 +38,8 @@ async function signCurrent(): Promise<void> {
   if (ceremony.complete.value) emit("done");
 }
 
-function adoptAndStart(): void {
-  if (ceremony.adopt() && ceremony.complete.value) emit("done");
+async function adoptAndStart(): Promise<void> {
+  if ((await ceremony.adopt()) && ceremony.complete.value) emit("done");
 }
 </script>
 
@@ -57,13 +58,17 @@ function adoptAndStart(): void {
     <p v-if="ceremony.adoptedName.value.trim()" class="signature-preview text-2xl text-ink">
       {{ ceremony.adoptedName.value }}
     </p>
+
+    <!-- A8b/D-APP8: never required, and it says so. The typed name above is what the file records. -->
+    <SignaturePad @change="ceremony.markBlob.value = $event" />
+
     <div class="flex justify-end">
       <BaseButton
         variant="primary"
-        :disabled="ceremony.adoptedName.value.trim().length < 2"
+        :disabled="ceremony.working.value || ceremony.adoptedName.value.trim().length < 2"
         @click="adoptAndStart"
       >
-        {{ copy.adoptAction }}
+        {{ ceremony.working.value ? copy.signing : copy.adoptAction }}
       </BaseButton>
     </div>
   </section>

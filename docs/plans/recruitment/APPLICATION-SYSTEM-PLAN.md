@@ -1094,7 +1094,7 @@ the link is fine and the page's whole vocabulary for 404 is "this link is dead".
 reach, so the wizard is exercised by mounting the real page in `ApplyPage.test.ts` (which now walks
 all eight screens) rather than by clicking through one.
 
-### A8b · The drawn signature mark — NOT STARTED
+### A8b · The drawn signature mark — DONE 2026-08-21 (no migration)
 
 **Prerequisites:** A8a (its `signature_mark` slot and staging pipeline), A5, A6.
 
@@ -1108,6 +1108,70 @@ capture calls into the `signature_mark` slot; `applicationPdf/render.ts` drawing
 name in the signature block, where A6's own text already says "the signature (typed and, if present,
 drawn)". Nothing about the `driver_authorizations` row changes — the mark is not what makes the
 signature good, and a renderer that could not find one must still produce the document.
+
+**What shipped.**
+- `signing/SignaturePad.vue` — pointer-event strokes on a canvas sized by the device pixel ratio,
+  with a Clear control, emitting a PNG blob after every stroke. Two things on a phone are easy to get
+  wrong and both are commented in place: `touch-action: none`, without which the first stroke scrolls
+  the page instead of drawing, and the backing-store scale, without which a retina signature arrives
+  in the PDF as a blurred smear.
+- `useSigningCeremony.adopt()` became async and stages the mark into `signature_mark` before adopting.
+- `capture/stageCapture.ts` — the three network acts, extracted from `useApplicationCaptures` and now
+  shared. Two producers that could not be more different — a phone camera through the gate, a finger
+  on a canvas — must not each hold their own idea of what order those calls go in.
+- `render.ts` gains `signatureMark: Buffer | null` and draws it under "Signed" on the certification
+  page and on every instrument page.
+- `applicationPdf/file.ts` finds it (see below) and passes the bytes in.
+
+**⚠ How the mark is FOUND, which is the only hard part of this step.** It promotes into `documents`
+as kind `other` — and so does a promoted `ssn_card`, so `documents` alone cannot say which row is a
+signature. The index is the staged row: `application_captures` names the slot, and A8a's identity
+property finishes the job, because **`documents.id` IS the capture id**. One lookup by slot gives the
+id of the filed copy. The bytes are read from `compliance-docs` when the copy is there and from the
+staging bucket when it is not (a re-render before any submission), and every failure returns null.
+
+⚠ **That leaves one consequence for A11 to decide, not to discover.** Once the retention rule prunes
+staged captures, a re-render years later finds no `application_captures` row and draws the document
+with the typed name alone — which is what D-APP8 says the signature of record has been all along, and
+the PDF filed on the day still carries the mark. If that is judged too lossy, A11's rule is one
+exception away from keeping `signature_mark` rows. It is named in A11 for exactly this reason.
+
+**⚠ Two other decisions worth the ink.**
+
+1. **The upload is awaited but its failure is swallowed.** Awaited, because the submit transaction
+   promotes whatever is staged *at that moment*, and a driver who signs four instruments quickly
+   could otherwise certify an application whose mark had not landed. Swallowed, because a PNG that
+   will not upload must not stand between a driver and four federally-required signatures — that
+   would be a product that had confused the ornament for the thing.
+2. **The renderer wraps `doc.image` in a try/catch and checks for room first.** pdfkit throws on
+   anything that is not a PNG or a JPEG, and these bytes came from a canvas on a stranger's phone
+   through a bucket: a truncated upload must cost the squiggle and never the document, because a
+   §391.51(b)(1) record that cannot be produced is precisely the §390.32(d) failure this renderer
+   exists to prevent. And `doc.image` will happily draw off the bottom of the sheet — unlike text, it
+   gets no auto-added page — so without the room check a mark would be lost silently on whichever
+   instrument happened to carry the longest disclosure.
+
+⚠ **One gate is waived, in place and with its reason:** `lint:tokens` on the canvas stroke colour.
+These pixels do not stay in the browser — they are re-encoded to a PNG and drawn on a printed white
+sheet — so a stroke that inherited a dark theme's foreground would arrive as a near-white signature
+on white paper. `chartTheme.ts` is allow-listed for the same reason; this uses the per-line
+`token-check-disable-line` the gate provides.
+
+**Verified by:** `pnpm test` — `render.test.ts` gains three assertions that are one assertion said
+three ways (the document is produced with the mark, without it, and in spite of a buffer that will
+not decode); `file.test.ts` gains four proving the capture→document lookup reads the promoted copy
+from `compliance-docs`, falls back to the staged object, downloads nothing when no mark was drawn,
+and still files the document when the download throws; `useSigningCeremony.test.ts` gains three, of
+which the one this sub-step exists for is that a failed mark upload still adopts and the ceremony
+carries on. ⚠ `useSigningCeremony.test.ts`'s module mock had to gain the three capture functions it
+never calls — `stageCapture`'s default io binds them at load, so a partial mock is an import-time
+crash rather than a call-time one. `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus
+`pnpm --filter web lint:tokens`.
+**Not verified in a browser** — same reason as every step since A1: the apply page is session-free and
+needs a real minted invitation to reach. ⚠ And note what that means HERE specifically: the canvas
+itself — whether a finger draws a legible line on a real phone — is the one thing in this plan that a
+component test genuinely cannot answer. It is decoration, so shipping it unproven costs a squiggle
+rather than a record; but the first real applicant is the first real test of it.
 
 ### A9 · The carrier questionnaire
 
@@ -1171,6 +1235,12 @@ sees a count of who stalled.
   `application_captures` prune on a configured window after their invitation expires or its lead is
   dispositioned. This is the rule that makes D-APP2 and D-APP10's "prunable" claim true rather than
   aspirational, and it is why both tables took 0213's trigger style.
+  ⚠ **One decision to make deliberately here, from A8b:** the `signature_mark` row is how the PDF
+  renderer FINDS the drawn mark (`documents` files it as kind `other`, indistinguishable from a
+  promoted `ssn_card`, and the staged row is the index). Pruning it means a re-render after the window
+  draws the typed name alone — which is what D-APP8 says the signature of record has always been, and
+  the PDF filed on the day keeps its mark. Keep the rows or accept that; either is defensible, but it
+  must not be discovered.
 
 **Verify.** Matrix: the retention rule actually removes draft and capture rows and their storage
 objects, and touches nothing in `RETENTION_FORBIDDEN` (the existing guard test proves the second
@@ -1278,11 +1348,11 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
-⚠ **Position as of 2026-08-21: A1–A7 and A8a are DONE (schema 0230). The next step is A8b**, then A9.
+⚠ **Position as of 2026-08-21: A1–A8b are DONE (schema 0230). The next step is A9**, whose input has
+arrived — read §6.1 before transcribing anything, because the owner's packet is a 31-page contractor
+binder and only one of its four piles is A9's.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
-the harness facts that cost time, which are not repeated here. **A8b blocks nothing**: it is
-decoration by D-APP8, so a session that would rather move the product forward can take A9 first and
-come back to it.
+the harness facts that cost time, which are not repeated here.
 
 **A3b (prefill) is deliberately out of that line.** It depends only on A3a, nothing depends on it, and
 half of it waits on R1/R2 for a leads table that does not exist. Slot it wherever it fits; the form is

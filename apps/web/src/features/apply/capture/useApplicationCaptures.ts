@@ -5,18 +5,12 @@ import {
   type RejectionReason,
 } from "@fuelguard/capture-engine";
 import {
-  APPLICATION_CAPTURE_CONTENT_TYPES,
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_CAPTURE_SLOT_LABELS,
-  type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
   type ApplicationCaptureView,
 } from "@fuelguard/shared";
-import {
-  confirmApplicationCapture,
-  startApplicationCapture,
-  uploadCaptureBytes,
-} from "../useApplication";
+import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider } from "./webFileProvider";
 
 /**
@@ -31,8 +25,12 @@ import { createWebFileProvider } from "./webFileProvider";
  *
  * ── EVERY DEPENDENCY IS INJECTABLE, FOR THE REASON A7'S IO WAS ────────────────────────────────
  * The decision this composable makes — what does the driver see after they take a photograph? — must
- * be testable without a camera, a canvas, a network or a GPU. The provider and the three calls are
+ * be testable without a camera, a canvas, a network or a GPU. The provider and the calls are
  * therefore parameters with real defaults, exactly as `webImageIo` is behind an interface.
+ *
+ * The three network acts themselves live in `stageCapture`, shared with the signing ceremony's drawn
+ * mark (A8b): two producers that could not be more different — a phone camera through the gate, a
+ * finger on a canvas — must not each hold their own idea of what order those calls go in.
  */
 
 export type CaptureSlotState = "empty" | "working" | "done" | "rejected" | "failed";
@@ -46,38 +44,13 @@ export interface CaptureSlotView {
   capturedAt: string | null;
 }
 
-/** The three network acts, injectable together so a test can watch the order they happen in. */
-export interface CaptureIo {
-  start: typeof startApplicationCapture;
-  upload: typeof uploadCaptureBytes;
-  confirm: typeof confirmApplicationCapture;
-}
-
-const DEFAULT_IO: CaptureIo = {
-  start: startApplicationCapture,
-  upload: uploadCaptureBytes,
-  confirm: confirmApplicationCapture,
-};
-
-/**
- * The provider hands back a media type; the staging surface accepts three.
- *
- * Checked rather than cast: the day a fourth encoder is added to the pipeline, this returns null and
- * the slot fails visibly, instead of the server refusing a content type the client swore was fine.
- */
-function captureContentType(mediaType: string | undefined): ApplicationCaptureContentType | null {
-  return (APPLICATION_CAPTURE_CONTENT_TYPES as readonly string[]).includes(mediaType ?? "")
-    ? (mediaType as ApplicationCaptureContentType)
-    : null;
-}
-
 export function useApplicationCaptures(
   token: Ref<string>,
   already: Ref<ApplicationCaptureView[]>,
   options: { provider?: CaptureProvider; io?: CaptureIo } = {},
 ) {
   const provider = options.provider ?? createWebFileProvider(BUNDLED_DEFAULT_CONFIG);
-  const io = options.io ?? DEFAULT_IO;
+  const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
   /** What has happened on this screen. What happened on a previous visit comes from `already`. */
   const local = reactive<Record<string, { state: CaptureSlotState; reason: RejectionReason | null; capturedAt: string | null }>>({});
@@ -139,12 +112,12 @@ export function useApplicationCaptures(
       // are recovered without widening the engine's contract for one consumer.
       const blob = await fetch(page.originalOfRecord.uri).then((r) => r.blob());
       try {
-        const started = await io.start(token.value, slot, contentType);
-        await io.upload(started.uploadUrl, blob);
-        const confirmed = await io.confirm(token.value, started.captureId, {
-          slot,
-          content_type: contentType,
-          sha256: page.integrityHash,
+        // The gate already hashed these exact bytes (A7), so the digest is passed through rather
+        // than recomputed — the shared path takes an io whose `digest` is a function for the callers
+        // that have no hash of their own.
+        const confirmed = await stageCapture(token.value, slot, blob, contentType, {
+          ...io,
+          digest: async () => page.integrityHash,
         });
         mark(slot, "done", null, confirmed.capturedAt);
       } finally {

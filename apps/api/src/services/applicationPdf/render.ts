@@ -52,6 +52,13 @@ export interface ApplicationPdfInput {
   certifiedAt: string;
   signedName: string;
   applicantIp: string | null;
+  /**
+   * The drawn mark, when the applicant gave one (A8b, D-APP8) — PNG bytes, or null.
+   *
+   * Decoration, and typed as such: the document renders identically without it, and every place it
+   * is drawn already carries the typed name that IS the signature of record. Null is the normal case.
+   */
+  signatureMark: Buffer | null;
   /** One page each, in the order they were signed. */
   authorizations: ReadonlyArray<{
     purpose: string;
@@ -90,6 +97,37 @@ const yesNo = (v: boolean): string => (v ? "Yes" : "No");
  * §390.32(d) failure the PDF exists to prevent.
  */
 const blank = (v: string | null | undefined): string => (v && v.trim() !== "" ? v : "—");
+
+/**
+ * The drawn mark, beside the name it decorates (A8b, D-APP8).
+ *
+ * ⚠ Wrapped, and the reason is the whole of D-APP8. pdfkit throws on anything that is not a PNG or a
+ * JPEG, and these bytes came from a canvas on a stranger's phone through a bucket. A truncated upload
+ * must cost the squiggle and never the document — a §391.51(b)(1) record that cannot be produced
+ * because an ornament would not decode is precisely the §390.32(d) failure this renderer exists to
+ * prevent.
+ *
+ * ⚠ And the room check is not politeness. `doc.image` will happily draw below the bottom margin and
+ * off the sheet, and the page it would need is not added for it the way pdfkit adds one for text —
+ * so a mark that does not fit is simply lost, silently, on whichever instrument happened to have the
+ * longest disclosure.
+ */
+const MARK_WIDTH = 170;
+const MARK_HEIGHT = 52;
+
+function drawnMark(doc: PDFKit.PDFDocument, mark: Buffer | null): void {
+  if (!mark) return;
+  try {
+    if (doc.page.height - doc.page.margins.bottom - doc.y < MARK_HEIGHT + 12) doc.addPage();
+    doc.image(mark, MARGIN, doc.y, { fit: [MARK_WIDTH, MARK_HEIGHT] });
+    doc.x = MARGIN;
+    doc.y += MARK_HEIGHT + 6;
+  } catch (e) {
+    console.warn("[application] the drawn signature mark could not be rendered", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
 
 /** The digest of what this page was drawn from — see the header on why it is not the file's own. */
 export const sourceDigest = (application: DriverApplication, applicationId: string): string =>
@@ -231,6 +269,7 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   );
   doc.moveDown(0.6);
   field(doc, "Signed", blank(input.signedName));
+  drawnMark(doc, input.signatureMark);
   field(doc, "Date", date(input.certifiedAt));
   if (input.applicantIp) field(doc, "Signed from", input.applicantIp);
   muted(
@@ -261,6 +300,7 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
     body(doc, blank(auth.intent_statement));
     doc.moveDown(0.4);
     field(doc, "Signed", blank(auth.signed_name));
+    drawnMark(doc, input.signatureMark);
     field(doc, "Date", date(auth.accepted_at));
   }
 

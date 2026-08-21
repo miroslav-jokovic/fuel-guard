@@ -14,7 +14,17 @@ import { useSigningCeremony } from "./useSigningCeremony";
  */
 
 const signed = vi.hoisted(() => ({ fn: vi.fn() }));
-vi.mock("@/features/apply/useApplication", () => ({ signRelease: signed.fn }));
+/**
+ * ⚠ The three capture calls are mocked too, even though nothing here uses them: `stageCapture`'s
+ * default io binds them at module load, so a partial mock of this module is an import-time crash
+ * rather than a call-time one. The ceremony injects its own `stage` in every test below.
+ */
+vi.mock("@/features/apply/useApplication", () => ({
+  signRelease: signed.fn,
+  startApplicationCapture: vi.fn(),
+  uploadCaptureBytes: vi.fn(),
+  confirmApplicationCapture: vi.fn(),
+}));
 
 const release = (purpose: AuthorizationPurpose): ApplyRelease => ({
   purpose,
@@ -28,9 +38,20 @@ const release = (purpose: AuthorizationPurpose): ApplyRelease => ({
 
 const ALL = APPLICATION_RELEASE_ORDER.map(release);
 
-const run = (releases: ApplyRelease[] = ALL, already: AuthorizationPurpose[] = []) =>
+type Staged = { token: string; slot: string; contentType: string };
+
+const run = (
+  releases: ApplyRelease[] = ALL,
+  already: AuthorizationPurpose[] = [],
+  stage?: (t: string, slot: string, blob: Blob, contentType: string) => Promise<never>,
+) =>
   effectScope().run(() =>
-    useSigningCeremony(ref("t".repeat(43)), ref(releases), ref(already)),
+    useSigningCeremony(
+      ref("t".repeat(43)),
+      ref(releases),
+      ref(already),
+      stage ? { stage: stage as never } : {},
+    ),
   )!;
 
 describe("adopting a signature", () => {
@@ -39,20 +60,68 @@ describe("adopting a signature", () => {
     signed.fn.mockResolvedValue({ signedCount: 1, completed: false });
   });
 
-  it("happens once, before any instrument is shown", () => {
+  it("happens once, before any instrument is shown", async () => {
     const c = run();
     expect(c.adopted.value).toBe(false);
     expect(c.current.value).not.toBeNull();
     c.adoptedName.value = "Susan Godfrey";
-    expect(c.adopt()).toBe(true);
+    expect(await c.adopt()).toBe(true);
     expect(c.adopted.value).toBe(true);
   });
 
-  it("refuses a name that is not one", () => {
+  it("refuses a name that is not one", async () => {
     const c = run();
     c.adoptedName.value = " ";
-    expect(c.adopt()).toBe(false);
+    expect(await c.adopt()).toBe(false);
     expect(c.adopted.value).toBe(false);
+  });
+});
+
+/**
+ * The drawn mark (A8b, D-APP8).
+ *
+ * Decoration, and every assertion here is that decoration behaves like decoration: it goes to its own
+ * slot when it exists, costs nothing when it does not, and cannot stop a driver signing four
+ * federally-required authorizations when it fails.
+ */
+describe("the drawn mark", () => {
+  beforeEach(() => {
+    signed.fn.mockReset();
+    signed.fn.mockResolvedValue({ signedCount: 1, completed: false });
+  });
+
+  it("is staged into its own slot, as a PNG, when the driver drew one", async () => {
+    const staged: Staged[] = [];
+    const c = run(ALL, [], (async (token: string, slot: string, _blob: Blob, contentType: string) => {
+      staged.push({ token, slot, contentType });
+    }) as never);
+    c.adoptedName.value = "Susan Godfrey";
+    c.markBlob.value = new Blob(["mark"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    expect(staged).toEqual([{ token: "t".repeat(43), slot: "signature_mark", contentType: "image/png" }]);
+  });
+
+  it("costs nothing at all when the driver drew none — which is the normal case", async () => {
+    const staged: Staged[] = [];
+    const c = run(ALL, [], (async (token: string, slot: string, _b: Blob, contentType: string) => {
+      staged.push({ token, slot, contentType });
+    }) as never);
+    c.adoptedName.value = "Susan Godfrey";
+    expect(await c.adopt()).toBe(true);
+    expect(staged).toEqual([]);
+  });
+
+  /** The assertion this sub-step exists to make: an ornament cannot block the signatures. */
+  it("adopts anyway when the upload fails, and the ceremony carries on", async () => {
+    const c = run(ALL, [], (async () => { throw new Error("no signal"); }) as never);
+    c.adoptedName.value = "Susan Godfrey";
+    c.markBlob.value = new Blob(["mark"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    expect(c.adopted.value).toBe(true);
+    // And the first instrument is signable, with nothing on screen about a failed PNG.
+    await c.sign();
+    expect(signed.fn).toHaveBeenCalledTimes(1);
+    expect(c.error.value).toBeNull();
   });
 });
 
@@ -65,7 +134,7 @@ describe("signing", () => {
   it("presents the four in APPLICATION_RELEASE_ORDER, one at a time", async () => {
     const c = run();
     c.adoptedName.value = "Susan Godfrey";
-    c.adopt();
+    await c.adopt();
 
     const seen: string[] = [];
     for (let i = 0; i < 4; i++) {
@@ -82,7 +151,7 @@ describe("signing", () => {
   it("sends the adopted name and the purpose, and nothing about the wording", async () => {
     const c = run();
     c.adoptedName.value = "  Susan Godfrey  ";
-    c.adopt();
+    await c.adopt();
     await c.sign();
     expect(signed.fn).toHaveBeenCalledWith("t".repeat(43), "fcra_disclosure", "Susan Godfrey");
   });
@@ -92,7 +161,7 @@ describe("signing", () => {
     signed.fn.mockRejectedValueOnce(Object.assign(new Error("offline"), { code: "sign_failed" }));
     const c = run();
     c.adoptedName.value = "Susan Godfrey";
-    c.adopt();
+    await c.adopt();
 
     await c.sign();
     expect(c.position.value).toBe(1);
@@ -106,7 +175,7 @@ describe("signing", () => {
     signed.fn.mockRejectedValueOnce(Object.assign(new Error("dupe"), { code: "release_already_signed" }));
     const c = run();
     c.adoptedName.value = "Susan Godfrey";
-    c.adopt();
+    await c.adopt();
 
     await c.sign();
     expect(c.position.value).toBe(2);
@@ -121,7 +190,7 @@ describe("signing", () => {
     signed.fn.mockRejectedValueOnce(Object.assign(new Error("409"), { code: "disclosure_not_final" }));
     const c = run();
     c.adoptedName.value = "Susan Godfrey";
-    c.adopt();
+    await c.adopt();
 
     await c.sign();
     expect(c.carrierProblem.value).toBe(true);
@@ -133,7 +202,7 @@ describe("signing", () => {
   it("asks only for the instruments this link has not already collected", async () => {
     const c = run(ALL, ["fcra_disclosure", "psp"]);
     c.adoptedName.value = "Susan Godfrey";
-    c.adopt();
+    await c.adopt();
 
     expect(c.total.value).toBe(2);
     expect(c.current.value!.purpose).toBe("previous_employer");

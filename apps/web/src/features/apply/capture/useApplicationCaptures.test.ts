@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ref } from "vue";
 import type { CaptureProvider, CapturedPage, ScanResult } from "@fuelguard/capture-engine";
 import type { ApplicationCaptureView } from "@fuelguard/shared";
-import { useApplicationCaptures, type CaptureIo } from "./useApplicationCaptures";
+import type { CaptureIo } from "./stageCapture";
+import { useApplicationCaptures } from "./useApplicationCaptures";
 
 /**
  * The capture screen's state machine (A8).
@@ -43,6 +44,9 @@ function spyIo(over: Partial<CaptureIo> = {}): CaptureIo & { calls: string[] } {
       calls.push("confirm");
       return { slot: "cdl_front" as const, capturedAt: "2026-08-21T12:00:00Z" };
     }),
+    // Never reached from this composable: the gate already hashed these exact bytes, so the page's
+    // own digest is passed through rather than recomputed over a canvas re-encode.
+    digest: over.digest ?? (async () => { calls.push("digest"); return "unused"; }),
   } as CaptureIo & { calls: string[] };
 }
 
