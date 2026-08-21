@@ -202,6 +202,18 @@ export const APPLY_COPY = {
     body: "It may have expired, or the carrier may have replaced it. Ask the carrier who invited you for a new one.",
   },
 
+  consent: {
+    heading: "Before you start",
+    intro: (carrier: string): string =>
+      `${carrier} would like to send you this application, and take your signature on it, electronically. The law says you have to agree to that first — and that you have to be told the following before you do.`,
+    /** 7001(c)(1)(C)(ii): the affirmation itself, given in the browser they just read it in. */
+    action: "I agree — continue",
+    working: "One moment…",
+    draftNotice:
+      "This carrier has not published its final wording yet, so there is nothing to agree to today. You can go straight on with your application.",
+    failed: "That did not go through. Check your signal and try again.",
+  },
+
   unlock: {
     heading: "Pick up where you left off",
     body: (carrier: string): string =>

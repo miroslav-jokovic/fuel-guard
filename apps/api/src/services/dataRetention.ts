@@ -211,6 +211,16 @@ export const RETENTION_FORBIDDEN = [
    * reconciliation reads it, and so does anyone asking why a hiring decision went the way it did.
    */
   "psp_requests",
+  /**
+   * The 15 U.S.C. 7001(c) consent behind every electronic signature this product takes (0227).
+   *
+   * §390.32(d) does not merely ask us to obtain it — it makes the electronic record itself
+   * conditional on including proof of it, and asks that the record still be accurately reproducible
+   * when somebody comes looking. A consent that can be aged out is a consent that cannot answer the
+   * one question it exists to answer, and pruning it would retroactively turn every application and
+   * signature it stands behind into an electronic record FMCSA does not recognise.
+   */
+  "esign_consents",
 ] as const;
 
 export interface RetentionTableResult {

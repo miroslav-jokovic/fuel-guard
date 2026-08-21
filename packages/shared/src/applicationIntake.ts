@@ -134,13 +134,14 @@ export const draftIsLocked = (payload: unknown): boolean => draftDateOfBirth(pay
 /**
  * Is this disclosure wording still a draft?
  *
- * Every instrument in `DISCLOSURES` ships as `v0-draft` placeholder text, written by an engineer,
- * pending counsel (HIRING-PLAN Q-H3). The public signing endpoint refuses those versions, and the
- * gate is deliberately tied to the HAZARD rather than to a feature flag: when real wording lands the
- * versions become `v1` and the refusal disappears by itself. A flag would have to be remembered, and
- * the thing to be remembered would be "stop collecting signatures on text no lawyer has read".
+ * ⚠ Moved to `authorizationContract.ts` in A4 and re-exported here, so the callers that have always
+ * imported it from this module keep working. There were two predicates — this one
+ * (`startsWith("v0")`, the enforcement path) and `disclosuresAreDraft` (`endsWith("-draft")`, what
+ * the UI reads) — agreeing on every string in use and diverging on the first careless one:
+ * `"v1-draft"` would have been enforced as final and displayed as draft. The union of both now lives
+ * beside the documents it judges. A0's checklist item for this is done.
  */
-export const isDraftDisclosure = (version: string): boolean => version.startsWith("v0");
+export { isDraftDisclosure } from "./authorizationContract.js";
 
 /** Purposes an applicant is asked to sign, in the order they are presented. */
 export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [

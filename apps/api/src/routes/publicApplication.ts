@@ -13,6 +13,7 @@ import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { loadDraft, saveDraft, unlockDraft } from "../services/applicationDraft.js";
+import { esignConsentForApplicant, recordEsignConsent } from "../services/esignConsent.js";
 import {
   isIntakeError,
   phasesOf,
@@ -92,6 +93,9 @@ export function publicApplicationRouter(): Router {
         // step they had reached instead of on a blank form they have already filled in once.
         phases: phasesOf(invitation),
         draft,
+        // The 15 U.S.C. 7001(c) consent, served like every other instrument — the exact text, from
+        // the server, so what somebody agreed to is a fact we can prove (A4).
+        esignConsent: esignConsentForApplicant(),
       });
     }),
   );
@@ -110,13 +114,46 @@ export function publicApplicationRouter(): Router {
         // 409 for a spent phase: the request conflicts with the state of a link that is otherwise
         // perfectly good, which is what that status is for and what 404 would have hidden.
         const status =
-          result.code === "invalid_link" ? 404 : result.code === "already_submitted" ? 409 : 500;
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "already_submitted" || result.code === "esign_consent_required"
+              ? 409
+              : 500;
         res.status(status).json(apiError(result.code, result.message));
         return;
       }
       // The application id and nothing else. The applicant does not need — and must not be handed —
       // their own driver id or the carrier's org id.
       res.status(201).json({ ok: true, applicationId: result.applicationId });
+    }),
+  );
+
+  /**
+   * Consent to transact electronically — the first act on the link (A4, D-APP5).
+   *
+   * The body carries nothing: the version, the text and the intent are all composed server-side from
+   * `ESIGN_CONSENT`, because a client-authored record of what somebody consented to is worth nothing
+   * in the audit it exists for. What the request supplies is the act itself, and its IP and user
+   * agent — the same attribution every signature in this product carries.
+   */
+  router.post(
+    "/:token/consent",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await recordEsignConsent(
+        admin, String(req.params.token ?? ""), context(req), new Date(),
+      );
+      if (isIntakeError(result)) {
+        const status =
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "disclosure_not_final" || result.code === "esign_consent_already_given"
+              ? 409
+              : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true });
     }),
   );
 
@@ -140,7 +177,7 @@ export function publicApplicationRouter(): Router {
         const status =
           result.code === "invalid_link"
             ? 404
-            : result.code === "already_submitted"
+            : result.code === "already_submitted" || result.code === "esign_consent_required"
               ? 409
               : result.code === "draft_too_large"
                 ? 413
@@ -191,7 +228,9 @@ export function publicApplicationRouter(): Router {
         const status =
           result.code === "invalid_link"
             ? 404
-            : result.code === "disclosure_not_final" || result.code === "releases_complete"
+            : result.code === "disclosure_not_final"
+                || result.code === "releases_complete"
+                || result.code === "esign_consent_required"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));

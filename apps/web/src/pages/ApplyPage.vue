@@ -11,9 +11,11 @@ import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
 import CertifyFields from "@/features/apply/CertifyFields.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
+import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import { driverApplicationSchema } from "@fuelguard/shared";
 import {
+  giveEsignConsent,
   unlockApplicationDraft,
   useApplyInvitationQuery,
   useSubmitApplication,
@@ -36,6 +38,12 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * a driver abandons; the wizard shows one §391.21(b) paragraph at a time, saves after each, and puts
  * the whole thing back in front of them at `review` before they certify it — because (b)(12) has
  * them swear the entries are true and complete, and nobody can swear to what they cannot see.
+ *
+ * ── NOTHING HAPPENS BEFORE THE 7001(c) CONSENT (A4) ───────────────────────────────────────────
+ * §390.32(d) makes an electronic §391.21 application conditional on including proof that the driver
+ * agreed to transact electronically, so that agreement is the first screen. While the wording is
+ * still draft nothing is asked and the link behaves as it did before — the server says which, and
+ * the page does not decide it for itself.
  *
  * ── IT SAVES ITSELF, AND SOMETIMES ASKS WHO IS READING (A2) ───────────────────────────────────
  * Coming back to a draft that already holds a date of birth costs one question — the date of birth
@@ -96,10 +104,41 @@ watch(
 );
 
 const autosave = useApplicationDraft(token, draft, {
-  enabled: autosaveEnabled,
+  // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
+  // the driver has not been allowed to reach yet would be a lie about their signal.
+  enabled: computed(() => autosaveEnabled.value && !consentNeeded.value),
   section: computed(() => wizard.furthestSection.value),
 });
 const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
+
+// ── The 7001(c) consent (A4) ──────────────────────────────────────────────────────────────────
+const consenting = ref(false);
+const consentFailed = ref(false);
+const consentGiven = ref(false);
+const esignConsent = computed(() => invitation.data.value?.esignConsent ?? null);
+/**
+ * Asked for only when the server says it can be recorded — `required` is false while counsel's
+ * wording is outstanding, and the page must not ask for a consent the API would refuse.
+ */
+const consentNeeded = computed(
+  () =>
+    Boolean(esignConsent.value?.required)
+    && !invitation.data.value?.phases?.consentedAt
+    && !consentGiven.value,
+);
+
+async function agree(): Promise<void> {
+  consenting.value = true;
+  consentFailed.value = false;
+  try {
+    await giveEsignConsent(token.value);
+    consentGiven.value = true;
+  } catch {
+    consentFailed.value = true;
+  } finally {
+    consenting.value = false;
+  }
+}
 
 const unlockDob = ref("");
 const unlockFailed = ref(false);
@@ -164,6 +203,18 @@ async function send(): Promise<void> {
     <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.done.heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.body(invitation.data.value?.carrier ?? "") }}</p>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.reopen }}</p>
+  </BaseCard>
+
+  <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic
+       §391.21 application, so this is the first thing on the link and nothing writes before it. -->
+  <BaseCard v-else-if="consentNeeded && esignConsent">
+    <EsignConsentGate
+      :consent="esignConsent"
+      :carrier="invitation.data.value?.carrier ?? ''"
+      :working="consenting"
+      :failed="consentFailed"
+      @agree="agree"
+    />
   </BaseCard>
 
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
