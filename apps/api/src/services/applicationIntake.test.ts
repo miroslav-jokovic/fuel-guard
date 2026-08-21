@@ -228,6 +228,76 @@ describe("submitting", () => {
 });
 
 /**
+ * A8/D-APP10 — where the staged photographs join the certified application.
+ *
+ * The two assertions are the two halves of one decision. The array reaches the transaction, so the
+ * documents and the application are filed together or not at all; and the parameter is OMITTED when
+ * there is nothing to file, which is what lets an eleven-argument call keep resolving against a
+ * function 0230 has not yet widened. That is not tidiness — it is the deploy-then-migrate race
+ * 0229's header describes, taken from the side the API can control.
+ */
+describe("the photographs the application arrives with", () => {
+  const CAPTURE = "aaaaaaaa-1111-4111-8111-111111111111";
+
+  const withCaptures = () =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [invitation()],
+        organizations: [{ name: "Silvicom" }],
+        application_captures: [{
+          id: CAPTURE, slot: "medical_card",
+          storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",
+          bytes: 1024, sha256: "a1".repeat(32), captured_at: "2026-08-20T00:00:00Z",
+        }],
+      },
+      rpc: { submit_driver_application: { application_id: "app-1" } },
+      storage: { copy: () => ({ data: { path: "x" }, error: null }) },
+    });
+
+  it("copies the bytes into the evidence bucket BEFORE the transaction opens", async () => {
+    const rec = withCaptures();
+    await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    // Copy first, file second: the reverse order can leave `documents` citing evidence that is not
+    // there, which is the one state 0146's design exists to prevent.
+    expect(rec.storageCalls().find((c) => c.fn === "copy")).toBeTruthy();
+    const args = rec.rpcs().find((r) => r.fn === "submit_driver_application")!.args as Record<string, unknown>;
+    expect(args.p_captures).toEqual([
+      { capture_id: CAPTURE, kind: "medical_card", page: 1, storage_path: `${ORG}/driver/${DRIVER}/${CAPTURE}.webp` },
+    ]);
+  });
+
+  it("omits the parameter entirely when nothing was staged", async () => {
+    const rec = seed();
+    await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    const args = rec.rpcs()[0]!.args as Record<string, unknown>;
+    expect("p_captures" in args).toBe(false);
+  });
+
+  it("refuses the submission rather than filing an application without its photographs", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_invitations: [invitation()],
+        application_captures: [{
+          id: CAPTURE, slot: "cdl_front",
+          storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",
+          bytes: 1024, sha256: "a1".repeat(32), captured_at: "2026-08-20T00:00:00Z",
+        }],
+      },
+      rpc: { submit_driver_application: { application_id: "app-1" } },
+      storage: {
+        copy: () => ({ data: null, error: { message: "storage is down" } }),
+        list: () => ({ data: [], error: null }),
+      },
+    });
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("capture_promotion_failed");
+    // And nothing was spent: the phase stamp is inside the transaction that never ran, so pressing
+    // send again promotes the same set.
+    expect(rec.rpcs().some((r) => r.fn === "submit_driver_application")).toBe(false);
+  });
+});
+
+/**
  * D-HIRE6. The last four may be stored; the full value may be sealed and may not be stored any other
  * way. A deployment with no encryption key must not become the deployment that keeps nine digits
  * readable — it keeps four.

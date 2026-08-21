@@ -12,6 +12,7 @@ import {
   type AuthorizationPurpose,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
+import { promoteCaptures } from "./applicationCapture.js";
 import { ensureApplicationPdf } from "./applicationPdf/file.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 
@@ -237,6 +238,18 @@ export async function submitApplication(
   const { driverPatch, employment } = planApplicationIntake(body.application);
   const ssn = sealSsn(env, invitation.org_id, body.ssn);
 
+  /**
+   * A8/D-APP10: the staged photographs become filed documents in the transaction below, so the bytes
+   * have to be in the evidence bucket before it opens. A refusal here refuses the SUBMISSION — unlike
+   * the PDF further down, a photograph is not regenerable, and filing an application whose licence
+   * scan silently did not arrive is the failure this whole staging design exists to prevent. Nothing
+   * has been spent, so pressing send again promotes the same set.
+   */
+  const captures = await promoteCaptures(
+    admin, invitation.org_id, invitation.id, invitation.driver_id,
+  );
+  if (isIntakeError(captures)) return captures;
+
   const { data, error } = await admin.rpc("submit_driver_application", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
@@ -249,6 +262,16 @@ export async function submitApplication(
     p_ssn_sealed: ssn.sealed,
     p_driver_patch: driverPatch,
     p_employment: employment,
+    /**
+     * ⚠ OMITTED when there is nothing to promote, and that is the deploy race, not tidiness. 0230
+     * widened this function by dropping the eleven-argument signature and creating a twelve-argument
+     * one whose last parameter defaults — so a migration that lands BEFORE this code keeps working.
+     * The other order is covered here: an eleven-argument call resolves against the not-yet-migrated
+     * function too, which is every submission that exists today. A submission that does carry
+     * photographs can only come from a client the new API served, and if the migration is somehow
+     * behind it fails loudly rather than dropping a driver's licence on the floor.
+     */
+    ...(captures.length > 0 ? { p_captures: captures } : {}),
   });
   if (error) {
     // DA022 is the race the FOR UPDATE lock caught — a second submission arrived between this

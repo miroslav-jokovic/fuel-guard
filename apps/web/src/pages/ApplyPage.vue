@@ -8,6 +8,7 @@ import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
 import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
 import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
+import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
 import CertifyFields from "@/features/apply/CertifyFields.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
@@ -55,6 +56,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * While any instrument is still draft wording the ceremony is skipped entirely and the instruments
  * are shown read-only on the last screen, as they were before A5 — the server refuses those
  * signatures (Q-H3), and a ceremony nobody can complete would be a wall across the application.
+ *
+ * ── THE PHOTOGRAPHS ARE STAGED, NOT SAVED (A8, D-APP10) ───────────────────────────────────────
+ * The documents screen writes to `application_captures` against the invitation, not into the draft:
+ * a photograph is not an answer, and a candidate who never sends this application must leave nothing
+ * in an evidence bucket. The submit transaction is what promotes them into the qualification file.
  *
  * ── IT SAVES ITSELF, AND SOMETIMES ASKS WHO IS READING (A2) ───────────────────────────────────
  * Coming back to a draft that already holds a date of birth costs one question — the date of birth
@@ -322,6 +328,13 @@ async function send(): Promise<void> {
       <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" />
       <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
       <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
+      <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
+           the draft, which is why this screen takes the token and not the form. -->
+      <DocumentCaptureFields
+        v-else-if="wizard.section.value === 'documents'"
+        :token="token"
+        :captures="invitation.data.value.captures ?? []"
+      />
       <ReviewFields v-else-if="wizard.section.value === 'review'" :draft="draft" @go-to="wizard.goTo" />
       <CertifyFields v-else v-model="draft" />
     </BaseCard>
@@ -348,7 +361,7 @@ async function send(): Promise<void> {
           {{ submit.isPending.value ? APPLY_COPY.nav.sending : APPLY_COPY.nav.send }}
         </template>
         <template v-else>
-          {{ wizard.section.value === 'safety' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
+          {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
         </template>
       </BaseButton>
     </div>

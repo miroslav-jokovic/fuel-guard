@@ -468,3 +468,88 @@ describe("signing a release", () => {
     expect(res.status).toBe(400);
   });
 });
+
+/**
+ * The capture endpoints (A8, D-APP10).
+ *
+ * The surface property is the same one every route in this file carries — no bearer token, and no
+ * fact about who exists leaks out of a refusal — plus one that belongs to staging alone: a confirm
+ * for bytes that are not in the bucket is 422, not 404. The link is fine; the photograph is not, and
+ * a page whose entire vocabulary for 404 is "this link is dead" must not be told otherwise.
+ */
+describe("photographing a document from the link", () => {
+  const capturing = (storage: Record<string, (...args: never[]) => unknown>): SupabaseRecorder =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: null, releases_completed_at: null, submitted_at: null,
+        }],
+      },
+      rpc: { stage_application_capture: { capture_id: "cap-1", captured_at: "2026-08-21T12:00:00Z", replaced_path: null } },
+      storage,
+    });
+
+  it("mints an upload URL with no bearer token, and writes nothing", async () => {
+    const rec = capturing({
+      createSignedUploadUrl: (path: string) => ({ data: { signedUrl: "https://storage.test/u", token: "t", path }, error: null }),
+    });
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/capture`, {
+      method: "POST",
+      body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp" }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { captureId: string; uploadUrl: string; storagePath: string };
+    expect(body.uploadUrl).toBe("https://storage.test/u");
+    // The response hands back a key and a URL and nothing about the carrier or the driver.
+    expect(body.storagePath.startsWith(`${ORG}/inv-1/`)).toBe(true);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("refuses a slot the applicant was never offered", async () => {
+    holder.client = capturing({}).client;
+    const res = await call(`/${TOKEN}/capture`, {
+      method: "POST",
+      body: JSON.stringify({ slot: "operating_authority", content_type: "image/webp" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("answers a dead link the way every other route here does", async () => {
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/capture`, {
+      method: "POST",
+      body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp" }),
+    });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
+  });
+
+  it("returns 422 — not 404 — when the bytes never arrived", async () => {
+    const rec = capturing({ list: () => ({ data: [], error: null }) });
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/capture/${DRIVER}`, {
+      method: "PUT",
+      body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp", sha256: "a1".repeat(32) }),
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("capture_upload_failed");
+    // And nothing was staged: a slot must never claim to hold a photograph that is not there.
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("records the slot once the object is in the bucket", async () => {
+    holder.client = capturing({
+      list: () => ({ data: [{ name: `${DRIVER}.webp`, id: "o", metadata: { size: 4096 } }], error: null }),
+    }).client;
+    const res = await call(`/${TOKEN}/capture/${DRIVER}`, {
+      method: "PUT",
+      body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp", sha256: "a1".repeat(32) }),
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json()) as { slot: string }).toMatchObject({ ok: true, slot: "cdl_front" });
+  });
+});

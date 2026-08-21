@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   planStorageReconcile,
+  reconcileApplicationCaptureOrphans,
   reconcileComplianceDocOrphans,
   reconcileHazmatStorageOrphans,
   reconcileLoadPhotoOrphans,
@@ -84,6 +85,20 @@ describe("bucket ↔ table bindings", () => {
     await reconcileLoadPhotoOrphans(stubAdmin(calls), { apply: false });
     expect(calls.bucket).toBe("load-photos");
     expect(calls.table).toBe("load_stop_photos");
+  });
+
+  /**
+   * A8. The first bucket in this sweep that is NOT an evidence store, and it is here for the opposite
+   * reason: staged captures are registered only after their bytes land, so orphan objects are the
+   * routine failure — every upload whose confirm never arrived, every superseded re-shoot whose
+   * removal failed. Without this pass a driver's four attempts at one licence photograph would be
+   * billed indefinitely with nothing pointing at them.
+   */
+  it("application-captures reconciles against `application_captures`", async () => {
+    const calls: StubCall = {};
+    await reconcileApplicationCaptureOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.bucket).toBe("application-captures");
+    expect(calls.table).toBe("application_captures");
   });
 
   it("never deletes a `documents` row — a missing object is flagged, the claim survives", async () => {

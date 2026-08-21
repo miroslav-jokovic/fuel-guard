@@ -52,11 +52,22 @@ describe("the section vocabulary", () => {
     expect(APPLICATION_SECTION_ORDER[APPLICATION_SECTION_ORDER.length - 2]).toBe("review");
   });
 
+  /** A8: the photographs are taken while the driver still has the documents in their hand, and
+   *  before they are shown the answers they are about to certify. */
+  it("asks for documents after the questions and before the review", () => {
+    const at = (s: string): number => (APPLICATION_SECTION_ORDER as readonly string[]).indexOf(s);
+    expect(at("documents")).toBeGreaterThan(at("safety"));
+    expect(at("documents")).toBeLessThan(at("review"));
+  });
+
   /** `furthest_section` is free text in the database, so a stored value may be anything at all —
    *  including a token from a future version of this form. */
   it("recognises its own tokens and nothing else", () => {
     expect(isApplicationSection("identity")).toBe(true);
-    expect(isApplicationSection("documents")).toBe(false);
+    // `documents` became a real screen in A8; `references` is the stand-in for a token from a form
+    // this version has never seen.
+    expect(isApplicationSection("documents")).toBe(true);
+    expect(isApplicationSection("references")).toBe(false);
     expect(isApplicationSection(null)).toBe(false);
     expect(isApplicationSection(7)).toBe(false);
   });

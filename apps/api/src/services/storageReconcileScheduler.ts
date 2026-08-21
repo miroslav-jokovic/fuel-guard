@@ -1,6 +1,7 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import {
+  reconcileApplicationCaptureOrphans,
   reconcileComplianceDocOrphans,
   reconcileHazmatStorageOrphans,
   reconcileLoadPhotoOrphans,
@@ -19,8 +20,14 @@ import {
  * since it shipped: every failed upload's bytes billed indefinitely with no row pointing at them.
  *
  * Named for what it does. It was `hazmatStorageReconcileScheduler` when it swept one bucket; it has
- * swept two since LD3 and three since B7, and a name that says "hazmat" on the file that also decides
- * the fate of every driver's medical-card scan is a name that misleads the next reader.
+ * swept two since LD3, three since B7 and four since A8, and a name that says "hazmat" on the file
+ * that also decides the fate of every driver's medical-card scan is a name that misleads the next
+ * reader.
+ *
+ * ⚠ `application-captures` (A8) is the one bucket here that is NOT an evidence store, and it is swept
+ * for the opposite reason: staged photographs are registered only after the bytes land, so orphan
+ * objects are the routine failure rather than the alarming one. Without this pass a driver's
+ * abandoned re-shoots would be billed for ever.
  */
 const DAILY_MS = 24 * 60 * 60 * 1000;
 
@@ -37,6 +44,7 @@ export function startStorageReconcileScheduler(env: Env): void {
       ["hazmat", reconcileHazmatStorageOrphans],
       ["load-photos", reconcileLoadPhotoOrphans],
       ["compliance-docs", reconcileComplianceDocOrphans],
+      ["application-captures", reconcileApplicationCaptureOrphans],
     ] as const) {
       try {
         const r = await reconcile(admin, { apply: true });

@@ -971,7 +971,15 @@ confirms `capture-engine` stayed clean of `@fuelguard/*` and of clocks.
 will call, and shipping a screen with nowhere to put the bytes would be the dead-screen mistake A3a
 already declined to make.
 
-### A8 · Staged captures, filed at submit
+### A8a · Staged captures, filed at submit — DONE 2026-08-21 (migration 0230)
+
+⚠ **A8 is split into two named sub-steps**, on A3's precedent. A8a is the whole of the step's Build
+list: the table, the bucket, the endpoints, the promotion and the capture screen. A8b is the drawn
+signature mark, which A5's deviation #2 deferred to "wherever it has somewhere to be stored" — it is
+a canvas in the signing ceremony plus a change to A6's renderer, it writes to a slot A8a's closed set
+already carries, and it is decoration by D-APP8. Bundling it would have put a change to the rendered
+§391.51(b)(1) document in the same PR as the staging pipeline, and the mark must never delay the
+thing that carries legal weight.
 
 **Prerequisites:** A7, A2.
 
@@ -1000,6 +1008,106 @@ and is idempotent under a replayed submit.
 **Done when:** a driver photographs everything from the same link, re-shoots freely, and the
 qualification file receives exactly one copy of each — and an abandoned application leaves no
 `documents` row at all.
+
+**What shipped.**
+- `0230_application_captures.sql`: the table as specified (0226's 0213-style guard, cascade from the
+  invitation, absent from `RETENTION_FORBIDDEN`, unique on `(invitation_id, slot)`), the private
+  `application-captures` bucket capped at 8 MB with **no client write policy at all** — every upload
+  is a signed URL the API minted for somebody with no JWT for a policy to read — and
+  `stage_application_capture`, an explicit delete-then-insert RPC that returns the superseded object's
+  path so the caller can collect the bytes.
+- `packages/shared/src/applicationCaptureContract.ts`: the closed slot set with its labels, the
+  slot → `DocumentKind` and slot → `documents.page` maps, the storage key, and the two request
+  schemas. **`cdl_back` is page 2 of the same `cdl` kind**: two sides of one licence are two pages of
+  one document, which is what that column has meant since 0146, and two page-1 rows would order
+  themselves by whichever upload won.
+- `POST /:token/capture` and `PUT /:token/capture/:id`, plus `captures` on `GET /:token` — slots and
+  dates, never the photographs, because re-serving them would mint a signed read URL per slot on an
+  unauthenticated surface on every page load for no decision the driver has to make.
+- `submit_driver_application` promotes the staged set inside its existing transaction; the API copies
+  the objects Storage-to-Storage first, since bytes cannot be moved from SQL.
+- A `documents` screen in the wizard, between `safety` and `review` — the driver photographs the
+  documents while they are still holding them, then checks the answers they are about to certify.
+- The nightly `startStorageReconcileScheduler` gains the bucket, and it is the first NON-evidence
+  bucket in that sweep (see the ⚠ below).
+
+**⚠ Four decisions the step's text did not make, each with its reason.**
+
+1. **The row is written AFTER the bytes, not before — the opposite of `compliance.ts:110`.** The
+   plan said the endpoint "mints a signed upload URL", which is 0146's register-then-upload shape.
+   That shape is right for evidence: the claim that a document exists must outlive a dropped
+   connection, which is why the orphan reconcile flags a missing object loudly as possible evidence
+   loss. For staging it is exactly backwards — a row here is what tells the driver a slot is filled,
+   so `POST /:token/capture` writes nothing and `PUT /:token/capture/:id` stages only after reading
+   the object back out of the bucket. Every failure in the chain now leaves BYTES nobody references,
+   never a slot claiming a photograph that was never taken. It costs one extra request per accepted
+   photograph, and a re-shoot still costs none at all, because the gate runs before the network (A7).
+2. **The function signature is widened by DROP-then-create, not `create or replace`.** Postgres
+   identifies a function by (name, argument types), so `create or replace` with an extra parameter
+   creates a SECOND function; an eleven-argument call would then match both — the twelfth defaults —
+   and fail as *ambiguous*. Both halves of the deploy/migrate race 0229's header describes are
+   covered instead: `p_captures` **defaults to `'[]'`**, so a migration that lands before the deploy
+   leaves the old code working unchanged, and the API **omits the parameter** when there is nothing
+   to promote, which is every submission in existence today. A matrix assertion pins that exactly one
+   `submit_driver_application` exists.
+3. **A failed promotion REFUSES the submission.** A6 established that the rendered PDF never costs a
+   submission, because a derivative can be produced again from evidence that never moved. A
+   photograph is the opposite: the only copy is in a staging bucket A11 will prune, and filing the
+   application without it would put a driver's licence beyond reach of the file it belongs to,
+   silently. Nothing is spent by the refusal — the phase stamp is inside the transaction that never
+   ran — so pressing send again promotes the same set, and a copy onto a key that already exists is
+   treated as done rather than as an error.
+4. **Nothing on the capture screen is required, and `signature_mark` is not on it.** §391.21 is a
+   form and none of its twelve paragraphs is a photograph; §391.51's file is assembled across the
+   whole hiring process. A driver whose camera will not open must still be able to certify and send,
+   or the carrier loses the candidate over a picture a recruiter can ask for by email
+   (`APPLICATION_CAPTURE_REQUIRED` is empty, and says so in place). `signature_mark` belongs to the
+   ceremony: a slot on this screen would collect a photograph of a piece of paper rather than the
+   mark D-APP8 describes.
+
+**⚠ And one thing worth knowing about `ssn_card`.** It is the one slot whose CONTENT is more
+sensitive than the column it lands in. D-APP3 seals a typed Social Security number into a secretBox
+envelope bound to the org, or drops it entirely where no key is configured; a photograph of the card
+is the same nine digits as pixels in an evidence bucket that sealing cannot reach. It is collected
+because a carrier lawfully collects it and `documents` is restricted at the row (0146's driver-scoped
+RESTRICTIVE policy) and at the projection — but it is named in the contract so whoever writes A11's
+retention rule meets the asymmetry rather than discovering it.
+
+**Verified by:** `pnpm test` — new matrix `application-captures` (**37 passed**), which proves the
+re-shoot replaces its slot and hands back the superseded path, that a browser session can neither
+read nor write the table and a JWT-bearing writer gets DA040 while the service role can delete (the
+prunability pin the 0213 trigger style exists for), that deleting the invitation collects the staged
+rows **and leaves no `documents` row at all**, that promotion files exactly one document per capture
+under the capture's own id with the sha256 carried forward, that a replayed submit raises DA022 and
+files nothing, and that a promotion naming a capture from another invitation files nothing — the JOIN,
+not the caller's array, is what decides. `applicationCapture.test.ts` (12) pins that the start call
+writes nothing at all, that a confirm without an object in the bucket stages nothing, and that the
+size recorded is the one Storage reports rather than one a request supplied;
+`applicationIntake.test.ts` gains the three submit-path assertions (copy before the transaction, the
+parameter omitted when empty, the submission refused rather than filed short);
+`useApplicationCaptures.test.ts` (7) pins A7's property one layer up — a refused photograph produces
+no network call at all — and that a cancelled picker is not a failure; `publicApplication.test.ts`
+gains five route assertions including `capture_upload_failed` answering **422 and not 404**, because
+the link is fine and the page's whole vocabulary for 404 is "this link is dead". `pnpm typecheck`;
+`pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**Not verified in a browser** — the apply page is session-free and needs a real minted invitation to
+reach, so the wizard is exercised by mounting the real page in `ApplyPage.test.ts` (which now walks
+all eight screens) rather than by clicking through one.
+
+### A8b · The drawn signature mark — NOT STARTED
+
+**Prerequisites:** A8a (its `signature_mark` slot and staging pipeline), A5, A6.
+
+D-APP8 stands: the typed name is the signature of record and the drawn mark is decoration, stored as
+evidence of nothing more than itself. A5 shipped adoption with the typed name alone because a canvas
+whose output is discarded is worse than no canvas; A8a gives the output somewhere to go.
+
+**Build.** A canvas on the ceremony's adoption screen, optional and never required (a driver on a
+cracked screen who cannot produce a squiggle has still signed); its PNG staged through the same two
+capture calls into the `signature_mark` slot; `applicationPdf/render.ts` drawing it beside the typed
+name in the signature block, where A6's own text already says "the signature (typed and, if present,
+drawn)". Nothing about the `driver_authorizations` row changes — the mark is not what makes the
+signature good, and a renderer that could not find one must still produce the document.
 
 ### A9 · The carrier questionnaire
 
@@ -1083,7 +1191,7 @@ regardless.
 |---|---|---|
 | **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. ⚠ Since A4 this text also **arms the 7001(c) gate**: publishing it is what makes the consent required on every write path, and until then the application runs exactly as it did before. A4 shipped the six clauses as placeholders with a statutory citation each, so counsel's pass is six named strings rather than a blank page. |
 | ~~**The Excel application**~~ | Owner | **ARRIVED 2026-08-21** — `APPLICATION.xlsx`, committed beside this plan. ⚠ **It is not a questionnaire; it is a 31-page contractor packet**, and what it contains changes A9 and A0. See §6.1 below before transcribing anything. |
-| **Which documents a driver must photograph** | Owner | A8 ships the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. Adding a slot later is one enum entry plus one mapping line. |
+| **Which documents a driver must photograph** | Owner | **A8a shipped** the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. The screen asks for the first four; adding a slot later is one enum entry plus one mapping line, and no migration column changes. ⚠ **None of them is required to send the application**, and the reason is written beside `APPLICATION_CAPTURE_REQUIRED`: §391.21 asks for no photograph, and a camera that will not open must not cost the carrier a candidate. If the owner wants one made mandatory, that is one array entry. |
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
 | **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
 | **Whether Silvicom wants an EEO section** | Owner | A9 supports one and excludes it from every recruiter-facing projection. Absent an instruction, no EEO questions are defined. |
@@ -1166,12 +1274,15 @@ is counsel's to change and not an engineer's.
 
 ## 8. Order of execution
 
-**A1 → A2 → A3a → A4 → A5 → A6 → A7 → A8 → A9 → A10 → A11**, with **A0 running in parallel from the
-start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1 opens**.
+**A1 → A2 → A3a → A4 → A5 → A6 → A7 → A8a → A8b → A9 → A10 → A11**, with **A0 running in parallel
+from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
+opens**.
 
-⚠ **Position as of 2026-08-21 evening: A1–A7 are DONE and live (schema 0229). The next step is A8.**
+⚠ **Position as of 2026-08-21: A1–A7 and A8a are DONE (schema 0230). The next step is A8b**, then A9.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
-the harness facts that cost time, which are not repeated here.
+the harness facts that cost time, which are not repeated here. **A8b blocks nothing**: it is
+decoration by D-APP8, so a session that would rather move the product forward can take A9 first and
+come back to it.
 
 **A3b (prefill) is deliberately out of that line.** It depends only on A3a, nothing depends on it, and
 half of it waits on R1/R2 for a leads table that does not exist. Slot it wherever it fits; the form is
