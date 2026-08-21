@@ -174,6 +174,31 @@ describe("the link is a session, not a fuse", () => {
   });
 });
 
+/**
+ * A6/D-APP9 at the boundary that matters. The PDF is a derivative of evidence that is already
+ * committed and append-only; failing a driver's submission over a rendering problem would trade the
+ * irreplaceable for the regenerable.
+ */
+describe("the rendered document never costs the submission", () => {
+  it("still files the application when the renderer throws", async () => {
+    const rec = seed();
+    // No `organizations` fixture and no storage behind it: the render path will fail somewhere.
+    const broken = createSupabaseRecorder({
+      tables: { application_invitations: [invitation()] },
+      rpc: {
+        submit_driver_application: { application_id: "app-1" },
+        // The RPC the filing path finishes with — made to fail, so the whole tail is unhappy.
+        attach_application_document: { error: { code: "XX000", message: "boom" } },
+      },
+    });
+    void rec;
+    const result = await submitApplication(broken.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    // The submission stands. That is the entire assertion.
+    expect(isIntakeError(result)).toBe(false);
+    expect(isIntakeError(result) ? null : result.applicationId).toBe("app-1");
+  });
+});
+
 describe("submitting", () => {
   it("hands the transaction the org and driver the TOKEN resolved to, never a client value", async () => {
     const rec = seed();

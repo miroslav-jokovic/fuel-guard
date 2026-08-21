@@ -12,6 +12,8 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "../../services/applicationIntake.js";
+import { ensureApplicationPdf } from "../../services/applicationPdf/file.js";
+import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
 
 /**
  * Inviting an applicant to fill in their own §391.21 application (H5).
@@ -130,6 +132,53 @@ export function recruitmentApplicationInvitesRouter(): Router {
         // The only copy. Not stored, not re-derivable, not returned again.
         link: `${env.WEB_APP_URL}/apply/${token}`,
       });
+    }),
+  );
+
+  /**
+   * The application itself, as one document (A6).
+   *
+   * ── WHY THIS ROUTE EXISTS AT ALL ─────────────────────────────────────────────────────────────
+   * PSP's §0.2 lesson, applied before it can repeat: a document filed only where somebody would have
+   * to go looking is a document nobody reads. The recruiter's screen is where the application is
+   * asked about, so the PDF is offered from there rather than left to be found in a driver's document
+   * list. It is the same argument that moved the PSP report onto the panel that bought it.
+   *
+   * Rendering here is also the retry (D-APP9): `ensureApplicationPdf` files one if none is filed, so
+   * a submission whose inline render failed heals the first time anybody asks for the document.
+   */
+  router.get(
+    "/drivers/:driverId/application",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const { data } = await admin
+        .from("driver_applications")
+        .select("id, certified_at, signed_name")
+        .eq("org_id", orgId)
+        .eq("driver_id", String(req.params.driverId ?? ""))
+        .order("certified_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const application = data as { id: string; certified_at: string; signed_name: string } | null;
+      if (!application) {
+        res.json({ application: null, documentUrl: null });
+        return;
+      }
+
+      const filed = await ensureApplicationPdf(admin, orgId, application.id);
+      let documentUrl: string | null = null;
+      if (filed) {
+        const { data: signed } = await admin.storage
+          .from(DOCUMENTS_BUCKET)
+          // Short-lived, like every other document link in the product: the bytes are a driver's
+          // §391.21 application and a URL that outlives the click is a URL that gets forwarded.
+          .createSignedUrl(filed.storagePath, 300, { download: `application-${application.id}.pdf` });
+        documentUrl = (signed as { signedUrl?: string } | null)?.signedUrl ?? null;
+      }
+      res.json({ application, documentUrl });
     }),
   );
 

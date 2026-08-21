@@ -121,7 +121,7 @@ const INV = await invite(SUSAN, "susan");
 await submit(INV, SUSAN);
 
 const stamps = await one(
-  `select consented_at, releases_completed_at, submitted_at, used_at
+  `select consented_at, releases_completed_at, submitted_at
      from application_invitations where id = $1`,
   [INV],
 );
@@ -130,9 +130,15 @@ ok(
   "and touches neither of the other two — they belong to A4 and A5",
   stamps.consented_at === null && stamps.releases_completed_at === null,
 );
-// Two writers of one fact, tolerated until A5 removes the column's last staff-facing reader. The
-// staff invitation list, its revoke guard and the web `inviteState` fold all still read `used_at`.
-ok("`used_at` is still mirrored, so no staff-facing reader changes behaviour", stamps.used_at !== null);
+// ⚠ `used_at` was the compatibility mirror 0225 kept for three staff-facing readers. A5 moved all
+// three to `submitted_at` and 0229 dropped the column, once A5's reader-free code was verified live.
+ok(
+  "the mirror column is gone, and submitted_at carries the fact alone",
+  (await count(
+    `select count(*)::int as n from information_schema.columns
+      where table_name = 'application_invitations' and column_name = 'used_at'`,
+  )) === 0,
+);
 
 const replay = await raised(() => submit(INV, SUSAN));
 ok("a second submission is refused as a spent PHASE (DA022), not a dead link", replay?.code === "DA022", String(replay?.code));
@@ -178,32 +184,16 @@ ok(
 // ("every bad link fails the same way") and not claimed here.
 
 // ── the backfill ───────────────────────────────────────────────────────────────────────────────
-// An invitation issued before 0225 carries `used_at` and no `submitted_at`. 0225's UPDATE is what
-// makes it behave identically afterwards; simulate the pre-migration row and re-run the statement.
-const MAYA = await driver("Maya Ortiz");
-const LEGACY = await invite(MAYA, "maya-legacy");
-await db.query(
-  `update application_invitations set used_at = now() - interval '3 days', submitted_at = null where id = $1`,
-  [LEGACY],
-);
-await db.query(
-  `update public.application_invitations set submitted_at = used_at where used_at is not null and submitted_at is null`,
-);
-const backfilled = await one(`select used_at, submitted_at from application_invitations where id = $1`, [LEGACY]);
+// 0225 backfilled `submitted_at := used_at` so an invitation spent before it behaved identically
+// after it. That column is gone as of 0229, so what can still be proved here is the property the
+// backfill existed to guarantee: after every migration has run, no invitation is left in the
+// contradictory state the backfill was written to prevent — spent, but with no submit stamp.
 ok(
-  "the backfill carries an old spent link's date across exactly",
-  backfilled.submitted_at !== null && String(backfilled.submitted_at) === String(backfilled.used_at),
-);
-const legacyReplay = await raised(() => submit(LEGACY, MAYA));
-ok(
-  "so a link spent before 0225 still refuses a submission after it",
-  legacyReplay?.code === "DA022",
-  String(legacyReplay?.code),
-);
-ok(
-  "and an untouched invitation is left alone by the backfill",
+  "no invitation survives the migrations spent-but-unstamped",
   (await count(
-    `select count(*)::int as n from application_invitations where used_at is null and submitted_at is not null`,
+    `select count(*)::int as n from application_invitations
+      where submitted_at is null
+        and exists (select 1 from driver_applications a where a.invitation_id = application_invitations.id)`,
   )) === 0,
 );
 

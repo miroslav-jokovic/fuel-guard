@@ -13,6 +13,7 @@ import {
   useCreateApplicationInvite,
   useRevokeApplicationInvite,
   type ApplicationInvitation,
+  useDriverApplicationQuery,
 } from "@/features/recruitment/useApplicationInvites";
 
 /**
@@ -62,6 +63,13 @@ async function copyLink(): Promise<void> {
   }
 }
 
+/** A short-lived signed URL: the bytes are somebody's §391.21 application, so the link is not one
+ *  to keep. Opened rather than navigated to, so the recruiter does not lose the page they are on. */
+function openApplication(): void {
+  const url = applicationQ.data.value?.documentUrl;
+  if (url) globalThis.open(url, "_blank", "noopener");
+}
+
 async function revokeInvite(row: ApplicationInvitation): Promise<void> {
   try {
     await revoke.mutateAsync({ id: row.id, driverId: driverId.value });
@@ -72,6 +80,14 @@ async function revokeInvite(row: ApplicationInvitation): Promise<void> {
 }
 
 const stateOf = (row: ApplicationInvitation) => inviteState(row, new Date());
+
+/**
+ * The submitted application, offered where the recruiter is already looking (A6).
+ *
+ * PSP's §0.2 lesson: a document filed only where somebody would have to go looking is a document
+ * nobody reads. This is the screen where the application is asked about, so this is where the PDF is.
+ */
+const applicationQ = useDriverApplicationQuery(driverId);
 const stateBadge = (row: ApplicationInvitation) => applicationInviteBadge(stateOf(row));
 
 const columns: DataTableColumn[] = [
@@ -118,6 +134,27 @@ const columns: DataTableColumn[] = [
             new invitation if it is lost.
           </p>
         </div>
+      </div>
+    </BaseCard>
+
+    <BaseCard v-if="applicationQ.data.value?.application">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-sm font-semibold text-ink">Application received</h3>
+          <p class="mt-1 text-sm text-ink-muted">
+            Certified by {{ applicationQ.data.value.application.signed_name }} on
+            {{ applicationQ.data.value.application.certified_at.slice(0, 10) }}, under 49 CFR
+            §391.21(b). The PDF carries every answer and every signature, with the dates this system
+            recorded them.
+          </p>
+        </div>
+        <BaseButton
+          v-if="applicationQ.data.value.documentUrl"
+          size="sm"
+          @click="openApplication"
+        >
+          Open the application
+        </BaseButton>
       </div>
     </BaseCard>
 
