@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { driverApplicationSchema } from "@fuelguard/shared";
-import { emptyDraft, toApplication, type ApplicationDraft } from "./draft";
+import {
+  emptyDraft,
+  fromDraftPayload,
+  toApplication,
+  toDraftPayload,
+  type ApplicationDraft,
+} from "./draft";
 
 /**
  * The draft → contract conversion, which is where a form quietly asserts things on somebody's behalf
@@ -113,5 +119,71 @@ describe("what a §391.23 inquiry will need later", () => {
     const parsed = parse(draft);
     expect(parsed.success).toBe(true);
     expect(parsed.success ? parsed.data.employers[0]?.email : "x").toBeNull();
+  });
+});
+
+/**
+ * The autosave payload (A2, D-APP3).
+ *
+ * The draft table is prunable, plain jsonb, and holds a stranger's personal data. One key may never
+ * reach it, and "excluded by construction" has to mean something a future edit cannot quietly
+ * undo — hence an explicit key list rather than a spread, and hence this test.
+ */
+describe("what autosave sends", () => {
+  it("never emits an ssn key, even when one is sitting on the draft object", () => {
+    // A3 adds an SSN field to the form. This is that future, forced early: the payload builder must
+    // not carry it, and it must not need anyone to remember.
+    const draft = { ...complete(), ssn: "123456789" } as unknown as ApplicationDraft;
+    const payload = toDraftPayload(draft);
+    expect("ssn" in payload).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain("123456789");
+  });
+
+  it("does not save the certification — that is an act, not an answer", () => {
+    const payload = toDraftPayload(complete());
+    expect("certified" in payload).toBe(false);
+    expect("signed_name" in payload).toBe(false);
+  });
+
+  it("carries the answers a driver would be furious to retype", () => {
+    const payload = toDraftPayload(complete());
+    expect(payload.first_name).toBe("Susan");
+    expect(payload.date_of_birth).toBe("1980-04-01");
+    expect((payload.employers as unknown[]).length).toBe(1);
+  });
+});
+
+describe("coming back to a saved draft", () => {
+  it("restores what was typed", () => {
+    const restored = fromDraftPayload(toDraftPayload(complete()));
+    expect(restored.first_name).toBe("Susan");
+    expect(restored.date_of_birth).toBe("1980-04-01");
+    expect(restored.employers[0]?.employer_name).toBe("Old Carrier");
+    // Round-trips back into a document the contract still accepts.
+    expect(parse({ ...restored, certified: true, signed_name: "Susan Godfrey" }).success).toBe(true);
+  });
+
+  it("comes back uncertified, whatever was saved", () => {
+    const restored = fromDraftPayload({ ...toDraftPayload(complete()), certified: true, signed_name: "Susan Godfrey" });
+    // §391.21(b) is certified once, about the finished document. A restored tick would be a
+    // certification of answers the driver has since changed.
+    expect(restored.certified).toBe(false);
+    expect(restored.signed_name).toBe("");
+  });
+
+  /** The payload is unvalidated by design, so junk is a state that actually occurs — and a resumed
+   *  session must never put the form into something it cannot render. */
+  it("survives a payload full of the wrong types", () => {
+    const restored = fromDraftPayload({
+      first_name: 42, addresses: "not an array", employers: [], declares_no_accidents: "yes",
+    } as unknown as Record<string, unknown>);
+    expect(restored.first_name).toBe("");
+    expect(restored.addresses).toHaveLength(1);
+    expect(restored.employers).toHaveLength(1);
+    expect(restored.declares_no_accidents).toBe(false);
+  });
+
+  it("treats no draft at all as a blank form", () => {
+    expect(fromDraftPayload(null)).toEqual(emptyDraft());
   });
 });

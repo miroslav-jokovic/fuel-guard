@@ -37,11 +37,27 @@ export interface ApplyPhases {
   submittedAt: string | null;
 }
 
+/**
+ * What the driver typed last time (A2).
+ *
+ * `payload` is null while `locked` is true: once a draft contains a date of birth, the bare link no
+ * longer reads it back (D-APP16 — an email is forwarded and a phone is shared). The body arrives
+ * from `unlockApplicationDraft` instead. Before a date of birth is typed there is nothing sensitive
+ * to protect and no gate is shown.
+ */
+export interface ApplyDraft {
+  locked: boolean;
+  payload: Record<string, unknown> | null;
+  furthestSection: string | null;
+  updatedAt: string | null;
+}
+
 export interface ApplyInvitation {
   carrier: string;
   expiresAt: string;
   releases: ApplyRelease[];
   phases: ApplyPhases;
+  draft: ApplyDraft;
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -85,3 +101,25 @@ export function useSubmitApplication(token: Ref<string>) {
       }),
   });
 }
+
+/**
+ * Autosave. Not a `useMutation`, deliberately: the caller is a timer, not a click, and vue-query's
+ * pending/error state is the wrong vocabulary for something that runs every few seconds in the
+ * background. `useApplicationDraft` owns the state the driver actually sees.
+ */
+export const saveApplicationDraft = (
+  token: string,
+  payload: Record<string, unknown>,
+  section: string | null,
+): Promise<{ updatedAt: string }> =>
+  publicFetch<{ updatedAt: string }>(`/${token}/draft`, {
+    method: "PUT",
+    body: JSON.stringify({ payload, section }),
+  });
+
+/** Release a gated draft with the date of birth that is in it (D-APP16). */
+export const unlockApplicationDraft = (token: string, dateOfBirth: string): Promise<{ draft: ApplyDraft }> =>
+  publicFetch<{ draft: ApplyDraft }>(`/${token}/unlock`, {
+    method: "POST",
+    body: JSON.stringify({ date_of_birth: dateOfBirth }),
+  });

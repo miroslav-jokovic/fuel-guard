@@ -1,13 +1,18 @@
 import { Router } from "express";
 import {
+  applicationDraftSaveSchema,
+  applicationDraftUnlockSchema,
   applicationReleaseSchema,
   applicationSubmitSchema,
+  type ApplicationDraftSave,
+  type ApplicationDraftUnlock,
   type ApplicationRelease,
   type ApplicationSubmit,
 } from "@fuelguard/shared";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { loadDraft, saveDraft, unlockDraft } from "../services/applicationDraft.js";
 import {
   isIntakeError,
   phasesOf,
@@ -74,6 +79,10 @@ export function publicApplicationRouter(): Router {
         .eq("id", invitation.org_id)
         .maybeSingle();
 
+      // What they typed last time (A2). The body is withheld once a date of birth is in it — see
+      // `applicationDraft.ts` for why the bare link is not enough to read one back (D-APP16).
+      const draft = await loadDraft(admin, invitation.org_id, invitation.id);
+
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
         carrier: (org as { name?: string } | null)?.name ?? "the carrier",
@@ -82,6 +91,7 @@ export function publicApplicationRouter(): Router {
         // Where this driver stopped (D-APP1). Three dates and nothing else — the page opens on the
         // step they had reached instead of on a blank form they have already filled in once.
         phases: phasesOf(invitation),
+        draft,
       });
     }),
   );
@@ -107,6 +117,63 @@ export function publicApplicationRouter(): Router {
       // The application id and nothing else. The applicant does not need — and must not be handed —
       // their own driver id or the carrier's org id.
       res.status(201).json({ ok: true, applicationId: result.applicationId });
+    }),
+  );
+
+  /**
+   * Autosave (A2). Partial, unvalidated, size-capped, and idempotent per invitation.
+   *
+   * PUT rather than POST because it is the same resource every time: one draft per link, replaced
+   * wholesale. The client debounces to well inside the surface's rate budget — 20 req/min at
+   * `app.ts:147` with `/api/public`'s 60/min stacked on top, so the intersection is 20.
+   */
+  router.put(
+    "/:token/draft",
+    validateBody(applicationDraftSaveSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await saveDraft(
+        admin, String(req.params.token ?? ""),
+        res.locals.body as ApplicationDraftSave, new Date(),
+      );
+      if (isIntakeError(result)) {
+        const status =
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "already_submitted"
+              ? 409
+              : result.code === "draft_too_large"
+                ? 413
+                : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true, updatedAt: result.updatedAt });
+    }),
+  );
+
+  /**
+   * Release a gated draft to the person who typed it (D-APP16).
+   *
+   * A wrong date of birth is not an error: it returns the same locked view a plain read returns, and
+   * changes nothing about the invitation. There is no attempt counter and no lockout — a driver
+   * mistyping their own birthday must not need a support call, and the throttle that actually stops
+   * guessing is the rate limiter this route already sits behind.
+   */
+  router.post(
+    "/:token/unlock",
+    validateBody(applicationDraftUnlockSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await unlockDraft(
+        admin, String(req.params.token ?? ""),
+        (res.locals.body as ApplicationDraftUnlock).date_of_birth, new Date(),
+      );
+      if (isIntakeError(result)) {
+        res.status(result.code === "invalid_link" ? 404 : 500).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ draft: result });
     }),
   );
 

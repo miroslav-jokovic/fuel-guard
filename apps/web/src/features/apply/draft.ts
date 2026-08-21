@@ -189,3 +189,93 @@ export function toApplication(draft: ApplicationDraft): unknown {
     signed_name: draft.signed_name.trim(),
   } satisfies Record<keyof DriverApplication | string, unknown>;
 }
+
+/**
+ * Draft → the autosave payload (A2, D-APP3).
+ *
+ * ── WHY THIS ENUMERATES EVERY KEY INSTEAD OF SPREADING THE OBJECT ─────────────────────────────
+ * Because of the one key that must never appear. §391.21(b)(2)'s Social Security number is asked for
+ * in the final step and travels straight into `sealSsn` at submit, where it becomes a secretBox
+ * envelope bound to the org. `application_drafts.payload` is plain jsonb in a table built to be
+ * PRUNED, and nine digits do not go in it, ever.
+ *
+ * `{ ...draft }` would carry whatever the draft type grows next — and A3 grows it by adding the SSN
+ * field. An explicit list cannot: a new field is invisible to autosave until somebody adds it here,
+ * which is the correct default for a table holding a stranger's personal data. That is what "excluded
+ * by construction" means, as against a filter on the way out, which is a line of code somebody can
+ * delete without any test noticing.
+ *
+ * The server refuses a payload carrying an `ssn` key rather than stripping it, so a regression here
+ * is loud on the very first save instead of silent until an audit.
+ */
+export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown> {
+  return {
+    first_name: draft.first_name,
+    middle_name: draft.middle_name,
+    last_name: draft.last_name,
+    date_of_birth: draft.date_of_birth,
+    email: draft.email,
+    phone: draft.phone,
+    addresses: draft.addresses,
+    cdl_number: draft.cdl_number,
+    cdl_state: draft.cdl_state,
+    cdl_class: draft.cdl_class,
+    cdl_expires_at: draft.cdl_expires_at,
+    experience: draft.experience,
+    accidents: draft.accidents,
+    declares_no_accidents: draft.declares_no_accidents,
+    violations: draft.violations,
+    declares_no_violations: draft.declares_no_violations,
+    licence_ever_denied: draft.licence_ever_denied,
+    licence_denial_detail: draft.licence_denial_detail,
+    employers: draft.employers,
+    declares_no_employment: draft.declares_no_employment,
+    // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
+    // certification is an act performed once, at submit, on the whole finished document. A saved
+    // "I certify" checkbox would restore a certification the driver made about answers they have
+    // since changed.
+  };
+}
+
+/**
+ * The saved payload → the form's working shape.
+ *
+ * Field by field, with the empty draft as the floor: the payload is unvalidated by design, so every
+ * value in it may be missing, the wrong type, or left over from an older version of the form. A
+ * resumed session must never be able to put the form into a state the form cannot render.
+ */
+export function fromDraftPayload(payload: Record<string, unknown> | null | undefined): ApplicationDraft {
+  const base = emptyDraft();
+  if (!payload || typeof payload !== "object") return base;
+
+  const str = (k: keyof ApplicationDraft): string =>
+    typeof payload[k] === "string" ? (payload[k] as string) : (base[k] as string);
+  const bool = (k: keyof ApplicationDraft): boolean =>
+    typeof payload[k] === "boolean" ? (payload[k] as boolean) : (base[k] as boolean);
+  const rows = <T>(k: keyof ApplicationDraft, fallback: T[]): T[] =>
+    Array.isArray(payload[k]) && (payload[k] as unknown[]).length > 0 ? (payload[k] as T[]) : fallback;
+
+  return {
+    ...base,
+    first_name: str("first_name"),
+    middle_name: str("middle_name"),
+    last_name: str("last_name"),
+    date_of_birth: str("date_of_birth"),
+    email: str("email"),
+    phone: str("phone"),
+    addresses: rows<DraftAddress>("addresses", base.addresses),
+    cdl_number: str("cdl_number"),
+    cdl_state: str("cdl_state"),
+    cdl_class: str("cdl_class"),
+    cdl_expires_at: str("cdl_expires_at"),
+    experience: str("experience"),
+    accidents: rows<DraftAccident>("accidents", base.accidents),
+    declares_no_accidents: bool("declares_no_accidents"),
+    violations: rows<DraftViolation>("violations", base.violations),
+    declares_no_violations: bool("declares_no_violations"),
+    licence_ever_denied: bool("licence_ever_denied"),
+    licence_denial_detail: str("licence_denial_detail"),
+    employers: rows<DraftEmployer>("employers", base.employers),
+    declares_no_employment: bool("declares_no_employment"),
+  };
+}

@@ -66,6 +66,72 @@ export const applicationReleaseSchema = z.object({
 export type ApplicationRelease = z.infer<typeof applicationReleaseSchema>;
 
 /**
+ * ── THE SAVED DRAFT (A2, D-APP2) ──────────────────────────────────────────────────────────────
+ *
+ * A partial, unvalidated snapshot of the form. Deliberately NOT `driverApplicationSchema.partial()`:
+ * a draft holds half-typed strings — a `date_of_birth` that is currently `"198"` — and running the
+ * regulated schema over them would refuse to save exactly the states worth saving. The contract is
+ * applied at submit, where the applicant certifies the answers as true and complete.
+ */
+export const DRAFT_PAYLOAD_MAX_BYTES = 128 * 1024;
+
+/**
+ * The one key a draft may never carry (D-APP3).
+ *
+ * §391.21(b)(2)'s Social Security number is collected in the final step and travels straight into
+ * `sealSsn` at submit. `application_drafts.payload` is plain jsonb in a prunable table; nine digits
+ * do not go in it, ever. This is a REFUSAL and not a filter: the client never places the key in the
+ * draft object at all (`toDraftPayload`, pinned by a test), so a payload that carries one is a
+ * client regression, and the only useful response to a client regression is a loud one.
+ */
+export const applicationDraftSaveSchema = z.object({
+  payload: z
+    .record(z.string(), z.unknown())
+    .refine((p) => !("ssn" in p), { message: "A draft may not carry a Social Security number" }),
+  /** The furthest section reached. A3 defines the vocabulary; until then this is free text. */
+  section: z.string().min(1).max(64).nullish(),
+});
+export type ApplicationDraftSave = z.infer<typeof applicationDraftSaveSchema>;
+
+/**
+ * Releasing a saved draft to the person who typed it (D-APP16).
+ *
+ * The link is a session now and A10 re-sends it in a nudge email, so a forwarded email or a shared
+ * phone would otherwise read a half-typed application. One low-friction check closes it: the date of
+ * birth, which is among the first things the form asks, which the driver always knows, and which is
+ * precisely the field whose exposure the gate exists to prevent. A second factor would be security
+ * theatre bought with abandonment.
+ */
+export const applicationDraftUnlockSchema = z.object({
+  date_of_birth: z.string().min(1).max(32),
+});
+export type ApplicationDraftUnlock = z.infer<typeof applicationDraftUnlockSchema>;
+
+/**
+ * The date of birth a draft is currently carrying, if any — trimmed, or null.
+ *
+ * Reads the payload structurally rather than trusting a type: the draft is unvalidated by design, so
+ * `date_of_birth` may be absent, empty, half-typed or not a string at all, and every one of those
+ * means "no date of birth has been typed yet".
+ */
+export function draftDateOfBirth(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>).date_of_birth;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * Is this draft's body gated?
+ *
+ * Before a date of birth is typed there is nothing sensitive to protect, so no gate is shown — the
+ * driver who is one field into the form is not asked to prove who they are. The gate appears exactly
+ * when the thing it protects does.
+ */
+export const draftIsLocked = (payload: unknown): boolean => draftDateOfBirth(payload) !== null;
+
+/**
  * Is this disclosure wording still a draft?
  *
  * Every instrument in `DISCLOSURES` ships as `v0-draft` placeholder text, written by an engineer,

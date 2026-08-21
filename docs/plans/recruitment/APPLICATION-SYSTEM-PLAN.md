@@ -451,7 +451,7 @@ created it: `publicApplication.test.ts` "the link survives its own submission" p
 `POST /:token/release` after a submission reaches the **draft-wording** gate (409
 `disclosure_not_final`) instead of a dead link — the same call A0 turns into a signature.
 
-### A2 · Drafts and autosave
+### A2 · Drafts and autosave — DONE 2026-08-21 (migration 0226)
 
 **Prerequisites:** A1.
 
@@ -482,6 +482,60 @@ the draft builder never emits an `ssn` key for any input; a `GET` on a DOB-beari
 draft body; an unlock with a wrong DOB returns no draft body and leaves the invitation live.
 **Done when:** a driver can fill half the form, lose signal, and find their answers on return — no
 draft anywhere contains nine digits, and nobody holding only the link reads a typed date of birth.
+
+**What shipped.**
+- `0226_application_drafts.sql`: the table as specified — `on delete cascade` from the invitation,
+  unique on `invitation_id`, RLS on with no client policies, 0213-style guard (**DA030**), header
+  declaring it operational-not-evidence, and deliberately absent from `RETENTION_FORBIDDEN`.
+  `save_application_draft` is an explicit UPDATE-then-INSERT with a `unique_violation` retry for the
+  concurrent-autosave race — never a partial `.upsert()` (0174's incident, `lint:upserts`).
+- `services/applicationDraft.ts` as its own service beside `applicationIntake.ts`: the draft is on
+  the other side of the evidence line from everything that file handles, and keeping them apart means
+  D-APP16's gate cannot be confused with the neutral refusals that protect the invitation.
+- `GET /:token` carries `draft`; `PUT /:token/draft` saves partial and unvalidated, capped at
+  **128 KB**; `POST /:token/unlock` releases a gated body against a hashed constant-time DOB compare.
+  A wrong date returns the same locked view with **200**, not 401 — it changes nothing, burns
+  nothing, and the rate limiter is what throttles guessing.
+- ⚠ **The SSN refusal is in the shared schema, not a filter.** `applicationDraftSaveSchema` rejects a
+  payload carrying an `ssn` key (→ 400) and `toDraftPayload` enumerates its keys explicitly rather
+  than spreading the draft, so A3's SSN field is invisible to autosave until somebody deliberately
+  adds it. A silent strip would let the client regress unnoticed, and this is the one field where
+  unnoticed is unacceptable.
+- Web: `features/apply/useApplicationDraft.ts` (2 s idle debounce, "Saving…" / "Saved" / "Not saved —
+  check your signal"), draft restore through `fromDraftPayload`, and the unlock card. A restored
+  draft always comes back **uncertified**: §391.21(b) is certified once, about the finished document,
+  and a restored tick would certify answers the driver has since changed.
+
+**⚠ Correction to this step's own text, found while building it.** A 2-second idle debounce alone is
+**not** "well inside" the rate budget. The intersection of the two stacked limiters is **20 req/min**
+(`app.ts:147`'s 20 is tighter than `/api/public`'s 60), and a driver pausing every two seconds — which
+is what typing an address looks like — would produce up to 30 saves a minute and start collecting
+429s mid-application. So autosave has a **second timer**: a floor of one save per 5 s, with changes
+inside the window moving the pending save rather than queueing another (the payload is always the
+whole current form, so coalescing loses nothing). Measured in the unit test: 25 s of two-second
+pauses produces **4** saves, not 12. A3 and A10 must keep the floor, not just the debounce.
+
+**Also noted:** the section-change trigger is wired (`options.section`) but has nothing to fire on
+until A3 defines the section vocabulary — which is why `furthest_section` ships as free text with no
+CHECK. A3 gives both a vocabulary.
+
+**Verified by:** `pnpm test` (new matrix `application-drafts` 20 passed — including the prunability
+pin, the cascade, and the guard proved the way it actually fires; `rls` now covers **89** tables with
+`application_drafts` seedable); `pnpm typecheck`; `pnpm lint`; `lint:filesize`, `lint:funcsize`,
+`lint:migrations`, `lint:rls`, `lint:upserts`, `lint:tests`, `lint:secrets`, `lint:boundaries`,
+`lint:comment-claims`, `lint:tokens-parity`, `lint:ui-adoption`, `lint:ui-contrast`,
+`pnpm --filter web lint:tokens`. `expectOrgScoped` holds on the read, the save and the unlock, with
+`application_invitations` exempted and the reason written beside it — the token is resolved BY HASH
+to discover the org, so there is no org to filter by yet and accepting one from the request is what
+this surface exists to refuse.
+
+⚠ **A matrix lesson worth not re-learning** (it cost time here): with RLS deny-all and no
+UPDATE/DELETE policy, a browser session's write matches ZERO ROWS AND SUCCEEDS, so the guard trigger
+never fires and a test expecting `DA030` passes for the wrong reason. The guard is proved the way it
+actually fires — a connection that bypasses RLS while carrying a user's JWT claims — and the RLS half
+is proved by asserting the row is unchanged. Also: `set local role` and `set_config(..., true)` are
+**transaction scoped**; outside an explicit `begin` they are discarded before the statement runs and
+the query executes as the owner with no claims.
 
 ### A3 · The form becomes a wizard
 
