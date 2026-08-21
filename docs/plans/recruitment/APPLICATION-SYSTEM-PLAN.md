@@ -40,7 +40,7 @@ commit.
 | Session-free applicant page | `apps/web/src/pages/ApplyPage.vue` | No session store, no `apiFetch`, no app-shell toasts |
 | Public unauthenticated API | `apps/api/src/routes/publicApplication.ts` | `GET /:token`, `POST /:token`, `POST /:token/release` |
 | Rate limit on that surface | `apps/api/src/app.ts:147` | 20 req/min, its own tighter bucket — ⚠ the general `/api/public` limiter (`app.ts:231`) stacks on top; the effective budget is the intersection |
-| One schema, both sides | `packages/shared/src/applicationContract.ts` | `driverApplicationSchema`, `.strict()` (⚠ top level only — the four nested schemas are not), §391.21(b) numbering — ⚠ **(b)(4) has no field** and (b)(1) is only implicit in `certified_at`; A3 closes both |
+| One schema, both sides | `packages/shared/src/applicationContract.ts` | `driverApplicationSchema`, `.strict()` (⚠ top level only until A3a made the four nested schemas strict too — which immediately exposed a live defect, see A3a), §391.21(b) numbering — ⚠ **this row had (b)(1) and (b)(4) swapped**: (b)(4) is the submission date and IS satisfied by `certified_at`; (b)(1) is the carrier's name and address and is satisfied nowhere. (b)(5)'s "each" was the real missing field. A3a corrected all three; read its entry, not this row's original claim |
 | Submit as one transaction | `submit_driver_application` (0220; ⚠ **live body replaced wholesale by 0222's `create or replace`** — extend 0222's definition, never 0220's) | Files, spends the link, patches the driver, creates employment rows, cites §391.51(b)(1) |
 | Application immutable | trigger `DA010` (0220) | Fires for the service role too — a correction is a new row |
 | **Per-instrument signing endpoint** | `publicApplication.ts:101` → `recordRelease` | Server-composed text, version stamped, `method: "esign"` |
@@ -537,7 +537,7 @@ is proved by asserting the row is unchanged. Also: `set local role` and `set_con
 **transaction scoped**; outside an explicit `begin` they are discarded before the statement runs and
 the query executes as the owner with no claims.
 
-### A3 · The form becomes a wizard
+### A3a · The form becomes a wizard — DONE 2026-08-21 (no migration)
 
 **Prerequisites:** A2. No migration (one shared-contract change, below).
 
@@ -546,16 +546,39 @@ the query executes as the owner with no claims.
 indicator, forward/back, and **per-section validation using the same `driverApplicationSchema`** —
 validated by picking the section's keys, so the client and server can still never disagree about what
 §391.21 requires.
-⚠ The contract closes its audited gap in this step: `driverApplicationSchema` gains the
-**§391.21(b)(4)** fields (every licence currently held, with issuing State — the 2026-08-21 audit
-found (b)(4) had no field at all), and the four nested schemas (address, employer, accident,
-violation) become `.strict()` like their parent. The SSN request states, in one sentence, why the
+⚠ The contract closes its audited gap in this step — **but the audit cited the wrong paragraph, and
+the correction is the interesting part.** §391.21(b) was re-read verbatim on 2026-08-21 (Cornell LII;
+current text, Part 391 last amended 87 FR 13208, 2022-03-09):
+
+- **(b)(4)** is *"The date on which the application is submitted"* — not licences. It is satisfied by
+  `driver_applications.certified_at`, stamped server-side, and it must **never** become a field:
+  D-APP9 forbids accepting a date of signing or submission from a client. Nothing to build.
+- **(b)(5)** is *"The issuing driver's licensing authority, number, and expiration date of **each**
+  unexpired commercial motor vehicle operator's license or permit that has been issued to the
+  applicant"*. **"Each"** is the gap the audit actually found: the schema carried exactly one licence.
+  A3a adds `additional_licences`. Note also "issuing driver's licensing authority" rather than
+  "issuing State" — the current text admits an authority that is not a US state, so the extra entries
+  take free text while `cdl_state` stays a state code (PSP and SambaSafety both match on one).
+- **(b)(1)** — *"The name and address of the employing motor carrier"* — is the paragraph with
+  genuinely no home, and §0.1's note had it swapped with (b)(4). It is not an applicant field; it
+  belongs in the rendered document (A6). ⚠ **It cannot be satisfied today:** `organizations` carries a
+  `name` and a `dot_number` and **no address at all**, so A6's renderer has nothing to print. Raised
+  in §6 — it needs the carrier's legal address, an owner input, plus one column.
+
+And the four nested schemas (address, employer, accident, violation) become `.strict()` like their
+parent. The SSN request states, in one sentence, why the
 number is asked for and that it is optional (Q-H2) — a sensitive-field ask with no stated reason is
 an abandonment spike. All applicant-facing strings live in one extractable map from the start:
 English ships alone, but a second language must be a translation pass, not a refactor — these forms
 are filled by drivers for whom English is often a second language.
 Prefill (D-APP14) from the lead's pre-qual answers and from the most recent prior
 `driver_applications` row for the same `driver_id`, each prefilled field marked as such and editable.
+⚠ **Split out as A3b** (§4 allows a named sub-step per branch) for two reasons found while building
+A3a: the lead half is not buildable at all until R1/R2 exist — there is no leads table — and the
+prior-application half re-opens exactly the hole D-APP16 closed. Prefilling a previous application
+into a page opened with only the link would hand a bare token that driver's date of birth, licence
+number and address history. A3b therefore puts prefill **behind the same DOB gate**, compared against
+the prior application's own date of birth.
 Design contract: this is a session-free page and stays on the `lint:ui-adoption` exemption list with
 its existing reason; primitives are `App*` from `@fuelguard/ui`; no local tone records; house voice
 (fact, then next action).
@@ -565,6 +588,65 @@ its existing reason; primitives are `App*` from `@fuelguard/ui`; no local tone r
 `lint:ui-adoption`, `pnpm --filter web lint:tokens`.
 **Done when:** the whole application is completable one thumb-width at a time, and every field in the
 contract appears in exactly one section.
+
+**What shipped (A3a).**
+- **The section vocabulary is shared, not a UI detail**: `packages/shared/src/applicationSections.ts`
+  carries the tokens, the label map beside them (the vocabulary-pair rule), the §391.21(b) citation
+  each screen discharges, and the key set each screen owns — because `furthest_section` is a database
+  value A10's sweep will read, not a component name. `sectionsCoverTheContract()` is the union
+  assertion, and it names the offending field rather than counting.
+- Seven screens: identity → addresses → licence → employment → safety → review → certify. ⚠ **No
+  documents screen**: A7 has nothing to put on one yet, and a section that renders nothing is a dead
+  screen in the middle of somebody's application. A7 inserts it before `review`.
+- Per-screen validation picks the screen's keys out of `driverApplicationObject` — the unrefined base,
+  exported for exactly this — and applies the cross-field rules whose message lands on a key that
+  screen owns. Those rules moved out of the `.refine()` chain into `APPLICATION_CROSS_FIELD_RULES` so
+  the whole-document parse and the per-screen parse cannot drift. **Send** runs the real
+  `driverApplicationSchema` and attributes each failure to the screen that can fix it.
+- Forward is gated; **back never is**. A driver who realises on the employment screen that they
+  mistyped a licence must be able to go and fix it.
+- ⚠ `furthest_section` stores the **furthest** screen reached, not the current one — stepping back to
+  fix an address is not un-reaching where you got to, and sending the current screen would walk the
+  stored value backwards and resume an almost-finished driver at the top of the form.
+- The SSN field ships with its Q-H2 sentence (why it is asked, that it is optional) and a second
+  saying it is the one answer autosave does not keep (D-APP3). The review screen deliberately does
+  **not** reprint it.
+- All applicant-facing strings in `features/apply/strings.ts`, section titles re-exported from shared
+  rather than retyped. The disclosures moved to the last screen, still unsigned (Q-H3) — beside the
+  certification rather than half-way down a form, and still shown, so nobody is asked weeks later to
+  sign four documents they have never read.
+
+**⚠ A live defect found by making the nested schemas strict.** The form has collected each traffic
+conviction's place into `location` since H5b; `applicationViolationSchema` defines `state`; the nested
+schema was not strict, so **zod dropped the key without a word**. Every conviction declared since H5b
+was filed with no place attached, and the field the contract defines has never been populated. This is
+2026-08-20's lesson in the mirror — there a projection dropped a field the contract collected; here the
+contract dropped a field the form collected — and the general rule is worth keeping: *when a field
+exists on one side of a boundary and not the other, somebody's answer falls through the gap.* Fixed in
+the same PR, pinned by "carries a conviction's place, which used to fall through the gap between form
+and contract".
+
+**Verified by:** `pnpm test` (all 13 matrices; the new `applicationSections` coverage test; the page
+test walks all seven screens, which is also a working proof that every screen's field set validates —
+a field on the wrong screen strands the driver on a step they cannot pass); `pnpm typecheck`
+(`vue-tsc`); `pnpm lint`; `lint:ui-adoption`, `lint:ui-contrast`, `lint:tokens-parity`,
+`lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`,
+`pnpm --filter web lint:tokens`. **Not verified in a browser:** the apply page is session-free and
+needs a real minted invitation to reach, which would mean writing to production; the component tests
+mount the real page and walk it.
+
+### A3b · Prefill — NOT STARTED
+
+**Prerequisites:** A3a. The lead half additionally needs R1/R2 (there is no leads table yet), so A3b
+ships the prior-application half alone and R1/R2 adds the other.
+
+**Build.** On `GET /:token`, when there is no draft and the invitation's driver has a previous
+`driver_applications` row, offer its payload as prefill — **behind D-APP16's gate**, compared against
+the prior application's own date of birth. Prefilled values are marked and editable; a driver
+certifying "true and complete" must be able to see what they are certifying and where it came from.
+*Why gated:* A3a's page opens on the bare link, so prefilling a previous application into it would
+hand whoever holds the link that driver's date of birth, licence number and address history — the leak
+D-APP16 exists to prevent, re-opened through a different door.
 
 ### A4 · The ESIGN consent gate
 
@@ -773,6 +855,7 @@ regardless.
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
 | **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
 | **Whether Silvicom wants an EEO section** | Owner | A9 supports one and excludes it from every recruiter-facing projection. Absent an instruction, no EEO questions are defined. |
+| **The carrier's legal name and address** (⚠ new, 2026-08-21) | Owner | §391.21(b)(1) requires the employing motor carrier's name AND address on the application, and `organizations` has no address column — so A6's renderer cannot print one and the rendered document would be short of a paragraph the regulation names. A6 ships the block reading from the org and printing the name alone until the address exists; adding it is one migration plus one owner answer. |
 
 ---
 
@@ -795,8 +878,12 @@ regardless.
 
 ## 8. Order of execution
 
-**A1 → A2 → A3 → A4 → A5 → A6 → A7 → A8 → A9 → A10 → A11**, with **A0 running in parallel from the
+**A1 → A2 → A3a → A4 → A5 → A6 → A7 → A8 → A9 → A10 → A11**, with **A0 running in parallel from the
 start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1 opens**.
+
+**A3b (prefill) is deliberately out of that line.** It depends only on A3a, nothing depends on it, and
+half of it waits on R1/R2 for a leads table that does not exist. Slot it wherever it fits; the form is
+complete without it.
 
 A1 first because it is a live defect (§0.2) sitting behind a blocker that A0 is about to remove.
 A6 after A5 because a renderer for signatures that do not yet exist is a renderer designed against an

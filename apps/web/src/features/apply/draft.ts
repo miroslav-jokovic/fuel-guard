@@ -52,8 +52,26 @@ export interface DraftAccident {
 export interface DraftViolation {
   occurred_on: string;
   offence: string;
-  location: string;
+  /**
+   * ⚠ Named `location` until 2026-08-21, which meant it went NOWHERE.
+   *
+   * `applicationViolationSchema` has always defined `state`, `toApplication` has always emitted
+   * `location`, and the nested schema was not `.strict()` — so zod dropped the key without a word and
+   * every traffic conviction declared since H5b was filed with no place attached. A3 made the nested
+   * schemas strict, which turned the silent drop into a validation error, which is how it was found.
+   * The inverse of 2026-08-20's lesson, and the same shape: when a field exists on one side of a
+   * boundary and not the other, somebody's answer falls through the gap.
+   */
+  state: string;
   penalty: string;
+}
+
+/** §391.21(b)(5) — one of the other unexpired licences or permits the applicant holds. */
+export interface DraftLicence {
+  issuing_authority: string;
+  number: string;
+  expires_at: string;
+  kind: string;
 }
 
 export interface ApplicationDraft {
@@ -79,6 +97,17 @@ export interface ApplicationDraft {
   declares_no_employment: boolean;
   certified: boolean;
   signed_name: string;
+  additional_licences: DraftLicence[];
+  /**
+   * §391.21(b)(2)'s Social Security number — the one field that is NOT part of the application
+   * payload and NOT autosaved (D-APP3).
+   *
+   * It travels beside the application in `applicationSubmitSchema` and straight into `sealSsn`, and
+   * `toDraftPayload` does not carry it: `application_drafts` is prunable, plain jsonb, and nine
+   * digits do not go in it. It is on the draft type because the form has to hold it while the driver
+   * types, and nowhere else.
+   */
+  ssn: string;
 }
 
 export const emptyAddress = (): DraftAddress => ({
@@ -101,7 +130,11 @@ export const emptyAccident = (): DraftAccident => ({
 });
 
 export const emptyViolation = (): DraftViolation => ({
-  occurred_on: "", offence: "", location: "", penalty: "",
+  occurred_on: "", offence: "", state: "", penalty: "",
+});
+
+export const emptyLicence = (): DraftLicence => ({
+  issuing_authority: "", number: "", expires_at: "", kind: "",
 });
 
 export const emptyDraft = (): ApplicationDraft => ({
@@ -114,6 +147,10 @@ export const emptyDraft = (): ApplicationDraft => ({
   licence_ever_denied: false, licence_denial_detail: "",
   employers: [emptyEmployer()], declares_no_employment: false,
   certified: false, signed_name: "",
+  // Empty by default: §383.21 forbids a CMV driver holding more than one licence, so the normal
+  // answer to "any others?" is none, and a pre-added blank row would invite an invented one.
+  additional_licences: [],
+  ssn: "",
 });
 
 const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
@@ -148,6 +185,16 @@ export function toApplication(draft: ApplicationDraft): unknown {
     cdl_state: draft.cdl_state.trim().toUpperCase(),
     cdl_class: text(draft.cdl_class),
     cdl_expires_at: draft.cdl_expires_at,
+    // §391.21(b)(5)'s "each": rows the applicant added and left blank are dropped, the same rule the
+    // addresses and employers follow — an accidental "Add another" click is not a declaration.
+    additional_licences: draft.additional_licences
+      .filter((l) => l.number.trim() || l.issuing_authority.trim())
+      .map((l) => ({
+        issuing_authority: l.issuing_authority.trim(),
+        number: l.number.trim(),
+        expires_at: l.expires_at,
+        kind: text(l.kind),
+      })),
     experience: text(draft.experience),
     accidents: draft.accidents
       .filter((a) => a.occurred_on || a.nature.trim())
@@ -160,7 +207,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
       .filter((v) => v.occurred_on || v.offence.trim())
       .map((v) => ({
         occurred_on: v.occurred_on, offence: v.offence.trim(),
-        location: text(v.location), penalty: text(v.penalty),
+        state: text(v.state), penalty: text(v.penalty),
       })),
     declares_no_violations: draft.declares_no_violations,
     licence_ever_denied: draft.licence_ever_denied,
@@ -230,6 +277,7 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     licence_denial_detail: draft.licence_denial_detail,
     employers: draft.employers,
     declares_no_employment: draft.declares_no_employment,
+    additional_licences: draft.additional_licences,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
     // certification is an act performed once, at submit, on the whole finished document. A saved
     // "I certify" checkbox would restore a certification the driver made about answers they have
@@ -277,5 +325,6 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     licence_denial_detail: str("licence_denial_detail"),
     employers: rows<DraftEmployer>("employers", base.employers),
     declares_no_employment: bool("declares_no_employment"),
+    additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
   };
 }

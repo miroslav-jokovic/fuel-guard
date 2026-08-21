@@ -7,9 +7,27 @@ import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employ
  * The driver's employment application — 49 CFR §391.21(b), as a contract.
  *
  * ONE SOURCE OF TRUTH for what the applicant is asked and what counts as a complete answer. The
- * regulation enumerates eleven items and this file follows that numbering deliberately, so a reader
- * with the CFR open can check us line by line. Verified against the text (§391.21(b)(1)–(11)), not
- * recalled.
+ * regulation enumerates TWELVE items and this file follows that numbering deliberately, so a reader
+ * with the CFR open can check us line by line. Re-read verbatim 2026-08-21 (Cornell LII, current
+ * text; Part 391's most recent amendment is 87 FR 13208, 2022-03-09), not recalled — and the read
+ * corrected three things this file and APPLICATION-SYSTEM-PLAN's A3 had wrong. They are written out
+ * here because the whole value of the numbering is that it can be checked:
+ *
+ *   (b)(1)  "The name and address of the employing motor carrier" — NOT an applicant field and not
+ *           in this schema. It is a fact about the carrier, and D-APP9's rule (the server composes
+ *           what the server knows) puts it in the rendered document, not in the request body. ⚠ It
+ *           is currently satisfied NOWHERE: `organizations` carries a name and a dot_number and no
+ *           address at all, so A6's renderer cannot print one. Raised in the plan's §6.
+ *   (b)(4)  "The date on which the application is submitted" — satisfied by
+ *           `driver_applications.certified_at`, stamped server-side. It must NEVER become a field
+ *           here: D-APP9 forbids accepting any date of signing or submission from a client.
+ *   (b)(5)  "The issuing driver's licensing authority, number, and expiration date of EACH unexpired
+ *           commercial motor vehicle operator's license or permit that has been issued to the
+ *           applicant". Note "each": the regulation asks for a LIST, and this schema carried exactly
+ *           one licence until A3 added `additional_licences`. Note also "issuing driver's licensing
+ *           authority" rather than "issuing State" — the 2022 text admits an authority that is not
+ *           a US state, which is why the additional entries take free text while `cdl_state` stays a
+ *           state code (PSP and SambaSafety both match on one).
  *
  * ── WHY THIS IS NOT THE SAME THING AS THE DQF's `employment_application` ────────────────────────
  * DQF's item asks "is there an application on file" — a one-time §391.51(b)(1) requirement satisfied
@@ -37,7 +55,11 @@ export const applicationAddressSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM").nullish(),
   ),
-});
+  // `.strict()` like the parent (A3). The 2026-08-21 audit found the four nested schemas silently
+  // accepting unknown keys while the top level refused them — so a client could smuggle a field into
+  // the certified payload through any array on the form, which is precisely the hole `.strict()`
+  // exists to close and precisely where nobody was looking.
+}).strict();
 export type ApplicationAddress = z.infer<typeof applicationAddressSchema>;
 
 // ── (b)(10)/(b)(11) employment history ────────────────────────────────────────
@@ -78,6 +100,7 @@ export const applicationEmployerSchema = z
     subject_to_fmcsr: z.boolean().nullish(),
     safety_sensitive: z.boolean().nullish(),
   })
+  .strict()
   .refine((v) => typeof v.ended_on !== "string" || v.ended_on >= v.started_on, {
     message: "The end date cannot be before the start date",
     path: ["ended_on"],
@@ -93,7 +116,7 @@ export const applicationAccidentSchema = z.object({
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
   hazmat_spill: z.boolean().default(false),
-});
+}).strict();
 export type ApplicationAccident = z.infer<typeof applicationAccidentSchema>;
 
 /** §391.21(b)(8) — every motor-vehicle law violation (other than parking) in the 3 years preceding. */
@@ -102,12 +125,51 @@ export const applicationViolationSchema = z.object({
   offence: z.string().min(1).max(300),
   state: z.string().max(40).nullish(),
   penalty: z.string().max(200).nullish(),
-});
+}).strict();
 export type ApplicationViolation = z.infer<typeof applicationViolationSchema>;
+
+// ── (b)(5) every other unexpired licence or permit ────────────────────────────
+
+/**
+ * One licence or permit beyond the primary one.
+ *
+ * §391.21(b)(5) asks for "EACH unexpired commercial motor vehicle operator's license or permit that
+ * has been issued to the applicant", and the schema carried exactly one until A3. The primary licence
+ * stays flat and separate (`cdl_number`/`cdl_state`/…) because it is the one that patches
+ * `drivers.cdl_number`, the one PSP matches a report against and the one a SambaSafety MVR is ordered
+ * on; the union of it and this list is what satisfies the regulation.
+ *
+ * Usually empty, and that is expected rather than a smell: §383.21 forbids a CMV driver from holding
+ * more than one driver's licence at a time. What lands here is permits, and the occasional genuine
+ * second entry — which is a fact a recruiter should see rather than one the form should have made
+ * unsayable.
+ *
+ * `issuing_authority` is free text, not a state code: the current text says "issuing driver's
+ * licensing authority", which admits an authority that is not a US state.
+ */
+export const applicationLicenceSchema = z
+  .object({
+    issuing_authority: z.string().min(2).max(80),
+    number: z.string().min(1).max(60),
+    expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
+    /** What it is, in the applicant's words — "CDL A", "hazmat endorsement", "learner permit". */
+    kind: z.string().max(80).nullish(),
+  })
+  .strict();
+export type ApplicationLicence = z.infer<typeof applicationLicenceSchema>;
 
 // ── the application ───────────────────────────────────────────────────────────
 
-export const driverApplicationSchema = z
+/**
+ * The application's fields, before the cross-field rules.
+ *
+ * Exported separately so a wizard can `.pick()` one section's keys and validate exactly that screen
+ * against the SERVER'S OWN schema (A3) — a second opinion in the client is how a form comes to accept
+ * something the server rejects. The rules that span sections live in `APPLICATION_CROSS_FIELD_RULES`
+ * below, applied to the whole document by `driverApplicationSchema` and to one section by whichever
+ * of them names a key that section owns.
+ */
+export const driverApplicationObject = z
   .object({
     // (b)(2) — identity. The SSN is NOT here: §391.21(b)(2) requires it on the application, but PSP
     // matches on name/licence/state/DOB and never needs it, so it is captured on its own narrow
@@ -120,11 +182,17 @@ export const driverApplicationSchema = z
     phone: z.string().min(7).max(40),
     // (b)(3) — every address for the preceding 3 years.
     addresses: z.array(applicationAddressSchema).min(1),
-    // (b)(5) — the licence.
+    // (b)(5) — the licences, plural. The primary one is flat because it is the one that patches
+    // `drivers` and the one the vendors match on; `additional_licences` carries the rest, which is
+    // what "each unexpired ... license or permit" actually asks for.
     cdl_number: z.string().min(1).max(60),
     cdl_state: z.string().min(2).max(10),
     cdl_class: z.string().max(10).nullish(),
     cdl_expires_at: isoDateSchema,
+    // Defaulted rather than required: every application filed before A3 predates the field, and an
+    // applicant holding only one licence — which §383.21 makes the normal case — answers this by
+    // adding nothing.
+    additional_licences: z.array(applicationLicenceSchema).default([]),
     // (b)(6) — experience, in the applicant's own words.
     experience: z.string().max(4000).nullish(),
     // (b)(7)(8)(9) — self-declared history. Empty arrays are ANSWERS, not omissions; `declares_none`
@@ -144,23 +212,56 @@ export const driverApplicationSchema = z
     certified: z.literal(true),
     signed_name: z.string().min(1).max(200),
   })
-  .strict()
-  .refine((v) => v.accidents.length > 0 || v.declares_no_accidents, {
+  .strict();
+
+export type DriverApplicationFields = z.infer<typeof driverApplicationObject>;
+
+/**
+ * The rules that no single field can express, in one list rather than in a `.refine()` chain.
+ *
+ * A3 needs them twice — once over the whole document at submit, once over the one section a driver
+ * is looking at — and two copies of "an empty list is only an answer if you SAID it was empty" is
+ * two copies that drift. `check` therefore takes a PARTIAL: mid-form, most of the document does not
+ * exist yet, and a rule whose fields are absent must not fire.
+ *
+ * Every one of them exists for the same reason (H8's lesson, restated in 0208's header): an empty
+ * array is an ANSWER, not an omission, and only the driver can turn one into the other.
+ */
+export interface ApplicationCrossFieldRule {
+  /** The field the message attaches to — and the field that decides which section owns the rule. */
+  path: keyof DriverApplicationFields;
+  message: string;
+  check: (v: Partial<DriverApplicationFields>) => boolean;
+}
+
+export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[] = [
+  {
+    path: "accidents",
     message: "List every accident in the last 3 years, or confirm there were none",
-    path: ["accidents"],
-  })
-  .refine((v) => v.violations.length > 0 || v.declares_no_violations, {
+    check: (v) => v.accidents === undefined || v.accidents.length > 0 || v.declares_no_accidents === true,
+  },
+  {
+    path: "violations",
     message: "List every violation in the last 3 years, or confirm there were none",
-    path: ["violations"],
-  })
-  .refine((v) => v.employers.length > 0 || v.declares_no_employment, {
+    check: (v) => v.violations === undefined || v.violations.length > 0 || v.declares_no_violations === true,
+  },
+  {
+    path: "employers",
     message: "List your employers, or confirm you have not been employed",
-    path: ["employers"],
-  })
-  .refine((v) => !v.licence_ever_denied || Boolean(v.licence_denial_detail?.trim()), {
+    check: (v) => v.employers === undefined || v.employers.length > 0 || v.declares_no_employment === true,
+  },
+  {
+    path: "licence_denial_detail",
     message: "Describe the denial, revocation or suspension",
-    path: ["licence_denial_detail"],
-  });
+    check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
+  },
+];
+
+export const driverApplicationSchema = driverApplicationObject.superRefine((v, ctx) => {
+  for (const rule of APPLICATION_CROSS_FIELD_RULES) {
+    if (!rule.check(v)) ctx.addIssue({ code: "custom", message: rule.message, path: [rule.path] });
+  }
+});
 export type DriverApplication = z.infer<typeof driverApplicationSchema>;
 
 // ── which list an entry belongs to ────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   AppFormField as FormField,
 } from "@fuelguard/ui";
 import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
+import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * §391.21(b)(7), (b)(8) and (b)(9) — accidents, convictions, and any denial of a licence.
@@ -18,22 +19,16 @@ import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features
  * FMCSA's crash file.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+const copy = APPLY_COPY.safety;
 </script>
 
 <template>
   <section class="space-y-6">
-    <div>
-      <h2 class="text-base font-semibold text-ink">Your safety history</h2>
-      <p class="mt-1 text-sm text-ink-muted">
-        These three questions come from §391.21(b)(7)–(9) and cover the last three years.
-      </p>
-    </div>
+    <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
 
     <div class="space-y-3">
-      <h3 class="text-sm font-semibold text-ink">Accidents</h3>
-      <BaseCheckbox v-model="draft.declares_no_accidents">
-        I have had no accidents in the last 3 years
-      </BaseCheckbox>
+      <h3 class="text-sm font-semibold text-ink">{{ copy.accidentsHeading }}</h3>
+      <BaseCheckbox v-model="draft.declares_no_accidents">{{ copy.noAccidents }}</BaseCheckbox>
 
       <template v-if="!draft.declares_no_accidents">
         <div
@@ -42,35 +37,33 @@ const draft = defineModel<ApplicationDraft>({ required: true });
           class="space-y-4 rounded-surface bg-surface-muted p-4"
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" label="Date">
+            <FormField v-slot="{ id }" :label="copy.accidentDate">
               <AppDateField :id="id" v-model="accident.occurred_on" />
             </FormField>
-            <FormField v-slot="{ id }" label="What happened">
+            <FormField v-slot="{ id }" :label="copy.accidentNature">
               <BaseInput :id="id" v-model="accident.nature" />
             </FormField>
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" label="Fatalities">
+            <FormField v-slot="{ id }" :label="copy.fatalities">
               <BaseInput :id="id" v-model="accident.fatalities" inputmode="numeric" />
             </FormField>
-            <FormField v-slot="{ id }" label="Injuries">
+            <FormField v-slot="{ id }" :label="copy.injuries">
               <BaseInput :id="id" v-model="accident.injuries" inputmode="numeric" />
             </FormField>
           </div>
-          <BaseCheckbox v-model="accident.hazmat_spill">Hazardous material was spilled</BaseCheckbox>
+          <BaseCheckbox v-model="accident.hazmat_spill">{{ copy.hazmatSpill }}</BaseCheckbox>
           <div class="flex justify-end">
-            <BaseButton variant="ghost" size="sm" @click="draft.accidents.splice(i, 1)">Remove</BaseButton>
+            <BaseButton variant="ghost" size="sm" @click="draft.accidents.splice(i, 1)">{{ copy.remove }}</BaseButton>
           </div>
         </div>
-        <BaseButton @click="draft.accidents.push(emptyAccident())">Add an accident</BaseButton>
+        <BaseButton @click="draft.accidents.push(emptyAccident())">{{ copy.addAccident }}</BaseButton>
       </template>
     </div>
 
     <div class="space-y-3">
-      <h3 class="text-sm font-semibold text-ink">Traffic convictions</h3>
-      <BaseCheckbox v-model="draft.declares_no_violations">
-        I have had no traffic convictions or forfeitures in the last 3 years
-      </BaseCheckbox>
+      <h3 class="text-sm font-semibold text-ink">{{ copy.violationsHeading }}</h3>
+      <BaseCheckbox v-model="draft.declares_no_violations">{{ copy.noViolations }}</BaseCheckbox>
 
       <template v-if="!draft.declares_no_violations">
         <div
@@ -79,39 +72,37 @@ const draft = defineModel<ApplicationDraft>({ required: true });
           class="space-y-4 rounded-surface bg-surface-muted p-4"
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" label="Date">
+            <FormField v-slot="{ id }" :label="copy.violationDate">
               <AppDateField :id="id" v-model="violation.occurred_on" />
             </FormField>
-            <FormField v-slot="{ id }" label="Offence">
+            <FormField v-slot="{ id }" :label="copy.offence">
               <BaseInput :id="id" v-model="violation.offence" />
             </FormField>
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" label="Where" hint="Optional.">
-              <BaseInput :id="id" v-model="violation.location" placeholder="Optional" />
+            <FormField v-slot="{ id }" :label="copy.violationState" :hint="copy.violationStateHint">
+              <BaseInput :id="id" v-model="violation.state" placeholder="Optional" />
             </FormField>
-            <FormField v-slot="{ id }" label="Penalty" hint="Optional.">
+            <FormField v-slot="{ id }" :label="copy.penalty" :hint="copy.penaltyHint">
               <BaseInput :id="id" v-model="violation.penalty" placeholder="Optional" />
             </FormField>
           </div>
           <div class="flex justify-end">
-            <BaseButton variant="ghost" size="sm" @click="draft.violations.splice(i, 1)">Remove</BaseButton>
+            <BaseButton variant="ghost" size="sm" @click="draft.violations.splice(i, 1)">{{ copy.remove }}</BaseButton>
           </div>
         </div>
-        <BaseButton @click="draft.violations.push(emptyViolation())">Add a conviction</BaseButton>
+        <BaseButton @click="draft.violations.push(emptyViolation())">{{ copy.addViolation }}</BaseButton>
       </template>
     </div>
 
     <div class="space-y-3">
-      <h3 class="text-sm font-semibold text-ink">Licence history</h3>
-      <BaseCheckbox v-model="draft.licence_ever_denied">
-        A licence, permit or privilege of mine has been denied, revoked or suspended
-      </BaseCheckbox>
+      <h3 class="text-sm font-semibold text-ink">{{ copy.licenceHeading }}</h3>
+      <BaseCheckbox v-model="draft.licence_ever_denied">{{ copy.everDenied }}</BaseCheckbox>
       <FormField
         v-if="draft.licence_ever_denied"
         v-slot="{ id }"
-        label="What happened"
-        hint="§391.21(b)(9) asks for the reason."
+        :label="copy.denialDetail"
+        :hint="copy.denialDetailHint"
       >
         <BaseInput :id="id" v-model="draft.licence_denial_detail" />
       </FormField>
