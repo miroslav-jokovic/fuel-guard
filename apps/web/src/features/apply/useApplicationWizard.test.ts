@@ -158,9 +158,11 @@ describe("moving between screens", () => {
     expect(w.furthestSection.value).toBe("employment");
   });
 
-  /** `furthest_section` is free text in the database, so a stored value may be from another version. */
+  /** `furthest_section` is free text in the database, so a stored value may be from another version.
+   *  ⚠ `documents` was the stand-in here until A8 made it a real screen; `references` is one this
+   *  version of the form has genuinely never had. */
   it("ignores a saved section it does not recognise", () => {
-    const w = wizard(complete(), "documents");
+    const w = wizard(complete(), "references");
     w.resume();
     expect(w.section.value).toBe("identity");
   });

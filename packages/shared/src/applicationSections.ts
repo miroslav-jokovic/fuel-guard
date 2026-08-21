@@ -1,7 +1,7 @@
 import { driverApplicationObject, type DriverApplicationFields } from "./applicationContract.js";
 
 /**
- * The application, cut into screens (A3).
+ * The application, cut into screens (A3, and one more since A8).
  *
  * ── WHY THIS VOCABULARY IS SHARED AND NOT A UI DETAIL ─────────────────────────────────────────
  * `application_drafts.furthest_section` stores one of these tokens, and A10's abandonment sweep will
@@ -18,10 +18,12 @@ import { driverApplicationObject, type DriverApplicationFields } from "./applica
  * without giving it a home. A field the form never renders is a field the driver never answers and
  * the server then refuses at submit, which is the worst possible place to discover it.
  *
- * ── WHAT IS NOT HERE ──────────────────────────────────────────────────────────────────────────
- * `documents` (A7's capture step) has no entry yet. A section that renders nothing is a dead screen
- * in the middle of somebody's application; A7 inserts it before `review` when there is something to
- * put on it. The order below is otherwise the plan's.
+ * ── THE ONE SCREEN THAT OWNS NO CONTRACT FIELD ────────────────────────────────────────────────
+ * `documents` (A8's capture step) collects photographs, not answers: nothing it produces belongs in
+ * `driverApplicationSchema`, because §391.21(b) is a form and a licence photograph is not one of its
+ * paragraphs. It sits before `review` — the driver takes the photographs while they still have the
+ * documents in their hand, and then checks the answers they are about to certify. Like `review` it
+ * claims no keys, and `sectionsCoverTheContract` is unaffected by it in either direction.
  */
 
 export const APPLICATION_SECTION_ORDER = [
@@ -30,6 +32,7 @@ export const APPLICATION_SECTION_ORDER = [
   "licence",
   "employment",
   "safety",
+  "documents",
   "review",
   "certify",
 ] as const;
@@ -42,6 +45,7 @@ export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   licence: "Your licence",
   employment: "Where you have worked",
   safety: "Your driving record",
+  documents: "Your documents",
   review: "Check your answers",
   certify: "Sign and send",
 };
@@ -53,6 +57,10 @@ export const APPLICATION_SECTION_CITATIONS: Record<ApplicationSection, string | 
   licence: "§391.21(b)(5)",
   employment: "§391.21(b)(6), (b)(10), (b)(11)",
   safety: "§391.21(b)(7), (b)(8), (b)(9)",
+  // Null, and honestly so: §391.21(b) enumerates twelve paragraphs and none of them is a photograph.
+  // The screen exists because §391.51's file is assembled from documents the driver is holding right
+  // now, not because the application form asks for them.
+  documents: null,
   review: null,
   certify: "§391.21(b)(12)",
 };
@@ -81,6 +89,9 @@ export const APPLICATION_SECTION_KEYS: Record<
     "licence_ever_denied",
     "licence_denial_detail",
   ],
+  // Nothing of its own: photographs are staged in `application_captures`, not in the certified
+  // payload, so this screen owns no §391.21(b) field (A8, D-APP10).
+  documents: [],
   // Nothing of its own: it renders what the other screens collected, which is the point of it.
   review: [],
   certify: ["certified", "signed_name"],

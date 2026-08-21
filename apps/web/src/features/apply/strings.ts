@@ -172,6 +172,46 @@ export const APPLY_COPY = {
     remove: "Remove",
   },
 
+  /**
+   * A8. The screen asks for photographs of documents a driver is carrying, which is a moment where
+   * the house rule — state the fact, then the next action — earns its keep twice: once for why the
+   * carrier wants them, and once for what to do when a photograph is refused. A rejection that says
+   * only "that did not work" sends a driver to a support call; one that names the problem sends them
+   * to a window.
+   */
+  documents: {
+    intro:
+      "Photograph the documents you are carrying. Each one takes a few seconds, and you can do them in any order — or skip them and send them to the carrier later.",
+    optional: "None of these stop you sending the application.",
+    take: "Take photo",
+    retake: "Take it again",
+    working: "One moment…",
+    done: "Received",
+    failedHeading: "That photo did not go through",
+    failed: "Check your signal and take it again. Nothing was lost.",
+    /**
+     * Why a photograph was refused, in the driver's words rather than the gate's. Total over the
+     * rejection taxonomy on purpose: a reason with no sentence would reach a driver as a blank.
+     */
+    rejected: {
+      DOCUMENT_NOT_DETECTED: "No document in the picture. Lay it flat and fill the frame.",
+      IMAGE_BLURRED: "Too blurry to read. Hold still and try again.",
+      GLARE_OVER_TEXT: "There is glare across the text. Move away from the light.",
+      SHADOW_OVER_TEXT: "A shadow is covering the text. Move so your hand is not over it.",
+      RESOLUTION_TOO_LOW: "Too small to read. Move closer so the document fills the frame.",
+      LENS_DIRTY: "The lens looks smudged. Wipe it and try again.",
+      PAGE_INCOMPLETE: "Part of the document is out of frame. Fit all four corners in.",
+      LOW_CONTRAST: "Too washed out to read. Try somewhere with more light.",
+      UNDER_OR_OVER_EXPOSED: "Too dark or too bright. Try somewhere with even light.",
+      TEXT_ILLEGIBLE: "The text cannot be read. Move closer and try again.",
+      OCR_UNAVAILABLE: "Could not check the photo on this phone. Try again.",
+      SCANNER_MODULE_UNAVAILABLE: "Could not open the camera. Try again.",
+      UNSUPPORTED_DEVICE: "This phone cannot take the photo here. You can send it to the carrier instead.",
+      CAPTURE_CANCELLED: "No photo taken.",
+      PROVIDER_ERROR: "Something went wrong with the camera. Try again.",
+    },
+  },
+
   review: {
     intro:
       "This is everything you are about to certify as true and complete. Check it, and go back to any section that needs changing.",

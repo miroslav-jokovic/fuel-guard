@@ -128,6 +128,31 @@ export function reconcileHazmatStorageOrphans(
   return reconcileBucketOrphans(admin, { bucket: "hazmat", table: "hazmat_documents", label: "hazmat_documents" }, opts);
 }
 
+/**
+ * The applicant's STAGED photographs (A8) — the first bucket here that is not an evidence store.
+ *
+ * The asymmetry that makes this reconciler safe for a compliance bucket is what makes it valuable
+ * here, running in the other direction. `application_captures` rows are written only AFTER the object
+ * is provably in the bucket (`applicationCapture.ts`), so orphan objects are the NORMAL failure —
+ * every browser upload that finished but whose confirm never arrived, and every superseded re-shoot
+ * whose removal failed. Without this sweep a driver's four attempts at one licence photograph would
+ * be billed indefinitely with nothing pointing at them.
+ *
+ * A missing object under a live row is still worth the warning it gets, and means something specific
+ * here: a staged capture the driver was told was received is gone before the submission that would
+ * have filed it.
+ */
+export function reconcileApplicationCaptureOrphans(
+  admin: SupabaseClient,
+  opts: { apply?: boolean; nowIso?: string } = {},
+): Promise<StorageReconcileResult> {
+  return reconcileBucketOrphans(
+    admin,
+    { bucket: "application-captures", table: "application_captures", label: "application_captures" },
+    opts,
+  );
+}
+
 /** A driver's proof of work at each stop — the same evidence guarantee, previously unreconciled. */
 export function reconcileLoadPhotoOrphans(
   admin: SupabaseClient,

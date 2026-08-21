@@ -1,6 +1,12 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery } from "@tanstack/vue-query";
-import type { AuthorizationPurpose, DriverApplication } from "@fuelguard/shared";
+import type {
+  ApplicationCaptureContentType,
+  ApplicationCaptureSlot,
+  ApplicationCaptureView,
+  AuthorizationPurpose,
+  DriverApplication,
+} from "@fuelguard/shared";
 
 /**
  * The applicant's own API calls (H5b) — the only place in this app that talks to the server without
@@ -77,6 +83,13 @@ export interface ApplyInvitation {
   phases: ApplyPhases;
   draft: ApplyDraft;
   esignConsent: ApplyEsignConsent;
+  /**
+   * Which slots this session has already photographed (A8).
+   *
+   * Slots and dates, not pictures: the driver took them and saw them at the time, and re-serving
+   * them would mean a signed read URL per slot on an unauthenticated surface on every page load.
+   */
+  captures: ApplicationCaptureView[];
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -147,6 +160,48 @@ export const unlockApplicationDraft = (token: string, dateOfBirth: string): Prom
     method: "POST",
     body: JSON.stringify({ date_of_birth: dateOfBirth }),
   });
+
+/**
+ * Ask for somewhere to put one photograph (A8).
+ *
+ * Two calls per photograph rather than one, and the order is the point: nothing is recorded until the
+ * bytes are provably in the bucket, so a failed upload leaves no slot claiming to be filled. Re-shoots
+ * cost NEITHER call — the gate runs in the browser, before any of this (A7).
+ */
+export const startApplicationCapture = (
+  token: string,
+  slot: ApplicationCaptureSlot,
+  contentType: ApplicationCaptureContentType,
+): Promise<{ captureId: string; storagePath: string; uploadUrl: string; uploadToken: string }> =>
+  publicFetch(`/${token}/capture`, {
+    method: "POST",
+    body: JSON.stringify({ slot, content_type: contentType }),
+  });
+
+/**
+ * PUT the bytes straight to Storage.
+ *
+ * Hand-rolled rather than routed through `@supabase/supabase-js`: the signed URL already carries its
+ * own token in the query string, and reaching for the app's Supabase client here would attach a
+ * session to a page whose entire design is that it has none (see this file's header). One PUT, no
+ * bearer, and the bytes never pass through our API.
+ */
+export async function uploadCaptureBytes(uploadUrl: string, blob: Blob): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "content-type": blob.type },
+    body: blob,
+  });
+  if (!res.ok) throw new Error("That photo did not finish uploading.");
+}
+
+/** The bytes landed — record the slot, replacing whatever it held (A8, D-APP10). */
+export const confirmApplicationCapture = (
+  token: string,
+  captureId: string,
+  body: { slot: ApplicationCaptureSlot; content_type: ApplicationCaptureContentType; sha256: string },
+): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string }> =>
+  publicFetch(`/${token}/capture/${captureId}`, { method: "PUT", body: JSON.stringify(body) });
 
 /** Agree to transact electronically. The body is empty: the server composes what was agreed to. */
 export const giveEsignConsent = (token: string): Promise<{ ok: true }> =>

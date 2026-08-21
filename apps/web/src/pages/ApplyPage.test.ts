@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { APPLICATION_SECTION_ORDER } from "@fuelguard/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 
 /**
@@ -55,6 +56,13 @@ const COMPLETE_DRAFT = {
   }],
   declares_no_employment: false,
 };
+
+/**
+ * Read off the vocabulary rather than typed in, so adding a screen — A8 added `documents` — moves
+ * these assertions instead of breaking six of them for a reason that is not the reason under test.
+ */
+const TOTAL = APPLICATION_SECTION_ORDER.length;
+const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
@@ -117,8 +125,8 @@ describe("the applicant's page", () => {
     const w = mountPage();
     await settle(w);
 
-    // identity → addresses → licence → employment → safety → review → certify
-    for (let i = 0; i < 6; i++) await advance(w);
+    // identity → addresses → licence → employment → safety → documents → review → certify
+    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
 
     expect(w.text()).toContain("Sign and send");
     // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
@@ -141,7 +149,7 @@ describe("the applicant's page", () => {
     const w = mountPage();
     await settle(w);
 
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
     expect(w.text()).toContain("About you");
     // §391.21(b)(2) — the paragraph is named on the screen that discharges it.
     expect(w.text()).toContain("§391.21(b)(2)");
@@ -156,6 +164,10 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Where you have worked");
     await advance(w);
     expect(w.text()).toContain("Your driving record");
+    await advance(w);
+    // A8: the photographs are taken while the driver still has the documents in their hand.
+    expect(w.text()).toContain("Your documents");
+    expect(w.text()).toContain("Front of your licence");
     await advance(w);
     // Nobody certifies what they cannot see (§391.21(b)(12)).
     expect(w.text()).toContain("Check your answers");
@@ -178,7 +190,7 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Before you can go on");
     expect(w.text()).toContain("first_name");
     // And it did not move on.
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
   });
 
   /** The saved section is where a resumed session opens. */
@@ -192,7 +204,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).toContain("Where you have worked");
-    expect(w.text()).toContain("Step 4 of 7");
+    expect(w.text()).toContain(step(4));
   });
 
   /**
@@ -238,7 +250,7 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Your signature");
     expect(w.text()).toContain("Type your full name");
     // And the form is not reachable behind it.
-    expect(w.text()).not.toContain("Step 1 of 7");
+    expect(w.text()).not.toContain(step(1));
   });
 
   it("goes straight to the form when the ceremony is already finished", async () => {
@@ -260,7 +272,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Your signature");
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
   });
 
   /**
@@ -279,8 +291,8 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Your signature");
-    expect(w.text()).toContain("Step 1 of 7");
-    for (let i = 0; i < 6; i++) await advance(w);
+    expect(w.text()).toContain(step(1));
+    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
     expect(w.text()).toContain("Not final");
     expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
   });
@@ -308,7 +320,7 @@ describe("the applicant's page", () => {
     // The whole served text, not a summary — 7001(c) enumerates what the driver must be told.
     expect(w.text()).toContain("You do not have to do any of this electronically.");
     // And the form is not reachable behind it.
-    expect(w.text()).not.toContain("Step 1 of 7");
+    expect(w.text()).not.toContain(step(1));
   });
 
   it("does not ask while the wording is still draft, because nothing could record it", async () => {
@@ -325,7 +337,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Before you start");
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
   });
 
   it("goes straight to the form for a driver who already consented", async () => {
@@ -342,7 +354,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Before you start");
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
   });
 
   /**
@@ -375,7 +387,7 @@ describe("the applicant's page", () => {
 
     // Before a date of birth is typed there is nothing to protect, so no question is asked.
     expect(w.text()).not.toContain("Pick up where you left off");
-    expect(w.text()).toContain("Step 1 of 7");
+    expect(w.text()).toContain(step(1));
     expect((w.find("input[autocomplete=\"given-name\"]").element as HTMLInputElement).value).toBe("Susan");
   });
 

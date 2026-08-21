@@ -1,9 +1,13 @@
 import { Router } from "express";
 import {
+  applicationCaptureConfirmSchema,
+  applicationCaptureStartSchema,
   applicationDraftSaveSchema,
   applicationDraftUnlockSchema,
   applicationReleaseSchema,
   applicationSubmitSchema,
+  type ApplicationCaptureConfirm,
+  type ApplicationCaptureStart,
   type ApplicationDraftSave,
   type ApplicationDraftUnlock,
   type ApplicationRelease,
@@ -12,6 +16,7 @@ import {
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { confirmCapture, listCaptures, startCapture } from "../services/applicationCapture.js";
 import { loadDraft, saveDraft, unlockDraft } from "../services/applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../services/esignConsent.js";
 import {
@@ -50,6 +55,21 @@ import {
  * is no parameter to tamper with — the shape 0174's header calls out for service-role functions,
  * applied to an HTTP surface.
  */
+/**
+ * The capture endpoints' shared answer map.
+ *
+ * `capture_upload_failed` is 422 and not 404: the link is fine, the slot is fine, and the one thing
+ * that is wrong — no object at that key — is something the driver fixes by taking the photograph
+ * again. A 404 here would read as "your link is dead" to a page whose whole vocabulary for 404 is
+ * exactly that.
+ */
+function captureStatus(code: string): number {
+  if (code === "invalid_link") return 404;
+  if (code === "already_submitted" || code === "esign_consent_required") return 409;
+  if (code === "capture_upload_failed") return 422;
+  return 500;
+}
+
 export function publicApplicationRouter(): Router {
   const router = Router();
 
@@ -87,6 +107,9 @@ export function publicApplicationRouter(): Router {
       // Which of the four this link has already collected, so a resumed ceremony opens on the next
       // one rather than asking for a signature the driver has already given (A5).
       const signed = await signedReleases(admin, invitation.org_id, invitation.id);
+      // And which slots have been photographed (A8), so a resumed session does not ask a driver to
+      // take a licence photograph they already took.
+      const captures = await listCaptures(admin, invitation.org_id, invitation.id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -101,6 +124,9 @@ export function publicApplicationRouter(): Router {
         // The 15 U.S.C. 7001(c) consent, served like every other instrument — the exact text, from
         // the server, so what somebody agreed to is a fact we can prove (A4).
         esignConsent: esignConsentForApplicant(),
+        // Slots and dates, not pictures (A8) — see `listCaptures` for why the photographs are not
+        // re-served to the person who took them.
+        captures,
       });
     }),
   );
@@ -216,6 +242,55 @@ export function publicApplicationRouter(): Router {
         return;
       }
       res.json({ draft: result });
+    }),
+  );
+
+  /**
+   * Somewhere to put one photograph (A8, D-APP10).
+   *
+   * The response is a signed upload URL and an id; nothing is written. The bytes go from the phone
+   * straight to Storage — `compliance.ts:110`'s property, and the reason a driver uploading six
+   * megabytes on a truck-stop connection does not occupy an API worker for the duration.
+   */
+  router.post(
+    "/:token/capture",
+    validateBody(applicationCaptureStartSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await startCapture(
+        admin, String(req.params.token ?? ""),
+        res.locals.body as ApplicationCaptureStart, new Date(),
+      );
+      if (isIntakeError(result)) {
+        res.status(captureStatus(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json(result);
+    }),
+  );
+
+  /**
+   * The bytes landed — record the slot (A8).
+   *
+   * PUT, and idempotent per slot: a re-shoot replaces what that slot held rather than adding to it,
+   * which is what keeps three attempts at one blurry licence from becoming three rows in a
+   * qualification file (D-APP10). The capture id in the path is what the start call minted; the
+   * storage key is recomputed from it server-side and never taken from the request.
+   */
+  router.put(
+    "/:token/capture/:captureId",
+    validateBody(applicationCaptureConfirmSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await confirmCapture(
+        admin, String(req.params.token ?? ""), String(req.params.captureId ?? ""),
+        res.locals.body as ApplicationCaptureConfirm, new Date(),
+      );
+      if (isIntakeError(result)) {
+        res.status(captureStatus(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, ...result });
     }),
   );
 
