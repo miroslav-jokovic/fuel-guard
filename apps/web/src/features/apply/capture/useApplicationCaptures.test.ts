@@ -46,12 +46,25 @@ function spyIo(over: Partial<CaptureIo> = {}): CaptureIo & { calls: string[] } {
   } as CaptureIo & { calls: string[] };
 }
 
+/**
+ * ⚠ Two stubs, and both shapes are load-bearing — this file failed in CI while passing locally
+ * because of them (Node 22 there, Node 26 here).
+ *
+ * The fetch stub returns a bare `{ blob() }` rather than a real `Response`: the composable only ever
+ * calls `.blob()`, and constructing a `Response` around a jsdom `Blob` is a different piece of
+ * machinery on every Node line. And `URL` is NOT replaced wholesale — spreading the class into an
+ * object literal produces `{}` plus the two added statics, so `new URL(...)` stops existing for
+ * everything else in the process, including the fetch machinery this very stub sits in front of.
+ * Only the one static the pipeline calls is spied on; jsdom supplies both.
+ */
 beforeEach(() => {
-  // The provider hands back an object URL; the composable reads the bytes back out of it.
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob(["x"], { type: "image/webp" }))));
-  vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:fake", revokeObjectURL: vi.fn() });
+  vi.stubGlobal("fetch", vi.fn(async () => ({ blob: async () => new Blob(["x"], { type: "image/webp" }) })));
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const slotState = (slots: { slot: string; state: string }[], slot: string): string | undefined =>
   slots.find((s) => s.slot === slot)?.state;
@@ -98,14 +111,18 @@ describe("a photograph the gate accepted", () => {
   });
 
   it("does not mark the slot done when the upload fails", async () => {
-    const io = spyIo({ upload: async () => { throw new Error("no signal"); } });
+    const io: CaptureIo & { calls: string[] } = spyIo();
+    io.upload = async () => { io.calls.push("upload"); throw new Error("no signal"); };
     const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
       provider: provider({ ok: true, pages: [page()] }),
       io,
     });
     await captures.capture("cdl_front");
     expect(slotState(captures.slots.value, "cdl_front")).toBe("failed");
-    expect(io.calls).not.toContain("confirm");
+    // Asserted as a PREFIX rather than as "confirm is absent": a bug that made the composable give
+    // up before it ever asked for a key would satisfy the weaker assertion, which is exactly how
+    // this file passed locally and failed in CI once.
+    expect(io.calls).toEqual(["start", "upload"]);
   });
 
   it("refuses to upload a format the staging surface does not accept", async () => {
