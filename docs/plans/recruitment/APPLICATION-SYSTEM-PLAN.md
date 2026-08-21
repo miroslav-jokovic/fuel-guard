@@ -896,7 +896,7 @@ thrown renderer leaves the submission standing; `expectOrgScoped` across the who
 `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
 **Not verified in a browser** — the recruiter card is covered by the API tests behind it.
 
-### A7 · The web capture provider
+### A7 · The web capture provider — DONE 2026-08-21 (no migration)
 
 **Prerequisites:** A3.
 
@@ -916,6 +916,60 @@ thrown renderer leaves the submission standing; `expectOrgScoped` across the who
 never calls the upload path; the existing capture-engine suite stays green.
 **Done when:** a driver photographs a CDL on a phone, a blurry one is refused before it costs
 bandwidth, and the accepted image is EXIF-free and under the configured size.
+
+**⚠ The instruction about thresholds cannot be followed as written, and should not be.** A7 says the
+`web` platform gets "its own thresholds in `config.ts`, chosen from measured samples rather than
+copied from Android (D-APP11) — borrowing would be an assumption, and this plan does not make those."
+Building it produced three reasons that is the wrong shape, and they are worth keeping:
+
+1. **There are no measured samples and none can be obtained without shipping first.** A number
+   invented from nothing is the same assumption as a number copied from Android, wearing a better hat.
+2. **The web provider measures exactly one metric**, `longEdgePx` — the plan says so itself two
+   sentences later. A web-specific blur or glare floor would be a threshold the gate never reads,
+   because the check is `na`. A number that does nothing is worse than no number: the next reader
+   believes it was measured.
+3. **The one threshold that does apply must not diverge.** `config.ts`'s own header pins the
+   resolution floor to the server's authoritative usability gate and says client and server must
+   agree. A client floor above the server's rejects photographs the server would accept; one below
+   spends a driver's bandwidth on photographs the server then refuses.
+
+So `web` ships as a platform token with no numbers of its own, the reasoning is written into
+`config.ts` where the next person will meet it, and a test asserts the web path reaches the **same
+verdict as the driver app's JS fallback for the same measurements** — because a licence photographed
+in the driver app and one photographed from the application link are the same photograph. If a
+measured re-shoot rate later justifies a web-specific floor, it arrives as a signed config override,
+which is what that file exists for.
+
+**What shipped.**
+- `capture-engine`: `GateInput.platform` gains `"web"`, `platformOverrides` gains a `web` entry for
+  totality (inert — no OCR runs in a browser), and the package stays pure and zero-dependency.
+- `features/apply/capture/webImageIo.ts` — the browser half behind an interface: `createImageBitmap`
+  → canvas downscale → WebP q80 with a **type-checked** JPEG fallback (a browser that cannot encode
+  WebP hands back a PNG or a null rather than failing loudly, so the check is on `blob.type`, not on
+  truthiness) → `crypto.subtle` sha256. ⚠ `imageOrientation: "from-image"` is not optional: EXIF
+  orientation is part of what is being discarded, and without it a portrait photograph re-encodes
+  sideways.
+- **EXIF stripping is a property of the pipeline, not a step.** Decoding to a bitmap and re-encoding
+  through a canvas yields pixels and nothing else, so the original file's metadata — on a phone, the
+  GPS coordinates of wherever the driver photographed their licence — cannot survive. There is no
+  `stripExif()` to forget to call.
+- `webFileProvider.ts` — the third implementation of the engine's provider seam, mirroring the driver
+  app's JS fallback deliberately. ⚠ Resolution is measured on the **original**, before the downscale:
+  gating the resized copy would be circular, since everything is resized to the same long edge.
+- A rejected capture returns `{ ok: false, reason }` with **no page**, so there is nothing for a
+  caller to upload, and its object URL is revoked rather than left for the browser to collect — a
+  driver re-shooting four times should not accumulate four rejected photographs in a phone's memory.
+
+**Verified by:** `pnpm test` — `webFileProvider.test.ts` pins the property the step exists for (a
+photograph that fails the gate never becomes a page, so nothing can be uploaded), that unmeasurable
+checks are `na` rather than silent passes, and that the original long edge is what the gate sees;
+`gate.test.ts` gains the web platform, including the same-verdict-as-the-fallback assertion. The IO is
+behind an interface so all of it runs without a camera, a canvas or a GPU. `pnpm typecheck`;
+`pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens` — `lint:boundaries`
+confirms `capture-engine` stayed clean of `@fuelguard/*` and of clocks.
+**No UI yet, by design:** A8 owns the capture screen, the slots and the upload. A7 is the provider it
+will call, and shipping a screen with nowhere to put the bytes would be the dead-screen mistake A3a
+already declined to make.
 
 ### A8 · Staged captures, filed at submit
 
@@ -1028,12 +1082,68 @@ regardless.
 | Input | Owner | What the code does |
 |---|---|---|
 | **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. ⚠ Since A4 this text also **arms the 7001(c) gate**: publishing it is what makes the consent required on every write path, and until then the application runs exactly as it did before. A4 shipped the six clauses as placeholders with a statutory citation each, so counsel's pass is six named strings rather than a blank page. |
-| **The Excel application** | Owner | A9 begins with its transcription. Until it arrives, A1–A8 and A10–A11 are unaffected: the questionnaire is additive and nullable by construction. |
+| ~~**The Excel application**~~ | Owner | **ARRIVED 2026-08-21** — `APPLICATION.xlsx`, committed beside this plan. ⚠ **It is not a questionnaire; it is a 31-page contractor packet**, and what it contains changes A9 and A0. See §6.1 below before transcribing anything. |
 | **Which documents a driver must photograph** | Owner | A8 ships the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. Adding a slot later is one enum entry plus one mapping line. |
 | **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
 | **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
 | **Whether Silvicom wants an EEO section** | Owner | A9 supports one and excludes it from every recruiter-facing projection. Absent an instruction, no EEO questions are defined. |
-| **The carrier's legal name and address** (⚠ new, 2026-08-21) | Owner | §391.21(b)(1) requires the employing motor carrier's name AND address on the application. ⚠ **The schema half is done** — `organizations.legal_address` landed in 0229 and A6's renderer prints it when present — so this is now purely an owner input: one `update organizations set legal_address = …` and every application rendered afterwards carries the paragraph. Until then the document prints the carrier's name alone. |
+| ~~**The carrier's legal name and address**~~ | Owner | **ANSWERED 2026-08-21**, from the packet's own letterhead, which repeats it on all 31 pages: **Silvicom Inc, 1301 Armitage Ave, Melrose Park IL 60160** (safety contact `safety1@silvicominc.com`, 708-236-5732 ext 2). The schema half landed in 0229. All that remains is one production `update organizations set legal_address = …`, which is an owner act (writes go through the SQL editor), after which every rendered application carries §391.21(b)(1) in full. |
+
+### 6.1 What the owner's packet actually contains — read before A9 or A0
+
+`APPLICATION.xlsx` is one sheet holding **31 printed pages**, every one footed *"FOR DEPARTMENT OF
+TRANSPORTATION VERIFICATION PURPOSE ONLY — THIS IS NOT AN EMPLOYMENT APPLICATION"*. Inventoried
+2026-08-21. It sorts into four piles, and only the second is A9's:
+
+**1. The §391.21(b) application we have already built.** Identity, three years of addresses, licences,
+accidents, convictions, licence denials, ten-year employment history, the certification. It maps onto
+`driverApplicationSchema` closely enough that no contract change falls out of it — ⚠ with one
+addition worth noting: the packet asks for **aliases** on the verification log, which the contract has
+no field for.
+
+**2. Carrier-specific questions — the actual A9 material, and there are few.** Position applied for ·
+"How did you hear about this company?" · "Can you legally work in the USA?" · "Do you have proof of
+age?" · "May we contact your previous employers?" · a **driving-experience grid** (class of equipment
+× type × dates from/to × approximate total miles, for straight truck / tractor-semi / tractor-two-
+trailers / other) · education and training · military service · **three personal references** (name,
+years known, phone, explicitly not relatives or former supervisors). That is the questionnaire.
+
+**3. ⚠ Instruments the carrier has ALREADY drafted — this changes A0.** The packet carries its own
+wording for most of what counsel was being asked to write from scratch: an FCRA disclosure and
+authorization (page 19, citing §604(b) by name), a previous-employer release with the §391.23(d)/(e)
+due-process rights spelled out (pages 14–15), a driving-record-check authorization (page 18), and a
+urinalysis/drug-testing consent (page 21). **A0's job is therefore review and repair, not drafting** —
+which is a much smaller ask of counsel and should be put to them that way. Two things to put in front
+of them explicitly:
+  - The **"Independent Contractor Notification & Release"** (page 4) bundles a consumer-report
+    disclosure together with a liability release and an ongoing-authorization clause. That is exactly
+    the arrangement §604(b)(2)'s "a document that consists **solely** of the disclosure" forbids, and
+    exactly why D-HIRE3 gives each instrument its own row and its own screen. It is evidence for the
+    design and a defect in the paper it replaces.
+  - It names **"DOT Service, Chicago, IL"** as the consumer-reporting agency. Our screening goes to
+    PSP and SambaSafety, so any wording that survives has to name the right agency.
+
+**4. Policy and operational documents that are not part of an application at all** — minimum
+qualifications (⚠ **"at least 23 years old"**, a carrier policy above §391.11(b)(1)'s 21, and a list of
+disqualifying safety and criminal-history events), a rules-and-regulations fine schedule, insurance
+deductibles, a fuel policy, a single-licence certification (§383.21), a seven-day work statement
+(§395.8(j)(2)), an annual violation certification (§391.27), and an interview/results sheet for office
+use. **None of these belong in A9's questionnaire**; several are other steps' work (the §391.27
+certification is R-side, the seven-day statement is a hire-time document), and the fine schedule is
+policy the driver acknowledges rather than a question they answer.
+
+⚠ **One framing question for the owner and counsel, raised and not resolved here.** The packet
+consistently frames drivers as independent contractors and states it is "not an employment
+application". FMCSA's Part 391 applies to a *driver* the carrier uses, and a leased owner-operator is
+generally still a driver subject to §391.21 and §391.51 regardless of tax status — which is why this
+packet collects the §391.21 content anyway. Nothing in the build changes either way: the application,
+the file and the evidence are the same. But A0's wording and A9's copy should say whichever the
+carrier's counsel intends, and this plan does not guess.
+
+**A9 is otherwise unblocked.** Its build begins with pile 2, transcribed into
+`questionnaireContract.ts` as a versioned definition — ⚠ and the transcription fixes the packet's
+spelling but never its meaning, because several of these strings become text somebody signs, and that
+is counsel's to change and not an engineer's.
 
 ---
 

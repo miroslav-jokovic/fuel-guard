@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@floating-ui/vue": "^2.0.0",
+    "@fuelguard/capture-engine": "workspace:*",
     "@fuelguard/shared": "workspace:*",
     "@fuelguard/ui": "workspace:*",
     "@hazmat/engine": "workspace:*",

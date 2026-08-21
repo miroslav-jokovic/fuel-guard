@@ -35,7 +35,13 @@ export interface ImageMetrics {
 export interface GateInput {
   metrics: ImageMetrics;
   ocr: OcrEvidence;
-  platform: "ios" | "android";
+  /**
+   * `web` since A7 (APPLICATION-SYSTEM-PLAN, D-APP11): the applicant's own browser, where a driver
+   * photographs a CDL from the application link. It measures what the JS fallback measures —
+   * `longEdgePx` and nothing else — so every other check is `na` and, per §5, `na` is never a silent
+   * pass: the server's usability gate remains the authoritative backstop for blur and glare.
+   */
+  platform: "ios" | "android" | "web";
 }
 
 function pass(name: CheckName, score: number, detail?: CheckResult["detail"]): CheckResult {

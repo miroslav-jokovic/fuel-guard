@@ -14,6 +14,27 @@
  * (`apps/api/.../hazmatExtraction/image.ts` DEFAULT_USABILITY: long edge ≥ 1200, Laplacian var ≥ 100,
  * glare ≤ 0.06), NOT the DCE §4 draft numbers (1600/120). Client and server must agree, and the server
  * gate is the authoritative backstop, so its numbers win.
+ *
+ * ── ⚠ WHY THE `web` PLATFORM (A7) ADDS NO NUMBERS OF ITS OWN ───────────────────────────────────
+ * APPLICATION-SYSTEM-PLAN's A7 says the web platform gets "its own thresholds ... chosen from measured
+ * samples rather than copied from Android, because borrowing would be an assumption". Building it
+ * showed the instruction cannot be followed as written, and — more usefully — should not be:
+ *
+ *   · There are no measured samples, and none can be obtained without shipping the thing first. An
+ *     invented number is exactly the assumption the rule exists to forbid, whether it is invented by
+ *     copying Android or invented from nothing.
+ *   · The web provider measures ONE metric, `longEdgePx`, exactly like the Expo JS fallback. Copying
+ *     Android's blur or glare floors would be inert: no blur metric is ever produced, so the check is
+ *     `na` and the threshold is never read. A "web-specific blur threshold" would be a number that
+ *     does nothing, which is worse than no number at all.
+ *   · The one threshold that DOES apply — the resolution floor — must not diverge. It is pinned to the
+ *     server's authoritative gate by the paragraph above; a client floor above the server's rejects
+ *     photographs the server would have accepted, and one below lets through what the server then
+ *     refuses after the driver has paid for the upload.
+ *
+ * So `web` is a platform token and nothing more, and that is the finding rather than the shortcut. If
+ * measured re-shoot rates later justify a web-specific floor, it belongs here as a signed config
+ * override — which is what this file is for — and not as a constant somebody guessed today.
  */
 
 export interface CaptureConfigGates {
@@ -52,7 +73,12 @@ export interface OcrLegibilityConfig {
   confidenceSignal: {
     use: "secondary" | "off";
     meanMin: number;
-    platformOverrides: { ios?: { meanMin?: number }; android?: { meanMin?: number } };
+    platformOverrides: {
+      ios?: { meanMin?: number };
+      android?: { meanMin?: number };
+      /** Present for totality; inert — the web provider runs no OCR, so there is no confidence to tune. */
+      web?: { meanMin?: number };
+    };
   };
 }
 
@@ -93,7 +119,7 @@ export const BUNDLED_DEFAULT_CONFIG: CaptureConfig = {
     textCoverageFractionMin: 0.08,
     minMedianCharHeightPx: 16,
     smallTextBandCoverageMin: 0.02,
-    confidenceSignal: { use: "secondary", meanMin: 0.5, platformOverrides: { ios: {}, android: {} } },
+    confidenceSignal: { use: "secondary", meanMin: 0.5, platformOverrides: { ios: {}, android: {}, web: {} } },
   },
   enhance: {
     // Model-facing derivative: 1568 px long edge, WebP q80, conservative (PLAN §12.3 / server normalizer).
