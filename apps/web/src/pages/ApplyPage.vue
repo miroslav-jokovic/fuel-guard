@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { driverApplicationSchema } from "@fuelguard/shared";
-import { AppButton as BaseButton, AppCard as BaseCard, AppCheckbox as BaseCheckbox, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppCheckbox as BaseCheckbox, AppDateField, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
 import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
-import { emptyDraft, toApplication, type ApplicationDraft } from "@/features/apply/draft";
-import { useApplyInvitationQuery, useSubmitApplication } from "@/features/apply/useApplication";
+import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
+import {
+  unlockApplicationDraft,
+  useApplyInvitationQuery,
+  useSubmitApplication,
+} from "@/features/apply/useApplication";
+import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
 
 /**
  * The driver's own §391.21 application (H5b).
@@ -19,6 +24,13 @@ import { useApplyInvitationQuery, useSubmitApplication } from "@/features/apply/
  * recruiter signed in on the same browser must not have their identity ride along. Feedback is
  * inline here rather than a toast for the same reason the rest of the app uses toasts: this is a
  * single-purpose page where the result IS the page, not an action inside a workspace.
+ *
+ * ── IT SAVES ITSELF, AND SOMETIMES ASKS WHO IS READING (A2) ───────────────────────────────────
+ * The form autosaves to `application_drafts` so a lost signal is not a lost application. Coming back
+ * to a draft that already holds a date of birth costs one question — the date of birth itself
+ * (D-APP16) — because the link is a session now and A10 will re-send it by email, and an email is
+ * forwarded and a phone is shared. Before a date of birth is typed there is nothing to protect and
+ * no question is asked.
  *
  * ── VALIDATION IS THE SERVER'S SCHEMA, RUN LOCALLY ─────────────────────────────────────────────
  * `driverApplicationSchema` is the same object the API validates with. Running it here turns a 400
@@ -55,6 +67,53 @@ const draftModel = computed({
   get: () => draft as ApplicationDraft,
   set: (v: ApplicationDraft) => Object.assign(draft, v),
 });
+
+// ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
+/** The body released by an unlock, when the saved draft was gated. */
+const released = ref<Record<string, unknown> | null>(null);
+const locked = computed(() => Boolean(invitation.data.value?.draft?.locked) && released.value === null);
+const restored = ref(false);
+const autosaveEnabled = ref(false);
+
+watch(
+  [() => invitation.data.value, released],
+  ([inv, body]) => {
+    if (!inv || restored.value) return;
+    // Still gated: nothing to restore and nothing to save over. Autosave stays off, so a stranger
+    // holding the link cannot overwrite the draft they are not allowed to read.
+    if (inv.draft?.locked && !body) return;
+    const payload = body ?? inv.draft?.payload ?? null;
+    if (payload) Object.assign(draft, fromDraftPayload(payload));
+    restored.value = true;
+    // Next tick, so the restore assignment above does not itself schedule a save of what we just
+    // loaded back to the server.
+    void nextTick(() => { autosaveEnabled.value = true; });
+  },
+  { immediate: true },
+);
+
+const autosave = useApplicationDraft(token, draft, { enabled: autosaveEnabled });
+const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
+
+const unlockDob = ref("");
+const unlockFailed = ref(false);
+const unlocking = ref(false);
+
+/** One question, one answer, and a wrong answer costs nothing but another try (D-APP16). */
+async function unlock(): Promise<void> {
+  if (!unlockDob.value) return;
+  unlocking.value = true;
+  unlockFailed.value = false;
+  try {
+    const res = await unlockApplicationDraft(token.value, unlockDob.value);
+    if (res.draft.locked || !res.draft.payload) unlockFailed.value = true;
+    else released.value = res.draft.payload;
+  } catch {
+    unlockFailed.value = true;
+  } finally {
+    unlocking.value = false;
+  }
+}
 
 async function send(): Promise<void> {
   issues.value = [];
@@ -105,13 +164,38 @@ async function send(): Promise<void> {
     </p>
   </BaseCard>
 
+  <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
+       question, asked only when there is something to protect. -->
+  <BaseCard v-else-if="locked">
+    <h1 class="text-lg font-semibold text-ink">Pick up where you left off</h1>
+    <p class="mt-2 text-sm text-ink-muted">
+      You have already started this application for {{ invitation.data.value?.carrier }}. Confirm your
+      date of birth and your answers come back.
+    </p>
+    <div class="mt-4 max-w-xs">
+      <FormField v-slot="{ id }" label="Your date of birth">
+        <AppDateField :id="id" v-model="unlockDob" />
+      </FormField>
+    </div>
+    <p v-if="unlockFailed" class="mt-2 text-sm text-ink-secondary">
+      That does not match this application. Try again, or ask the carrier for a new link and start
+      fresh.
+    </p>
+    <div class="mt-6 flex justify-end">
+      <BaseButton variant="primary" :disabled="unlocking || !unlockDob" @click="unlock">
+        {{ unlocking ? "Checking…" : "Continue" }}
+      </BaseButton>
+    </div>
+  </BaseCard>
+
   <div v-else-if="invitation.data.value" class="space-y-8">
     <div>
       <h1 class="text-2xl font-semibold text-ink">Driver application</h1>
       <p class="mt-1 text-sm text-ink-muted">
-        For {{ invitation.data.value.carrier }}, under 49 CFR §391.21. You can only submit this once,
-        so check your answers before you send it.
+        For {{ invitation.data.value.carrier }}, under 49 CFR §391.21. Your answers save as you go —
+        you can close this page and come back. You can only send it once, so check it before you do.
       </p>
+      <p v-if="saveStatus" class="mt-2 text-xs text-ink-muted">{{ saveStatus }}</p>
     </div>
 
     <BaseCard v-if="issues.length">

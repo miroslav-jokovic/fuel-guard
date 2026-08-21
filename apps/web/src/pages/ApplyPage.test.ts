@@ -104,6 +104,40 @@ describe("the applicant's page", () => {
     expect(w.text()).not.toContain("you will be asked to sign");
   });
 
+  /**
+   * A2/D-APP16. The link is a session and A10 re-sends it by email; an email is forwarded and a
+   * phone is shared, so a draft holding a date of birth is not something the bare link reads back.
+   */
+  it("asks for the date of birth before showing a draft that contains one", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: true, payload: null, furthestSection: "identity", updatedAt: "2026-08-21T09:00:00Z" },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Pick up where you left off");
+    // The form is not on screen, so nothing can be typed into — or saved over — a draft the holder
+    // of this link has not proved they may read.
+    expect(w.text()).not.toContain("Send my application");
+  });
+
+  it("shows the form straight away when the draft has nothing sensitive in it yet", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: { first_name: "Susan" }, furthestSection: "identity", updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    // Before a date of birth is typed there is nothing to protect, so no question is asked.
+    expect(w.text()).not.toContain("Pick up where you left off");
+    expect(w.text()).toContain("Send my application");
+    expect((w.find("input[autocomplete=\"given-name\"]").element as HTMLInputElement).value).toBe("Susan");
+  });
+
   it("says one thing about a dead link, whatever killed it", async () => {
     fetchMock.mockResolvedValue(dead());
     const w = mountPage();

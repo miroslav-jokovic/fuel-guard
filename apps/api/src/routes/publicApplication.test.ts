@@ -45,8 +45,28 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
         : [],
       organizations: [{ name: "Silvicom Inc" }],
       driver_authorizations: [{ id: "auth-1" }],
+      application_drafts: [],
     },
-    rpc: { submit_driver_application: { application_id: "app-1" } },
+    rpc: {
+      submit_driver_application: { application_id: "app-1" },
+      save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" },
+    },
+  });
+
+/** The same seed, with a saved draft behind the link. */
+const seedWithDraft = (payload: Record<string, unknown>): SupabaseRecorder =>
+  createSupabaseRecorder({
+    tables: {
+      application_invitations: [{
+        id: "inv-1", org_id: ORG, driver_id: DRIVER,
+        token_hash: hashInvitationToken(TOKEN),
+        expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+        consented_at: null, releases_completed_at: null, submitted_at: null,
+      }],
+      organizations: [{ name: "Silvicom Inc" }],
+      application_drafts: [{ payload, furthest_section: "identity", updated_at: "2026-08-21T09:00:00Z" }],
+    },
+    rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" } },
   });
 
 const APPLICATION = {
@@ -145,6 +165,113 @@ describe("submitting", () => {
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already_submitted");
     expect(rec.rpcs()).toHaveLength(0);
+  });
+});
+
+/**
+ * A2 — the form saves itself, and a saved date of birth is not readable from the bare link.
+ */
+describe("the saved draft", () => {
+  it("comes back with the link when there is nothing sensitive in it", async () => {
+    holder.client = seedWithDraft({ first_name: "Susan" }).client;
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { draft: { locked: boolean; payload: Record<string, unknown> | null } };
+    expect(body.draft.locked).toBe(false);
+    expect(body.draft.payload).toEqual({ first_name: "Susan" });
+  });
+
+  it("withholds the body once it holds a date of birth (D-APP16)", async () => {
+    holder.client = seedWithDraft({ first_name: "Susan", date_of_birth: "1980-04-01" }).client;
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { draft: { locked: boolean; payload: unknown; furthestSection: string } };
+    expect(body.draft.locked).toBe(true);
+    expect(body.draft.payload).toBeNull();
+    // Not even in the envelope: whoever holds only the link never receives the date of birth back.
+    expect(JSON.stringify(body)).not.toContain("1980-04-01");
+    // Where they got to is not the secret, and hiding it would make a resumed session look lost.
+    expect(body.draft.furthestSection).toBe("identity");
+  });
+
+  it("releases the body for the matching date of birth", async () => {
+    holder.client = seedWithDraft({ first_name: "Susan", date_of_birth: "1980-04-01" }).client;
+    const res = await call(`/${TOKEN}/unlock`, {
+      method: "POST",
+      body: JSON.stringify({ date_of_birth: "1980-04-01" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { draft: { locked: boolean; payload: Record<string, unknown> } };
+    expect(body.draft.locked).toBe(false);
+    expect(body.draft.payload.first_name).toBe("Susan");
+  });
+
+  it("gives a wrong date of birth the locked view, a 200, and no clue", async () => {
+    const rec = seedWithDraft({ first_name: "Susan", date_of_birth: "1980-04-01" });
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/unlock`, {
+      method: "POST",
+      body: JSON.stringify({ date_of_birth: "1975-01-01" }),
+    });
+    // 200 and not 401: a failed guess is not an authentication failure, it changes nothing, and it
+    // must not burn the link. The rate limiter is what throttles guessing.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { draft: { locked: boolean; payload: unknown } };
+    expect(body.draft.locked).toBe(true);
+    expect(body.draft.payload).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("Susan");
+    expect(rec.writtenRows("application_invitations")).toHaveLength(0);
+  });
+
+  it("saves a partial form with no credential at all", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Sus" }, section: "identity" }),
+    });
+    expect(res.status).toBe(200);
+    // Half-typed and invalid against §391.21's schema, and saved anyway — a form that will not save
+    // until it is valid cannot save at all until it is finished.
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_payload).toEqual({ first_name: "Sus" });
+  });
+
+  /** D-APP3. The refusal is loud rather than a silent filter: the client never places the key in the
+   *  draft object, so a payload carrying one is a client regression worth failing on. */
+  it("refuses a draft carrying a Social Security number", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan", ssn: "123456789" }, section: null }),
+    });
+    expect(res.status).toBe(400);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("refuses to save a draft over a filed application", async () => {
+    const rec = seed({ submitted_at: "2026-08-01T00:00:00Z" });
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    expect(res.status).toBe(409);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("tells an anonymous caller with a bad token nothing, on either route", async () => {
+    holder.client = seed(null).client;
+    const saved = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: {}, section: null }),
+    });
+    const unlocked = await call(`/${TOKEN}/unlock`, {
+      method: "POST",
+      body: JSON.stringify({ date_of_birth: "1980-04-01" }),
+    });
+    expect(saved.status).toBe(404);
+    expect(unlocked.status).toBe(404);
+    expect(((await saved.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
+    expect(((await unlocked.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
   });
 });
 
