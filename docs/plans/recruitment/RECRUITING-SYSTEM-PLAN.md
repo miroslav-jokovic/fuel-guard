@@ -13,6 +13,14 @@ owner and a fallback the code takes until the answer arrives.
 backend rules, frontend design system). Every correction from that audit is folded in below; the
 notable ones are marked ⚠ where a fresh session might otherwise repeat the original mistake.
 
+**Re-verified 2026-08-21** (claims vs the tree at `75020bf`; regulatory claims vs
+psp.fmcsa.dot.gov / clearinghouse.fmcsa.dot.gov / ecfr.gov primary sources). Confirmed: nothing
+beyond R0b has shipped; D-REC4's no-employer-API claim is FMCSA's own words; the kind CHECKs need
+no widening. Corrections folded in below: the PSP instrument's text is FMCSA-mandated (see
+`APPLICATION-SYSTEM-PLAN.md` A0), state MVR consent forms and the CA EPN program (§3, R3), the
+Clearinghouse 2024–2026 facts and the general-consent collection point (§3, R5, R8), and one
+surviving local tone record (§4).
+
 Sources, so nothing here rests on recall: regulation text read on Cornell LII 2026-08-20; the tree
 at `efbebd4` (schema `0224`); `docs/vendor/sambasafety-postman-collection.json` (the collection IS
 the spec — there is no OpenAPI); FMCSA's own Clearinghouse pages; production numbers from
@@ -99,7 +107,7 @@ Append-only against every human path; prunable by the one audited service-role a
 style here would have made the "prunable" promise structurally false.
 
 **D-REC3 — a vendor interaction is a ledger with gates, in the PSP shape.** `checkPspGates`
-(`apps/api/src/services/pspOrder.ts`, declared at `:161`) ordered its refusals deliberately:
+(`apps/api/src/services/pspOrder.ts`, declared at `:162`) ordered its refusals deliberately:
 enabled-flag, configured, **legality** (the signed instrument), **authority** (the step-up
 re-authentication — it spends money and pulls a person's record), **budget**, **correctness** —
 each refusing *before* the ledger row exists. MVR orders copy that shape wholesale, all six gates.
@@ -203,6 +211,29 @@ wrong — and every driver gets a real §391.31 test.
 - `mvr` is deliberately **not** a restricted kind (it is FCRA-gated at order time, not
   §382.401-gated at read time), so MVR records print in default binders — consistent with 0211's
   split; stated here so nobody "fixes" it.
+- **MVR consent is federal-form-free but not state-form-free** (verified 2026-08-21). No FMCSA form
+  exists for the §391.23(a)(1) inquiry — the FCRA §604(b)(2) standalone disclosure (the
+  `fcra_disclosure` instrument) plus DPPA permissible use is the federal whole of it, and §391.25's
+  annual pull needs no driver consent at all (§391.27's driver violation list was abolished
+  2022-05-09; nobody rebuilds it). But **PA (DL-503), WA, NH and PR require their own signed
+  release**, and **California is a program, not a form**: the Employer Pull Notice program is
+  mandatory for employers of CA-licensed CDL drivers (CVC §1808.1), electronic-only from
+  2026-04-01. R3 carries "state form required" as data keyed on licensing state, beside the
+  access-code guards it already has.
+- **A pre-employment Clearinghouse query satisfies §391.23(e)/§40.25 for FMCSA-regulated previous
+  employers since 2023-01-06** — the manual drug-and-alcohol-history inquiry survives only for
+  prior employers regulated by another DOT mode (FAA/FRA/FTA/PHMSA/USCG). The §391.23(d) general
+  safety-performance investigation is untouched. Recorded here so `EMPLOYER-INQUIRY-PLAN.md`
+  sessions (E6/E7) scope accordingly.
+- **Clearinghouse operational facts, 2024–2026** (verified 2026-08-21 on FMCSA's pages):
+  Clearinghouse-II is in effect since 2024-11-18 — a prohibited driver now loses the CDL itself at
+  the State, so MVR monitoring will surface downgrades (a signal, never a substitute for queries).
+  Query plans are $1.25 flat, purchasable **only by the employer** (a C/TPA cannot — already §6);
+  query records carry their own 3-year retention. The "30-day full-query consent expiry" that
+  vendors quote has **no primary source** — `awaiting_driver_consent` stays an open state with no
+  invented deadline. From **2026-04-27** Clearinghouse registration requires IDEMIA identity
+  verification, and FMCSA's new **Motus** portal rolls out through 2026 and may re-skin the screens
+  R5 documents.
 - Office-facing alerting is **email via `lib/mailer.ts` plus the notification ledger** — the
   `dqAlertScheduler` pattern; `notify()` reaches the driver app only, and `NotificationCategory`
   is a closed enum that must be extended (with a `notificationRoute` entry web-side) for every
@@ -297,8 +328,10 @@ wrong — and every driver gets a real §391.31 test.
   `canReadTestingRecords`.
 - Every new state vocabulary ships as a pair: the machine tokens in shared **plus** an exported
   label map beside them (the `INQUIRY_STATE_LABELS` pattern), and tones added in `lib/badges.ts`
-  **only** — no `.vue` file carries a status literal or a local tone `Record` (a regression of
-  exactly this shape already exists in `InquiryQueuePage.vue`; R0b removes it, nobody copies it).
+  **only** — no `.vue` file carries a status literal or a local tone `Record` (R0b removed
+  `InquiryQueuePage.vue`'s instance; ⚠ one survivor remains — `ApplicationInviteCard.vue:74`'s
+  `STATE_TONE`, verified 2026-08-21 — fold its removal into the next UI-touching PR; nobody
+  copies it).
 - List pages over the roster (leads, annual round, the board): `FilterBar` with search and a
   domain-noun count, `TablePagination` in the table footer, and empty-state copy in the house
   voice (fact, then next action). 201 rows with a lone filter select is not a list page.
@@ -412,6 +445,25 @@ appears in any `qualification_records` write path.
 **Done when:** a lead below a floor says so and why, an incomplete answer set says `incomplete`
 rather than passing, and no pre-qual answer exists anywhere in DQF.
 
+### R2b · The application system — its own plan (`APPLICATION-SYSTEM-PLAN.md`, 2026-08-21)
+
+**Prerequisites:** R2 for prefill (D-APP14); nothing else. Runs in parallel with R3 onward.
+
+H5a/H5b shipped the application's *middle*: a hashed single-use link, a session-free page, one
+schema both sides, an immutable certified submission, and a per-instrument signing endpoint that has
+never had a caller. What the owner asked for on 2026-08-21 — automated delivery, a resumable
+mobile form, a DocuSign-shaped signing ceremony, document photography from the same link, and the
+whole thing landing in DQF — is **A0–A11** in
+[`APPLICATION-SYSTEM-PLAN.md`](./APPLICATION-SYSTEM-PLAN.md). Its decisions are `D-APP1`–`D-APP15`;
+its execution protocol is §4 of this document, unchanged.
+
+⚠ **It opens with a live defect.** `resolveInvitation` kills the token on `used_at`, which
+`submit_driver_application` stamps — and `POST /:token/release` resolves through the same function.
+The signing that `ApplyPage.vue:83–85` promises the driver after submission is therefore
+unreachable through the link that promised it. Nobody has hit it because every instrument is
+`v0-draft` and the gate refuses drafts; **publishing counsel's v1 wording is what would expose it**,
+so A1 lands before A0 is exercised.
+
 ### R3 · MVR orders — demo environment first
 
 **Prerequisites:** Samba credentials (Q-REC4 — demo credentials suffice for all of R3);
@@ -427,7 +479,8 @@ the gate refuses drafts) and DOBs. Neither blocks building or demo-verifying.
   `driver_id`, `samba_order_id`, **`idempotency_key` with its unique index**, `status` in
   (`pending`, `sent`, `fulfilled`, `failed`, `error`, **`indeterminate`**) derived **from the
   response body** at write time, `error_code` (B01–U02), `request_redacted jsonb` (DOB and
-  licence blanked per `redactRequest`), `response_raw jsonb` whole, `unit_price_usd` (env
+  licence blanked per `redactRequest`; ⚠ 0216's own column is named `request_body` — this table
+  picks the better name, so don't grep 0216 for it), `response_raw jsonb` whole, `unit_price_usd` (env
   `MVR_UNIT_PRICE_USD`, optional, no invented default — 0219's stance), `billed boolean`
   stored, `created_by`, timestamps. Partial unique index on `(org_id, driver_id) where status
   in ('pending','sent')`.
@@ -437,7 +490,10 @@ the gate refuses drafts) and DOBs. Neither blocks building or demo-verifying.
   DOB present, name charset (no accents; suffix enum), state mapping (`subType`, `host` incl.
   the OVERNIGHT set), named-error guards for **UT, CA and PA alike** (§3's ⚠ — the collection
   contradicts itself on UT; re-read it at execution), `purpose: 'EMPLOYMENT'`,
-  `customPersonId = drivers.id` (recon §9).
+  `customPersonId = drivers.id` (recon §9) — plus a `stateFormRequired` lookup (PA `DL-503`, WA,
+  NH, PR; CA additionally needs EPN program enrolment — §3's state-form fact) surfaced in the
+  order preflight, so a missing state form is a named refusal at the desk, not a discovery at the
+  DMV.
 - Gates in `apps/api/src/services/mvrOrder.ts`, **all six in D-REC3's order** ⚠:
   `MVR_ORDERS_ENABLED` (default off, env.ts's PSP flag shape) → configured → legality
   `missingAuthorizations(auths, 'mvr_order')` → **authority (step-up re-auth — the PSP gate's
@@ -491,7 +547,9 @@ ledger.
 **Prerequisites:** portal access to read FMCSA's current bulk-query template (execution reads
 the template before writing the generator). Running real queries needs Q-H3 (the
 `clearinghouse` instrument signed) and the employer's query plan purchased in the portal
-(owner act, §6).
+(owner act, §6). ⚠ From 2026-04-27 Clearinghouse registration itself requires IDEMIA identity
+verification (owner act too), and Motus may re-skin the portal screens this step documents —
+re-verify the screens at execution, not from this page (§3's 2024–2026 facts).
 
 **Build.**
 - Migration: `clearinghouse_queries` act ledger — `org_id`, `driver_id`, `kind`
@@ -518,6 +576,13 @@ the template before writing the generator). Running real queries needs Q-H3 (the
   safety-sensitive functions; for an applicant, the hire cannot proceed.
 - Bulk generator: pure function, active CDL roster with a live §382.703(a) consent on file →
   the portal's template file, downloadable from the annual-round page.
+- ⚠ **Where the §382.703(a) general consent is actually signed** — a gap this plan left unnamed
+  until 2026-08-21: deliberately not on the applicant link (D-REC4;
+  `APPLICATION-SYSTEM-PLAN.md` §7), so it is collected at orientation as one of **R8's
+  acknowledged instruments** (the 0215 `clearinghouse` purpose already exists — it widens
+  nothing). Its wording must **state its multi-year timeframe explicitly**: FMCSA honours an
+  evergreen general consent only if the form says so (counsel, Q-H3). Annual limited queries
+  concern employed drivers only, so orientation is early enough.
 - Surfaces (all gated as above, `requiresAuth`-only route meta + page-level predicate): a
   per-driver query card in the driver detail's qualification area; an annual round page
   (`FilterBar` + search + count + `TablePagination` — it is a 201-row roster) listing who is
@@ -627,7 +692,11 @@ path is ever enabled; until answered it stays off (D-REC7).
   `purpose` CHECK** by next-numbered migration for the new purposes, and add them to
   **neither** `APPLICATION_RELEASE_ORDER` (the applicant flow presents that explicit list, so
   handbook instruments cannot leak into it) **nor** `SCREENING_PREREQUISITES` (they authorize
-  no vendor call). Drafts refused the same way as every instrument.
+  no vendor call). Drafts refused the same way as every instrument. ⚠ The §382.703(a)
+  Clearinghouse general consent is collected here as one of these acknowledged instruments
+  (R5's ⚠ names why here and not the applicant link; the 0215 `clearinghouse` purpose already
+  exists and is already in `SCREENING_PREREQUISITES`, so it is the one instrument in this list
+  that widens nothing), with its multi-year timeframe stated in the wording.
 - Road test: the §391.31(c) eight-item checklist as the form; examiner identity; on pass, the
   §391.31(e) certificate (pdfkit — `dqBinder/pdfDraw.ts` is the in-repo precedent) filed as
   `documents` + `qualification_records` kind `road_test`. The `cdl_equivalency` write path
@@ -706,4 +775,6 @@ date.
   `/recruitment/screening`), **Q2** (confirm `PSP_UNIT_PRICE_USD`), the **UAT PSP token**
   (PSP support provisioning), **Q-PEI1/Q-PEI3** (counsel/product, own plan), and the
   **Clearinghouse query plan** purchase in FMCSA's portal (owner act; C/TPAs cannot buy it —
-  verified on FMCSA's pages).
+  verified on FMCSA's pages; $1.25 flat per query, so ~250 queries ≈ $312/yr at Silvicom's
+  size), and — from 2026-04-27 — the **IDEMIA identity verification** that Clearinghouse
+  registration will require (owner act too; §3's 2024–2026 facts).
