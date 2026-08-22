@@ -126,7 +126,7 @@ async function close(row: EmployerInquiry, outcome: "responded" | "no_response" 
     toast.success(
       outcome === "no_response" ? "Non-response documented" : "Recorded",
       outcome === "no_response"
-        ? "§391.23(c)(1) accepts a documented good-faith effort in place of a reply."
+        ? "A documented good-faith effort counts in place of a reply."
         : undefined,
     );
   } catch (e) {
@@ -156,9 +156,9 @@ const FORM_ID = "employer-inquiry-form";
     <BaseCard>
       <h3 class="text-sm font-semibold text-ink">Previous-employer inquiries</h3>
       <p class="mt-1 text-sm text-ink-muted">
-        §391.23(a)(2) requires an investigation of this driver's safety performance history with every
-        DOT-regulated employer in the three years before they applied. The replies — or a documented
-        record of trying — must be in the file within 30 days of their employment starting.
+        Their safety performance history has to be investigated with every DOT-regulated employer in
+        the three years before they applied. The replies — or a documented record of trying — must be
+        in the file within 30 days of their employment starting.
       </p>
 
       <ul v-if="canInvestigate && owing.length" class="mt-4 space-y-2">
@@ -177,8 +177,8 @@ const FORM_ID = "employer-inquiry-form";
         </li>
       </ul>
       <p v-else-if="!owing.length" class="mt-4 text-sm text-ink-muted">
-        No DOT-regulated employers on this file yet. §391.23(a)(2) reaches those; a non-regulated job
-        owes no inquiry.
+        No DOT-regulated employers on this file yet. Only those owe an inquiry; a non-regulated job
+        does not.
       </p>
     </BaseCard>
 
@@ -231,7 +231,7 @@ const FORM_ID = "employer-inquiry-form";
       <div class="space-y-6">
         <p class="text-sm text-ink-muted">
           Send this however this employer actually answers — email, post or fax — then record what you
-          did. Recording it is what §391.23(c)(2) asks for; a reply is not required for the file to be
+          did. The record of asking is what the file needs; a reply is not required for it to be
           complete, but a record of asking is.
         </p>
 
@@ -242,7 +242,6 @@ const FORM_ID = "employer-inquiry-form";
               <h3 class="text-sm font-semibold text-ink">{{ preview.data.value.title }}</h3>
               <span :class="[BADGE_BASE, toneClass('neutral')]">{{ preview.data.value.version }}</span>
             </div>
-            <p class="mt-1 text-xs text-ink-muted">{{ preview.data.value.citation }}</p>
             <p class="mt-3 whitespace-pre-line rounded-surface bg-surface-muted p-3 text-sm text-ink-secondary">
               {{ preview.data.value.body }}
             </p>

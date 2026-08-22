@@ -75,7 +75,9 @@ const deadlineTone = (row: InquiryQueueRow): string => {
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Driver" },
-  { key: "deadline", label: "§391.23(c)(1) deadline" },
+  // ⚠ Was "§391.23(c)(1) deadline". A column header is the narrowest place in the app and it spent
+  // its width on a paragraph number nobody sorts by (2026-08-22, owner).
+  { key: "deadline", label: "Deadline" },
   { key: "employers", label: "Outstanding" },
 ];
 </script>
@@ -102,10 +104,10 @@ const columns: DataTableColumn[] = [
 
     <BaseCard v-if="summary">
       <p class="text-sm text-ink-muted">
-        §391.23(c)(1) gives you {{ INVESTIGATION_FILE_DAYS }} days from the date a driver starts to
-        have the replies — <span class="font-medium text-ink-secondary">or a documented record of
-        trying</span> — in their file. An employer who never answers does not hold the file open; an
-        undocumented attempt does.
+        You have {{ INVESTIGATION_FILE_DAYS }} days from the date a driver starts to have the replies
+        — <span class="font-medium text-ink-secondary">or a documented record of trying</span> — in
+        their file. An employer who never answers does not hold the file open; an undocumented attempt
+        does.
       </p>
     </BaseCard>
 

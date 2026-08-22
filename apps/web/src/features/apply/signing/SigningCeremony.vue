@@ -81,8 +81,6 @@ async function adoptAndStart(): Promise<void> {
         {{ copy.counter(ceremony.position.value, ceremony.total.value) }}
       </span>
     </div>
-    <p class="text-xs text-ink-muted">{{ ceremony.current.value.citation }}</p>
-
     <p class="whitespace-pre-line rounded-surface bg-surface-muted p-4 text-sm text-ink-secondary">
       {{ ceremony.current.value.body }}
     </p>

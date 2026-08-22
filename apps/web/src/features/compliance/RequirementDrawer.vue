@@ -226,7 +226,7 @@ async function save(): Promise<void> {
             v-if="isTraining"
             v-slot="{ id }"
             label="Provider address"
-            hint="§172.704(d) requires it on the record."
+            hint="It has to be on the record."
           >
             <BaseInput :id="id" v-model="form.trainingProviderAddress" placeholder="Street, city, state" />
           </FormField>
@@ -235,7 +235,7 @@ async function save(): Promise<void> {
             v-if="isTraining"
             v-slot="{ id }"
             label="Training materials"
-            hint="Description or location of the materials used (§172.704(d))."
+            hint="Description or location of the materials used."
           >
             <BaseInput :id="id" v-model="form.trainingMaterials" placeholder="Course name, manual, module…" />
           </FormField>
@@ -266,7 +266,7 @@ async function save(): Promise<void> {
           </div>
 
           <BaseCheckbox v-if="isTraining" v-model="form.trainingCertified">
-            I certify this training record is complete (§172.704(d)).
+            I certify this training record is complete.
           </BaseCheckbox>
 
           <FormField v-slot="{ id }" label="Notes" hint="Optional.">

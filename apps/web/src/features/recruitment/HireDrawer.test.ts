@@ -63,11 +63,18 @@ describe("hiring an applicant", () => {
     expect(w.text()).toContain("Marked sent, but with no date");
   });
 
-  it("names what the qualification file will still need, with its citation", async () => {
+  /**
+   * ⚠ Was "…with its citation", asserting "§391.23(a)(1)" rendered beside the requirement's label.
+   * The citation still travels in the payload (`useHire.ts`'s `OutstandingItem.citation`, and
+   * `dqCatalogue.ts` behind it) because a printed file and counsel both want it — it simply stopped
+   * being rendered on 2026-08-22. What a recruiter needs from this list is the NAME of the thing
+   * still missing, which is what the label is.
+   */
+  it("names what the qualification file will still need, without citing a regulation at it", async () => {
     const w = mountDrawer();
     await settle(w);
     expect(w.text()).toContain("Pre-employment driving record inquiry");
-    expect(w.text()).toContain("§391.23(a)(1)");
+    expect(w.text()).not.toMatch(/§|\bCFR\b/);
   });
 
   it("posts the driver and the hire date, and nothing else", async () => {

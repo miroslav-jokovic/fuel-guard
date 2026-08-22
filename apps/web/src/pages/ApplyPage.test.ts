@@ -154,8 +154,11 @@ describe("the applicant's page", () => {
 
     expect(w.text()).toContain(step(1));
     expect(w.text()).toContain("About you");
-    // §391.21(b)(2) — the paragraph is named on the screen that discharges it.
-    expect(w.text()).toContain("§391.21(b)(2)");
+    // ⚠ This used to assert the screen NAMED its paragraph — "§391.21(b)(2)" rendered under the
+    // heading. Inverted 2026-08-22 on the owner's judgement that citations are "useless and
+    // confusing for a regular user": the driver gets the words, the auditor gets the PDF. The
+    // assertion is kept rather than deleted because it is now the pin in the other direction.
+    expect(w.text()).not.toMatch(/§|\bCFR\b/);
 
     await advance(w);
     expect(w.text()).toContain("Where you have lived");

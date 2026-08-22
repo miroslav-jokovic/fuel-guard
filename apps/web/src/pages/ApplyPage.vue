@@ -2,7 +2,7 @@
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
-import { APPLICATION_SECTION_CITATIONS, APPLICATION_SECTION_LABELS } from "@fuelguard/shared";
+import { APPLICATION_SECTION_LABELS } from "@fuelguard/shared";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
@@ -293,8 +293,14 @@ async function send(): Promise<void> {
       <p v-if="saveStatus" class="mt-2 text-xs text-ink-muted">{{ saveStatus }}</p>
     </div>
 
-    <!-- Where they are, in words and as a bar. The citation is shown because this is a regulated
-         form and a driver asked for their address history deserves to see who is asking. -->
+    <!-- Where they are, in words and as a bar.
+         ⚠ This block used to carry a third line: `APPLICATION_SECTION_CITATIONS[section]`, so a
+         driver on a phone read "§391.21(b)(3)" above the boxes asking where they had lived. It was
+         argued for on the grounds that a regulated form should say who is asking — but a CFR
+         paragraph number does not answer that question for the person being asked, it answers it for
+         somebody auditing us later, and that reader gets the PDF. Removed 2026-08-22 on the owner's
+         judgement that citations are "useless and confusing for a regular user"; the map itself is
+         kept and still prints (see `applicationSections.ts`). -->
     <div class="space-y-2">
       <div class="flex items-baseline justify-between gap-4">
         <h2 class="text-base font-semibold text-ink">{{ APPLICATION_SECTION_LABELS[wizard.section.value] }}</h2>
@@ -306,9 +312,6 @@ async function send(): Promise<void> {
           :style="{ width: `${((wizard.index.value + 1) / wizard.total) * 100}%` }"
         />
       </div>
-      <p v-if="APPLICATION_SECTION_CITATIONS[wizard.section.value]" class="text-xs text-ink-muted">
-        {{ APPLICATION_SECTION_CITATIONS[wizard.section.value] }}
-      </p>
     </div>
 
     <BaseCard v-if="wizard.issues.value.length || sendError">

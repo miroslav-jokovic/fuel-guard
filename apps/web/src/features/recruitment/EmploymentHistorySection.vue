@@ -127,9 +127,9 @@ const sourceLabel = (s: string): string =>
         <div>
           <h3 class="text-sm font-semibold text-ink">Employment history</h3>
           <p class="mt-1 text-sm text-ink-muted">
-            §391.21(b)(10) asks for every employer in the {{ EMPLOYMENT_WINDOW_YEARS }} years before
-            the application; (b)(11) adds the {{ CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS }} years
-            before that, but only where the applicant drove a commercial vehicle<template v-if="driverQ.data.value?.hire_date">. Measured from the hire date</template>.
+            Every employer in the {{ EMPLOYMENT_WINDOW_YEARS }} years before the application, plus the
+            {{ CMV_WINDOW_YEARS - EMPLOYMENT_WINDOW_YEARS }} years before that where the applicant drove
+            a commercial vehicle<template v-if="driverQ.data.value?.hire_date">. Measured from the hire date</template>.
           </p>
         </div>
         <BaseButton v-if="session.canManage" variant="primary" @click="openAdd">Add employer</BaseButton>

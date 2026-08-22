@@ -1,5 +1,4 @@
 import {
-  APPLICATION_SECTION_CITATIONS,
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
@@ -24,10 +23,28 @@ import {
  * The section titles come from `APPLICATION_SECTION_LABELS` in shared rather than being retyped: the
  * section vocabulary is a database value (`application_drafts.furthest_section`) and its label map
  * ships beside the tokens, so this file re-exports rather than forks it.
+ *
+ * ── NO CFR CITATIONS IN ANY STRING HERE (2026-08-22, owner) ───────────────────────────────────
+ * Ten strings in this file used to name the paragraph they discharged — "§391.21(b)(5) asks for every
+ * unexpired licence", "§391.21(b)(10) asks for it" — and the wizard printed the section's citation
+ * under every heading besides. The owner's judgement is that this is "useless and confusing for a
+ * regular user", and the audience argument is decisive: the reader of this file is a driver on a
+ * phone, and a citation is an instrument for arguing with an auditor. A driver cannot look up
+ * §391.21(b)(9), and being shown it does not make them likelier to answer.
+ *
+ * ⚠ **The reason survives even where the number does not**, because the voice rule above still
+ * stands: a sensitive question states why in the same breath. "§391.23 requires us to record where we
+ * wrote to" became "We have to record where we wrote to" — the driver learns the same thing, which is
+ * that this is an obligation rather than nosiness. The strings that were pure citation and no reason
+ * ("§391.21(b)(10) asks for it") are the ones that had to be rewritten rather than trimmed.
+ *
+ * The citations themselves are not lost: `APPLICATION_SECTION_CITATIONS` still prints into the PDF
+ * that lands in the §391.51 file, and this file's own comments still name the paragraphs so the next
+ * person editing a string can check it against the CFR. Comments are read by engineers; strings are
+ * read by drivers.
  */
 
 export const APPLY_SECTION_TITLES = APPLICATION_SECTION_LABELS;
-export const APPLY_SECTION_CITATIONS = APPLICATION_SECTION_CITATIONS;
 
 export const APPLY_COPY = {
   page: {
@@ -35,7 +52,7 @@ export const APPLY_COPY = {
     /** Named as a function because the carrier is a fact, and a template literal here would be a
      *  string a translator cannot reorder. */
     subtitle: (carrier: string): string =>
-      `For ${carrier}, under 49 CFR §391.21. Your answers save as you go — you can close this page and come back.`,
+      `For ${carrier}. Your answers save as you go — you can close this page and come back.`,
     opening: "Opening your application…",
     stepOf: (n: number, total: number): string => `Step ${n} of ${total}`,
   },
@@ -81,7 +98,7 @@ export const APPLY_COPY = {
     ssn: "Social Security number",
     /** Q-H2. The number is optional, and the reason it is asked at all is stated in one sentence. */
     ssnHint:
-      "Optional. It is asked because §391.21(b)(2) lists it and some driving-record checks match on it. Only the last four digits are kept in a readable form.",
+      "Optional. It is on the application because some driving-record checks match on it. Only the last four digits are kept in a readable form.",
     ssnNotSaved: "This is the one answer that is not saved as you go — type it just before you send.",
   },
 
@@ -102,8 +119,7 @@ export const APPLY_COPY = {
   },
 
   licence: {
-    intro:
-      "§391.21(b)(5) asks for every unexpired licence and permit you hold. Start with the one you drive on.",
+    intro: "Every unexpired licence and permit you hold. Start with the one you drive on.",
     number: "Licence number",
     state: "Issuing state",
     stateHint: "Two letters.",
@@ -129,7 +145,7 @@ export const APPLY_COPY = {
     usdot: "USDOT number",
     usdotHint: "Optional — leave blank if you do not know it.",
     address: "Street address",
-    addressHint: "§391.23 requires us to record where we wrote to.",
+    addressHint: "We have to record where we wrote to.",
     city: "City",
     state: "State",
     phone: "Phone",
@@ -141,7 +157,7 @@ export const APPLY_COPY = {
     to: "Until",
     toHint: "Blank if you work there now.",
     reason: "Reason for leaving",
-    reasonHint: "§391.21(b)(10) asks for it.",
+    reasonHint: "Asked for every job on this list.",
     operatedCmv: "I drove a commercial vehicle in this job",
     dotRegulated: "This employer was DOT-regulated",
     safetySensitive: "This job was safety-sensitive under DOT drug and alcohol rules",
@@ -153,7 +169,7 @@ export const APPLY_COPY = {
     /** §391.21(b)(6)'s second half, laid out as FMCSA's own sample application lays it out. */
     equipmentHeading: "Equipment you have driven",
     equipmentIntro:
-      "§391.21(b)(6) asks which types of vehicle you have operated. Add a line for each — or describe it above instead, whichever is easier.",
+      "Which types of vehicle you have operated. Add a line for each — or describe it above instead, whichever is easier.",
     equipmentClass: "Class of equipment",
     equipmentType: "Type",
     equipmentTypeHint: "Van, tank, flat, and so on.",
@@ -167,7 +183,7 @@ export const APPLY_COPY = {
   },
 
   safety: {
-    intro: "These three questions come from §391.21(b)(7)–(9) and cover the last three years.",
+    intro: "These three questions cover the last three years.",
     accidentsHeading: "Accidents",
     noAccidents: "I have had no accidents in the last 3 years",
     accidentDate: "Date",
@@ -188,7 +204,7 @@ export const APPLY_COPY = {
     licenceHeading: "Licence history",
     everDenied: "A licence, permit or privilege of mine has been denied, revoked or suspended",
     denialDetail: "What happened",
-    denialDetailHint: "§391.21(b)(9) asks for the reason.",
+    denialDetailHint: "The reason it happened.",
     remove: "Remove",
   },
 
@@ -252,7 +268,7 @@ export const APPLY_COPY = {
 
   certify: {
     heading: "Your certification",
-    intro: "§391.21(b) requires you to certify this. Typing your name is your signature.",
+    intro: "You have to certify this before it can be sent. Typing your name is your signature.",
     statement:
       "I certify that all entries on this application are true and complete to the best of my knowledge.",
     signedName: "Your full name",
@@ -262,7 +278,7 @@ export const APPLY_COPY = {
   done: {
     heading: "Your application is in",
     body: (carrier: string): string =>
-      `${carrier} has it, certified in your name under 49 CFR §391.21(b). They will contact you about what happens next.`,
+      `${carrier} has it, certified in your name. They will contact you about what happens next.`,
     reopen:
       "You can close this page. Your link still opens to this message, and it cannot be used to send a second application.",
   },

@@ -158,7 +158,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
           <h3 class="text-sm font-semibold text-ink">PSP records</h3>
           <p class="mt-1 text-sm text-ink-muted">
             The FMCSA Pre-Employment Screening Program is voluntary — a file without one is still a
-            lawful §391.51 file. A record bought on the PSP portal can be filed here; there is no way
+            lawful qualification file. A record bought on the PSP portal can be filed here; there is no way
             for us to fetch it, because the REST API has no endpoint that lists past transactions and
             a report can only be retrieved with the code from the request that bought it.
           </p>

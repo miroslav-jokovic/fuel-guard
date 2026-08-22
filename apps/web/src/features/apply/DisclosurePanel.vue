@@ -49,7 +49,6 @@ const anyDraft = computed(() => props.releases.some((r) => r.draft));
         <h3 class="text-sm font-semibold text-ink">{{ release.title }}</h3>
         <span v-if="release.draft" :class="[BADGE_BASE, toneClass('warning')]">Not final</span>
       </div>
-      <p class="text-xs text-ink-muted">{{ release.citation }}</p>
       <p class="whitespace-pre-line text-sm text-ink-secondary">{{ release.body }}</p>
       <p class="text-sm font-medium text-ink">{{ release.intent }}</p>
     </article>

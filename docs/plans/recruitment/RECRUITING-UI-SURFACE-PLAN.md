@@ -1,12 +1,14 @@
 # Recruiting & DQF UI surface plan — the half that no gate measures
 
-> **STATUS 2026-08-22: U1, U3–U6 are DONE and merged. U2 is DONE-then-REVERTED.** Seven PRs, no
+> **STATUS 2026-08-22: U1, U3–U6 and U8 are DONE and merged. U2 is DONE-then-REVERTED.** Eight PRs, no
 > migration, and — after the revert — **no API endpoint**: U2's counts route came out with it, so
 > this plan's whole shipped surface is web-only again, as §1 said it would be.
-> **U7 — the walkthrough — is the only step left, and it is owner-driven**: it needs a browser and a
-> login, and U1 is what made it possible.
-> ⚠ U2's *content* is not cancelled, only its address: the §391 panel is owed to `/compliance`, and
-> that is a new step, not a resurrection of this one.
+> **U7 — the walkthrough — is the only step of the ORIGINAL seven left, and it is owner-driven**: it
+> needs a browser and a login, and U1 is what made it possible. U9 joins it as unstarted.
+> ⚠ U2's *content* is not cancelled, only its address: the §391 panel is owed to `/compliance` as
+> **U9**, a new step rather than a resurrection of this one.
+> ⚠ **U8 was added on 2026-08-22 outside the original U1–U7** — the screens stop citing the CFR at
+> people. It is D-UI9, and hazmat is explicitly carved out of it.
 > ⚠ Nothing below has been seen in a browser; every step says so in its own "not verified" note.
 
 **Created 2026-08-21, after `HANDOFF-2026-08-21-NIGHT.md`.** Child plan of
@@ -256,6 +258,7 @@ pairwise. The sum is one scroll nobody scoped.
 | **D-UI5** | A badge never labels an affordance. The attention tile's filter state is carried by `aria-pressed` and the existing ring, which it already has. ⚠ Where a gate and a document disagree, the gate is right and the **document** is the thing to fix — see §2.5's correction. |
 | **D-UI6** | Every nav item has a glyph no other **item** shares (a section's glyph reappearing on a member is hierarchy, not collision). ⚠ The **label** "Applicants" is **not** renamed here — `RECRUITING-SYSTEM-PLAN.md` R9 explicitly owns that word ("the nav label 'Applicants' is renamed to match what the page now is (R9 decides the word, the rename ships with the board)"). This plan changes the icon only. |
 | **D-UI7** | "Employment" splits into the recruiting work and the qualification work by *who does it*, not by which regulation names it. |
+| **D-UI9** | ⚠ **A CFR citation is print-side, not screen-side.** The screens say what is being asked and why, in words; the paragraph number goes to the PDF, the export and the code comment. The test is the audience: a citation is an instrument for arguing with an auditor, and neither a driver on a phone nor a recruiter working a queue is one. ⚠ Two carve-outs, both deliberate — the **hazmat** domain keeps its citations (owner-confirmed 2026-08-22; there the citation *is* the product), and the **wording of a signed legal instrument** is counsel's, not a copy pass. |
 | **D-UI8** | ⚠ **Nothing in this plan may pre-empt R9.** R9 grows `/recruitment` into the recruiter board with the four-stage view demoted to a slice. Every surface built here composes shared components so R9 re-arranges them rather than rewriting them; no new page is created that R9 would have to delete. |
 
 ---
@@ -750,6 +753,85 @@ every difference is either fixed or written down.
 
 ---
 
+### U8 · The screens stop citing the CFR at people — DONE 2026-08-22 (no migrations)
+
+**Prerequisites:** none. Owner-driven, added 2026-08-22 outside U1–U7: *"useless and confusing for a
+regular user."*
+
+**The measurement.** Not a guess — every `.vue` template and script block in `apps/web` was walked
+with HTML and JS comments stripped, so what was counted is what a person can actually read. Outside
+hazmat there were **31 rendered citations across 17 files**, and the worst of them was structural
+rather than incidental: `APPLICATION_SECTION_CITATIONS` rendered as a line under **every heading in
+the apply wizard**, so a driver holding a phone read "§391.21(b)(3)" above the boxes asking where
+they had lived. `strings.ts` carried ten more inside the copy itself, two of them hidden behind
+functions. A validation message opened with "§391.21(b)(6):" — read by exactly one person, the
+applicant who just failed it, mid-form. `InquiryQueuePage` spent a **column header** on
+"§391.23(c)(1) deadline".
+
+**What shipped.**
+- **The apply wizard.** The per-section citation line is gone from `ApplyPage.vue`; ten strings in
+  `features/apply/strings.ts` were rewritten; `applicationContract.ts`'s `equipment_experience`
+  message says what to do instead of which paragraph was breached.
+- **The instruments.** `DisclosurePanel`, `EsignConsentGate` and `SigningCeremony` no longer print
+  the `citation` metadata line above each document's title. ⚠ **`body` and `intent` are untouched**
+  and still say "§40.25(g)", "49 CFR Part 40", "49 CFR Part 382" — those sentences ARE the legal
+  instrument the driver signs, and editing them is counsel's act, not a copy pass. The line that went
+  was ours to write; the document was not.
+- **The recruiter surfaces.** `InquiryQueuePage` (column header + intro), `EmployerInquirySection`
+  (four places, including a toast), `InquiryResponseDrawer`, `EmploymentForm`,
+  `EmploymentHistorySection`, `HireDrawer` (prose + the per-requirement citation chip),
+  `ApplicationInviteCard`, `InviteApplicantDrawer`, `PspRecordsSection`, `RecruitmentPage`,
+  `ApplyLayout`'s footer, and `QualificationSeedPanel` + `RequirementDrawer`.
+- ⚠ **Nothing was deleted from the data.** `APPLICATION_SECTION_CITATIONS` still prints into the PDF
+  (`render.ts`'s `RENDERED_CITATIONS`); `DisclosureDocument.citation` and `dqCatalogue`'s per-
+  requirement citations still travel in their payloads. **Citations left the screen; they did not
+  leave the product.** Each surviving field now carries a docblock saying which audience it is for,
+  because a field with no rendered call site is otherwise indistinguishable from dead code.
+
+⚠ **The reason survives even where the number does not.** `strings.ts`'s own voice rule — a
+question a driver would resent being asked states why in the same breath — outranks brevity here.
+"§391.23 requires us to record where we wrote to" became "We have to record where we wrote to": the
+driver learns the same thing, which is that this is an obligation and not nosiness. The strings that
+were *pure* citation and no reason ("§391.21(b)(10) asks for it") are the ones that had to be
+rewritten rather than trimmed.
+
+⚠ **Three existing tests asserted the old behaviour, and all three were inverted rather than
+deleted.** `ApplyPage.test.ts` asserted the identity screen NAMED "§391.21(b)(2)";
+`HireDrawer.test.ts`'s title was literally "…with its citation"; `applicationContract.test.ts`
+asserted the validation message contained "391.21(b)(6)". Each now asserts the absence, so the rule
+is pinned in the direction it is now meant to hold. **A test deleted because it contradicts a new
+decision leaves the decision ungated;** an inverted one carries both the decision and its history.
+`features/apply/strings.test.ts` is new and is the real gate — it walks every leaf of `APPLY_COPY`
+**including the strings behind functions**, which is where two of the ten were hiding, and fails on
+`§` or `CFR`.
+
+⚠ **Hazmat is out of scope, and the owner was asked before anything was touched.**
+`features/hazmat/VerdictPanel.vue` carries eleven citations rendered as `CitationText` chips with
+eCFR deep links, on plan decision G4 ("every answer carries its CFR authority"), and
+`HazmatCalculatorForm.vue:43` records that the domain had **already** stripped citations from its
+form copy. The audience there is a dispatcher justifying a placard to a DOT officer at roadside —
+the one reader for whom a citation is the useful artifact. Owner's decision 2026-08-22: **leave
+hazmat alone.** `PublicPlacardCalculatorPage` advertises "Answers with CFR citations" as a feature,
+which is the same call made in marketing copy.
+
+⚠ **One seam this leaves, recorded rather than papered over.** `RequirementDrawer.vue` (compliance)
+and `CertManager.vue` (hazmat) render the **same three §172.704(d) hints**. The owner named the
+compliance one and not the hazmat one, so they now differ by one word each. That is a defensible
+line — the compliance drawer is where a fleet manager records a date, the hazmat manager is where a
+trained specialist works — but it is a line somebody will trip over, and it should be settled the
+next time either file is opened.
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(zero in the tracked tree) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:ui-contrast` ·
+`lint:tokens-parity` · `lint:filesize` · `lint:funcsize` · `lint:boundaries` · `lint:comment-claims` ·
+`lint:tests` — all green. No migration.
+
+⚠ **Not verified in a browser** (the standing vite crash). For a copy change that is a real gap: the
+tests prove the citations are gone and prove the reasons stayed, but only an eye can say whether a
+rewritten sentence still reads well at the width it renders at. **Worth reading aloud in U7.**
+
+---
+
 ## 5. Sequencing, and what this costs
 
 ```
@@ -759,7 +841,11 @@ U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← DONE 2026-08-21
 U5  shell + icons         ← DONE 2026-08-21
 U6  Employment split      ← DONE 2026-08-21
-U7  the walkthrough       ← THE ONLY STEP LEFT. Owner-driven; U1 made it possible
+U7  the walkthrough       ← owner-driven; U1 made it possible
+
+Added 2026-08-22, outside the original U1–U7, on owner decisions:
+U8  no citations on screens   ← DONE 2026-08-22
+U9  the §391 panel on /compliance  ← NOT STARTED. U2's content, at U2's correct address
 ```
 
 **U1 alone closed the finding that matters (2026-08-21).** U2–U6 are the consistency pass; they are worth doing

@@ -98,8 +98,9 @@ const columns: DataTableColumn[] = [
         <div>
           <h3 class="text-sm font-semibold text-ink">Application</h3>
           <p class="mt-1 text-sm text-ink-muted">
-            §391.21(b) is a form the applicant fills in and certifies themselves. Send them a link and
-            their answers become the employment history and the record this file is built from.
+            The driver application is a form the applicant fills in and certifies themselves. Send them
+            a link and their answers become the employment history and the record this file is built
+            from.
           </p>
         </div>
       </div>
@@ -126,9 +127,8 @@ const columns: DataTableColumn[] = [
           <h3 class="text-sm font-semibold text-ink">Application received</h3>
           <p class="mt-1 text-sm text-ink-muted">
             Certified by {{ applicationQ.data.value.application.signed_name }} on
-            {{ applicationQ.data.value.application.certified_at.slice(0, 10) }}, under 49 CFR
-            §391.21(b). The PDF carries every answer and every signature, with the dates this system
-            recorded them.
+            {{ applicationQ.data.value.application.certified_at.slice(0, 10) }}. The PDF carries every
+            answer and every signature, with the dates this system recorded them.
           </p>
         </div>
         <BaseButton
