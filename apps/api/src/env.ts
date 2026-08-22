@@ -130,6 +130,15 @@ const EnvSchema = z.object({
     .default("true")
     .transform((s) => s.toLowerCase() !== "false"),
 
+  // A10's abandonment nudge — the first thing here that emails an APPLICANT unprompted, so it gets
+  // its own switch. Default ON: a recapture feature nobody turns on does not exist, and the real
+  // safeguards are structural (one nudge per invitation ever, nothing before 48 h, nothing without a
+  // mail provider). False stops the driver email and leaves the office alert.
+  APPLICATION_NUDGE_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
+
   // Whether THIS process also runs the background schedulers in-process (default true, single-service
   // deploy). Set RUN_SCHEDULERS_IN_PROCESS=false on the API service when a dedicated worker runs them.
   RUN_SCHEDULERS_IN_PROCESS: z

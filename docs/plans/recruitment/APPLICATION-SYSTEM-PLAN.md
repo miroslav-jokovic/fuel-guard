@@ -1311,7 +1311,7 @@ none" are different facts.
 `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
 **Not verified in a browser** — same reason as every step since A1.
 
-### A10 · Abandonment recovery
+### A10 · Abandonment recovery — DONE 2026-08-21 (migration 0232)
 
 **Prerequisites:** A2.
 
@@ -1330,6 +1330,70 @@ revoked excluded, expired excluded); a test that a nudge extends expiry; `expect
 sweep query.
 **Done when:** a driver who walked away at the employment section gets one link back, and the office
 sees a count of who stalled.
+
+**⚠ THE STEP'S CENTRAL INSTRUCTION CANNOT BE FOLLOWED AS WRITTEN.** "Here is your link back" assumes a
+link exists to send. It does not. The invitation token is 256 bits that `application_invitations`
+stores ONLY as a SHA-256 (0220); the plaintext is returned once at mint time and never again, and the
+entire security posture of the public surface rests on it — a leak of that table yields hashes and
+timestamps, not working links. **A scheduler cannot reconstruct what nobody kept.**
+
+The repo already has an answer for a lost link — `applicationInvites.ts`: *"A lost link is replaced by
+a NEW invitation, and the old one is revoked."* ⚠ **That answer is wrong here**, and the reason is the
+whole feature: `application_drafts` is one row per invitation, so a new invitation resumes an EMPTY
+form. An email promising a driver their saved application, whose link then shows a blank one, is worse
+than sending nothing.
+
+**Decision: the token is ROTATED IN PLACE.** Same invitation row — same draft, same phase stamps, same
+signed releases — and a fresh hash. Considered and rejected: sealing a copy of the token with
+secretBox, as `driver_applications.ssn_sealed` already does in this table family. That would let the
+SAME link be re-sent so both emails keep working, at the cost of making "a leak of this table yields
+no working links" true only while the key holds. Rotation keeps 0220's property exactly as written
+and costs one thing instead: a driver who digs out the ORIGINAL email after being nudged gets the
+neutral "this link is not valid" refusal. The nudge copy says so in as many words, and the newer
+email is the one in front of them.
+
+**What shipped.**
+- `packages/shared/src/applicationNudge.ts` — the selection fold, pure. Five exclusions, each a fact
+  about the invitation rather than a heuristic: submitted, revoked, expired, already nudged, and a
+  draft touched inside the 48-hour window.
+- `0232`: `application_invitations.nudged_at`; `nudge_application_invitation`, which rotates the hash,
+  extends the expiry with `greatest()` (a recruiter's deliberate 60-day link is never cut to 14) and
+  stamps `nudged_at` **in one transaction**; and the `notification_events` CHECK extended for
+  `application_stalled`, on 0093/0154/0207's model.
+- `applicationNudgeSweep.ts` — rotate FIRST, then send. The reverse would email a link that does not
+  work yet, and any failure between the two would leave the driver holding a dead link with no way
+  back. This order costs, at worst, an email they never got — with the office alert still telling
+  somebody to phone them.
+- A second pass inside `startDqAlertScheduler`'s existing six-hourly run (D-APP15), in its own `try`:
+  an org whose DQ alerts throw must still have its stalled applicants found, and the reverse.
+- `application_stalled` joins `NotificationCategory` with its label, and `notificationRoute` sends it
+  to `/recruitment` — the applicant board IS the queue, and there is no per-applicant page to land on.
+- `APPLICATION_NUDGE_ENABLED`, default **on**. This is the first thing in the product that emails an
+  APPLICANT unprompted, so it gets its own switch rather than riding on `DQ_ALERTS_ENABLED` — but a
+  recapture feature nobody turns on is one that does not exist, and the real safeguards are structural
+  (one nudge per invitation ever, nothing before 48 hours, nothing at all without a mail provider).
+  Setting it false stops the driver email and leaves the office alert, which is the half a carrier
+  might legitimately want alone.
+
+**⚠ One more decision the step did not anticipate: an invitation with no email address.** The recruiter
+may have issued the link to be passed on by hand. Such a candidate still produces the OFFICE alert —
+that is the cue to pick up the phone — and the invitation is **not touched**: not rotated, because
+that would kill the driver's only link, and not stamped, because spending the one nudge on an email
+nobody could receive is the failure this shape exists to avoid. The dedupe key means the office hears
+once, and the candidate falls out of the fold by itself when the link expires.
+
+**Verified by:** `pnpm test` — `applicationNudge.test.ts` (10) tests each exclusion on its own rather
+than through one happy path, because the failure that matters is not "nobody was nudged" but nudging
+somebody who finished, somebody whose link the carrier deliberately took away, or somebody twice;
+`applicationNudgeSweep.test.ts` (7) pins the ORDER (a fresh 64-character hash reaches the RPC before
+any mail is sent, and the emailed link carries the plaintext that rotation was derived from), that a
+lost race sends nothing, and that a missing address alerts without touching the link; the
+`application-session` matrix gains eight SQL assertions — the rotation, the extension, the stamp, the
+refusal of a second nudge, of a submitted invitation and of a revoked one, that `greatest()` never
+shortens a long link, and that the function is service_role only. `expectOrgScoped` on the sweep.
+`pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**Not verified against a real inbox** — no mail provider is configured in test, so `sendEmail` is
+mocked and what a driver actually receives has not been read by a person.
 
 ### A11 · SMS delivery, and the retention rule
 
@@ -1468,8 +1532,10 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
-⚠ **Position as of 2026-08-21: A1–A9 are DONE (schema 0230). The next step is A10**, the abandonment
-sweep — it needs no input from anybody and extends a scheduler that already runs.
+⚠ **Position as of 2026-08-21: A1–A10 are DONE (schema 0232). The last step is A11** — SMS delivery
+and the retention rule. ⚠ A11 carries two things named elsewhere in this document rather than
+discovered: the `signature_mark` staging row is how the PDF renderer finds the drawn mark (A8b), and
+10DLC registration has a multi-week lead time that started at A1.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
 the harness facts that cost time, which are not repeated here.
 

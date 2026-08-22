@@ -197,6 +197,84 @@ ok(
   )) === 0,
 );
 
+// ── A10: the nudge, which is a token ROTATION and not a re-send ────────────────────────────────
+// There is no link to re-send: this table stores a SHA-256 and the plaintext was never kept. So the
+// nudge mints a new token and rotates the hash in place — same row, so the draft, the phase stamps
+// and any signed releases survive, and the driver's older email stops working. 0232's header carries
+// the full argument, including why sealing a copy of the token was rejected.
+const NUDGE_DRIVER = await driver("Walked Away");
+// Deliberately a SHORT window. The default `invite()` helper issues 14 days and the nudge extends by
+// 14, so `greatest()` would compare two values a few microseconds apart and the assertion below would
+// be about clock resolution rather than about behaviour. Two days makes the extension unambiguous —
+// which is also the real case: a link that expires between the nudge and the click is worse than no
+// nudge at all.
+const NUDGE_INV = (await one(
+  `insert into application_invitations (org_id, driver_id, token_hash, expires_at)
+     values ($1,$2,'hash-stalled', now() + interval '2 days') returning id`, [ORG, NUDGE_DRIVER])).id;
+const beforeNudge = await one(
+  `select token_hash, expires_at from application_invitations where id = $1`, [NUDGE_INV]);
+const nudged = (await one(
+  `select public.nudge_application_invitation($1,$2,'f'||repeat('0',63),14) as r`, [ORG, NUDGE_INV])).r;
+ok("a live, unstarted invitation can be nudged", nudged === true);
+const afterNudge = await one(
+  `select token_hash, expires_at, nudged_at from application_invitations where id = $1`, [NUDGE_INV]);
+ok("the token is rotated, so the older email's link no longer resolves",
+  afterNudge.token_hash !== beforeNudge.token_hash);
+ok(
+  "the expiry is extended, because a link that dies between the nudge and the click is worse than none",
+  Date.parse(afterNudge.expires_at) > Date.parse(beforeNudge.expires_at),
+);
+ok("and the nudge is stamped in the same transaction", afterNudge.nudged_at !== null);
+
+// Once, ever — the stamp is the guard, inside the same statement that rotates.
+const twice = (await one(
+  `select public.nudge_application_invitation($1,$2,'e'||repeat('0',63),14) as r`, [ORG, NUDGE_INV])).r;
+ok("a second nudge does nothing at all", twice === false);
+ok("and does not rotate the token again",
+  (await one(`select token_hash from application_invitations where id = $1`, [NUDGE_INV])).token_hash
+    === afterNudge.token_hash);
+
+// The race the WHERE clause exists for: the sweep reads a candidate, then sends mail. A driver who
+// submits in that window must not have their link rotated out from under them.
+const SUBMITTED_DRIVER = await driver("Finished Already");
+const SUBMITTED_INV = await invite(SUBMITTED_DRIVER, "finished");
+await submit(SUBMITTED_INV, SUBMITTED_DRIVER);
+ok(
+  "an invitation submitted since the sweep read it is refused",
+  (await one(`select public.nudge_application_invitation($1,$2,'d'||repeat('0',63),14) as r`,
+    [ORG, SUBMITTED_INV])).r === false,
+);
+
+const REVOKED_DRIVER = await driver("Taken Back");
+const REVOKED_INV = await invite(REVOKED_DRIVER, "revoked");
+await db.query(`update application_invitations set revoked_at = now() where id = $1`, [REVOKED_INV]);
+ok(
+  "a revoked invitation is never handed back",
+  (await one(`select public.nudge_application_invitation($1,$2,'c'||repeat('0',63),14) as r`,
+    [ORG, REVOKED_INV])).r === false,
+);
+
+// `greatest()`: a recruiter who deliberately issued a 60-day link does not have it cut to 14.
+const LONG_DRIVER = await driver("Long Window");
+const LONG_INV = (await one(
+  `insert into application_invitations (org_id, driver_id, token_hash, expires_at)
+     values ($1,$2,'hash-long', now() + interval '60 days') returning id`, [ORG, LONG_DRIVER])).id;
+const longBefore = (await one(`select expires_at from application_invitations where id = $1`, [LONG_INV])).expires_at;
+await db.query(`select public.nudge_application_invitation($1,$2,'b'||repeat('0',63),14)`, [ORG, LONG_INV]);
+ok(
+  "a nudge never SHORTENS a link the recruiter deliberately made long",
+  Date.parse((await one(`select expires_at from application_invitations where id = $1`, [LONG_INV])).expires_at)
+    === Date.parse(longBefore),
+);
+
+ok(
+  "the nudge function is service_role only",
+  (await count(
+    `select count(*)::int as n from information_schema.role_routine_grants
+      where routine_name = 'nudge_application_invitation' and grantee in ('anon','authenticated','PUBLIC')`,
+  )) === 0,
+);
+
 // ── the table is still a credential store, not a browser-readable one ──────────────────────────
 ok(
   "application_invitations has RLS on and no client policies",

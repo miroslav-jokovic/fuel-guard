@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { sendEmail } from "../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
 import { notify } from "./notify.js";
+import { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 
 /**
  * DQ expiry alerts (DQF execution plan C3) — the digestScheduler shape, applied to qualifications:
@@ -114,16 +115,37 @@ export async function runDqAlertsOnce(admin: SupabaseClient, env: Env, orgId: st
 async function runAllOrgs(admin: SupabaseClient, env: Env): Promise<void> {
   const { data: orgs } = await admin.from("organizations").select("id");
   for (const o of orgs ?? []) {
+    const orgId = o.id as string;
     try {
-      const n = await runDqAlertsOnce(admin, env, o.id as string);
-      if (n > 0) console.log(`[dq-alerts] org ${o.id}: ${n} alert(s) emitted`);
+      const n = await runDqAlertsOnce(admin, env, orgId);
+      if (n > 0) console.log(`[dq-alerts] org ${orgId}: ${n} alert(s) emitted`);
     } catch (e) {
-      console.error(`[dq-alerts] org ${o.id} failed:`, e instanceof Error ? e.message : e);
+      console.error(`[dq-alerts] org ${orgId} failed:`, e instanceof Error ? e.message : e);
+    }
+    /**
+     * A10's abandonment sweep, as a SECOND PASS in this scheduler rather than a scheduler of its own
+     * (D-APP15). Schedulers must run in exactly one process fleet-wide, and every new one adds an
+     * invariant somebody has to keep — this one already runs per-org, already emits notification rows
+     * and already sends one office email per run, which is the right shape and the right audience.
+     * Its own selection (stale >48 h, nudged once) makes the six-hourly cadence harmless.
+     *
+     * In its own try: an org whose DQ alerts throw must still have its stalled applicants found, and
+     * the reverse. They are independent answers to independent questions.
+     */
+    try {
+      const sweep = await runApplicationNudgesOnce(admin, env, orgId, await officeUserIds(admin, orgId), new Date());
+      if (sweep.stalled > 0) {
+        console.log(`[application-nudge] org ${orgId}: ${sweep.stalled} stalled, ${sweep.emailed} emailed`);
+      }
+    } catch (e) {
+      console.error(`[application-nudge] org ${orgId} failed:`, e instanceof Error ? e.message : e);
     }
   }
 }
 
-/** ~6h cadence; the dedupe keys make every re-run idempotent. Disable with DQ_ALERTS_ENABLED=false. */
+/** ~6h cadence; the dedupe keys make every re-run idempotent. Disable with DQ_ALERTS_ENABLED=false.
+ *  ⚠ Since A10 this also carries the abandonment sweep — see `runAllOrgs`. DQ_ALERTS_ENABLED=false
+ *  therefore turns BOTH off, which is the honest consequence of putting a second pass in one timer. */
 export function startDqAlertScheduler(env: Env): void {
   if (!env.DQ_ALERTS_ENABLED) return;
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
