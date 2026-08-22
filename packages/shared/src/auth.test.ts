@@ -16,6 +16,7 @@ import {
   RESTRICTED_QUALIFICATION_KINDS,
   canReadAllRestricted,
   canWriteDriverLifecycle,
+  canArchiveDriver,
   canReadInvestigationHistory,
   canReadRestrictedKind,
   canReadTestingRecords,
@@ -134,6 +135,50 @@ describe("section capability matrix", () => {
     expect(canWriteDriverLifecycle("recruiter")).toBe(false);
     expect(canWriteDriverLifecycle(null)).toBe(false);
   });
+  /**
+   * `canArchiveDriver` (migration 0235) follows the LIST, not the table.
+   *
+   * Archiving is not a lifecycle act — it starts no retention clock and ends no driver-app session —
+   * so it is deliberately not `canWriteDriverLifecycle`. What it changes is which of two lists
+   * somebody has to read, and the two lists have two owners: the applicant board is the recruiter's,
+   * Fleet → Drivers is the fleet's. Pinned as a matrix rather than as examples, because the failure
+   * mode is a role quietly gaining or losing one half.
+   */
+  describe("canArchiveDriver", () => {
+    it("lets the recruiter tidy the applicant board and nothing else", () => {
+      expect(canArchiveDriver("recruiter", "applicant")).toBe(true);
+      for (const status of ["active", "inactive", "on_leave", "terminated"]) {
+        expect(canArchiveDriver("recruiter", status)).toBe(false);
+      }
+    });
+
+    it("lets fleet managers archive anybody on the roster, applicants included", () => {
+      const both = USER_ROLES.filter(
+        (r) => canArchiveDriver(r, "active") && canArchiveDriver(r, "applicant"),
+      );
+      expect(both.sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
+    });
+
+    it("refuses every role that manages neither section, and a missing role", () => {
+      for (const r of ["dispatcher", "auditor", "driver"] as const) {
+        expect(canArchiveDriver(r, "applicant")).toBe(false);
+        expect(canArchiveDriver(r, "active")).toBe(false);
+      }
+      expect(canArchiveDriver(null, "applicant")).toBe(false);
+      expect(canArchiveDriver(undefined, "active")).toBe(false);
+    });
+
+    /**
+     * A null status is what a partially-read row looks like. It must fall to the FLEET gate rather
+     * than the recruitment one: treating "unknown" as "applicant" would hand a recruiter the whole
+     * roster on a read that happened to omit a column.
+     */
+    it("treats an unknown status as roster, not as applicant", () => {
+      expect(canArchiveDriver("recruiter", null)).toBe(false);
+      expect(canArchiveDriver("fleet_manager", null)).toBe(true);
+    });
+  });
+
   it("rolesThatManage/rolesThatCanView expose the matrix for guard building", () => {
     expect(rolesThatManage("dispatch").sort()).toEqual(["admin", "dispatcher", "fleet_manager"]);
     expect(rolesThatManage("safety").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);

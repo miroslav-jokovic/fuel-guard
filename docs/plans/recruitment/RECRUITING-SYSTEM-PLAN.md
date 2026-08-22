@@ -415,6 +415,73 @@ Recorded as the first candidate the next time a gate is added.
 `pnpm typecheck` · `pnpm lint` · `lint:migrations` · `lint:rls` · `lint:upserts` ·
 `lint:comment-claims` · `lint:filesize` · `lint:funcsize` · `lint:boundaries` — all green.
 
+### R0b2 · A driver is archived, never deleted — DONE 2026-08-22 (migration 0235)
+
+⚠ **Not a planned step. An owner request** — the driver and applicant tables are confusing and there
+is no way to get somebody out of one.
+
+**The constraint the obvious answer runs into.** Deleting the row has been unavailable since D-BD12:
+`drivers` is in `RETENTION_FORBIDDEN` (`apps/api/src/services/dataRetention.ts`) because §391.51
+measures retention in YEARS — the qualification file for as long as the driver is employed plus
+three — and §390.32(d) requires an electronic record to still be reproducible when asked for. So:
+`archived_at`. The row stays whole; it stops appearing in the list somebody scans.
+
+**What archiving is NOT, stated because both mistakes are easy to make later.**
+- **Not a status.** `drivers.status` is an employment lifecycle, guarded by 0213 because it starts
+  the §391.51(c) clock and decides driver-app access. "I do not want to look at this row" is not a
+  fact about somebody's employment, and encoding it as one would let a recruiter tidying a list end a
+  driver's app session. A separate nullable timestamp keeps the two vocabularies apart.
+- **Not retention.** Nothing prunes on `archived_at` and `drivers` stays in `RETENTION_FORBIDDEN`.
+
+**What shipped.**
+- **0235**: `archived_at`, a partial index on the un-archived roster, and two triggers.
+- **`guard_driver_hard_delete` (DR010)** closes the DELETE on 0096's `messages` precedent — for
+  everybody, **service role included**, on the EI010/DA010 side of §4's trigger-style choice. Today
+  there is no delete path for a driver anywhere in the product, which is exactly when a guard is cheap
+  to add and nobody argues about it.
+- ⚠ **`merge_driver` holds the only exemption**, via a transaction-local flag around its one DELETE.
+  It had to be exempt — a merge ends by deleting the source — and it is **safe to exempt only because
+  of R0a**: 0234 moves every reassignable table off the source first and REFUSES the merge outright
+  when the source carries a certified application, an e-sign consent or an SMS consent. The row the
+  exemption lets through is empty of evidence. Granted before R0a, this would have been an exemption
+  for a data-destruction bug.
+- **`guard_driver_archive_writer` (DR011)** refuses `archived_at` to every JWT-bearing writer. 0212
+  grants `recruiter` UPDATE on `drivers` by name, so without it a recruiter could archive through
+  PostgREST and the act of hiding a person would be the one roster act with no audit row.
+- **`POST /:id/archive` · `/:id/unarchive`** in a new `routes/roster/archive.ts` — `drivers.ts` is
+  415 lines against a budget that warns at 450, and §4 says a route file with six verbs starts split.
+- **`canArchiveDriver(role, status)`** in shared follows the LIST, not the table: an applicant is the
+  recruiter's to tidy away because the applicant board is theirs; anyone else on the roster is the
+  fleet's. ⚠ A **null status falls to the FLEET gate**, deliberately — treating "unknown" as
+  "applicant" would hand a recruiter the whole roster on a read that happened to omit a column.
+- **Web**: a "Show" chip on both lists (`DriversPage`, `RecruitmentPage`), an `Archived` badge, a
+  shared `ArchiveDriverModal` whose whole job is to say what archiving actually does, and
+  `useArchiveDriver`. The kebab item says **Archive…**, never *Delete* — the word on the button
+  matches what the database will do.
+
+⚠ **The filter is on the PAGE, not in `useDriversQuery`, and that is the decision.** Five surfaces
+read that query as a NAME LOOKUP — `useAnomalyDetail`, `AssignmentHistory`, `HazmatLoadDetailPage`,
+`FleetReadiness`, `DriverAppSettingsPage`. Filtering at the source would make an archived driver's
+name stop resolving and turn a historical anomaly into one attributed to nobody. **Archiving hides a
+row from a list; it does not erase a person from records they appear in.**
+
+⚠ **A trap found by a failing test, and worth knowing generally.** `rosterCredentialsRouter` carries
+a **router-level** `requireRole("admin", "fleet_manager")`, and an Express sub-router's `use`
+middleware runs for every request reaching its mount path — including ones matching none of its
+routes. Both routers mount on `/api/roster/drivers`, so with credentials mounted first a recruiter's
+archive request was 403'd before the archive router was consulted. **Mount order is load-bearing when
+two routers share a path and one of them has a `use`-level guard.** Caught by "passes the door for
+recruiter"; the fix is two lines swapped and a comment saying why.
+
+**Verified by:** `pnpm test` (all unit suites + **19** PGlite matrices — `driver-archive` is new, 18
+assertions) · `pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:ui-adoption` ·
+`pnpm --filter web lint:tokens` · `lint:ui-contrast` · `lint:tokens-parity` · `lint:filesize` ·
+`lint:funcsize` · `lint:boundaries` · `lint:comment-claims` · `lint:tests` · `lint:migrations` ·
+`lint:rls` · `lint:upserts` — all green.
+
+⚠ **Not verified in a browser** (the standing vite crash). The two chips and the modal are the parts
+an eye would judge; the guarantees behind them are pinned in the matrix.
+
 ### R0 · The owner interview — no code
 
 The highest-value research is not in a regulation. Put the §6 register (Q-REC1–Q-REC7, plus the

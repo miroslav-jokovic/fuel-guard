@@ -1,4 +1,4 @@
-import { USER_ROLES, type UserRole } from "./constants.js";
+import { USER_ROLES, isApplicantStatus, type UserRole } from "./constants.js";
 
 /**
  * Claims FuelGuard reads from a verified Supabase JWT.
@@ -141,6 +141,35 @@ export const canManageFleet = (role: UserRole | null | undefined): boolean =>
  */
 export const canWriteDriverLifecycle = (role: UserRole | null | undefined): boolean =>
   canManageSection(role, "fleet");
+
+/**
+ * Who may ARCHIVE a driver — hide their row from the roster and the applicant board (migration 0235).
+ *
+ * ── WHY THIS IS NOT `canWriteDriverLifecycle` ─────────────────────────────────────────────────
+ * Archiving is not a lifecycle act. It changes nothing about the person's employment, starts no
+ * retention clock and ends no driver-app session; the row, the §391.51 file and every signed
+ * instrument are untouched and stay reproducible. What it changes is which of two lists somebody has
+ * to read — and the two lists have two different owners.
+ *
+ * So the rule follows the LIST, not the table: an **applicant** is the recruiter's to tidy away,
+ * because the applicant board is the recruiter's surface (`rolesThatManage("recruitment")`). Anyone
+ * else on the roster is the fleet's, because Fleet → Drivers is the fleet's. A recruiter archiving a
+ * hired driver would be reaching across into somebody else's list; a fleet manager may do both,
+ * because `fleet: manage` implies the whole roster.
+ *
+ * ⚠ **The database does not mirror this one, and deliberately.** 0235's `guard_driver_archive_writer`
+ * refuses `archived_at` to EVERY JWT-bearing writer, recruiter and admin alike — archiving goes
+ * through the API so that it always carries its `driver.archived` audit row. The split below is
+ * therefore enforced in exactly one place, which is the opposite of 0213's arrangement and correct
+ * for the same reason 0213 is: there, the API and PostgREST were two paths to the same write, and the
+ * rule had to exist twice. Here there is only one path, because the other one is closed.
+ */
+export const canArchiveDriver = (
+  role: UserRole | null | undefined,
+  driverStatus: string | null | undefined,
+): boolean =>
+  canManageSection(role, "fleet")
+  || (isApplicantStatus(driverStatus) && canManageSection(role, "recruitment"));
 
 /** Resolving anomalies is a Safety-section action, so safety_manager qualifies too. */
 export const canResolveAnomalies = (role: UserRole | null | undefined): boolean =>

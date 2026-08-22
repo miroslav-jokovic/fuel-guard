@@ -21,9 +21,12 @@ import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
+import { useArchiveDriver } from "@/composables/useDrivers";
 import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
+import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 
 /**
  * Recruitment — the applicant pipeline (HIRING-PLAN.md H6).
@@ -40,12 +43,24 @@ import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.
  * stage column to advance and therefore none to forget.
  */
 const router = useRouter();
-const pipelineQ = usePipelineQuery();
+/**
+ * The board, and its other half. Archived applicants leave this list and nothing else (0235) — their
+ * row, their draft and anything they signed are untouched, and their own page still opens. The chip
+ * is a VIEW rather than a second page, so the columns, the stage computation and the ordering cannot
+ * drift between the two.
+ */
+const showArchived = ref(false);
+const pipelineQ = usePipelineQuery(showArchived);
 
 const PAGE_SIZE = 25;
 const search = ref("");
 const stage = ref("all");
 const page = ref(1);
+
+const VIEW_FILTERS = [
+  { value: "live", label: "Applicants" },
+  { value: "archived", label: "Archived" },
+];
 
 const STAGE_FILTERS = [
   { value: "all", label: "All applicants" },
@@ -114,6 +129,42 @@ const canInvite = computed(() => {
   return Boolean(role) && rolesThatManage("recruitment").includes(role!);
 });
 const inviting = ref(false);
+
+const archiving = ref<PipelineApplicant | null>(null);
+const archiveDriver = useArchiveDriver();
+const toast = useToastStore();
+
+/**
+ * `view` is the chip; `showArchived` is what the query reads. Two refs rather than one because
+ * `FilterSelect` speaks strings and the query wants a boolean, and switching views resets the page —
+ * landing on page 3 of a list that has four rows is the bug this line exists to prevent.
+ */
+const view = computed({
+  get: () => (showArchived.value ? "archived" : "live"),
+  set: (v: string) => {
+    showArchived.value = v === "archived";
+    page.value = 1;
+  },
+});
+
+async function setArchived(applicant: PipelineApplicant, archived: boolean) {
+  try {
+    await archiveDriver.mutateAsync({ id: applicant.driver_id, archived });
+    toast.success(
+      archived ? "Archived" : "Restored",
+      archived
+        ? `${applicant.full_name} is off the board. Nothing they filled in or signed was changed.`
+        : `${applicant.full_name} is back on the board.`,
+    );
+  } catch (e) {
+    toast.error(
+      archived ? "Could not archive" : "Could not restore",
+      e instanceof Error ? e.message : undefined,
+    );
+  } finally {
+    archiving.value = null;
+  }
+}
 </script>
 
 <template>
@@ -158,6 +209,7 @@ const inviting = ref(false);
       >
         <template #filters>
           <FilterSelect v-model="stage" label="Stage" :options="STAGE_FILTERS" />
+          <FilterSelect v-model="view" label="Show" :options="VIEW_FILTERS" />
         </template>
       </FilterBar>
       <DataTable
@@ -187,6 +239,7 @@ const inviting = ref(false);
         <template #cell-full_name="{ row }">
           <span class="font-medium text-ink">{{ row.full_name }}</span>
           <span class="ml-2 text-xs text-ink-muted">applied {{ row.applied_on }}</span>
+          <span v-if="showArchived" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
         </template>
         <template #cell-stage="{ row }">
           <span :class="[BADGE_BASE, toneClass(STAGE_TONE[row.stage as ApplicantStage])]">
@@ -207,8 +260,14 @@ const inviting = ref(false);
           <span v-else :class="[BADGE_BASE, toneClass('caution')]">No date of birth</span>
         </template>
         <template #actions="{ row }">
-          <KebabMenu v-if="canHire">
-            <BaseButton class="kebab-item" @click="hiring = row">Hire…</BaseButton>
+          <KebabMenu v-if="canHire || canInvite">
+            <BaseButton v-if="canHire && !showArchived" class="kebab-item" @click="hiring = row">Hire…</BaseButton>
+            <BaseButton v-if="canInvite && !showArchived" class="kebab-item" @click="archiving = row">
+              Archive…
+            </BaseButton>
+            <BaseButton v-if="canInvite && showArchived" class="kebab-item" @click="setArchived(row, false)">
+              Restore
+            </BaseButton>
           </KebabMenu>
         </template>
         <template #footer>
@@ -216,6 +275,14 @@ const inviting = ref(false);
         </template>
       </DataTable>
     </DataWorkspace>
+
+    <ArchiveDriverModal
+      :subject="archiving"
+      kind="applicant"
+      :busy="archiveDriver.isPending.value"
+      @close="archiving = null"
+      @confirm="archiving && setArchived(archiving, true)"
+    />
 
     <InviteApplicantDrawer
       :open="inviting"

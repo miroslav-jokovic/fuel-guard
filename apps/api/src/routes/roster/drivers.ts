@@ -54,7 +54,7 @@ import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcil
  * type level, and a concatenation widens to `string`, which collapses the row type to an error union.
  */
 const DRIVER_LIST_COLS =
-  "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, home_terminal_id, hire_date, created_at";
+  "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, home_terminal_id, hire_date, created_at, archived_at";
 
 /** The full profile — every column 0098 added, minus the ones another surface owns (app credentials,
  *  telematics HOS snapshots, the EFS card link). Same one-literal rule as above. */
@@ -98,11 +98,16 @@ export function rosterDriversRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       // The employed roster. An applicant is a drivers row (D-HIRE5) but not somebody the fleet
       // manages yet; Recruitment lists them until they are hired.
+      const showArchived = String(req.query.archived ?? "") === "true";
       const { data, error } = await admin
         .from("drivers")
         .select(DRIVER_LIST_COLS)
         .eq("org_id", req.auth!.orgId!)
         .in("status", [...EMPLOYED_DRIVER_STATUSES])
+        // Archived rows leave the ROSTER and nothing else (0235). `?archived=true` is the other half
+        // of the same list rather than a second endpoint — the "Archived" chip is a filter over one
+        // set of people, and splitting it would let the two views drift in columns or ordering.
+        .filter("archived_at", showArchived ? "not.is" : "is", null)
         .order("full_name", { ascending: true });
       if (error) {
         res.status(500).json(apiError("db_error", "Could not list drivers"));

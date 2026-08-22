@@ -142,6 +142,14 @@ export const driverListItemSchema = z.object({
   home_terminal_id: z.uuid().nullable(),
   hire_date: z.string().nullable(),
   created_at: z.string(),
+  /**
+   * Hidden from the roster and the applicant board, and nothing else (migration 0235). Not a status
+   * — 0213 owns the employment lifecycle — and not a retention signal: `drivers` stays in
+   * `RETENTION_FORBIDDEN`, so the row and the §391.51 file behind it are untouched and reproducible.
+   * On the list row because the "Archived" chip is a filter over ONE set of people rather than a
+   * second table, and a row has to be able to say which half it is in.
+   */
+  archived_at: z.string().nullable().default(null),
 });
 export type DriverListItem = z.infer<typeof driverListItemSchema>;
 

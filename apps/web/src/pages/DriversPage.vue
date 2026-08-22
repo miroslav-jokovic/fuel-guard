@@ -5,7 +5,7 @@ import { ref, computed, watch } from "vue";
 import { RouterLink } from "vue-router";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/composables/useDrivers";
+import { useDriversQuery, useCreateDriver, useUpdateDriver, useArchiveDriver } from "@/composables/useDrivers";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
@@ -13,6 +13,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -122,6 +123,49 @@ async function linkDriver(sourceId: string) {
 
 const search = ref("");
 const statusFilter = ref<string>("");
+
+/**
+ * Archived drivers leave THIS list and nothing else (migration 0235).
+ *
+ * ⚠ The filter is here rather than in `useDriversQuery`, and that is the decision. Five other
+ * surfaces read that same query as a name lookup — anomaly detail, assignment history, hazmat load
+ * detail, dashboard readiness, driver-app settings — and an archived driver whose name stopped
+ * resolving would turn a historical anomaly into one attributed to nobody. Archiving hides a row
+ * from the list somebody scans; it does not erase the person from records they appear in.
+ */
+const showArchived = ref(false);
+const VIEW_OPTIONS = [
+  { value: "live", label: "On the roster" },
+  { value: "archived", label: "Archived" },
+];
+const view = computed({
+  get: () => (showArchived.value ? "archived" : "live"),
+  set: (v: string) => {
+    showArchived.value = v === "archived";
+  },
+});
+
+const archiving = ref<Driver | null>(null);
+const archiveDriver = useArchiveDriver();
+
+async function setArchived(driver: Driver, archived: boolean) {
+  try {
+    await archiveDriver.mutateAsync({ id: driver.id, archived });
+    toast.success(
+      archived ? "Archived" : "Back on the roster",
+      archived
+        ? `${driver.full_name} is off the roster. Their qualification file is unchanged.`
+        : `${driver.full_name} is on the roster again.`,
+    );
+  } catch (e) {
+    toast.error(
+      archived ? "Could not archive" : "Could not restore",
+      e instanceof Error ? e.message : undefined,
+    );
+  } finally {
+    archiving.value = null;
+  }
+}
 const statusOptions = computed(() => [
   { value: "", label: "All statuses" },
   ...[...new Set((drivers.value ?? []).map((d) => d.status))].map((s) => ({ value: s, label: s })),
@@ -130,6 +174,7 @@ const statusOptions = computed(() => [
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   return (drivers.value ?? []).filter((d) => {
+    if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
     if (!term) return true;
     return [d.full_name, d.employee_id, d.phone, d.samsara_username]
@@ -191,7 +236,7 @@ const columns: DataTableColumn[] = [
 ];
 
 const page = ref(1);
-watch([search, statusFilter], () => (page.value = 1));
+watch([search, statusFilter, showArchived], () => (page.value = 1));
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
@@ -254,6 +299,7 @@ async function onSubmit(input: DriverInput) {
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+        <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
       </template>
     </FilterBar>
 
@@ -307,7 +353,10 @@ async function onSubmit(input: DriverInput) {
         <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
-      <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
+      <template #cell-status="{ row }">
+        <StatusBadge :status="row.status" />
+        <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
+      </template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit driver</BaseButton>
@@ -317,6 +366,15 @@ async function onSubmit(input: DriverInput) {
           <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
             >Open qualification file…</RouterLink
           >
+          <!-- Never "Delete". `drivers` is in RETENTION_FORBIDDEN and 0235 refuses the DELETE for
+               everybody, service role included — §391.51 keeps the file for employment plus three
+               years. The word on the button matches what the database will actually do. -->
+          <BaseButton v-if="!row.archived_at" class="kebab-item" @click="archiving = row">
+            Archive…
+          </BaseButton>
+          <BaseButton v-else class="kebab-item" @click="setArchived(row, false)">
+            Restore to the roster
+          </BaseButton>
         </KebabMenu>
       </template>
       <template #footer>
@@ -423,5 +481,13 @@ async function onSubmit(input: DriverInput) {
     </SlideOver>
 
     <DriverAccessModal :open="accessOpen" :driver="accessDriver" @close="accessOpen = false" />
+
+    <ArchiveDriverModal
+      :subject="archiving"
+      kind="driver"
+      :busy="archiveDriver.isPending.value"
+      @close="archiving = null"
+      @confirm="archiving && setArchived(archiving, true)"
+    />
   </div>
 </template>
