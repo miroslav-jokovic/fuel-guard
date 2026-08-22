@@ -80,6 +80,21 @@ export function dqItemBadge(state: string): DqBadge {
 }
 
 /**
+ * Archived, or not (migration 0235).
+ *
+ * A one-value vocabulary, and it lives here for the same reason the five-value ones do: the rule is
+ * that no `.vue` file carries a status literal or a local tone `Record`, and "the label is obvious"
+ * is exactly the argument that put `STATE_TONE` in a component for four months. `neutral` because
+ * archiving is not a warning about the person — it is a fact about which list they are on.
+ *
+ * Returns null when the row is live, so a caller renders nothing rather than an "Active" badge that
+ * would appear on every row of the default view and mean nothing.
+ */
+export function archivedBadge(archivedAt: string | null | undefined): DqBadge | null {
+  return archivedAt ? { label: "Archived", tone: "neutral" } : null;
+}
+
+/**
  * Application-invitation state (`InviteState`) → badge.
  *
  * The last local tone `Record` in a .vue file, moved here 2026-08-21 as A1's UI-touching PR

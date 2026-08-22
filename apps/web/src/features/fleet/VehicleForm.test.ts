@@ -21,6 +21,7 @@ const drivers = [
     app_access_enabled: null,
     created_at: "",
     updated_at: "",
+    archived_at: null,
   },
 ];
 

@@ -53,6 +53,7 @@ import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { recruitmentRouter } from "./routes/recruitment/index.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
+import { rosterArchiveRouter } from "./routes/roster/archive.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
@@ -295,6 +296,13 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", authStepUpRouter());
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
   app.use("/api/recruitment", recruitmentRouter()); // applicants, releases, PSP records, and the hire
+  // ⚠ ORDER IS LOAD-BEARING between these two. `rosterCredentialsRouter` carries a ROUTER-LEVEL
+  // `requireRole("admin", "fleet_manager")` (credentials.ts:48), and an Express sub-router's `use`
+  // middleware runs for EVERY request that reaches its mount path — including ones matching none of
+  // its routes. Mounted first, it 403s a recruiter's archive request before the archive router is
+  // ever consulted. Archiving must therefore be mounted ABOVE it. Caught by
+  // `archive.test.ts`'s "passes the door for recruiter", which failed for exactly this reason.
+  app.use("/api/roster/drivers", rosterArchiveRouter()); // archive/un-archive a roster row (0235)
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());

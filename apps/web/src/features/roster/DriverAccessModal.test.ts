@@ -59,6 +59,7 @@ const driver = (overrides: Partial<Driver> = {}): Driver => ({
   app_access_enabled: null,
   created_at: "",
   updated_at: "",
+  archived_at: null,
   ...overrides,
 });
 

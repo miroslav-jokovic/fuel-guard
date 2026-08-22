@@ -86,11 +86,16 @@ export function recruitmentEmploymentRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
 
+      // Archived applicants leave the board and nothing else (0235): their row, their draft and
+      // anything they signed are untouched and their own page still opens. `?archived=true` is the
+      // other half of the same list — the "Archived" chip — rather than a second endpoint.
+      const showArchived = String(req.query.archived ?? "") === "true";
       const { data: applicants, error: applicantsError } = await admin
         .from("drivers")
-        .select("id, full_name, status, hire_date, date_of_birth, created_at")
+        .select("id, full_name, status, hire_date, date_of_birth, created_at, archived_at")
         .eq("org_id", orgId)
         .eq("status", "applicant")
+        .filter("archived_at", showArchived ? "not.is" : "is", null)
         .order("created_at", { ascending: true });
       if (applicantsError) {
         res.status(500).json(apiError("db_error", "Could not list applicants"));

@@ -312,4 +312,14 @@ export interface Driver {
   app_access_enabled: boolean | null; // active/disabled flag for the app login (0098)
   created_at: string;
   updated_at: string;
+  /**
+   * Set = hidden from the ROSTER LIST, and from nothing else (migration 0235).
+   *
+   * ⚠ Deliberately NOT filtered out of `useDriversQuery`, which five surfaces use as a NAME LOOKUP —
+   * anomaly detail, assignment history, hazmat load detail, dashboard readiness, driver-app settings.
+   * An archived driver whose name stopped resolving would turn a historical anomaly into one
+   * attributed to nobody, which is the opposite of what an archive is for. `DriversPage` filters on
+   * this field itself; everybody else keeps the whole set.
+   */
+  archived_at: string | null;
 }

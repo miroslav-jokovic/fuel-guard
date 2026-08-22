@@ -32,11 +32,21 @@ export interface PipelineApplicant {
 }
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 
-export function usePipelineQuery() {
+/**
+ * The applicant board. `archived` asks for the OTHER half of the same list (migration 0235) rather
+ * than a second endpoint: the "Archived" chip is a filter over one set of people, and two endpoints
+ * would let the two views drift in stage computation, ordering or columns.
+ *
+ * The flag is part of the query KEY, so switching the chip is a cache hit on the way back rather than
+ * a refetch, and `useArchiveDriver` invalidating `pipelineKey` clears both halves at once.
+ */
+export function usePipelineQuery(archived?: Ref<boolean>) {
   return useQuery({
-    queryKey: pipelineKey,
+    queryKey: computed(() => [...pipelineKey, archived?.value === true] as const),
     queryFn: async (): Promise<PipelineApplicant[]> => {
-      const res = await apiFetch<{ applicants: PipelineApplicant[] }>("/api/recruitment/pipeline");
+      const res = await apiFetch<{ applicants: PipelineApplicant[] }>(
+        `/api/recruitment/pipeline${archived?.value === true ? "?archived=true" : ""}`,
+      );
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the pipeline.");
       return res.data.applicants;
     },
