@@ -52,7 +52,9 @@ describe("the sweep", () => {
     const rec = seed();
     const result = await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
 
-    expect(result).toEqual({ stalled: 1, emailed: 1 });
+    // `messaged: 0` — A11b wired SMS in, and it stays zero until a consent row and a configured
+    // provider both exist. The email is unconditional for exactly that reason.
+    expect(result).toEqual({ stalled: 1, emailed: 1, messaged: 0 });
     const rotate = rec.rpcs().find((r) => r.fn === "nudge_application_invitation");
     expect(rotate).toBeTruthy();
     // A fresh 64-character hash — not the one already on the row.
@@ -77,7 +79,7 @@ describe("the sweep", () => {
     sent.fn.mockReset().mockResolvedValue({ ok: true });
     const rec = seed({ rotated: false });
     const result = await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
-    expect(result).toEqual({ stalled: 1, emailed: 0 });
+    expect(result).toEqual({ stalled: 1, emailed: 0, messaged: 0 });
     expect(sent.fn).not.toHaveBeenCalled();
   });
 
@@ -90,7 +92,7 @@ describe("the sweep", () => {
     const rec = seed({ invitation: { email: null } });
     const result = await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
 
-    expect(result).toEqual({ stalled: 1, emailed: 0 });
+    expect(result).toEqual({ stalled: 1, emailed: 0, messaged: 0 });
     expect(sent.fn).not.toHaveBeenCalled();
     expect(rec.rpcs().some((r) => r.fn === "nudge_application_invitation")).toBe(false);
     // The office still hears about it — that is the cue to pick up the phone.
@@ -101,7 +103,7 @@ describe("the sweep", () => {
     sent.fn.mockReset().mockResolvedValue({ ok: true });
     const rec = seed({ draft: { updated_at: "2026-08-21T11:00:00Z" } });
     expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
-      .toEqual({ stalled: 0, emailed: 0 });
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
     expect(rec.rpcs()).toEqual([]);
   });
 
@@ -114,7 +116,7 @@ describe("the sweep", () => {
     } as NodeJS.ProcessEnv);
     const result = await runApplicationNudgesOnce(rec.client, off, ORG, ["user-1"], NOW);
 
-    expect(result).toEqual({ stalled: 1, emailed: 0 });
+    expect(result).toEqual({ stalled: 1, emailed: 0, messaged: 0 });
     expect(sent.fn).not.toHaveBeenCalled();
     expect(rec.rpcs().some((r) => r.fn === "emit_notification")).toBe(true);
   });

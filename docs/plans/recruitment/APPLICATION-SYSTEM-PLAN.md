@@ -1444,7 +1444,7 @@ bytes were being left behind. `pnpm typecheck`; `pnpm lint`; all twelve named li
 **Done when:** an abandoned candidate's half-typed PII actually disappears on schedule — which is now
 true, on a 90-day window from last touch.
 
-### A11b · SMS delivery
+### A11b · SMS delivery — DONE 2026-08-21 (migration 0233)
 
 **Prerequisites:** A10, A11a. **10DLC brand and campaign registration is started on the day A1 starts**
 (D-APP13) — it is a procurement lead time, not a dependency to discover late.
@@ -1471,6 +1471,82 @@ and `STOP` is honoured on the next send.
 token (there is no link to re-send — 0220 keeps a hash). An SMS nudge rotates it too, so a driver who
 consented to SMS and also has the email link will find the older one dead. That is the same trade A10
 took, but it is now taken twice on the same invitation and the copy has to say so in 160 characters.
+**Resolved by sending BOTH, carrying the same new link** — see "What shipped".
+
+**What shipped.**
+- `smsConsentContract.ts` — the instrument, `v0-draft` like `DISCLOSURES` and gated by the same
+  version string; `STOP`/`HELP` keyword matching; and `normalisePhone`, because a stored
+  `(708) 236-5732` that cannot be matched to an inbound `+17082365732` is an opt-out that silently
+  does nothing, which is the most expensive bug this feature could contain.
+- `0233`: `sms_consents`, evidence-side — EI010's guard (fires for the service role too, `SC010`) and
+  `RETENTION_FORBIDDEN`. `revoked_at` is the only mutable column, and `SC011` refuses to clear it,
+  because un-revoking is the act the table exists to forbid. `revoke_sms_consent` revokes **every**
+  live consent on a number: a driver who texts STOP has not opted out of one application.
+- `lib/sms.ts` (transport, asks nothing) and `services/applicationSms.ts` (asks everything). The
+  division is the point: the checks are the entire risk surface, they need the database and the clock,
+  and turning `SMS_PROVIDER` on cannot bypass one of them.
+- `lib/twilioSignature.ts` + `POST /api/webhooks/sms`. An unverifiable request is a 401 — including
+  when no auth token is configured, because a dev-mode bypass is a production bypass one
+  misconfiguration later.
+- The nudge sends a text **and** the email, both carrying the same rotated link.
+
+**⚠ Four deviations, each with its reason.**
+
+1. **There is no area-code timezone table, and the step asks for one.** "Quiet-hours enforcement …
+   derived from the number's area code" is followable — the mapping is public, about three hundred
+   entries — and it should not be followed. An area code says where a number was ISSUED; portability
+   has been law since 2003, and the population this product texts is definitionally the most mobile
+   one there is. A driver with a Chicago cell living in Phoenix is not an edge case. Such a table
+   produces a confident answer that is sometimes wrong, and sometimes-wrong is billed per message. So:
+   use the recipient's timezone when it is genuinely known, and otherwise send only inside the window
+   that is civil in **every** US timezone at once — which cannot be wrong, needs no data to maintain,
+   and for a message sent once per driver in their lifetime is not a constraint anybody will feel.
+2. **⚠ The window is 9–20, and §64.1200(c)(1) says 8–21.** Read verbatim 2026-08-21: no solicitation
+   "before the hour of 8 a.m. or after 9 p.m. (local time at the called party's location)". A11 asks
+   for the tighter window and it is kept — but it is OURS, not the regulation's, and the code says so
+   where the constants are defined. Every input to that comparison is an estimate; an hour of margin
+   at each end costs a recruiting text nothing.
+3. **There is no `lead_id`.** A11 says "`driver_id` or `lead_id`" and there is no `leads` table — R1
+   in `RECRUITING-SYSTEM-PLAN.md` builds it and has not been executed. A nullable uuid pointing at a
+   table that does not exist is precisely what 0146's header criticised `master_documents` for. An
+   applicant IS a `drivers` row with `status='applicant'`, so every path this plan builds works on
+   `driver_id` alone; R1 adds the column when there is something to reference.
+4. **The nudge sends the text AND the email, not one or the other.** A10 rotates the invitation token,
+   so by the time either goes out the older link is dead. Choosing SMS over email would leave a driver
+   who did not see the text holding nothing that works. Every gate that can refuse the text — no
+   consent, draft wording, quiet hours, an opt-out — leaves the email untouched, so a refusal is never
+   a driver hearing nothing at all.
+
+**⚠ What the regulation actually governs, said precisely.** §64.1200(f)(9)'s "prior express written
+consent" is defined for *advertisements or telemarketing messages*. A text to somebody about their OWN
+in-progress job application is a weaker case for that classification than a marketing blast, and a
+reasonable lawyer might call it transactional and outside it entirely. The full written consent is
+collected anyway, because being conservative costs one checkbox and being wrong costs per message —
+but **which classification applies is counsel's call and not an engineer's**, and the code says so
+rather than asserting a legal conclusion.
+
+**⚠ Two files were split to stay inside the budgets, and both are in this PR rather than hidden.**
+`env.ts` hit `lint:filesize` at 500 lines, so one vendor integration's variables moved to `envEfs.ts`
+— the gate offers split or waiver and calls a waiver "a deliberate, reviewable act", and that block
+is the one group in the file with a natural boundary. `env.test.ts`'s own self-check is what CAUGHT
+the move (a key classified as "absent" the moment it left the file), and it now reads both halves.
+`createApp` hit `lint:funcsize` at 204 lines, so the body parsers became `mountBodyParsers` — the same
+move `mountPublic` already is.
+
+**Verified by:** `pnpm test` — `smsQuietHours.test.ts` (7) is one-sided on purpose, pinning hardest
+that messages do NOT go out whenever the answer is in doubt, including that the no-timezone fallback
+is genuinely restrictive rather than quietly permissive; `smsConsentContract.test.ts` (12) pins that a
+sentence plainly meaning stop is honoured while "I stopped by the yard" is not, and that every way a
+recruiter might type a number normalises to what a carrier sends; `applicationSms.test.ts` (10) is the
+list of refusals, including that draft wording gates the SEND and not just the grant;
+`twilioSignature.test.ts` (7) computes its one acceptance the way Twilio documents it and refuses
+everything else, including a missing auth token; new matrix `sms-consents` (19) proves the service
+role itself cannot rewrite what was agreed, that a revocation cannot be undone, that one STOP clears
+every live consent on the number and a second is a no-op, and that one org cannot revoke another's.
+`pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus `pnpm --filter web lint:tokens`.
+**⚠ Nothing here has ever talked to a real carrier.** 10DLC registration is outstanding (§6), so
+`SMS_PROVIDER` is `none`, every send is a no-op, and the Twilio request shape is written from published
+documentation rather than from a response anybody has seen.
 
 ---
 
@@ -1484,8 +1560,8 @@ regardless.
 | **The five instruments' v1 wording + the 7001(c) text** | Counsel, via the owner | Ships refusing drafts (409, already built). Every step is verified against a non-draft test fixture, so nothing is blocked from being built or proven — only the first real signature waits. A0. ⚠ Since A4 this text also **arms the 7001(c) gate**: publishing it is what makes the consent required on every write path, and until then the application runs exactly as it did before. A4 shipped the six clauses as placeholders with a statutory citation each, so counsel's pass is six named strings rather than a blank page. |
 | ~~**The Excel application**~~ | Owner | **ARRIVED 2026-08-21, and TRANSCRIBED by A9 the same day** — `APPLICATION.xlsx`, committed beside this plan. ⚠ **It is not a questionnaire; it is a 31-page contractor packet**, and what it contains changed A9 and still changes A0. §6.1 is the inventory; pile 2 now exists in code as `silvicom_driver@v1`. Piles 3 and 4 remain outstanding work for A0 and for the R-side steps respectively. |
 | **Which documents a driver must photograph** | Owner | **A8a shipped** the closed slot set `cdl_front`, `cdl_back`, `medical_card`, `ssn_card`, `signature_mark`, `other` — derived from `CERTIFICATION_KINDS` and §391.51's contents. The screen asks for the first four; adding a slot later is one enum entry plus one mapping line, and no migration column changes. ⚠ **None of them is required to send the application**, and the reason is written beside `APPLICATION_CAPTURE_REQUIRED`: §391.21 asks for no photograph, and a camera that will not open must not cost the carrier a candidate. If the owner wants one made mandatory, that is one array entry. |
-| **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. If it is not complete when A11 lands, the SMS flag stays off and email delivery is unchanged — the flag is default-off anyway. |
-| **Draft/capture retention window** | Owner | A11 ships a default of **90 days after invitation expiry or lead disposition, whichever is earlier**. It is a config value; changing it is a config change, not a schema change, which is precisely what 0213's trigger style bought. |
+| **10DLC brand/campaign registration** | Owner + Twilio | Started at A1. ⚠ **A11b has now landed and it is still outstanding**, which is exactly the case the plan wrote for: `SMS_PROVIDER=none`, every send is a no-op, email delivery is unchanged, and no code path changes when it flips. ⚠ The consequence to state plainly: the Twilio request shape and the inbound signature check are written from published documentation and have never been exercised against the wire. The first real message is also the first real test. |
+| ~~**Draft/capture retention window**~~ | Owner | **A11a SHIPPED 90 days**, ⚠ measured from the row's LAST TOUCH rather than from invitation expiry — the engine compares one column on one table by design, and the last touch is the better question anyway. Changing it is a one-line change to `RETENTION_RULES`, which is what 0213's trigger style bought. |
 | **Whether Silvicom wants an EEO section** | Owner | **A9 shipped the exclusion and defined no questions.** The reserved `questionnaire_answers.eeo` key is dropped by `readableAnswers` and never reaches the rendered document — pinned by a test that puts a marker string in it and greps the PDF. Adding questions later needs no change to the exclusion, which is the point of building it before there is anything to exclude. |
 | ~~**The carrier's legal name and address**~~ | Owner | **ANSWERED 2026-08-21**, from the packet's own letterhead, which repeats it on all 31 pages: **Silvicom Inc, 1301 Armitage Ave, Melrose Park IL 60160** (safety contact `safety1@silvicominc.com`, 708-236-5732 ext 2). The schema half landed in 0229. All that remains is one production `update organizations set legal_address = …`, which is an owner act (writes go through the SQL editor), after which every rendered application carries §391.21(b)(1) in full. |
 
@@ -1575,12 +1651,20 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
-⚠ **Position as of 2026-08-21: A1–A11a are DONE (schema 0232). The last step is A11b** — SMS
-delivery, split out because it is a consent regime with a multi-week procurement lead time (10DLC,
-started at A1) and everything else in this plan is finished. It ships flag-default-off regardless.
-**The one input still outstanding for the whole plan is A0** — counsel's review of wording the carrier
-has already drafted (§6.1 pile 3), which arms the consent gate and opens the signing ceremony with no
-deploy.
+⚠ **Position as of 2026-08-21: A1–A11b are ALL DONE (schema 0233). Every engineering step in this
+plan has shipped.** What remains is not code:
+  - **A0** — counsel's review of wording the carrier has already drafted (§6.1 pile 3). Publishing it
+    arms the 7001(c) consent gate, opens the signing ceremony and enables the SMS consent, **with no
+    deploy**, because all three gate on a version string.
+  - **10DLC brand and campaign registration** (§6) — until it completes `SMS_PROVIDER` stays `none`
+    and A11b is inert by design. ⚠ Its transport has never touched the wire.
+  - **One production statement**: `update organizations set legal_address = …`, after which every
+    rendered application carries §391.21(b)(1) in full.
+
+⚠ **And one standing caution for whoever picks this up: nothing in A1–A11b has been exercised in a
+browser or against a real inbox.** The apply page is session-free and needs a real minted invitation
+to reach, so every step has been proved by component tests that mount the real page and by service
+tests against a recorder. The first real applicant is the first real end-to-end run.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
 the harness facts that cost time, which are not repeated here.
 

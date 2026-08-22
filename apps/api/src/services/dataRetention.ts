@@ -271,6 +271,13 @@ export const RETENTION_FORBIDDEN = [
    * signature it stands behind into an electronic record FMCSA does not recognise.
    */
   "esign_consents",
+  /**
+   * A11b. A consent pruned on a schedule is a defence thrown away while the claim is still live —
+   * the TCPA's limitation period runs four years from the message, and the only answer to "why did
+   * you text this person" is the row saying they asked you to. It is also the record of the opt-out,
+   * which matters for longer than the consent does.
+   */
+  "sms_consents",
 ] as const;
 
 export interface RetentionTableResult {

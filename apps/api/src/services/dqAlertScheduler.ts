@@ -135,7 +135,10 @@ async function runAllOrgs(admin: SupabaseClient, env: Env): Promise<void> {
     try {
       const sweep = await runApplicationNudgesOnce(admin, env, orgId, await officeUserIds(admin, orgId), new Date());
       if (sweep.stalled > 0) {
-        console.log(`[application-nudge] org ${orgId}: ${sweep.stalled} stalled, ${sweep.emailed} emailed`);
+        console.log(
+          `[application-nudge] org ${orgId}: ${sweep.stalled} stalled, ${sweep.emailed} emailed, `
+            + `${sweep.messaged} texted`,
+        );
       }
     } catch (e) {
       console.error(`[application-nudge] org ${orgId} failed:`, e instanceof Error ? e.message : e);
