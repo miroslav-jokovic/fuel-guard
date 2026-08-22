@@ -5,10 +5,10 @@ import { ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
 import CertManager from "@/features/hazmat/CertManager.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
 import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel.vue";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
@@ -170,26 +170,20 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
       </template>
 
       <template v-else>
+        <!-- U3/D-UI2: this strip's anatomy was already contract §2.4 verbatim, which is why the
+             shared tile's default size was taken from it rather than from the dashboard's hero.
+             ⚠ D-UI5: the badge reading "filter"/"filtering" is GONE. `lib/badges.ts` is the status
+             vocabulary, and a badge used as a toggle's label teaches it to mean two things — the
+             pressed state was already carried correctly by `aria-pressed` and the ring. -->
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-          <BaseCard
+          <StatCard
             v-for="t in strip"
             :key="t.key"
-            padding="sm"
-            :as="'button'"
-            class="text-left transition"
-            :class="activeTile === t.key ? 'ring-2 ring-brand-600' : 'hover:bg-surface-subtle'"
-            role="button"
-            :aria-pressed="activeTile === t.key"
-            @click="toggleTile(t)"
-          >
-            <p class="text-xs font-medium uppercase tracking-wide text-ink-muted">{{ t.label }}</p>
-            <p class="mt-1 text-2xl font-bold text-ink">{{ t.n }}</p>
-            <p class="mt-0.5">
-              <span :class="[BADGE_BASE, toneClass(t.tone)]">{{
-                activeTile === t.key ? "filtering" : "filter"
-              }}</span>
-            </p>
-          </BaseCard>
+            :label="t.label"
+            :value="t.n"
+            :pressed="activeTile === t.key"
+            @toggle="toggleTile(t)"
+          />
         </div>
 
         <QualificationFleetTable

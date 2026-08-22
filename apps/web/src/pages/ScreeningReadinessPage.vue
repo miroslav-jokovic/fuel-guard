@@ -10,6 +10,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -94,7 +95,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader />
+    <PageHeader description="How many drivers FMCSA PSP could actually be asked about, and what is missing for the rest" />
 
     <BaseCard v-if="summary">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -116,17 +117,23 @@ const columns: DataTableColumn[] = [
         </span>
       </div>
 
-      <dl v-if="summary.blockedBy.length" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div v-for="blocker in summary.blockedBy" :key="blocker.field" class="rounded-surface bg-surface-muted p-3">
-          <dt class="text-xs font-medium text-ink-secondary">{{ screeningFieldLabel(blocker.field) }}</dt>
-          <dd class="mt-1 text-lg font-bold text-ink">{{ blocker.drivers }}</dd>
-          <dd class="text-xs text-ink-muted">drivers blocked</dd>
-        </div>
-      </dl>
-      <p v-else class="mt-4 text-sm text-ink-muted">
+      <p v-if="!summary.blockedBy.length" class="mt-4 text-sm text-ink-muted">
         Nothing is missing. Every driver here has what a screening request needs.
       </p>
     </BaseCard>
+
+    <!-- U3/D-UI2: these were a hand-rolled `<dl>` of `bg-surface-muted` tiles whose value was
+         `text-lg font-bold` — the h2 role, not §2.4's KPI value. They are tiles, so they are the
+         tile now, and they sit beside the card rather than inside it. -->
+    <div v-if="summary?.blockedBy.length" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatCard
+        v-for="blocker in summary.blockedBy"
+        :key="blocker.field"
+        :label="screeningFieldLabel(blocker.field)"
+        :value="blocker.drivers"
+        sub="drivers blocked"
+      />
+    </div>
 
     <!-- The bulk path sits above the row-by-row one: with 201 drivers to fix, typing is the fallback. -->
     <DobImportCard v-if="canEdit" />

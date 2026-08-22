@@ -30,7 +30,7 @@ import BaseChart from "@/components/BaseChart.vue";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import StatCard from "@/features/dashboard/StatCard.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import DonutBreakdown from "@/features/dashboard/DonutBreakdown.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
@@ -308,7 +308,7 @@ const EXPORTS = [
     <div class="space-y-6 transition-opacity duration-200" :class="isFetching && !isLoading ? 'opacity-60' : ''" :aria-busy="isFetching">
       <!-- KPI hero -->
       <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" :loading="isLoading" />
+        <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" size="hero" :loading="isLoading" />
       </dl>
 
       <!-- Secondary measures share one compact scan strip instead of competing hero cards. -->

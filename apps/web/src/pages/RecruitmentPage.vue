@@ -17,6 +17,7 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
@@ -124,11 +125,16 @@ const inviting = ref(false);
       </template>
     </PageHeader>
 
+    <!-- U3/D-UI2: the shared tile. These were four hand-rolled cards whose label was a body role
+         (`text-sm font-medium text-ink`) rather than contract §2.4's KPI label. -->
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <BaseCard v-for="s in APPLICANT_STAGES" :key="s" padding="sm">
-        <p class="text-sm font-medium text-ink">{{ APPLICANT_STAGE_LABELS[s] }}</p>
-        <p class="mt-2 text-2xl font-bold text-ink">{{ counts.get(s) ?? 0 }}</p>
-      </BaseCard>
+      <StatCard
+        v-for="s in APPLICANT_STAGES"
+        :key="s"
+        :label="APPLICANT_STAGE_LABELS[s]"
+        :value="counts.get(s) ?? 0"
+        :loading="pipelineQ.isLoading.value"
+      />
     </div>
 
     <FilterBar

@@ -13,6 +13,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, inquiryStateTone, toneClass } from "@/lib/badges";
 import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitment/useInquiryQueue";
 
@@ -83,26 +84,24 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Every safety-history investigation with work left, closest to its deadline first" />
 
+    <!-- U3/D-UI2: three figures that were bare `<div>`s inside one card — a KPI row that was not a
+         tile. `muted` keeps the deliberate dimming of a zero worth showing but not alarming about. -->
+    <div v-if="summary" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatCard label="Files with work left" :value="summary.outstanding" />
+      <StatCard
+        :label="`Past their ${INVESTIGATION_FILE_DAYS}-day deadline`"
+        :value="summary.overdue"
+        :muted="summary.overdue === 0"
+      />
+      <StatCard
+        label="Employers to chase or document"
+        :value="summary.chaseable"
+        :muted="summary.chaseable === 0"
+      />
+    </div>
+
     <BaseCard v-if="summary">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <p class="text-sm text-ink-muted">Files with work left</p>
-          <p class="mt-1 text-2xl font-bold text-ink">{{ summary.outstanding }}</p>
-        </div>
-        <div>
-          <p class="text-sm text-ink-muted">Past their {{ INVESTIGATION_FILE_DAYS }}-day deadline</p>
-          <p class="mt-1 text-2xl font-bold" :class="summary.overdue ? 'text-ink' : 'text-ink-muted'">
-            {{ summary.overdue }}
-          </p>
-        </div>
-        <div>
-          <p class="text-sm text-ink-muted">Employers to chase or document</p>
-          <p class="mt-1 text-2xl font-bold" :class="summary.chaseable ? 'text-ink' : 'text-ink-muted'">
-            {{ summary.chaseable }}
-          </p>
-        </div>
-      </div>
-      <p class="mt-4 text-sm text-ink-muted">
+      <p class="text-sm text-ink-muted">
         §391.23(c)(1) gives you {{ INVESTIGATION_FILE_DAYS }} days from the date a driver starts to
         have the replies — <span class="font-medium text-ink-secondary">or a documented record of
         trying</span> — in their file. An employer who never answers does not hold the file open; an
