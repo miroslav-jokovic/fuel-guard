@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppTabs, type TabItem } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
@@ -33,7 +33,7 @@ const id = computed(() => String(route.params.id ?? ""));
  * bookmark or a binder deep link (D2).
  */
 type Section = "profile" | "qualification" | "employment" | "fuel";
-const SECTIONS: Array<{ value: Section; label: string }> = [
+const SECTIONS: TabItem[] = [
   { value: "profile", label: "Profile" },
   { value: "qualification", label: "Qualification" },
   // Recruitment's surface on the driver page: the hiring paperwork sits beside the qualification
@@ -168,20 +168,14 @@ const fillColumns: DataTableColumn[] = [
       </template>
     </PageHeader>
 
-    <nav class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm" role="tablist" aria-label="Driver sections">
-      <BaseButton
-        v-for="s in SECTIONS"
-        :key="s.value"
-        type="button"
-        role="tab"
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="section === s.value ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        :aria-selected="section === s.value"
-        @click="setSection(s.value)"
-      >
-        {{ s.label }}
-      </BaseButton>
-    </nav>
+    <!-- U4/D-UI4: the shared strip. ⚠ No `id-prefix` here: these panels are plain `v-if` blocks with
+         no id to point `aria-controls` at, and a dangling reference is worse than none. -->
+    <AppTabs
+      :model-value="section"
+      :tabs="SECTIONS"
+      label="Driver sections"
+      @update:model-value="setSection($event as Section)"
+    />
 
     <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
 
