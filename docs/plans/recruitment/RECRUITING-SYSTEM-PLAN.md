@@ -346,6 +346,75 @@ wrong — and every driver gets a real §391.31 test.
 
 ## 5. Steps — each stands alone; execute in order unless its prerequisites say otherwise
 
+### R0a · `merge_driver` keeps the recruiting evidence — DONE 2026-08-22 (migration 0234)
+
+⚠ **Not a planned step. A bug, found while designing the archive work (owner task C) and fixed
+first, because the archive's whole premise is that a driver's file is never destroyed.**
+
+**What was wrong.** `merge_driver` ends in `delete from drivers`, so every table referencing
+`drivers(id) on delete cascade` that the function does not explicitly reassign is destroyed as a side
+effect of tidying the roster. Migration 0203 fixed exactly this once, for `qualification_records` and
+`documents`, and listed sixteen columns. **Nine tables have been added since — the entire recruiting
+and application system — and none of them was added to that list:** `driver_employment_history`
+(0208), `driver_authorizations` (0215), `psp_requests` (0216), `driver_applications` (0220),
+`employer_inquiries` (0223), `application_drafts` (0226), `esign_consents` (0227),
+`application_captures` (0230), `sms_consents` (0233).
+
+**Measured in PGlite against the full migration set, not inferred:**
+
+| Table | Before 0234 |
+|---|---|
+| `driver_employment_history` | had 1 row → **0 anywhere in the database** |
+| `driver_authorizations` | had 1 row → **0 anywhere in the database** |
+| `psp_requests` | had 1 row → **0 anywhere in the database** (and these carry `billed` rows — money) |
+| `driver_applications` | merge **raised** `DA010`, after a dozen tables had already been re-pointed |
+| `esign_consents` | merge **raised** `EC010` |
+| `sms_consents` | driver row deleted, consent gone in silence |
+
+So a routine dedup either erased a driver's §391.21(b)(10) employment history and the FCRA/PSP/
+previous-employer authorizations **they personally signed**, or died inside an append-only trigger
+with an error naming a table the operator never mentioned. Both are worse than the defect 0203 fixed,
+because this evidence has somebody's signature on it.
+
+**What shipped.**
+- **0234** reassigns the seven tables that CAN move — employment history, employer inquiries,
+  authorizations, PSP requests, invitations, drafts, captures. ⚠ `employer_inquiries` qualifies on a
+  detail: its EI010 guard is a **column list** and `driver_id` is not on it. The guard exists to stop
+  somebody rewriting what was sent and when; carrying the record to the surviving driver is not that.
+- **It REFUSES rather than destroying** when the source holds `driver_applications`, `esign_consents`
+  or `sms_consents` — immutable by design, unmovable and undeletable — with a named SQLSTATE
+  **`MD010`** and a message telling the operator to archive the duplicate instead. ⚠ The check runs
+  **before the first write**, not at the delete: today's DA010 arrives after a dozen tables have been
+  re-pointed, and while plpgsql rolls it back, the operator still gets "driver_applications is
+  append-only" for an act they described as "merge these duplicates".
+- **The bulk sweep skips rather than aborts.** `reconcileDrivers` collects MD010 pairs into
+  `skipped[]` and continues; anything else still throws. One applicant with a signed application must
+  not abandon a 200-row dedup and discard the count of what already succeeded. The audit row reports
+  `skipped` alongside `merged`, on H8's honesty rule — a sweep that folded 8 of 10 and logged "8"
+  reads as a complete pass.
+- ⚠ **`sms_consents` is the case worth remembering**, because it looks like the movable group and
+  behaves like the immutable one: its guard names `driver_id`, so it cannot be reassigned, and its
+  trigger is `before update` only, so a cascade took it **in silence** — the worse of the two failure
+  modes, and the one no error message would ever have surfaced.
+
+**Verify — and the verification is the point.** The `merge-driver-dqf` matrix gained 14 assertions,
+one per table by name, plus the three refusals. **Run against the pre-0234 function they produce 12
+failures**, which is the evidence that they would have caught this. ⚠ The matrix already applied
+every migration precisely so a stale `merge_driver` could not escape notice — that was necessary and
+**not sufficient**: applying every migration proves the function is current, never that its LIST is
+complete. Only a row per referencing table proves that.
+
+⚠ **The standing lesson, and it will happen a third time unless something changes.** Nothing in the
+gate set connects "a new table references `drivers(id) on delete cascade`" to "`merge_driver` must
+learn about it". `lint:rls` would not, `lint:migrations` would not, and the matrix could not. A
+`check-cascade-coverage.mjs` that diffs the FK list against the function body is the obvious gate and
+is **not** written here — a gate authored in the same hour as the fix pins the fix, not the rule.
+Recorded as the first candidate the next time a gate is added.
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices, `merge-driver-dqf` now 21) ·
+`pnpm typecheck` · `pnpm lint` · `lint:migrations` · `lint:rls` · `lint:upserts` ·
+`lint:comment-claims` · `lint:filesize` · `lint:funcsize` · `lint:boundaries` — all green.
+
 ### R0 · The owner interview — no code
 
 The highest-value research is not in a regulation. Put the §6 register (Q-REC1–Q-REC7, plus the

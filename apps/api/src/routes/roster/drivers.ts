@@ -371,10 +371,12 @@ export function rosterDriversRouter(): Router {
       const orgId = req.auth!.orgId!;
       const apply = (req.body as { apply?: unknown } | undefined)?.apply === true;
       const result = await reconcileDrivers(admin, orgId, { apply });
-      if (apply && result.merged > 0) {
+      // H8's honesty rule applied to a sweep: the audit row says what was merged AND what was refused.
+      // A dedup that quietly folded 8 of 10 pairs and logged "8" reads as a complete pass.
+      if (apply && (result.merged > 0 || result.skipped.length > 0)) {
         await writeAudit(admin, {
           orgId, actorId: req.auth!.userId, action: "driver.reconciled", entity: "drivers",
-          meta: { merged: result.merged, planned: result.planned },
+          meta: { merged: result.merged, planned: result.planned, skipped: result.skipped.length },
         });
       }
       res.json(result);
