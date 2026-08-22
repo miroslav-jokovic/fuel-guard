@@ -378,6 +378,29 @@ The canonical contract and the live gates disagreed (§4's ⚠). **What shipped:
 **Verified by:** `vue-tsc`, 360 web tests, `lint:ui-adoption`, `pnpm --filter web lint:tokens`,
 eslint — all green.
 
+### R0c · The surfaces — its own plan (`RECRUITING-UI-SURFACE-PLAN.md`, 2026-08-21)
+
+**Prerequisites:** none. ⚠ **U1 of that plan precedes R1**, on one ground: R1's payoff is a lead
+becoming an applicant, and the act that turns somebody into an applicant is not offered anywhere in
+recruitment today.
+
+R0b reconciled the design system's *paper* with its *gates*. This is the other half of the same
+lesson: the gates measure colour and control provenance, never composition or reachability — so
+A0–A11b shipped regulation-correct into surfaces that pass every check and do not compose.
+Measured 2026-08-21 with both gates green:
+[`RECRUITING-UI-SURFACE-PLAN.md`](./RECRUITING-UI-SURFACE-PLAN.md). Its decisions are `D-UI1`–`D-UI8`;
+its execution protocol is §4 of this document, unchanged; it ships no migration and no API change.
+
+⚠ **Its D-UI1 is this document's own §4 frontend rule, already written and already broken:** *"a new
+routed page ships in one commit with … an entry point … a route reachable by no link is the P0b
+incident again."* `ApplicationInviteCard` mounts in exactly one place — inside the **Employment** tab
+of a driver's detail page — so an applicant must be hand-created as a driver row before anyone can be
+invited to apply, and `/recruitment` offers no way to start one. `/recruitment/screening` and
+`/recruitment/inquiries` carry no nav entry at all.
+
+⚠ **It does not pre-empt R9** (D-UI8): the nav label "Applicants" is R9's word to change, and every
+surface it builds composes shared components so the board re-arranges them rather than replacing them.
+
 ### R1 · Leads
 
 **Prerequisites:** none. (Source vocabulary refined by Q-REC1 later; ships with a closed
