@@ -236,7 +236,7 @@ pairwise. The sum is one scroll nobody scoped.
 | ID | Decision |
 |---|---|
 | **D-UI1** | Recruitment owns the act of inviting an applicant. The invite affordance moves to `/recruitment` as its primary action; the driver-detail card stays for the already-created driver. |
-| **D-UI2** | The KPI tile becomes one shared component. `StatCard` is promoted out of `features/dashboard/` into `components/ui/` and the four hand-rolled variants are retired onto it. `CompliancePage`'s strip is the anatomy that wins, because it already matches contract §2.4. |
+| **D-UI2** | The KPI tile becomes one shared component. `StatCard` is promoted out of `features/dashboard/` into `components/ui/` and the four hand-rolled variants are retired onto it. `CompliancePage`'s strip is the anatomy that wins, because it already matches contract §2.4. ⚠ Amended in execution: the contract sanctions **two** KPI anatomies (§2.4's row and §2.2's `text-3xl` StatCard value), so the component carries both as `size` rather than flattening the dashboard's hero into the in-page KPI. |
 | **D-UI3** | The **area** is the unit of shell consistency, not the app. `RecruitmentPage` moves onto `DataWorkspace` to match its two siblings. No other page is touched. |
 | **D-UI4** | `AppTabs` and `AppCallout` are built in `@fuelguard/ui` and adopted **only** by the surfaces this plan touches. The remaining hand-rolled instances are recorded, not migrated — a fleet-wide sweep is its own step with its own risk. |
 | **D-UI5** | A badge never labels an affordance. The attention tile's filter state is carried by `aria-pressed` and the existing ring, which it already has. ⚠ Where a gate and a document disagree, the gate is right and the **document** is the thing to fix — see §2.5's correction. |
@@ -365,7 +365,7 @@ is absent for a driver, and every tile's `to` resolves to a routed path.
 
 ---
 
-### U3 · `AppStatCard` — one tile, four call sites retired
+### U3 · The shared KPI tile — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** none; independent of U1/U2, but U2 should land on the finished component rather
 than a fifth variant.
@@ -389,6 +389,49 @@ document. ⚠ `lint:comment-claims`: any comment claiming this coverage must quo
 
 **Done when:** one tile component renders every KPI in recruitment, qualification and the dashboard,
 and contract §2.4 is asserted somewhere a gate can fail.
+
+**What shipped.**
+- `components/ui/StatCard.vue` — promoted out of `features/dashboard/`, which is now deleted. All
+  five surfaces render it: the dashboard hero, the applicant board's four stage tiles, the inquiry
+  queue's three figures, screening readiness's blockers, and the qualification attention strip.
+- ⚠ **Named `StatCard`, not `AppStatCard` as this step's text said.** In this codebase `App*` means
+  "exported from `@fuelguard/ui`", and every web-local composite beside it (`PageHeader`,
+  `DataWorkspace`, `FilterBar`, `DataTable`, `BaseModal`) carries no prefix. It could not move into
+  the shared package anyway — `SparkLine` is web-local.
+- ⚠ **The contract sanctions TWO KPI anatomies, not one, so the component carries both** rather than
+  flattening one into the other. §2.4's prescriptive row (`text-xs uppercase` label,
+  `text-2xl font-bold` value) is the default; §2.2's size census names `text-3xl` as "StatCard value",
+  so the dashboard hero is a sanctioned exception and keeps rendering byte-identically under
+  `size="hero"`. The four hand-rolled variants had been disagreeing about a question the contract
+  already answered twice.
+- `icon` became **optional**. Requiring it would have forced a glyph onto three recruitment surfaces
+  to satisfy a refactor — the opposite of what D-UI6's ⚠ says about icon-less pages being the norm.
+- **D-UI5 applied:** the attention strip's "filter"/"filtering" badge is gone. `AttentionTile.tone`
+  went with it — it existed only to colour that badge and had nothing left to colour.
+- `ScreeningReadinessPage` gained a `PageHeader` description; it was the app's only empty one.
+
+⚠ **The refactor's own test found an accessibility bug that predated nothing — it was introduced by
+this step and caught before merge.** Vue casts an ABSENT Boolean prop to `false`, not `undefined`, so
+`pressed?: boolean` made `isToggle` always true: every inert tile on the applicant board, the inquiry
+queue and screening readiness rendered as `<button aria-pressed="false">`, announcing three pages of
+plain figures to a screen reader as toggle buttons that do nothing. Declaring an explicit `undefined`
+default is what disables the casting. **The assertion that caught it — "is inert markup with no `to`
+and no `pressed`" — was written to pin an API shape, not to hunt a bug.**
+
+⚠ **A comment claim that no gate was reading.** `check-comment-claims.mjs` only inspects comments
+that also name a `*.test.ts` file (`TEST_REF`), so "Pinned by …" alone is invisible to it. The
+component's three claims now cite `StatCard.test.ts` and the gate's resolved count went 41 → 44.
+Worth knowing generally: **a proof claim with no test-file reference is not checked by anything.**
+
+⚠ **Still not verified in a browser** — the same vite crash as U1. The tile's anatomy is instead
+pinned by assertions quoting §2.4's and §2.2's class strings, so a contract edit that moves either
+one fails there rather than drifting silently.
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(**zero** errors and zero warnings in the tracked tree; the 701 remaining are all from 32 files inside
+`.claude/worktrees/`) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:ui-contrast` ·
+`lint:boundaries` · `lint:filesize` · `lint:comment-claims` (44 refs resolved) — all green.
+`pnpm verify:live`: U1 landed on Railway as `7e39d98`, schema 0233.
 
 ---
 
@@ -512,7 +555,7 @@ every difference is either fixed or written down.
 ```
 U1  front door            ← DONE 2026-08-21; unblocks U7
 U2  dashboard row         ← after U1
-U3  AppStatCard           ← independent; do before U2 lands if running in parallel
+U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← independent
 U5  shell + icons         ← after U3
 U6  Employment split      ← after U3, U4
