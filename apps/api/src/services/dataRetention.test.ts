@@ -45,6 +45,36 @@ describe("retention policy (the config itself)", () => {
     const jobs = RETENTION_RULES.find((r) => r.table === "jobs")!;
     expect(jobs.onlyWhenIn).toEqual({ column: "status", values: ["done", "failed"] });
   });
+
+  /**
+   * A11a — the two rules that make D-APP2's and D-APP10's word "prunable" true.
+   *
+   * The pair is asserted TOGETHER with the forbidden list, because the whole design rests on the line
+   * between them: the half-typed form and the staged photographs go, and the certified answers and
+   * the filed documents they become at submit never can.
+   */
+  it("prunes the applicant's staged data and cannot reach what it becomes", () => {
+    const drafts = RETENTION_RULES.find((r) => r.table === "application_drafts");
+    const captures = RETENTION_RULES.find((r) => r.table === "application_captures");
+    expect(drafts, "D-APP2's prunable claim needs a rule to be true").toBeTruthy();
+    expect(captures, "D-APP10's prunable claim needs a rule to be true").toBeTruthy();
+    // Org-scoped, because the runner is the service role and bypasses RLS.
+    expect(drafts?.orgScoped).toBe(true);
+    expect(captures?.orgScoped).toBe(true);
+
+    // ⚠ Measured from the LAST TOUCH. A draft somebody is still filling in is never pruned, because
+    // saving moves `updated_at` — the window asks how long the data has sat unused, not how long ago
+    // a credential lapsed.
+    expect(drafts?.timeColumn).toBe("updated_at");
+    expect(captures?.timeColumn).toBe("captured_at");
+
+    // And the other side of the line: what a submitted application turns this data into.
+    const listed = new Set(RETENTION_RULES.map((r) => r.table));
+    for (const t of ["driver_applications", "documents", "application_invitations"]) {
+      expect(RETENTION_FORBIDDEN).toContain(t);
+      expect(listed.has(t)).toBe(false);
+    }
+  });
 });
 
 describe("runDataRetention", () => {
