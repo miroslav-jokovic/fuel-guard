@@ -87,7 +87,18 @@ describe("PSP token selection", () => {
 const SRC = path.dirname(fileURLToPath(import.meta.url));
 
 describe("env defaults have exactly one source", () => {
-  const schema = readFileSync(path.join(SRC, "env.ts"), "utf8");
+  /**
+   * ⚠ BOTH files. The validated schema stopped being one file when `lint:filesize` refused `env.ts`
+   * at 500 lines and one vendor integration's variables moved to `envEfs.ts` (A11b) — and this
+   * assertion is what noticed, because `EFS_CARD_SYNC_HOURS` classified as "absent" the moment it
+   * moved. That is the self-check below doing exactly the job it was written for. A classifier that
+   * reads only one half would quietly stop covering the other, which is the failure mode this whole
+   * describe block exists to prevent.
+   */
+  const schema = [
+    readFileSync(path.join(SRC, "env.ts"), "utf8"),
+    readFileSync(path.join(SRC, "envEfs.ts"), "utf8"),
+  ].join("\n");
 
   /**
    * Three outcomes, because "is it optional" is the wrong question on its own.

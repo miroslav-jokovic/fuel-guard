@@ -132,6 +132,35 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
  * app.locals.verifyToken to bypass real JWKS verification.
  */
 /**
+ * The three body parsers, in the order they have to be mounted.
+ *
+ * Extracted from `createApp` when A11b's form parser took it past the 200-line function budget —
+ * `mountPublic` below is the same move for the same reason. Order is the whole content of this
+ * function: `express.json` skips a body something earlier already parsed, so each narrow parser has
+ * to come before the general one, and the general one has to keep the raw bytes for signature checks.
+ */
+function mountBodyParsers(app: Express): void {
+  // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
+  // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
+  app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
+
+  // ⚠ Twilio posts `application/x-www-form-urlencoded`, which the JSON parser below leaves as an
+  // EMPTY body — and an empty body signs to a different digest than the one Twilio sent, so the
+  // inbound opt-out would 401 every time and a driver's STOP would silently never land (A11b).
+  app.use("/api/webhooks/sms", express.urlencoded({ extended: false, limit: "64kb" }));
+
+  // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req, _res, buf) => {
+        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
+}
+
+/**
  * The two unauthenticated surfaces, mounted together so the risk they share is stated once.
  *
  * Both answer requests from nobody. The hazmat calculator persists nothing and reasons about
@@ -186,19 +215,7 @@ export function createApp(env: Env): Express {
   });
   app.use("/api", apiLimiter);
 
-  // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
-  // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
-  app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
-
-  // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
-  app.use(
-    express.json({
-      limit: "1mb",
-      verify: (req, _res, buf) => {
-        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
-      },
-    }),
-  );
+  mountBodyParsers(app);
 
   const strictLimiter = rateLimit({
     windowMs: 15 * 60_000,

@@ -10,6 +10,7 @@ import type { Env } from "../env.js";
 import { sendEmail } from "../lib/mailer.js";
 import { notify } from "./notify.js";
 import { mintInvitationToken } from "./applicationIntake.js";
+import { sendApplicationSms } from "./applicationSms.js";
 
 /**
  * The abandonment sweep (A10, D-APP15) — one email to a driver who walked away, and one alert to the
@@ -129,7 +130,21 @@ async function alertOffice(
 export interface NudgeSweepResult {
   stalled: number;
   emailed: number;
+  /** Texts that actually went out — always 0 until 10DLC registration completes (A11b, §6). */
+  messaged: number;
 }
+
+/**
+ * The text, in the 160 characters a segment gets.
+ *
+ * Carrier identification is not decoration: every US carrier's messaging rules require the sender to
+ * be identifiable in the body, and `STOP` has to be discoverable from the message itself rather than
+ * from a consent somebody signed weeks ago. What is left after those two is the link, so the copy says
+ * the one thing the email says at length — this link is the live one — and nothing else.
+ */
+export const smsBody = (carrier: string, link: string): string =>
+  `${carrier}: your driver application is saved. Finish it here: ${link} `
+  + "(this replaces any earlier link). Reply STOP to opt out.";
 
 /**
  * One org's sweep.
@@ -147,7 +162,7 @@ export async function runApplicationNudgesOnce(
   now: Date,
 ): Promise<NudgeSweepResult> {
   const planned = planApplicationNudges(await candidates(admin, orgId), now.toISOString());
-  if (planned.length === 0) return { stalled: 0, emailed: 0 };
+  if (planned.length === 0) return { stalled: 0, emailed: 0, messaged: 0 };
 
   const { data: org } = await admin
     .from("organizations")
@@ -158,6 +173,7 @@ export async function runApplicationNudgesOnce(
   const notificationsOn = (org as { notifications_enabled?: boolean } | null)?.notifications_enabled !== false;
 
   let emailed = 0;
+  let messaged = 0;
   for (const nudge of planned) {
     const { data: driver } = await admin
       .from("drivers")
@@ -182,7 +198,21 @@ export async function runApplicationNudgesOnce(
     if (error || rotated !== true) continue;
 
     const label = nudge.furthestSection ? APPLICATION_SECTION_LABELS[nudge.furthestSection] : null;
-    const { subject, text, html } = nudgeEmail(carrier, applyLink(env, token), label);
+    const link = applyLink(env, token);
+
+    /**
+     * A11b: a text FIRST when the driver agreed to one, and the email regardless.
+     *
+     * Not either/or, and the reason is the rotation. The token has already changed by the time either
+     * goes out, so a driver who consented to SMS and also has the original email would otherwise be
+     * left with a dead link in their inbox and a live one they might not see. Both carry the same new
+     * link, and every gate that could refuse the text — no consent, draft wording, quiet hours, an
+     * opt-out — leaves the email untouched, so a refusal is never a driver hearing nothing.
+     */
+    const texted = await sendApplicationSms(admin, env, orgId, nudge.driverId, smsBody(carrier, link), now);
+    if (texted.sent) messaged += 1;
+
+    const { subject, text, html } = nudgeEmail(carrier, link, label);
     const sent = await sendEmail(env, { to: [nudge.email], subject, text, html });
     if (sent.ok) emailed += 1;
     else {
@@ -195,5 +225,5 @@ export async function runApplicationNudgesOnce(
       });
     }
   }
-  return { stalled: planned.length, emailed };
+  return { stalled: planned.length, emailed, messaged };
 }
