@@ -11,7 +11,9 @@ import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment` — the §391.21(b)(10) employment list (0208). */
 
-const pipelineKey = ["recruitment", "pipeline"] as const;
+/** Exported since U1: `useCreateApplicant` puts a row on this board without going through any
+ *  mutation in this file, so it needs the key to invalidate. */
+export const pipelineKey = ["recruitment", "pipeline"] as const;
 
 /** One applicant, as the pipeline reports them. The stage is DERIVED server-side by the same pure
  *  function this app could call — never a stored column that can drift from the file. */

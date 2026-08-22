@@ -1,6 +1,8 @@
 import {
+  ArrowsRightLeftIcon,
   ArrowUpTrayIcon,
   BeakerIcon,
+  CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   BuildingOffice2Icon,
@@ -143,6 +145,13 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: ClipboardDocumentListIcon,
       items: [
         { name: "Applicants", to: "/recruitment", icon: BuildingOffice2Icon, show: canViewSection(role, "recruitment") },
+        // U1/D-UI1: both routes were REGISTERED on 2026-08-20 to close a P0b incident (the URLs fell
+        // through to nothing) and still had no nav entry, so they were reachable only from two
+        // buttons on the Applicants page. A recruiter arriving from a notification had no way back,
+        // and neither page was discoverable by anyone who had not been shown it. The buttons stay:
+        // one answers "from here", the other answers "at all".
+        { name: "Screening readiness", to: "/recruitment/screening", icon: CheckCircleIcon, show: canViewSection(role, "recruitment") },
+        { name: "Safety-history inquiries", to: "/recruitment/inquiries", icon: ArrowsRightLeftIcon, show: canViewSection(role, "recruitment") },
       ],
     },
     {

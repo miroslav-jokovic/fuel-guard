@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
 import { rolesThatManage } from "@fuelguard/shared";
 import DataTable from "@/components/ui/DataTable.vue";
+import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { applicationInviteBadge, BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -24,6 +25,9 @@ import {
  * applicant's inbox. The card holds it in memory until the page is left and states plainly that it
  * cannot be shown again — a UI that quietly dropped it would leave a recruiter clicking "resend" on
  * something that has no resend.
+ *
+ * ⚠ That saying-so is `ApplicationLinkOnce.vue` since U1, because the applicant board now mints
+ * invitations too and the promise has to be identical in both places. Do not re-inline it here.
  */
 const props = defineProps<{ driverId: string; driverStatus: string }>();
 const driverId = computed(() => props.driverId);
@@ -49,17 +53,6 @@ async function invite(): Promise<void> {
     email.value = "";
   } catch (e) {
     toast.error("Could not create the invitation", e instanceof Error ? e.message : undefined);
-  }
-}
-
-async function copyLink(): Promise<void> {
-  if (!link.value) return;
-  try {
-    await navigator.clipboard.writeText(link.value);
-    toast.success("Link copied");
-  } catch {
-    // Clipboard access is refused in some browsers and contexts; the link is on screen either way.
-    toast.error("Could not copy", "Select the link and copy it manually.");
   }
 }
 
@@ -124,17 +117,7 @@ const columns: DataTableColumn[] = [
         are hired.
       </p>
 
-      <div v-if="link" class="mt-4 rounded-surface bg-surface-muted p-3">
-        <p class="text-xs font-medium text-ink-secondary">Send this link to the applicant</p>
-        <p class="mt-1 break-all font-mono text-xs text-ink">{{ link }}</p>
-        <div class="mt-3 flex items-center gap-3">
-          <BaseButton size="sm" @click="copyLink">Copy the link</BaseButton>
-          <p class="text-xs text-ink-muted">
-            It is shown once. We keep only a fingerprint of it, so it cannot be shown again — create a
-            new invitation if it is lost.
-          </p>
-        </div>
-      </div>
+      <ApplicationLinkOnce v-if="link" class="mt-4" :link="link" />
     </BaseCard>
 
     <BaseCard v-if="applicationQ.data.value?.application">

@@ -6,6 +6,7 @@ import {
   APPLICANT_STAGES,
   APPLICANT_STAGE_LABELS,
   canWriteDriverLifecycle,
+  rolesThatManage,
   type ApplicantStage,
 } from "@fuelguard/shared";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
@@ -20,6 +21,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
+import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
 
 /**
  * Recruitment — the applicant pipeline (HIRING-PLAN.md H6).
@@ -91,6 +93,20 @@ function openApplicant(id: string): void {
 const session = useSessionStore();
 const canHire = computed(() => canWriteDriverLifecycle(session.role));
 const hiring = ref<PipelineApplicant | null>(null);
+
+/**
+ * U1/D-UI1 — the act that STARTS an application, on the page named after applicants.
+ *
+ * It lived only inside a driver's Employment tab, which meant somebody had to be created as a
+ * driver under Fleet before they could be invited to become one. Hiring is gated harder (0213
+ * refuses a recruiter's status change in a trigger, so `canHire` is `canWriteDriverLifecycle`);
+ * inviting is recruitment's own work and takes the section gate.
+ */
+const canInvite = computed(() => {
+  const role = session.role;
+  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
+});
+const inviting = ref(false);
 </script>
 
 <template>
@@ -98,9 +114,13 @@ const hiring = ref<PipelineApplicant | null>(null);
     <PageHeader description="Applicants, and what each one is waiting on before they can be screened">
       <template #actions>
         <!-- The fleet-wide version of the same question. An applicant's stage says what THEY owe;
-             readiness says what WE are missing before anyone can be screened at all (P0b). -->
+             readiness says what WE are missing before anyone can be screened at all (P0b). Both are
+             nav items since U1 as well — a button answers "from here", a nav entry answers "at all". -->
         <BaseButton to="/recruitment/inquiries">Safety-history inquiries</BaseButton>
         <BaseButton to="/recruitment/screening">Screening readiness</BaseButton>
+        <BaseButton v-if="canInvite" variant="primary" @click="inviting = true">
+          Invite an applicant
+        </BaseButton>
       </template>
     </PageHeader>
 
@@ -132,12 +152,17 @@ const hiring = ref<PipelineApplicant | null>(null);
         @row-click="(row: PipelineApplicant) => openApplicant(row.driver_id)"
       >
         <template #empty>
-          <!-- Honest rather than reassuring: nobody has applied, and the surface that creates an
-               applicant is H5. Saying "no results" would imply a filter hid something. -->
+          <!-- Honest rather than reassuring: nobody has applied, so "no results" would imply a
+               filter hid somebody. Fact, then the next action (§4's empty-state rule) — before U1
+               this said an applicant appears "when they start an application" and offered no way to
+               start one, which was true and circular. -->
           <p class="text-sm text-ink-muted">
-            No applicants yet. Somebody becomes an applicant when they start an application; hired
+            No applicants yet. Invite one and they fill in their own §391.21(b) application; hired
             drivers and their qualification files live under Driver Qualification.
           </p>
+          <div v-if="canInvite" class="mt-4">
+            <BaseButton variant="primary" @click="inviting = true">Invite an applicant</BaseButton>
+          </div>
         </template>
         <template #cell-full_name="{ row }">
           <span class="font-medium text-ink">{{ row.full_name }}</span>
@@ -171,6 +196,12 @@ const hiring = ref<PipelineApplicant | null>(null);
         </template>
       </DataTable>
     </BaseCard>
+
+    <InviteApplicantDrawer
+      :open="inviting"
+      @close="inviting = false"
+      @created="pipelineQ.refetch()"
+    />
 
     <HireDrawer
       :open="hiring !== null"

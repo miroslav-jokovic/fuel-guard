@@ -262,7 +262,7 @@ run as part of `pnpm lint`): `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm l
 
 ---
 
-### U1 · The front door — DO THIS ONE FIRST
+### U1 · The front door — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** none. Nothing in §5 of the parent plan blocks it and it blocks the walkthrough the
 night handoff §7 asks for.
@@ -292,6 +292,52 @@ for a driver.
 
 **Done when:** a recruiter who has never seen the app can start an application from the page named
 after applicants, and the two sibling pages are reachable without knowing they exist.
+
+**What shipped.**
+- `InviteApplicantDrawer.vue` + `useCreateApplicant.ts` — "Invite an applicant" is now the primary
+  action on `/recruitment` and on its empty state. Creates the person as `status: "applicant"` (what
+  `GET /api/recruitment/pipeline` selects on) and mints the invitation against them.
+- ⚠ **Through `POST /api/roster/drivers`, not PostgREST.** 0212 grants the recruiter that INSERT, so
+  the client-side `useCreateDriver` shortcut would have worked — and would have skipped
+  `driverCreateSchema`, the `driver.created` audit row, and `identity_source: 'manual'`. The last
+  matters most: an applicant is in nobody's telematics, and a row the Samsara sync believes it owns
+  has its name and phone overwritten on the next poll.
+- **The halfway state is named.** No endpoint does both acts, so the drawer does them in sequence and
+  reports *which half* succeeded — the applicant exists on the board, and their own Application card
+  is where the link is minted. Pinned by "when the invitation fails, says the applicant exists and
+  where to finish".
+- `ApplicationLinkOnce.vue` — the shown-once promise extracted from `ApplicationInviteCard` so both
+  birthplaces make the identical promise. The card renders it now rather than its own copy.
+- The empty state stopped being circular: "Invite one and they fill in their own §391.21(b)
+  application", replacing "somebody becomes an applicant when they start an application".
+- `nav.ts` publishes **Screening readiness** and **Safety-history inquiries**, each with a glyph no
+  other nav item uses. The header buttons stay: one answers "from here", the other "at all".
+- `pipelineKey` exported from `useEmployment.ts` so the new mutation can invalidate the board.
+
+⚠ **Two corrections made during execution, both folded in place.** The `parent` route meta this step
+promised to add **already existed** on both sub-routes — they were registered 2026-08-20 to close P0b
+and simply never got nav entries, so step 4 was a no-op. And §2.5's kebab-item finding was wrong; see
+its ⚠, which is left standing as the worked example of §4's "gates outrank the contract".
+
+⚠ **A test that passed for the wrong reason, caught and pinned.** `session.role` is a COMPUTED over
+the decoded access token, so `session.role = "recruiter"` is a no-op and both gate assertions in
+`InviteApplicantDrawer.test.ts` passed while the calls they were meant to prove never fired. The store
+is stubbed instead (`PspRecordsSection.test.ts:103`'s precedent). **A gating test that never exercised
+the ungated path is worse than no test**, and this one only surfaced because a sibling assertion
+demanded the calls.
+
+⚠ **Not verified in a browser.** `vite` crashes on this machine in `prepareRolldownOptimizerRun`
+(a rolldown WASM memory error) while scanning `node_modules`, before reaching project code —
+reconfirmed today on **Node 26.7.0**, having first been seen on Node 23.6.0. Three major Node versions
+behave identically, so the standing "needs a Node downgrade" theory is **disproven**: the local dev
+server is simply unavailable, and CI runs `pnpm build` on its own runners. **U7's walkthrough must run
+against the deployed Railway app.**
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(701 errors, all from 32 files inside `.claude/worktrees/`; **zero** in the tracked tree) ·
+`lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:ui-contrast` · `lint:tokens-parity` ·
+`lint:boundaries` · `lint:filesize` · `lint:funcsize` · `lint:comment-claims` · `lint:migrations` ·
+`lint:rls` · `lint:upserts` · `lint:tests` · `lint:secrets` — all green.
 
 ---
 
@@ -464,7 +510,7 @@ every difference is either fixed or written down.
 ## 5. Sequencing, and what this costs
 
 ```
-U1  front door            ← start here; unblocks U7 and everything the handoff wants
+U1  front door            ← DONE 2026-08-21; unblocks U7
 U2  dashboard row         ← after U1
 U3  AppStatCard           ← independent; do before U2 lands if running in parallel
 U4  AppTabs / AppCallout  ← independent
@@ -473,7 +519,7 @@ U6  Employment split      ← after U3, U4
 U7  the walkthrough       ← after U1; repeat after U6
 ```
 
-**U1 alone closes the finding that matters.** U2–U6 are the consistency pass; they are worth doing
+**U1 alone closed the finding that matters (2026-08-21).** U2–U6 are the consistency pass; they are worth doing
 and none of them is urgent in the way U1 is.
 
 ⚠ **Against R1.** `RECRUITING-SYSTEM-PLAN.md` §7 ranks **R1 (leads)** as the next step, and it is the
