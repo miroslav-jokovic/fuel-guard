@@ -5,7 +5,7 @@ import { ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppTabs, AppCallout, type TabItem } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import StatCard from "@/components/ui/StatCard.vue";
@@ -33,9 +33,8 @@ const orgCertsQ = useCertificationsQuery(
   computed(() => session.orgId ?? null),
 );
 
-type TabValue = "drivers" | "exports";
-const tab = ref<TabValue>("drivers");
-const TABS: Array<{ value: TabValue; label: string }> = [
+const tab = ref("drivers");
+const TABS: TabItem[] = [
   { value: "drivers", label: "Drivers" },
   { value: "exports", label: "Exports" },
 ];
@@ -109,28 +108,11 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
       </template>
     </PageHeader>
 
-    <nav
-      class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm"
-      role="tablist"
-      aria-label="Qualification view"
-    >
-      <BaseButton
-        v-for="t in TABS"
-        :id="`qualification-tab-${t.value}`"
-        :key="t.value"
-        type="button"
-        role="tab"
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="
-          tab === t.value ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'
-        "
-        :aria-selected="tab === t.value"
-        :aria-controls="`qualification-panel-${t.value}`"
-        @click="tab = t.value"
-      >
-        {{ t.label }}
-      </BaseButton>
-    </nav>
+    <!-- U4/D-UI4: the shared strip. This markup was one of six byte-identical copies, none of which
+         handled a single key — `role="tablist"` promises arrow-key navigation and a roving tabindex
+         to anyone driving this by keyboard, and all six put every tab in the tab order and listened
+         for nothing. -->
+    <AppTabs v-model="tab" :tabs="TABS" label="Qualification view" id-prefix="qualification" />
 
     <div
       v-if="tab === 'drivers'"
@@ -139,18 +121,15 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
       aria-labelledby="qualification-tab-drivers"
       class="space-y-6"
     >
-      <div
-        v-if="session.canManage && notStartedCount > 0 && !setupOpen"
-        class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-      >
-        <span class="text-sm font-medium text-brand-800">
-          {{ notStartedCount }} {{ notStartedCount === 1 ? "driver has" : "drivers have" }} no
-          qualification file yet.
-        </span>
-        <BaseButton variant="ghost" size="sm" class="ml-auto" @click="setupOpen = true">
-          Set up files…
-        </BaseButton>
-      </div>
+      <!-- U4/D-UI4: a callout, not a toast — this is true about the page while you look at it and
+           survives every action on the page, which is the whole boundary between the two. -->
+      <AppCallout v-if="session.canManage && notStartedCount > 0 && !setupOpen" tone="brand">
+        {{ notStartedCount }} {{ notStartedCount === 1 ? "driver has" : "drivers have" }} no
+        qualification file yet.
+        <template #actions>
+          <BaseButton variant="ghost" size="sm" @click="setupOpen = true">Set up files…</BaseButton>
+        </template>
+      </AppCallout>
 
       <template v-if="setupOpen">
         <div class="flex items-center justify-between gap-2">

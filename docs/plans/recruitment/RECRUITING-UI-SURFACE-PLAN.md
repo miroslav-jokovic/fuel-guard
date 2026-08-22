@@ -486,7 +486,7 @@ one fails there rather than drifting silently.
 
 ---
 
-### U4 · `AppTabs` and `AppCallout`
+### U4 · `AppTabs` and `AppCallout` — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** none.
 
@@ -516,6 +516,48 @@ that `AppCallout` emits no colour class not defined in `tokens.css`. `lint:ui-ad
 
 **Done when:** the two most-copied structures in the app have one home, and the surfaces this plan
 owns use it.
+
+**What shipped.**
+- `AppTabs` and `AppCallout` in `@fuelguard/ui`, adopted by `CompliancePage` (both) and
+  `DriverDetailPage` (tabs). No new token was needed — both patterns were already built from existing
+  roles, which is exactly why no gate had ever seen them.
+- ⚠ **The accessibility argument turned out to be the whole argument.** `role="tablist"` is a promise:
+  WAI-ARIA's tabs pattern requires a **roving tabindex** — exactly one tab in the page's tab order —
+  and Left/Right/Home/End to move between them. **Not one of the six hand-rolled copies did either.**
+  All six put every tab in the tab order and listened for no keys, so the markup announced a widget
+  the keyboard could not drive. The deduplication was never the point; six copies of a broken
+  interaction contract was.
+- ⚠ **Somebody had already noticed and copied it anyway.** `AuditPage`'s own header comment reads:
+  *"the house pattern is a `role="tablist"` strip of `BaseButton`s … Following it beats inventing a
+  seventh."* Correct at the time, and the clearest possible evidence that the primitive was missing
+  rather than the discipline.
+- `AppCallout`'s tone map is **static by necessity**: Tailwind scans source text for literal class
+  names, so `bg-${tone}-50` is never emitted and the callout renders transparent — an invisible
+  warning on a compliance page, failing as if it were a styling nit. Every combination is spelled out
+  and every tone is asserted.
+- ⚠ **`packages/ui` had no test runner at all**, so `lint:tests` reported "no tests" for it. That was
+  tolerable while the package held only primitives whose whole behaviour was a class list; `AppTabs`
+  owns real behaviour, and shipping the fix for six broken copies untested would repeat the mistake in
+  one place instead of six. It has vitest now — 21 tests across the two components.
+
+⚠ **The `label` prop is not called `ariaLabel`.** `aria-label` is a real HTML attribute, so a prop by
+that name is ambiguous with a fallthrough attribute and `vue-tsc` rejects the call site outright.
+Cost one typecheck cycle; recorded so the next shared component with an accessible name does not.
+
+⚠ **Recorded, not migrated** (D-UI4): four hand-rolled tab bars remain — `AssignmentsPage`,
+`AuditPage`, `DispatchLoadsPage`, `DriverAppSettingsPage` — and ~27 inline callouts. **All four tab
+bars carry the same keyboard defect**, so this is now a known accessibility gap with a ready fix
+rather than an unknown one. A sweep is its own step with its own PR; `DriverAppSettingsPage` needs
+`scrollable`, `DispatchLoadsPage` needs `badge`, and both props exist for that reason.
+
+⚠ **Still not verified in a browser** (same vite crash) — but this is the one step whose behaviour a
+browser would have checked worst anyway: keyboard navigation is precisely what a person clicking
+through does not exercise. The tests are the better instrument here.
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices, now including `@fuelguard/ui`'s
+21) · `pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:tests` (the new runner is
+collected) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:boundaries` ·
+`lint:filesize` · `lint:tokens-parity` · `lint:comment-claims` — all green.
 
 ---
 
@@ -642,7 +684,7 @@ every difference is either fixed or written down.
 U1  front door            ← DONE 2026-08-21; unblocks U7
 U2  dashboard row         ← DONE 2026-08-21
 U3  StatCard              ← DONE 2026-08-21
-U4  AppTabs / AppCallout  ← independent
+U4  AppTabs / AppCallout  ← DONE 2026-08-21
 U5  shell + icons         ← DONE 2026-08-21
 U6  Employment split      ← after U3, U4
 U7  the walkthrough       ← after U1; repeat after U6
