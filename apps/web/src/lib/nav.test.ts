@@ -63,3 +63,42 @@ describe("fuel cards", () => {
     expect(fuel?.items.find((i) => i.name === "Cards")?.show).toBe(true);
   });
 });
+
+/**
+ * U1/D-UI1 — the two recruitment sub-pages, and the glyph rule that made them findable.
+ *
+ * Both routes were registered on 2026-08-20 to close a P0b incident (the URLs fell through to
+ * nothing) and then had no nav entry for a day, so they were reachable only from two buttons on the
+ * Applicants page. The first test below is the half a route record cannot assert.
+ */
+describe("recruitment is navigable, not just routed", () => {
+  it("publishes all three recruitment surfaces to a recruiter", () => {
+    const group = buildNavGroups("recruiter", null).find((g) => g.label === "Recruitment");
+    expect(group?.items.map((i) => i.to)).toEqual([
+      "/recruitment",
+      "/recruitment/screening",
+      "/recruitment/inquiries",
+    ]);
+  });
+
+  it("shows a driver none of it", () => {
+    expect(buildNavGroups("driver", null).find((g) => g.label === "Recruitment")).toBeUndefined();
+  });
+
+  /**
+   * ⚠ The rule this pins is "no glyph means two things at once", and it currently has ONE sanctioned
+   * exception per pair: a section's own icon may repeat on the item that IS that section (Admin /
+   * Settings, Dispatch / Fuel Planning). Two unrelated ITEMS sharing a glyph is the defect — D-UI6
+   * records that Assignments and Driver Qualification do exactly that today, and U5 fixes it. This
+   * asserts the boundary U1 promised not to cross: whatever else is true, U1 added no new collision.
+   */
+  it("gives the recruitment items glyphs no other nav item uses", () => {
+    const items = buildNavGroups("admin", null).flatMap((g) => g.items);
+    const recruitment = items.filter((i) => i.to.startsWith("/recruitment"));
+    expect(recruitment).toHaveLength(3);
+    for (const item of recruitment) {
+      const sharing = items.filter((other) => other.icon === item.icon);
+      expect(sharing.map((s) => s.name)).toEqual([item.name]);
+    }
+  });
+});
