@@ -29,7 +29,6 @@ const copy = APPLY_COPY.consent;
 
     <div class="space-y-1">
       <h2 class="text-sm font-semibold text-ink">{{ consent.title }}</h2>
-      <p class="text-xs text-ink-muted">{{ consent.citation }}</p>
     </div>
 
     <!-- Served text, never shipped in the bundle: what somebody agreed to is a fact the server can

@@ -357,7 +357,7 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
      * equipment they have driven even if they will not write a paragraph about it.
      */
     path: "equipment_experience",
-    message: "§391.21(b)(6): describe your driving experience, or list the equipment you have driven",
+    message: "Describe your driving experience, or list the equipment you have driven",
     check: (v) =>
       v.equipment_experience === undefined
       || v.equipment_experience.length > 0

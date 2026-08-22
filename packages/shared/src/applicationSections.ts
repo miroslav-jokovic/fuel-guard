@@ -58,7 +58,22 @@ export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   certify: "Sign and send",
 };
 
-/** The §391.21(b) paragraph each screen discharges, for the driver and for anyone auditing us. */
+/**
+ * The §391.21(b) paragraph each screen discharges — **for the printed application and for anyone
+ * auditing us, and no longer for the driver.**
+ *
+ * ── WHY THIS IS NO LONGER ON THE SCREEN (2026-08-22, owner) ───────────────────────────────────
+ * This map used to render as a line under every heading in the apply wizard, so a driver holding a
+ * phone read "§391.21(b)(3)" above the boxes asking where they had lived. The owner's judgement:
+ * "useless and confusing for a regular user." They are right about the audience — a citation earns
+ * its place where the reader is arguing with an auditor, and a driver filling in their own
+ * employment history is not. The screens now say *what* is being asked and *why*, in words.
+ *
+ * ⚠ **The map is kept, not deleted, and the distinction is the whole point.** `render.ts`'s
+ * `RENDERED_CITATIONS` prints these into the PDF that lands in the §391.51 file, which IS read by
+ * an auditor, and the section-order test asserts the printed document carries them. Citations left
+ * print; they left the screen.
+ */
 export const APPLICATION_SECTION_CITATIONS: Record<ApplicationSection, string | null> = {
   identity: "§391.21(b)(2)",
   addresses: "§391.21(b)(3)",

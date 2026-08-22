@@ -137,8 +137,8 @@ async function save(): Promise<void> {
   >
     <div v-if="inquiry" class="space-y-6">
       <p class="text-sm text-ink-muted">
-        §391.23(c)(2) asks for the information received, not only that something arrived. Record what
-        they confirmed and any accidents they reported; attach their letter if you have one.
+        The file needs the information received, not only that something arrived. Record what they
+        confirmed and any accidents they reported; attach their letter if you have one.
       </p>
 
       <div class="space-y-4">

@@ -107,7 +107,7 @@ async function submit(): Promise<void> {
     <div class="space-y-6">
       <p class="text-sm text-ink-muted">
         This adds them to the applicant board and creates the link that carries them to their own
-        §391.21(b) application. They fill it in and certify it themselves; their answers become the
+        driver application. They fill it in and certify it themselves; their answers become the
         employment history and the record their qualification file is built from.
       </p>
 

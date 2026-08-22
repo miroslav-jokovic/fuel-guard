@@ -141,15 +141,15 @@ function onSubmit(): void {
 
     <AppCheckbox v-model="form.dot_regulated" label="DOT-regulated employer" />
     <p class="-mt-2 text-xs text-ink-muted">
-      Only a DOT-regulated employer owes a §391.23(a)(2) safety-history inquiry. Non-regulated work
-      still counts towards the three-year employment record.
+      Only a DOT-regulated employer owes a safety-history inquiry. Non-regulated work still counts
+      towards the three-year employment record.
     </p>
 
     <AppCheckbox v-model="form.operated_cmv" label="Drove a commercial motor vehicle in this job" />
     <p class="-mt-2 text-xs text-ink-muted">
-      §391.21(b)(11) asks for the years 3–10 only where the applicant operated a commercial vehicle.
-      A separate question from the one above: a dispatcher at a carrier drove nothing, and an
-      intrastate operation outside the FMCSRs may still have put them in a truck.
+      Years 3–10 are asked for only where the applicant operated a commercial vehicle. A separate
+      question from the one above: a dispatcher at a carrier drove nothing, and an intrastate
+      operation outside the federal rules may still have put them in a truck.
     </p>
 
     <FormField label="Safety-history inquiry">

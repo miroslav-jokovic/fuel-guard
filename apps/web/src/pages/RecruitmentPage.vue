@@ -177,8 +177,8 @@ const inviting = ref(false);
                this said an applicant appears "when they start an application" and offered no way to
                start one, which was true and circular. -->
           <p class="text-sm text-ink-muted">
-            No applicants yet. Invite one and they fill in their own §391.21(b) application; hired
-            drivers and their qualification files live under Driver Qualification.
+            No applicants yet. Invite one and they fill in their own driver application; hired drivers
+            and their qualification files live under Driver Qualification.
           </p>
           <div v-if="canInvite" class="mt-4">
             <BaseButton variant="primary" @click="inviting = true">Invite an applicant</BaseButton>

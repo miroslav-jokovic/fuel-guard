@@ -189,7 +189,19 @@ describe("§391.21(b)(6)", () => {
   it("refuses a document that answers neither the narrative nor the equipment", () => {
     const parsed = driverApplicationSchema.safeParse(base);
     expect(parsed.success).toBe(false);
-    expect(JSON.stringify(parsed.error?.issues)).toContain("391.21(b)(6)");
+    expect(JSON.stringify(parsed.error?.issues)).toContain("equipment you have driven");
+  });
+
+  /**
+   * ⚠ The assertion above used to read `.toContain("391.21(b)(6)")`, because the message opened with
+   * the paragraph number. A validation message is read by ONE person — the applicant who just failed
+   * it, mid-form, on a phone — and telling them which CFR paragraph they fell foul of does not help
+   * them fill the box in (2026-08-22, owner). This test is the pin in the other direction: the
+   * message must say what to DO, and must not name a regulation.
+   */
+  it("says what to do rather than which paragraph was breached", () => {
+    const issues = JSON.stringify(driverApplicationSchema.safeParse(base).error?.issues);
+    expect(issues).not.toMatch(/§|CFR|391\.21/);
   });
 
   it("is satisfied by the narrative alone — a driver who would rather write a sentence", () => {

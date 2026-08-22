@@ -59,9 +59,9 @@ async function submit(): Promise<void> {
   <SlideOver :open="open" size="lg" :title="`Hire ${fullName}`" @close="emit('close')">
     <div class="space-y-6">
       <p class="text-sm text-ink-muted">
-        Hiring opens their §391.51 qualification file and carries the safety-history inquiries you
-        have already recorded into it as dated evidence. Everything else they signed is already
-        filed against them.
+        Hiring opens their qualification file and carries the safety-history inquiries you have
+        already recorded into it as dated evidence. Everything else they signed is already filed
+        against them.
       </p>
 
       <FormField v-slot="{ id }" label="Hire date" hint="The three-year employment window is measured back from this date.">
@@ -89,7 +89,7 @@ async function submit(): Promise<void> {
           <p class="text-xs font-medium text-ink-secondary">Their file will still need</p>
           <ul class="mt-2 space-y-1 text-sm">
             <li v-for="o in previewQ.data.value.outstanding" :key="o.key" class="text-ink-secondary">
-              {{ o.label }}<span class="ml-2 text-xs text-ink-muted">{{ o.citation }}</span>
+              {{ o.label }}
             </li>
           </ul>
         </div>

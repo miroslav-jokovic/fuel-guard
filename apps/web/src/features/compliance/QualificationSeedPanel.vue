@@ -116,10 +116,10 @@ async function save() {
         The company's own certifications — every load is blocked until these exist too.
       </p>
       <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField v-slot="{ id }" label="PHMSA hazmat registration expires" hint="49 CFR Part 107 subpart G">
+        <FormField v-slot="{ id }" label="PHMSA hazmat registration expires" hint="The carrier's registration with PHMSA.">
           <AppDateField :id="id" v-model="orgPhmsa" />
         </FormField>
-        <FormField v-slot="{ id }" label="Financial responsibility (insurance) expires" hint="49 CFR §387.9">
+        <FormField v-slot="{ id }" label="Financial responsibility (insurance) expires" hint="The filing on record with FMCSA.">
           <AppDateField :id="id" v-model="orgFinancial" />
         </FormField>
       </div>
@@ -130,7 +130,7 @@ async function save() {
         <div>
           <h2 class="text-sm font-semibold text-ink">Driver files — bulk entry</h2>
           <p class="mt-1 max-w-2xl text-sm text-ink-muted">
-            Blank fields record nothing. One training date expands to all four §172.704(a) areas
+            Blank fields record nothing. One training date expands to all four hazmat training areas
             (general awareness, function-specific, safety, security awareness) under the provider
             below. Kinds a driver already has on file are skipped, never overwritten.
           </p>
@@ -142,7 +142,7 @@ async function save() {
         v-slot="{ id }"
         class="mt-4 max-w-md"
         label="Training provider"
-        :hint="trainingNeedsProvider ? 'Required for the training dates entered below (§172.704(d)).' : 'Applies to every training date in the grid.'"
+        :hint="trainingNeedsProvider ? 'Required for the training dates entered below.' : 'Applies to every training date in the grid.'"
       >
         <BaseInput :id="id" v-model="trainingProvider" placeholder="e.g. J. J. Keller & Associates" />
       </FormField>

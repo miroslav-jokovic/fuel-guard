@@ -41,6 +41,22 @@ export interface DisclosureDocument {
   /** Bumped whenever `body` or `intent` changes by a character. Stored on every row. */
   version: string;
   title: string;
+  /**
+   * The authority this instrument is issued under — **provenance, not screen copy.**
+   *
+   * ⚠ It stopped being rendered on 2026-08-22 (owner: citations are "useless and confusing for a
+   * regular user"). It was a grey line under each document's title, which told an applicant about to
+   * sign a background-check release nothing they could act on. What they need is the `body`, and the
+   * `body` is written in English.
+   *
+   * The field stays because the audience it was written for still exists on the other side of the
+   * screen: an auditor reading the printed file, and counsel replacing this placeholder wording, both
+   * need to know which paragraph each instrument answers to. ⚠ Note that `body` and `intent` DO still
+   * carry statutory references in places (§40.25(g), 49 CFR Part 40, Part 382) and are deliberately
+   * untouched — those sentences are the legal instrument the driver signs, and editing them is
+   * counsel's act, not a copy pass. `authorizationContract.test.ts` asserts this field still names an
+   * authority.
+   */
   citation: string;
   /** The disclosure itself. Shown alone — never beside another disclosure or an application field. */
   body: string;
@@ -210,6 +226,7 @@ export interface EsignConsentDocument {
   /** Bumped whenever any clause or the intent changes by a character. Stored on every row. */
   version: string;
   title: string;
+  /** As `DisclosureDocument.citation` — provenance for print and for counsel, not shown on screen. */
   citation: string;
   clauses: Record<EsignConsentClause, string>;
   /** The sentence the driver affirms. 7001(c)(1)(C)(ii)'s consent, given in the browser they read it in. */
