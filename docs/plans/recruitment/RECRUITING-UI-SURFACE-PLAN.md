@@ -151,15 +151,30 @@ Both pass every gate: the colours are token roles and the controls are `App*` pr
 structure is what repeats, and no script reads structure. **This is the cause of "inline design" in
 the areas you flagged — not a shortcut taken in those areas.**
 
-### 2.5 D-UI5 · Two genuine component misuses, both in the flagged areas
+### 2.5 D-UI5 · One component misuse, and one place the documentation is wrong
 
-- `RecruitmentPage.vue:166` — `<BaseButton class="kebab-item">` inside `KebabMenu`. The contract
-  (§1.2) states children must be `<button class="kebab-item">`. A styled primitive is being forced
-  into a menu-item shape, inheriting button padding and focus treatment the menu recipe does not want.
 - `CompliancePage.vue:189` — each attention tile renders a **badge whose text is "filter" /
   "filtering"**. `lib/badges.ts` is the *status* vocabulary; a badge used as the affordance label for
   a toggle teaches the badge to mean two things. The tile is already `:as="'button'"` with
   `aria-pressed` — the state is conveyed correctly and the badge is a second, conflicting signal.
+
+⚠ **Corrected 2026-08-21 during U1, and left standing as the worked example.** An earlier draft of
+this section called `RecruitmentPage.vue:166` — `<BaseButton class="kebab-item">` inside `KebabMenu`
+— a misuse, on the authority of contract §1.2 ("children must be `<button class="kebab-item">`").
+**That is backwards, and the contract is the stale half.** `lint:ui-adoption` counts raw `<button>`
+in `pages/` and `features/` as a failure (`ui-system-inventory.mjs:91,124`), `apps/web/CLAUDE.md`
+lists `BaseButton class="kebab-item"` among its non-negotiables, and **all nine call sites in the app
+already do it that way**. `RecruitmentPage` is correct and was never the defect.
+
+The finding that survives is a documentation one, and it is worth fixing because it is what produced
+the wrong reading: **three places tell you to write a raw `<button>` that the gate rejects** —
+contract §1.2, `KebabMenu.vue:9` ("Put `<button class="kebab-item">` children in the default slot")
+and `DataTable.vue:23`'s usage docblock. All three predate the gate.
+
+⚠ This is `RECRUITING-SYSTEM-PLAN.md` §4's own standing warning, demonstrated on this plan's own
+author: *"The gates outrank the contract … read the two gate scripts before writing UI, and trust
+them over the contract."* Every remaining finding in §2 was re-checked against the gate scripts and
+the call sites after this one was caught.
 
 ⚠ Related, app-wide, out of this plan's scope but recorded: **`AppBadge` is exported from
 `@fuelguard/ui` and imported by zero files** — 56 files use `BADGE_BASE` from `lib/badges.ts`. One of
@@ -224,7 +239,7 @@ pairwise. The sum is one scroll nobody scoped.
 | **D-UI2** | The KPI tile becomes one shared component. `StatCard` is promoted out of `features/dashboard/` into `components/ui/` and the four hand-rolled variants are retired onto it. `CompliancePage`'s strip is the anatomy that wins, because it already matches contract §2.4. |
 | **D-UI3** | The **area** is the unit of shell consistency, not the app. `RecruitmentPage` moves onto `DataWorkspace` to match its two siblings. No other page is touched. |
 | **D-UI4** | `AppTabs` and `AppCallout` are built in `@fuelguard/ui` and adopted **only** by the surfaces this plan touches. The remaining hand-rolled instances are recorded, not migrated — a fleet-wide sweep is its own step with its own risk. |
-| **D-UI5** | A badge never labels an affordance. The attention tile's filter state is carried by `aria-pressed` and the existing ring, which it already has. |
+| **D-UI5** | A badge never labels an affordance. The attention tile's filter state is carried by `aria-pressed` and the existing ring, which it already has. ⚠ Where a gate and a document disagree, the gate is right and the **document** is the thing to fix — see §2.5's correction. |
 | **D-UI6** | Every nav item has a glyph no sibling shares. ⚠ The **label** "Applicants" is **not** renamed here — `RECRUITING-SYSTEM-PLAN.md` R9 explicitly owns that word ("the nav label 'Applicants' is renamed to match what the page now is (R9 decides the word, the rename ships with the board)"). This plan changes the icon only. |
 | **D-UI7** | "Employment" splits into the recruiting work and the qualification work by *who does it*, not by which regulation names it. |
 | **D-UI8** | ⚠ **Nothing in this plan may pre-empt R9.** R9 grows `/recruitment` into the recruiter board with the four-stage view demoted to a slice. Every surface built here composes shared components so R9 re-arranges them rather than rewriting them; no new page is created that R9 would have to delete. |
@@ -374,8 +389,11 @@ about to delete).
    matching its two siblings and contract §5.2b. ⚠ This is R0b's *new-page* rule applied to an
    existing page **deliberately and narrowly**, because the area's internal split is the defect; it
    does not reopen R0b's "existing pages are left alone" decision for anywhere else.
-2. Fix `RecruitmentPage.vue:166` — the `KebabMenu` child becomes `<button class="kebab-item">` per
-   contract §1.2 (D-UI5).
+2. **Fix the three stale docs that contradict the gate** (§2.5): contract §1.2, `KebabMenu.vue:9`
+   and `DataTable.vue:23` all instruct a raw `<button class="kebab-item">`, which
+   `lint:ui-adoption` fails. They should say `BaseButton class="kebab-item"`, which is what every
+   call site and `apps/web/CLAUDE.md` already say. ⚠ No `.vue` file changes for this — the code was
+   right and the prose was wrong.
 3. **Icons (D-UI6):** give "Driver Qualification" a glyph that "Assignments" does not share; give
    "Applicants" a person rather than `Building02Icon`; resolve or remove the `// ⚠ verify` on
    `ClipboardDocumentListIcon` at `icons.ts:120`. ⚠ **Never import from
