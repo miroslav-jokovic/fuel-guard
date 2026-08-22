@@ -1395,9 +1395,58 @@ shortens a long link, and that the function is service_role only. `expectOrgScop
 **Not verified against a real inbox** — no mail provider is configured in test, so `sendEmail` is
 mocked and what a driver actually receives has not been read by a person.
 
-### A11 · SMS delivery, and the retention rule
+### A11a · The retention rule — DONE 2026-08-21 (no migration)
 
-**Prerequisites:** A10. **10DLC brand and campaign registration is started on the day A1 starts**
+⚠ **A11 is split**, on A3a/A3b's and A8a/A8b's precedent: it bundles two unrelated features, and only
+one of them has an external dependency. **A11a** is the retention rule — nothing waits on it, and it
+is what makes D-APP2's and D-APP10's word "prunable" true rather than aspirational. **A11b** is SMS,
+which is a consent regime with a multi-week procurement lead time and ships flag-default-off.
+
+**What shipped.** Two entries in `RETENTION_RULES` and no new machinery at all. `dataRetention.ts` is
+a declarative engine — one column, one cutoff, bounded batches — and both tables took 0213's trigger
+style (`auth_role() is null` PASSES, which is the service role this runner is) specifically so that
+these two lines could exist. The EI010/DA010 family, correct for evidence, would have made the promise
+structurally false.
+
+**⚠ The window is measured from the LAST TOUCH, not from the invitation's expiry.** A11's text asks
+for "a configured window after their invitation expires or its lead is dispositioned"; that needs a
+join this engine deliberately cannot express, because every rule compares one column on one table and
+that is what keeps the policy readable as a list. The last touch is also the better measure: retention
+answers "how long has this personal data sat here unused", not "how long ago did a credential lapse".
+A draft somebody is still filling in is never pruned, because saving moves `updated_at`.
+
+**⚠ `signature_mark` is pruned with everything else — the decision A8b deferred to this step, taken
+rather than discovered.** The staged row is how the PDF renderer FINDS the drawn mark, so after the
+window a re-render draws the typed name alone. That is exactly what D-APP8 says the signature of
+record has always been; the PDF filed on the day keeps its mark for ever; and a retention rule with an
+exemption in it is one the next reader gets wrong. The cost, stated plainly: the promoted PNG survives
+in `documents` as a row of kind `other` that nothing can identify any more. That is cosmetic
+untidiness, not a defect.
+
+**Deleting the row is the whole mechanism for the bytes.** `load_stop_photos` set the pattern: a
+staged capture's row is what the `application-captures` orphan sweep (A8a) checks Storage against, so
+a deleted row makes its object an orphan and the object goes on the next pass after the 24-hour grace.
+Two mechanisms built for other reasons compose into the policy, and neither had to change.
+
+**Verify.** ⚠ The SQL half of this step's original Verify — "the retention rule actually removes draft
+and capture rows" — was already proved by A2's and A8a's matrices, each of which pins that the service
+role CAN delete its table and that a JWT-bearing writer cannot. Re-asserting it here would be a second
+copy of somebody else's test.
+**Verified by:** `pnpm test` — `dataRetention.test.ts` gains an assertion that pins the pair TOGETHER
+with the forbidden list, because the whole design is the line between them: the half-typed form and the
+staged photographs go, and `driver_applications`, `documents` and `application_invitations` — what a
+submitted application turns that data into — are in `RETENTION_FORBIDDEN` and unreachable;
+`storageReconcile.test.ts` gains the composition said out loud (a capture row retention deleted has
+its object collected on the next pass, and the same object inside the 24-hour grace is an upload in
+flight rather than an orphan) — because a reader of either half alone would reasonably conclude the
+bytes were being left behind. `pnpm typecheck`; `pnpm lint`; all twelve named lint gates plus
+`pnpm --filter web lint:tokens`.
+**Done when:** an abandoned candidate's half-typed PII actually disappears on schedule — which is now
+true, on a 90-day window from last touch.
+
+### A11b · SMS delivery
+
+**Prerequisites:** A10, A11a. **10DLC brand and campaign registration is started on the day A1 starts**
 (D-APP13) — it is a procurement lead time, not a dependency to discover late.
 
 **Build.**
@@ -1410,24 +1459,18 @@ mocked and what a driver actually receives has not been read by a person.
   configured carrier-timezone fallback), `STOP` handling that writes `revoked_at`, and sender
   identification in every message body.
 - Invitation and nudge delivery gain an SMS path chosen only when a live consent row exists.
-- Same migration: the **retention rule** D-APP4 promised — `application_drafts` and
-  `application_captures` prune on a configured window after their invitation expires or its lead is
-  dispositioned. This is the rule that makes D-APP2 and D-APP10's "prunable" claim true rather than
-  aspirational, and it is why both tables took 0213's trigger style.
-  ⚠ **One decision to make deliberately here, from A8b:** the `signature_mark` row is how the PDF
-  renderer FINDS the drawn mark (`documents` files it as kind `other`, indistinguishable from a
-  promoted `ssn_card`, and the staged row is the index). Pruning it means a re-render after the window
-  draws the typed name alone — which is what D-APP8 says the signature of record has always been, and
-  the PDF filed on the day keeps its mark. Keep the rows or accept that; either is defensible, but it
-  must not be discovered.
+- ~~Same migration: the **retention rule**~~ — **shipped as A11a**, above, including A8b's
+  `signature_mark` decision.
 
-**Verify.** Matrix: the retention rule actually removes draft and capture rows and their storage
-objects, and touches nothing in `RETENTION_FORBIDDEN` (the existing guard test proves the second
-half). Unit: quiet hours refuse and reschedule rather than drop; a revoked consent refuses send; no
-consent refuses send.
-**Done when:** a driver who consented gets a text with their link, a driver who did not gets an
-email, `STOP` is honoured on the next send, and an abandoned candidate's half-typed PII actually
-disappears on schedule.
+**Verify.** Unit: quiet hours refuse and reschedule rather than drop; a revoked consent refuses send;
+no consent refuses send.
+**Done when:** a driver who consented gets a text with their link, a driver who did not gets an email,
+and `STOP` is honoured on the next send.
+
+⚠ **One thing A11b must decide that A10 already made concrete.** The nudge ROTATES the invitation
+token (there is no link to re-send — 0220 keeps a hash). An SMS nudge rotates it too, so a driver who
+consented to SMS and also has the email link will find the older one dead. That is the same trade A10
+took, but it is now taken twice on the same invitation and the copy has to say so in 160 characters.
 
 ---
 
@@ -1532,10 +1575,12 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
-⚠ **Position as of 2026-08-21: A1–A10 are DONE (schema 0232). The last step is A11** — SMS delivery
-and the retention rule. ⚠ A11 carries two things named elsewhere in this document rather than
-discovered: the `signature_mark` staging row is how the PDF renderer finds the drawn mark (A8b), and
-10DLC registration has a multi-week lead time that started at A1.
+⚠ **Position as of 2026-08-21: A1–A11a are DONE (schema 0232). The last step is A11b** — SMS
+delivery, split out because it is a consent regime with a multi-week procurement lead time (10DLC,
+started at A1) and everything else in this plan is finished. It ships flag-default-off regardless.
+**The one input still outstanding for the whole plan is A0** — counsel's review of wording the carrier
+has already drafted (§6.1 pile 3), which arms the consent gate and opens the signing ceremony with no
+deploy.
 `HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
 the harness facts that cost time, which are not repeated here.
 

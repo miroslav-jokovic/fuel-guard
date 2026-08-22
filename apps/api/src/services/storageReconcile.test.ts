@@ -101,6 +101,55 @@ describe("bucket ↔ table bindings", () => {
     expect(calls.table).toBe("application_captures");
   });
 
+  /**
+   * A11a's other half, as the composition it actually is.
+   *
+   * The retention rule deletes `application_captures` ROWS and nothing else — there is no code in it
+   * that knows about Storage. What removes a pruned candidate's licence photograph is this sweep,
+   * one pass later, finding an object no row references. Two mechanisms built for other reasons, and
+   * the policy is the composition; this is the assertion that says so out loud, because a reader of
+   * either half alone would reasonably conclude the bytes were being left behind.
+   */
+  it("collects the object of a capture row retention has deleted, once the grace has passed", async () => {
+    const admin = {
+      // The row is gone — retention pruned it — so the bucket's object references nothing.
+      from: () => ({ select: async () => ({ data: [], error: null }) }),
+      storage: {
+        from: () => ({
+          list: async (prefix: string) =>
+            prefix === ""
+              ? { data: [{ name: "abandoned.webp", id: "obj-1", created_at: "2026-08-01T00:00:00Z" }], error: null }
+              : { data: [], error: null },
+          remove: async (paths: string[]) => ({ data: paths.map((p) => ({ name: p })), error: null }),
+        }),
+      },
+    } as never;
+    const r = await reconcileApplicationCaptureOrphans(admin, { apply: true, nowIso: "2026-08-21T00:00:00Z" });
+    expect(r.orphanObjects).toEqual(["abandoned.webp"]);
+    expect(r.deleted).toBe(1);
+  });
+
+  /** And the same object inside the 24-hour grace is an upload in flight, not an orphan. */
+  it("leaves an object alone while it could still be an upload in progress", async () => {
+    const admin = {
+      from: () => ({ select: async () => ({ data: [], error: null }) }),
+      storage: {
+        from: () => ({
+          list: async (prefix: string) =>
+            prefix === ""
+              ? { data: [{ name: "inflight.webp", id: "obj-2", created_at: "2026-08-20T23:00:00Z" }], error: null }
+              : { data: [], error: null },
+          remove: async () => {
+            throw new Error("remove must not be called inside the grace window");
+          },
+        }),
+      },
+    } as never;
+    const r = await reconcileApplicationCaptureOrphans(admin, { apply: true, nowIso: "2026-08-21T00:00:00Z" });
+    expect(r.orphanObjects).toEqual([]);
+    expect(r.deleted).toBe(0);
+  });
+
   it("never deletes a `documents` row — a missing object is flagged, the claim survives", async () => {
     const admin = {
       from: () => ({ select: async () => ({ data: [{ storage_path: "org/driver/d/gone.webp" }], error: null }) }),

@@ -142,6 +142,56 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "proof-of-work photos; 3y covers the Carmack claim window (9mo to file + 2y to sue) past the 1y §379 floor",
   },
+  /**
+   * A11a, and the entries that make D-APP2's and D-APP10's word "prunable" true rather than
+   * aspirational. Both tables took 0213's trigger style — `auth_role() is null` PASSES, which is the
+   * service role this runner is — specifically so that these two lines could exist. The EI010/DA010
+   * family, correct for evidence, would have made the promise structurally false.
+   *
+   * ── WHAT IS ACTUALLY BEING DELETED, AND WHY IT IS NOT EVIDENCE ────────────────────────────────
+   * A half-typed application and the photographs staged against it. Nobody signed either, nothing
+   * cites them, and §391.51 does not ask for them. What they DO hold is a date of birth, an address
+   * history, a licence number and a photograph of a licence — for a person who, in every row these
+   * rules can reach, never applied. The moment an application IS certified, the answers become
+   * `driver_applications.payload` and the accepted photographs become `documents` rows, both of which
+   * are in `RETENTION_FORBIDDEN` and neither of which these rules can touch.
+   *
+   * ── ⚠ THE WINDOW IS MEASURED FROM THE LAST TOUCH, NOT FROM THE INVITATION'S EXPIRY ────────────
+   * A11's text says "a configured window after their invitation expires or its lead is dispositioned".
+   * That needs a join this engine deliberately cannot express — every rule here compares one column on
+   * one table, which is what keeps the policy readable as a list. The last touch is also the better
+   * measure: the question retention answers is "how long has this personal data been sitting here
+   * unused", not "how long ago did a credential lapse". A draft somebody is still filling in is never
+   * pruned, because saving moves `updated_at`.
+   *
+   * ── AND DELETING THE ROW IS THE WHOLE MECHANISM FOR THE BYTES ─────────────────────────────────
+   * `load_stop_photos` above set the pattern. A staged capture's row is what the
+   * `application-captures` orphan sweep (A8a) checks Storage against, so a deleted row makes its
+   * object an orphan, and the object is removed on the sweep's next pass after the 24-hour grace.
+   * Two mechanisms built for other reasons compose into the policy, and neither had to change.
+   *
+   * ⚠ `signature_mark` is pruned with everything else — the decision A8b deferred to this step, taken
+   * rather than discovered. The staged row is how the PDF renderer FINDS the drawn mark, so after the
+   * window a re-render draws the typed name alone. That is exactly what D-APP8 says the signature of
+   * record has always been, the PDF filed on the day keeps its mark for ever, and a retention rule
+   * with an exemption in it is a retention rule the next reader gets wrong.
+   */
+  {
+    table: "application_drafts",
+    timeColumn: "updated_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "D-APP2: a half-typed §391.21 form holding a DOB and an address history for somebody who never applied; the certified answers live on in driver_applications.payload, which is RETENTION_FORBIDDEN",
+  },
+  {
+    table: "application_captures",
+    timeColumn: "captured_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "D-APP10: staged photographs of a licence and a medical card for somebody who never applied; an accepted set becomes documents rows at submit, which are RETENTION_FORBIDDEN, and the storage objects follow the row via the application-captures orphan sweep",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */
