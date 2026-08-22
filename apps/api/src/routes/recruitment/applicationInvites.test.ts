@@ -15,6 +15,17 @@ import { closeTestServer } from "../../testing/httpServer.js";
 const holder = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
 
+/**
+ * The mailer, mocked at the module boundary on `applicationNudgeSweep.test.ts`'s precedent — the
+ * alternative is a test that either hits Resend or asserts nothing about whether the mail went.
+ * `ok` is flipped per test to exercise the failure path, which is the half that matters most here.
+ */
+const mailer = vi.hoisted(() => ({
+  ok: true,
+  fn: vi.fn(async () => ({ ok: mailer.ok, provider: "resend", status: mailer.ok ? 200 : 422, detail: "boom" })),
+}));
+vi.mock("../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
+
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 
@@ -53,7 +64,12 @@ const seed = (status = "applicant"): SupabaseRecorder =>
 const BODY = JSON.stringify({ driver_id: DRIVER, email: "s@example.test" });
 
 beforeAll(async () => {
-  const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
+  // MAIL_PROVIDER has to be something other than "none", or the route short-circuits before the
+  // mocked sender and every assertion below would pass by never sending anything. The `mail_disabled`
+  // case gets its own app, further down, for exactly that reason.
+  const app = createApp(
+    loadEnv({ NODE_ENV: "test", MAIL_PROVIDER: "resend", RESEND_API_KEY: "test-key" } as NodeJS.ProcessEnv),
+  );
   app.locals.verifyToken = async (t: string): Promise<AuthContext> => {
     const found = CTX[t];
     if (!found) throw new Error("bad token");
@@ -124,8 +140,97 @@ describe("creating an invitation", () => {
     const rec = seed();
     holder.client = rec.client;
     await call("/application-invites", { method: "POST", token: "recruiter", body: BODY });
-    expectOrgScoped(rec, ORG);
+    // `organizations` is exempt and is the textbook case for it: the read is
+    // `.eq("id", orgId)` — a lookup by the tenant's own primary key, whose ownership was established
+    // by `requireOrg` before the handler ran. There is no `org_id` column on that table to filter on.
+    // It is read for the carrier's NAME, which is what the applicant sees in the email subject.
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
+
+  /**
+   * D (2026-08-22) — the half of A11b that never shipped.
+   *
+   * This route stored `email` in a column from the day it shipped and never imported a mailer, so
+   * the FIRST invitation a driver ever receives was a recruiter copying a link into their own mail
+   * client. The abandonment nudge — the SECOND email — has been sending since A10.
+   */
+  describe("the invitation is actually sent", () => {
+    it("emails the applicant and reports where it went", async () => {
+      mailer.ok = true;
+      mailer.fn.mockClear();
+      const rec = seed();
+      holder.client = rec.client;
+      const res = await call("/application-invites", { method: "POST", token: "recruiter", body: BODY });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { link: string; delivery: { sent: boolean; email: string | null } };
+      expect(body.delivery).toEqual({ sent: true, email: "s@example.test", reason: null });
+      expect(mailer.fn).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ⚠ The assertion this route most needs. The token is not stored and not re-derivable, so an
+     * invitation that rolled back because a mail provider was rate-limited would leave the applicant
+     * with nothing and the recruiter with no way to recover it. The row exists, the audit row exists,
+     * the link comes back, and the failure is REPORTED rather than raised.
+     */
+    it("still creates the invitation, and still returns the link, when the send fails", async () => {
+      mailer.ok = false;
+      const rec = seed();
+      holder.client = rec.client;
+      const res = await call("/application-invites", { method: "POST", token: "recruiter", body: BODY });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { link: string; delivery: { sent: boolean; reason: string | null } };
+      expect(body.delivery.sent).toBe(false);
+      expect(body.delivery.reason).toBe("send_failed");
+      expect(body.link).toContain("/apply/");
+      expect(rec.writtenRows("application_invitations")).toHaveLength(1);
+      expect(rec.writtenRows("audit_logs")).toHaveLength(1);
+      mailer.ok = true;
+    });
+
+    it("does not try to send when no address was given", async () => {
+      mailer.fn.mockClear();
+      const rec = seed();
+      holder.client = rec.client;
+      const res = await call("/application-invites", {
+        method: "POST",
+        token: "recruiter",
+        body: JSON.stringify({ driver_id: DRIVER }),
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { delivery: { sent: boolean; reason: string | null } };
+      expect(body.delivery).toEqual({ sent: false, email: null, reason: "no_address" });
+      expect(mailer.fn).not.toHaveBeenCalled();
+    });
+
+    /**
+     * `mail_disabled` and `send_failed` are distinguished on purpose: the first is an admin's problem
+     * (the org has no mail provider) and the second is the applicant's address. A UI that said
+     * "could not send" to both would send somebody to the wrong person.
+     */
+    it("says mail_disabled rather than send_failed when no provider is configured", async () => {
+      mailer.fn.mockClear();
+      const quiet = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
+      quiet.locals.verifyToken = async (t: string): Promise<AuthContext> => CTX[t]!;
+      const rec = seed();
+      holder.client = rec.client;
+      const srv = quiet.listen(0);
+      try {
+        const url = `http://127.0.0.1:${(srv.address() as AddressInfo).port}/api/recruitment/application-invites`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: "Bearer recruiter" },
+          body: BODY,
+        });
+        const body = (await res.json()) as { delivery: { reason: string | null } };
+        expect(body.delivery.reason).toBe("mail_disabled");
+        expect(mailer.fn).not.toHaveBeenCalled();
+      } finally {
+        await closeTestServer(srv);
+      }
+    });
+  });
+
 });
 
 describe("who may invite", () => {

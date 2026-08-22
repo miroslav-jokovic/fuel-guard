@@ -1,7 +1,9 @@
 import { Router } from "express";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   INVITE_TTL_DAYS_DEFAULT,
   applicationInviteCreateSchema,
+  renderApplicationInviteEmail,
   rolesThatCanView,
   rolesThatManage,
   type ApplicationInviteCreate,
@@ -12,8 +14,10 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "../../services/applicationIntake.js";
+import { sendEmail } from "../../lib/mailer.js";
 import { ensureApplicationPdf } from "../../services/applicationPdf/file.js";
 import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
+import type { Env } from "../../env.js";
 
 /**
  * Inviting an applicant to fill in their own §391.21 application (H5).
@@ -25,10 +29,74 @@ import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
  * it does not have: there is no resend that re-reads the old token, because there is nothing to
  * re-read. A lost link is replaced by a NEW invitation, and the old one is revoked.
  *
+ * ── AND SINCE 2026-08-22, IT IS ALSO SENT ─────────────────────────────────────────────────────
+ * ⚠ This route stored `email` in a column from the day it shipped and never imported a mailer. The
+ * address was recorded "so a recruiter can see who was invited" and the recruiter then copied the
+ * link into their own mail client by hand. D-APP13 says "email ships first"; A11b's own Done-when
+ * reads "a driver who did not consent gets an email" — and A11b was marked DONE with only the
+ * ABANDONMENT nudge sending, which is the SECOND email a driver would ever receive. The first one
+ * had no send path at all.
+ *
+ * The delivery stack needed nothing new: `sendEmail` (lib/mailer.ts) and the shared template module
+ * were already carrying the nudge (`applicationNudgeSweep.ts`). What was missing was six lines here.
+ *
+ * ⚠ **Sending never decides whether the invitation exists.** The row is committed and the audit
+ * written before the mailer is touched, and a refused send is reported in the response rather than
+ * raised — the recruiter still has the link and can pass it on any way they like. An invitation that
+ * rolled back because a mail provider was rate-limited would be the worst possible failure here: the
+ * token cannot be re-derived, so the applicant would be left with nothing and the recruiter with no
+ * way to know why.
+ *
  * ── WHY A RECRUITER MAY DO THIS AND MAY NOT HIRE ───────────────────────────────────────────────
  * Sending somebody a form is the recruitment act; flipping `drivers.status` is not (0213). So this
  * takes the section's own manage guard, unlike `/hire` next door.
  */
+/** What became of the email. `sent: false` is an outcome to report, never a reason to fail. */
+export interface ApplicationInviteDelivery {
+  sent: boolean;
+  /** Where it went, echoed so the UI can name the address without re-reading the row. */
+  email: string | null;
+  /** `no_address` | `mail_disabled` | `send_failed`. null when it went. */
+  reason: string | null;
+}
+
+/**
+ * The carrier's own name, which is what the applicant recognises — they applied to a trucking
+ * company, not to this product. Falls back rather than failing: an email that says "the carrier" is
+ * worth sending; an invitation that did not go out because an org row was missing a name is not.
+ */
+async function carrierName(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
+  return (data as { name?: string } | null)?.name ?? "the carrier";
+}
+
+async function deliverApplicationInvite(
+  env: Env,
+  email: string | null,
+  carrier: string,
+  link: string,
+  expiresInDays: number,
+): Promise<ApplicationInviteDelivery> {
+  if (!email) return { sent: false, email: null, reason: "no_address" };
+  // Checked here rather than left to the mailer so the UI can distinguish "we are not configured to
+  // send" from "the provider refused". The first is an admin's problem and the second is the
+  // applicant's address; telling a recruiter the wrong one sends them to the wrong person.
+  if (env.MAIL_PROVIDER === "none") return { sent: false, email, reason: "mail_disabled" };
+
+  const mail = renderApplicationInviteEmail(carrier, link, expiresInDays);
+  const result = await sendEmail(env, {
+    to: [email],
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+  });
+  if (!result.ok) {
+    // Loud: the recruiter sees "could not send" and can act, but nobody sees WHY without this.
+    console.error("[application-invite] could not send", { detail: result.detail });
+  }
+  return { sent: result.ok, email, reason: result.ok ? null : "send_failed" };
+}
+
 export function recruitmentApplicationInvitesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -127,11 +195,21 @@ export function recruitmentApplicationInvitesRouter(): Router {
         meta: { driverId: body.driver_id, expiresAt, email: body.email ?? null },
       });
 
-      res.status(201).json({
-        invitation: data,
-        // The only copy. Not stored, not re-derivable, not returned again.
-        link: `${env.WEB_APP_URL}/apply/${token}`,
-      });
+      // The only copy. Not stored, not re-derivable, not returned again.
+      const link = `${env.WEB_APP_URL}/apply/${token}`;
+
+      /**
+       * Send it, if there is anywhere to send it.
+       *
+       * Deliberately AFTER the insert and the audit row: see the header. `delivery.sent === false`
+       * with a reason is an outcome the UI reports beside the link, not an error — the recruiter's
+       * next action ("copy this and text it to them") is the same either way, and only the sentence
+       * above it changes.
+       */
+      const carrier = await carrierName(admin, orgId);
+      const delivery = await deliverApplicationInvite(env, body.email ?? null, carrier, link, days);
+
+      res.status(201).json({ invitation: data, link, delivery });
     }),
   );
 

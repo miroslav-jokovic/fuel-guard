@@ -40,11 +40,26 @@ export function useApplicationInvitesQuery(driverId: Ref<string>) {
  * mutation therefore hands the link straight back to the caller rather than relying on a refetch —
  * a component that re-queried for it would find a row with no token in it.
  */
+/**
+ * What became of the email (D, 2026-08-22). `sent: false` is an outcome the UI reports beside the
+ * link, never an error: the recruiter's next action is the same either way, and only the sentence
+ * above it changes.
+ */
+export interface ApplicationInviteDelivery {
+  sent: boolean;
+  email: string | null;
+  /** `no_address` | `mail_disabled` | `send_failed`. null when it went. */
+  reason: string | null;
+}
+
 export function useCreateApplicationInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { driverId: string; email: string | null }): Promise<{ link: string }> => {
-      const res = await apiFetch<{ link: string }>("/api/recruitment/application-invites", {
+    mutationFn: async (input: {
+      driverId: string;
+      email: string | null;
+    }): Promise<{ link: string; delivery: ApplicationInviteDelivery }> => {
+      const res = await apiFetch<{ link: string; delivery: ApplicationInviteDelivery }>("/api/recruitment/application-invites", {
         method: "POST",
         body: { driver_id: input.driverId, email: input.email },
       });
