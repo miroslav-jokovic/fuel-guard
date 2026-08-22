@@ -39,6 +39,13 @@ export const NOTIFICATION_CATEGORIES = [
   "dq_missing",
   "dq_license_status",
   "dq_mvr_received",
+  /**
+   * A10: an applicant started the §391.21 form, stopped, and has not come back. Office-facing and
+   * mutable, like the DQ five — a recruiter working their pipeline from a spreadsheet may silence the
+   * in-app copy, and nothing about a stalled application is urgent enough to be non-mutable. Mirrored
+   * in the notification_events CHECK (0232).
+   */
+  "application_stalled",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -66,6 +73,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   dq_missing: "Qualification gaps",
   dq_license_status: "Licence status changes",
   dq_mvr_received: "New driving records",
+  application_stalled: "Stalled applications",
 };
 
 /**

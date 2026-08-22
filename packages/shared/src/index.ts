@@ -83,6 +83,7 @@ export * from "./applicantPipeline.js";
 export * from "./applicationIntake.js";
 export * from "./applicationCaptureContract.js";
 export * from "./applicationSections.js";
+export * from "./applicationNudge.js";
 export * from "./questionnaireContract.js";
 export * from "./hireHandoff.js";
 export * from "./psp/identity.js";
