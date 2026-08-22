@@ -1,5 +1,46 @@
 import { describe, it, expect } from "vitest";
-import { renderDigestEmail, renderInviteEmail } from "./email.js";
+import { renderApplicationInviteEmail, renderDigestEmail, renderInviteEmail } from "./email.js";
+
+describe("renderApplicationInviteEmail", () => {
+  const mail = () =>
+    renderApplicationInviteEmail("Silvicom Inc", "https://app.test/apply/tok3n", 7);
+
+  it("puts the CARRIER in the subject, not this product", () => {
+    // The applicant applied to a trucking company and has usually never heard of FuelGuard. A subject
+    // line naming the wrong party is the one that gets deleted unread.
+    expect(mail().subject).toBe("Your driver application for Silvicom Inc");
+    expect(`${mail().subject}${mail().html}${mail().text}`).not.toMatch(/FuelGuard/);
+  });
+
+  it("carries the link in BOTH bodies — a text-only client must still be able to apply", () => {
+    expect(mail().html).toContain("https://app.test/apply/tok3n");
+    expect(mail().text).toContain("https://app.test/apply/tok3n");
+  });
+
+  it("states the expiry in the caller's own units, singular and plural", () => {
+    expect(renderApplicationInviteEmail("A", "u", 1).text).toContain("in 1 day.");
+    expect(renderApplicationInviteEmail("A", "u", 14).text).toContain("in 14 days.");
+  });
+
+  /**
+   * The carrier's name comes from an `organizations` row somebody typed. It is interpolated into
+   * HTML, so it is escaped — the same rule every other template here follows, asserted because a
+   * template is exactly where escaping gets dropped during a rewrite.
+   */
+  it("escapes the carrier name", () => {
+    const evil = renderApplicationInviteEmail('Ac<script>me & Co"', "https://x.test/apply/t", 7);
+    expect(evil.html).not.toContain("<script>");
+    expect(evil.html).toContain("&amp;");
+  });
+
+  /**
+   * It must not read like the abandonment nudge, which opens "You started an application and it is
+   * still saved" — a sentence about a draft that does not exist yet at this point in the flow.
+   */
+  it("does not claim the applicant has already started", () => {
+    expect(mail().text).not.toMatch(/still saved|started an application|pick up where/i);
+  });
+});
 
 describe("renderInviteEmail", () => {
   it("includes the org, the accept link, and escapes html", () => {
