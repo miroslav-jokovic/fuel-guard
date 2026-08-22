@@ -22,8 +22,6 @@ import { RouterLink } from "vue-router";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
-import { useComplianceCountsQuery } from "@/features/dashboard/useComplianceCounts";
-import { buildComplianceRow } from "@/features/dashboard/complianceRow";
 import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
@@ -154,21 +152,6 @@ const trust = computed(() => [
   },
 ]);
 const metricStrip = computed(() => [...fuelingStats.value, ...trust.value]);
-
-/**
- * The §391 row (U2, D-UI1's corollary).
- *
- * ── WHY IT IS HERE AT ALL ─────────────────────────────────────────────────────────────────────
- * This page drilled into eight destinations and every one of them was fuel or safety. A carrier
- * whose §391 files are its actual regulatory exposure opened a home page that only discussed
- * diesel, and the whole qualification and recruitment product was reachable only by knowing the
- * sidebar. Measured 2026-08-21: 205 active drivers, ONE with any qualification record.
- *
- * The tile-building is `buildComplianceRow` — pure, on `attentionStrip.ts`'s precedent, because a
- * page that owns Chart.js and three live queries is not somewhere a rule can be tested.
- */
-const countsQ = useComplianceCountsQuery();
-const complianceRow = computed(() => buildComplianceRow(countsQ.data.value));
 
 // Trends are zero-filled/org-tz-bucketed upstream; null MPG days render as honest GAPS (spanGaps off).
 const mpgChart = computed<ChartConfiguration>(() => ({
@@ -348,18 +331,6 @@ const EXPORTS = [
           </RouterLink>
         </dl>
       </BaseCard>
-
-      <!-- The §391 row. Absent entirely for a role the server answered all-null for, which is why
-           this is `v-if` on the length rather than a wrapper that could render an empty grid. -->
-      <div v-if="complianceRow.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          v-for="tile in complianceRow"
-          :key="tile.label"
-          v-bind="tile"
-          size="hero"
-          :loading="countsQ.isLoading.value"
-        />
-      </div>
 
       <!-- Trends -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
