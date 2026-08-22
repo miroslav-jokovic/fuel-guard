@@ -82,8 +82,13 @@ const columns: DataTableColumn[] = [
   { key: "screening", label: "Screening identity" },
 ];
 
+/**
+ * ⚠ `application`, not `employment`, since U6 (D-UI7). Clicking a row on the applicant board means
+ * "open their application" — it always did, and it said `employment` only because that one tab held
+ * the invite card as well as the history. The tab it wanted now has its own name.
+ */
 function openApplicant(id: string): void {
-  void router.push({ name: "driver-detail", params: { id }, query: { section: "employment" } });
+  void router.push({ name: "driver-detail", params: { id }, query: { section: "application" } });
 }
 
 /**

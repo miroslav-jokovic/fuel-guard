@@ -140,7 +140,7 @@ async function submit(): Promise<void> {
           is lost — open their page and create the link there.
         </p>
         <div class="mt-3">
-          <BaseButton size="sm" :to="`/drivers/${orphaned.driverId}?section=employment`">
+          <BaseButton size="sm" :to="`/drivers/${orphaned.driverId}?section=application`">
             Open {{ orphaned.name }}
           </BaseButton>
         </div>
