@@ -1665,7 +1665,7 @@ plan has shipped.** What remains is not code:
 browser or against a real inbox.** The apply page is session-free and needs a real minted invitation
 to reach, so every step has been proved by component tests that mount the real page and by service
 tests against a recorder. The first real applicant is the first real end-to-end run.
-`HANDOFF-2026-08-21-EVENING.md` is the fresh-session entry point — it carries the working rhythm and
+`HANDOFF-2026-08-21-NIGHT.md` is the fresh-session entry point — it carries the working rhythm and
 the harness facts that cost time, which are not repeated here.
 
 **A3b (prefill) is deliberately out of that line.** It depends only on A3a, nothing depends on it, and
