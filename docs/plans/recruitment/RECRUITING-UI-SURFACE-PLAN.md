@@ -1,8 +1,12 @@
 # Recruiting & DQF UI surface plan — the half that no gate measures
 
-> **STATUS 2026-08-21: U1–U6 are ALL DONE and merged.** Six PRs, no migration, one API endpoint
-> (U2's counts, a recorded deviation the owner approved). **U7 — the walkthrough — is the only step
-> left, and it is owner-driven**: it needs a browser and a login, and U1 is what made it possible.
+> **STATUS 2026-08-22: U1, U3–U6 are DONE and merged. U2 is DONE-then-REVERTED.** Seven PRs, no
+> migration, and — after the revert — **no API endpoint**: U2's counts route came out with it, so
+> this plan's whole shipped surface is web-only again, as §1 said it would be.
+> **U7 — the walkthrough — is the only step left, and it is owner-driven**: it needs a browser and a
+> login, and U1 is what made it possible.
+> ⚠ U2's *content* is not cancelled, only its address: the §391 panel is owed to `/compliance`, and
+> that is a new step, not a resurrection of this one.
 > ⚠ Nothing below has been seen in a browser; every step says so in its own "not verified" note.
 
 **Created 2026-08-21, after `HANDOFF-2026-08-21-NIGHT.md`.** Child plan of
@@ -351,7 +355,33 @@ against the deployed Railway app.**
 
 ---
 
-### U2 · The dashboard says something about §391 — DONE 2026-08-21 (no migrations)
+### U2 · The dashboard says something about §391 — DONE 2026-08-21, **REVERTED 2026-08-22** (no migrations)
+
+> ⚠ **REVERTED 2026-08-22 by owner decision: "we don't need this data on the main dashboard."**
+> The whole of U2 is out of the tree — `features/dashboard/complianceRow.ts` (+test),
+> `useComplianceCounts.ts`, the block in `DashboardPage.vue`, `routes/dashboardCounts.ts` (+test),
+> its mount in `app.ts`, and `DashboardComplianceCounts` in `packages/shared/src/dashboard.ts`.
+> The dashboard is a fuel page again, deliberately.
+>
+> **The finding U2 was answering is not withdrawn** — §2.1's corollary still holds, and the
+> production measurement below (205 active drivers, **1** with any qualification record) is still
+> the single largest compliance exposure in the product. What the owner rejected is the *placement*:
+> the home page is not where a carrier goes to work a qualification backlog, and a §391 tile
+> competing with fuel on the most-loaded page in the app buys attention it then cannot spend.
+> **The panel moves to `/compliance`** — the page that already owns these numbers, already computes
+> them from `getComplianceOverview`, and is where somebody who clicked the tile would have landed
+> anyway. That is its own step against the Driver Qualification artboard, not part of this revert.
+>
+> ⚠ **The endpoint went with it, and that is the point rather than collateral.**
+> `GET /api/dashboard/compliance-counts` existed for exactly one caller. On `/compliance` the counts
+> are a reduction over a payload the page **already fetches**, so the round-trip U2 had to argue for
+> is not needed there at all. U2's recorded deviation from "do not add a query" is therefore closed
+> by the move, not merely reverted: the constraint was right and the placement was what made it
+> impossible to honour.
+>
+> The record below is left standing verbatim. It is the argument for the panel's content, which
+> survived; only its address changed.
+
 
 **Prerequisites:** U1 (the destinations should be reachable before they are advertised).
 
@@ -724,7 +754,7 @@ every difference is either fixed or written down.
 
 ```
 U1  front door            ← DONE 2026-08-21; unblocks U7
-U2  dashboard row         ← DONE 2026-08-21
+U2  dashboard row         ← DONE 2026-08-21, REVERTED 2026-08-22 (owner); panel moves to /compliance
 U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← DONE 2026-08-21
 U5  shell + icons         ← DONE 2026-08-21
@@ -750,9 +780,13 @@ first. **U1 is ~one PR; it should not delay R1 by more than that.**
    R1 introduces leads as a distinct thing. U1 takes the existing shape and does **not** decide this
    — if R1 later gives applicants their own table, U1's drawer changes its mutation and keeps its
    place. Recorded so U1 is not read as having settled it.
-2. **Which dashboard tiles?** U2 proposes overdue §391.23 investigations, drivers with no
+2. ~~**Which dashboard tiles?** U2 proposes overdue §391.23 investigations, drivers with no
    qualification file, and applicants ready to screen. The owner may rank these differently; the
-   component does not care.
+   component does not care.~~ **ANSWERED 2026-08-22: none of them, on the dashboard.** "We don't
+   need this data on the main dashboard." The question turned out to be the wrong one — the owner
+   did not rank the three tiles, they rejected the *page*. All three counts keep their argument and
+   move to `/compliance`. The component genuinely did not care, which is the only reason the revert
+   is a deletion rather than a rewrite.
 3. **The word for "Applicants".** R9's, explicitly (D-UI8). Not asked here.
 4. **`AppBadge`'s fate** (§2.5) — delete the dead export, or document it as admin-only? Neither
    affects this plan; it wants an owner.
@@ -763,7 +797,11 @@ first. **U1 is ~one PR; it should not delay R1 by more than that.**
 
 - **No migration, and no API change without stopping first.** ⚠ U2 hit this and the rule worked as
   intended: it stopped, put the choice to the owner, and shipped a counts endpoint with the
-  reasoning recorded. No contract change beyond that endpoint's own response type.
+  reasoning recorded. **Updated 2026-08-22: the owner reverted U2, the endpoint came out with it,
+  and the plan's shipped surface is web-only after all.** Worth reading as the rule working twice —
+  the stop surfaced the API change for a decision, and the decision that eventually came back was
+  about the surface, which is exactly the thing a gate cannot ask about. The API change was the
+  cheapest part to undo because it had one caller and no schema.
 - **No fleet-wide sweep** of the 22 loose list pages, 4 remaining tab bars or ~27 remaining callouts.
   Recorded in §2.3 and §2.4, deliberately deferred.
 - **No relitigating `ApplyPage`'s flow.** §2.8 records why its seven screens are the regulation's
