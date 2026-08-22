@@ -52,6 +52,7 @@ import { notificationsRouter } from "./routes/notifications.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { recruitmentRouter } from "./routes/recruitment/index.js";
+import { dashboardCountsRouter } from "./routes/dashboardCounts.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
@@ -295,6 +296,7 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", authStepUpRouter());
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
   app.use("/api/recruitment", recruitmentRouter()); // applicants, releases, PSP records, and the hire
+  app.use("/api/dashboard", dashboardCountsRouter()); // the three §391 counts on the landing page (U2)
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());

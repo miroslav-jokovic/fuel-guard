@@ -346,7 +346,7 @@ against the deployed Railway app.**
 
 ---
 
-### U2 · The dashboard says something about §391
+### U2 · The dashboard says something about §391 — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** U1 (the destinations should be reachable before they are advertised).
 
@@ -367,6 +367,52 @@ five that cost a request each.
 is absent for a driver, and every tile's `to` resolves to a routed path.
 
 **Done when:** the compliance risk is visible from the page the owner opens first.
+
+⚠ **This step's own constraint made it unbuildable as written, and the owner chose the deviation.**
+
+"Do not add a query" meant *do not make the app's most-loaded page heavier*. Taken literally it
+shipped nothing: `DashboardSummary` carries no §391 field, and all three owning pages answer with
+fleet-wide payloads — `/api/compliance/overview` returns one row per driver with nested group and
+attention arrays (**202 rows** on the production carrier, with its own truncation cap) so that a page
+can reduce them to a rollup. Shipping that to a browser for one integer is exactly what the
+constraint was guarding against, and §7 forbids the API change that fixes it.
+
+So the step was **stopped and put to the owner** (§7's own instruction), who chose the counts
+endpoint. The constraint's intent is kept — the reduction moves next to the data and three integers
+cross the wire — and its letter is not. Recorded here rather than quietly reinterpreted.
+
+⚠ **Production measured 2026-08-21, which reshaped what is worth showing:** 205 active drivers, **1**
+with any qualification record, **0** certifications, **0** applicants, **0** employment-history rows,
+**0** invitations ever created, **0** applications submitted. Two of the three specced tiles read
+zero for the real carrier today. They still ship: a zero this row reports is a fact, and "204 drivers
+have no qualification file" is the single largest compliance exposure in the product.
+
+**What shipped.**
+- `GET /api/dashboard/compliance-counts` — three integers. ⚠ Computed by **`getComplianceOverview`
+  and `loadInquiryQueue` unchanged**, the same functions the pages render, never a second SQL
+  approximation: D-DQ6's founding invariant is that the queue and the file cannot disagree, and a
+  tile that sent somebody to a page contradicting it would be P0b again. The applicant count is a
+  real `count` because `status = 'applicant'` is the literal predicate the pipeline selects on, not a
+  derivation of one.
+- ⚠ **`null` means "not yours to see"; `0` means "counted, none".** The three counts span two
+  capability sections while the dashboard stays ungated so drivers keep it, so each is computed only
+  for a role that may view its section — restricting at the **projection**, per
+  `RECRUITING-SYSTEM-PLAN` §4. A role seeing neither section causes **no query at all**: an
+  unauthorised count should not exist in the process, let alone be dropped on the way out.
+- `buildComplianceRow` is **pure**, on `attentionStrip.ts`'s precedent — a page owning Chart.js and
+  three live queries is not somewhere a rule can be tested. `null` drops a tile, `0` renders one; a
+  "falsy" refactor collapsing the two is what the tests exist to fail.
+- The tiles wear the same glyphs their nav items got in U5, so tile and sidebar read as one place.
+
+⚠ **Still not verified in a browser** (same vite crash) — and this row is the change in the whole
+plan a person is most likely to judge by eye, since it competes for the most valuable space in the
+product. **Worth looking at first in U7.**
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(zero in the tracked tree) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:boundaries` ·
+`lint:filesize` · `lint:funcsize` · `lint:comment-claims` · `lint:tokens-parity` · `lint:rls` ·
+`lint:upserts` · `lint:tests` — all green. The route's own suite pins the projection for driver,
+dispatcher, recruiter and admin, and `expectOrgScoped` for the service-role reads.
 
 ---
 
@@ -594,7 +640,7 @@ every difference is either fixed or written down.
 
 ```
 U1  front door            ← DONE 2026-08-21; unblocks U7
-U2  dashboard row         ← after U1
+U2  dashboard row         ← DONE 2026-08-21
 U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← independent
 U5  shell + icons         ← DONE 2026-08-21
@@ -631,8 +677,9 @@ first. **U1 is ~one PR; it should not delay R1 by more than that.**
 
 ## 7. What this plan deliberately does not do
 
-- **No migration, no API change, no contract change.** If a step appears to need one, it is the wrong
-  step — stop and say so in this document, per §4.
+- **No migration, and no API change without stopping first.** ⚠ U2 hit this and the rule worked as
+  intended: it stopped, put the choice to the owner, and shipped a counts endpoint with the
+  reasoning recorded. No contract change beyond that endpoint's own response type.
 - **No fleet-wide sweep** of the 22 loose list pages, 4 remaining tab bars or ~27 remaining callouts.
   Recorded in §2.3 and §2.4, deliberately deferred.
 - **No relitigating `ApplyPage`'s flow.** §2.8 records why its seven screens are the regulation's
