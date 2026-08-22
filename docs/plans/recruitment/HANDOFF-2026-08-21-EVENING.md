@@ -1,5 +1,9 @@
 # Handoff · 2026-08-21 evening — A1–A7 shipped, next step is A8
 
+> ⚠ **SUPERSEDED by [`HANDOFF-2026-08-21-NIGHT.md`](./HANDOFF-2026-08-21-NIGHT.md).** A8 through A11b
+> shipped the same night and the application system is finished (schema 0233). Read this file for the
+> lessons in §4–§5, which still hold; do not act on its "next step is A8".
+
 Deliberately short. The plans are the memory; this page says where to stand, what shipped today, and
 the things that cost time so they cost it once.
 

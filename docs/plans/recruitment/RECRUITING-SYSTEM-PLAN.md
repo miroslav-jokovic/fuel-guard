@@ -462,8 +462,11 @@ its execution protocol is §4 of this document, unchanged.
 `POST /:token/release` resolves through the same function — so the signing `ApplyPage.vue` promised
 the driver after submission was unreachable through the link that promised it. The invitation is now
 a session with three phase stamps (D-APP1): revocation and expiry kill all of it, and each write path
-refuses only its own spent phase. **A2 is the next step**; see that plan's §5 register for what
-shipped.
+refuses only its own spent phase. ~~**A2 is the next step**~~ — ⚠ **A0–A11b are ALL DONE as of 2026-08-21 (schema 0233), live and
+verified.** See that plan's §5 register for what each step shipped and the six places its own text
+was corrected against primary sources rather than followed. What remains of the application system is
+not code: **A0** (counsel's review of wording the carrier already drafted, which arms three gates with
+no deploy), 10DLC registration, and one production `update organizations set legal_address = …`.
 
 ### R3 · MVR orders — demo environment first
 
