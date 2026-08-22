@@ -250,3 +250,41 @@ export function toCsv<T extends Record<string, unknown>>(
   const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(",")).join("\n");
   return body ? `${head}\n${body}` : head;
 }
+
+// ── Compliance counts (UI plan U2, D-UI2) ───────────────────────────────────
+
+/**
+ * The three §391 numbers the dashboard shows beside the fuel ones.
+ *
+ * ── WHY THIS IS ITS OWN ENDPOINT ───────────────────────────────────────────────────────────────
+ * U2's own text said "do not add a query", meaning do not make the app's most-loaded page heavier.
+ * Followed literally it shipped nothing: `DashboardSummary` carries no §391 field, and the three
+ * pages that own these numbers answer with FLEET-WIDE PAYLOADS — `/api/compliance/overview` returns
+ * one row per driver with nested group and attention arrays (202 rows on the production carrier, with
+ * its own truncation cap) to let a page compute a rollup. Shipping that to a browser to render one
+ * integer is precisely what the constraint was guarding against.
+ *
+ * So the work moves to the server rather than being skipped: the API calls the SAME functions those
+ * pages call, and three integers cross the wire. The constraint's intent is kept and its letter is
+ * not — recorded in the plan as a deliberate deviation rather than a quiet reinterpretation.
+ *
+ * ⚠ **Computed by the owning service, never by a second SQL approximation.**
+ * `driversWithoutQualificationFile` is `getComplianceOverview(...).drivers` filtered on
+ * `state === "not_started"` — the same function the qualification page renders. A `count(*)` that
+ * approximated "has no file" would eventually disagree with the page it links to, and D-DQ6's
+ * founding invariant is that the queue and the file cannot disagree.
+ *
+ * ⚠ **null means "your role may not see this", not "zero".** The counts span two capability
+ * sections — qualification is `fleet`, the other two are `recruitment` — and the dashboard is
+ * ungated so drivers keep it. Restricting at the PROJECTION rather than only at the row is
+ * RECRUITING-SYSTEM-PLAN §4's rule; a driver must not learn the fleet's overdue investigations from
+ * their home page.
+ */
+export interface DashboardComplianceCounts {
+  /** Drivers with no §391.51 file started. `fleet` view. */
+  driversWithoutQualificationFile: number | null;
+  /** Hired drivers past their §391.23(c)(1) 30 days with work still open. `recruitment` view. */
+  overdueInvestigations: number | null;
+  /** People on the applicant board. `recruitment` view. */
+  applicants: number | null;
+}
