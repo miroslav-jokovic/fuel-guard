@@ -1,5 +1,10 @@
 # Recruiting & DQF UI surface plan — the half that no gate measures
 
+> **STATUS 2026-08-21: U1–U6 are ALL DONE and merged.** Six PRs, no migration, one API endpoint
+> (U2's counts, a recorded deviation the owner approved). **U7 — the walkthrough — is the only step
+> left, and it is owner-driven**: it needs a browser and a login, and U1 is what made it possible.
+> ⚠ Nothing below has been seen in a browser; every step says so in its own "not verified" note.
+
 **Created 2026-08-21, after `HANDOFF-2026-08-21-NIGHT.md`.** Child plan of
 `RECRUITING-SYSTEM-PLAN.md`; sibling of the completed `APPLICATION-SYSTEM-PLAN.md`. Executes under
 that document's §4 protocol without exception — this plan adds steps, never a second protocol.
@@ -626,7 +631,7 @@ plan that most wants an eye rather than a test: a test can prove two items diffe
 
 ---
 
-### U6 · "Employment" becomes work somebody actually does
+### U6 · "Employment" becomes work somebody actually does — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** U3, U4 (it re-composes with the shared tile and the shared tabs).
 
@@ -655,6 +660,43 @@ grandfathered files may only shrink.
 the redirect from `/compliance/:id` and each `notificationRoute` target.
 
 **Done when:** no tab holds four regulations, and every old link still works.
+
+**What shipped.** The tab became three, cut by **who does the work** rather than by which paragraph
+names it: **Application** (the recruiter's act of asking) · **Employment** (the §391.21(b)(10) record
+and the §391.23 investigation *of* that record — one job, and the only pair always meant to be
+together) · **Screening** (a PSP vendor ledger, which is not employment at all). The page description
+named none of it and now does.
+
+⚠ **No redirect was needed, and that is the good outcome rather than a shortcut.** `employment`
+KEEPS its value and keeps meaning the history, so every `?section=` link in bookmarks, binder
+references and the `/compliance/:id` redirect still resolves. Two values were ADDED and none renamed.
+
+What actually moved was the **intent of two links that said `employment` while meaning "where the
+invitation is minted"** — `RecruitmentPage`'s row click and `InviteApplicantDrawer`'s recovery
+button, both now `application`. `InquiryQueuePage` meant the history all along and is untouched.
+⚠ Distinguishing those three call sites is the entire risk of this step, and it is not something a
+gate could have found.
+
+- `driverSections.ts` — the vocabulary extracted from the SFC so it can be asserted without mounting
+  a page that owns four feature sections, a chart and six queries. `?section=` is a **public
+  surface**; the test pins that all four pre-U6 values still resolve, which is what makes "renamed
+  nothing" checkable rather than merely claimed.
+- ⚠ An unrecognised section falls back to `profile` rather than rendering an empty page — an old link
+  to a section that no longer exists should land somewhere, not nowhere.
+
+⚠ **One claim in this step's own text was wrong:** it said `notificationRoute.ts` deep-links to
+`?section=`. It does not — that file contains no `section` at all, so the "update all four call
+sites" instruction was over-counted. The real consumers are the three named above plus the
+`/compliance/:id` redirect.
+
+⚠ **Still not verified in a browser** (same vite crash). A tab split is the most visual change in
+this plan after U2's dashboard row — **worth a look in U7**, particularly whether six tabs is one
+too many for the width the page has.
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(zero in the tracked tree) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:filesize`
+(the page is 269 lines against a 450 warning) · `lint:funcsize` · `lint:boundaries` ·
+`lint:comment-claims` · `lint:tests` · `lint:tokens-parity` — all green.
 
 ---
 
@@ -686,8 +728,8 @@ U2  dashboard row         ← DONE 2026-08-21
 U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← DONE 2026-08-21
 U5  shell + icons         ← DONE 2026-08-21
-U6  Employment split      ← after U3, U4
-U7  the walkthrough       ← after U1; repeat after U6
+U6  Employment split      ← DONE 2026-08-21
+U7  the walkthrough       ← THE ONLY STEP LEFT. Owner-driven; U1 made it possible
 ```
 
 **U1 alone closed the finding that matters (2026-08-21).** U2–U6 are the consistency pass; they are worth doing

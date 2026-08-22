@@ -9,6 +9,7 @@ import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppTabs, type TabItem } from "@fuelguard/ui";
+import { DRIVER_SECTIONS, resolveDriverSection, type DriverSection } from "./driverSections";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
@@ -31,20 +32,28 @@ const id = computed(() => String(route.params.id ?? ""));
  * becomes a section here, beside the fuel history it was always one click away from needing. The
  * section rides the `?section=` query so /compliance/:id can REDIRECT here without breaking a
  * bookmark or a binder deep link (D2).
+ *
+ * ── THE EMPLOYMENT TAB WAS FOUR REGULATIONS UNDER ONE NOUN (U6, D-UI7) ────────────────────────
+ * It stacked `ApplicationInviteCard` + `EmploymentHistorySection` + `EmployerInquirySection` +
+ * `PspRecordsSection` on one scroll — roughly a thousand lines of UI spanning §391.21's application,
+ * §391.21(b)(10)'s history, §391.23's investigation and a PSP vendor ledger, under a tab labelled
+ * "Employment". Each placement was individually argued and sound pairwise; nobody scoped the sum.
+ *
+ * The cut is BY WHO DOES THE WORK, not by which paragraph names it:
+ *   • Application — the recruiter's act of asking.
+ *   • Employment  — the §391.21(b)(10) record and the §391.23 investigation OF that record. One job,
+ *                   correctly adjacent, and the only pair that was always meant to be together.
+ *   • Screening   — a vendor ledger, which is not employment at all.
+ *
+ * ⚠ `employment` KEEPS ITS VALUE and keeps meaning the history, so every existing `?section=`
+ * deep link still resolves and no redirect is needed. What moved is the INTENT of two links that
+ * said "employment" when they meant "where the invitation is minted" — `RecruitmentPage`'s row
+ * click and `InviteApplicantDrawer`'s recovery button now say `application`. `InquiryQueuePage`
+ * meant the history all along and is untouched.
  */
-type Section = "profile" | "qualification" | "employment" | "fuel";
-const SECTIONS: TabItem[] = [
-  { value: "profile", label: "Profile" },
-  { value: "qualification", label: "Qualification" },
-  // Recruitment's surface on the driver page: the hiring paperwork sits beside the qualification
-  // file it feeds, because the §391.23(a)(2) inquiries an employer owes are half of both.
-  { value: "employment", label: "Employment" },
-  { value: "fuel", label: "Fuel" },
-];
-const section = computed<Section>(() => {
-  const s = String(route.query.section ?? "");
-  return s === "qualification" || s === "employment" || s === "fuel" ? s : "profile";
-});
+type Section = DriverSection;
+const SECTIONS: TabItem[] = DRIVER_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
+const section = computed<Section>(() => resolveDriverSection(route.query.section));
 function setSection(s: Section): void {
   void router.replace({ query: { ...route.query, section: s === "profile" ? undefined : s } });
 }
@@ -155,7 +164,7 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Profile, qualification file and fueling history">
+    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Profile, qualification file, hiring paperwork and fueling history">
       <template #actions>
         <BaseButton
           v-if="section === 'qualification' && session.canManage"
@@ -179,17 +188,26 @@ const fillColumns: DataTableColumn[] = [
 
     <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
 
+    <!-- The recruiter's act of asking. It PRODUCES the history in the next tab (H5, D-HIRE2), which
+         is why it reads first left-to-right rather than being filed under it. -->
+    <ApplicationInviteCard
+      v-if="section === 'application'"
+      :driver-id="id"
+      :driver-status="driver?.status ?? ''"
+    />
+
     <template v-if="section === 'employment'">
-      <!-- The application comes first because it PRODUCES the history below it (H5, D-HIRE2). -->
-      <ApplicationInviteCard :driver-id="id" :driver-status="driver?.status ?? ''" />
       <EmploymentHistorySection :driver-id="id" />
-      <!-- The §391.23 investigation of the history above it (EMPLOYER-INQUIRY-PLAN E3). -->
+      <!-- The §391.23 investigation of the history above it (EMPLOYER-INQUIRY-PLAN E3). These two
+           stay together: they are one job, and separating a record from the investigation of that
+           record is what would actually cost a recruiter a click. -->
       <EmployerInquirySection :driver-id="id" />
-      <!-- Beside the employment history it corroborates, and where the recruiter already is: the
-           Qualification section's write affordances gate on canManageFleet, which a recruiter is
-           not (PSP-PLAN P14). -->
-      <PspRecordsSection :driver-id="id" />
     </template>
+
+    <!-- A vendor ledger, which is not employment. It stays on the driver page rather than moving to
+         Qualification because that section's write affordances gate on canManageFleet, which a
+         recruiter is not (PSP-PLAN P14). -->
+    <PspRecordsSection v-if="section === 'screening'" :driver-id="id" />
 
     <BaseCard v-if="section === 'profile' && driver">
       <div class="flex items-center justify-between">

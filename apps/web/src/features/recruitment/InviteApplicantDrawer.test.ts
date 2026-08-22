@@ -116,7 +116,7 @@ describe("inviting an applicant from the board", () => {
     await fillAndSubmit(w);
 
     expect(w.text()).toContain("Dana Reyes is on the applicant board");
-    expect(w.html()).toContain("/drivers/d-new?section=employment");
+    expect(w.html()).toContain("/drivers/d-new?section=application");
     expect(w.text()).not.toContain("It is shown once");
   });
 
