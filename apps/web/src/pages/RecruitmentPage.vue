@@ -9,12 +9,13 @@ import {
   rolesThatManage,
   type ApplicantStage,
 } from "@fuelguard/shared";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
@@ -137,17 +138,25 @@ const inviting = ref(false);
       />
     </div>
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search applicants…"
-      :count="rows.length"
-      count-label="applicants"
-    >
-      <FilterSelect v-model="stage" label="Stage" :options="STAGE_FILTERS" />
-    </FilterBar>
-
-    <BaseCard padding="none">
+    <!-- U5/D-UI3: `DataWorkspace` → `FilterBar embedded` → `DataTable embedded`, contract §5.2b.
+         R0b rebuilt this page's two siblings on that shell and correctly left this one alone under
+         its "existing standalone-cards pages stay as they are" clause — which is how ONE area ended
+         up with two shells, a loose toolbar floating above a separate card beside two seamless
+         workspaces. The clause is not reopened for anywhere else; this crosses it for this area only. -->
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search applicants…"
+        :count="rows.length"
+        count-label="applicants"
+      >
+        <template #filters>
+          <FilterSelect v-model="stage" label="Stage" :options="STAGE_FILTERS" />
+        </template>
+      </FilterBar>
       <DataTable
+        embedded
         :columns="columns"
         :rows="paged"
         row-key="driver_id"
@@ -201,7 +210,7 @@ const inviting = ref(false);
           <TablePagination v-model:page="page" :total="rows.length" :page-size="PAGE_SIZE" />
         </template>
       </DataTable>
-    </BaseCard>
+    </DataWorkspace>
 
     <InviteApplicantDrawer
       :open="inviting"

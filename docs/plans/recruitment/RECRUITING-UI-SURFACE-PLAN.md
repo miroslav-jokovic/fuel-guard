@@ -169,7 +169,12 @@ already do it that way**. `RecruitmentPage` is correct and was never the defect.
 The finding that survives is a documentation one, and it is worth fixing because it is what produced
 the wrong reading: **three places tell you to write a raw `<button>` that the gate rejects** —
 contract §1.2, `KebabMenu.vue:9` ("Put `<button class="kebab-item">` children in the default slot")
-and `DataTable.vue:23`'s usage docblock. All three predate the gate.
+and `DataTable.vue:23`'s usage docblock.
+
+⚠ **Sharper still, found in U5:** the contract had **already been corrected** — a note dated
+2026-08-16 at §5.6 saying exactly this — while §1.2's table and §5.6's own snippet, both *above* it,
+went on stating the error. A correction placed below the thing it corrects does not correct it. All
+three now read `BaseButton` in place, and the note stays for its reasoning.
 
 ⚠ This is `RECRUITING-SYSTEM-PLAN.md` §4's own standing warning, demonstrated on this plan's own
 author: *"The gates outrank the contract … read the two gate scripts before writing UI, and trust
@@ -240,7 +245,7 @@ pairwise. The sum is one scroll nobody scoped.
 | **D-UI3** | The **area** is the unit of shell consistency, not the app. `RecruitmentPage` moves onto `DataWorkspace` to match its two siblings. No other page is touched. |
 | **D-UI4** | `AppTabs` and `AppCallout` are built in `@fuelguard/ui` and adopted **only** by the surfaces this plan touches. The remaining hand-rolled instances are recorded, not migrated — a fleet-wide sweep is its own step with its own risk. |
 | **D-UI5** | A badge never labels an affordance. The attention tile's filter state is carried by `aria-pressed` and the existing ring, which it already has. ⚠ Where a gate and a document disagree, the gate is right and the **document** is the thing to fix — see §2.5's correction. |
-| **D-UI6** | Every nav item has a glyph no sibling shares. ⚠ The **label** "Applicants" is **not** renamed here — `RECRUITING-SYSTEM-PLAN.md` R9 explicitly owns that word ("the nav label 'Applicants' is renamed to match what the page now is (R9 decides the word, the rename ships with the board)"). This plan changes the icon only. |
+| **D-UI6** | Every nav item has a glyph no other **item** shares (a section's glyph reappearing on a member is hierarchy, not collision). ⚠ The **label** "Applicants" is **not** renamed here — `RECRUITING-SYSTEM-PLAN.md` R9 explicitly owns that word ("the nav label 'Applicants' is renamed to match what the page now is (R9 decides the word, the rename ships with the board)"). This plan changes the icon only. |
 | **D-UI7** | "Employment" splits into the recruiting work and the qualification work by *who does it*, not by which regulation names it. |
 | **D-UI8** | ⚠ **Nothing in this plan may pre-empt R9.** R9 grows `/recruitment` into the recruiter board with the four-stage view demoted to a slice. Every surface built here composes shared components so R9 re-arranges them rather than rewriting them; no new page is created that R9 would have to delete. |
 
@@ -468,7 +473,7 @@ owns use it.
 
 ---
 
-### U5 · The area stops straddling two shells, and the icons stop colliding
+### U5 · The area stops straddling two shells, and the icons stop colliding — DONE 2026-08-21 (no migrations)
 
 **Prerequisites:** U3 (the tiles must already be shared, or this step re-lays out variants it is
 about to delete).
@@ -495,6 +500,41 @@ un-reintroducible. Existing recruitment page tests stay green through the shell 
 
 **Done when:** the three recruitment pages read as one area, and no two sidebar items wear the same
 glyph.
+
+**What shipped.**
+- `RecruitmentPage` on `DataWorkspace` → `FilterBar embedded` → `DataTable embedded`. Its two siblings
+  have been on that shell since R0b; the area now reads as one area.
+- **Icons (D-UI6).** "Driver Qualification" takes `LicenseIcon` and stops sharing
+  `ClipboardDocumentCheckIcon` with Assignments; "Applicants" takes `UserListIcon` instead of
+  `Building02Icon`. Both added to `packages/ui/src/icons.ts` first, per contract §1.3.
+- **The standing `// ⚠ verify` at `icons.ts:120` is resolved, not deleted.** The alias
+  `ClipboardDocumentListIcon` means clipboard-WITH-A-LIST and pointed at the bare `ClipboardIcon`;
+  `ClipboardListIcon` exists in the package and is literally the glyph the local name describes.
+- **The glyph rule is now a test**, broadened from U1's recruitment-only version: "gives every nav
+  ITEM a glyph no other item wears". ⚠ Section icons stay out of scope on purpose — `MapIcon` marks
+  the Dispatch section and Fuel Planning, `Cog6ToothIcon` marks Admin and Settings, and a section
+  glyph reappearing on a member is a hierarchy reading correctly, not two things wearing one face.
+- ⚠ **No label changes** (D-UI8): "Applicants" is R9's word to rename.
+
+⚠ **The documentation half was worse than §2.5 described, in an instructive way.** The plan said
+three places instruct a raw `<button class="kebab-item">` that the gate rejects. In fact the contract
+**already carried the correction** — a note dated 2026-08-16, sitting at §5.6 — while §1.2's component
+table and §5.6's own code snippet, both ABOVE it, still stated the error. **A correction written
+below the thing it corrects does not correct it**: a reference table is what a reader consults, and
+the wrong answer is the one they get. That is precisely how this plan's author got it wrong five days
+later. Both now read `BaseButton` in place; the note stays for its reasoning, re-dated. `KebabMenu`'s
+own header comment and `DataTable`'s usage docblock are fixed too.
+
+**No `.vue` behaviour changed for any of that** — the code was right in all nine call sites the whole
+time.
+
+⚠ **Still not verified in a browser** (same vite crash), and the icon changes are the item in this
+plan that most wants an eye rather than a test: a test can prove two items differ, never that a glyph
+*reads* as a licence. **Worth a look during U7.**
+
+**Verified by:** `pnpm test` (all unit suites + 18 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(zero in the tracked tree) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:boundaries` ·
+`lint:filesize` · `lint:comment-claims` · `lint:tokens-parity` — all green.
 
 ---
 
@@ -557,7 +597,7 @@ U1  front door            ← DONE 2026-08-21; unblocks U7
 U2  dashboard row         ← after U1
 U3  StatCard              ← DONE 2026-08-21
 U4  AppTabs / AppCallout  ← independent
-U5  shell + icons         ← after U3
+U5  shell + icons         ← DONE 2026-08-21
 U6  Employment split      ← after U3, U4
 U7  the walkthrough       ← after U1; repeat after U6
 ```
