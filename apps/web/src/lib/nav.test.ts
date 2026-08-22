@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleSet } from "@fuelguard/shared";
-import { HazmatPlacardIcon, ShieldExclamationIcon } from "@fuelguard/ui/icons";
+import {
+  BuildingOffice2Icon,
+  HazmatPlacardIcon,
+  LicenseIcon,
+  ShieldExclamationIcon,
+  UserListIcon,
+} from "@fuelguard/ui/icons";
 import { buildNavGroups } from "./nav";
 
 const withHazmat = new Set(["hazmatguard"]) as unknown as ModuleSet;
@@ -86,19 +92,37 @@ describe("recruitment is navigable, not just routed", () => {
   });
 
   /**
-   * ⚠ The rule this pins is "no glyph means two things at once", and it currently has ONE sanctioned
-   * exception per pair: a section's own icon may repeat on the item that IS that section (Admin /
-   * Settings, Dispatch / Fuel Planning). Two unrelated ITEMS sharing a glyph is the defect — D-UI6
-   * records that Assignments and Driver Qualification do exactly that today, and U5 fixes it. This
-   * asserts the boundary U1 promised not to cross: whatever else is true, U1 added no new collision.
+   * U5/D-UI6 — broadened from U1's recruitment-only version once the collisions were actually fixed.
+   *
+   * ⚠ The rule is **no two ITEMS share a glyph**. Assignments and Driver Qualification did: one glyph
+   * on two unrelated items in two different sections, both on screen at once in an expanded sidebar.
+   * A defect a person only notices by looking, and never notices while reading a diff — which is
+   * exactly the kind a test should hold instead.
+   *
+   * Section icons are deliberately OUT of scope: `MapIcon` marks the Dispatch section and Fuel
+   * Planning, `Cog6ToothIcon` marks Admin and Settings. A section glyph reappearing on a member is a
+   * hierarchy reading correctly, not two things wearing one face.
    */
-  it("gives the recruitment items glyphs no other nav item uses", () => {
+  it("gives every nav ITEM a glyph no other item wears", () => {
+    const items = buildNavGroups("admin", new Set(["hazmatguard", "dispatch", "messages"]) as never).flatMap(
+      (g) => g.items,
+    );
+    const byIcon = new Map<unknown, string[]>();
+    for (const item of items) byIcon.set(item.icon, [...(byIcon.get(item.icon) ?? []), item.name]);
+
+    const collisions = [...byIcon.values()].filter((names) => names.length > 1);
+    expect(collisions).toEqual([]);
+  });
+
+  it("gives the recruitment items glyphs that say what they are", () => {
     const items = buildNavGroups("admin", null).flatMap((g) => g.items);
-    const recruitment = items.filter((i) => i.to.startsWith("/recruitment"));
-    expect(recruitment).toHaveLength(3);
-    for (const item of recruitment) {
-      const sharing = items.filter((other) => other.icon === item.icon);
-      expect(sharing.map((s) => s.name)).toEqual([item.name]);
-    }
+    const applicants = items.find((i) => i.to === "/recruitment");
+    // ⚠ It rendered Building02Icon — a building, for the person applying.
+    expect(applicants?.icon).toBe(UserListIcon);
+    expect(applicants?.icon).not.toBe(BuildingOffice2Icon);
+
+    const qualification = items.find((i) => i.to === "/compliance");
+    expect(qualification?.icon).toBe(LicenseIcon);
+    expect(qualification?.icon).not.toBe(items.find((i) => i.to === "/assignments")?.icon);
   });
 });

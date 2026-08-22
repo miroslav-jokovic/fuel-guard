@@ -80,7 +80,7 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | Component | Props | For |
 |---|---|---|
 | **`SlideOver.vue`** (97) | `open: boolean`, `title: string`, `description?`, `size?: "md"\|"lg"` (md) | The one drawer. `md`→`max-w-md`, `lg`→`max-w-lg`. Structure in §6. |
-| **`KebabMenu.vue`** (80) | `block?`, `placement?: Placement` (bottom-end), `triggerLabel?`, `tone?: "default"\|"sidebar"` | The one dropdown menu. Default trigger is `⋮`; `#trigger` slot for toolbar dropdowns. Children must be `<button class="kebab-item">`. Panel: `z-[9999] w-48 origin-top-right py-1 rounded-control bg-surface shadow-overlay ring-1 ring-edge`, teleported to body with a `z-[9998]` click-catcher. |
+| **`KebabMenu.vue`** (80) | `block?`, `placement?: Placement` (bottom-end), `triggerLabel?`, `tone?: "default"\|"sidebar"` | The one dropdown menu. Default trigger is `⋮`; `#trigger` slot for toolbar dropdowns. Children must be `<BaseButton class="kebab-item">` (**not** a raw element — see §5.6's correction; a raw one is a red `lint:ui-adoption` gate). Panel: `z-[9999] w-48 origin-top-right py-1 rounded-control bg-surface shadow-overlay ring-1 ring-edge`, teleported to body with a `z-[9998]` click-catcher. |
 | **`StatusBadge.vue`** (25) | `status: string` | Maps `active/resolved`→success, `maintenance/investigating`→warning, `open`→brand, else neutral, and renders `[BADGE_BASE, cls]`. |
 | **`TablePagination.vue`** (80) | `page`, `pageSize?` (20), `total`, `loading?`; emits `update:page` | The table `#footer`. `flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6`. Left: `Showing <b>1</b>–<b>20</b> of <b>1,204</b>` / `No results`. Right: "Page [n] of N" jump input (hidden below `sm`, only when `totalPages > 1`) + Prev/Next `BaseButton size="sm"`. |
 | **`TableSkeleton.vue`** (17) | `rows?` (6), `cols?` (5) | Shimmer rows. Only DataTable calls it; you should not. |
@@ -509,15 +509,15 @@ Rules encoded in the component and honoured by the good pages:
 ```html
 <template #actions="{ row }">
   <KebabMenu v-if="session.canManage">
-    <button class="kebab-item" @click="openEdit(row)">Edit</button>
-    <button class="kebab-item" @click="toggleReefer(row)">{{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}</button>
-    <button v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire</button>
+    <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
+    <BaseButton class="kebab-item" @click="toggleReefer(row)">{{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}</BaseButton>
+    <BaseButton v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire</BaseButton>
   </KebabMenu>
 </template>
 ```
 `.kebab-item` / `.kebab-item-danger` are global classes in `style.css` — never re-style menu items locally. Destructive last, `kebab-item-danger`. Gate on `session.canManage`.
 
-> **Corrected 2026-08-16.** The snippet above and §1.2 both said the children must be a bare `button` element. They must NOT be: `lint:ui-adoption` counts raw buttons in `pages/` and `features/` with **zero tolerance**, so a literal element there is a red CI gate. Every real kebab in this codebase uses `<BaseButton class="kebab-item">` — `TrailersPage.vue:254`, `DriverQualificationPage.vue:403`, `PlanHistory.vue:205` — and the doc was the side that had drifted. Two further traps found the same day: `CompliancePage.vue:460` uses a `RouterLink.kebab-item`, which is a third pattern nobody documented, and the gate is a plain regex over file TEXT, so naming the element in a comment trips it too. Single-action rows may use a `<BaseButton variant="ghost" size="sm" @click.stop>` instead (`DispatchLoadsPage.vue:365`).
+> **Corrected 2026-08-16, and applied in place 2026-08-21 (U5).** The snippet above and §1.2's table both *said* the children must be a bare `button` element for five more days, because this note was written BELOW them rather than into them — and a reference table is what a reader consults, so the wrong answer is the one they got. Both now read `BaseButton`; this note stays for the reasoning. They must not be raw elements: `lint:ui-adoption` counts raw buttons in `pages/` and `features/` with **zero tolerance**, so a literal element there is a red CI gate. Every real kebab in this codebase uses `<BaseButton class="kebab-item">` — `TrailersPage.vue:254`, `DriverQualificationPage.vue:403`, `PlanHistory.vue:205` — and the doc was the side that had drifted. Two further traps found the same day: `CompliancePage.vue:460` uses a `RouterLink.kebab-item`, which is a third pattern nobody documented, and the gate is a plain regex over file TEXT, so naming the element in a comment trips it too. Single-action rows may use a `<BaseButton variant="ghost" size="sm" @click.stop>` instead (`DispatchLoadsPage.vue:365`).
 
 ### 5.7 Row → drawer
 

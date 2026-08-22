@@ -6,7 +6,10 @@ import {
 import { computed, ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, type Placement } from "@floating-ui/vue";
 
-// The one dropdown menu. Put <button class="kebab-item"> children in the default slot.
+// The one dropdown menu. Put <BaseButton class="kebab-item"> children in the default slot.
+// ⚠ NOT a raw <button>, which this line said until 2026-08-21 (U5): `lint:ui-adoption` counts
+// raw <button> in pages/ and features/ as a failure, so the instruction was un-followable at
+// every call site that matters. All nine call sites already pass BaseButton.
 // Default trigger is the ⋮ icon (table action columns); pass a #trigger slot for
 // custom triggers (toolbar dropdowns) — panel styling stays identical either way.
 const open = ref(false);

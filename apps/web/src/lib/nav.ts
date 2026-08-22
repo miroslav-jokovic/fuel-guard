@@ -5,7 +5,6 @@ import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
-  BuildingOffice2Icon,
   ClockIcon,
   Cog6ToothIcon,
   ExclamationTriangleIcon,
@@ -20,6 +19,7 @@ import {
   RejectionIcon,
   ShieldCheckIcon,
   HazmatPlacardIcon,
+  LicenseIcon,
   SparklesIcon,
   TrailerIcon,
   TransactionIcon,
@@ -27,6 +27,7 @@ import {
   TruckIcon,
   TruckStopIcon,
   UserGroupIcon,
+  UserListIcon,
   UsersIcon,
   VehicleIcon,
   type Icon,
@@ -123,7 +124,10 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // rather than "Safety", which is the section it already sits in. Keeps the existing Fleet
         // capability gate so the rename does not broaden access, and keeps /compliance so nobody's
         // bookmark breaks.
-        { name: "Driver Qualification", to: "/compliance", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "fleet") },
+        // ⚠ U5/D-UI6: it wore ClipboardDocumentCheckIcon, which Assignments also wears — one glyph on
+        // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
+        // licence and a medical card, so LicenseIcon says what it holds.
+        { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection(role, "fleet") },
         // ONE hazmat entry (H-C4, owner decision 2026-08-08): the hub routes to the calculator, the
         // loads board and the review queue — duplicating them here duplicated Loads/Trailers for no
         // gain. The review badge rides on the hub so the queue still announces itself.
@@ -144,7 +148,10 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       label: "Recruitment",
       icon: ClipboardDocumentListIcon,
       items: [
-        { name: "Applicants", to: "/recruitment", icon: BuildingOffice2Icon, show: canViewSection(role, "recruitment") },
+        // ⚠ U5/D-UI6: this rendered Building02Icon — a BUILDING, for the person applying. The LABEL
+        // is deliberately untouched: RECRUITING-SYSTEM-PLAN R9 owns the word and renames it when the
+        // recruiter board lands (D-UI8).
+        { name: "Applicants", to: "/recruitment", icon: UserListIcon, show: canViewSection(role, "recruitment") },
         // U1/D-UI1: both routes were REGISTERED on 2026-08-20 to close a P0b incident (the URLs fell
         // through to nothing) and still had no nav entry, so they were reachable only from two
         // buttons on the Applicants page. A recruiter arriving from a notification had no way back,

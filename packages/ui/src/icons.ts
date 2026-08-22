@@ -111,14 +111,24 @@ export {
   // ── People ──────────────────────────────────────────────────────────────
   UserGroupIcon               as UserGroupIcon,
   UserMultiple02Icon          as UsersIcon,
+  // The applicant board (U5/D-UI6). It rendered `Building02Icon` — a BUILDING, for the person
+  // applying — because the nav item was added before this barrel had a people-list glyph.
+  UserListIcon                as UserListIcon,
 
   // ── Notifications ───────────────────────────────────────────────────────
   Notification01Icon          as BellIcon,
 
   // ── Documents / tables / charts ─────────────────────────────────────────
   File01Icon                  as DocumentTextIcon,
-  ClipboardIcon               as ClipboardDocumentListIcon,      // ⚠ verify
+  // Resolved 2026-08-21 (U5): the alias means clipboard-WITH-A-LIST and was pointing at the bare
+  // `ClipboardIcon`, which is why it carried a standing ⚠. `ClipboardListIcon` exists and is
+  // literally the glyph the local name describes.
+  ClipboardListIcon           as ClipboardDocumentListIcon,
   TaskDone01Icon              as ClipboardDocumentCheckIcon,
+  // Driver Qualification (U5/D-UI6). It shared `ClipboardDocumentCheckIcon` with Assignments —
+  // one glyph on two unrelated nav items, both visible at once in an expanded sidebar. A §391.51
+  // file is a licence and a medical card, so the licence glyph says what the section holds.
+  LicenseIcon                 as LicenseIcon,
   Table01Icon                 as TableCellsIcon,
   AnalyticsUpIcon             as ChartBarIcon,                   // ⚠ verify (many chart variants)
   Analytics01Icon             as ChartBarSquareIcon,             // ⚠ verify

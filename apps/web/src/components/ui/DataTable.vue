@@ -20,7 +20,7 @@ import type { SortState } from "@/lib/sort";
  *       <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-link hover:text-link-hover">…</RouterLink>
  *     </template>
  *     <template #actions="{ row }">
- *       <KebabMenu><button class="kebab-item" @click="openEdit(row)">Edit</button></KebabMenu>
+ *       <KebabMenu><BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton></KebabMenu>
  *     </template>
  *     <template #footer><TablePagination … /></template>
  *   </DataTable>
