@@ -83,7 +83,7 @@ re-derivation must use the same anchor.
 | 18 | CDL certification of compliance | **SIGN** | CDL #, state, expiry |
 | 19 | Authorization for driving record check | **SIGN** | CDL #, state, expiry |
 | 20 | Fair Credit Reporting Act disclosure | **SIGN** | — |
-| 21 | Seven Day Work Statement | **FILL + SIGN** | ❌ **nothing — §3.2** |
+| 21 | Seven Day Work Statement | **NOT OURS** — moves to the hire (§2.4, owner 2026-08-23) | ❌ nothing — §3.2 |
 | 22 | Urinalysis notification | **SIGN** | — |
 | 23 | Annual/quarterly violation review | **NOT OURS** — §2.4 | — |
 | 24 | Driver safety training | **STATIC** | — |
@@ -94,7 +94,7 @@ re-derivation must use the same anchor.
 | 29–30 | Owner Operator & Leased Driver Agreement, parts 1–2 | **STATIC** | — |
 | 31 | Owner Operator & Leased Driver Agreement, part 3 | **SIGN** | — |
 
-**Totals: 5 FILL · 18 SIGN · 5 STATIC · 3 NOT OURS.**
+**Totals: 4 FILL · 18 SIGN · 5 STATIC · 4 NOT OURS.** (p21 moved out of the application 2026-08-23.)
 
 ### 2.3 ⚠ The signature count is the finding, not the page count
 
@@ -131,10 +131,10 @@ that ships:
 one-instrument-per-screen rule is what implements that. It stays a separate stop even in a
 walk-me-through queue, and the queue must not be allowed to render it alongside anything else.
 
-### 2.4 ⚠ Three pages are not the applicant's document, and must not be in this PDF
+### 2.4 ⚠ Four pages are not the applicant's document, and must not be in this PDF
 
-Discovered while classifying; each would have been reproduced by mistake under a naive "print all 31
-pages" reading of fork (a).
+Three were found while classifying — each would have been reproduced by mistake under a naive "print
+all 31 pages" reading of fork (a) — and the fourth was moved here by the owner on 2026-08-23.
 
 - **p14 — previous-employer verification request.** This is the form the carrier **sends to a former
   employer**, with `Sent to`, `Requested by Silvicom Inc`, and the §391.23 / Part 40 questions the
@@ -143,6 +143,13 @@ pages" reading of fork (a).
   a signed document.
 - **p17 — interview / disposition record.** `Contracted or Rejected?`, `Interviewer`, `Date to start`,
   `Termination date`, `Why?` — carrier-filled, after the application, by somebody else.
+- **p21 — Seven Day Work Statement. ⚠ MOVED HERE 2026-08-23 by the owner** (Q-PKT2), and it is the
+  one page that left the application rather than never having belonged to it. §395.8(j)(2) asks for
+  the seven days preceding the day the driver **begins work**, so an answer given during an
+  application is stale before anybody reads it — a driver hired three weeks later has a statement
+  about the wrong week. It belongs beside the hire date, which is where the window is already
+  measured from (`HireDrawer`'s own hint: *"The three-year employment window is measured back from
+  this date"*). Its own step is **P7**.
 - **p23 — annual/quarterly violation review.** Two halves, both post-hire: the driver's §391.27
   certification of violations for the preceding twelve months, and the motor carrier's review of it.
   This is the **annual round**, which `RECRUITING-SYSTEM-PLAN.md` R7 owns. An applicant has no twelve
@@ -150,7 +157,7 @@ pages" reading of fork (a).
 
 ---
 
-## 3. Five things that have to be decided or built before any page renders
+## 3. Six things that have to be decided or built before any page renders
 
 ### 3.1 The equipment grid is fixed rows, and ours is a free list
 
@@ -158,13 +165,28 @@ Packet p2 prints four fixed rows — `STRAIGHT TRUCK`, `TRACTOR — SEMI TRAILER
 `TRACTOR — TWO TRAILERS`, `OTHER` — each with class, type (`VAN, TANK, FLAT, ETC`), from/to dates and
 approximate total miles. `equipment_experience` is an unbounded list the driver adds rows to.
 
-Both satisfy §391.21(b)(6). They do not print the same. The renderer must map our list onto those
-four rows, and the mapping is lossy in one direction: two tractor-semi entries with different date
-ranges collapse into one row.
+Both satisfy §391.21(b)(6). They do not print the same. `EQUIPMENT_CLASSES` has **six** values against
+the packet's four, so the mapping is:
 
-⚠ **This is also the question the design canvas already answers.** Its fourth artboard is a
-redesigned equipment question, and the packet's four fixed rows are almost certainly why. Deciding
-the wire format here without looking at that artboard would build the mapping twice.
+| Ours | Packet row |
+|---|---|
+| `straight_truck` | STRAIGHT TRUCK |
+| `tractor_semi_trailer` | TRACTOR — SEMI TRAILER |
+| `tractor_two_trailers` | TRACTOR — TWO TRAILERS |
+| `tractor_tanker` · `bus` · `other` | OTHER |
+
+⚠ **The fold is not information loss, and that is worth stating because it looks like it.** The
+packet's own second column is `TYPE OF EQUIPMENT (VAN, TANK, FLAT, ETC)` — free text, which is exactly
+where "tanker" or "bus" survives. A tanker prints as class OTHER, type "Tanker", and the reader learns
+the same fact the driver entered. What IS lossy is multiplicity: two `tractor_semi_trailer` entries
+with different date ranges have one printed row between them, and that is §3.4's continuation problem
+rather than a mapping problem.
+
+⚠ **This mapping is PRINT-SIDE ONLY and does not touch the wizard.** The design canvas's fourth
+artboard redesigns the equipment *question*, which is input; nothing here changes what a driver is
+asked or what is stored. The two can be built in either order without building anything twice — which
+is the opposite of what an earlier draft of this section claimed, and the correction matters because
+it is what unblocks P4.
 
 ⚠ **And it needs icons the barrel does not have.** `packages/ui/src/icons.ts` has no distinct
 straight-truck, doubles, tanker or bus glyph. Adding them means editing `icons.ts` first (contract
@@ -178,8 +200,12 @@ the driver was **last relieved from duty**, and two signatures. Nothing in
 
 ⚠ It is also the one page whose answer **expires**. §395.8(j)(2) asks for the seven days preceding
 the day the driver begins work, so a statement filled in during an application is stale by the time
-somebody is hired. **This page probably does not belong in the application at all** — it belongs to
-the hire, beside the hire date. Recorded as an open question (§6 Q-PKT2) rather than assumed.
+somebody is hired.
+
+**ANSWERED 2026-08-23 by the owner — D-PKT7: it goes with the hire.** So this page leaves the
+application entirely (§2.4) and becomes **P7**, beside the hire date, where the seven days it names
+are the seven days the regulation means. ⚠ **P4 does not have to collect any of the data above**,
+which is the second thing that unblocked it.
 
 ### 3.3 ⚠ Page 4 is legally defective and must not be adopted verbatim
 
@@ -227,6 +253,28 @@ misrepresentation on a certified form.
 from its heading, `EMPLOYMENT RECORD (ATTACH SHEET IF MORE SPACE IS NEEDED)`, and it holds no grid at
 all — one blank styled row, which is the signature line. The employment data goes on p12.
 
+### 3.6 The letterhead is per-org, and the plumbing for it already exists
+
+**D-PKT8.** Every packet page carries `SILVICOM INC / 1301 ARMITAGE AVE / MELROSE PARK IL 60160`, and
+FuelGuard is multi-tenant, so a second carrier must never be handed a document with Silvicom's name on
+it.
+
+⚠ **Nothing has to be built for this.** `organizations.legal_address` shipped with **0229**, and
+`ApplicationPdfInput.carrier` is already `{ name: string; address: string | null }` — the current
+renderer takes both and the packet renderer inherits them. What the decision actually creates is a
+**data** obligation, and it is the one already standing in `APPLICATION-SYSTEM-PLAN.md`'s open list:
+one production `update organizations set legal_address = …` per carrier.
+
+⚠ **`address` is nullable, so decide what a missing one prints.** The current renderer can fall back
+to the name alone; a packet page cannot silently print a blank line where a legal address belongs.
+P4 renders the name and, when the address is null, says so in the document rather than leaving white
+space — a letterhead with a hole in it is worse than one that admits the field is unset, because only
+the second is noticeable.
+
+⚠ The **footer** is a different thing and is NOT per-org: `THIS IS NOT AN EMPLOYMENT APPLICATION` and
+`FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` are statements about what the document
+is, not about who issued it. They are reproduced verbatim on every page.
+
 ### 3.5 ⚠ Citations stay in print — task B does not reach this document
 
 The packet cites regulations **on its own pages**: §383.21 on p2, §391.23(d)/(e) on p11, Part 40 and
@@ -244,6 +292,8 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT3** | The static attachments are **one filed artifact per version**, not per applicant. They are identical for everybody; rendering them per submission would put 5 unchanging pages into every stored document and make a wording change invisible. Version them the way `DISCLOSURES` are versioned. |
 | **D-PKT4** | ⚠ **No packet wording is adopted verbatim without counsel.** §3.3 is the worked example, and it is not the only page with the problem — the packet is full of typographical corruption ("BACKFROUNG", "maritial", "whcihc", "typyes"), which is harmless in a scan and is *not* harmless in a document we generate and a person signs. Transcription is a review pass, not a copy. |
 | **D-PKT6** | **Twenty-one placements, one adopted mark, DocuSign-style** (owner, 2026-08-22). The driver types their name once and their initials once, then a Next button walks them to each place a mark is needed. ⚠ The FCRA authorization (p20) stays a screen of its own regardless — §604(b)(2), and it is the rule `SigningCeremony` was built around. ⚠ This is an extension of `useSigningCeremony`, not a replacement: see §2.3. |
+| **D-PKT7** | **The Seven Day Work Statement belongs to the HIRE, not the application** (owner, 2026-08-23). §395.8(j)(2) counts the seven days before work begins, so an application-time answer is stale on arrival. It leaves the packet PDF and becomes P7. |
+| **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
 
 ---
@@ -260,10 +310,9 @@ string, and `isDraftDisclosure()` stops refusing.
 
 ### P2 · The owner answers §6 — no code
 
-~~Q-PKT1~~ **answered 2026-08-22 → D-PKT6.** ⚠ **Q-PKT2 (Seven Day Work Statement: application or
-hire?) and Q-PKT3 (whose letterhead?) are still open** — they were asked on the same day and the
-answers that came back in their place both described the signing mechanism, so neither question has
-actually been answered. They block P4, not P5.
+~~Q-PKT1~~ **answered 2026-08-22 → D-PKT6.** ~~Q-PKT2~~ and ~~Q-PKT3~~ **answered 2026-08-23 →
+D-PKT7 and D-PKT8.** ⚠ **Q-PKT4 (the typos) is the only one left, and it now blocks P3 and P4** —
+see D-PKT4. Nothing else in §6 gates a step.
 
 ### P3 · The static attachments (D-PKT3)
 
@@ -273,10 +322,17 @@ changing its wording produces a new version rather than editing the filed one.
 
 ### P4 · The fillable pages
 
-Pages 1, 2, 12, 16, 26 rendered from data we already hold, in the packet's layout and with its
-letterhead and footer. §3.1's equipment mapping is decided here, against the design canvas.
-§3.4's continuation convention is decided here too, and applied to all five fixed-height tables.
-**Done when:** a submitted application renders those five pages with the applicant's own answers, and
+Pages 1, 2, 12, 16, 26 rendered from data we already hold, in the packet's layout, with the **per-org**
+letterhead (D-PKT8) and the verbatim footer. §3.1's equipment mapping is settled (six classes onto
+four rows, the type column carrying the difference) and §3.4's continuation convention is decided here
+and applied to all five fixed-height tables.
+
+⚠ **Unblocked on shape by D-PKT7 and D-PKT8, still blocked on TEXT by Q-PKT4.** Every label on these
+pages is transcribed from the packet, and the packet's labels are corrupt — "Previous Three years
+reisdency", "BACKFROUNG VERIFICATION LOG". Transcribing them one way and then the other is the work
+done twice, which is exactly what §3.1's corrected note says to avoid.
+
+**Done when:** a submitted application renders those four pages with the applicant's own answers, and
 a golden-file test pins the layout so a renderer change cannot silently reflow a signed document.
 
 ### P5 · The signature pages
@@ -290,6 +346,20 @@ wording would mean building them twice, and `isDraftDisclosure()` refuses the si
 by a Next button, and the FCRA authorization is still the only thing on its own screen when they
 reach it.
 
+### P7 · The Seven Day Work Statement, at the hire (D-PKT7)
+
+Independent of P3–P6 and of the packet PDF entirely. `HireDrawer` already measures the three-year
+employment window back from the hire date; this asks for the seven days before it, plus the date and
+time the driver was last relieved from duty, and the driver's signature.
+
+⚠ **This one probably needs a migration** — it is the only page in the packet whose data we do not
+hold anywhere, and it is evidence: §395.8(k)(1) keeps supporting documents six months. Decide its
+side of the evidence line (`RETENTION_FORBIDDEN`, or prunable-and-why) in the migration header, on
+0208's model, per `RECRUITING-SYSTEM-PLAN.md` §4.
+
+**Done when:** hiring a driver captures their seven-day statement, and the qualification file holds it
+as a dated document.
+
 ### P6 · Cutover (D-PKT5)
 
 New submissions produce the packet; existing filed documents keep rendering as they were.
@@ -302,21 +372,23 @@ New submissions produce the packet; existing filed documents keep rendering as t
    its own place, with one adopted signature and one set of initials reused across them on the
    DocuSign model. ⚠ The legal half of the question survives the answer and is folded into D-PKT6:
    FCRA §604(b)(2) keeps p20 on a screen of its own.
-2. ⚠ **STILL OPEN. Q-PKT2 — Seven Day Work Statement: application or hire?** §3.2. Its answer expires, which argues
-   for the hire.
-3. ⚠ **STILL OPEN. Q-PKT3 — whose letterhead?** Every page carries `SILVICOM INC / 1301 ARMITAGE AVE / MELROSE PARK
+2. ~~**Q-PKT2 — Seven Day Work Statement: application or hire?**~~ **ANSWERED 2026-08-23 → D-PKT7:
+   the hire.** It leaves the packet PDF and becomes P7.
+3. ~~**Q-PKT3 — whose letterhead?**~~ **ANSWERED 2026-08-23 → D-PKT8: per-org.** ⚠ Already plumbed —
+   `legal_address` (0229) and `ApplicationPdfInput.carrier`. See §3.6. Original question: Every page carries `SILVICOM INC / 1301 ARMITAGE AVE / MELROSE PARK
    IL 60160`. FuelGuard is multi-tenant. Is the letterhead per-org configuration, or is this packet
    Silvicom's alone? ⚠ The QA org is **FuelGuard EFS QA**, so this is answerable today by asking what
    its packet should say.
-4. **Q-PKT4 — the typos.** D-PKT4 says transcription is a review pass. Does the owner want the errors
+4. ⚠ **STILL OPEN, AND NOW THE ONLY BLOCKER ON P3/P4. Q-PKT4 — the typos.** D-PKT4 says transcription is a review pass. Does the owner want the errors
    corrected, or the packet reproduced exactly as the carrier's paper reads?
 
 ---
 
 ## 7. What this plan deliberately does not do
 
-- **No migration is proposed.** Every FILL page maps to data that already exists, except §3.2's
-  Seven Day Work Statement — and Q-PKT2 may move that out of the application entirely.
+- **No migration is proposed for the PACKET.** Every FILL page maps to data that already exists.
+  ⚠ P7 is the exception and it is no longer part of the packet: D-PKT7 moved the Seven Day Work
+  Statement to the hire, where it will need a table of its own.
 - **No change to `ApplyPage`'s seven screens.** The packet is an output format. The one place it
   reaches back into the form is §3.1's equipment grid, and the design canvas already owns that.
 - **No deletion of the existing PDF** (D-PKT5).
