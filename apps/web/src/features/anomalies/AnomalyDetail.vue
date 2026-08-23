@@ -76,7 +76,7 @@ const {
             :style="{ width: `${Math.min(100, (caseScore / 200) * 100)}%` }"
           />
         </div>
-        <p class="text-[11px] leading-4 text-ink-tertiary">
+        <p class="text-2xs leading-4 text-ink-tertiary">
           Alert: one signal ≥ {{ CORRELATION_THRESHOLDS.overwhelming }}, or ≥2 independent axes scoring
           ≥ {{ CORRELATION_THRESHOLDS.alertScore }} combined · Review: one signal ≥ {{ CORRELATION_THRESHOLDS.review }}
         </p>

@@ -31,8 +31,11 @@ changing UI. The rules below are the ones most often violated; the contract has 
   with tabular figures. `align` overrides; `align: "center"` is for control columns (checkbox, icon,
   status dot) and never for text or numbers (D-DS1; pinned by "never centres by default, for any
   combination the contract allows" in `components/ui/DataTable.test.ts`).
-- Six text sizes only (`text-sm` default, `text-xs`, `text-base`, `text-lg`, `text-2xl`, `text-3xl`);
-  headings `font-semibold`; `font-bold` is for KPI numbers; `font-mono` only for machine identifiers.
+- Seven text sizes only (`text-sm` default, `text-2xs`, `text-xs`, `text-base`, `text-lg`, `text-2xl`,
+  `text-3xl`) — `text-[…]` and Tailwind's other sizes fail `lint:tokens`. `text-2xs` (11px) is for
+  dense metadata that is *glanced at* — chart legends, stage labels, timestamps; anything meant to be
+  READ starts at `text-xs` (D-DS6). Headings `font-semibold`; `font-bold` is for KPI numbers;
+  `font-mono` only for machine identifiers.
 - Page skeleton: `<div class="space-y-6">` → `PageHeader` (no title — that comes from
   `route.meta.title`) → `FilterBar` → `DataTable` with `TablePagination` in `#footer`.
 - Mutation feedback is a toast (`useToastStore`), never an inline banner.

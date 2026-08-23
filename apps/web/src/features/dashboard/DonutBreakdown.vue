@@ -90,10 +90,10 @@ const chart = computed<ChartConfiguration<"doughnut">>(() => {
         <BaseChart :config="chart" :height="192" />
       </div>
       <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-        <span class="max-w-full truncate text-xl font-semibold tabular-nums text-ink" :title="centerValue">
+        <span class="max-w-full truncate text-lg font-semibold tabular-nums text-ink" :title="centerValue">
           {{ centerValue }}
         </span>
-        <span class="mt-0.5 text-[11px] font-medium text-ink-tertiary">{{ centerLabel }}</span>
+        <span class="mt-0.5 text-2xs font-medium text-ink-tertiary">{{ centerLabel }}</span>
       </div>
     </div>
 
@@ -113,7 +113,7 @@ const chart = computed<ChartConfiguration<"doughnut">>(() => {
           <span :class="item.value > 0 ? 'text-ink' : 'text-ink-tertiary'" class="block text-sm font-semibold tabular-nums">
             {{ item.valueLabel }}
           </span>
-          <span class="block text-[11px] tabular-nums text-ink-tertiary">{{ shareLabel(item.value) }}</span>
+          <span class="block text-2xs tabular-nums text-ink-tertiary">{{ shareLabel(item.value) }}</span>
         </span>
       </li>
     </ul>

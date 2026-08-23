@@ -207,7 +207,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
         <template v-for="(stage, i) in rail" :key="stage.key">
           <li class="flex shrink-0 flex-col items-center gap-1.5">
             <span
-              class="flex size-6 items-center justify-center rounded-full text-[11px] font-semibold ring-1 ring-inset"
+              class="flex size-6 items-center justify-center rounded-full text-2xs font-semibold ring-1 ring-inset"
               :class="
                 stage.state === 'done'
                   ? 'bg-selected-strong text-ink ring-selected-strong'
@@ -221,7 +221,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
               <span v-else aria-hidden="true">{{ i + 1 }}</span>
             </span>
             <span
-              class="text-[11px] font-medium"
+              class="text-2xs font-medium"
               :class="stage.state === 'upcoming' ? 'text-ink-tertiary' : 'text-ink-secondary'"
             >
               {{ stage.label }}

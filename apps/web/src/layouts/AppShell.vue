@@ -70,7 +70,7 @@ const activeClass = (to: string) =>
 /** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
 const navLinkClass = (to: string) => [
   activeClass(to),
-  "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-[0.9375rem] font-medium leading-5",
+  "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
 ];
 
 /** Icon-only nav link — used in collapsed desktop sidebar. */
