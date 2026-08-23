@@ -975,7 +975,26 @@ to them in full. **The step must know which channel each applicant came through*
 records it — `application_invitations` proves a link was issued, which is close and is not the same
 fact.
 
-**2 · ⚠ There is no way to decline an applicant. At all.**
+**2 · ~~There is no way to decline an applicant. At all.~~ · BUILT 2026-08-23 (migration 0238)**
+
+⚠ **Done, and it is the half of R10 that was owed whatever Q-REC8's answer turns out to be.**
+`applicant_dispositions` records `declined` / `withdrawn` / `no_response`, the date, the carrier's
+own words, who decided, and — captured now because it is knowable now and a guess later —
+**whether the decision rested on a purchased report**. Append-only content (AD010), `driver_id` free
+so `merge_driver` carries it, prunable by design with no window set (Q-REC7's question).
+
+⚠ **No `hired` outcome.** `drivers.status` plus `hire_date` already record a hire; a second row
+saying so is one fact in two places and the two would disagree. This table records the ways an
+application ends WITHOUT a hire.
+
+⚠ **`merge_driver` needed the work this time, unlike 0237's flag** — the two cases are a day apart
+and worth contrasting. The return-to-duty flag can only exist on a driver holding a
+`driver_applications` row, and MD010 already refuses to merge one of those. A disposition has no such
+shield: an applicant can be declined before they ever open the link, so a declined lead with no
+application is precisely the row a routine roster dedup would cascade into nothing.
+
+**What is still R10's:** the notices themselves. Nothing is sent, and the drawer says so out loud to
+the recruiter who ticks the consumer-report box. The finding as raised:
 
 `ApplicantStage` is `not_started → history_incomplete → awaiting_releases → ready_to_screen` and
 stops. There is no declined, no rejected, no dispositioned. `hireApplicant` is the only exit from the
@@ -1120,9 +1139,9 @@ date.
 - **Q-REC8 · Adverse action** (owner, added 2026-08-23): when a purchased report costs an applicant
   the job, does the carrier send the FCRA notices **from FuelGuard**, or from somewhere else? The
   question is not whether the notices are owed — they are — but whose system owes them.
-  *Fallback:* R10 is not built. ⚠ **One half of it is owed either way:** the product has no way to
-  record that an applicant was declined at all (`ApplicantStage` stops at `ready_to_screen`), so
-  whatever the answer, the disposition has to exist before anything can be attached to it.
+  *Fallback:* R10 is not built. ⚠ **The half that was owed either way SHIPPED 2026-08-23**
+  (migration 0238): `applicant_dispositions` records the decision, its date, its reason and whether
+  a purchased report was part of it. What waits on this question is only the notices.
   ⚠ A second question rides along and is counsel's, not the owner's: §604(b)(3)(B)'s exception turns
   on the applicant having applied "by mail, telephone, computer, or other similar means" — is an
   applicant we invited by link, who filled the form on their phone, inside it? We read it as plainly

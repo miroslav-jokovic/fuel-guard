@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
+  ApplicantDispositionRow,
   ApplicantRequirement,
   ApplicantStage,
   EmploymentHistory,
@@ -29,6 +30,15 @@ export interface PipelineApplicant {
   stage: ApplicantStage;
   outstanding: ApplicantRequirement[];
   releases_complete: boolean;
+  /**
+   * The newest decision about this application, or null while it is still open (0238).
+   *
+   * ⚠ A decided applicant does NOT leave the board. They are still `status = applicant`, and taking
+   * them off the list is what archiving does (0235) — a separate act, deliberately, because "we said
+   * no" and "stop showing me this row" are different facts and a recruiter may want either without
+   * the other.
+   */
+  disposition: ApplicantDispositionRow | null;
 }
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 
