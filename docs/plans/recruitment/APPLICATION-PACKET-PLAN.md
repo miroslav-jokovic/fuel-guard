@@ -88,13 +88,14 @@ re-derivation must use the same anchor.
 | 23 | Annual/quarterly violation review | **NOT OURS** — §2.4 | — |
 | 24 | Driver safety training | **STATIC** | — |
 | 25 | Interstate Truck Driver's Handbook receipt | **SIGN** | — |
-| 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ✅ already asked |
+| 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ❌ **NOT held — §3.7** |
 | 27 | Authorized passengers · off-duty authorization | **SIGN** | — |
 | 28 | Alcohol and drug abuse policy | **SIGN** | — |
 | 29–30 | Owner Operator & Leased Driver Agreement, parts 1–2 | **STATIC** | — |
 | 31 | Owner Operator & Leased Driver Agreement, part 3 | **SIGN** | — |
 
 **Totals: 4 FILL · 18 SIGN · 5 STATIC · 4 NOT OURS.** (p21 moved out of the application 2026-08-23.)
+⚠ Of the 4 FILL, **three render today** — p26 waits on a contract field it turns out we never had (§3.7).
 
 ### 2.3 ⚠ The signature count is the finding, not the page count
 
@@ -157,7 +158,7 @@ all 31 pages" reading of fork (a) — and the fourth was moved here by the owner
 
 ---
 
-## 3. Six things that have to be decided or built before any page renders
+## 3. Seven things that have to be decided or built before any page renders
 
 ### 3.1 The equipment grid is fixed rows, and ours is a free list
 
@@ -275,6 +276,25 @@ the second is noticeable.
 `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` are statements about what the document
 is, not about who issued it. They are reproduced verbatim on every page.
 
+### 3.7 ⚠ Page 26 asks a question we do not collect — the inventory was wrong
+
+**Found while building P4, 2026-08-23.** §2.2 recorded p26's data as "✅ already asked". It is not.
+
+The packet asks: *did you test positive or refuse a pre-employment drug or alcohol test for a job you
+**applied for but did not obtain**, in the past two years?* What the wizard collects is two
+**per-employer** booleans, `safety_sensitive` and `subject_to_fmcsr`, which are questions about a job
+the driver **actually held**. `ApplyEmploymentFields.vue`'s own comment cites §40.25(j) beside them,
+which is how the inventory got it wrong — the citation is right, the field is a different one, and
+there is no field for p26's question anywhere in `driverApplicationSchema`.
+
+⚠ **So p26 is not rendered, and it must not be rendered blank.** An unanswered mandatory question
+inside a document somebody signs is the same defect as silently truncating a table (§3.4): the page
+would look complete and would not be. It needs one contract field and one control, which is a change
+to the wizard — so **P8**, not P4.
+
+The transcription is kept in `packetText.ts` under `P26` with a note, because reviewing it twice
+would be waste.
+
 ### 3.5 ⚠ Citations stay in print — task B does not reach this document
 
 The packet cites regulations **on its own pages**: §383.21 on p2, §391.23(d)/(e) on p11, Part 40 and
@@ -292,6 +312,7 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT3** | The static attachments are **one filed artifact per version**, not per applicant. They are identical for everybody; rendering them per submission would put 5 unchanging pages into every stored document and make a wording change invisible. Version them the way `DISCLOSURES` are versioned. |
 | **D-PKT4** | ⚠ **No packet wording is adopted verbatim without counsel.** §3.3 is the worked example, and it is not the only page with the problem — the packet is full of typographical corruption ("BACKFROUNG", "maritial", "whcihc", "typyes"), which is harmless in a scan and is *not* harmless in a document we generate and a person signs. Transcription is a review pass, not a copy. |
 | **D-PKT6** | **Twenty-one placements, one adopted mark, DocuSign-style** (owner, 2026-08-22). The driver types their name once and their initials once, then a Next button walks them to each place a mark is needed. ⚠ The FCRA authorization (p20) stays a screen of its own regardless — §604(b)(2), and it is the rule `SigningCeremony` was built around. ⚠ This is an extension of `useSigningCeremony`, not a replacement: see §2.3. |
+| **D-PKT9** | **The packet's typos are corrected in print** (owner, 2026-08-23). ⚠ **Spelling of WORDS only** — the carrier's spacing and punctuation are reproduced as they are, because the guard that proves a correction is spelling-only is "same word count", and allowing re-spacing would loosen it until it could no longer tell a joined word from a deleted one. Every correction is a pair in `packetText.ts`'s `CORRECTIONS`, so the answer to "what did you change on our form" is a constant rather than a memory. |
 | **D-PKT7** | **The Seven Day Work Statement belongs to the HIRE, not the application** (owner, 2026-08-23). §395.8(j)(2) counts the seven days before work begins, so an application-time answer is stale on arrival. It leaves the packet PDF and becomes P7. |
 | **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
@@ -311,8 +332,8 @@ string, and `isDraftDisclosure()` stops refusing.
 ### P2 · The owner answers §6 — no code
 
 ~~Q-PKT1~~ **answered 2026-08-22 → D-PKT6.** ~~Q-PKT2~~ and ~~Q-PKT3~~ **answered 2026-08-23 →
-D-PKT7 and D-PKT8.** ⚠ **Q-PKT4 (the typos) is the only one left, and it now blocks P3 and P4** —
-see D-PKT4. Nothing else in §6 gates a step.
+D-PKT7 and D-PKT8; ~~Q-PKT4~~ **answered 2026-08-23 → D-PKT9.** **Every §6 question is now answered.**
+What remains blocking is P1 (counsel), which gates P5 and nothing else.
 
 ### P3 · The static attachments (D-PKT3)
 
@@ -320,20 +341,43 @@ Pages 7–8, 24, 29–30 as one versioned PDF artifact, filed once per version a
 application. **Done when:** a submitted application's document set includes the policy pack, and
 changing its wording produces a new version rather than editing the filed one.
 
-### P4 · The fillable pages
+### P4 · The fillable pages — DONE 2026-08-23 (no migrations)
 
-Pages 1, 2, 12, 16, 26 rendered from data we already hold, in the packet's layout, with the **per-org**
+Pages 1, 2, 12, 16 rendered from data we already hold, in the packet's layout, with the **per-org**
 letterhead (D-PKT8) and the verbatim footer. §3.1's equipment mapping is settled (six classes onto
 four rows, the type column carrying the difference) and §3.4's continuation convention is decided here
 and applied to all five fixed-height tables.
 
-⚠ **Unblocked on shape by D-PKT7 and D-PKT8, still blocked on TEXT by Q-PKT4.** Every label on these
-pages is transcribed from the packet, and the packet's labels are corrupt — "Previous Three years
-reisdency", "BACKFROUNG VERIFICATION LOG". Transcribing them one way and then the other is the work
-done twice, which is exactly what §3.1's corrected note says to avoid.
+**Done when:** a submitted application renders those pages with the applicant's own answers, and a
+test pins the content so a renderer change cannot silently alter a signed document.
 
-**Done when:** a submitted application renders those four pages with the applicant's own answers, and
-a golden-file test pins the layout so a renderer change cannot silently reflow a signed document.
+**What shipped.** `packet/` — `packetText.ts` (every transcribed word plus the `CORRECTIONS`
+register), `packetDraw.ts` (the primitives `pdfDraw` has no reason to own: a letterhead block, the two
+verbatim footer lines carrying the CARRIER'S page number, and a fixed-height table), and
+`packetPages.ts` (one function per page, split at the page because a page is what a reviewer holding
+the paper checks). Pages **1, 2, 12, 16** — ⚠ **not 26**, see §3.7.
+
+⚠ **A test caught a silent truncation in the very function written to prevent silent truncation.**
+The first `fixedTable` sliced the first three rows and then overwrote the third with the "see
+continuation" marker — so row three vanished from the document entirely while rows four onward
+appeared in the continuation. It looked complete and was not, which is exactly the failure §3.4
+describes. Caught by "prints every row, not the first three"; the marker now takes the last line and
+the continuation starts with the row it displaced.
+
+⚠ **A test also caught two bad entries in the CORRECTIONS register**, which is why the register is a
+tested constant rather than a habit. One "correction" was pure whitespace trimming — the assertion
+that no packet string reaches the page failed, because the trimmed form is what we print. The other
+pluralised `VIOLATION` → `VIOLATIONS`, a wording change wearing a spelling change's clothes. Both were
+removed and D-PKT9 was narrowed to say so.
+
+⚠ **Not verified against the carrier's paper.** The tests prove the pages carry the right data, the
+right letterhead and no corrupt strings; only somebody holding the printed packet can say whether the
+layout reads as the same form.
+
+**Verified by:** `pnpm test` (all unit suites + 19 PGlite matrices; 14 new assertions) ·
+`pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:filesize` (the renderer crossed 500
+lines and was split into three modules rather than waived) · `lint:funcsize` · `lint:boundaries` ·
+`lint:comment-claims` · `lint:tests` — all green. No migration.
 
 ### P5 · The signature pages
 
@@ -345,6 +389,14 @@ wording would mean building them twice, and `isDraftDisclosure()` refuses the si
 **Done when:** a driver adopts one signature and one set of initials, is walked to all 21 placements
 by a Next button, and the FCRA authorization is still the only thing on its own screen when they
 reach it.
+
+### P8 · Page 26's question, which we never asked (§3.7)
+
+One boolean on `driverApplicationSchema`, one control on the safety screen, one rendered page. Small,
+and deliberately not folded into P4: it changes what a driver is ASKED, and P4's whole premise is that
+it renders data we already hold.
+
+**Done when:** the wizard asks §40.25(j)'s two-year question and p26 renders with the answer on it.
 
 ### P7 · The Seven Day Work Statement, at the hire (D-PKT7)
 
@@ -379,7 +431,8 @@ New submissions produce the packet; existing filed documents keep rendering as t
    IL 60160`. FuelGuard is multi-tenant. Is the letterhead per-org configuration, or is this packet
    Silvicom's alone? ⚠ The QA org is **FuelGuard EFS QA**, so this is answerable today by asking what
    its packet should say.
-4. ⚠ **STILL OPEN, AND NOW THE ONLY BLOCKER ON P3/P4. Q-PKT4 — the typos.** D-PKT4 says transcription is a review pass. Does the owner want the errors
+4. ~~**Q-PKT4 — the typos.**~~ **ANSWERED 2026-08-23 → D-PKT9: corrected, and every correction
+   listed.** ⚠ Narrowed during execution to spelling of WORDS only — see D-PKT9. Original question: D-PKT4 says transcription is a review pass. Does the owner want the errors
    corrected, or the packet reproduced exactly as the carrier's paper reads?
 
 ---
