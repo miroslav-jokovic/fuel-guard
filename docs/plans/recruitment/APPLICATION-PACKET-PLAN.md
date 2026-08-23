@@ -86,7 +86,7 @@ re-derivation must use the same anchor.
 | 21 | Seven Day Work Statement | **NOT OURS** — moves to the hire (§2.4, owner 2026-08-23) | ❌ nothing — §3.2 |
 | 22 | Urinalysis notification | **SIGN** | — |
 | 23 | Annual/quarterly violation review | **NOT OURS** — §2.4 | — |
-| 24 | Driver safety training | **STATIC** | — |
+| 24 | Driver safety training | **STATIC** ⚠ **contested — Q-PKT5** | — |
 | 25 | Interstate Truck Driver's Handbook receipt | **SIGN** | — |
 | 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ✅ since P8 — §3.7 |
 | 27 | Authorized passengers · off-duty authorization | **SIGN** | — |
@@ -346,11 +346,29 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 
 ⚠ **P1 and P2 are blocked on people, not on code.** Everything after them is buildable.
 
-### P1 · Counsel settles the wording — no code
+### P1 · Counsel settles the wording — no code · **PACKAGED 2026-08-23, awaiting counsel**
 
-The five `v0-draft` disclosures **and** packet pages 4, 18, 19, 20, 22 go to counsel as one review,
-with §3.3's two defects named. **Done when:** every instrument has reviewed text and a real version
-string, and `isDraftDisclosure()` stops refusing.
+⚠ **The scope written here was wrong in both directions and is corrected below.** It said "the five
+`v0-draft` disclosures **and** packet pages 4, 18, 19, 20, 22". It is **eight instruments and
+eighteen packet pages**:
+
+- **Eight, not five.** The count predates the ESIGN consent (A4, `ESIGN_CONSENT`), the SMS consent
+  (A11b, `SMS_CONSENT`) and the §40.25 letter (`EMPLOYER_INQUIRIES.drug_alcohol`). Each shipped
+  `v0-draft` for the same reason and each is blocked by the same predicate — `grep '"v0-draft"'`
+  over `packages/shared/src` returns eight.
+- **Eighteen pages, not five.** D-PKT4 puts *all* adopted wording with counsel, and eighteen of the
+  31 pages are static text under a signature. The five named were the ones with defects already
+  found; the other thirteen were unreviewed, not clean.
+
+**The review itself is written: `COUNSEL-REVIEW-PACKAGE.md` (2026-08-23).** It reproduces all eight
+instruments verbatim, names the defect in each of pages 4, 18, 19, 20 and 22 with the sentence it
+lives in, asks four questions that are not about wording (§4 there — the missing FCRA adverse-action
+process, the §40.25(j) obligation nothing acts on, the employment-vs-contract contradiction, and
+§391.23(i)), and states what has to come back.
+
+**Done when:** every instrument has reviewed text and a real version string, and
+`isDraftDisclosure()` stops refusing. ⚠ **Order of value if the review is staged: A6 (the ESIGN
+consent) first** — it gates every other write path, including the other seven.
 
 ### P2 · The owner answers §6 — no code
 
@@ -429,6 +447,8 @@ lines and was split into three modules rather than waived) · `lint:funcsize` ·
 
 The 18 SIGN pages and the 21 placements on them, as three extensions of `useSigningCeremony` (§2.3):
 a placement queue, initials as a second adopted mark, and the drawn mark re-applied per placement.
+⚠ **Q-PKT6 first:** the placement inventory has to be re-derived with each mark labelled `driver` or
+`carrier`, or the ceremony walks a driver to the company's signature line.
 **Blocked on P1 only** — D-PKT6 settled the interaction, but building 21 placements against `v0-draft`
 wording would mean building them twice, and `isDraftDisclosure()` refuses the signature anyway.
 
@@ -543,6 +563,27 @@ New submissions produce the packet; existing filed documents keep rendering as t
 4. ~~**Q-PKT4 — the typos.**~~ **ANSWERED 2026-08-23 → D-PKT9: corrected, and every correction
    listed.** ⚠ Narrowed during execution to spelling of WORDS only — see D-PKT9. Original question: D-PKT4 says transcription is a review pass. Does the owner want the errors
    corrected, or the packet reproduced exactly as the carrier's paper reads?
+5. ⚠ **Q-PKT5 — page 24 is classified STATIC and it is a signed post-hire training record.**
+   Raised 2026-08-23 while packaging P1. §2.2 calls it "policy or contract text with nothing to
+   fill", and P3 shipped it into the versioned static pack on that basis — filed **once per version,
+   identical for everybody**, so no applicant's mark can ever land on it. The page reads
+   `On this day, ____________, 20___, I have completed training of log preparation`, carries
+   `DRIVER -PRINT`, `Driver signatrure | Date` and `Instructor's signatrure`, and creates a
+   liability (`I am also aware and have been informend of all company fines which will be
+   enforced`). `packetStatic.ts` lines 126–128 reproduce those three marks as inert labels.
+   **On this reading page 24 is an instrument, and a post-hire one** — an applicant cannot truthfully
+   affirm training they have not had, which is the argument that moved pages 21 and 23 out.
+   **Proposed: reclassify NOT OURS and move it to training (R7 / `DRIVER-TRAINING-PLAN.md`)**, the
+   way D-PKT7 moved the Seven Day Work Statement to the hire. That drops the static pack to four
+   pages and the corrections register by six entries. Owner's call — it amends D-PKT1's inventory.
+6. ⚠ **Q-PKT6 — the 21 placements were never split into driver marks and carrier marks.**
+   Raised 2026-08-23. §2.3's count found signature lines; it did not ask *whose*. At least these are
+   the carrier's: p18 `Silvicom Inc Representative:`, p19 the same **twice**, p22
+   `Company reprsentative's signature` and `Witness by`, and one of p31's three `Signature | Date`
+   lines. A queue built from the raw count walks a driver to a line where the company signs.
+   **P5 must re-derive the inventory with each placement labelled `driver` or `carrier`.**
+   ⚠ **And it cannot be re-derived by searching for "signature":** the packet spells it `signatrure`
+   on pages 22, 23 and 24, so a grep misses three pages — which is very likely how 21 was reached.
 
 ---
 
