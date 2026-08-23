@@ -1,0 +1,52 @@
+{
+  "theme": {
+    "font-sans": {
+      "$value": "\"Hanken Grotesk\", system-ui, sans-serif"
+    },
+    "text-2xs": {
+      "$value": "0.6875rem",
+      "$extensions": {
+        "fuelguard.section": [
+          "A seventh text size, added deliberately (D-DS6). 11px was already in the product eleven times as `text-[11px]`, always for the same job: dense secondary metadata \u2014 chart legends, stage labels, timestamps. That is a tier the scale was missing, and pretending otherwise just moved the decision into arbitrary values where no gate could see it. Naming it is the smaller evil. Anything that must be READ rather than glanced at belongs at text-xs or above."
+        ]
+      }
+    },
+    "z-index-raised": {
+      "$value": "1",
+      "$description": "a sticky first cell, over its own row",
+      "$extensions": {
+        "fuelguard.section": [
+          "\u2500\u2500 stacking order (D-DS4a) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Eight tiers, because the app genuinely has eight. They replace a ladder that had grown to z-scrim, z-popover and z-toast \u2014 numbers chosen to win an argument rather than to describe a position, in six components that never compared notes. The order is the one the app already had; nothing moves. The constraint that fixes it: the four dropdown overlays teleport to <body>, so they escape the dialog's stacking context and must out-rank it globally. That is why `scrim` and `popover` sit ABOVE `dialog` \u2014 a filter dropdown opened inside a slide-over has to render over it, which is exactly what 9999 > 50 was buying. `scrim` is the full-screen click-catcher that closes an open dropdown; it sits one tier below the panel it dismisses. Both disappear when D-DS4b moves these overlays to the browser's top layer, where the platform supplies light-dismiss and stacking for free."
+        ]
+      }
+    },
+    "z-index-sticky": {
+      "$value": "10",
+      "$description": "a sticky table header"
+    },
+    "z-index-sticky-lead": {
+      "$value": "20",
+      "$description": "a sticky header cell, over the sticky row"
+    },
+    "z-index-chrome": {
+      "$value": "40",
+      "$description": "the app top bar"
+    },
+    "z-index-dialog": {
+      "$value": "50",
+      "$description": "modals, slide-overs, the sidebar, banners"
+    },
+    "z-index-scrim": {
+      "$value": "60",
+      "$description": "the click-catcher behind an open dropdown"
+    },
+    "z-index-popover": {
+      "$value": "70",
+      "$description": "dropdowns, menus, flyouts (teleported)"
+    },
+    "z-index-toast": {
+      "$value": "80",
+      "$description": "always last, over everything"
+    }
+  }
+}
