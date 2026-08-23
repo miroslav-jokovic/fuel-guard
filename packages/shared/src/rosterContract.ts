@@ -243,6 +243,16 @@ export const driverDetailSchema = driverListItemSchema.extend({
   per_diem: z.boolean().nullable(),
   settlement_company: z.string().nullable(),
   eld_id: z.string().nullable(),
+  /**
+   * §40.25(j) (migration 0237) — this driver's application admitted a positive or refused
+   * pre-employment test and the §40.305 documentation is not yet on file. Read-only here: the column
+   * is set by trigger from the certified application and cleared by nothing, and the DETAIL response
+   * carries it because two surfaces need it — the driver page's callout, and the qualification file,
+   * whose return-to-duty requirement exists only for a driver this is true of.
+   *
+   * ⚠ Defaulted rather than required, so a response produced before 0237 still parses.
+   */
+  return_to_duty_required: z.boolean().nullable().default(false),
   samsara_driver_id: z.string().nullable(),
   updated_at: z.string(),
 });

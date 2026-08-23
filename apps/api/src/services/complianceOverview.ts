@@ -100,7 +100,7 @@ export async function getComplianceOverview(
     // leave the work queue.
     admin
       .from("drivers")
-      .select("id, full_name, status, cdl_number")
+      .select("id, full_name, status, cdl_number, return_to_duty_required")
       .eq("org_id", orgId)
       .in("status", ["active", "on_leave"])
       .neq("identity_source", "efs")
@@ -133,6 +133,7 @@ export async function getComplianceOverview(
     full_name: string;
     status: string;
     cdl_number: string | null;
+    return_to_duty_required: boolean | null;
   }[];
   const certs = (certsRes.data ?? []) as unknown as CertRow[];
   const records = (recordsRes.data ?? []) as unknown as RecordRow[];
@@ -150,6 +151,9 @@ export async function getComplianceOverview(
       expiringWithinDays: opts.expiringWithinDays,
       // §391.51(b)(8) applies to non-CDL drivers only (D8) — derived from the D6-synced field.
       hasCdl: d.cdl_number != null && d.cdl_number !== "",
+      // §40.25(j) (0237). Threaded here too, not only on the driver page, or the fleet queue would
+      // report a file complete that the page beside it reports as missing a requirement.
+      returnToDutyRequired: d.return_to_duty_required === true,
       certs: (certsBy.get(d.id) ?? []).map(toCert),
       records: (recordsBy.get(d.id) ?? []).map(toRecord),
       documents: (docsBy.get(d.id) ?? []).map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),

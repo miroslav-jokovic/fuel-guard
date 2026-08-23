@@ -578,9 +578,30 @@ constraint forbids without a `detail.source`. The schema was right and the reade
 now takes candidates from the enumerating check and drops any another check excludes; every future
 table with a conditional constraint on an enumerated column inherits that.
 
-⚠ **What is still owed:** nothing files the RTD document from a dedicated surface yet — it goes in
-through the generic qualification-record path. And counsel has an open question about page 26's third
-state (Q-C2b in `COUNSEL-REVIEW-PACKAGE.md` §4.2).
+⚠ **The block shipped before the FILE knew about it, and that was a defect, not a deferral** —
+corrected 2026-08-23 in the same day's follow-up. `return_to_duty` had no `DQ_KIND_LABELS` entry, so
+it rendered as a raw slug in the history drawer and in the binder PDF an auditor reads; and no
+`DQ_ITEMS` entry, so `RequirementDrawer` never offered it and **no screen could file the one document
+that lifts the block**. A gate with no way to lift it is worse than no gate.
+
+Fixed by making it a CONDITIONAL catalogue item — `appliesWhen: "return_to_duty"`, beside the
+`no_cdl` precedent — so it appears in the file only for a driver who owes it. ⚠ Listing it
+unconditionally would have told every clean carrier that every driver's file is missing
+return-to-duty paperwork, which is D-PSP1's "reporting a lawful file as incomplete" failure. The two
+filters that could drift (`buildDqFile` and `dqCapturableSpecs`) now share one `applies()`;
+`hiringGapsAfterHire` excludes conditional items outright because from (records held, records
+planned) it cannot evaluate a condition about the DRIVER. The flag is threaded through all three
+`buildDqFile` callers — the driver page, the fleet overview and the binder — so none of them can
+disagree about whether the requirement exists. Access is unchanged and was verified rather than
+assumed: `safety_manager` holds `fleet: "manage"` and passes `canReadRestrictedKind`, so the two
+roles that may read the document are exactly the two that may file it.
+
+⚠ **A coverage guard came with it:** `every qualification-record kind has a name` walks
+`QUALIFICATION_RECORD_KINDS` against `DQ_KIND_LABELS`. Nothing failed when the label was missing —
+the kind simply printed as its slug — which is how it shipped, and is now impossible.
+
+⚠ **What is still owed:** counsel's open question about page 26's third state (Q-C2b in
+`COUNSEL-REVIEW-PACKAGE.md` §4.2).
 
 **Verified by:** `pnpm test` (all unit suites + **21** PGlite matrices — `return-to-duty` is new, 21
 assertions) · `pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:migrations` ·

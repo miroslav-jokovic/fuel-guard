@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { DQ_KIND_LABELS } from "./dqCatalogue.js";
+import { QUALIFICATION_RECORD_KINDS } from "./complianceContract.js";
+import { hiringGapsAfterHire } from "./hireHandoff.js";
 import {
   buildDqFile,
   dqAttention,
@@ -47,6 +50,68 @@ describe("buildDqFile — scope", () => {
   it("leaves out §391.27, which was removed in 2020", () => {
     // Filing it would teach a carrier a requirement that no longer exists.
     expect(DQ_ITEMS.some((i) => i.citation.includes("391.27"))).toBe(false);
+  });
+});
+
+/**
+ * §40.25(j)'s paperwork in the file (0237, and the wiring that was missing from it).
+ *
+ * ⚠ **The gate shipped before the file knew about it.** `assignLoad` refused a driver who owed
+ * return-to-duty documentation and there was no way to file that documentation from any screen: the
+ * kind had no `DQ_KIND_LABELS` entry, so it rendered as a raw slug in the history drawer and the
+ * binder, and no `DQ_ITEMS` entry, so `RequirementDrawer` never offered it. A block with no way to
+ * lift it is worse than no block.
+ */
+describe("the return-to-duty requirement", () => {
+  const owing = { returnToDutyRequired: true };
+
+  it("is absent from a file for a driver who never admitted anything", () => {
+    expect(build().items.map((i) => i.spec.key)).not.toContain("return_to_duty");
+  });
+
+  it("appears, and reads as missing, once the driver owes it", () => {
+    const f = build(owing);
+    expect(f.items.map((i) => i.spec.key)).toContain("return_to_duty");
+    expect(item(f, "return_to_duty").state).toBe("missing");
+  });
+
+  it("is satisfied by the filed record, which is what lifts the dispatch block", () => {
+    const f = build({ ...owing, records: [record({ kind: "return_to_duty", occurredOn: "2026-03-01" })] });
+    expect(item(f, "return_to_duty").state).toBe("current");
+  });
+
+  /**
+   * ⚠ The two lists must agree. Before 0237 there was one condition and the two filters were two
+   * copies of one line; a second condition is what turns that into a checklist offering a
+   * requirement the file does not have, or a file demanding one the checklist cannot capture.
+   */
+  it("is offered for capture exactly when the file asks for it", () => {
+    const capturable = (o: { returnToDutyRequired?: boolean }) =>
+      dqCapturableSpecs({ includeHazmat: true, ...o }).map((s) => s.key).includes("return_to_duty");
+    expect(capturable({})).toBe(false);
+    expect(capturable(owing)).toBe(true);
+  });
+
+  /**
+   * ⚠ `hiringGapsAfterHire` sees records, not drivers, so it cannot evaluate the condition — and an
+   * item it cannot evaluate must not be reported. Listing this one would tell every carrier that
+   * every hire is missing §40.25(j) paperwork. The real warning is `HireResult.returnToDutyBlocked`.
+   */
+  it("is never reported as a hiring gap, because that function cannot know whether it applies", () => {
+    expect(hiringGapsAfterHire([], []).map((g) => g.key)).not.toContain("return_to_duty");
+  });
+});
+
+/**
+ * ⚠ The guard that would have caught the raw-slug bug, and catches the next one.
+ *
+ * `DQ_KIND_LABELS` is what the history drawer, the file page and the binder PDF all read to turn a
+ * `kind` into English. A kind added to the vocabulary and not to the map does not fail anything — it
+ * renders as `return_to_duty` in a document an auditor reads, which is how it shipped.
+ */
+describe("every qualification-record kind has a name", () => {
+  it.each([...QUALIFICATION_RECORD_KINDS])("%s", (kind) => {
+    expect(DQ_KIND_LABELS[kind], `${kind} has no label`).toBeTruthy();
   });
 });
 

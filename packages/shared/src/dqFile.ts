@@ -65,6 +65,18 @@ export interface DqFileInput {
    * of an unknown licence status is the stricter file, never the laxer one.
    */
   hasCdl?: boolean;
+  /**
+   * Whether this driver owes §40.25(j) return-to-duty documentation — `drivers.return_to_duty_required`
+   * (0237). Gates `appliesWhen: "return_to_duty"`.
+   *
+   * ⚠ **Defaults FALSE, which is the opposite of `hasCdl`'s default and is deliberate.** `hasCdl`
+   * defaults to the stricter file because an unknown licence status should demand the extra note.
+   * Here the stricter reading would demand return-to-duty paperwork from every driver in the fleet,
+   * which is not caution — it is telling a clean carrier their whole roster is non-compliant. The
+   * flag is a `not null default false` column; an absent value means the caller did not ask for it,
+   * and the honest answer to "did this driver admit something" when nobody looked is no.
+   */
+  returnToDutyRequired?: boolean;
 }
 
 // ── output ────────────────────────────────────────────────────────────────────────────────────────
@@ -201,12 +213,27 @@ export interface ComplianceOverviewResponse {
  * drop-card is exactly where that first evidence comes from (D8). One helper so the UI never
  * re-derives the applicability rules and drifts.
  */
-export function dqCapturableSpecs(input: { includeHazmat: boolean; hasCdl?: boolean }): DqItemSpec[] {
-  return DQ_ITEMS.filter(
-    (spec) =>
-      (spec.scope === "always" || input.includeHazmat) &&
-      !(spec.appliesWhen === "no_cdl" && input.hasCdl),
-  );
+export function dqCapturableSpecs(
+  input: { includeHazmat: boolean; hasCdl?: boolean; returnToDutyRequired?: boolean },
+): DqItemSpec[] {
+  return DQ_ITEMS.filter((spec) => (spec.scope === "always" || input.includeHazmat) && applies(spec, input));
+}
+
+/**
+ * Does this conditional item apply to this driver?
+ *
+ * ⚠ One function, used by `dqCapturableSpecs` and by the file builder, because they must agree. They
+ * did not have to before — `no_cdl` was the only condition and the two filters were two copies of one
+ * line. A second condition is what turns a duplicated line into a place where a checklist can offer a
+ * requirement the file does not have, or the other way round.
+ */
+function applies(
+  spec: DqItemSpec,
+  input: { hasCdl?: boolean; returnToDutyRequired?: boolean },
+): boolean {
+  if (spec.appliesWhen === "no_cdl") return !input.hasCdl;
+  if (spec.appliesWhen === "return_to_duty") return Boolean(input.returnToDutyRequired);
+  return true;
 }
 
 const DEFAULT_EXPIRING_DAYS = 30;
@@ -285,10 +312,10 @@ export function buildDqFile(input: DqFileInput): DqFileSummary {
   const docIds = new Set(input.documents.map((d) => d.id));
 
   const items: DqFileItem[] = DQ_ITEMS.filter(
-    (spec) =>
-      (spec.scope === "always" || input.includeHazmat) &&
-      // §391.51(b)(8) sunset for CDL holders (D8 / G33): the item does not exist for their file.
-      !(spec.appliesWhen === "no_cdl" && input.hasCdl),
+    // Conditional items exist for some files and not others: §391.51(b)(8)'s note sunset for CDL
+    // holders (D8 / G33), and §40.25(j)'s return-to-duty paperwork is owed only by a driver who
+    // admitted something. `applies` is the one place that decides, shared with the capture list.
+    (spec) => (spec.scope === "always" || input.includeHazmat) && applies(spec, input),
   )
     .map((spec) => {
       const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
