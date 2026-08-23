@@ -43,11 +43,11 @@ const fmtDate = (iso: string): string => new Date(iso).toLocaleString();
 const tankState = (value: string): string => value.replace(/_/g, " ");
 
 const columns: DataTableColumn[] = [
-  { key: "status", label: "Status", align: "left", headerClass: "min-w-[8rem]" },
-  { key: "products", label: "Products", align: "left", headerClass: "min-w-[7rem]" },
-  { key: "tank_state", label: "Tank state", align: "left", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary capitalize" },
-  { key: "planned_pickup_at", label: "Planned pickup", align: "left", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
-  { key: "created_at", label: "Created", align: "left", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", headerClass: "min-w-[8rem]" },
+  { key: "products", label: "Products", headerClass: "min-w-[7rem]" },
+  { key: "tank_state", label: "Tank state", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary capitalize" },
+  { key: "planned_pickup_at", label: "Planned pickup", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "created_at", label: "Created", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
 ];
 </script>
 

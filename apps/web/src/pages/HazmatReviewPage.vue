@@ -48,11 +48,11 @@ const driverLabel = (id: string | null): string =>
   (drivers.value ?? []).find((driver) => driver.id === id)?.full_name ?? "—";
 
 const columns: DataTableColumn[] = [
-  { key: "products", label: "Products", align: "left", headerClass: "min-w-[7rem]" },
-  { key: "vehicle_id", label: "Truck", align: "left", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
-  { key: "driver_id", label: "Driver", align: "left", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "waiting", label: "Waiting", numeric: true, align: "right", headerClass: "min-w-[6rem]", cellClass: "font-medium text-ink-secondary" },
-  { key: "created_at", label: "Created", align: "left", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "products", label: "Products", headerClass: "min-w-[7rem]" },
+  { key: "vehicle_id", label: "Truck", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "driver_id", label: "Driver", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "waiting", label: "Waiting", numeric: true, headerClass: "min-w-[6rem]", cellClass: "font-medium text-ink-secondary" },
+  { key: "created_at", label: "Created", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
 ];
 </script>
 

@@ -165,9 +165,33 @@ body {
   }
 }
 
+/* ── reduced motion, app-wide (D-DS9a) ────────────────────────────────────────────────────────────
+   This used to protect exactly one selector — `.sidebar-nav-item` — which meant every other
+   transition in the product ignored a user who had asked the operating system for less motion.
+   Audit 2026-08-23 found it was the only `prefers-reduced-motion` rule in `apps/web` at all.
+
+   The usual blanket reset (`*` → `animation-duration: 0.01ms !important`) was rejected after
+   measuring what it would hit: the app's only three animation classes are `animate-spin` (3 uses),
+   `animate-pulse` (6) and `animate-ping` (1), and every one of them is an informational loading
+   indicator. Freezing them would make a spinner say "nothing is happening" while something is —
+   a worse outcome than the motion itself, and outside what the guidance is aimed at, which is
+   large, decorative or parallax movement. So they are carved out by name; the list is exhaustive
+   and a fourth would have to be added here deliberately.
+
+   Toast progress bars are safe to flatten: dismissal runs off a `setTimeout` in stores/toast.ts,
+   never off the animation, so the bar is decoration and losing it costs nothing. Verified 2026-08-23
+   that nothing in apps/web or packages/ui listens for `transitionend` or `animationend`. */
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-nav-item {
-    transition-duration: 0.01ms;
+  *:not(.animate-spin, .animate-ping, .animate-pulse),
+  *:not(.animate-spin, .animate-ping, .animate-pulse)::before,
+  *:not(.animate-spin, .animate-ping, .animate-pulse)::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  html {
+    scroll-behavior: auto !important;
   }
 }
 
