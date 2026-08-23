@@ -88,14 +88,14 @@ re-derivation must use the same anchor.
 | 23 | Annual/quarterly violation review | **NOT OURS** — §2.4 | — |
 | 24 | Driver safety training | **STATIC** | — |
 | 25 | Interstate Truck Driver's Handbook receipt | **SIGN** | — |
-| 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ❌ **NOT held — §3.7** |
+| 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ✅ since P8 — §3.7 |
 | 27 | Authorized passengers · off-duty authorization | **SIGN** | — |
 | 28 | Alcohol and drug abuse policy | **SIGN** | — |
 | 29–30 | Owner Operator & Leased Driver Agreement, parts 1–2 | **STATIC** | — |
 | 31 | Owner Operator & Leased Driver Agreement, part 3 | **SIGN** | — |
 
 **Totals: 4 FILL · 18 SIGN · 5 STATIC · 4 NOT OURS.** (p21 moved out of the application 2026-08-23.)
-⚠ Of the 4 FILL, **three render today** — p26 waits on a contract field it turns out we never had (§3.7).
+⚠ All 4 FILL render as of 2026-08-23 — p26 needed a contract field we turned out never to have (§3.7, P8).
 
 ### 2.3 ⚠ The signature count is the finding, not the page count
 
@@ -287,10 +287,10 @@ the driver **actually held**. `ApplyEmploymentFields.vue`'s own comment cites §
 which is how the inventory got it wrong — the citation is right, the field is a different one, and
 there is no field for p26's question anywhere in `driverApplicationSchema`.
 
-⚠ **So p26 is not rendered, and it must not be rendered blank.** An unanswered mandatory question
-inside a document somebody signs is the same defect as silently truncating a table (§3.4): the page
-would look complete and would not be. It needs one contract field and one control, which is a change
-to the wizard — so **P8**, not P4.
+⚠ **So p26 was not rendered by P4, and was not rendered blank either.** An unanswered mandatory
+question inside a document somebody signs is the same defect as silently truncating a table (§3.4):
+the page would look complete and would not be. **Closed by P8 (2026-08-23)** — one contract field, one
+control, one page. The `null` case survives on purpose and renders as "not asked" rather than "no".
 
 The transcription is kept in `packetText.ts` under `P26` with a note, because reviewing it twice
 would be waste.
@@ -390,13 +390,40 @@ wording would mean building them twice, and `isDraftDisclosure()` refuses the si
 by a Next button, and the FCRA authorization is still the only thing on its own screen when they
 reach it.
 
-### P8 · Page 26's question, which we never asked (§3.7)
-
-One boolean on `driverApplicationSchema`, one control on the safety screen, one rendered page. Small,
-and deliberately not folded into P4: it changes what a driver is ASKED, and P4's whole premise is that
-it renders data we already hold.
+### P8 · Page 26's question, which we never asked — DONE 2026-08-23 (no migrations)
 
 **Done when:** the wizard asks §40.25(j)'s two-year question and p26 renders with the answer on it.
+
+**What shipped.** `prior_failed_pre_employment_test` on `driverApplicationSchema`, a home for it in
+`APPLICATION_SECTION_KEYS.safety`, a control at the foot of the driving-record screen, and packet
+page 26.
+
+⚠ **Nullish in the contract, and that is the load-bearing decision.** Every application filed before
+today has no answer, and `driver_applications` is append-only — those payloads can never be
+back-filled. A required boolean would make every historical row fail to re-parse, which is exactly the
+§390.32(d) reproducibility failure the renderer exists to prevent. So `null` means **"the form never
+asked"**, which is a different fact from "they said no", and page 26 renders it as a different thing:
+neither box marked, plus a line saying the application predates the question. A document showing an
+unticked NO for a question nobody was asked would be asserting something the applicant never said.
+Pinned by "marks NEITHER box on an application filed before the question existed, and says why".
+
+⚠ **On the driving-record screen, not a screen of its own.** The carrier's packet gives it a whole
+page; an eighth wizard step for one checkbox is a step somebody abandons on, and
+`RECRUITING-UI-SURFACE-PLAN` §2.8 defends the current seven as the regulation's shape and no more.
+
+⚠ **The copy names no regulation** (D-UI9) and states what a yes MEANS before the box is offered:
+*"a yes does not end your application. It means we have to see the paperwork showing you finished the
+return-to-duty process before you can drive."* This is the most resented question on the form, and a
+driver who reads "yes ends this" answers no.
+
+⚠ **Recording the answer is the first half only.** A yes obliges the carrier to obtain documentation
+of the return-to-duty process under §40.25(j) before the driver performs a safety-sensitive function.
+Nothing acts on that yet — no queue entry, no block on hire. Worth its own step.
+
+**Verified by:** `pnpm test` (all unit suites + 19 PGlite matrices; 3 new assertions) ·
+`pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:ui-adoption` ·
+`pnpm --filter web lint:tokens` · `lint:filesize` · `lint:funcsize` · `lint:comment-claims` ·
+`lint:boundaries` · `lint:tests` — all green. No migration: the payload is jsonb.
 
 ### P7 · The Seven Day Work Statement, at the hire (D-PKT7)
 

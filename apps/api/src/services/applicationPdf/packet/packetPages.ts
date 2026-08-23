@@ -1,6 +1,6 @@
 import type { DriverApplication, EquipmentClass } from "@fuelguard/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, table, winAnsi, type Cell } from "../../dqBinder/pdfDraw.js";
-import { CONTINUED, P1, P2, P12, P16 } from "./packetText.js";
+import { CONTINUED, P1, P2, P12, P16, P26 } from "./packetText.js";
 import {
   PACKET_ROW_OF,
   blank,
@@ -264,6 +264,53 @@ export function page16(doc: PDFKit.PDFDocument, a: DriverApplication): void {
     ]),
     3,
   );
+}
+
+/**
+ * Page 26 — §40.25(j)'s two-year question (P8).
+ *
+ * ⚠ It renders only because the contract now HOLDS the answer. Until P8 this page was deliberately
+ * absent: the plan's inventory said the data was already collected and it was not, and drawing the
+ * page with an unanswered checkbox would have put a blank mandatory question inside a document
+ * somebody signs — the same defect as silently truncating a table.
+ *
+ * ⚠ `null` still happens, and means something different from "no". Applications filed before P8 have
+ * no answer and `driver_applications` is append-only, so they can never be back-filled. Those render
+ * with NEITHER box marked and a line saying so, because a document that showed an unticked "NO" for a
+ * question nobody was asked would be asserting something the applicant never said.
+ */
+export function page26(doc: PDFKit.PDFDocument, a: DriverApplication, signedName: string): void {
+  line(doc, P26.nameLabel, signedName);
+  doc.moveDown(0.4);
+  doc.fillColor(INK).font("Helvetica").fontSize(9.5);
+  doc.text(winAnsi(P26.question), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.moveDown(0.4);
+  doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
+  doc.text(winAnsi(P26.check), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.moveDown(0.5);
+  doc.x = MARGIN;
+
+  const answered = a.prior_failed_pre_employment_test;
+  doc.fillColor(INK).font("Helvetica-Bold").fontSize(11);
+  doc.text(
+    winAnsi(
+      `${answered === true ? "[X]" : "[ ]"}  ${P26.yes}      ${answered === false ? "[X]" : "[ ]"}  ${P26.no}`,
+    ),
+    MARGIN,
+    doc.y,
+    { width: CONTENT_WIDTH },
+  );
+  if (answered === null || answered === undefined) {
+    doc.moveDown(0.4);
+    doc.fillColor(MUTED).font("Helvetica").fontSize(8);
+    doc.text(winAnsi(P26.notAsked), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  }
+  doc.moveDown(1.2);
+  doc.x = MARGIN;
+  // ⚠ The signature LINE is drawn and left empty. P5 places the marks and is blocked on counsel —
+  // `isDraftDisclosure()` refuses a signature under `v0-draft` wording on every write path. Drawing a
+  // name here without a signing record behind it would be a document claiming a signature nobody gave.
+  line(doc, P26.signature, "");
 }
 
 // ── questionnaire helpers ─────────────────────────────────────────────────────────────────────

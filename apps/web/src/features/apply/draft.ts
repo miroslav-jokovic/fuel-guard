@@ -111,6 +111,9 @@ export interface ApplicationDraft {
   declares_no_violations: boolean;
   licence_ever_denied: boolean;
   licence_denial_detail: string;
+  /** §40.25(j)'s two-year question (P8). Boolean in the draft — the contract's null means "the form
+   *  never asked", which is true of payloads filed before P8 and false of every draft this creates. */
+  prior_failed_pre_employment_test: boolean;
   employers: DraftEmployer[];
   declares_no_employment: boolean;
   certified: boolean;
@@ -179,6 +182,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
   licence_ever_denied: false, licence_denial_detail: "",
+  prior_failed_pre_employment_test: false,
   employers: [emptyEmployer()], declares_no_employment: false,
   certified: false, signed_name: "",
   // Empty by default: §383.21 forbids a CMV driver holding more than one licence, so the normal
@@ -291,6 +295,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
     declares_no_violations: draft.declares_no_violations,
     licence_ever_denied: draft.licence_ever_denied,
     licence_denial_detail: text(draft.licence_denial_detail),
+    prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     employers: draft.employers
       .filter((e) => e.employer_name.trim())
       .map((e) => ({

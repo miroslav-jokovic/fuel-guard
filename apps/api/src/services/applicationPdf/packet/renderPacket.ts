@@ -6,7 +6,7 @@
  * `render.ts` prints a §391.21-shaped summary under headings (b)(1)…(b)(12). It is regulation-correct
  * and it is NOT the carrier's application: `docs/plans/recruitment/APPLICATION.xlsx` is, and the
  * owner's "don't change the final application" was about that one. This renderer produces the packet's
- * pages 1, 2, 12 and 16 from the data we already hold.
+ * pages 1, 2, 12, 16 and 26 from the data we already hold.
  *
  * ⚠ **`render.ts` is not deleted and must not be** (D-PKT5). It is what already-filed
  * `qualification_records` point at, and §390.32(d) requires a filed electronic record to still be
@@ -18,15 +18,13 @@
  * annual violation review, and — since D-PKT7 — the Seven Day Work Statement, which moved to the hire
  * because §395.8(j)(2) counts the seven days before work BEGINS).
  *
- * ⚠ **Page 26 is NOT here, and the plan's own inventory was wrong about why.** It asks §40.25(j)'s
- * two-year question — *did you test positive or refuse a pre-employment test for a job you applied
- * for but did not get?* — and the inventory recorded that as already collected. It is not. What the
- * wizard collects is two PER-EMPLOYER booleans, `safety_sensitive` and `subject_to_fmcsr`, which are
- * different questions about a job the driver actually held. There is no field for p26's question
- * anywhere in `driverApplicationSchema`. Rendering the page with an unanswered checkbox would put a
- * blank mandatory question inside a document somebody signs — the same defect as silently truncating
- * a table. It needs one contract field and one control, which is a change to the wizard and so its
- * own step (P8), not this one.
+ * ⚠ **Page 26 arrived late, and the reason is worth keeping.** It asks §40.25(j)'s two-year question
+ * — *did you test positive or refuse a pre-employment test for a job you applied for but did not
+ * get?* — and the plan's inventory recorded that as already collected. It was not: the wizard held
+ * two PER-EMPLOYER booleans, `safety_sensitive` and `subject_to_fmcsr`, which ask about a job the
+ * driver actually HELD. P4 therefore shipped without this page rather than drawing it with an
+ * unanswered checkbox, which would have put a blank mandatory question inside a document somebody
+ * signs. P8 added the contract field and the control; the page renders now.
  *
  * ── THE LETTERHEAD IS THE CARRIER'S, THE FOOTER IS THE PACKET'S ───────────────────────────────
  * D-PKT8. `carrier.name`/`carrier.address` come from `organizations` (`legal_address`, 0229), because
@@ -52,9 +50,9 @@ export interface PacketPdfInput {
 import type { DriverApplication } from "@fuelguard/shared";
 import { newDrawing } from "../../dqBinder/pdfDraw.js";
 import { letterhead, packetFooter, type PacketCarrier } from "./packetDraw.js";
-import { page1, page2, page12, page16 } from "./packetPages.js";
+import { page1, page2, page12, page16, page26 } from "./packetPages.js";
 
-export const RENDERED_PACKET_PAGES = [1, 2, 12, 16] as const;
+export const RENDERED_PACKET_PAGES = [1, 2, 12, 16, 26] as const;
 
 export async function renderApplicationPacketPdf(input: PacketPdfInput): Promise<Buffer> {
   const a = input.application;
@@ -65,6 +63,7 @@ export async function renderApplicationPacketPdf(input: PacketPdfInput): Promise
     (d) => page2(d, a),
     (d) => page12(d, a),
     (d) => page16(d, a),
+    (d) => page26(d, a, input.signedName),
   ];
 
   draw.forEach((render, i) => {

@@ -117,6 +117,12 @@ export const APPLICATION_SECTION_KEYS: Record<
     "declares_no_violations",
     "licence_ever_denied",
     "licence_denial_detail",
+    // ⚠ §40.25(j)'s two-year question (P8). On THIS screen rather than `employment` because it is a
+    // question about the applicant's own testing history, not about a job they held — the employment
+    // screen's `safety_sensitive`/`subject_to_fmcsr` are per-employer and answer something else. The
+    // carrier's packet gives it a page of its own; a screen of its own would be an eighth step in a
+    // wizard whose length §2.8 of the UI plan already defends as the regulation's shape and no more.
+    "prior_failed_pre_employment_test",
   ],
   // The two fields A9 added — the only place in this map where a screen owns keys that discharge no
   // §391.21(b) paragraph at all, which is exactly what D-APP12 separated them out to be.

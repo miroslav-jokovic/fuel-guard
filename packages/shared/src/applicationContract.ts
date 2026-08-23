@@ -288,6 +288,29 @@ export const driverApplicationObject = z
     /** (b)(9) — has a licence, permit or privilege ever been denied, revoked or suspended? */
     licence_ever_denied: z.boolean(),
     licence_denial_detail: z.string().max(1000).nullish(),
+    /**
+     * §40.25(j) — the question the carrier is REQUIRED to put to the applicant, and the one the
+     * application system shipped without (P8, found while building the packet renderer).
+     *
+     * ── WHY THE PER-EMPLOYER BOOLEANS ARE NOT THIS ────────────────────────────────────────────
+     * `applicationEmployerSchema` carries `safety_sensitive` and `subject_to_fmcsr`, and A9's comment
+     * cites §40.25(j) beside them. The citation is right and the field is a different one: those ask
+     * about a job the applicant **held**. This asks about a job they **applied for and did not get** —
+     * whether they tested positive or refused a test on its pre-employment screen in the last two
+     * years. An applicant can answer yes here with an entirely clean employment history, which is
+     * precisely the case §40.25(j) exists to surface.
+     *
+     * ⚠ **Nullish, not required, and deliberately.** Every application filed before this field existed
+     * has no answer, and `driver_applications` is append-only — those payloads can never be
+     * back-filled. A required boolean would make every historical row fail to re-parse, which is the
+     * §390.32(d) reproducibility failure the renderer exists to prevent. A `null` here means "we did
+     * not ask", which is a different and honest thing from "they said no".
+     *
+     * ⚠ A `yes` obliges the carrier to chase documentation of the return-to-duty process under
+     * §40.25(j)'s own terms before the driver performs a safety-sensitive function. Nothing in this
+     * repository acts on that yet; recording the answer is the first half.
+     */
+    prior_failed_pre_employment_test: z.boolean().nullish(),
     // (b)(10) + (b)(11) — one list, sorted into two by dates and `operated_cmv`.
     employers: z.array(applicationEmployerSchema),
     declares_no_employment: z.boolean(),
