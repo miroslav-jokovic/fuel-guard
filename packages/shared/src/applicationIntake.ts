@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { driverApplicationSchema, type ApplicationEmployer, type DriverApplication } from "./applicationContract.js";
-import { AUTHORIZATION_PURPOSES, type AuthorizationPurpose } from "./authorizationContract.js";
+import {
+  AUTHORIZATION_PURPOSES,
+  DISCLOSURES,
+  ESIGN_CONSENT,
+  isDraftDisclosure as isDraft,
+  type AuthorizationPurpose,
+} from "./authorizationContract.js";
 
 /**
  * The applicant-facing intake — invitation, submission, and what a submission becomes (H5).
@@ -150,6 +156,28 @@ export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
   "previous_employer",
   "drug_alcohol",
 ];
+
+/**
+ * Is any wording the APPLICANT'S PATH depends on still unreviewed? (2026-08-23.)
+ *
+ * ── WHY THIS IS NOT `disclosuresAreDraft()` ───────────────────────────────────────────────────
+ * That predicate judges the whole catalogue, and the catalogue contains one instrument no applicant
+ * is ever asked to sign: `clearinghouse`. §382.701(a)'s full-query consent is given inside the FMCSA
+ * Clearinghouse, not on our screen — it is deliberately absent from `APPLICATION_RELEASE_ORDER` and
+ * belongs to a safety_manager workflow (D-REC4, R5). Gating the applicant's submission on it would
+ * make the driver's path wait on a document the driver has nothing to do with.
+ *
+ * So the scope is exactly the six things that path touches: the 7001(c) consent that makes the
+ * electronic record a record at all, and the four releases the ceremony collects.
+ *
+ * ⚠ **It lives here rather than beside `DISCLOSURES` because of the direction of the imports.**
+ * `APPLICATION_RELEASE_ORDER` is application vocabulary; `authorizationContract.ts` knows nothing
+ * about applications and must keep not knowing, or the catalogue starts depending on one of its
+ * consumers.
+ */
+export const applicationWordingIsDraft = (): boolean =>
+  isDraft(ESIGN_CONSENT.version)
+  || APPLICATION_RELEASE_ORDER.some((p) => isDraft(DISCLOSURES[p].version));
 
 // ── what a submission becomes ─────────────────────────────────────────────────
 

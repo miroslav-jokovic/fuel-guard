@@ -59,7 +59,14 @@ the review closes it by itself.
   letter and every Clearinghouse query, because each is gated on an authorization that cannot exist.
 - `SMS_PROVIDER=none`, and separately blocked on 10DLC brand registration.
 
-### 1.3 ⚠ The one thing that is reachable today and probably should not be
+### 1.3 ~~The one thing that is reachable today~~ · **CLOSED 2026-08-23**
+
+⚠ **Fixed after this document was written.** `submitApplication` now refuses while any instrument the
+applicant's path touches is draft, so no §390.32(d)-defective record can be filed at all; the page
+says so on its first screen rather than at the Send button, and the form stays usable and saving.
+The refusal disappears by itself when counsel's versions land — nothing to remember, nothing to turn
+on. **Counsel's answer is still what opens the door; this only guarantees nothing gets through it
+first.** The finding as raised:
 
 `esignConsentRequired()` is deliberately armed by counsel's review rather than by a flag:
 
@@ -78,8 +85,15 @@ record satisfying a Part 300–399 document requirement to include proof of cons
 **Nothing has been filed in that window** — the flow has never been walked in a browser by a real
 applicant (`RECRUITING-UI-SURFACE-PLAN` U7 is the walkthrough and is not done). We raise it because
 the window closes the moment §2's review lands, and because a carrier who started inviting drivers
-before that would accumulate defective records silently. **Recommendation: do not send a real
-invitation until §2 is answered.**
+before that would accumulate defective records silently.
+
+⚠ **And the defect would have been permanent, not transient**, which is the half that decided the
+fix: submitting spends the phase (`submitted_at`), so that invitation's file could never afterwards
+acquire the consent it was missing. The driver would have to be re-invited into an empty form.
+
+**Recommendation:** ~~do not send a real invitation until §2 is answered~~ — **executed in code
+instead.** An invitation sent today reaches a form that fills, saves and refuses to send, and says
+so before the driver starts typing.
 
 ---
 

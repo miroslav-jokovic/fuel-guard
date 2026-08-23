@@ -147,7 +147,12 @@ export function publicApplicationRouter(): Router {
         const status =
           result.code === "invalid_link"
             ? 404
-            : result.code === "already_submitted" || result.code === "esign_consent_required"
+            : result.code === "already_submitted"
+              || result.code === "esign_consent_required"
+              // The carrier has not published its wording, so this application cannot be filed yet
+              // (WORDING_NOT_FINAL). 409 for the same reason as the others: the link is fine, the
+              // request conflicts with the state of the world around it.
+              || result.code === "disclosure_not_final"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));

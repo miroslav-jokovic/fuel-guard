@@ -302,6 +302,32 @@ export const APPLY_COPY = {
     body: "It may have expired, or the carrier may have replaced it. Ask the carrier who invited you for a new one.",
   },
 
+  /**
+   * The carrier has not published its final wording, so nothing can be signed and nothing can be
+   * sent (2026-08-23).
+   *
+   * ── WHY THE FORM STAYS OPEN AND ONLY THE SEND IS STOPPED ──────────────────────────────────
+   * The server refuses the submission while the wording is draft (`WORDING_NOT_FINAL`), and the first
+   * instinct was to put a wall in front of the whole page. That would have overturned H5b, which
+   * deliberately keeps the form usable while the ceremony cannot run — and it would have thrown away
+   * something real: the link is a SESSION (D-APP1), autosave has never been gated, and a driver who
+   * fills the form today finds it waiting the day the wording publishes.
+   *
+   * So the fact is told on the FIRST screen instead of discovered at the last, the Send button is
+   * disabled rather than removed, and the read-only disclosure panel says what it costs.
+   *
+   * ⚠ **None of these blame the reader, and none of them promise a date.** It is a fact about the
+   * carrier's paperwork; the only useful action the applicant has is to ask the person who invited
+   * them, so that is the sentence.
+   */
+  notOpen: {
+    banner: (carrier: string): string =>
+      `${carrier} is still finalising the wording of the documents that go with this application, so it cannot be sent yet. Fill in what you can — everything you type is saved, and this link will still be here.`,
+    cannotSend:
+      "You cannot sign these yet, and the application cannot be sent until the carrier publishes the final wording. Ask the person who invited you when that will be.",
+    sendLabel: "Not ready to send yet",
+  },
+
   consent: {
     heading: "Before you start",
     intro: (carrier: string): string =>
