@@ -1,0 +1,399 @@
+{
+  "role": {
+    "canvas": {
+      "$type": "color",
+      "$value": "oklch(0.98 0.004 247.896)",
+      "$extensions": {
+        "fuelguard.section": [
+          "\u2500\u2500 2. Semantic roles (a future .dark block re-points these) \u2500\u2500\u2500\u2500\u2500\u2500",
+          "app background + raised surfaces"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "surface": {
+      "$type": "color",
+      "$value": "oklch(1 0 0)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "surface-subtle": {
+      "$type": "color",
+      "$value": "oklch(0.984 0.003 247.858)",
+      "$description": "table headers, hover rows",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "surface-muted": {
+      "$type": "color",
+      "$value": "oklch(0.929 0.013 255.508)",
+      "$description": "soft buttons, wells",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "surface-navigation": {
+      "$type": "color",
+      "$value": "oklch(0.955 0.009 252)",
+      "$description": "persistent app navigation",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "surface-inverse": {
+      "$type": "color",
+      "$value": "oklch(0.208 0.042 265.755)",
+      "$description": "code blocks, tooltips",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink": {
+      "$type": "color",
+      "$value": "oklch(0.3 0.032 263)",
+      "$extensions": {
+        "fuelguard.section": [
+          "text"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-secondary": {
+      "$type": "color",
+      "$value": "oklch(0.45 0.028 260)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-muted": {
+      "$type": "color",
+      "$value": "oklch(0.51 0.024 258)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-tertiary": {
+      "$type": "color",
+      "$value": "oklch(0.525 0.022 258)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-subtle": {
+      "$type": "color",
+      "$value": "oklch(0.64 0.025 258)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-disabled": {
+      "$type": "color",
+      "$value": "oklch(0.64 0.025 258)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ink-inverse": {
+      "$type": "color",
+      "$value": "oklch(1 0 0)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "edge-subtle": {
+      "$type": "color",
+      "$value": "oklch(0.925 0.009 258)",
+      "$description": "decorative row dividers",
+      "$extensions": {
+        "fuelguard.section": [
+          "hairlines & control borders"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "edge": {
+      "$type": "color",
+      "$value": "oklch(0.87 0.012 258)",
+      "$description": "surface and overlay grouping",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "edge-strong": {
+      "$type": "color",
+      "$value": "oklch(0.64 0.025 258)",
+      "$description": "compatibility alias",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "edge-control": {
+      "$type": "color",
+      "$value": "oklch(0.644 0.025 258)",
+      "$description": "essential control boundary; 3:1 on canvas",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "elevation-card": {
+      "$type": "dimension",
+      "$value": "0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent)",
+      "$extensions": {
+        "fuelguard.section": [
+          "elevation \u2014 shadows carry depth so cards and overlays do not need dark perimeters"
+        ],
+        "fuelguard.expose": "shadow"
+      }
+    },
+    "elevation-card-raised": {
+      "$type": "dimension",
+      "$value": "0 6px 18px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 3px color-mix(in oklab, var(--ink) 4%, transparent)",
+      "$extensions": {
+        "fuelguard.expose": "shadow"
+      }
+    },
+    "elevation-overlay": {
+      "$type": "dimension",
+      "$value": "0 10px 28px color-mix(in oklab, var(--ink) 10%, transparent), 0 2px 6px color-mix(in oklab, var(--ink) 5%, transparent)",
+      "$extensions": {
+        "fuelguard.expose": "shadow"
+      }
+    },
+    "elevation-dialog": {
+      "$type": "dimension",
+      "$value": "0 20px 48px color-mix(in oklab, var(--ink) 14%, transparent), 0 4px 12px color-mix(in oklab, var(--ink) 7%, transparent)",
+      "$extensions": {
+        "fuelguard.expose": "shadow"
+      }
+    },
+    "elevation-sticky-edge": {
+      "$type": "dimension",
+      "$value": "inset 0 -1px 0 0 var(--edge)",
+      "$extensions": {
+        "fuelguard.section": [
+          "Not depth \u2014 a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge."
+        ],
+        "fuelguard.expose": "shadow"
+      }
+    },
+    "brand-accent": {
+      "$type": "color",
+      "$value": "oklch(0.837 0.128 66.29)",
+      "$extensions": {
+        "fuelguard.section": [
+          "identity, interaction, links, selection, and focus are deliberately separate"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "brand-accent-soft": {
+      "$type": "color",
+      "$value": "oklch(0.901 0.076 70.697)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "brand-accent-strong": {
+      "$type": "color",
+      "$value": "oklch(0.65 0.16 55)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "action-primary": {
+      "$type": "color",
+      "$value": "oklch(0.36 0.055 260)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "action-primary-hover": {
+      "$type": "color",
+      "$value": "oklch(0.3 0.05 260)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "action-primary-foreground": {
+      "$type": "color",
+      "$value": "oklch(1 0 0)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "link": {
+      "$type": "color",
+      "$value": "oklch(0.49 0.18 255)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "link-hover": {
+      "$type": "color",
+      "$value": "oklch(0.42 0.17 255)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "focus-ring": {
+      "$type": "color",
+      "$value": "oklch(0.53 0.18 255)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "selected-surface": {
+      "$type": "color",
+      "$value": "oklch(0.929 0.013 255.508)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "selected-strong": {
+      "$type": "color",
+      "$value": "oklch(0.65 0.16 55)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "danger-solid": {
+      "$type": "color",
+      "$value": "oklch(0.53 0.2 27)",
+      "$extensions": {
+        "fuelguard.section": [
+          "destructive solid and subtle treatments must not share one foreground pair"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "danger-solid-foreground": {
+      "$type": "color",
+      "$value": "oklch(1 0 0)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "danger-surface": {
+      "$type": "color",
+      "$value": "oklch(0.96 0.025 20)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "danger-text": {
+      "$type": "color",
+      "$value": "oklch(0.48 0.18 27)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "shape-detail": {
+      "$type": "dimension",
+      "$value": "0.1875rem",
+      "$extensions": {
+        "fuelguard.section": [
+          "semantic geometry and density"
+        ],
+        "fuelguard.expose": "radius"
+      }
+    },
+    "shape-control": {
+      "$type": "dimension",
+      "$value": "0.25rem",
+      "$extensions": {
+        "fuelguard.expose": "radius"
+      }
+    },
+    "shape-surface": {
+      "$type": "dimension",
+      "$value": "0.375rem",
+      "$extensions": {
+        "fuelguard.expose": "radius"
+      }
+    },
+    "shape-overlay": {
+      "$type": "dimension",
+      "$value": "0.5rem",
+      "$extensions": {
+        "fuelguard.expose": "radius"
+      }
+    },
+    "shape-dialog": {
+      "$type": "dimension",
+      "$value": "0.625rem",
+      "$extensions": {
+        "fuelguard.expose": "radius"
+      }
+    },
+    "control-height-compact": {
+      "$type": "dimension",
+      "$value": "2rem"
+    },
+    "control-height-default": {
+      "$type": "dimension",
+      "$value": "2.25rem"
+    },
+    "viz-brand": {
+      "$type": "color",
+      "$value": "var(--brand-accent-strong)",
+      "$description": "MPG line",
+      "$extensions": {
+        "fuelguard.section": [
+          "data-viz roles \u2014 canvas charts resolve these at runtime (features/dashboard/chartTheme.ts); keep in sync with the ramps"
+        ]
+      }
+    },
+    "viz-spend": {
+      "$type": "color",
+      "$value": "oklch(59.6% 0.145 163.225)",
+      "$description": "fuel spend (emerald)"
+    },
+    "viz-spend-hover": {
+      "$type": "color",
+      "$value": "oklch(50.8% 0.118 165.612)",
+      "$description": "emerald-700"
+    },
+    "viz-severity-critical": {
+      "$type": "color",
+      "$value": "var(--ramp-danger-800)"
+    },
+    "viz-severity-high": {
+      "$type": "color",
+      "$value": "oklch(49.6% 0.265 301.924)",
+      "$description": "purple: CVD-separated from critical red"
+    },
+    "viz-severity-medium": {
+      "$type": "color",
+      "$value": "var(--ramp-warning-700)"
+    },
+    "viz-severity-low": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-600)"
+    },
+    "viz-cost-moving": {
+      "$type": "color",
+      "$value": "var(--viz-spend)",
+      "$description": "normal fuel movement (emerald)"
+    },
+    "viz-cost-idle": {
+      "$type": "color",
+      "$value": "var(--ramp-caution-700)",
+      "$description": "avoidable idle cost (burnt orange)"
+    },
+    "viz-cost-reefer": {
+      "$type": "color",
+      "$value": "var(--ramp-info-700)",
+      "$description": "refrigerated equipment (blue)"
+    },
+    "viz-grid": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-100)"
+    },
+    "viz-tick": {
+      "$type": "color",
+      "$value": "var(--ink-muted)"
+    }
+  }
+}

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const source = readFileSync(`${root}packages/ui/src/tokens.css`, "utf8");
+const source = readFileSync(`${root}packages/ui/src/tokens.generated.css`, "utf8");
 
 function token(name) {
   const match = source.match(

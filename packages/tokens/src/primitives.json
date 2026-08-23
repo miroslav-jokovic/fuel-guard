@@ -1,0 +1,474 @@
+{
+  "ramp": {
+    "ramp-neutral-50": {
+      "$type": "color",
+      "$value": "oklch(98.5% 0.002 247.839)",
+      "$extensions": {
+        "fuelguard.section": [
+          "\u2500\u2500 1. Primitive ramps (Tailwind v4 values \u2014 do not use directly) \u2500\u2500",
+          "neutral = gray"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-100": {
+      "$type": "color",
+      "$value": "oklch(96.7% 0.003 264.542)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-200": {
+      "$type": "color",
+      "$value": "oklch(92.8% 0.006 264.531)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-300": {
+      "$type": "color",
+      "$value": "oklch(87.2% 0.01 258.338)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-400": {
+      "$type": "color",
+      "$value": "oklch(70.7% 0.022 261.325)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-500": {
+      "$type": "color",
+      "$value": "oklch(55.1% 0.027 264.364)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-600": {
+      "$type": "color",
+      "$value": "oklch(44.6% 0.03 256.802)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-700": {
+      "$type": "color",
+      "$value": "oklch(37.3% 0.034 259.733)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-800": {
+      "$type": "color",
+      "$value": "oklch(27.8% 0.033 256.848)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-neutral-900": {
+      "$type": "color",
+      "$value": "oklch(21% 0.034 264.665)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-50": {
+      "$type": "color",
+      "$value": "oklch(98.5% 0.02 75)",
+      "$extensions": {
+        "fuelguard.section": [
+          "brand = warm gold identity. Interactive actions use their own graphite role."
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-100": {
+      "$type": "color",
+      "$value": "oklch(96% 0.045 72)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-200": {
+      "$type": "color",
+      "$value": "oklch(92% 0.07 70)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-300": {
+      "$type": "color",
+      "$value": "oklch(87.5% 0.1 68)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-400": {
+      "$type": "color",
+      "$value": "oklch(83.7% 0.128 66.29)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-500": {
+      "$type": "color",
+      "$value": "oklch(75% 0.16 58)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-600": {
+      "$type": "color",
+      "$value": "oklch(65% 0.16 55)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-700": {
+      "$type": "color",
+      "$value": "oklch(55% 0.14 50)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-brand-800": {
+      "$type": "color",
+      "$value": "oklch(46% 0.11 45)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-50": {
+      "$type": "color",
+      "$value": "oklch(97.1% 0.013 17.38)",
+      "$extensions": {
+        "fuelguard.section": [
+          "danger = red"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-100": {
+      "$type": "color",
+      "$value": "oklch(93.6% 0.032 17.717)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-200": {
+      "$type": "color",
+      "$value": "oklch(88.5% 0.062 18.334)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-300": {
+      "$type": "color",
+      "$value": "oklch(80.8% 0.114 19.571)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-400": {
+      "$type": "color",
+      "$value": "oklch(70.4% 0.191 22.216)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-500": {
+      "$type": "color",
+      "$value": "oklch(63.7% 0.237 25.331)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-600": {
+      "$type": "color",
+      "$value": "oklch(57.7% 0.245 27.325)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-700": {
+      "$type": "color",
+      "$value": "oklch(50.5% 0.213 27.518)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-danger-800": {
+      "$type": "color",
+      "$value": "oklch(44.4% 0.177 26.899)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-50": {
+      "$type": "color",
+      "$value": "oklch(98% 0.015 45)",
+      "$extensions": {
+        "fuelguard.section": [
+          "caution = red-orange severity-high, separated from the gold identity ramp"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-100": {
+      "$type": "color",
+      "$value": "oklch(95% 0.04 45)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-200": {
+      "$type": "color",
+      "$value": "oklch(90% 0.08 45)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-300": {
+      "$type": "color",
+      "$value": "oklch(83% 0.13 42)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-400": {
+      "$type": "color",
+      "$value": "oklch(74% 0.18 40)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-500": {
+      "$type": "color",
+      "$value": "oklch(67% 0.21 38)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-600": {
+      "$type": "color",
+      "$value": "oklch(60% 0.2 35)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-700": {
+      "$type": "color",
+      "$value": "oklch(52% 0.18 33)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-caution-800": {
+      "$type": "color",
+      "$value": "oklch(45% 0.15 32)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-50": {
+      "$type": "color",
+      "$value": "oklch(98.6% 0.018 90)",
+      "$extensions": {
+        "fuelguard.section": [
+          "warning = muted golden amber \u2014 same hue family as before but far lower chroma, so badges read as calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from caution-orange."
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-100": {
+      "$type": "color",
+      "$value": "oklch(96% 0.045 90)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-200": {
+      "$type": "color",
+      "$value": "oklch(91.5% 0.085 88)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-300": {
+      "$type": "color",
+      "$value": "oklch(86% 0.12 85)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-400": {
+      "$type": "color",
+      "$value": "oklch(80% 0.145 78)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-500": {
+      "$type": "color",
+      "$value": "oklch(74% 0.155 70)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-600": {
+      "$type": "color",
+      "$value": "oklch(64% 0.15 60)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-700": {
+      "$type": "color",
+      "$value": "oklch(54% 0.135 52)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-warning-800": {
+      "$type": "color",
+      "$value": "oklch(46% 0.115 48)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-50": {
+      "$type": "color",
+      "$value": "oklch(98.2% 0.018 155.826)",
+      "$extensions": {
+        "fuelguard.section": [
+          "success = green"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-100": {
+      "$type": "color",
+      "$value": "oklch(96.2% 0.044 156.743)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-200": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.084 155.995)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-300": {
+      "$type": "color",
+      "$value": "oklch(87.1% 0.15 154.449)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-400": {
+      "$type": "color",
+      "$value": "oklch(79.2% 0.209 151.711)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-500": {
+      "$type": "color",
+      "$value": "oklch(72.3% 0.219 149.579)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-600": {
+      "$type": "color",
+      "$value": "oklch(62.7% 0.194 149.214)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-700": {
+      "$type": "color",
+      "$value": "oklch(52.7% 0.154 150.069)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-success-800": {
+      "$type": "color",
+      "$value": "oklch(44.8% 0.119 151.328)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-50": {
+      "$type": "color",
+      "$value": "oklch(97% 0.014 254.604)",
+      "$extensions": {
+        "fuelguard.section": [
+          "info = blue"
+        ],
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-100": {
+      "$type": "color",
+      "$value": "oklch(93.2% 0.032 255.585)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-200": {
+      "$type": "color",
+      "$value": "oklch(88.2% 0.059 254.128)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-300": {
+      "$type": "color",
+      "$value": "oklch(80.9% 0.105 251.813)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-400": {
+      "$type": "color",
+      "$value": "oklch(70.7% 0.165 254.624)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-500": {
+      "$type": "color",
+      "$value": "oklch(62.3% 0.214 259.815)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-600": {
+      "$type": "color",
+      "$value": "oklch(54.6% 0.245 262.881)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-700": {
+      "$type": "color",
+      "$value": "oklch(48.8% 0.243 264.376)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "ramp-info-800": {
+      "$type": "color",
+      "$value": "oklch(42.4% 0.199 265.638)",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    }
+  }
+}

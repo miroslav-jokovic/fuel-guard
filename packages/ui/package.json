@@ -12,7 +12,7 @@
       "types": "./src/icons.ts",
       "default": "./src/icons.ts"
     },
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.generated.css"
   },
   "types": "./src/index.ts",
   "scripts": {

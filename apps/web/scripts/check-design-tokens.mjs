@@ -26,7 +26,7 @@ const ALLOW = new Set([
  * hues. A misspelt semantic name is invisible to all of them, which makes it the easier mistake to
  * make and the harder one to see. Found 2026-08-18 while reading the contract against the drawer.
  */
-const TOKENS_CSS = new URL("../../../packages/ui/src/tokens.css", import.meta.url).pathname;
+const TOKENS_CSS = new URL("../../../packages/ui/src/tokens.generated.css", import.meta.url).pathname;
 const TOKENS_SOURCE = readFileSync(TOKENS_CSS, "utf8");
 const COLOR_ROLES = new Set(
   [...TOKENS_SOURCE.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),

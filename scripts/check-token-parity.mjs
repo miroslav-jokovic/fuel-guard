@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const sharedPath = `${root}packages/ui/src/tokens.css`;
+const sharedPath = `${root}packages/ui/src/tokens.generated.css`;
 const appPaths = [`${root}apps/web/src/style.css`, `${root}apps/admin/src/style.css`];
 
 function customProperties(css, source) {

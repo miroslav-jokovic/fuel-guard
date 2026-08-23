@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-400-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-500-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-600-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-700-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FuelGuard design tokens
+   ────────────────────────────────────────────────────────────────────────
+   Three layers:
+
+   1. PRIMITIVES (--ramp-*)  — raw color ramps, pinned to the Tailwind v4
+      palette values so the app renders identically to the pre-token UI.
+      Never reference these from templates.
+
+   2. SEMANTIC ROLES (:root) — what a color *means* (surface, ink, edge…).
+      These are plain CSS custom properties, so a future dark theme is just
+      a `.dark { … }` block that re-points them. Charts read them at
+      runtime via getComputedStyle (see features/dashboard/chartTheme.ts).
+
+   3. TAILWIND UTILITIES (@theme inline) — exposes roles + ramps as
+      first-class Tailwind colors: bg-surface, text-ink-muted, ring-edge,
+      bg-brand-600, text-danger-700, ring-warning-600/20, …
+
+   Rules for templates (see docs/DESIGN-SYSTEM.md):
+   • never use palette utilities (gray, indigo, red, amber, green, orange…)
+   • never use raw hex colors or inline `style` for colors
+   • use roles for neutrals; ramps only for status/brand tints
+   ════════════════════════════════════════════════════════════════════════ */
