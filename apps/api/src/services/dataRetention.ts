@@ -192,6 +192,27 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "D-APP10: staged photographs of a licence and a medical card for somebody who never applied; an accepted set becomes documents rows at submit, which are RETENTION_FORBIDDEN, and the storage objects follow the row via the application-captures orphan sweep",
   },
+  {
+    /**
+     * The §395.8(j)(2) seven-day work statement (0236, D-PKT7).
+     *
+     * ⚠ **This is the first table in this list that is EVIDENCE and still prunable**, so the reasoning
+     * is worth stating rather than leaving to the migration header. It is immutable on UPDATE — a
+     * driver signed it, and a signed statement somebody can edit is not a statement — and it is
+     * deliberately NOT in `RETENTION_FORBIDDEN`, because §395.8(k)(1) obliges the carrier to keep a
+     * supporting document for SIX MONTHS. Keeping a record of somebody's working hours for ever, when
+     * the rule asks for six months, is over-retention of personal data dressed up as diligence.
+     *
+     * 400 days rather than 180: a generous margin over the statutory floor, so an audit arriving a
+     * year after a hire still finds the statement, and the driver's hours still age out.
+     */
+    table: "seven_day_statements",
+    timeColumn: "statement_date",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "D-PKT7: §395.8(k)(1) asks for six months of supporting documents; 400 days keeps an audit margin without holding a person's working hours indefinitely. Immutable on UPDATE (SD010) but prunable by design — see 0236's header",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */

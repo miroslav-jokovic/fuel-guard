@@ -54,6 +54,7 @@ import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { recruitmentRouter } from "./routes/recruitment/index.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { rosterArchiveRouter } from "./routes/roster/archive.js";
+import { rosterSevenDayRouter } from "./routes/roster/sevenDay.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
@@ -303,6 +304,8 @@ export function createApp(env: Env): Express {
   // ever consulted. Archiving must therefore be mounted ABOVE it. Caught by
   // `archive.test.ts`'s "passes the door for recruiter", which failed for exactly this reason.
   app.use("/api/roster/drivers", rosterArchiveRouter()); // archive/un-archive a roster row (0235)
+  // Mounted above credentials for the same reason archive is — see the note there.
+  app.use("/api/roster/drivers", rosterSevenDayRouter()); // §395.8(j)(2) statements (0236)
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
