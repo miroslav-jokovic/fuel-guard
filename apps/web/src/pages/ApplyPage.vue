@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppCard as BaseCard,
+  AppDateField,
+  AppFormField as FormField,
+} from "@fuelguard/ui";
 import { APPLICATION_SECTION_LABELS } from "@fuelguard/shared";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
@@ -158,6 +164,21 @@ async function agree(): Promise<void> {
   }
 }
 
+/**
+ * Is the carrier's wording still draft? (2026-08-23.)
+ *
+ * ⚠ **This is a mirror of a server rule, and it must stay a mirror.** `submitApplication` refuses
+ * while any of the six instruments the applicant's path touches is unreviewed — that refusal is the
+ * guarantee, and this is only the courtesy that stops a driver filling seven screens on a phone
+ * before meeting it. Read from the payload the link already returns (`esignConsent.draft` and each
+ * release's `draft`), so there is no second source of truth and no new endpoint.
+ */
+const wordingNotFinal = computed(() => {
+  const inv = invitation.data.value;
+  if (!inv) return false;
+  return Boolean(inv.esignConsent?.draft) || inv.releases.some((r) => r.draft);
+});
+
 // ── The signing ceremony (A5) ─────────────────────────────────────────────────────────────────
 const ceremonyDone = ref(false);
 const releases = computed(() => invitation.data.value?.releases ?? []);
@@ -290,6 +311,13 @@ async function send(): Promise<void> {
       <p class="mt-1 text-sm text-ink-muted">
         {{ APPLY_COPY.page.subtitle(invitation.data.value.carrier) }}
       </p>
+      <!-- Said on the FIRST screen, not discovered at the Send button. The server refuses the
+           submission while the wording is draft, and a driver who learns that after filling seven
+           screens on a phone has been wasted. Their answers are saved either way — autosave is a
+           separate path and has never been gated. -->
+      <AppCallout v-if="wordingNotFinal" tone="caution" class="mt-3">
+        {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
+      </AppCallout>
       <p v-if="saveStatus" class="mt-2 text-xs text-ink-muted">{{ saveStatus }}</p>
     </div>
 
@@ -351,6 +379,11 @@ async function send(): Promise<void> {
          instead and this disappears. -->
     <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
       <DisclosurePanel :releases="invitation.data.value.releases" />
+      <!-- The panel says the instruments are not final; this says what that costs the driver
+           standing in front of it, which the panel has no way to know. -->
+      <p v-if="wordingNotFinal" class="mt-4 text-sm text-ink-secondary">
+        {{ APPLY_COPY.notOpen.cannotSend }}
+      </p>
     </BaseCard>
 
     <div class="flex items-center justify-between gap-4">
@@ -360,11 +393,16 @@ async function send(): Promise<void> {
       <span v-else />
       <BaseButton
         variant="primary"
-        :disabled="submit.isPending.value"
+        :disabled="submit.isPending.value || (wizard.isLast.value && wordingNotFinal)"
         @click="wizard.isLast.value ? send() : wizard.next()"
       >
         <template v-if="wizard.isLast.value">
-          {{ submit.isPending.value ? APPLY_COPY.nav.sending : APPLY_COPY.nav.send }}
+          <!-- Disabled rather than hidden: the driver has reached the end of their application and
+               the control they came for should still be where they expect it, saying why it will
+               not go. A missing button reads as a bug in the page. -->
+          {{ wordingNotFinal
+            ? APPLY_COPY.notOpen.sendLabel
+            : submit.isPending.value ? APPLY_COPY.nav.sending : APPLY_COPY.nav.send }}
         </template>
         <template v-else>
           {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}

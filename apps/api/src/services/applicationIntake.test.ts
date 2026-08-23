@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@fuelguard/shared";
 import { loadEnv } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
@@ -24,6 +24,22 @@ const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const NOW = new Date("2026-08-20T00:00:00Z");
 const env = (over: Record<string, string> = {}) => loadEnv({ NODE_ENV: "test", ...over } as NodeJS.ProcessEnv);
 
+/**
+ * Publish counsel's wording for the duration of a test. Every gate in this file opens on the version
+ * string alone, so this one helper is the whole of A0 as far as the suite is concerned.
+ *
+ * ⚠ **It is applied to the SUBMIT suites too, since 2026-08-23.** `submitApplication` now refuses
+ * while any instrument is draft (`WORDING_NOT_FINAL`), and the submit tests describe the world where
+ * submission is lawful — so they say so out loud rather than passing because the gate did not exist.
+ * The two tests that pin the refusal itself deliberately do not call this.
+ */
+const publish = (): void => {
+  for (const purpose of APPLICATION_RELEASE_ORDER) {
+    vi.spyOn(DISCLOSURES[purpose], "version", "get").mockReturnValue("v1");
+  }
+  vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+};
+
 const TOKEN = "a".repeat(43);
 const invitation = (over: Record<string, unknown> = {}) => ({
   id: "inv-1",
@@ -37,6 +53,19 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   submitted_at: null,
   ...over,
 });
+
+/**
+ * A link whose driver has already consented to transact electronically.
+ *
+ * ⚠ **Every submission is made from this state as of 2026-08-23, and it used not to be.** While
+ * `ESIGN_CONSENT` was draft `esignConsentRequired()` returned false, so a submission needed no
+ * consent stamp and these fixtures did not carry one. Publishing the wording (`publish()`) turns the
+ * requirement on — which is the point — and the fixtures now say out loud what a lawful submission
+ * rests on rather than passing because the gate was inert.
+ */
+const CONSENTED = "2026-08-21T09:00:00Z";
+const consentedInvitation = (over: Record<string, unknown> = {}) =>
+  invitation({ consented_at: CONSENTED, ...over });
 
 const seed = (inv: Record<string, unknown> | null = invitation()) =>
   createSupabaseRecorder({
@@ -122,6 +151,10 @@ describe("every bad link fails the same way", () => {
  * it, and a spent phase is refused only by the path that spends it.
  */
 describe("the link is a session, not a fuse", () => {
+  // ⚠ NOT published for the whole describe: two of these pin the draft refusal itself, and the one
+  // submission below publishes for itself.
+  afterEach(() => vi.restoreAllMocks());
+
   it("still resolves after the application has been submitted", async () => {
     const inv = invitation({ submitted_at: "2026-08-19T00:00:00Z" });
     const result = await resolveInvitation(seed(inv).client, TOKEN, NOW);
@@ -154,7 +187,10 @@ describe("the link is a session, not a fuse", () => {
   });
 
   it("refuses a second submission, and says so rather than pretending the link is broken", async () => {
-    const rec = seed(invitation({ submitted_at: "2026-08-19T00:00:00Z" }));
+    // Published, so the answer is about the SPENT PHASE and not about the wording — the phase
+    // refusals come first and this asserts that they still do.
+    publish();
+    const rec = seed(consentedInvitation({ submitted_at: "2026-08-19T00:00:00Z" }));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("already_submitted");
     // And nothing reached the transaction — the refusal is before the write, not a rollback.
@@ -168,9 +204,11 @@ describe("the link is a session, not a fuse", () => {
     );
     expect(isIntakeError(result) && result.code).toBe("releases_complete");
     expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
-    // A finished ceremony does not stop the application being sent.
+    // A finished ceremony does not stop the application being sent. Published and consented, because
+    // that is the only world in which a submission is lawful at all since 2026-08-23.
+    publish();
     const submitted = await submitApplication(
-      seed(invitation({ releases_completed_at: "2026-08-19T00:00:00Z" })).client,
+      seed(consentedInvitation({ releases_completed_at: "2026-08-19T00:00:00Z" })).client,
       env(), TOKEN, APPLICATION, CTX, NOW,
     );
     expect(isIntakeError(submitted)).toBe(false);
@@ -183,11 +221,14 @@ describe("the link is a session, not a fuse", () => {
  * irreplaceable for the regenerable.
  */
 describe("the rendered document never costs the submission", () => {
+  beforeEach(publish);
+  afterEach(() => vi.restoreAllMocks());
+
   it("still files the application when the renderer throws", async () => {
-    const rec = seed();
+    const rec = seed(consentedInvitation());
     // No `organizations` fixture and no storage behind it: the render path will fail somewhere.
     const broken = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()] },
+      tables: { application_invitations: [consentedInvitation()] },
       rpc: {
         submit_driver_application: { application_id: "app-1" },
         // The RPC the filing path finishes with — made to fail, so the whole tail is unhappy.
@@ -203,8 +244,11 @@ describe("the rendered document never costs the submission", () => {
 });
 
 describe("submitting", () => {
+  beforeEach(publish);
+  afterEach(() => vi.restoreAllMocks());
+
   it("hands the transaction the org and driver the TOKEN resolved to, never a client value", async () => {
-    const rec = seed();
+    const rec = seed(consentedInvitation());
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
@@ -222,7 +266,7 @@ describe("submitting", () => {
     ["DA022", "application_already_submitted", "already_submitted"],
   ])("turns the transaction's %s into %s", async (code, message, expected) => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], organizations: [{ name: "S" }] },
+      tables: { application_invitations: [consentedInvitation()], organizations: [{ name: "S" }] },
       rpc: { submit_driver_application: { error: { code, message } } },
     });
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
@@ -240,12 +284,15 @@ describe("submitting", () => {
  * 0229's header describes, taken from the side the API can control.
  */
 describe("the photographs the application arrives with", () => {
+  beforeEach(publish);
+  afterEach(() => vi.restoreAllMocks());
+
   const CAPTURE = "aaaaaaaa-1111-4111-8111-111111111111";
 
   const withCaptures = () =>
     createSupabaseRecorder({
       tables: {
-        application_invitations: [invitation()],
+        application_invitations: [consentedInvitation()],
         organizations: [{ name: "Silvicom" }],
         application_captures: [{
           id: CAPTURE, slot: "medical_card",
@@ -270,7 +317,7 @@ describe("the photographs the application arrives with", () => {
   });
 
   it("omits the parameter entirely when nothing was staged", async () => {
-    const rec = seed();
+    const rec = seed(consentedInvitation());
     await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
     expect("p_captures" in args).toBe(false);
@@ -279,7 +326,7 @@ describe("the photographs the application arrives with", () => {
   it("refuses the submission rather than filing an application without its photographs", async () => {
     const rec = createSupabaseRecorder({
       tables: {
-        application_invitations: [invitation()],
+        application_invitations: [consentedInvitation()],
         application_captures: [{
           id: CAPTURE, slot: "cdl_front",
           storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",
@@ -306,6 +353,9 @@ describe("the photographs the application arrives with", () => {
  * readable — it keeps four.
  */
 describe("the Social Security number", () => {
+  beforeEach(publish);
+  afterEach(() => vi.restoreAllMocks());
+
   it("seals the full value and keeps the last four", () => {
     const configured = env({ SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") });
     const { last4, sealed } = sealSsn(configured, ORG, "123456789");
@@ -325,7 +375,7 @@ describe("the Social Security number", () => {
   });
 
   it("never sends the number to the transaction", async () => {
-    const rec = seed();
+    const rec = seed(consentedInvitation());
     await submitApplication(rec.client, env(), TOKEN, { ...APPLICATION, ssn: "123456789" }, CTX, NOW);
     expect(JSON.stringify(rec.rpcs()[0]!.args)).not.toContain("123456789");
   });
@@ -341,13 +391,6 @@ describe("the Social Security number", () => {
  * and the fourth closes the phase.
  */
 describe("the signing ceremony", () => {
-  /** Publish counsel's wording for one test. Both gates open on the version string alone. */
-  const publish = () => {
-    for (const purpose of APPLICATION_RELEASE_ORDER) {
-      vi.spyOn(DISCLOSURES[purpose], "version", "get").mockReturnValue("v1");
-    }
-    vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
-  };
   afterEach(() => vi.restoreAllMocks());
 
   const consented = () => invitation({ consented_at: "2026-08-21T09:00:00Z" });
@@ -436,6 +479,29 @@ describe("signing a release", () => {
     );
     expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
     expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ The §390.32(d) window, closed 2026-08-23.
+   *
+   * Signing was blocked and certifying was not, so the one document the link exists to produce could
+   * be filed with no 7001(c) consent behind it and no authorization signed — and submitting spends
+   * the phase, so that file could never afterwards acquire either.
+   */
+  it("refuses the SUBMISSION too while the wording is draft, before anything is written", async () => {
+    const rec = seed();
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
+    expect(rec.rpcs()).toHaveLength(0);
+    expect(rec.writtenRows("driver_applications")).toHaveLength(0);
+  });
+
+  it("files the application the moment the wording is published, with nothing else changed", async () => {
+    publish();
+    const rec = seed(invitation({ consented_at: "2026-08-21T09:00:00Z" }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    vi.restoreAllMocks();
   });
 
   it("refuses a release on a dead link before it looks at the wording", async () => {

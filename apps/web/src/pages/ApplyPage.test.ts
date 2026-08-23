@@ -144,10 +144,16 @@ describe("the applicant's page", () => {
 
   /** The wizard, end to end — and a working proof that every screen's field set validates. */
   it("walks one screen at a time and ends on the certification", async () => {
+    // ⚠ PUBLISHED wording, since 2026-08-23: with draft instruments the last screen offers "Not
+    // ready to send yet" instead, which is the next test. This one is about the nine screens.
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
       draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
+      },
     }));
     const w = mountPage();
     await settle(w);
@@ -185,6 +191,36 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Susan Godfrey");
     await advance(w);
     expect(w.text()).toContain("Send my application");
+  });
+
+  /**
+   * ⚠ The §390.32(d) window, told on screen one instead of discovered on screen nine (2026-08-23).
+   *
+   * `submitApplication` refuses while the wording is draft, because a certified §391.21(b)
+   * application with no 7001(c) consent behind it is not the document the regulation asked for — and
+   * submitting spends the link, so the defect would be permanent. This is the page's half of that:
+   * say it up front, keep the form usable (H5b, and autosave was never gated), disable the Send.
+   */
+  it("says the application cannot be sent yet, on the first screen and again at the Send", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    // Screen one. Not a wall — the form is right there underneath it.
+    expect(w.text()).toContain("cannot be sent yet");
+    expect(w.text()).toContain("everything you type is saved");
+    expect(w.text()).toContain(step(1));
+
+    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
+    expect(w.text()).not.toContain("Send my application");
+    expect(w.text()).toContain("Not ready to send yet");
+    // Disabled, not hidden: the control the driver came for is where they expect it, saying why.
+    const send = w.findAll("button").find((b) => b.text().includes("Not ready to send yet"));
+    expect(send?.attributes("disabled")).toBeDefined();
   });
 
   /** Forward is gated on the screen being complete; the driver is told what is missing. */

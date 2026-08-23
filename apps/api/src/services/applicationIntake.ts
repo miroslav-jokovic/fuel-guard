@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_RELEASE_ORDER,
   DISCLOSURES,
+  applicationWordingIsDraft,
   esignConsentRequired,
   isDraftDisclosure,
   planApplicationIntake,
@@ -31,6 +32,11 @@ import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
  * rather than to a feature flag on purpose: when real wording lands the versions become `v1` and the
  * gate opens by itself. A flag would have to be remembered, and what would need remembering is "stop
  * collecting signatures on text no lawyer has read".
+ *
+ * ⚠ **Since 2026-08-23 that refusal covers SUBMITTING too, not only signing** — see
+ * `WORDING_NOT_FINAL`. Until then the ceremony was blocked and the certification was not, so the one
+ * document the whole link exists to produce could be filed without the consent §390.32(d) requires
+ * behind it.
  */
 
 export type IntakeError = { code: string; message: string };
@@ -209,6 +215,48 @@ export const RELEASE_ALREADY_SIGNED: IntakeError = {
   message: "You have already signed this one.",
 };
 
+/**
+ * The refusal that closes the §390.32(d) window (2026-08-23).
+ *
+ * ── WHAT WAS REACHABLE, AND WHY IT WAS REACHABLE ON PURPOSE ───────────────────────────────────
+ * `esignConsentRequired()` is armed by counsel's review rather than by a flag: it returns false while
+ * `ESIGN_CONSENT` is `v0-draft`, because requiring a consent that `recordEsignConsent` refuses to
+ * record would take the application offline with no way through it. That reasoning is correct and it
+ * had a consequence nobody had followed to the end — **a driver could certify a §391.21(b)
+ * application with no 7001(c) consent behind it and no authorization signed.** 49 CFR §390.32(d)
+ * requires an electronic record satisfying a Part 300–399 document requirement to include proof of
+ * consent per 15 U.S.C. 7001(c). A record filed in that window does not have it.
+ *
+ * ⚠ **And the defect would have been permanent, not transient.** Submitting spends the phase
+ * (`submitted_at`), so that invitation's file could never afterwards acquire the consent it was
+ * missing — the driver would have to be re-invited into an empty form.
+ *
+ * ── WHY MORE THAN THE ESIGN CONSENT, AND WHY NOT THE WHOLE CATALOGUE ──────────────────────────
+ * The narrow gate would be `isDraftDisclosure(ESIGN_CONSENT.version)`, which is the one that opens
+ * the §390.32(d) hole exactly. It is not enough: while the four releases are draft `ApplyPage` skips
+ * the ceremony entirely, so a submission files a §391.21 application with **zero** authorizations
+ * onto a link that is now spent — a qualification file that can never be completed for that
+ * applicant, which §390.32(d) does not describe and which is just as unfixable.
+ *
+ * ⚠ The whole catalogue would be too much. `disclosuresAreDraft()` also judges `clearinghouse`, and
+ * no applicant is ever asked to sign that one — §382.701(a)'s consent is given inside the FMCSA
+ * Clearinghouse and it is deliberately absent from `APPLICATION_RELEASE_ORDER`. So the predicate is
+ * `applicationWordingIsDraft()`: the 7001(c) consent plus the four instruments this path collects,
+ * and nothing the driver has no part in.
+ *
+ * The gate is tied to the version strings for the same reason every other one here is: when
+ * counsel's wording lands the versions become `v1` and this disappears by itself. Nothing has to be
+ * remembered, and what would need remembering is "start refusing to file records the regulation
+ * will not recognise".
+ */
+export const WORDING_NOT_FINAL: IntakeError = {
+  code: "disclosure_not_final",
+  message:
+    "This carrier has not published its final wording yet, so an application sent now would be "
+    + "missing the consents that have to go with it. Nothing you have typed is lost — they have "
+    + "been told, and this link will work the moment they publish.",
+};
+
 export interface SubmitContext {
   ip: string | null;
   userAgent: string | null;
@@ -234,6 +282,9 @@ export async function submitApplication(
   // "your link is not valid" for a link that plainly is would send them back to the recruiter for a
   // replacement they do not need.
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
+  // Last of the refusals, in the same position `recordRelease` puts its own: the phase questions are
+  // about THIS link and are cheap, the wording question is about the carrier. See WORDING_NOT_FINAL.
+  if (applicationWordingIsDraft()) return WORDING_NOT_FINAL;
 
   const { driverPatch, employment } = planApplicationIntake(body.application);
   const ssn = sealSsn(env, invitation.org_id, body.ssn);

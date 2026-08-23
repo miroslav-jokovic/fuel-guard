@@ -6,7 +6,7 @@ import { loadEnv } from "../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { closeTestServer } from "../testing/httpServer.js";
 import { hashInvitationToken } from "../services/applicationIntake.js";
-import { ESIGN_CONSENT } from "@fuelguard/shared";
+import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@fuelguard/shared";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -53,6 +53,20 @@ const callFromOneAddress = (path: string, init: RequestInit = {}) =>
     ...init,
     headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7", ...(init.headers ?? {}) },
   });
+
+/**
+ * Counsel's wording, published for one test — every instrument the applicant's path touches.
+ *
+ * ⚠ Distinct from the `publish` further down, which mocks only `ESIGN_CONSENT` because that is all
+ * the consent endpoint reads. Submitting reads all five (`applicationWordingIsDraft()`), so a test
+ * that publishes half of them is testing the refusal it meant to bypass.
+ */
+const publishAll = (): void => {
+  for (const purpose of APPLICATION_RELEASE_ORDER) {
+    vi.spyOn(DISCLOSURES[purpose], "version", "get").mockReturnValue("v1");
+  }
+  vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+};
 
 const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
   createSupabaseRecorder({
@@ -178,8 +192,13 @@ describe("the rate limit", () => {
 });
 
 describe("submitting", () => {
+  // publishAll() is per-test here, so it has to be undone per-test — a leak would silently open the
+  // wording gate for every case after it, which is exactly the refusal two of them are pinning.
+  afterEach(() => vi.restoreAllMocks());
+
   it("accepts a certified application without any credential", async () => {
-    const rec = seed();
+    publishAll();
+    const rec = seed({ consented_at: "2026-08-21T09:00:00Z" });
     holder.client = rec.client;
     const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
     expect(res.status).toBe(201);
@@ -189,6 +208,19 @@ describe("submitting", () => {
     // carrier's org id.
     expect(JSON.stringify(body)).not.toContain(DRIVER);
     expect(JSON.stringify(body)).not.toContain(ORG);
+  });
+
+  /**
+   * ⚠ The §390.32(d) window at the edge of the API (2026-08-23).
+   *
+   * 409, not 500: the link is perfectly good and the request conflicts with the state of the world
+   * around it — the carrier has not published its wording — which is what that status is for.
+   */
+  it("refuses the submission with a 409 while the carrier's wording is draft", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
   });
 
   it("refuses an application that is not certified", async () => {
