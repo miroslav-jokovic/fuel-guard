@@ -491,3 +491,22 @@
     grid-column: auto;
   }
 }
+
+/* Shipped primitives (D-DS13): real components on the real canvas, deliberately outside the
+   `--prototype-*` vocabulary above so the two are never confused for one another. */
+.lab-shipped {
+  padding: 2rem;
+  background: var(--canvas);
+  border-top: 1px solid var(--edge);
+}
+.lab-shipped h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lab-shipped p {
+  margin: 0.35rem 0 1rem;
+  max-width: 46rem;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}

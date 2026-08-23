@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 
 type ActionMode = "graphite" | "gold";
 type SidebarMode = "dark" | "light";
@@ -11,6 +12,29 @@ const actionDescription = computed(() =>
     ? "Gold is identity; graphite is the primary action."
     : "Gold is both identity and the primary action.",
 );
+
+/**
+ * Shipped primitives, rendered with the REAL components and the REAL tokens — deliberately not the
+ * `--prototype-*` vocabulary the A/B lab above uses. This section exists because /__design-system
+ * is the only route that renders production components without a login, which makes it the only
+ * place a layout change can be checked in a browser (D-DS13). Keep the columns representative of a
+ * real page: text, quantities, a sortable quantity and a control column.
+ */
+const shippedColumns: DataTableColumn[] = [
+  { key: "unit", label: "Unit" },
+  { key: "driver", label: "Driver" },
+  { key: "gallons", label: "Gallons", numeric: true, sortable: true },
+  { key: "amount", label: "Amount", numeric: true },
+  { key: "mpg", label: "MPG", numeric: true },
+  { key: "status", label: "Status" },
+];
+
+const shippedRows = [
+  { unit: "Unit 204", driver: "Maya Chen", gallons: "118.4", amount: "$412.86", mpg: "7.4", status: "Clear" },
+  { unit: "Unit 118", driver: "Darnell Ross", gallons: "96.2", amount: "$338.71", mpg: "6.1", status: "Review" },
+  { unit: "Unit 337", driver: "Priya Nandi", gallons: "141.9", amount: "$497.02", mpg: "7.9", status: "Clear" },
+  { unit: "Unit 052", driver: "Tom Bergeron", gallons: "88.0", amount: "$310.44", mpg: "5.2", status: "Alert" },
+];
 
 const metrics = [
   { label: "Fuel spend", value: "$48,720", change: "2.8% below plan" },
@@ -229,6 +253,15 @@ const rows = [
         </div>
       </main>
     </div>
+
+    <section class="lab-shipped">
+      <h2>Shipped primitives</h2>
+      <p>
+        The real <code>DataTable</code> with the real design tokens — not the prototype vocabulary
+        above. Words left, quantities right, headers following their column (D-DS1).
+      </p>
+      <DataTable :columns="shippedColumns" :rows="shippedRows" row-key="unit" />
+    </section>
   </div>
 </template>
 
