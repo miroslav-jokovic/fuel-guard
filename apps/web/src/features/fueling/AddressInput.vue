@@ -35,7 +35,7 @@ function pick(s: AddressSuggestion) {
 <template>
   <div class="relative" @focusout="open = false" @focusin="open = suggestions.length > 0">
     <BaseInput :id="id" :model-value="query" :placeholder="placeholder" autocomplete="off" @update:model-value="onInput" />
-    <ul v-if="open" class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle">
+    <ul v-if="open" class="absolute z-sticky-lead mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle">
       <li
         v-for="(s, i) in suggestions"
         :key="i"

@@ -202,8 +202,8 @@ const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
     label: "Vehicle",
-    width: "md", headerClass: "sticky left-0 z-20 bg-surface-subtle border-r border-edge",
-    cellClass: "sticky left-0 z-[1] border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+    width: "md", headerClass: "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge",
+    cellClass: "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
   },
   { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
   { key: "trailer", label: "Trailer", width: "md", cellClass: "text-ink-secondary" },

@@ -100,7 +100,7 @@ async function signOut() {
   <div class="min-h-full">
     <!-- ── Mobile sidebar drawer (below lg) ─────────────────────────────── -->
     <TransitionRoot as="template" :show="mobileOpen">
-      <Dialog class="relative z-50 lg:hidden" @close="mobileOpen = false">
+      <Dialog class="relative z-dialog lg:hidden" @close="mobileOpen = false">
         <TransitionChild
           as="template"
           enter="transition-opacity ease-linear duration-300"
@@ -196,7 +196,7 @@ async function signOut() {
 
     <!-- ── Desktop sidebar (lg+, fixed, collapsible) ─────────────────────── -->
     <div
-      class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-[width] duration-300 ease-out motion-reduce:transition-none"
+      class="hidden lg:fixed lg:inset-y-0 lg:z-dialog lg:flex lg:flex-col transition-[width] duration-300 ease-out motion-reduce:transition-none"
       :class="sidebarCollapsed ? 'lg:w-[3.75rem]' : 'lg:w-[17rem]'"
     >
       <div class="sidebar-glass relative flex grow overflow-hidden border-r">
@@ -296,7 +296,7 @@ async function signOut() {
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-40 flex h-14 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+        class="sticky top-0 z-chrome flex h-14 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
       >
         <div class="flex items-center gap-x-3">
           <button

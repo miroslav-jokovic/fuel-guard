@@ -60,7 +60,7 @@ function cfg(t: Toast): VariantConfig {
   <Teleport to="body">
     <div
       aria-live="assertive"
-      class="pointer-events-none fixed inset-0 z-[10000] flex flex-col items-end justify-start gap-2 p-4 sm:p-6"
+      class="pointer-events-none fixed inset-0 z-toast flex flex-col items-end justify-start gap-2 p-4 sm:p-6"
     >
       <TransitionGroup
         tag="div"

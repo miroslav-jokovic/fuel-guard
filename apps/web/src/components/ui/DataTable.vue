@@ -227,7 +227,7 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
         >
           <thead
             class="bg-surface-subtle text-ink-muted shadow-sticky-edge"
-            :class="stickyHeader ? 'sticky top-0 z-10' : ''"
+            :class="stickyHeader ? 'sticky top-0 z-sticky' : ''"
           >
             <tr>
               <th v-if="selectable" scope="col" class="w-10 pl-6 pr-2" :class="dense ? 'py-2' : 'py-3'">

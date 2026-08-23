@@ -21,7 +21,7 @@ const dismissed = ref(false);
   >
     <div
       v-if="updateAvailable && !dismissed"
-      class="fixed inset-x-0 top-4 z-50 flex justify-center px-4"
+      class="fixed inset-x-0 top-4 z-dialog flex justify-center px-4"
       role="status"
     >
       <div

@@ -149,11 +149,11 @@ watch(
     <!-- Dropdown -->
     <Teleport to="body">
       <template v-if="open">
-        <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close vehicle options" @click="closeDropdown" />
+        <button type="button" class="fixed inset-0 z-scrim" aria-label="Close vehicle options" @click="closeDropdown" />
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] overflow-hidden rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
+          class="z-popover overflow-hidden rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
         >
           <!-- "All vehicles" option -->
           <button

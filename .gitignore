@@ -78,3 +78,14 @@ apps/driver/modules/capture-native/android/.gradle/
 # PSP vendor material: the protocol guide is CONFIDENTIAL-footered on all 80 pages and
 # apitoken.txt is a live credential. Neither may enter git history (Q-H1, 2026-08-19).
 docs/psp-docs/
+
+# Scratch worktrees created by Claude Code — a full stale copy of the app. Only .git/info/exclude
+# listed it, which is local-to-one-clone; this makes every clone ignore it.
+#
+# ⚠ It does NOT stop Tailwind scanning it. Verified 2026-08-23: after every source using z-[9998],
+# z-[9999] and z-[10000] was gone, those utilities were still emitted into the local bundle, and
+# neither this entry, nor `@source not`, nor clearing node_modules/.vite changed the output byte.
+# The pollution is local-only — CI and Railway check out without this directory — but it means a
+# local `vite build` is NOT a faithful check of what ships, and dead CSS inflates it. Same root
+# cause as the ~700 phantom eslint errors. Unresolved; do not trust local bundle contents alone.
+.claude/worktrees/

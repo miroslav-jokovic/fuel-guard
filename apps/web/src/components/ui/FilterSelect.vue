@@ -141,11 +141,11 @@ function clear() {
 
     <Teleport to="body">
       <template v-if="open">
-        <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close filter options" @click.stop="open = false" />
+        <button type="button" class="fixed inset-0 z-scrim" aria-label="Close filter options" @click.stop="open = false" />
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] w-60 rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
+          class="z-popover w-60 rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
           role="listbox"
           :aria-label="`${label} options`"
         >

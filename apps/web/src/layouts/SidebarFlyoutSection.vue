@@ -78,7 +78,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
         :id="`${sectionId}-panel`"
         ref="panelRef"
         :style="floatingStyles"
-        class="sidebar-glass-popover z-[9999] min-w-56 rounded-dialog p-1.5"
+        class="sidebar-glass-popover z-popover min-w-56 rounded-dialog p-1.5"
         role="group"
         :aria-labelledby="`${sectionId}-trigger`"
         @mouseenter="openNow"

@@ -60,7 +60,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
     </button>
     <Teleport to="body">
       <template v-if="open">
-        <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close actions menu" @click.stop="open = false" />
+        <button type="button" class="fixed inset-0 z-scrim" aria-label="Close actions menu" @click.stop="open = false" />
         <!-- The panel delegates selection close to its keyboard-accessible menu-item buttons. -->
         <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -->
         <div
@@ -71,7 +71,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
               ? 'sidebar-glass-popover rounded-dialog'
               : 'rounded-control bg-surface shadow-overlay'
           "
-          class="z-[9999] w-48 origin-top-right py-1"
+          class="z-popover w-48 origin-top-right py-1"
           @click="open = false"
         >
           <div v-if="tone === 'sidebar'" class="sidebar-glass-material" aria-hidden="true" />

@@ -50,7 +50,7 @@ function choose(p: HazmatProduct) {
     />
     <div
       v-if="open"
-      class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
+      class="absolute z-sticky-lead mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
       role="listbox"
     >
       <p v-if="isFetching" class="px-3 py-2 text-sm text-ink-muted">Searching…</p>
@@ -84,6 +84,6 @@ function choose(p: HazmatProduct) {
       </template>
     </div>
     <!-- click-away backdrop while open -->
-    <BaseButton v-if="open" type="button" class="fixed inset-0 z-10 cursor-default" tabindex="-1" aria-hidden="true" @click="open = false" />
+    <BaseButton v-if="open" type="button" class="fixed inset-0 z-sticky cursor-default" tabindex="-1" aria-hidden="true" @click="open = false" />
   </div>
 </template>
