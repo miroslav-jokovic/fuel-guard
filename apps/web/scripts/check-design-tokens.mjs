@@ -27,9 +27,36 @@ const ALLOW = new Set([
  * make and the harder one to see. Found 2026-08-18 while reading the contract against the drawer.
  */
 const TOKENS_CSS = new URL("../../../packages/ui/src/tokens.css", import.meta.url).pathname;
+const TOKENS_SOURCE = readFileSync(TOKENS_CSS, "utf8");
 const COLOR_ROLES = new Set(
-  [...readFileSync(TOKENS_CSS, "utf8").matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  [...TOKENS_SOURCE.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
 );
+
+/**
+ * Radius and elevation roles, read from the same file and for the same reason (D-DS7a).
+ *
+ * ── Why these joined the colour rules ───────────────────────────────────────────────────────────
+ * Colour discipline in this app is close to perfect — three hex literals, all annotated — precisely
+ * because this script watched it. Radius was not watched, and it rotted: `rounded-md` in seven
+ * places, `rounded-lg` inside `BaseModal` (a shared primitive), and a map whose `rounded-t-xl`
+ * corners were twice the radius of the `BaseCard` it sat in. None of it was visible to any gate,
+ * because the rules above only ever looked at hue. Found by counting utilities, 2026-08-23.
+ *
+ * `rounded-full` and `rounded-none` are not off-scale values — they are "a circle" and "no corner",
+ * both genuinely theme-independent — so they are allowed alongside the roles.
+ */
+const RADIUS_ROLES = new Set([
+  ...[...TOKENS_SOURCE.matchAll(/--radius-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  "full",
+  "none",
+]);
+const ELEVATION_ROLES = new Set([
+  ...[...TOKENS_SOURCE.matchAll(/--shadow-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  "none",
+]);
+
+/** Tailwind's corner and side segments, so `rounded-t-surface` reads as side `t`, role `surface`. */
+const RADIUS_SIDES = "(?:t|r|b|l|s|e|tl|tr|bl|br|ss|se|es|ee)";
 
 /**
  * Tailwind's own structural suffixes for these prefixes — widths, sides, styles and offsets, none of
@@ -67,8 +94,22 @@ const RULES = [
     re: /\b(?:ring|border|divide|outline)-neutral-\d+(?:\/\d+)?\b/g,
   },
   {
-    name: "generic elevation utility (use shadow-card/overlay/dialog)",
-    re: /\bshadow-(?:sm|md|lg|xl|2xl)\b/g,
+    // Supersedes the older `shadow-sm|md|lg|xl|2xl` list: anything that is not a named elevation
+    // fails, so a future `shadow-3xl` cannot arrive unnoticed the way `rounded-md` did.
+    name: "elevation not in tokens.css (use shadow-card/card-raised/overlay/dialog)",
+    classesOnly: true,
+    // Two holes, both found by feeding the rule the thing it was supposed to reject and watching it
+    // pass — which is the only way this class of hole shows up. A first draft required `[a-z]` after
+    // the dash, so `shadow-2xl` walked through; a second closed with `\b`, which cannot fire after
+    // the `]` of an arbitrary value, so `shadow-[0_1px_2px_red]` walked through too.
+    re: /\bshadow-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(?![\w-])/g,
+    violates: (m) => !ELEVATION_ROLES.has(m[1]),
+  },
+  {
+    name: "radius not in tokens.css (use rounded-detail/control/surface/overlay/dialog)",
+    classesOnly: true,
+    re: new RegExp(`\\brounded(?:-${RADIUS_SIDES})?-(\\[[^\\]]*\\]|[a-z0-9][a-z0-9-]*)(?![\\w-])`, "g"),
+    violates: (m) => !RADIUS_ROLES.has(m[1]),
   },
   {
     name: "unknown colour role — not a token in tokens.css",
@@ -125,7 +166,12 @@ for (const file of walk(SRC)) {
     if (line.includes("token-check-disable-line")) return;
     // Everything between the quotes of a `class=` / `:class=` binding on this line, joined. Dynamic
     // bindings carry expressions too; harmless, since a role name in one is still a role name.
-    const classText = [...line.matchAll(/:?class="([^"]*)"/g)].map((m) => m[1]).join(" ");
+    // `@apply` is included because a component <style> block is just as capable of writing
+    // `rounded-md` as a template is, and the class-only rules would otherwise never look there.
+    const classText = [
+      ...[...line.matchAll(/:?class="([^"]*)"/g)].map((m) => m[1]),
+      ...[...line.matchAll(/@apply\s+([^;]*)/g)].map((m) => m[1]),
+    ].join(" ");
     for (const rule of RULES) {
       const haystack = rule.classesOnly ? classText : line;
       if (!haystack) continue;

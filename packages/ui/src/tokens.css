@@ -166,6 +166,11 @@
   --elevation-card-raised: 0 6px 18px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 3px color-mix(in oklab, var(--ink) 4%, transparent);
   --elevation-overlay: 0 10px 28px color-mix(in oklab, var(--ink) 10%, transparent), 0 2px 6px color-mix(in oklab, var(--ink) 5%, transparent);
   --elevation-dialog: 0 20px 48px color-mix(in oklab, var(--ink) 14%, transparent), 0 4px 12px color-mix(in oklab, var(--ink) 7%, transparent);
+  /* Not depth — a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls
+     under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had
+     been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision
+     spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge. */
+  --elevation-sticky-edge: inset 0 -1px 0 0 var(--edge);
 
   /* identity, interaction, links, selection, and focus are deliberately separate */
   --brand-accent: oklch(0.837 0.128 66.29);
@@ -260,6 +265,7 @@
   --shadow-card-raised: var(--elevation-card-raised);
   --shadow-overlay: var(--elevation-overlay);
   --shadow-dialog: var(--elevation-dialog);
+  --shadow-sticky-edge: var(--elevation-sticky-edge);
 
   /* brand ramp */
   --color-brand-50: var(--ramp-brand-50);

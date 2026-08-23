@@ -104,7 +104,7 @@ const chart = computed<ChartConfiguration<"doughnut">>(() => {
         class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2.5"
       >
         <span class="flex min-w-0 items-center gap-2.5">
-          <span class="size-2.5 shrink-0 rounded-[2px]" :style="{ backgroundColor: item.color }" aria-hidden="true" /> <!-- token-check-disable-line: token-resolved chart color -->
+          <span class="size-2.5 shrink-0 rounded-detail" :style="{ backgroundColor: item.color }" aria-hidden="true" /> <!-- token-check-disable-line: token-resolved chart color -->
           <span :class="item.value > 0 ? 'text-ink-secondary' : 'text-ink-tertiary'" class="truncate text-sm">
             {{ item.label }}
           </span>

@@ -70,7 +70,7 @@ const panelWidth = computed(() =>
             leave-to="opacity-0 scale-95"
           >
             <DialogPanel
-              class="w-full max-h-[90vh] rounded-lg bg-surface shadow-dialog ring-1 ring-edge"
+              class="w-full max-h-[90vh] rounded-dialog bg-surface shadow-dialog ring-1 ring-edge"
               :class="[panelWidth, printable ? 'print-target' : '']"
             >
               <div class="flex max-h-[90vh] flex-col">

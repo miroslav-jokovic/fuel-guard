@@ -315,7 +315,7 @@ async function run(): Promise<void> {
           rather than inside a collapsed section: "cardVersion moved" tells an operator to stop,
           and nothing else; the field names tell an engineer where to look.
         -->
-        <div v-if="result.changed?.length" class="rounded-md border border-danger-200 bg-danger-50 p-3">
+        <div v-if="result.changed?.length" class="rounded-surface border border-danger-200 bg-danger-50 p-3">
           <h3 class="text-sm font-medium text-danger-700">
             Our request changed {{ result.changed.length }} field(s) it should have left alone
           </h3>
@@ -335,7 +335,7 @@ async function run(): Promise<void> {
           <template #default="{ id }">
             <textarea
               :id="id"
-              class="h-48 w-full rounded-md border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
+              class="h-48 w-full rounded-surface border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
               readonly
               :value="result.document"
             />
@@ -346,7 +346,7 @@ async function run(): Promise<void> {
           <template #default="{ id }">
             <textarea
               :id="id"
-              class="h-48 w-full rounded-md border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
+              class="h-48 w-full rounded-surface border border-edge bg-surface p-2 font-mono text-xs text-ink-muted"
               readonly
               :value="result.documentAfter"
             />
