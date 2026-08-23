@@ -59,6 +59,21 @@ const ELEVATION_ROLES = new Set([
 const RADIUS_SIDES = "(?:t|r|b|l|s|e|tl|tr|bl|br|ss|se|es|ee)";
 
 /**
+ * Stacking tiers, read from `tokens.css` like the rest (D-DS4a).
+ *
+ * ── Why a bare number is a violation here ───────────────────────────────────────────────────────
+ * The old ladder was `z-[9998]`, `z-[9999]` and `z-[10000]` in six components that never compared
+ * notes — numbers picked to win an argument rather than to describe a position. A bare `z-50` is no
+ * better: it says where something sits relative to nothing. The tiers are named now, so the only
+ * legal z-index is one of them. `z-auto` and `z-0` stay allowed — neither claims a position.
+ */
+const LAYER_ROLES = new Set([
+  ...[...TOKENS_SOURCE.matchAll(/--z-index-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  "auto",
+  "0",
+]);
+
+/**
  * The type scale (D-DS6). Seven sizes, and this list is the enforcement point.
  *
  * ── Why this one is a literal and the others are read from tokens.css ───────────────────────────
@@ -145,6 +160,12 @@ const RULES = [
      */
     name: "column width in headerClass (use the `width` prop: xs/sm/md/lg/xl/2xl/3xl)",
     re: /headerClass:\s*"[^"]*min-w-\[/g,
+  },
+  {
+    name: "stacking tier not in tokens.css (use z-raised/sticky/sticky-lead/chrome/dialog/scrim/popover/toast)",
+    classesOnly: true,
+    re: /\bz-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(?![\w-])/g,
+    violates: (m) => !LAYER_ROLES.has(m[1]),
   },
   {
     name: "radius not in tokens.css (use rounded-detail/control/surface/overlay/dialog)",

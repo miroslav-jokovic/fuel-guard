@@ -36,7 +36,7 @@ function clear() {
   <div class="relative">
     <AppIcon
       :icon="MagnifyingGlassIcon"
-      class="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-ink-tertiary"
+      class="pointer-events-none absolute top-1/2 left-3 z-sticky size-4 -translate-y-1/2 text-ink-tertiary"
       aria-hidden="true"
     />
     <AppInput

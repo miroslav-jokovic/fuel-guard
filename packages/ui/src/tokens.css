@@ -273,6 +273,28 @@
   --shadow-dialog: var(--elevation-dialog);
   --shadow-sticky-edge: var(--elevation-sticky-edge);
 
+  /* ── stacking order (D-DS4a) ───────────────────────────────────────────────────────────────────
+     Eight tiers, because the app genuinely has eight. They replace a ladder that had grown to
+     z-scrim, z-popover and z-toast — numbers chosen to win an argument rather than to describe a
+     position, in six components that never compared notes.
+
+     The order is the one the app already had; nothing moves. The constraint that fixes it: the four
+     dropdown overlays teleport to <body>, so they escape the dialog's stacking context and must
+     out-rank it globally. That is why `scrim` and `popover` sit ABOVE `dialog` — a filter dropdown
+     opened inside a slide-over has to render over it, which is exactly what 9999 > 50 was buying.
+
+     `scrim` is the full-screen click-catcher that closes an open dropdown; it sits one tier below
+     the panel it dismisses. Both disappear when D-DS4b moves these overlays to the browser's top
+     layer, where the platform supplies light-dismiss and stacking for free. */
+  --z-index-raised: 1; /* a sticky first cell, over its own row       */
+  --z-index-sticky: 10; /* a sticky table header                       */
+  --z-index-sticky-lead: 20; /* a sticky header cell, over the sticky row   */
+  --z-index-chrome: 40; /* the app top bar                             */
+  --z-index-dialog: 50; /* modals, slide-overs, the sidebar, banners   */
+  --z-index-scrim: 60; /* the click-catcher behind an open dropdown   */
+  --z-index-popover: 70; /* dropdowns, menus, flyouts (teleported)      */
+  --z-index-toast: 80; /* always last, over everything                */
+
   /* brand ramp */
   --color-brand-50: var(--ramp-brand-50);
   --color-brand-100: var(--ramp-brand-100);

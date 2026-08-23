@@ -104,11 +104,11 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         </button>
         <Teleport to="body">
           <template v-if="moreOpen">
-            <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close more filters" @click.stop="moreOpen = false" />
+            <button type="button" class="fixed inset-0 z-scrim" aria-label="Close more filters" @click.stop="moreOpen = false" />
             <div
               ref="panelRef"
               :style="floatingStyles"
-              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle"
+              class="z-popover w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle"
               role="dialog"
               aria-label="More filters"
             >

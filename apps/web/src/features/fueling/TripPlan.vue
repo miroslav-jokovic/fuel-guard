@@ -98,7 +98,7 @@ const DOT: Record<string, string> = {
       <template v-for="(n, i) in nodes" :key="n.key">
         <li class="relative flex gap-3">
           <span v-if="i < nodes.length - 1 || (legs[i] && legs[i].steps.length)" class="absolute left-[15px] top-8 bottom-0 w-px bg-edge" aria-hidden="true" />
-          <span class="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full" :class="DOT[n.tone]">
+          <span class="relative z-sticky flex size-8 shrink-0 items-center justify-center rounded-full" :class="DOT[n.tone]">
             <AppIcon :icon="n.icon" class="size-4.5" aria-hidden="true" />
           </span>
           <div class="min-w-0 flex-1 pb-4 pt-1">

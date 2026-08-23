@@ -29,7 +29,7 @@ const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"
 
 <template>
   <TransitionRoot as="template" :show="open">
-    <Dialog class="relative z-50" @close="emit('close')">
+    <Dialog class="relative z-dialog" @close="emit('close')">
       <TransitionChild
         as="template"
         enter="ease-in-out duration-300"
