@@ -52,25 +52,35 @@ export const CORRECTIONS: readonly PacketCorrection[] = [
   { page: 8, packet: "WHEN RECIVED", corrected: "WHEN RECEIVED" },
   { page: 8, packet: "TEAR EXEPTED", corrected: "TEAR EXCEPTED" },
   { page: 8, packet: "EQUIPMENT MANGER", corrected: "EQUIPMENT MANAGER" },
-  { page: 24, packet: "familirize", corrected: "familiarize" },
-  { page: 24, packet: "requred", corrected: "required" },
-  { page: 24, packet: "followign", corrected: "following" },
-  { page: 24, packet: "informend", corrected: "informed" },
-  { page: 24, packet: "expalined", corrected: "explained" },
-  { page: 24, packet: "signatrure", corrected: "signature" },
 ];
+
+/**
+ * ⚠ **Six page-24 entries were removed on 2026-08-23 (Q-PKT5) and must not come back.**
+ *
+ * `familirize`, `requred`, `followign`, `informend`, `expalined` and `signatrure` were registered
+ * when page 24 was classified STATIC. It is not: it is a post-hire training record carrying a driver
+ * signature, an instructor signature and a fill-in date, and it left the packet with the same
+ * argument that moved pages 21 and 23 out. The page is `DRIVER-TRAINING-PLAN.md` / R7's now, and its
+ * spelling is that plan's problem on the day it renders the page — registering a correction here for
+ * a page this renderer never draws would be a constant nobody could check against anything.
+ *
+ * ⚠ **`signatrure` in particular.** It is also on pages 22 and 23, neither of which we render, and
+ * it is why the packet's placement inventory cannot be re-derived by searching for `signature`
+ * (Q-PKT6). Deleting the correction does not delete the fact; the fact lives in the plan.
+ */
 
 /**
  * ⚠ **Corruption that is NOT corrected, because the right word is a guess.**
  *
- * Recorded rather than silently skipped, so the next reader knows these were seen and left:
- * `available throught to company` (p24) · `a question-and-answer period which eluded additional
- * company illustrations` (p24 — included? alluded to?) · `company fues` (p24 — fines? fees?) ·
- * `FMCR Handbook` (p24 — almost certainly FMCSR, but expanding an acronym is not spelling) ·
- * `I may come to the company und get further explanation` (p24).
+ * Recorded rather than silently skipped, so the next reader knows these were seen and left.
  *
- * Each needs somebody who knows what the carrier meant. A repair that guesses is a wording change,
- * and D-PKT4 puts wording with counsel.
+ * ⚠ Every entry this list held was on page 24 — `available throught to company`, `a question-and-
+ * answer period which eluded additional company illustrations` (included? alluded to?),
+ * `company fues` (fines? fees?), `FMCR Handbook` (almost certainly FMCSR, but expanding an acronym
+ * is not spelling), `I may come to the company und get further explanation`. They travelled with the
+ * page to R7 on 2026-08-23 (Q-PKT5) and the plan carries them now. **The list is kept, empty, because
+ * the rule it states outlives its entries:** a repair that guesses is a wording change, and D-PKT4
+ * puts wording with counsel. The next page that needs one has somewhere to put it.
  */
 
 /**

@@ -86,7 +86,7 @@ re-derivation must use the same anchor.
 | 21 | Seven Day Work Statement | **NOT OURS** — moves to the hire (§2.4, owner 2026-08-23) | ❌ nothing — §3.2 |
 | 22 | Urinalysis notification | **SIGN** | — |
 | 23 | Annual/quarterly violation review | **NOT OURS** — §2.4 | — |
-| 24 | Driver safety training | **STATIC** ⚠ **contested — Q-PKT5** | — |
+| 24 | Driver safety training | **NOT OURS** — §2.4, owner 2026-08-23 | — |
 | 25 | Interstate Truck Driver's Handbook receipt | **SIGN** | — |
 | 26 | §40.25(j) two-year pre-employment test question | **FILL + SIGN** | ✅ since P8 — §3.7 |
 | 27 | Authorized passengers · off-duty authorization | **SIGN** | — |
@@ -94,7 +94,8 @@ re-derivation must use the same anchor.
 | 29–30 | Owner Operator & Leased Driver Agreement, parts 1–2 | **STATIC** | — |
 | 31 | Owner Operator & Leased Driver Agreement, part 3 | **SIGN** | — |
 
-**Totals: 4 FILL · 18 SIGN · 5 STATIC · 4 NOT OURS.** (p21 moved out of the application 2026-08-23.)
+**Totals: 4 FILL · 18 SIGN · 4 STATIC · 5 NOT OURS.** (p21 and p24 both moved out of the application
+on 2026-08-23 — p21 to the hire, p24 to training.)
 ⚠ All 4 FILL render as of 2026-08-23 — p26 needed a contract field we turned out never to have (§3.7, P8).
 
 ### 2.3 ⚠ The signature count is the finding, not the page count
@@ -132,10 +133,11 @@ that ships:
 one-instrument-per-screen rule is what implements that. It stays a separate stop even in a
 walk-me-through queue, and the queue must not be allowed to render it alongside anything else.
 
-### 2.4 ⚠ Four pages are not the applicant's document, and must not be in this PDF
+### 2.4 ⚠ Five pages are not the applicant's document, and must not be in this PDF
 
 Three were found while classifying — each would have been reproduced by mistake under a naive "print
-all 31 pages" reading of fork (a) — and the fourth was moved here by the owner on 2026-08-23.
+all 31 pages" reading of fork (a) — and two more were moved here by the owner on 2026-08-23, the
+second of them **after it had already shipped as a static page** (Q-PKT5).
 
 - **p14 — previous-employer verification request.** This is the form the carrier **sends to a former
   employer**, with `Sent to`, `Requested by Silvicom Inc`, and the §391.23 / Part 40 questions the
@@ -155,6 +157,18 @@ all 31 pages" reading of fork (a) — and the fourth was moved here by the owner
   certification of violations for the preceding twelve months, and the motor carrier's review of it.
   This is the **annual round**, which `RECRUITING-SYSTEM-PLAN.md` R7 owns. An applicant has no twelve
   months with this carrier to certify.
+- **p24 — Driver Safety Training. ⚠ MOVED HERE 2026-08-23** (Q-PKT5 → D-PKT10), and it is the only
+  page that had already **shipped** under the wrong classification. §2.2 called it STATIC and P3 filed
+  it in the versioned policy pack, which is rendered **once per version, identical for everybody** —
+  so its `DRIVER -PRINT`, `Driver signatrure | Date` and `Instructor's signatrure` were three
+  signature lines drawn as inert labels inside a document nobody signs. The page affirms a training
+  the signer has **completed** (`On this day, ____________, 20___, I have completed training of log
+  preparation`) and creates a liability (`I am also aware and have been informend of all company
+  fines which will be enforced`). An applicant cannot truthfully affirm training they have not had.
+  It is R7 / `DRIVER-TRAINING-PLAN.md`'s page.
+  ⚠ **The transcription was never wrong** — `packetStatic.test.ts` proved it verbatim against the
+  workbook every time it ran. **The classification was wrong, and no test in this repository can
+  check a classification.** That is the finding worth more than the page.
 
 ---
 
@@ -316,7 +330,12 @@ alongside P1's disclosure review. `packetStatic.test.ts` pins this in both direc
 may be registered against those pages, and the two worst clauses are asserted to survive `correct()`
 so a well-meaning tidy-up fails the build.
 
-Pages 7, 8 and 24 ARE spell-corrected — they are policy statements, not instruments.
+Pages 7 and 8 ARE spell-corrected — they are policy statements, not instruments.
+
+⚠ **Page 24 was in that sentence until 2026-08-23, and it is the sentence that caught it.** "Policy
+statements, not instruments" is exactly the test page 24 fails: it carries a driver signature, an
+instructor signature and an affirmation of completed training. The rule was right and the page was
+on the wrong side of it — see D-PKT10.
 
 ### 3.5 ⚠ Citations stay in print — task B does not reach this document
 
@@ -330,7 +349,7 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 
 | ID | Decision |
 |---|---|
-| **D-PKT1** | **Fork (b), chosen by the owner 2026-08-22.** Reproduce the pages that take applicant data or a signature; attach Rules & Regulations (7–8), Driver Safety Training (24) and the Owner-Operator Agreement (29–30) as **static documents**. A page that is policy text *plus a signature* is NOT static — it is reproduced (§2.3). |
+| **D-PKT1** | **Fork (b), chosen by the owner 2026-08-22.** Reproduce the pages that take applicant data or a signature; attach Rules & Regulations (7–8) and the Owner-Operator Agreement (29–30) as **static documents**. A page that is policy text *plus a signature* is NOT static — it is reproduced (§2.3). ⚠ **Amended 2026-08-23 by D-PKT10:** Driver Safety Training (24) was in that list and is not static at all. |
 | **D-PKT2** | The three NOT-OURS pages (14, 17, 23) are never rendered into the applicant's PDF. Each already has, or will have, its own surface. |
 | **D-PKT3** | The static attachments are **one filed artifact per version**, not per applicant. They are identical for everybody; rendering them per submission would put 5 unchanging pages into every stored document and make a wording change invisible. Version them the way `DISCLOSURES` are versioned. |
 | **D-PKT4** | ⚠ **No packet wording is adopted verbatim without counsel.** §3.3 is the worked example, and it is not the only page with the problem — the packet is full of typographical corruption ("BACKFROUNG", "maritial", "whcihc", "typyes"), which is harmless in a scan and is *not* harmless in a document we generate and a person signs. Transcription is a review pass, not a copy. |
@@ -338,6 +357,7 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT9** | **The packet's typos are corrected in print** (owner, 2026-08-23). ⚠ **Spelling of WORDS only, and NOT AT ALL on the Owner-Operator Agreement** (§3.8) — correcting a contract is drafting one — the carrier's spacing and punctuation are reproduced as they are, because the guard that proves a correction is spelling-only is "same word count", and allowing re-spacing would loosen it until it could no longer tell a joined word from a deleted one. Every correction is a pair in `packetText.ts`'s `CORRECTIONS`, so the answer to "what did you change on our form" is a constant rather than a memory. |
 | **D-PKT7** | **The Seven Day Work Statement belongs to the HIRE, not the application** (owner, 2026-08-23). §395.8(j)(2) counts the seven days before work begins, so an application-time answer is stale on arrival. It leaves the packet PDF and becomes P7. |
 | **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
+| **D-PKT10** | **Page 24 is not a static page and is not the applicant's document** (Q-PKT5, 2026-08-23). Driver Safety Training is a post-hire training record carrying a driver signature, an instructor signature and a fill-in date. It leaves the packet the way p21 did under D-PKT7 and p23 never entered, and R7 owns it. ⚠ **It had already shipped** in P3's pack; the removal is a correction, not a scope change. The static pack goes 5 pages → 4 (128 transcribed lines → 101) and `CORRECTIONS` loses six entries. ⚠ `packetStatic.test.ts` now asserts the page's **absence** and names the three marks that gave it away, because the page LOOKS static and the mistake is re-makeable. |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
 
 ---
@@ -382,8 +402,9 @@ Pages 7–8, 24, 29–30 as one versioned PDF artifact, filed once per version a
 application. **Done when:** a submitted application's document set includes the policy pack, and
 changing its wording produces a new version rather than editing the filed one.
 
-**What shipped.** `packetStatic.ts` (all 128 lines) and `renderStatic.ts`, which draws them as one
-document carrying a caller-supplied `version`. ⚠ The version is an INPUT, not a hash of the file: a
+**What shipped.** `packetStatic.ts` and `renderStatic.ts`, which draws them as one document carrying
+a caller-supplied `version`. ⚠ **It shipped as five pages / 128 lines and is four pages / 101 lines**
+— page 24 was reclassified out on 2026-08-23 (D-PKT10) before anything referenced the pack. ⚠ The version is an INPUT, not a hash of the file: a
 hash changes when a comment moves, and what must change is the version when the **carrier's words**
 change — only a person can say that.
 
@@ -563,8 +584,10 @@ New submissions produce the packet; existing filed documents keep rendering as t
 4. ~~**Q-PKT4 — the typos.**~~ **ANSWERED 2026-08-23 → D-PKT9: corrected, and every correction
    listed.** ⚠ Narrowed during execution to spelling of WORDS only — see D-PKT9. Original question: D-PKT4 says transcription is a review pass. Does the owner want the errors
    corrected, or the packet reproduced exactly as the carrier's paper reads?
-5. ⚠ **Q-PKT5 — page 24 is classified STATIC and it is a signed post-hire training record.**
-   Raised 2026-08-23 while packaging P1. §2.2 calls it "policy or contract text with nothing to
+5. ~~**Q-PKT5 — page 24 is classified STATIC and it is a signed post-hire training record.**~~
+   **ANSWERED 2026-08-23 → D-PKT10: reclassified NOT OURS and moved to R7.** Shipped the same day it
+   was raised; §2.4 carries the page and `packetStatic.test.ts` carries the pin. Original finding,
+   raised while packaging P1: §2.2 calls it "policy or contract text with nothing to
    fill", and P3 shipped it into the versioned static pack on that basis — filed **once per version,
    identical for everybody**, so no applicant's mark can ever land on it. The page reads
    `On this day, ____________, 20___, I have completed training of log preparation`, carries
