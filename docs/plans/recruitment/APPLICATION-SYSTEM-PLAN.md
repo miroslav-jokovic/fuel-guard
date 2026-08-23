@@ -1467,6 +1467,62 @@ no consent refuses send.
 **Done when:** a driver who consented gets a text with their link, a driver who did not gets an email,
 and `STOP` is honoured on the next send.
 
+> ⚠ **CORRECTION, 2026-08-22: half of that Done-when was not true when this step was marked DONE, and
+> stayed untrue for a day.**
+>
+> "A driver who did not consent gets an email" was satisfied only for the **abandonment nudge** — the
+> SECOND email a driver would ever receive. The **FIRST** one, the invitation itself, had **no send
+> path at all**: `routes/recruitment/applicationInvites.ts` wrote the address into a column ("recorded
+> so a recruiter can see who was invited") and never imported a mailer. A recruiter copied the link
+> into their own mail client by hand. D-APP13's "email ships first" was, in the only place a driver
+> meets the system first, the thing that shipped last.
+>
+> ⚠ **How it passed review is the part worth keeping.** Every gate was green and every test passed,
+> because the tests asserted what the route DID — mints a token, stores a hash, writes an audit row,
+> never leaks the token — and no test asserted what it did NOT do. A Done-when written as a sentence
+> about a driver's experience cannot be checked by a suite that only knows about the endpoint. The
+> nudge sweep's own tests made it worse rather than better: they proved email delivery worked, on the
+> path that was never in doubt.
+>
+> Fixed 2026-08-22 as **A11c** below. The delivery stack needed nothing new.
+
+### A11c · The first invitation is actually sent — DONE 2026-08-22 (no migrations)
+
+**Prerequisites:** none — everything it needs shipped with A10.
+
+**What shipped.**
+- `POST /api/recruitment/application-invites` sends the link to the address it was already storing.
+- **`renderApplicationInviteEmail` in `packages/shared/src/email.ts`, and NOT a reuse of
+  `renderInviteEmail`.** ⚠ That template says *"Join {org} on FuelGuard — click below to set your
+  password"*: it is written for a colleague being given a LOGIN to this product. An applicant is not
+  joining anything, will never have a password, and in most cases has never heard of FuelGuard — the
+  carrier is who they applied to. Sending them the staff invitation would be the product talking
+  about itself to somebody who asked a trucking company for a job. It is not `nudgeEmail` either,
+  which opens "You started an application and it is still saved" — a sentence about a draft that does
+  not exist yet. The two are deliberately siblings: one says *here is a form*, the other *your form is
+  still here*.
+- The response carries `delivery: { sent, email, reason }`, and `ApplicationLinkOnce` — the component
+  both birthplaces render — says which of four things happened above the link.
+- ⚠ **`no_address`, `mail_disabled` and `send_failed` are three different people's problems** and are
+  reported separately: the recruiter left the field blank, an admin has no mail provider configured,
+  or the applicant's address bounced. A UI that said "could not send" to all three would send
+  somebody to the wrong person.
+
+⚠ **Sending never decides whether the invitation exists.** The row is committed and the audit row
+written before the mailer is touched; a refused send is reported, never raised. The token is not
+stored and not re-derivable, so an invitation rolled back by a rate-limited mail provider would leave
+the applicant with nothing and the recruiter with no way to recover it. **Pinned by "still creates the
+invitation, and still returns the link, when the send fails".**
+
+⚠ **SMS is still inert and needs no code.** `lib/sms.ts` and `services/applicationSms.ts` are
+complete — Twilio, the consent gate, quiet hours, STOP. It waits on two non-code clocks: 10DLC brand
+registration, and counsel's wording (`isDraftSmsConsent()` refuses draft text on every send path).
+The Twilio request shape and the inbound signature check have still never touched the wire.
+
+**Verified by:** `pnpm test` (all unit suites + 19 PGlite matrices) · `pnpm typecheck` · `pnpm lint`
+(zero in the tracked tree) · `lint:ui-adoption` · `pnpm --filter web lint:tokens` · `lint:boundaries` ·
+`lint:filesize` · `lint:funcsize` · `lint:comment-claims` · `lint:tests` — all green. No migration.
+
 ⚠ **One thing A11b must decide that A10 already made concrete.** The nudge ROTATES the invitation
 token (there is no link to re-send — 0220 keeps a hash). An SMS nudge rotates it too, so a driver who
 consented to SMS and also has the email link will find the older one dead. That is the same trade A10
@@ -1650,6 +1706,10 @@ is counsel's to change and not an engineer's.
 **A1 → A2 → A3a → A4 → A5 → A6 → A7 → A8a → A8b → A9 → A10 → A11**, with **A0 running in parallel
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
+
+⚠ **Position as of 2026-08-22: A1–A11c are ALL DONE (schema 0233 + 0234/0235, neither from this plan).**
+⚠ A11c is a CORRECTION to A11b, which was marked DONE while half its own Done-when was untrue — the
+first invitation had no send path. See A11b's boxed correction for why every gate stayed green.
 
 ⚠ **Position as of 2026-08-21: A1–A11b are ALL DONE (schema 0233). Every engineering step in this
 plan has shipped.** What remains is not code:

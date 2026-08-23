@@ -7,7 +7,10 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import { useCreateApplicant } from "@/features/recruitment/useCreateApplicant";
-import { useCreateApplicationInvite } from "@/features/recruitment/useApplicationInvites";
+import {
+  useCreateApplicationInvite,
+  type ApplicationInviteDelivery,
+} from "@/features/recruitment/useApplicationInvites";
 
 /**
  * The front door (U1, D-UI1).
@@ -51,6 +54,7 @@ const firstName = ref("");
 const lastName = ref("");
 const email = ref("");
 const link = ref<string | null>(null);
+const delivery = ref<ApplicationInviteDelivery | null>(null);
 /** Set only in the halfway state: the applicant exists and the invitation did not happen. */
 const orphaned = ref<{ name: string; driverId: string } | null>(null);
 
@@ -62,6 +66,7 @@ watch(
     lastName.value = "";
     email.value = "";
     link.value = null;
+    delivery.value = null;
     orphaned.value = null;
   },
 );
@@ -95,6 +100,7 @@ async function submit(): Promise<void> {
       email: email.value.trim() || null,
     });
     link.value = result.link;
+    delivery.value = result.delivery;
   } catch (e) {
     orphaned.value = { name: fullName, driverId };
     toast.error("The applicant was added, but the link was not created", e instanceof Error ? e.message : undefined);
@@ -129,7 +135,7 @@ async function submit(): Promise<void> {
         </FormField>
       </template>
 
-      <ApplicationLinkOnce v-if="link" :link="link" />
+      <ApplicationLinkOnce v-if="link" :link="link" :delivery="delivery" />
 
       <!-- The halfway state, named rather than hidden. The applicant is on the board and their own
            Application card is where the link is minted, so the recovery is one click and is said. -->

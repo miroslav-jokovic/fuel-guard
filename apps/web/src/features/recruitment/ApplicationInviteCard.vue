@@ -12,6 +12,7 @@ import {
   inviteState,
   useApplicationInvitesQuery,
   useCreateApplicationInvite,
+  type ApplicationInviteDelivery,
   useRevokeApplicationInvite,
   type ApplicationInvitation,
   useDriverApplicationQuery,
@@ -45,11 +46,13 @@ const canInvite = computed(() => {
 
 const email = ref("");
 const link = ref<string | null>(null);
+const delivery = ref<ApplicationInviteDelivery | null>(null);
 
 async function invite(): Promise<void> {
   try {
     const result = await create.mutateAsync({ driverId: driverId.value, email: email.value.trim() || null });
     link.value = result.link;
+    delivery.value = result.delivery;
     email.value = "";
   } catch (e) {
     toast.error("Could not create the invitation", e instanceof Error ? e.message : undefined);
@@ -118,7 +121,7 @@ const columns: DataTableColumn[] = [
         are hired.
       </p>
 
-      <ApplicationLinkOnce v-if="link" class="mt-4" :link="link" />
+      <ApplicationLinkOnce v-if="link" class="mt-4" :link="link" :delivery="delivery" />
     </BaseCard>
 
     <BaseCard v-if="applicationQ.data.value?.application">
