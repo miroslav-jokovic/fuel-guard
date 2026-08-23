@@ -158,7 +158,7 @@ all 31 pages" reading of fork (a) — and the fourth was moved here by the owner
 
 ---
 
-## 3. Seven things that have to be decided or built before any page renders
+## 3. Eight things that have to be decided or built before any page renders
 
 ### 3.1 The equipment grid is fixed rows, and ours is a free list
 
@@ -295,6 +295,29 @@ to the wizard — so **P8**, not P4.
 The transcription is kept in `packetText.ts` under `P26` with a note, because reviewing it twice
 would be waste.
 
+### 3.8 ⚠ The Owner-Operator Agreement is broken in ways spelling cannot fix
+
+**Found while transcribing for P3, 2026-08-23.** Pages 29–30 are a contract the driver signs on page
+31. Its text is not merely misspelled:
+
+| The packet says | The problem |
+|---|---|
+| `shall not he appeasable` | "be appealable" — a mangled arbitration term |
+| `each party shall appoint one arbitration` | "one arbitrator" |
+| `select a natural arbitrator` | "neutral" — and the same sentence later says *neutral* |
+| `If any one or more of the provisions contained in the Agreement but the Agreement will be enforceable to the extend applicable.` | ⚠ **a severability clause with its middle missing** — no spelling repair completes this sentence |
+| `whether or not signed for)` | an unmatched bracket in the service-of-process clause |
+| `has red and understood this contract` | "read" |
+
+⚠ **So D-PKT9 is NOT applied to pages 29–30.** Correcting a contract is drafting one, and the gap
+between *natural* and *neutral* arbitrator is the gap between two different agreements. The pages are
+reproduced exactly as the carrier wrote them, the defects travel with them, and counsel resolves them
+alongside P1's disclosure review. `packetStatic.test.ts` pins this in both directions: no correction
+may be registered against those pages, and the two worst clauses are asserted to survive `correct()`
+so a well-meaning tidy-up fails the build.
+
+Pages 7, 8 and 24 ARE spell-corrected — they are policy statements, not instruments.
+
 ### 3.5 ⚠ Citations stay in print — task B does not reach this document
 
 The packet cites regulations **on its own pages**: §383.21 on p2, §391.23(d)/(e) on p11, Part 40 and
@@ -312,7 +335,7 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT3** | The static attachments are **one filed artifact per version**, not per applicant. They are identical for everybody; rendering them per submission would put 5 unchanging pages into every stored document and make a wording change invisible. Version them the way `DISCLOSURES` are versioned. |
 | **D-PKT4** | ⚠ **No packet wording is adopted verbatim without counsel.** §3.3 is the worked example, and it is not the only page with the problem — the packet is full of typographical corruption ("BACKFROUNG", "maritial", "whcihc", "typyes"), which is harmless in a scan and is *not* harmless in a document we generate and a person signs. Transcription is a review pass, not a copy. |
 | **D-PKT6** | **Twenty-one placements, one adopted mark, DocuSign-style** (owner, 2026-08-22). The driver types their name once and their initials once, then a Next button walks them to each place a mark is needed. ⚠ The FCRA authorization (p20) stays a screen of its own regardless — §604(b)(2), and it is the rule `SigningCeremony` was built around. ⚠ This is an extension of `useSigningCeremony`, not a replacement: see §2.3. |
-| **D-PKT9** | **The packet's typos are corrected in print** (owner, 2026-08-23). ⚠ **Spelling of WORDS only** — the carrier's spacing and punctuation are reproduced as they are, because the guard that proves a correction is spelling-only is "same word count", and allowing re-spacing would loosen it until it could no longer tell a joined word from a deleted one. Every correction is a pair in `packetText.ts`'s `CORRECTIONS`, so the answer to "what did you change on our form" is a constant rather than a memory. |
+| **D-PKT9** | **The packet's typos are corrected in print** (owner, 2026-08-23). ⚠ **Spelling of WORDS only, and NOT AT ALL on the Owner-Operator Agreement** (§3.8) — correcting a contract is drafting one — the carrier's spacing and punctuation are reproduced as they are, because the guard that proves a correction is spelling-only is "same word count", and allowing re-spacing would loosen it until it could no longer tell a joined word from a deleted one. Every correction is a pair in `packetText.ts`'s `CORRECTIONS`, so the answer to "what did you change on our form" is a constant rather than a memory. |
 | **D-PKT7** | **The Seven Day Work Statement belongs to the HIRE, not the application** (owner, 2026-08-23). §395.8(j)(2) counts the seven days before work begins, so an application-time answer is stale on arrival. It leaves the packet PDF and becomes P7. |
 | **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
@@ -335,11 +358,34 @@ string, and `isDraftDisclosure()` stops refusing.
 D-PKT7 and D-PKT8; ~~Q-PKT4~~ **answered 2026-08-23 → D-PKT9.** **Every §6 question is now answered.**
 What remains blocking is P1 (counsel), which gates P5 and nothing else.
 
-### P3 · The static attachments (D-PKT3)
+### P3 · The static attachments (D-PKT3) — DONE 2026-08-23 (no migrations)
 
 Pages 7–8, 24, 29–30 as one versioned PDF artifact, filed once per version and referenced by every
 application. **Done when:** a submitted application's document set includes the policy pack, and
 changing its wording produces a new version rather than editing the filed one.
+
+**What shipped.** `packetStatic.ts` (all 128 lines) and `renderStatic.ts`, which draws them as one
+document carrying a caller-supplied `version`. ⚠ The version is an INPUT, not a hash of the file: a
+hash changes when a comment moves, and what must change is the version when the **carrier's words**
+change — only a person can say that.
+
+⚠ **The text was EXTRACTED, not retyped, and a test proves it.** The owner chose to transcribe now
+rather than wait for a supplied PDF (2026-08-23), and the one weakness of that choice is that counsel
+would then be reviewing an engineer's typing rather than the carrier's document.
+`packetStatic.test.ts` closes it: it re-reads `APPLICATION.xlsx` **at test time** — a zip of XML,
+opened with `zlib.inflateRawSync` and no dependency — and fails if any transcribed line is not in the
+workbook. Verified to fail: corrupting one line produces `p8: FUEL POLICY (edited)`. A second
+assertion pins the line COUNT at 128, because a transcription that quietly dropped a clause would
+otherwise still pass — everything remaining would still be found in the source.
+
+⚠ **The agreement pages are reproduced verbatim** and their defects are counsel's — see §3.8.
+
+**Verified by:** `pnpm test` (all unit suites + 19 PGlite matrices; 7 new assertions) ·
+`pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:filesize` · `lint:funcsize` ·
+`lint:comment-claims` · `lint:boundaries` · `lint:tests` — all green. No migration.
+
+⚠ **Nothing references the pack yet.** Filing it against a submission is P6's cutover, which waits on
+P5 and therefore on counsel.
 
 ### P4 · The fillable pages — DONE 2026-08-23 (no migrations)
 

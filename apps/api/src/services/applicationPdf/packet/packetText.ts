@@ -43,7 +43,49 @@ export const CORRECTIONS: readonly PacketCorrection[] = [
   { page: 16, packet: "benfit", corrected: "benefit" },
   { page: 16, packet: "This references should not be people", corrected: "These references should not be people" },
   { page: 26, packet: "administrated by an", corrected: "administered by an" },
+
+  // ── The static policy pages (P3). The AGREEMENT (29–30) is deliberately absent — see below.
+  { page: 7, packet: "IMPOREPER", corrected: "IMPROPER" },
+  { page: 7, packet: "OVERWIGHT", corrected: "OVERWEIGHT" },
+  { page: 8, packet: "YOU WIL INSPECT", corrected: "YOU WILL INSPECT" },
+  { page: 8, packet: "SAME CONDTION", corrected: "SAME CONDITION" },
+  { page: 8, packet: "WHEN RECIVED", corrected: "WHEN RECEIVED" },
+  { page: 8, packet: "TEAR EXEPTED", corrected: "TEAR EXCEPTED" },
+  { page: 8, packet: "EQUIPMENT MANGER", corrected: "EQUIPMENT MANAGER" },
+  { page: 24, packet: "familirize", corrected: "familiarize" },
+  { page: 24, packet: "requred", corrected: "required" },
+  { page: 24, packet: "followign", corrected: "following" },
+  { page: 24, packet: "informend", corrected: "informed" },
+  { page: 24, packet: "expalined", corrected: "explained" },
+  { page: 24, packet: "signatrure", corrected: "signature" },
 ];
+
+/**
+ * ⚠ **Corruption that is NOT corrected, because the right word is a guess.**
+ *
+ * Recorded rather than silently skipped, so the next reader knows these were seen and left:
+ * `available throught to company` (p24) · `a question-and-answer period which eluded additional
+ * company illustrations` (p24 — included? alluded to?) · `company fues` (p24 — fines? fees?) ·
+ * `FMCR Handbook` (p24 — almost certainly FMCSR, but expanding an acronym is not spelling) ·
+ * `I may come to the company und get further explanation` (p24).
+ *
+ * Each needs somebody who knows what the carrier meant. A repair that guesses is a wording change,
+ * and D-PKT4 puts wording with counsel.
+ */
+
+/**
+ * Apply the register to one line of the packet's own text.
+ *
+ * ⚠ Used for the STATIC pages only, and never for pages 29–30. `packetStatic.ts` stores the workbook's
+ * text pristine so a test can compare it against the source; the corrections are applied on the way to
+ * the page instead of being baked in. The fillable pages in this file work the other way round —
+ * short labels, assembled by hand, already correct — and the difference is explained there.
+ */
+export function correct(source: string): string {
+  let out = source;
+  for (const c of CORRECTIONS) out = out.split(c.packet).join(c.corrected);
+  return out;
+}
 
 /**
  * ⚠ **What is deliberately NOT corrected, and why the list is shorter than the packet's defects.**
