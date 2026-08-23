@@ -409,7 +409,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
               <div v-for="group in slotGroups(stop)" :key="group.slot" class="flex flex-wrap items-center gap-2">
                 <span
                   :class="[
-                    'inline-flex min-w-[5rem] items-center rounded-control px-1.5 py-0.5 text-[11px]',
+                    'inline-flex min-w-[5rem] items-center rounded-control px-1.5 py-0.5 text-2xs',
                     group.photos.length
                       ? 'bg-success-50 text-success-700'
                       : 'bg-warning-50 text-warning-700',
@@ -436,7 +436,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
                   />
                   <span
                     v-else
-                    class="flex size-20 items-center justify-center rounded-control bg-danger-50 px-1 text-center text-[11px] text-danger-700 ring-1 ring-danger-200"
+                    class="flex size-20 items-center justify-center rounded-control bg-danger-50 px-1 text-center text-2xs text-danger-700 ring-1 ring-danger-200"
                     :title="'The record says this photo exists but the image could not be retrieved.'"
                   >
                     Image missing

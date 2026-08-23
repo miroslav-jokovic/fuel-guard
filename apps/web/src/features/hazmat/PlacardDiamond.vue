@@ -52,7 +52,7 @@ const label = computed(() => {
     <!-- eslint-enable vue/no-v-html -->
     <span
       v-if="art.symbolProvisional"
-      class="text-[10px] font-medium uppercase tracking-wide text-ink-tertiary"
+      class="text-2xs font-medium uppercase tracking-wide text-ink-tertiary"
       title="Pictogram is a placeholder pending official artwork"
     >
       placeholder art

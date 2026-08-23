@@ -223,6 +223,12 @@
 
 @theme inline {
   --font-sans: "Hanken Grotesk", system-ui, sans-serif;
+  /* A seventh text size, added deliberately (D-DS6). 11px was already in the product eleven times
+     as `text-[11px]`, always for the same job: dense secondary metadata — chart legends, stage
+     labels, timestamps. That is a tier the scale was missing, and pretending otherwise just moved
+     the decision into arbitrary values where no gate could see it. Naming it is the smaller evil.
+     Anything that must be READ rather than glanced at belongs at text-xs or above. */
+  --text-2xs: 0.6875rem;
   /* roles */
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
