@@ -132,6 +132,21 @@ const RULES = [
     violates: (m) => !TEXT_SIZES.has(m[1]),
   },
   {
+    /**
+     * Column widths belong to the scale, not to `headerClass` (D-DS5).
+     *
+     * 173 of them had been written by hand across 25 files in 15 different sizes — 5rem and 6rem and
+     * 7rem for the same kind of column in three different tables, because every author picked a
+     * number and no two ever compared notes. `headerClass` was the channel that let it happen, so it
+     * stops being the width channel. A fixed `w-32` is still fine there: that is a different intent.
+     *
+     * Scanned over the whole line rather than inside `class="…"`, because a column definition is an
+     * object literal in a <script> block, which is exactly where the class-only rules never look.
+     */
+    name: "column width in headerClass (use the `width` prop: xs/sm/md/lg/xl/2xl/3xl)",
+    re: /headerClass:\s*"[^"]*min-w-\[/g,
+  },
+  {
     name: "radius not in tokens.css (use rounded-detail/control/surface/overlay/dialog)",
     classesOnly: true,
     re: new RegExp(`\\brounded(?:-${RADIUS_SIDES})?-(\\[[^\\]]*\\]|[a-z0-9][a-z0-9-]*)(?![\\w-])`, "g"),

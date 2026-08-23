@@ -219,15 +219,15 @@ const columns: DataTableColumn[] = [
     key: "driver_name",
     label: "Driver",
     sortable: true,
-    headerClass: "min-w-[13rem]",
+    width: "xl",
     cellClass: "font-medium text-ink",
   },
-  { key: "file", label: "Qualification file", headerClass: "min-w-[16rem]" },
+  { key: "file", label: "Qualification file", width: "2xl" },
   {
     key: "soonest",
     label: "Next due",
     sortable: true,
-    headerClass: "min-w-[14rem]",
+    width: "xl",
     cellClass: "text-ink-secondary",
   },
 ];

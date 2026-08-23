@@ -59,14 +59,14 @@ const price = (n: number | null) => (n == null ? "—" : `$${n.toFixed(3)}`);
 const brandLabel = (b: string) => b.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 const columns: DataTableColumn[] = [
-  { key: "name", label: "Truck stop", sortable: true, headerClass: "min-w-[9rem]", cellClass: "font-medium text-ink" },
-  { key: "brand", label: "Brand", sortable: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "state", label: "State", sortable: true, headerClass: "min-w-[4rem]" },
-  { key: "city", label: "Location", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "storeNumber", label: "Store #", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-muted tabular-nums" },
-  { key: "netPrice", label: "Net $/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
-  { key: "postedPrice", label: "Posted", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
-  { key: "ageHours", label: "Price age", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
+  { key: "name", label: "Truck stop", sortable: true, width: "lg", cellClass: "font-medium text-ink" },
+  { key: "brand", label: "Brand", sortable: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "state", label: "State", sortable: true, width: "xs" },
+  { key: "city", label: "Location", sortable: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "storeNumber", label: "Store #", sortable: true, width: "sm", cellClass: "text-ink-muted tabular-nums" },
+  { key: "netPrice", label: "Net $/gal", sortable: true, numeric: true, width: "sm" },
+  { key: "postedPrice", label: "Posted", sortable: true, numeric: true, width: "sm" },
+  { key: "ageHours", label: "Price age", sortable: true, numeric: true, width: "sm" },
 ];
 </script>
 

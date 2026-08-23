@@ -48,11 +48,11 @@ const driverLabel = (id: string | null): string =>
   (drivers.value ?? []).find((driver) => driver.id === id)?.full_name ?? "—";
 
 const columns: DataTableColumn[] = [
-  { key: "products", label: "Products", headerClass: "min-w-[7rem]" },
-  { key: "vehicle_id", label: "Truck", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
-  { key: "driver_id", label: "Driver", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "waiting", label: "Waiting", numeric: true, headerClass: "min-w-[6rem]", cellClass: "font-medium text-ink-secondary" },
-  { key: "created_at", label: "Created", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "products", label: "Products", width: "md" },
+  { key: "vehicle_id", label: "Truck", width: "md", cellClass: "text-ink-secondary" },
+  { key: "driver_id", label: "Driver", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "waiting", label: "Waiting", numeric: true, width: "sm", cellClass: "font-medium text-ink-secondary" },
+  { key: "created_at", label: "Created", width: "lg", cellClass: "text-ink-secondary" },
 ];
 </script>
 

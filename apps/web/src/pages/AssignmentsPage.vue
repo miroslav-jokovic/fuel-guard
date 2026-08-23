@@ -95,37 +95,37 @@ async function end(r: AssignmentRow) {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "driver_name", label: "Driver", headerClass: "min-w-[9rem]" },
-  { key: "duty", label: "Duty status", headerClass: "min-w-[7rem]" },
+  { key: "driver_name", label: "Driver", width: "lg" },
+  { key: "duty", label: "Duty status", width: "md" },
   {
     key: "vehicle_unit",
     label: "Truck",
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
   {
     key: "trailer_unit",
     label: "Trailer",
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
   {
     key: "location",
     label: "Location",
-    headerClass: "min-w-[9rem]",
+    width: "lg",
     cellClass: "text-ink-secondary",
   },
   {
     key: "duration",
     label: "In status",
     numeric: true,
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
   {
     key: "load",
     label: "Current load",
-    headerClass: "min-w-[10rem]",
+    width: "lg",
     cellClass: "text-ink-secondary",
   },
 ];

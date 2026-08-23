@@ -116,10 +116,10 @@ async function bulkDelete() {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "created_at", label: "Created", headerClass: "min-w-[9rem]" },
-  { key: "created_by_label", label: "Created by", headerClass: "min-w-[10rem]" },
+  { key: "created_at", label: "Created", width: "lg" },
+  { key: "created_by_label", label: "Created by", width: "lg" },
   { key: "unit_number", label: "Truck" },
-  { key: "route", label: "Route", headerClass: "min-w-[16rem]" },
+  { key: "route", label: "Route", width: "2xl" },
   { key: "distance_miles", label: "Distance", numeric: true },
   { key: "stop_count", label: "Stops", numeric: true },
   { key: "total_gallons", label: "Gallons", numeric: true },

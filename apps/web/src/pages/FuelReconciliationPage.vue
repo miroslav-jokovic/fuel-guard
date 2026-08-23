@@ -136,14 +136,14 @@ const rows = computed(() => {
 });
 
 const columns: DataTableColumn[] = [
-  { key: "status", label: "Status", headerClass: "min-w-[9rem]" },
-  { key: "date", label: "Date", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "unit", label: "Unit", headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
-  { key: "site", label: "Site", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "card", label: "Card", headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
-  { key: "gallons", label: "Gallons (rpt / sys)", numeric: true, headerClass: "min-w-[8rem]" },
-  { key: "amount", label: "Amount (rpt / sys)", numeric: true, headerClass: "min-w-[9rem]" },
-  { key: "note", label: "Detail", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", width: "lg" },
+  { key: "date", label: "Date", width: "sm", cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Unit", width: "sm", cellClass: "text-ink-secondary" },
+  { key: "site", label: "Site", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "card", label: "Card", width: "xs", cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons (rpt / sys)", numeric: true, width: "md" },
+  { key: "amount", label: "Amount (rpt / sys)", numeric: true, width: "lg" },
+  { key: "note", label: "Detail", width: "xl", cellClass: "text-ink-secondary" },
 ];
 </script>
 

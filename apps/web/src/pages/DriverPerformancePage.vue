@@ -127,13 +127,13 @@ const rankTone = (rank: number | null) => (rank === 1 ? "success" : rank != null
 
 const columns: DataTableColumn[] = [
   { key: "rank", label: "#", sortable: true, headerClass: "w-12" },
-  { key: "driverName", label: "Driver", sortable: true, headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
-  { key: "safety", label: "Safety", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "efficiency", label: "Efficiency", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "idling", label: "Idling", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "final", label: "Final", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
-  { key: "exposure", label: "Miles / hrs", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
+  { key: "driverName", label: "Driver", sortable: true, width: "xl", cellClass: "font-medium text-ink" },
+  { key: "safety", label: "Safety", sortable: true, numeric: true, width: "md" },
+  { key: "efficiency", label: "Efficiency", sortable: true, numeric: true, width: "md" },
+  { key: "idling", label: "Idling", sortable: true, numeric: true, width: "md" },
+  { key: "final", label: "Final", sortable: true, numeric: true, width: "sm" },
+  { key: "exposure", label: "Miles / hrs", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
 ];
 </script>
 
