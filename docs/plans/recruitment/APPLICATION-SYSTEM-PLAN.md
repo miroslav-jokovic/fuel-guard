@@ -367,6 +367,16 @@ One step per branch (`claude/<topic>`), PR to `main`, merge after CI. Mark each 
 
 ### A0 · Publish the instrument text as v1 — content, no code
 
+⚠ **PACKAGED 2026-08-23 — `COUNSEL-REVIEW-PACKAGE.md`.** A0 and `APPLICATION-PACKET-PLAN.md` P1 are
+one review and that document is it. Read it before this section: it corrects the count below in the
+same way P1's was corrected — **eight** `v0-draft` instruments, not five or six. The sixth named here
+(the ESIGN consent) shipped with A4; the seventh and eighth are `SMS_CONSENT` (A11b) and
+`EMPLOYER_INQUIRIES.drug_alcohol`, both blocked by the same predicate.
+
+⚠ The predicate-unification this step asks for in "same commit" was **already done by A4** — there is
+one `isDraftDisclosure` in `authorizationContract.ts` and `applicationIntake.ts` re-exports it. Only
+the version strings remain.
+
 **Prerequisites:** none from engineering.
 
 **Build.** Counsel's reviewed wording replaces **four** of the five `body`/`intent` strings in
