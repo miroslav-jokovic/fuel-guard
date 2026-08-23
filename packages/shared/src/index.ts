@@ -108,6 +108,7 @@ export * from "./efsLimitCatalog.js";
 export * from "./cardControlContract.js";
 export * from "./efsAccountContract.js";
 export * from "./returnToDuty.js";
+export * from "./packetPlacements.js";
 export * from "./cardControlLedger.js";
 export * from "./efs/types.js";
 export * from "./efs/stepUp.js";

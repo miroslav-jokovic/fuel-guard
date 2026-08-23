@@ -100,6 +100,13 @@ on 2026-08-23 — p21 to the hire, p24 to training.)
 
 ### 2.3 ⚠ The signature count is the finding, not the page count
 
+⚠ **CORRECTED 2026-08-23 by measurement (Q-PKT6): the driver signs or initials 21 times across
+EIGHTEEN pages, and six further marks on the paper are not the driver's.** The paragraph below was
+written from a reading of the pages; `packages/shared/src/packetPlacements.ts` is the measurement,
+and `packetPlacements.test.ts` checks it against the workbook on every run. The total was right and
+its composition was not — company countersignature lines were counted in, and page 26 was counted
+out.
+
 The packet asks for a signature or a set of initials **21 times across 17 pages**. Our ceremony
 collects **five** instruments plus the §391.21(b)(12) certification. Fork (b) does not reduce this
 number at all — a page that is static text plus a signature is still a page somebody has to sign, and
@@ -468,8 +475,13 @@ lines and was split into three modules rather than waived) · `lint:funcsize` ·
 
 The 18 SIGN pages and the 21 placements on them, as three extensions of `useSigningCeremony` (§2.3):
 a placement queue, initials as a second adopted mark, and the drawn mark re-applied per placement.
-⚠ **Q-PKT6 first:** the placement inventory has to be re-derived with each mark labelled `driver` or
-`carrier`, or the ceremony walks a driver to the company's signature line.
+
+⚠ **Q-PKT6 is DONE and P5 no longer has to derive anything.** `packages/shared/src/packetPlacements.ts`
+is the measured inventory — 27 placements, each labelled `driver` / `carrier` / `witness`, each
+anchored to the workbook line it sits on and pinned by a test that re-reads the file.
+`driverPlacements()` IS the queue: 21 stops, in the packet's own page order, and
+`adoptedMarkKinds()` says there are exactly two marks to adopt. What is left for P5 is the
+interaction, not the arithmetic.
 **Blocked on P1 only** — D-PKT6 settled the interaction, but building 21 placements against `v0-draft`
 wording would mean building them twice, and `isDraftDisclosure()` refuses the signature anyway.
 
@@ -664,8 +676,22 @@ New submissions produce the packet; existing filed documents keep rendering as t
    **Proposed: reclassify NOT OURS and move it to training (R7 / `DRIVER-TRAINING-PLAN.md`)**, the
    way D-PKT7 moved the Seven Day Work Statement to the hire. That drops the static pack to four
    pages and the corrections register by six entries. Owner's call — it amends D-PKT1's inventory.
-6. ⚠ **Q-PKT6 — the 21 placements were never split into driver marks and carrier marks.**
-   Raised 2026-08-23. §2.3's count found signature lines; it did not ask *whose*. At least these are
+6. ~~**Q-PKT6 — the 21 placements were never split into driver marks and carrier marks.**~~
+   **ANSWERED 2026-08-23 by MEASUREMENT — `packages/shared/src/packetPlacements.ts`.**
+   ⚠ **The number was right by coincidence and its composition was wrong.** Re-derived line by line
+   against the workbook: **21 marks are the driver's, across EIGHTEEN pages, and six more are not** —
+   four the carrier's countersignature and two a witness's. The plan's "21 across 17" counted company
+   lines as the driver's AND predated page 26 being known to take a mark (§3.7); two errors of the
+   same size in opposite directions, which is the most expensive kind of correct number because
+   nothing about it looks wrong. `packetPlacements.test.ts` re-reads `APPLICATION.xlsx` and pins every
+   anchor, the repeat counts (p19 has two identical driver lines, p31 three), and a one-directional
+   sweep proving no mark line on a rendered page is unclaimed.
+   ⚠ **A third party appears that the fork never contemplated:** p31's `Witness Name`, and p22's
+   `Witness by`. Neither the applicant nor the carrier, so `party` has three values.
+   ⚠ **p31 takes THREE marks from potentially two people** — `Driver name`, `Owner Operator Name`
+   and `Witness Name`. Usually the first two are the same person; the packet does not assume it and
+   nor does the inventory.
+   Original finding, raised while packaging P1: §2.3's count found signature lines; it did not ask *whose*. At least these are
    the carrier's: p18 `Silvicom Inc Representative:`, p19 the same **twice**, p22
    `Company reprsentative's signature` and `Witness by`, and one of p31's three `Signature | Date`
    lines. A queue built from the raw count walks a driver to a line where the company signs.
