@@ -54,6 +54,7 @@ const APPLICATION = {
     },
   ],
   declares_no_employment: false,
+  prior_failed_pre_employment_test: false,
   questionnaire_version: "silvicom_driver@1",
   questionnaire_answers: {
     position: "Owner operator",
@@ -125,9 +126,9 @@ describe("the rendered packet", () => {
     expect(a.byteLength).toBe(b.byteLength);
   });
 
-  it("renders the four packet pages it claims to, and no more", async () => {
+  it("renders the packet pages it claims to, and no more", async () => {
     const pdf = await renderApplicationPacketPdf(input());
-    expect(RENDERED_PACKET_PAGES).toEqual([1, 2, 12, 16]);
+    expect(RENDERED_PACKET_PAGES).toEqual([1, 2, 12, 16, 26]);
     const text = pdfText(pdf);
     for (const heading of [P1.heading, P2.experienceHeading, P12.heading, P16.heading]) {
       expect(text).toContain(heading);
@@ -264,6 +265,32 @@ describe("the rendered packet", () => {
       // The class folded; the fact did not. This is the assertion behind "not information loss" —
       // and the word is short because the packet's own examples in that column are "VAN, TANK, FLAT".
       expect(text).toContain("Tanker");
+    });
+  });
+
+  /**
+   * §40.25(j) (P8). Three states, and the third is the one worth a test: `null` means the application
+   * predates the question, which is a different fact from "they said no" and must not look like one
+   * on a page somebody signs.
+   */
+  describe("page 26's two-year question", () => {
+    const withAnswer = (v: boolean | null): DriverApplication =>
+      ({ ...APPLICATION, prior_failed_pre_employment_test: v }) as unknown as DriverApplication;
+
+    it("marks YES when the applicant said yes", async () => {
+      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(true) })));
+      expect(text).toContain("[X]  YES      [ ]  NO");
+    });
+
+    it("marks NO when they said no", async () => {
+      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(false) })));
+      expect(text).toContain("[ ]  YES      [X]  NO");
+    });
+
+    it("marks NEITHER box on an application filed before the question existed, and says why", async () => {
+      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(null) })));
+      expect(text).toContain("[ ]  YES      [ ]  NO");
+      expect(text).toContain("submitted before this question was added");
     });
   });
 

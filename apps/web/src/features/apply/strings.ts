@@ -205,6 +205,20 @@ export const APPLY_COPY = {
     everDenied: "A licence, permit or privilege of mine has been denied, revoked or suspended",
     denialDetail: "What happened",
     denialDetailHint: "The reason it happened.",
+    /**
+     * §40.25(j)'s two-year question (P8). ⚠ No citation in the copy — D-UI9 — and the voice rule
+     * applies with force here: this is the most resented question on the form, so it says why it is
+     * asked in the same breath, and it says what a yes actually means. A driver who reads "yes ends
+     * this" answers no.
+     */
+    priorTestHeading: "Drug and alcohol tests",
+    priorTestIntro:
+      "Every carrier has to ask this one, and a yes does not end your application. It means we have "
+      + "to see the paperwork showing you finished the return-to-duty process before you can drive.",
+    priorTest:
+      "In the last two years, I applied for a driving job I did not get, and I tested positive or "
+      + "refused a test as part of that application",
+    priorTestHint: "This is about jobs you applied for, not jobs you had.",
     remove: "Remove",
   },
 

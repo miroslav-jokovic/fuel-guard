@@ -107,5 +107,16 @@ const copy = APPLY_COPY.safety;
         <BaseInput :id="id" v-model="draft.licence_denial_detail" />
       </FormField>
     </div>
+
+    <!-- §40.25(j) (P8). The carrier's packet gives this a page of its own; here it is the last block
+         of the driving-record screen, because a wizard step exists per REGULATION-shaped group of
+         answers and an eighth screen for one checkbox is a step somebody abandons on. The intro says
+         what a yes means before the box is offered — see the copy's own note. -->
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold text-ink">{{ copy.priorTestHeading }}</h3>
+      <p class="text-sm text-ink-muted">{{ copy.priorTestIntro }}</p>
+      <BaseCheckbox v-model="draft.prior_failed_pre_employment_test">{{ copy.priorTest }}</BaseCheckbox>
+      <p class="text-xs text-ink-muted">{{ copy.priorTestHint }}</p>
+    </div>
   </section>
 </template>

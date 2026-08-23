@@ -187,13 +187,13 @@ export const P16 = {
 } as const;
 
 /**
- * Page 26 — the §40.25(j) two-year question. ⚠ **NOT RENDERED YET (P8).**
+ * Page 26 — the §40.25(j) two-year question.
  *
- * Transcribed here because the transcription is done and reviewing it twice would be waste, but the
- * renderer does not draw this page: there is no field in `driverApplicationSchema` holding its
- * answer. The plan's inventory said "already asked" and was wrong — what the wizard collects is
- * `safety_sensitive` and `subject_to_fmcsr`, two PER-EMPLOYER booleans about a job the driver
- * actually held, which is a different question from "a job you applied for but did not get".
+ * ⚠ Not rendered until P8 (2026-08-23), because the plan's inventory said the data was already
+ * collected and it was not: the wizard held `safety_sensitive` and `subject_to_fmcsr`, two
+ * PER-EMPLOYER booleans about a job the driver actually HELD, which is a different question from "a
+ * job you applied for and did not get". P8 added `prior_failed_pre_employment_test` to the contract
+ * and a control to the driving-record screen; this page draws it now.
  */
 export const P26 = {
   nameLabel: "Driver's / Owner's Name",
@@ -205,6 +205,8 @@ export const P26 = {
   yes: "YES",
   no: "NO",
   signature: "Driver / Owner Signature",
+  /** Printed instead of a marked box when the payload predates P8 — see `page26`. */
+  notAsked: "This application was submitted before this question was added to the form.",
 } as const;
 
 /**
