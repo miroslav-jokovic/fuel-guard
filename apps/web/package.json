@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
+    "preview:local": "node scripts/preview-local.mjs",
     "typecheck": "vue-tsc -p tsconfig.json --noEmit",
     "lint:tokens": "node scripts/check-design-tokens.mjs",
     "test": "vitest run",

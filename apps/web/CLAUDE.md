@@ -6,7 +6,13 @@ changing UI. The rules below are the ones most often violated; the contract has 
 ## Verify with
 
 - `pnpm --filter @fuelguard/web typecheck` (vue-tsc) and `pnpm --filter @fuelguard/web test` (vitest).
-  Prefer these over a dev server for verification.
+  These are the fast path and cover most changes.
+- **To SEE a change: `pnpm --filter @fuelguard/web preview:local`.** Builds and serves on :4173 with
+  the design-system lab switched on, so `/__design-system` renders real primitives without a login —
+  everything else in the app is behind the auth wall. ⚠ `pnpm dev` crashes on some machines with
+  `WebAssembly.Memory.grow(): Maximum memory size exceeded` inside vite's rolldown dependency
+  optimiser; that is environmental, happens before your code is touched, and is **not** a regression
+  from your change. `vite build` is unaffected (~0.7s), which is why the preview loop exists (D-DS13).
 - `pnpm --filter web lint:tokens` after ANY template/style change — raw palette utilities
   (`bg-red-500`), hex colors, and inline color styles all fail the build. Semantic tokens only
   (`text-ink-muted`, `bg-surface`, `ring-edge`).
