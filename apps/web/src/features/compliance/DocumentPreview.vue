@@ -70,14 +70,14 @@ const sizeLabel = computed(() => {
       <iframe
         v-if="isPdf && doc.url"
         :src="doc.url"
-        class="h-[70vh] w-full rounded-md ring-1 ring-edge"
+        class="h-[70vh] w-full rounded-surface ring-1 ring-edge"
         :title="`${label} document`"
       />
       <img
         v-else-if="viewUrl"
         :src="viewUrl"
         alt=""
-        class="mx-auto max-h-[70vh] max-w-full rounded-md object-contain ring-1 ring-edge"
+        class="mx-auto max-h-[70vh] max-w-full rounded-surface object-contain ring-1 ring-edge"
       />
       <p v-else class="py-10 text-center text-sm text-ink-muted">
         The scan could not be loaded. Its signed link may have expired — close and reopen the file.

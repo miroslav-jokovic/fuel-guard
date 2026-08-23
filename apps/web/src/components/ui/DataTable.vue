@@ -171,7 +171,7 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
           :class="[dense ? 'text-xs' : 'text-sm', nowrap ? 'whitespace-nowrap' : '']"
         >
           <thead
-            class="bg-surface-subtle text-ink-muted shadow-[inset_0_-1px_0_0_var(--edge)]"
+            class="bg-surface-subtle text-ink-muted shadow-sticky-edge"
             :class="stickyHeader ? 'sticky top-0 z-10' : ''"
           >
             <tr>

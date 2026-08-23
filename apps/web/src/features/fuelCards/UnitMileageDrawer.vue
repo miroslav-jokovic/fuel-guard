@@ -192,7 +192,7 @@ async function submit(): Promise<void> {
       </div>
 
       <!-- ── What EFS holds now, and nothing beside it ───────────────────────────────────────── -->
-      <div v-if="trimmedUnit !== ''" class="rounded-md bg-surface-subtle p-4 ring-1 ring-edge">
+      <div v-if="trimmedUnit !== ''" class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
         <p class="text-sm text-ink-muted">EFS currently holds for unit {{ trimmedUnit }}</p>
         <p v-if="looking" class="mt-1 text-2xl font-semibold text-ink-tertiary">Reading…</p>
         <p v-else class="mt-1 text-2xl font-semibold tabular-nums text-ink">
@@ -236,7 +236,7 @@ async function submit(): Promise<void> {
       <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
 
       <!-- ── What actually happened ──────────────────────────────────────────────────────────── -->
-      <div v-if="notice" class="rounded-md p-4 text-sm ring-1" :class="NOTICE_CLASS[notice.tone]">
+      <div v-if="notice" class="rounded-surface p-4 text-sm ring-1" :class="NOTICE_CLASS[notice.tone]">
         <p class="font-semibold">{{ notice.title }}</p>
         <p class="mt-1">{{ notice.detail }}</p>
         <p v-if="outcome?.dispatched" class="mt-2 tabular-nums opacity-80">

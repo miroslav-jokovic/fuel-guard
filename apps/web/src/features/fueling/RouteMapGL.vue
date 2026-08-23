@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
 
 <template>
   <BaseCard padding="none">
-    <div ref="mapEl" class="h-[380px] w-full overflow-hidden rounded-t-xl" role="img" aria-label="Planned route with fuel stops" />
+    <div ref="mapEl" class="h-[380px] w-full overflow-hidden rounded-t-surface" role="img" aria-label="Planned route with fuel stops" />
     <div class="flex flex-wrap items-center gap-4 border-t border-edge px-4 py-2 text-xs text-ink-muted">
       <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-success-600" /> Start</span>
       <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-brand-accent-strong" /> Destination</span>
