@@ -46,7 +46,7 @@ the review closes it by itself.
 | §391.21(b)(12) certification with a typed name and an optional drawn mark | live |
 | §391.21-shaped PDF (`render.ts`), filed to `qualification_records` | live |
 | Packet pages 1, 2, 12, 16, 26 rendered in the carrier's own layout | built, **no caller** |
-| Packet static pages 7, 8, 24, 29, 30 as a versioned pack | built, **no caller** |
+| Packet static pages 7, 8, 29, 30 as a versioned pack | built, **no caller** |
 | Seven Day Work Statement at the hire (migration 0236) | live |
 | PSP ordering, employer inquiries, hire-with-carry-over | live, **authorization-gated** |
 
@@ -239,8 +239,8 @@ additional licenses must he returned` is the same OCR corruption family.
 
 ### 3.6 The thirteen SIGN pages P1 did not name
 
-Pages **3, 5, 6, 9, 10, 11, 13, 15, 25, 27, 28, 31** (and page 24 — see §5.1) are static text under a
-signature or a set of initials. They are in scope under D-PKT4 and we have not reviewed them
+Pages **3, 5, 6, 9, 10, 11, 13, 15, 25, 27, 28, 31** are static text under a signature or a set of
+initials. They are in scope under D-PKT4 and we have not reviewed them
 line-by-line here. Two are worth naming in advance:
 
 - **Page 15 — past employment verification release.** It takes name, date of birth and SSN and is the
@@ -339,7 +339,12 @@ be built against something.
 
 ## 5. Findings that change the plans, and which the owner has to rule on
 
-### 5.1 ⚠ Q-PKT5 — page 24 is classified STATIC and it is a signed post-hire training record
+### 5.1 ~~Q-PKT5~~ — page 24 was classified STATIC and is a signed post-hire training record · **FIXED 2026-08-23 (D-PKT10)**
+
+⚠ **Resolved after this document was written.** The page is reclassified NOT OURS, removed from the
+static pack (5 pages → 4, 128 transcribed lines → 101), its six corrections are dropped, and
+`packetStatic.test.ts` asserts its absence. It is R7 / `DRIVER-TRAINING-PLAN.md`'s page now.
+**Counsel does not review it as part of the applicant packet.** The finding as raised:
 
 `APPLICATION-PACKET-PLAN.md` §2.2 classifies page 24, `DRIVER SAFETY TRAINING`, as **STATIC** —
 "policy or contract text with nothing to fill". P3 shipped it into the versioned static pack on that
@@ -363,7 +368,7 @@ that moved pages 21 and 23 out of the application.
 **Recommendation: page 24 is reclassified NOT OURS and moves to training (`DRIVER-TRAINING-PLAN.md` /
 R7), the way the Seven Day Work Statement moved to the hire under D-PKT7.** That drops the static pack
 from five pages to four and the spelling register loses six entries. It is an owner decision because
-it amends D-PKT1's inventory.
+it amends D-PKT1's inventory. — **Accepted and executed 2026-08-23 as D-PKT10.**
 
 ### 5.2 ⚠ Q-PKT6 — the twenty-one placements have not been split into driver marks and carrier marks
 
@@ -565,5 +570,5 @@ derived that way, and any re-derivation must use the same anchor.
 |---|---|---|
 | **FILL** — takes applicant data | 1, 2, 12, 16, 26 | no — rendered, no wording adopted |
 | **SIGN** — static text plus a mark | 3, 4, 5, 6, 9, 10, 11, 13, 15, 18, 19, 20, 22, 25, 27, 28, 31 | **yes, all of them** |
-| **STATIC** — attached, unsigned | 7, 8, 29, 30 (and 24 — see §5.1) | 29–30 yes (§3.6); 7, 8 no |
-| **NOT OURS** | 14, 17, 21, 23 (and 24, proposed) | no |
+| **STATIC** — attached, unsigned | 7, 8, 29, 30 | 29–30 yes (§3.6); 7, 8 no |
+| **NOT OURS** | 14, 17, 21, 23, 24 | no |

@@ -89,8 +89,31 @@ describe("the static packet pages", () => {
     expect(lines.some((l) => l.includes("THIS IS NOT AN EMPLOYMENT APPLICATION"))).toBe(true);
   });
 
-  it("covers the five pages the plan classified as STATIC", () => {
-    expect(STATIC_PAGES.map((p) => p.page)).toEqual([7, 8, 24, 29, 30]);
+  it("covers the four pages the plan classifies as STATIC", () => {
+    expect(STATIC_PAGES.map((p) => p.page)).toEqual([7, 8, 29, 30]);
+  });
+
+  /**
+   * ⚠ The pin for Q-PKT5. Page 24 was in this pack for one day on a classification nobody could
+   * test: `DRIVER SAFETY TRAINING` reads as policy text and is a post-hire training record with a
+   * driver signature, an instructor signature and a fill-in date on it. A pack filed once per version
+   * can never carry anybody's mark, so those were three signature lines drawn as inert labels.
+   *
+   * Asserted rather than just deleted, because the mistake is re-makeable: the page LOOKS static, and
+   * the next person extending this pack from the workbook will meet it again.
+   */
+  it("does not carry page 24 — it is a post-hire training record, not policy text (Q-PKT5)", () => {
+    expect(STATIC_PAGES.some((p) => p.page === 24)).toBe(false);
+    const all = STATIC_PAGES.flatMap((p) => [p.heading, ...p.body]).join(" ");
+    expect(all).not.toContain("DRIVER SAFETY TRAINING");
+    // The three marks that gave it away. None of them may reach a document nobody signs.
+    expect(all).not.toContain("Driver signatrure");
+    expect(all).not.toContain("Instructor's signatrure");
+    expect(all).not.toContain("I have completed training");
+  });
+
+  it("registers no correction against page 24 either — the page and its typos left together", () => {
+    expect(CORRECTIONS.filter((c) => c.page === 24)).toEqual([]);
   });
 
   /**
@@ -112,10 +135,11 @@ describe("the static packet pages", () => {
   });
 
   it("transcribes every line of those pages — nothing was skipped", () => {
-    // 128 lines were extracted; a transcription that quietly dropped a clause would still pass the
+    // 101 lines are extracted; a transcription that quietly dropped a clause would still pass the
     // assertion above, because everything remaining would still be found in the source.
+    // ⚠ It was 128 while page 24 was in the pack (Q-PKT5, 2026-08-23) — 27 of those lines left with it.
     const total = STATIC_PAGES.reduce((n, p) => n + p.body.length + 1, 0);
-    expect(total).toBe(128);
+    expect(total).toBe(101);
   });
 
   /**
@@ -138,7 +162,7 @@ describe("the static packet pages", () => {
   });
 
   it("does spell-correct the policy pages", () => {
-    const policy = STATIC_PAGES.filter((p) => [7, 8, 24].includes(p.page))
+    const policy = STATIC_PAGES.filter((p) => [7, 8].includes(p.page))
       .flatMap((p) => p.body)
       .join(" ");
     expect(policy).toContain("OVERWIGHT");

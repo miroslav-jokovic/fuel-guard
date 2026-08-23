@@ -7,7 +7,7 @@ import { correct } from "./packetText.js";
  * The packet's policy and agreement pages, as one attachable document (P3, D-PKT3).
  *
  * ── WHY THIS IS RENDERED ONCE PER VERSION AND NOT ONCE PER APPLICANT ──────────────────────────
- * Pages 7–8, 24 and 29–30 are identical for everybody. Drawing them into every submission would put
+ * Pages 7–8 and 29–30 are identical for everybody. Drawing them into every submission would put
  * five unchanging pages inside every stored document, and — the reason that actually matters — it
  * would make a WORDING CHANGE invisible: two applicants who signed materially different versions of
  * the carrier's Rules and Regulations would have documents that look the same and are not.
@@ -35,8 +35,13 @@ export interface StaticPackInput {
  * provisions contained in the Agreement but the Agreement will be enforceable`). Picking the intended
  * words there is drafting, not proofreading. The pages are reproduced exactly as the carrier wrote
  * them and the defects are counsel's to resolve (D-PKT4, plan §3.8).
+ *
+ * ⚠ **24 was here until 2026-08-23 and is not a page of this pack any more** (Q-PKT5) — it is a
+ * post-hire training record with a driver signature on it, and R7 owns it. The set stays a set rather
+ * than collapsing to "not the agreement", because the reason 29–30 are excluded is a statement about
+ * those two pages and would be lost by an inverted test.
  */
-const SPELL_CORRECTED_PAGES = new Set([7, 8, 24]);
+const SPELL_CORRECTED_PAGES = new Set([7, 8]);
 
 /** A body line, wrapped to the content width. */
 function paragraph(doc: PDFKit.PDFDocument, text: string): void {

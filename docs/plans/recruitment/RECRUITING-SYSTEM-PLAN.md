@@ -823,6 +823,16 @@ combination.
 
 ### R7 · Training — by refreshing the plan that exists
 
+⚠ **R7 inherited a page on 2026-08-23:** packet page 24, `DRIVER SAFETY TRAINING`
+(`APPLICATION-PACKET-PLAN.md` D-PKT10). It is the carrier's paper training-completion record — a
+driver signature, an instructor signature, a fill-in date, a handbook checklist and a fines clause —
+and it was briefly filed as a static page of the applicant packet before anybody noticed an applicant
+cannot affirm training they have not had. It is a training artifact and belongs to whatever this step
+builds. Its uncorrected corruption travelled with it: `available throught to company`, `a
+question-and-answer period which eluded additional company illustrations`, `company fues`,
+`FMCR Handbook`, `I may come to the company und get further explanation` — each needs somebody who
+knows what the carrier meant, and D-PKT4's rule applies here too.
+
 **Prerequisites:** none to start the refresh. Video content itself is the owner's (Q-REC1).
 
 **Build.** `DRIVER-TRAINING-PLAN.md` is adopted, not rewritten — its decisions (provider

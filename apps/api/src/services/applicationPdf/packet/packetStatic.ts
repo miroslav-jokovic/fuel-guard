@@ -1,22 +1,35 @@
 /**
- * The packet's five STATIC pages — policy and contract text with nothing to fill (P3, D-PKT1/D-PKT3).
+ * The packet's four STATIC pages — policy and contract text with nothing to fill (P3, D-PKT1/D-PKT3).
  *
- * Pages 7–8 (Rules and Regulations), 24 (Driver Safety Training) and 29–30 (Owner Operator & Leased
- * Driver Agreement). Under fork (b) these are attached rather than filled: they are identical for
- * every applicant, so they are rendered once per VERSION and referenced, never redrawn per submission.
+ * Pages 7–8 (Rules and Regulations) and 29–30 (Owner Operator & Leased Driver Agreement). Under fork
+ * (b) these are attached rather than filled: they are identical for every applicant, so they are
+ * rendered once per VERSION and referenced, never redrawn per submission.
+ *
+ * ── ⚠ THERE WERE FIVE, AND PAGE 24 WAS NEVER ONE OF THEM (Q-PKT5, 2026-08-23) ─────────────────
+ * `DRIVER SAFETY TRAINING` shipped here on 2026-08-23 and came out the same day. It is not policy
+ * text: it carries a fill-in date (`On this day, ____________, 20___`), a printed name, a DRIVER
+ * signature and an INSTRUCTOR's signature, and it affirms a training the signer has **completed**.
+ * An applicant cannot truthfully affirm training they have not had, and a document filed once per
+ * version can never carry anybody's mark — so it was three signature lines rendered as inert labels
+ * inside a document nobody signs.
+ *
+ * It is a post-hire training record, and it left the packet for the same reason pages 21 and 23 did:
+ * the act it evidences happens after this document is signed. `DRIVER-TRAINING-PLAN.md` / R7 owns it.
+ * **The finding was not that the transcription was wrong — it was verbatim and the test proved it.
+ * The classification was wrong, and no test can check a classification.**
  *
  * ── HOW THIS TEXT GOT HERE, AND WHY THAT MATTERS MORE THAN USUAL ──────────────────────────────
  * Extracted from `docs/plans/recruitment/APPLICATION.xlsx` by parsing `sheet1.xml` against
- * `sharedStrings.xml`, NOT retyped. 128 lines of somebody else's policy and contract is exactly the
- * volume at which a human transcription acquires a silent error, and `packetStatic.test.ts` re-reads
- * the workbook at test time and compares — so what a reviewer checks is the carrier's own text rather
- * than an engineer's typing.
+ * `sharedStrings.xml`, NOT retyped. A hundred lines of somebody else's policy and contract is exactly
+ * the volume at which a human transcription acquires a silent error, and `packetStatic.test.ts`
+ * re-reads the workbook at test time and compares — so what a reviewer checks is the carrier's own
+ * text rather than an engineer's typing.
  *
  * The spreadsheet's dot-leaders (`$..........10.00`) and multi-space column padding are collapsed to
  * single spaces, because they are Excel's column geometry rather than the carrier's words.
  *
  * ── ⚠ THE POLICY PAGES ARE SPELL-CORRECTED. THE AGREEMENT IS NOT. ─────────────────────────────
- * D-PKT9 says the packet's typos are corrected in print, and pages 7, 8 and 24 get that treatment
+ * D-PKT9 says the packet's typos are corrected in print, and pages 7 and 8 get that treatment
  * through the same `CORRECTIONS` register the fillable pages use.
  *
  * **Pages 29–30 are reproduced VERBATIM, deliberately.** They are a contract — a driver signs it on
@@ -94,38 +107,6 @@ export const STATIC_PAGES: readonly PacketStaticPage[] = [
     "(Depending of equipment 120/110, fine is $50 for EACH under-inflated tire)",
     "OIL MUST BE CHANGED EVERY 35,000 MILES",
     "(You will be fined $100 for going over miles without an oil change)",
-    ],
-  },
-  {
-    page: 24,
-    heading: "DRIVER SAFETY TRAINING",
-    body: [
-    "This is to affirm that the driver | has received, and has had",
-    "training in the areas of company and DOT rules and regulations as required by our company and DOT regulations. I",
-    "agree to read and familirize myself with the following handbooks which are requred to be in each vehicle and",
-    "are available throught to company .",
-    "Handbooks",
-    "0 | FMCR Handbook",
-    "0 | North American Response Book",
-    "0 | Company Rules and Regulations",
-    "Training was in areas of",
-    "1 | Vehicle inspections",
-    "2 | Driver Guide to the Daily Logs",
-    "3 | Safety Techniques",
-    "4 | Emergency maneuvers",
-    "5 | Speed and Space management",
-    "6 | Air Brake Training",
-    "7 | Accident and Breakdown",
-    "Following this training was a question-and-answer period which eluded additional company illustrations, photos, forms",
-    ", further explanations and oral tests on those and other topics. I understand that if I have any questions or wish to have",
-    "any areas of the training clarified. I may come to the company und get further explanation of information.",
-    "On this day, ____________, 20___, I have completed training of log preparation and other public safety issues. I am now",
-    "versed in proper DOT regulations (395.8). I understand that by not followign DOT regulations I will be subject to company",
-    "disciplinary actions. I am also aware and have been informend of all company fines which will be enforced following",
-    "failure to comply with company fues which are expalined in the company handbook",
-    "DRIVER -PRINT",
-    "Driver signatrure | Date",
-    "Instructor's signatrure",
     ],
   },
   {
