@@ -1707,6 +1707,11 @@ is counsel's to change and not an engineer's.
 from the start** (it is counsel's clock, not ours) and the **10DLC registration opened the day A1
 opens**.
 
+⚠ **The PDF this plan built (A6) is superseded by `APPLICATION-PACKET-PLAN.md` (2026-08-22).** It is
+regulation-correct and is not deleted — already-filed documents keep rendering — but the document
+NEW submissions produce becomes the carrier's own 31-page packet. Read that plan before touching
+`applicationPdf/render.ts`.
+
 ⚠ **Position as of 2026-08-22: A1–A11c are ALL DONE (schema 0233 + 0234/0235, neither from this plan).**
 ⚠ A11c is a CORRECTION to A11b, which was marked DONE while half its own Done-when was untrue — the
 first invitation had no send path. See A11b's boxed correction for why every gate stayed green.

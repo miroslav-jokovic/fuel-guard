@@ -604,6 +604,25 @@ appears in any `qualification_records` write path.
 **Done when:** a lead below a floor says so and why, an incomplete answer set says `incomplete`
 rather than passing, and no pre-qual answer exists anywhere in DQF.
 
+### R2c · The carrier's application packet — its own plan (`APPLICATION-PACKET-PLAN.md`, 2026-08-22)
+
+**Prerequisites:** R2b (it replaces the PDF A6 built). **Blocked on counsel**, not on code.
+
+R2b's PDF prints a §391.21-shaped summary. `APPLICATION.xlsx` — the carrier's real packet, 31 pages —
+is a different document, and the owner's "don't change the final application" was about that one. The
+fork was put to them on 2026-08-22 and they chose **(b)**: reproduce the pages that take data or a
+signature, attach the five that take neither.
+
+⚠ **The finding that reshaped the step is the signature count, not the page count: 21 placements
+across 17 pages against our 6.** The owner's answer is DocuSign-style — adopt one mark, get walked to
+each place — which `useSigningCeremony` already implements for 5 instruments. ⚠ **Three of the 31
+pages are not the applicant's document at all** (the previous-employer request, the interview record,
+and the annual violation review, which is R7's). ⚠ **Page 4 is legally defective** — it bundles a
+consumer-report disclosure with a liability release, which §604(b)(2) forbids, and names the wrong
+consumer-reporting agency. Nothing is adopted verbatim without counsel.
+
+Read that plan, not this section, before touching the PDF.
+
 ### R2b · The application system — its own plan (`APPLICATION-SYSTEM-PLAN.md`, 2026-08-21)
 
 **Prerequisites:** R2 for prefill (D-APP14); nothing else. Runs in parallel with R3 onward.
