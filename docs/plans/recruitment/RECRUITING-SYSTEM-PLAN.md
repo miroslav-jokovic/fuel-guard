@@ -1000,13 +1000,20 @@ report** — information assembled by a consumer reporting agency:
 
 | What we hold | Consumer report? | Notice needed on a decline resting on it |
 |---|---|---|
-| PSP record | **Yes** — FMCSA furnishes PSP through a CRA and says so | yes |
-| MVR ordered through SambaSafety | **Yes** | yes |
+| PSP record | ⚠ **OPEN — Q7** | unknown, and it is the load-bearing unknown |
+| MVR ordered through SambaSafety | **Yes** — a vendor assembles it and sells it for employment decisions | yes |
 | §391.23 previous-employer answer to **our own letter** | **No** — no agency between us and them | no |
 | The applicant's own answers on the application | **No** | no |
-| §40.25(j) admission on the application | **No** | no, and see R-note below |
+| §40.25(j) admission on the application | **No** | no, and see the note below |
 
-⚠ **The middle row is the one that will be got wrong**, in both directions. `employer_inquiries`
+⚠ **The PSP row is not an oversight and must not be filled in by whoever executes this step.**
+`HANDOFF-2026-08-20-UAT.md` §5 already recorded it as **Q7 — "whether a PSP report is an FCRA
+consumer report" — answerable only by counsel**, and it has been sitting in a handoff rather than in
+front of anybody who could answer it. R10 is where it starts to cost something: if a PSP record is a
+consumer report then most declines this product exists to inform owe a notice, and if it is not,
+comparatively few do. **It is added to `COUNSEL-REVIEW-PACKAGE.md` §4.1 rather than guessed at here.**
+
+⚠ **The employer-answer row is the one that will be got wrong**, in both directions. `employer_inquiries`
 holds answers we asked for ourselves, and a decline resting only on those triggers no FCRA notice —
 but the moment the same fact arrives inside a purchased report, it does. The step must decide on the
 SOURCE of the fact, not on the fact.
@@ -1015,6 +1022,10 @@ SOURCE of the fact, not on the fact.
 dispatch a driver under §40.25(j) (R-step P9 / 0237) rests on the applicant's own admission, not on
 anybody's report. A notice sent there would tell a driver a consumer reporting agency was involved in
 a decision no agency touched.
+
+⚠ **And one that is easy to state backwards:** a decline is adverse action because of what the
+DECISION rested on, not because a report exists in the file. An applicant declined for a three-year
+gap they wrote down themselves is owed nothing, even though a PSP record sits beside it.
 
 ---
 
@@ -1098,6 +1109,14 @@ date.
   *Fallback:* no retention rule prunes leads until a window is chosen; D-REC2 keeps them
   prunable-by-design (0213-style triggers, cascade FKs) so the choice is one rule, not a schema
   change.
+- **Q7 · Is a PSP report an FCRA consumer report?** (counsel) — ⚠ **not new; promoted here
+  2026-08-23.** Recorded in `HANDOFF-2026-08-20-UAT.md` §5 as counsel's and left in a handoff, where
+  nothing was blocked on it and nobody was going to answer it. R10 is where it costs something: it
+  decides whether most declines this product exists to inform owe an FCRA notice, or few do. Now also
+  in `COUNSEL-REVIEW-PACKAGE.md` §4.1, which is the document counsel actually reads.
+  *Fallback:* R10 assumes **yes** and sends the notice — the answer that cannot be wrong, only
+  over-inclusive, on D-REC7's principle. A notice nobody was owed is a courtesy; a notice somebody
+  was owed and did not get is the violation.
 - **Q-REC8 · Adverse action** (owner, added 2026-08-23): when a purchased report costs an applicant
   the job, does the carrier send the FCRA notices **from FuelGuard**, or from somewhere else? The
   question is not whether the notices are owed — they are — but whose system owes them.

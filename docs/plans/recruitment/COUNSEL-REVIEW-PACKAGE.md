@@ -313,6 +313,18 @@ asked:
   §2.4 classified NOT OURS for being carrier-filled. Correct about the packet, and it named a hole
   nobody had written down.
 
+⚠ **A third thing, and it is a question for you that has been waiting since 2026-08-20.** Whether a
+**PSP record is an FCRA consumer report** was recorded as counsel's in `HANDOFF-2026-08-20-UAT.md`
+§5, and then sat in a handoff, blocking nothing, in front of nobody who could answer it. It is the
+load-bearing unknown in R10: if a PSP record is a consumer report then most of the declines this
+product exists to inform owe a notice; if it is not, comparatively few do. **Please answer it
+alongside the rest of this section.** Until you do, R10's fallback is to assume yes and send the
+notice — the answer that can only ever be over-inclusive.
+
+For contrast, so the question is narrow: an MVR bought through SambaSafety plainly is a consumer
+report, and a former employer's answer to **our own §391.23 letter** plainly is not, because no
+agency sits between us and them. PSP alone is genuinely unclear.
+
 The finding as raised:
 
 Searched the whole repository: no `adverse action`, no `pre-adverse`, no *Summary of Your Rights*,
