@@ -59,6 +59,26 @@ const ELEVATION_ROLES = new Set([
 const RADIUS_SIDES = "(?:t|r|b|l|s|e|tl|tr|bl|br|ss|se|es|ee)";
 
 /**
+ * The type scale (D-DS6). Seven sizes, and this list is the enforcement point.
+ *
+ * ── Why this one is a literal and the others are read from tokens.css ───────────────────────────
+ * The rules above derive their vocabulary from the token file because the token file DEFINES it.
+ * Type is the opposite case: Tailwind ships thirteen sizes whether we want them or not, and the
+ * contract is that we use seven of them. There is nowhere in `tokens.css` to express "these seven
+ * and not the other six" — `--text-2xs` adds our one addition, but it cannot subtract Tailwind's.
+ * So the subtraction lives here, next to the check that enforces it, rather than in prose that
+ * nothing reads. `apps/web/CLAUDE.md` states the same seven for humans; if they ever disagree, this
+ * file is the one that fails the build.
+ *
+ * `text-2xs` (11px) is for dense secondary metadata that is glanced at — chart legends, stage
+ * labels, timestamps. Anything meant to be READ belongs at `text-xs` or above; that is why the
+ * certificate fingerprints moved up rather than into this tier.
+ */
+const TEXT_SIZES = new Set(["2xs", "xs", "sm", "base", "lg", "2xl", "3xl"]);
+/** Every size Tailwind emits, so the rule can tell a SIZE from a colour role sharing the prefix. */
+const TEXT_SIZE_PATTERN = "(?:2xs|xs|sm|base|lg|[2-9]xl|xl)";
+
+/**
  * Tailwind's own structural suffixes for these prefixes — widths, sides, styles and offsets, none of
  * which name a colour. Listed rather than pattern-matched: a bare number is easy to spot and these
  * words are a closed set, whereas guessing at "looks structural" is how a real violation slips past.
@@ -104,6 +124,12 @@ const RULES = [
     // the `]` of an arbitrary value, so `shadow-[0_1px_2px_red]` walked through too.
     re: /\bshadow-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(?![\w-])/g,
     violates: (m) => !ELEVATION_ROLES.has(m[1]),
+  },
+  {
+    name: "text size outside the scale (use text-2xs/xs/sm/base/lg/2xl/3xl)",
+    classesOnly: true,
+    re: new RegExp(`\\btext-(\\[[^\\]]*\\]|${TEXT_SIZE_PATTERN})(?![\\w-])`, "g"),
+    violates: (m) => !TEXT_SIZES.has(m[1]),
   },
   {
     /**

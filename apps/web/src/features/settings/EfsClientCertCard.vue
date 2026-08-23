@@ -156,7 +156,7 @@ async function onWithdraw(): Promise<void> {
           <p class="mt-0.5 break-all text-ink-muted">{{ active.subject }}</p>
           <p class="text-xs text-ink-muted">Issued by {{ active.issuer }} · {{ active.keyType }}</p>
           <p class="mt-1 text-xs" :class="toneClass(active)">{{ expiryLabel(active) }}</p>
-          <p class="mt-1 break-all font-mono text-[11px] text-ink-muted">
+          <p class="mt-1 break-all font-mono text-xs text-ink-muted">
             SHA-256 {{ active.fingerprintSha256 }}
           </p>
           <p v-if="active.lastHandshakeAt" class="mt-1 text-xs" :class="active.lastHandshakeOk ? 'text-success-600' : 'text-danger-600'">
@@ -187,7 +187,7 @@ async function onWithdraw(): Promise<void> {
           <p class="font-medium text-ink">Staged — not presenting yet</p>
           <p class="mt-0.5 break-all text-ink-muted">{{ pending.subject }}</p>
           <p class="mt-1 text-xs" :class="toneClass(pending)">{{ expiryLabel(pending) }}</p>
-          <p class="mt-1 break-all font-mono text-[11px] text-ink-muted">
+          <p class="mt-1 break-all font-mono text-xs text-ink-muted">
             SHA-256 {{ pending.fingerprintSha256 }}
           </p>
           <p class="mt-2 text-xs text-ink-muted">

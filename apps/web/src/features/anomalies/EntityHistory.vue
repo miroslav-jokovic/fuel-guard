@@ -120,7 +120,7 @@ const declineRetries = (rep: PatternReport) =>
           {{ e.suspiciousDeclines }} suspicious declines
         </span>
       </div>
-      <p class="text-[11px] text-ink-tertiary">
+      <p class="text-2xs text-ink-tertiary">
         Near-miss = a fill whose case stayed clear but scored ≥ {{ risk.windows.nearThresholdScore }}.
         History is shown for context only — it never changes this case's score.
       </p>

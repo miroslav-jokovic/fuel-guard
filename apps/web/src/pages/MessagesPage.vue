@@ -239,7 +239,7 @@ function timeLabel(iso: string): string {
               {{ m.sender_name ?? "Driver" }}
             </div>
             <div :class="m.deleted_at ? 'italic opacity-70' : ''">{{ messageBody(m) }}</div>
-            <div class="mt-0.5 text-right text-[11px] opacity-70">
+            <div class="mt-0.5 text-right text-2xs opacity-70">
               {{ timeLabel(m.created_at) }}
               <template v-if="m.sender_user_id === session.userId">
                 · {{ seenByOthers(detailQ.data.value.thread, m.created_at, session.userId ?? "") ? "Seen" : "Sent" }}
