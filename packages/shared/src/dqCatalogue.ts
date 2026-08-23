@@ -87,6 +87,7 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   alcohol_test: "Alcohol test",
   accident: "Accident record",
   psp_report: "PSP crash and inspection record",
+  return_to_duty: "Return-to-duty documentation",
   other: "Other document",
 };
 
@@ -115,11 +116,22 @@ export interface DqItemSpec {
    */
   advisory?: boolean;
   /**
-   * Conditional applicability (D8 / G33). "no_cdl": required only for drivers WITHOUT a CDL — the
-   * §391.51(b)(8) registry-verification note's CDL-holder variant sunset 2025-06-22; for CDL
-   * holders the CDLIS MVR carries the medical verification instead.
+   * Conditional applicability (D8 / G33).
+   *
+   * - `"no_cdl"`: required only for drivers WITHOUT a CDL — the §391.51(b)(8) registry-verification
+   *   note's CDL-holder variant sunset 2025-06-22; for CDL holders the CDLIS MVR carries the medical
+   *   verification instead.
+   * - `"return_to_duty"`: required only for a driver whose application admitted a positive or refused
+   *   pre-employment test (§40.25(j), migration 0237). ⚠ **The condition is the point, not a
+   *   refinement of it.** Listing this item unconditionally would tell every clean carrier that every
+   *   driver's file is missing return-to-duty paperwork, which is the "reporting a lawful file as
+   *   incomplete" failure D-PSP1 named.
+   *
+   * ⚠ Every consumer of `DQ_ITEMS` must decide what an `appliesWhen` it cannot evaluate means. The
+   * two that CAN evaluate it (`buildDqFile`, `dqCapturableSpecs`) take the input; the one that cannot
+   * (`hiringGapsAfterHire`) excludes conditional items outright and says so.
    */
-  appliesWhen?: "no_cdl";
+  appliesWhen?: "no_cdl" | "return_to_duty";
 }
 
 /**
@@ -270,6 +282,33 @@ export const DQ_ITEMS: readonly DqItemSpec[] = [
     recurrence: "one_time",
     group: "hiring",
     scope: "always",
+    retention: "Held in the confidential DOT testing file, separate from the DQ file (§40.333).",
+  },
+  {
+    /**
+     * §40.25(j) — the paperwork that lifts the block, and the only thing that does (0237).
+     *
+     * ⚠ **Conditional, and filed in the same breath as the item above.** An applicant who admitted a
+     * positive or refused pre-employment test for a job they did not get may not perform a
+     * safety-sensitive function until they document completion of the return-to-duty process
+     * (§40.305). The admission raises `drivers.return_to_duty_required`; this record clears it, and
+     * until it is filed `assignLoad` refuses to put them on a load.
+     *
+     * ⚠ **`group: "hiring"` and yet it is not a hiring GAP.** `hiringGapsAfterHire` skips every
+     * conditional item, because from (existing, planned) alone it cannot know whether this one
+     * applies — the §40.25(j) warning at the hire is reported separately as
+     * `HireResult.returnToDutyBlocked`. The group is where an auditor looks for it, which is the
+     * question `group` answers.
+     */
+    key: "return_to_duty",
+    label: "Return-to-duty documentation",
+    citation: "49 CFR §40.25(j) / §40.305",
+    source: "record",
+    evidenceKinds: ["return_to_duty"],
+    recurrence: "one_time",
+    group: "hiring",
+    scope: "always",
+    appliesWhen: "return_to_duty",
     retention: "Held in the confidential DOT testing file, separate from the DQ file (§40.333).",
   },
   {

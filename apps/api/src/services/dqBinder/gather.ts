@@ -123,6 +123,7 @@ interface DriverRow {
   termination_date: string | null;
   status: string;
   cdl_number: string | null;
+  return_to_duty_required: boolean | null;
 }
 
 export class BinderGatherError extends Error {}
@@ -166,7 +167,7 @@ export async function gatherSample(
   const [driversRes, certsRes, recordsRes, docsRes] = await Promise.all([
     admin
       .from("drivers")
-      .select("id, full_name, employee_id, hire_date, termination_date, status, cdl_number")
+      .select("id, full_name, employee_id, hire_date, termination_date, status, cdl_number, return_to_duty_required")
       .eq("org_id", orgId)
       .in("id", driverIds),
     admin
@@ -219,6 +220,9 @@ export async function gatherSample(
         includeHazmat,
         // §391.51(b)(8) applies to non-CDL drivers only (D8) — same derivation the overview uses.
         hasCdl: d.cdl_number != null && d.cdl_number !== "",
+        // §40.25(j) (0237). The binder is the document an auditor reads; a requirement the driver's
+        // own page shows and the binder omits is the disagreement this file exists to prevent.
+        returnToDutyRequired: d.return_to_duty_required === true,
         certs: currentCerts.map(toCertInput),
         records: myRecords.map(toRecordInput),
         documents: myDocs.map((x): DqDocumentInput => ({ id: x.id, kind: x.kind })),

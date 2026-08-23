@@ -91,6 +91,9 @@ const file = computed(() =>
     // §391.51(b)(8) applies to non-CDL drivers only (D8) — same derivation the overview uses,
     // so the fleet queue and this page cannot disagree about the registry note.
     hasCdl: Boolean(driverQ.data.value?.cdl_number),
+    // §40.25(j) (0237). Without this the file would never show the requirement, and the paperwork
+    // that lifts a dispatch block would have nowhere to be filed from.
+    returnToDutyRequired: driverQ.data.value?.return_to_duty_required === true,
     certs: (certsQ.data.value ?? []).map((c) => ({
       kind: c.kind,
       qualifier: c.qualifier,
@@ -225,6 +228,7 @@ const dropItems = computed(() =>
   dqCapturableSpecs({
     includeHazmat: moduleEnabled(modules.data.value ?? null, "hazmatguard"),
     hasCdl: Boolean(driverQ.data.value?.cdl_number),
+    returnToDutyRequired: driverQ.data.value?.return_to_duty_required === true,
   })
     .filter(
       (spec) =>

@@ -218,6 +218,16 @@ export function hiringGapsAfterHire(
 ): Array<{ key: string; label: string; citation: string }> {
   const held = new Set<string>([...existing.map((r) => r.kind), ...planned.map((r) => r.kind)]);
   return DQ_ITEMS.filter(
-    (i) => i.group === "hiring" && !i.advisory && i.source === "record" && !i.evidenceKinds.some((k) => held.has(k)),
+    (i) =>
+      i.group === "hiring"
+      && !i.advisory
+      && i.source === "record"
+      // ⚠ Conditional items are excluded because this function CANNOT evaluate the condition: its
+      // inputs are the records held and the records planned, and neither says whether the driver
+      // holds a CDL or admitted a prior failed test. Listing one anyway would report every clean
+      // file as missing §40.25(j) paperwork. The §40.25(j) case is reported at the hire by
+      // `HireResult.returnToDutyBlocked`, which reads the fact this function has no access to.
+      && !i.appliesWhen
+      && !i.evidenceKinds.some((k) => held.has(k)),
   ).map((i) => ({ key: i.key, label: i.label, citation: i.citation }));
 }
