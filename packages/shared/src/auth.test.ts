@@ -243,7 +243,26 @@ describe("restricted qualification records (Phase G)", () => {
       // 0217. Investigation history, not a testing record — so the recruiter who ordered it can
       // read it, which is the whole reason the split exists.
       "psp_report",
+      // 0237. A TESTING record, and the opposite call to psp_report's for the same structural
+      // reason: §40.305 documentation states that a driver had a drug or alcohol programme violation
+      // and what a substance abuse professional concluded about it.
+      "return_to_duty",
     ]);
+  });
+
+  /**
+   * ⚠ The half of 0237 that is easy to get wrong, so it is pinned rather than described.
+   *
+   * A recruiter hiring an applicant is TOLD the §40.25(j) block exists — `previewHire` returns a
+   * boolean, and the flag it reads is a column on `drivers`, not a testing record. They cannot read
+   * the document that lifts it. That division is the point: the recruiter needs to know the driver
+   * cannot be dispatched, and §382.401(a) does not let them hold the file that says why.
+   */
+  it("return-to-duty documentation is a testing record, so the recruiter cannot read it", () => {
+    expect(canReadRestrictedKind("return_to_duty", "recruiter")).toBe(false);
+    expect(canReadRestrictedKind("return_to_duty", "safety_manager")).toBe(true);
+    expect(canReadRestrictedKind("return_to_duty", "admin")).toBe(true);
+    expect(canReadRestrictedKind("return_to_duty", "fleet_manager")).toBe(false);
   });
 
   /**

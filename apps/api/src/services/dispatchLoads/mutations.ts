@@ -7,8 +7,10 @@ import {
   type LoadStatus,
   type ResolveExceptionRequest,
   type UpdateLoadRequest,
+  RETURN_TO_DUTY_BLOCK,
 } from "@fuelguard/shared";
 import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "./shared.js";
+import { returnToDutyBlocked } from "../returnToDuty.js";
 
 /**
  * Dispatch-side writes + lifecycle transitions (P2 split). Each transition names its action, stamps its
@@ -16,12 +18,48 @@ import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "
  * gate by writing `status` directly. Reads live in `./queries.ts`; shared helpers in `./shared.ts`.
  */
 
+/**
+ * §40.25(j): may this driver be put on a load at all? (0237.)
+ *
+ * A driver whose application admitted a positive or refused pre-employment test in the preceding two
+ * years may not perform a safety-sensitive function until §40.305 return-to-duty documentation is on
+ * file. Driving a commercial motor vehicle is a safety-sensitive function (§382.107), and in this
+ * product the act that puts somebody behind the wheel is a load assignment — so this is where the
+ * regulation's "must not use the employee" becomes a refusal.
+ *
+ * ⚠ **Three call sites, not one.** `assignLoad` is the obvious one and it is not the only way a
+ * `driver_id` reaches a load: `createLoad` accepts one on the new load, and `updateLoad` accepts one
+ * in its patch. A gate on the action named "assign" would have been trivially walked around by the
+ * PATCH the board already uses. Each caller passes the driver it is about to write, and a call with
+ * no driver is not gated because unassigning is never the act the regulation forbids.
+ *
+ * ⚠ The message names no regulation and does not say what the driver admitted (D-UI9). Whoever is
+ * assigning the load needs to know it cannot be done and who can undo that; the underlying fact is a
+ * §382.401(a) testing record and a dispatcher is not entitled to read it.
+ */
+async function refuseUnlessReturnToDutyClear<T>(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string | null | undefined,
+): Promise<DispatchResult<T> | null> {
+  if (!driverId) return null;
+  if (!(await returnToDutyBlocked(admin, orgId, driverId))) return null;
+  return {
+    ok: false,
+    status: 409,
+    code: RETURN_TO_DUTY_BLOCK.code,
+    message: RETURN_TO_DUTY_BLOCK.dispatch,
+  };
+}
+
 export async function createLoad(
   admin: SupabaseClient,
   orgId: string,
   actor: { userId: string; role: string | null },
   input: CreateLoadRequest,
 ): Promise<DispatchResult<{ id: string }>> {
+  const blocked = await refuseUnlessReturnToDutyClear<{ id: string }>(admin, orgId, input.driver_id);
+  if (blocked) return blocked;
   // `status` is never client-supplied — a new load is a draft, full stop (D45).
   const { data, error } = await admin
     .from("loads")
@@ -80,6 +118,9 @@ export async function updateLoad(
   actor?: { userId: string; role: string | null },
 ): Promise<DispatchResult<{ id: string }>> {
   const { stops, ...fields } = input;
+  // Before the patch is built, so a refused assignment never reaches `replaceStops` either.
+  const blocked = await refuseUnlessReturnToDutyClear<{ id: string }>(admin, orgId, fields.driver_id);
+  if (blocked) return blocked;
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [k, v] of Object.entries(fields)) {
     if (v !== undefined) patch[k] = v;
@@ -290,6 +331,9 @@ export async function assignLoad(
       message: `A ${status} load cannot be reassigned`,
     };
   }
+
+  const blocked = await refuseUnlessReturnToDutyClear<{ id: string }>(admin, orgId, input.driver_id);
+  if (blocked) return blocked;
 
   const { error } = await admin
     .from("loads")

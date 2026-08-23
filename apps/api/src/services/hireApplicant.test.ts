@@ -128,4 +128,36 @@ describe("the preview", () => {
     expect(rec.writes()).toHaveLength(0);
     expectOrgScoped(rec, ORG);
   });
+
+  /**
+   * §40.25(j) (0237) — the recruiter learns it BEFORE they commit, not after.
+   *
+   * ⚠ It is NOT one of `outstanding`. Those are the §391.51(b) hiring items, they are unconditional,
+   * and every one of them is effectively a reason to hesitate over the hire. This is neither: it
+   * exists only for the applicants who answered yes, and hiring them is lawful — the regulation bars
+   * the driving, and the block lands at load assignment.
+   */
+  it("warns that this applicant may be hired and may not be dispatched", async () => {
+    const rec = seed({
+      drivers: [{ id: DRIVER, full_name: "An Applicant", status: "applicant", return_to_duty_required: true }],
+    });
+    const result = await previewHire(rec.client, ORG, DRIVER);
+    expect(!isHireError(result) && result.returnToDutyBlocked).toBe(true);
+    expect(!isHireError(result) && result.outstanding.map((o) => o.key)).not.toContain("return_to_duty");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("says nothing when the return-to-duty documentation is already on file", async () => {
+    const rec = seed({
+      drivers: [{ id: DRIVER, full_name: "An Applicant", status: "applicant", return_to_duty_required: true }],
+      records: [{ kind: "return_to_duty", detail: {} }],
+    });
+    const result = await previewHire(rec.client, ORG, DRIVER);
+    expect(!isHireError(result) && result.returnToDutyBlocked).toBe(false);
+  });
+
+  it("says nothing for an applicant who was never asked to admit anything", async () => {
+    const result = await previewHire(seed().client, ORG, DRIVER);
+    expect(!isHireError(result) && result.returnToDutyBlocked).toBe(false);
+  });
 });

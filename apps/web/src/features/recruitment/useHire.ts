@@ -17,6 +17,8 @@ export interface HirePreview {
   status: string;
   skipped: HandoffSkip[];
   outstanding: HiringGap[];
+  /** §40.25(j): they admitted a prior failed test and the return-to-duty paperwork is not on file. */
+  returnToDutyBlocked: boolean;
 }
 
 export interface HireResult {
@@ -25,6 +27,7 @@ export interface HireResult {
   filed: number;
   skipped: HandoffSkip[];
   outstanding: HiringGap[];
+  returnToDutyBlocked: boolean;
 }
 
 /**

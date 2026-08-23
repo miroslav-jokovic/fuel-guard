@@ -3,12 +3,12 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import type { Anomaly, Driver, FuelTransaction } from "@fuelguard/shared";
+import { RETURN_TO_DUTY_BLOCK, type Anomaly, type Driver, type FuelTransaction } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppTabs, type TabItem } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppTabs, type TabItem } from "@fuelguard/ui";
 import { DRIVER_SECTIONS, resolveDriverSection, type DriverSection } from "./driverSections";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -177,6 +177,15 @@ const fillColumns: DataTableColumn[] = [
         </BaseButton>
       </template>
     </PageHeader>
+
+    <!-- §40.25(j) (0237). Above the tab strip and outside every section, because it is not a fact
+         about one part of this driver's file — it is a limit on what the driver may be given to do,
+         and somebody arriving on the fuel history has as much reason to see it as somebody on
+         qualification. ⚠ It says the same thing to everybody who can open this page; the document
+         that lifts it is a testing record and lives behind Qualification's own access rules. -->
+    <AppCallout v-if="driver?.return_to_duty_required" tone="warning">
+      {{ RETURN_TO_DUTY_BLOCK.hire }}
+    </AppCallout>
 
     <!-- U4/D-UI4: the shared strip. ⚠ No `id-prefix` here: these panels are plain `v-if` blocks with
          no id to point `aria-controls` at, and a dangling reference is worse than none. -->

@@ -322,4 +322,20 @@ export interface Driver {
    * this field itself; everybody else keeps the whole set.
    */
   archived_at: string | null;
+  /**
+   * §40.25(j) (migration 0237) — this driver's application admitted a positive or refused
+   * pre-employment test for a job they applied for but did not obtain, within the preceding two
+   * years. They may not perform a safety-sensitive function until §40.305 return-to-duty
+   * documentation is filed as a `return_to_duty` qualification record.
+   *
+   * ⚠ **Optional on the type because it is optional on the wire, not because it is optional in the
+   * database.** The column is `not null default false`; the five surfaces that use `useDriversQuery`
+   * as a name lookup select what they need, and a required field here would make each of them lie
+   * about a row they never asked for it on. Read it as `Boolean(driver.return_to_duty_required)`.
+   *
+   * ⚠ **The FLAG is readable by anyone who can see the driver; the DOCUMENT that lifts it is not.**
+   * It is a §382.401(a) testing record — admin and safety_manager only. A recruiter is meant to know
+   * the driver cannot be dispatched and is not meant to read why.
+   */
+  return_to_duty_required?: boolean;
 }

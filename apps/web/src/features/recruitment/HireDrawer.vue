@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { HANDOFF_SKIP_LABELS, type HandoffSkipReason } from "@fuelguard/shared";
-import { AppButton as BaseButton, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
+import { HANDOFF_SKIP_LABELS, RETURN_TO_DUTY_BLOCK, type HandoffSkipReason } from "@fuelguard/shared";
+import { AppButton as BaseButton, AppCallout, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
@@ -84,6 +84,15 @@ async function submit(): Promise<void> {
             dates and hire again, or hire now and record them on the driver's page.
           </p>
         </div>
+
+        <!-- §40.25(j). Above the file-gaps block because it is a different kind of fact: those are
+             documents to chase, this is a limit on what the driver may be given to do once hired.
+             ⚠ Not a reason to refuse the hire and the drawer does not treat it as one — the
+             regulation bars performing a safety-sensitive function, not being employed. The block
+             lands at load assignment, where it belongs, and this is the warning that it will. -->
+        <AppCallout v-if="previewQ.data.value.returnToDutyBlocked" tone="warning">
+          {{ RETURN_TO_DUTY_BLOCK.hire }}
+        </AppCallout>
 
         <div v-if="previewQ.data.value.outstanding.length" class="rounded-surface bg-surface-muted p-3">
           <p class="text-xs font-medium text-ink-secondary">Their file will still need</p>
