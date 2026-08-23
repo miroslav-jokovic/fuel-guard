@@ -54,7 +54,7 @@ const pairs = [
   ["sidebar muted text / navigation", "--ink-tertiary", "--surface-navigation", 4.5],
   ["control border / surface", "--edge-control", "--surface", 3],
   ["control border / canvas", "--edge-control", "--canvas", 3],
-  ["gold accent foreground / accent", "--ink", "--brand-accent", 4.5],
+  ["identity foreground / accent", "--ink", "--brand-accent", 4.5],
   ["action foreground / action", "--action-primary-foreground", "--action-primary", 4.5],
   ["action foreground / hover", "--action-primary-foreground", "--action-primary-hover", 4.5],
   ["link / surface", "--link", "--surface", 4.5],

@@ -5,6 +5,54 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const source = readFileSync(`${root}apps/web/src/features/dashboard/chartTheme.ts`, "utf8");
+const tokensCss = readFileSync(`${root}packages/ui/src/tokens.generated.css`, "utf8");
+
+/**
+ * The fallbacks must BE the tokens (D-DS15).
+ *
+ * ── Why this check exists ───────────────────────────────────────────────────────────────────────
+ * chartTheme.ts carries a hex for every --viz-* role because canvas cannot read CSS variables, and
+ * jsdom has no computed styles at all. Nothing ever compared those hexes to the tokens they mirror,
+ * so they drifted: measured 2026-08-23 while re-theming, SIXTEEN of the nineteen were already wrong
+ * — --viz-spend said #059669 where the token resolved to #009966, --viz-severity-critical #991b1b
+ * against #9f0712. Every rule below still passed, because they only ever judged the fallbacks
+ * against each other. A palette that agrees with itself and not with the product is the failure this
+ * whole file was supposed to prevent.
+ *
+ * The browser was always right — getComputedStyle wins there — so this drift showed up only in
+ * jsdom, which is exactly where nobody looks at a chart.
+ */
+const declared = new Map();
+for (const m of tokensCss.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)) declared.set(m[1], m[2].trim());
+
+/** Follow `var(--x)` hops; --viz-grid and friends point at a ramp rather than carrying a value. */
+function resolveToken(name) {
+  let value = declared.get(name);
+  for (let hop = 0; value && /^var\(\s*--[\w-]+\s*\)$/.test(value) && hop < 8; hop += 1) {
+    value = declared.get(value.match(/^var\(\s*(--[\w-]+)\s*\)$/)[1]);
+  }
+  return value ?? null;
+}
+
+function oklchToHex(value) {
+  const m = value.match(/^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
+  if (!m) return null;
+  const lightness = Number(m[1]) / (m[2] ? 100 : 1);
+  const chroma = Number(m[3]);
+  const radians = (Number(m[4]) * Math.PI) / 180;
+  const a = chroma * Math.cos(radians);
+  const b = chroma * Math.sin(radians);
+  const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const mid = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * mid + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * mid - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * mid + 1.707614701 * s,
+  ];
+  const encode = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.max(0, c) ** (1 / 2.4) - 0.055);
+  return `#${linear.map((c) => Math.round(Math.min(255, Math.max(0, encode(c) * 255))).toString(16).padStart(2, "0")).join("")}`;
+}
 
 function fallback(name) {
   const match = source.match(new RegExp(`"${name}"\\s*:\\s*"(#[0-9a-fA-F]{6})"`));
@@ -94,5 +142,28 @@ function validatePalette(name, palette) {
 
 validatePalette("severity", severity);
 validatePalette("cost", cost);
+
+console.log("");
+let drifted = 0;
+for (const m of source.matchAll(/"(--[\w-]+)":\s*"(#[0-9a-fA-F]{6})"/g)) {
+  const [, name, declaredHex] = m;
+  const token = resolveToken(name);
+  if (!token) {
+    console.error(`✗ ${name} has a chart fallback but no token in tokens.generated.css`);
+    drifted += 1;
+    continue;
+  }
+  const expected = oklchToHex(token);
+  if (expected && expected !== declaredHex) {
+    console.error(`✗ ${name} fallback ${declaredHex} but the token is ${expected}`);
+    drifted += 1;
+  }
+}
+if (drifted) {
+  console.error(`\n✗ ${drifted} chart fallback(s) disagree with tokens.generated.css.`);
+  failed = true;
+} else {
+  console.log("✓ every chart fallback matches its design token");
+}
 
 if (failed) process.exit(1);

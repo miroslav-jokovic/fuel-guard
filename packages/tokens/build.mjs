@@ -36,10 +36,16 @@ const src = (f) => join(here, "src", f);
 const read = (f) => readFileSync(src(f), "utf8");
 const json = (f) => JSON.parse(read(f));
 
-/** Source order is the file's order — the sections read as prose, so it is not incidental. */
+/**
+ * Source order is the file's order — the sections read as prose, so it is not incidental.
+ *
+ * `roles.light.json` is named for the scheme it carries. D-DS2 adds `roles.dark.json` beside it and
+ * the emitter pairs them into `light-dark()`; splitting the files rather than nesting two values per
+ * token keeps each scheme readable on its own and makes the diff of a re-theme legible.
+ */
 const GROUPS = [
   ["primitives.json", "ramp"],
-  ["roles.json", "role"],
+  ["roles.light.json", "role"],
 ];
 
 const ordered = [];
@@ -106,7 +112,7 @@ function emitCss() {
 // Style Dictionary loads and shape-checks the same sources; the emitter above formats them.
 StyleDictionary.registerFormat({ name: "fuelguard/css", format: () => emitCss() });
 const sd = new StyleDictionary({
-  source: [src("primitives.json"), src("roles.json")],
+  source: [src("primitives.json"), src("roles.light.json")],
   platforms: { css: { transformGroup: "css", files: [{ destination: "check.css", format: "fuelguard/css" }] } },
   log: { verbosity: "silent", warnings: "disabled" },
 });

@@ -65,27 +65,39 @@
   /* ── 1. Primitive ramps (Tailwind v4 values — do not use directly) ── */
 
   /* neutral = gray */
-  --ramp-neutral-50: oklch(98.5% 0.002 247.839);
-  --ramp-neutral-100: oklch(96.7% 0.003 264.542);
-  --ramp-neutral-200: oklch(92.8% 0.006 264.531);
-  --ramp-neutral-300: oklch(87.2% 0.01 258.338);
-  --ramp-neutral-400: oklch(70.7% 0.022 261.325);
-  --ramp-neutral-500: oklch(55.1% 0.027 264.364);
-  --ramp-neutral-600: oklch(44.6% 0.03 256.802);
-  --ramp-neutral-700: oklch(37.3% 0.034 259.733);
-  --ramp-neutral-800: oklch(27.8% 0.033 256.848);
-  --ramp-neutral-900: oklch(21% 0.034 264.665);
+  --ramp-neutral-50: oklch(98.6% 0.002 300);
+  --ramp-neutral-100: oklch(96.8% 0.004 300);
+  --ramp-neutral-200: oklch(93% 0.006 300);
+  --ramp-neutral-300: oklch(87.5% 0.009 300);
+  --ramp-neutral-400: oklch(71.5% 0.016 300);
+  --ramp-neutral-500: oklch(56% 0.02 300);
+  --ramp-neutral-600: oklch(45.5% 0.022 300);
+  --ramp-neutral-700: oklch(38% 0.024 300);
+  --ramp-neutral-800: oklch(28.5% 0.022 300);
+  --ramp-neutral-900: oklch(21.5% 0.02 300);
 
   /* brand = warm gold identity. Interactive actions use their own graphite role. */
-  --ramp-brand-50: oklch(98.5% 0.02 75);
-  --ramp-brand-100: oklch(96% 0.045 72);
-  --ramp-brand-200: oklch(92% 0.07 70);
-  --ramp-brand-300: oklch(87.5% 0.1 68);
-  --ramp-brand-400: oklch(83.7% 0.128 66.29);
-  --ramp-brand-500: oklch(75% 0.16 58);
-  --ramp-brand-600: oklch(65% 0.16 55);
-  --ramp-brand-700: oklch(55% 0.14 50);
-  --ramp-brand-800: oklch(46% 0.11 45);
+  --ramp-brand-50: oklch(97.2% 0.014 258);
+  --ramp-brand-100: oklch(93.5% 0.033 258);
+  --ramp-brand-200: oklch(88.5% 0.06 259);
+  --ramp-brand-300: oklch(81.5% 0.105 260);
+  --ramp-brand-400: oklch(71.5% 0.155 262);
+  --ramp-brand-500: oklch(63% 0.192 263);
+  --ramp-brand-600: oklch(55.2% 0.224 264.2);
+  --ramp-brand-700: oklch(48.8% 0.217 264.4);
+  --ramp-brand-800: oklch(42.4% 0.18 265);
+
+  /* accent = warm soft purple. Secondary identity, and the brand series in charts, so it never
+     collides with the blue that is now both identity and action. */
+  --ramp-accent-50: oklch(97.5% 0.012 322);
+  --ramp-accent-100: oklch(94.5% 0.028 322);
+  --ramp-accent-200: oklch(90% 0.052 321);
+  --ramp-accent-300: oklch(83.5% 0.082 320);
+  --ramp-accent-400: oklch(75.5% 0.11 318);
+  --ramp-accent-500: oklch(67% 0.128 316);
+  --ramp-accent-600: oklch(57% 0.134 315);
+  --ramp-accent-700: oklch(50.5% 0.122 314);
+  --ramp-accent-800: oklch(43.5% 0.102 313);
 
   /* danger = red */
   --ramp-danger-50: oklch(97.1% 0.013 17.38);
@@ -134,40 +146,40 @@
   --ramp-success-800: oklch(44.8% 0.119 151.328);
 
   /* info = blue */
-  --ramp-info-50: oklch(97% 0.014 254.604);
-  --ramp-info-100: oklch(93.2% 0.032 255.585);
-  --ramp-info-200: oklch(88.2% 0.059 254.128);
-  --ramp-info-300: oklch(80.9% 0.105 251.813);
-  --ramp-info-400: oklch(70.7% 0.165 254.624);
-  --ramp-info-500: oklch(62.3% 0.214 259.815);
-  --ramp-info-600: oklch(54.6% 0.245 262.881);
-  --ramp-info-700: oklch(48.8% 0.243 264.376);
-  --ramp-info-800: oklch(42.4% 0.199 265.638);
+  --ramp-info-50: oklch(97.5% 0.015 215);
+  --ramp-info-100: oklch(93.8% 0.035 213);
+  --ramp-info-200: oklch(89% 0.062 212);
+  --ramp-info-300: oklch(82% 0.098 211);
+  --ramp-info-400: oklch(72.5% 0.128 210);
+  --ramp-info-500: oklch(64.5% 0.138 209);
+  --ramp-info-600: oklch(56% 0.132 208);
+  --ramp-info-700: oklch(48% 0.115 208);
+  --ramp-info-800: oklch(41% 0.098 208);
 
   /* ── 2. Semantic roles (a future .dark block re-points these) ────── */
 
   /* app background + raised surfaces */
-  --canvas: oklch(0.98 0.004 247.896);
-  --surface: oklch(1 0 0);
-  --surface-subtle: oklch(0.984 0.003 247.858); /* table headers, hover rows */
-  --surface-muted: oklch(0.929 0.013 255.508); /* soft buttons, wells */
-  --surface-navigation: oklch(0.955 0.009 252); /* persistent app navigation */
-  --surface-inverse: oklch(0.208 0.042 265.755); /* code blocks, tooltips */
+  --canvas: oklch(98.5% 0.003 300);
+  --surface: oklch(100% 0 0);
+  --surface-subtle: oklch(98.2% 0.004 300); /* table headers, hover rows */
+  --surface-muted: oklch(94.5% 0.008 300); /* soft buttons, wells */
+  --surface-navigation: oklch(96.8% 0.007 300); /* persistent app navigation */
+  --surface-inverse: oklch(23.5% 0.022 300); /* code blocks, tooltips */
 
   /* text */
-  --ink: oklch(0.3 0.032 263);
-  --ink-secondary: oklch(0.45 0.028 260);
-  --ink-muted: oklch(0.51 0.024 258);
-  --ink-tertiary: oklch(0.525 0.022 258);
-  --ink-subtle: oklch(0.64 0.025 258);
-  --ink-disabled: oklch(0.64 0.025 258);
-  --ink-inverse: oklch(1 0 0);
+  --ink: oklch(29% 0.02 295);
+  --ink-secondary: oklch(44% 0.022 297);
+  --ink-muted: oklch(50.5% 0.02 298);
+  --ink-tertiary: oklch(51.5% 0.019 298);
+  --ink-subtle: oklch(63% 0.017 300);
+  --ink-disabled: oklch(63% 0.017 300);
+  --ink-inverse: oklch(100% 0 0);
 
   /* hairlines & control borders */
-  --edge-subtle: oklch(0.925 0.009 258); /* decorative row dividers */
-  --edge: oklch(0.87 0.012 258); /* surface and overlay grouping */
-  --edge-strong: oklch(0.64 0.025 258); /* compatibility alias */
-  --edge-control: oklch(0.644 0.025 258); /* essential control boundary; 3:1 on canvas */
+  --edge-subtle: oklch(92.5% 0.006 300); /* decorative row dividers */
+  --edge: oklch(87% 0.009 300); /* surface and overlay grouping */
+  --edge-strong: oklch(64% 0.017 300); /* compatibility alias */
+  --edge-control: oklch(63.5% 0.018 300); /* essential control boundary; 3:1 on canvas */
 
   /* elevation — shadows carry depth so cards and overlays do not need dark perimeters */
   --elevation-card: 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
@@ -183,23 +195,23 @@
   --elevation-sticky-edge: inset 0 -1px 0 0 var(--edge);
 
   /* identity, interaction, links, selection, and focus are deliberately separate */
-  --brand-accent: oklch(0.837 0.128 66.29);
-  --brand-accent-soft: oklch(0.901 0.076 70.697);
-  --brand-accent-strong: oklch(0.65 0.16 55);
-  --action-primary: oklch(0.36 0.055 260);
-  --action-primary-hover: oklch(0.3 0.05 260);
-  --action-primary-foreground: oklch(1 0 0);
-  --link: oklch(0.49 0.18 255);
-  --link-hover: oklch(0.42 0.17 255);
-  --focus-ring: oklch(0.53 0.18 255);
-  --selected-surface: oklch(0.929 0.013 255.508);
-  --selected-strong: oklch(0.65 0.16 55);
+  --brand-accent: oklch(83.5% 0.082 320);
+  --brand-accent-soft: oklch(90% 0.052 321);
+  --brand-accent-strong: oklch(57% 0.134 315);
+  --action-primary: oklch(55.2% 0.224 264.2);
+  --action-primary-hover: oklch(48.8% 0.217 264.4);
+  --action-primary-foreground: oklch(100% 0 0);
+  --link: oklch(48.8% 0.217 264.4);
+  --link-hover: oklch(42.4% 0.18 265);
+  --focus-ring: oklch(55.2% 0.224 264.2);
+  --selected-surface: oklch(93.5% 0.033 258);
+  --selected-strong: oklch(55.2% 0.224 264.2);
 
   /* destructive solid and subtle treatments must not share one foreground pair */
-  --danger-solid: oklch(0.53 0.2 27);
-  --danger-solid-foreground: oklch(1 0 0);
-  --danger-surface: oklch(0.96 0.025 20);
-  --danger-text: oklch(0.48 0.18 27);
+  --danger-solid: oklch(53% 0.2 27);
+  --danger-solid-foreground: oklch(100% 0 0);
+  --danger-surface: oklch(96% 0.025 20);
+  --danger-text: oklch(48% 0.18 27);
 
   /* semantic geometry and density */
   --shape-detail: 0.1875rem;
@@ -212,16 +224,16 @@
 
   /* data-viz roles — canvas charts resolve these at runtime (features/dashboard/chartTheme.ts);
      keep in sync with the ramps */
-  --viz-brand: var(--brand-accent-strong); /* MPG line */
+  --viz-brand: oklch(57% 0.134 315); /* MPG line */
   --viz-spend: oklch(59.6% 0.145 163.225); /* fuel spend (emerald) */
   --viz-spend-hover: oklch(50.8% 0.118 165.612); /* emerald-700 */
-  --viz-severity-critical: var(--ramp-danger-800);
-  --viz-severity-high: oklch(49.6% 0.265 301.924); /* purple: CVD-separated from critical red */
-  --viz-severity-medium: var(--ramp-warning-700);
-  --viz-severity-low: var(--ramp-neutral-600);
-  --viz-cost-moving: var(--viz-spend); /* normal fuel movement (emerald) */
-  --viz-cost-idle: var(--ramp-caution-700); /* avoidable idle cost (burnt orange) */
-  --viz-cost-reefer: var(--ramp-info-700); /* refrigerated equipment (blue) */
+  --viz-severity-critical: oklch(44.4% 0.177 26.899);
+  --viz-severity-high: oklch(49.6% 0.265 295); /* purple: CVD-separated from critical red */
+  --viz-severity-medium: oklch(54% 0.135 52);
+  --viz-severity-low: oklch(45.5% 0.022 300);
+  --viz-cost-moving: oklch(59.6% 0.145 163.225); /* normal fuel movement (emerald) */
+  --viz-cost-idle: oklch(52% 0.18 33); /* avoidable idle cost (burnt orange) */
+  --viz-cost-reefer: oklch(48.8% 0.217 264.4); /* refrigerated equipment (blue) */
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
 }
@@ -277,6 +289,15 @@
   --color-brand-600: var(--ramp-brand-600);
   --color-brand-700: var(--ramp-brand-700);
   --color-brand-800: var(--ramp-brand-800);
+  --color-accent-50: var(--ramp-accent-50);
+  --color-accent-100: var(--ramp-accent-100);
+  --color-accent-200: var(--ramp-accent-200);
+  --color-accent-300: var(--ramp-accent-300);
+  --color-accent-400: var(--ramp-accent-400);
+  --color-accent-500: var(--ramp-accent-500);
+  --color-accent-600: var(--ramp-accent-600);
+  --color-accent-700: var(--ramp-accent-700);
+  --color-accent-800: var(--ramp-accent-800);
   --color-danger-50: var(--ramp-danger-50);
   --color-danger-100: var(--ramp-danger-100);
   --color-danger-200: var(--ramp-danger-200);
