@@ -471,19 +471,55 @@ Nothing acts on that yet — no queue entry, no block on hire. Worth its own ste
 `pnpm --filter web lint:tokens` · `lint:filesize` · `lint:funcsize` · `lint:comment-claims` ·
 `lint:boundaries` · `lint:tests` — all green. No migration: the payload is jsonb.
 
-### P7 · The Seven Day Work Statement, at the hire (D-PKT7)
+### P7 · The Seven Day Work Statement, at the hire (D-PKT7) — DONE 2026-08-23 (migration 0236)
 
-Independent of P3–P6 and of the packet PDF entirely. `HireDrawer` already measures the three-year
-employment window back from the hire date; this asks for the seven days before it, plus the date and
-time the driver was last relieved from duty, and the driver's signature.
+**Done when:** hiring a driver captures their seven-day statement, and the driver's file holds it as a
+dated record.
 
-⚠ **This one probably needs a migration** — it is the only page in the packet whose data we do not
-hold anywhere, and it is evidence: §395.8(k)(1) keeps supporting documents six months. Decide its
-side of the evidence line (`RETENTION_FORBIDDEN`, or prunable-and-why) in the migration header, on
-0208's model, per `RECRUITING-SYSTEM-PLAN.md` §4.
+**What shipped.** Migration **0236** (`seven_day_statements`), `packages/shared/src/sevenDayStatement.ts`
+(contract + the window arithmetic), `routes/roster/sevenDay.ts`, and a section under the driver page's
+**Employment** tab — not a seventh tab, because U6 already flagged six as possibly one too many.
 
-**Done when:** hiring a driver captures their seven-day statement, and the qualification file holds it
-as a dated document.
+**The evidence line, declared** (§4's requirement): **immutable on UPDATE, prunable on DELETE.**
+- The driver signs it, so the content can never be rewritten — SD010, for everybody, service role
+  included. A correction is a new statement and the list is newest-first.
+- It is **deliberately NOT in `RETENTION_FORBIDDEN`**, unlike `drivers` or `driver_applications`.
+  §395.8(k)(1) asks the carrier to keep a supporting document for **six months**; holding a record of
+  somebody's working hours for ever, when the rule asks for six months, is over-retention of personal
+  data dressed up as diligence. `dataRetention.ts` gets a rule at **400 days** — a year's audit margin
+  over the statutory floor, and then it ages out.
+
+⚠ **The matrix caught this migration reproducing the exact bug 0234 was written about.** The first
+draft of the immutability trigger raised on EVERY update, so `merge_driver`'s reassignment of
+`driver_id` was refused and a driver holding a statement could not be merged at all — the
+`sms_consents` failure mode, one migration after it was documented. The trigger is a **column list**
+now, on `employer_inquiries`' EI010 model: guard the CONTENT, leave `driver_id` free. The guard exists
+to stop somebody rewriting what the driver signed; carrying the record to the surviving row of a merge
+is not that.
+
+⚠ **`merge_driver` learned about the table in the same migration**, rather than two years later. That
+is 0234's standing lesson applied on the day the table was created, and the matrix asserts it — the
+one assertion that would fail if a future table were added without doing the same.
+
+⚠ **The window is derived, never typed.** The form asks for the statement date and computes the seven
+days before it, because a form that let somebody enter eight dates by hand produces a lawful-looking
+total measured over the wrong week — the one failure of this record nobody would notice. The API
+re-checks it and answers `window_mismatch` naming the week it wanted; the tenant-isolation seeder in
+`supabase/tests/lib/tenantIsolation.mjs` learned to satisfy a jsonb array-shape CHECK along the way,
+which is a harness improvement every future fixed-shape table inherits.
+
+⚠ **The office transcribes; it does not sign.** `signed_name` is the driver's own name as they wrote
+it on the paper, and `recorded_by` is stamped server-side with whoever typed it in. A form that let an
+office user sign on a driver's behalf would be manufacturing the evidence.
+
+**Verified by:** `pnpm test` (all unit suites + **20** PGlite matrices — `seven-day-statements` is new,
+14 assertions; `rls` went 401 → 403 as the new table joined tenant isolation) · `pnpm typecheck` ·
+`pnpm lint` (zero in the tracked tree) · `lint:migrations` · `lint:rls` · `lint:upserts` ·
+`lint:filesize` · `lint:funcsize` · `lint:boundaries` · `lint:comment-claims` · `lint:tests` ·
+`lint:ui-adoption` · `pnpm --filter web lint:tokens` — all green.
+
+⚠ **Not verified in a browser** (the standing vite crash), and the seven-hour-input form is the most
+fiddly thing this plan has shipped. Worth an eye during U7.
 
 ### P6 · Cutover (D-PKT5)
 

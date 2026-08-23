@@ -18,6 +18,7 @@ import QualificationSection from "@/features/compliance/QualificationSection.vue
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
+import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
@@ -202,6 +203,9 @@ const fillColumns: DataTableColumn[] = [
            stay together: they are one job, and separating a record from the investigation of that
            record is what would actually cost a recruiter a click. -->
       <EmployerInquirySection :driver-id="id" />
+      <!-- P7/D-PKT7. Under Employment rather than a seventh tab: U6 already flagged six as possibly
+           one too many, and this belongs with what the carrier did when it took the person on. -->
+      <SevenDayStatementSection :driver-id="id" />
     </template>
 
     <!-- A vendor ledger, which is not employment. It stays on the driver page rather than moving to

@@ -143,6 +143,29 @@ function literalFromCheck(meta, table, col) {
   return null;
 }
 
+/**
+ * A jsonb literal that satisfies whatever shape a CHECK demands of this column.
+ *
+ * The default `'{}'` is right for the payload columns that make up most of this schema, and wrong for
+ * any table whose jsonb is a fixed-length ARRAY — `seven_day_statements.days` is seven days by
+ * §395.8(j)(2), pinned in the database because it can never legitimately be six. Seeding an object
+ * into it reads as "this table cannot be seeded", which is the harness blaming a schema that is
+ * perfectly correct.
+ *
+ * So the check is read, the same way `literalFromCheck` reads one for text: `jsonb_typeof(x) =
+ * 'array'` gives `'[]'`, and a `jsonb_array_length(x) = N` beside it fills N nulls.
+ */
+function jsonbFromCheck(meta, table, col) {
+  for (const def of meta.checkOf.get(table) ?? []) {
+    if (!new RegExp(`\\b${col}\\b`).test(def)) continue;
+    if (!/jsonb_typeof\s*\([^)]*\)\s*=\s*'array'/.test(def)) continue;
+    const len = def.match(/jsonb_array_length\s*\([^)]*\)\s*=\s*(\d+)/);
+    const n = len ? Number(len[1]) : 0;
+    return `'[${Array.from({ length: n }, () => "null").join(",")}]'::jsonb`;
+  }
+  return null;
+}
+
 /** A minimal, constraint-satisfying literal for one column. */
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
@@ -170,7 +193,7 @@ function valueFor(meta, table, c, orgId, tsIndex = 0) {
     // attnum order, so the later one wins.
     return tsIndex === 0 ? "now()" : `now() + interval '${tsIndex} minute'`;
   }
-  if (t === "jsonb" || t === "json") return `'{}'::${t}`;
+  if (t === "jsonb" || t === "json") return jsonbFromCheck(meta, table, c.col) ?? `'{}'::${t}`;
   if (t === "inet" || t === "cidr") return `'127.0.0.1'::${t}`;
   if (t === "bytea") return "'\\x'::bytea";
   if (t === "interval") return "'1 hour'::interval";
