@@ -191,6 +191,51 @@ export function inquiryStateTone(state: string): string {
  * rely on a documented non-response, so the obligation is discharged. Colouring it as a problem would
  * nag a recruiter forever about a requirement they have already met.
  */
+/**
+ * The applicant board's stage chip.
+ *
+ * ⚠ **Moved here from a local `Record` in `RecruitmentPage.vue` (2026-08-23).**
+ * `RECRUITING-SYSTEM-PLAN.md` §4 says tones live in this file only and that
+ * `ApplicationInviteCard`'s `STATE_TONE` was "the last survivor". It was not — `STAGE_TONE` was
+ * still sitting in the page. Found while adding the disposition chip beside it, and moved rather
+ * than matched, because the wrong one is the template the next person copies.
+ */
+export function applicantStageBadge(stage: string): DqBadge {
+  switch (stage) {
+    case "not_started":
+      return { label: "Not started", tone: "neutral" };
+    case "history_incomplete":
+      return { label: "History incomplete", tone: "warning" };
+    case "awaiting_releases":
+      return { label: "Awaiting releases", tone: "caution" };
+    case "ready_to_screen":
+      return { label: "Ready to screen", tone: "success" };
+    default:
+      return { label: stage, tone: "neutral" };
+  }
+}
+
+/**
+ * How an application ended, when it ended without a hire (0238).
+ *
+ * ⚠ **`declined` is `danger` and the other two are `neutral`**, and the difference is not decoration:
+ * a decline is the CARRIER's decision and the only one of the three that can ever owe the applicant
+ * a notice. A recruiter scanning the board needs to tell at a glance which of these the company did
+ * and which happened to it.
+ */
+export function applicantDispositionBadge(outcome: string): DqBadge {
+  switch (outcome) {
+    case "declined":
+      return { label: "Declined", tone: "danger" };
+    case "withdrawn":
+      return { label: "Withdrew", tone: "neutral" };
+    case "no_response":
+      return { label: "No response", tone: "neutral" };
+    default:
+      return { label: outcome, tone: "neutral" };
+  }
+}
+
 export function employmentInquiryBadge(status: string): DqBadge {
   switch (status) {
     case "not_required":

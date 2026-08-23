@@ -20,6 +20,7 @@ import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
+import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -200,11 +201,13 @@ const fillColumns: DataTableColumn[] = [
 
     <!-- The recruiter's act of asking. It PRODUCES the history in the next tab (H5, D-HIRE2), which
          is why it reads first left-to-right rather than being filed under it. -->
-    <ApplicationInviteCard
-      v-if="section === 'application'"
-      :driver-id="id"
-      :driver-status="driver?.status ?? ''"
-    />
+    <template v-if="section === 'application'">
+      <ApplicationInviteCard :driver-id="id" :driver-status="driver?.status ?? ''" />
+      <!-- 0238. The act that ENDS an application, beside the act that starts one — same tab because
+           U6 cut the tabs by who does the work, and the recruiter does both. It renders only for an
+           applicant; ending an employment is a termination, which is a different act entirely. -->
+      <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
+    </template>
 
     <template v-if="section === 'employment'">
       <EmploymentHistorySection :driver-id="id" />

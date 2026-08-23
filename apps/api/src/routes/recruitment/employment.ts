@@ -1,11 +1,13 @@
 import { Router } from "express";
 import {
   applicantProgress,
+  currentDisposition,
   employmentCoverage,
   employmentHistoryCreateSchema,
   employmentHistoryUpdateSchema,
   rolesThatCanView,
   rolesThatManage,
+  type ApplicantDispositionRow,
   type EmploymentHistoryCreate,
   type AuthorizationRow,
   type EmploymentHistoryUpdate,
@@ -108,7 +110,7 @@ export function recruitmentEmploymentRouter(): Router {
         return;
       }
 
-      const [history, auths] = await Promise.all([
+      const [history, auths, decisions] = await Promise.all([
         admin
           .from("driver_employment_history")
           .select(HISTORY_COLS)
@@ -119,8 +121,17 @@ export function recruitmentEmploymentRouter(): Router {
           .select("id, driver_id, purpose, accepted_at, revokes")
           .eq("org_id", orgId)
           .in("driver_id", ids),
+        // 0238. A decided applicant stays on the board — they are still `status = applicant`, and
+        // clearing them off it is what ARCHIVING is for (0235), which is a different act. What the
+        // board owes the recruiter is that the decision is VISIBLE, so nobody chases somebody the
+        // carrier already turned down.
+        admin
+          .from("applicant_dispositions")
+          .select("id, driver_id, outcome, decided_on, reason, rested_on_consumer_report, decided_by, created_at")
+          .eq("org_id", orgId)
+          .in("driver_id", ids),
       ]);
-      if (history.error || auths.error) {
+      if (history.error || auths.error || decisions.error) {
         res.status(500).json(apiError("db_error", "Could not load the pipeline"));
         return;
       }
@@ -130,6 +141,12 @@ export function recruitmentEmploymentRouter(): Router {
         const list = historyBy.get(row.driver_id);
         if (list) list.push(row);
         else historyBy.set(row.driver_id, [row]);
+      }
+      const decisionsBy = new Map<string, ApplicantDispositionRow[]>();
+      for (const row of (decisions.data ?? []) as ApplicantDispositionRow[]) {
+        const list = decisionsBy.get(row.driver_id);
+        if (list) list.push(row);
+        else decisionsBy.set(row.driver_id, [row]);
       }
       const authsBy = new Map<string, AuthorizationRow[]>();
       for (const row of (auths.data ?? []) as Array<AuthorizationRow & { driver_id: string }>) {
@@ -163,6 +180,10 @@ export function recruitmentEmploymentRouter(): Router {
           stage: progress.stage,
           outstanding: progress.outstanding,
           releases_complete: progress.releasesComplete,
+          // ⚠ The NEWEST decision, not the first: the table is append-only, so a carrier who
+          // declines and then changes its mind records a second row. `currentDisposition` is shared
+          // with the driver page so the board and the file cannot answer this differently.
+          disposition: currentDisposition(decisionsBy.get(a.id) ?? []),
         };
       });
 

@@ -87,6 +87,9 @@ const seed = (over: { drivers?: unknown[]; history?: unknown[]; auths?: unknown[
       // The recorder returns this row from `.select().single()` after an insert, the same way the
       // employment fixture does — the assertions below read the WRITE, not this.
       driver_authorizations: over.auths ?? [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
+      // Same reason as the row above: the route reads its own insert back through `.select()`, and a
+      // fixture-less table hands it null, which the route correctly treats as a failed write.
+      applicant_dispositions: [{ id: ROW, driver_id: DRIVER, outcome: "declined", decided_on: "2026-08-20" }],
       audit_logs: [],
     },
   });
@@ -443,5 +446,93 @@ describe("contract", () => {
       }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * Why an application ended without a hire (0238).
+ *
+ * The pipeline had one exit and it went one way. What is pinned here is the security boundary, the
+ * org filter (this router reads with the service role), and the two things a route can get wrong
+ * about a decision: who it says made it, and what it copies into a log other people can read.
+ */
+describe("recording a decision about an applicant", () => {
+  const disposition = {
+    driver_id: DRIVER,
+    outcome: "declined",
+    decided_on: "2026-08-20",
+    reason: "Two years unaccounted for and no way to reach the second employer",
+    rested_on_consumer_report: true,
+  };
+
+  const post = (token: string, body: unknown = disposition) =>
+    call("/dispositions", { method: "POST", token, body: JSON.stringify(body) });
+
+  it("records it, and stamps the decider from the token rather than the body", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await post("recruiter", { ...disposition, decided_by: "somebody-else" });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("applicant_dispositions")[0]!;
+    expect(written.decided_by).toBe("u-recruiter");
+    expect(written.outcome).toBe("declined");
+    expect(written.rested_on_consumer_report).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
+  /**
+   * ⚠ The audit log is readable by an admin with no part in hiring. A recruiter's sentence about why
+   * somebody was turned down is exactly what §391.23(k)(2) keeps to the people deciding — the entry
+   * says a decision happened, not what was said about the person.
+   */
+  it("audits that a decision happened and never copies the reason into it", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    await post("recruiter");
+    const audit = rec.writtenRows("audit_logs")[0]!;
+    expect(audit.action).toBe("recruitment.applicant_dispositioned");
+    expect(JSON.stringify(audit)).not.toContain("Two years unaccounted for");
+    expect(JSON.stringify(audit.meta)).toContain("declined");
+  });
+
+  /**
+   * ⚠ Ending an employment is a termination — its own date, its own §391.51(c) clock, its own effect
+   * on the DQ file. Refused rather than allowed-and-ignored, or the record of somebody the carrier
+   * employs would carry the word "declined".
+   */
+  it("refuses to decide about somebody who is already employed", async () => {
+    rec = seed({ drivers: [{ id: DRIVER, full_name: "An Employee", status: "active" }] });
+    holder.client = rec.client;
+    const res = await post("recruiter");
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_an_applicant");
+    expect(rec.writtenRows("applicant_dispositions")).toHaveLength(0);
+  });
+
+  it("answers 404 for a driver in another org, and writes nothing", async () => {
+    rec = seed({ drivers: [] });
+    holder.client = rec.client;
+    expect((await post("recruiter")).status).toBe(404);
+    expect(rec.writtenRows("applicant_dispositions")).toHaveLength(0);
+  });
+
+  it("refuses an outcome that is not one of the three", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await post("recruiter", { ...disposition, outcome: "hired" })).status).toBe(400);
+  });
+
+  it.each([["dispatcher"], ["driver"]])("refuses %s before any query runs", async (token) => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await post(token)).status).toBe(403);
+    expect(rec.queries).toHaveLength(0);
+  });
+
+  it("lets a recruitment viewer read the history without being able to write one", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await call(`/drivers/${DRIVER}/dispositions`, { token: "auditor" })).status).toBe(200);
+    expect((await post("auditor")).status).toBe(403);
   });
 });

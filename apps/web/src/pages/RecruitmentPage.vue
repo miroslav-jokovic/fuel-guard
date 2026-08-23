@@ -19,7 +19,12 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import {
+  applicantDispositionBadge,
+  applicantStageBadge,
+  BADGE_BASE,
+  toneClass,
+} from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";
@@ -81,13 +86,6 @@ const counts = computed(() => {
   for (const a of pipelineQ.data.value ?? []) out.set(a.stage, (out.get(a.stage) ?? 0) + 1);
   return out;
 });
-
-const STAGE_TONE: Record<ApplicantStage, string> = {
-  not_started: "neutral",
-  history_incomplete: "warning",
-  awaiting_releases: "caution",
-  ready_to_screen: "success",
-};
 
 const columns: DataTableColumn[] = [
   { key: "full_name", label: "Applicant" },
@@ -241,9 +239,22 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
           <span class="ml-2 text-xs text-ink-muted">applied {{ row.applied_on }}</span>
           <span v-if="showArchived" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
         </template>
+        <!--
+          ⚠ A decided application shows the DECISION, not its progress. "Awaiting releases" beside a
+          decline is not extra information, it is a stale sentence about somebody the carrier already
+          answered — and it is what would send the next recruiter to chase them. The decision
+          supersedes the stage; the row itself stays, because leaving the board is what archiving is
+          for (0235) and the two acts are deliberately separate.
+        -->
         <template #cell-stage="{ row }">
-          <span :class="[BADGE_BASE, toneClass(STAGE_TONE[row.stage as ApplicantStage])]">
-            {{ APPLICANT_STAGE_LABELS[row.stage as ApplicantStage] }}
+          <span
+            v-if="row.disposition"
+            :class="[BADGE_BASE, toneClass(applicantDispositionBadge(row.disposition.outcome).tone)]"
+          >
+            {{ applicantDispositionBadge(row.disposition.outcome).label }}
+          </span>
+          <span v-else :class="[BADGE_BASE, toneClass(applicantStageBadge(row.stage as ApplicantStage).tone)]">
+            {{ applicantStageBadge(row.stage as ApplicantStage).label }}
           </span>
         </template>
         <template #cell-outstanding="{ row }">

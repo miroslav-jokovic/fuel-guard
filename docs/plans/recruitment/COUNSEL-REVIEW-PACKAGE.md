@@ -307,11 +307,14 @@ asked:
   paper form handed in at the office is owed §604(b)(3)(A) in full. **Counsel to confirm our reading
   that an invited link filled in on a phone is inside the exception** — it picks between two
   procedures.
-- **There is no way to decline an applicant.** `ApplicantStage` runs `not_started → ready_to_screen`
-  and stops; `hireApplicant` is the only exit and it goes one way. The notice is a consequence of a
-  decision the product cannot record — which is also the gap packet page 17 fills on paper, the page
-  §2.4 classified NOT OURS for being carrier-filled. Correct about the packet, and it named a hole
-  nobody had written down.
+- ~~**There is no way to decline an applicant.**~~ **BUILT 2026-08-23 (0238).** `ApplicantStage` ran
+  `not_started → ready_to_screen` and stopped; `hireApplicant` was the only exit and it went one way.
+  A notice is a consequence of a decision the product could not record — which is also the gap packet
+  page 17 fills on paper, the page §2.4 classified NOT OURS for being carrier-filled. Correct about
+  the packet, and it named a hole nobody had written down. `applicant_dispositions` now records the
+  decision **and whether it rested on a purchased report**, so when you answer §4.1 there is
+  something for the notice to attach to and no timeline to reconstruct. ⚠ **Nothing is sent**, and
+  the recruiter is told so at the moment they tick the box.
 
 ⚠ **A third thing, and it is a question for you that has been waiting since 2026-08-20.** Whether a
 **PSP record is an FCRA consumer report** was recorded as counsel's in `HANDOFF-2026-08-20-UAT.md`

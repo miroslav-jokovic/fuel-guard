@@ -6,6 +6,7 @@ import { recruitmentPspOrdersRouter } from "./pspOrders.js";
 import { recruitmentHireRouter } from "./hire.js";
 import { recruitmentInquiriesRouter } from "./inquiries.js";
 import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
+import { recruitmentDispositionsRouter } from "./dispositions.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -25,5 +26,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentApplicationInvitesRouter()); // the link that carries an applicant to the form (H5)
   router.use(recruitmentInquiriesRouter()); // the §391.23 previous-employer inquiry record (E3)
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
+  router.use(recruitmentDispositionsRouter()); // the other exit: why an application ended without one (0238)
   return router;
 }
