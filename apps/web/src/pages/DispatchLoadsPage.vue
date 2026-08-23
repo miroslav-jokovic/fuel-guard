@@ -59,11 +59,11 @@ const { data: trailers } = useTrailersQuery();
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const resolveException = useResolveException();
 
-const EXCEPTION_COLUMNS = [
-  { key: "kind", label: "What happened", headerClass: "min-w-[11rem]" },
-  { key: "summary", label: "Detail", headerClass: "min-w-[20rem]" },
-  { key: "driver_name", label: "Driver", headerClass: "min-w-[9rem]" },
-  { key: "occurred_at", label: "When", headerClass: "min-w-[9rem]" },
+const EXCEPTION_COLUMNS: DataTableColumn[] = [
+  { key: "kind", label: "What happened", width: "lg" },
+  { key: "summary", label: "Detail", width: "3xl" },
+  { key: "driver_name", label: "Driver", width: "lg" },
+  { key: "occurred_at", label: "When", width: "lg" },
 ];
 
 const ACTION_LABELS: Record<string, string> = {
@@ -198,14 +198,14 @@ function hazmatTone(status: string | null | undefined): string {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "ref", label: "Load #", sortable: true, headerClass: "min-w-[8rem]", cellClass: "font-medium text-ink" },
-  { key: "source", label: "Source", sortable: true, headerClass: "min-w-[7rem]" },
-  { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "equipment", label: "Equipment", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "first_stop", label: "First appointment", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
-  { key: "hazmat", label: "Hazmat", headerClass: "min-w-[8rem]" },
-  { key: "readiness", label: "Approval readiness", headerClass: "min-w-[13rem]" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[9rem]" },
+  { key: "ref", label: "Load #", sortable: true, width: "md", cellClass: "font-medium text-ink" },
+  { key: "source", label: "Source", sortable: true, width: "md" },
+  { key: "driver_name", label: "Driver", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "equipment", label: "Equipment", sortable: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "first_stop", label: "First appointment", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "hazmat", label: "Hazmat", width: "md" },
+  { key: "readiness", label: "Approval readiness", width: "xl" },
+  { key: "status", label: "Status", sortable: true, width: "lg" },
 ];
 
 const driverList = computed(() => (drivers.value ?? []).map((driver) => ({ id: driver.id, full_name: driver.full_name })));

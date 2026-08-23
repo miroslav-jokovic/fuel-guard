@@ -59,17 +59,17 @@ const getVal = (v: Vehicle, key: string): unknown => {
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
 const columns: DataTableColumn[] = [
-  { key: "unit_number", label: "Unit", sortable: true, headerClass: "min-w-[5rem]" },
-  { key: "vehicle", label: "Vehicle", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "fuel_type", label: "Fuel", headerClass: "min-w-[5rem]", cellClass: "capitalize text-ink-secondary" },
-  { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "baseline_mpg", label: "Baseline MPG", sortable: true, numeric: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
-  { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "assigned_driver_id", label: "Driver", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "has_apu", label: "APU", sortable: true, headerClass: "min-w-[5rem]" },
-  { key: "has_optimized_idle", label: "Optimized idle", sortable: true, headerClass: "min-w-[8rem]" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "unit_number", label: "Unit", sortable: true, width: "sm" },
+  { key: "vehicle", label: "Vehicle", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "fuel_type", label: "Fuel", width: "sm", cellClass: "capitalize text-ink-secondary" },
+  { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "baseline_mpg", label: "Baseline MPG", sortable: true, numeric: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "assigned_driver_id", label: "Driver", width: "md", cellClass: "text-ink-secondary" },
+  { key: "has_apu", label: "APU", sortable: true, width: "sm" },
+  { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md" },
+  { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
 
 const page = ref(1);

@@ -59,10 +59,10 @@ const search = computed({
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 
 const columns: DataTableColumn[] = [
-  { key: "created_at", label: "When", headerClass: "min-w-[11rem]", cellClass: "text-ink-muted" },
-  { key: "action", label: "Action", headerClass: "min-w-[10rem]", cellClass: "font-mono text-xs text-ink" },
-  { key: "entity", label: "Entity", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "meta", label: "Details", headerClass: "min-w-[24rem]", cellClass: "text-ink-muted" },
+  { key: "created_at", label: "When", width: "lg", cellClass: "text-ink-muted" },
+  { key: "action", label: "Action", width: "lg", cellClass: "font-mono text-xs text-ink" },
+  { key: "entity", label: "Entity", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "meta", label: "Details", width: "3xl", cellClass: "text-ink-muted" },
 ];
 </script>
 

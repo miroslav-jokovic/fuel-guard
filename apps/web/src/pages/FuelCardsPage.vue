@@ -170,13 +170,13 @@ const oldestSync = computed(() => reachableSyncFloor(rows.value));
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
 
 const columns: DataTableColumn[] = [
-  { key: "maskedRef", label: "Card", sortable: true, headerClass: "min-w-[8rem]", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[7rem]" },
-  { key: "driverName", label: "Driver", sortable: true, headerClass: "min-w-[10rem]" },
-  { key: "unitPrompt", label: "Unit", sortable: true, headerClass: "min-w-[6rem]" },
-  { key: "driverIdPrompt", label: "Driver ID", sortable: true, headerClass: "min-w-[8rem]" },
-  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, headerClass: "min-w-[5rem]" },
-  { key: "overrideUses", label: "Override", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
+  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
+  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
+  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
+  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
+  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
   { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
 ];
 

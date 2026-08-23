@@ -181,15 +181,15 @@ async function bulkRemove() {
 }
 
 const memberColumns: DataTableColumn[] = [
-  { key: "email", label: "Email", headerClass: "min-w-[14rem]" },
-  { key: "role", label: "Role", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary capitalize" },
-  { key: "joinedAt", label: "Joined", headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
+  { key: "email", label: "Email", width: "xl" },
+  { key: "role", label: "Role", width: "md", cellClass: "text-ink-secondary capitalize" },
+  { key: "joinedAt", label: "Joined", width: "md", cellClass: "text-ink-muted" },
 ];
 
 const inviteColumns: DataTableColumn[] = [
-  { key: "email", label: "Email", headerClass: "min-w-[14rem]" },
-  { key: "role", label: "Role", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary capitalize" },
-  { key: "status", label: "Status", headerClass: "min-w-[7rem]" },
+  { key: "email", label: "Email", width: "xl" },
+  { key: "role", label: "Role", width: "md", cellClass: "text-ink-secondary capitalize" },
+  { key: "status", label: "Status", width: "md" },
 ];
 
 onMounted(load);

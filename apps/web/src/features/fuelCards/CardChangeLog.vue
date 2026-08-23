@@ -106,11 +106,11 @@ function clearAll(): void {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "when", label: "When", headerClass: "min-w-[11rem]", cellClass: "text-ink-muted" },
-  { key: "maskedRef", label: "Card", headerClass: "min-w-[9rem]", cellClass: "font-medium text-ink" },
-  { key: "who", label: "Unit / driver", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
-  { key: "what", label: "What", headerClass: "min-w-[10rem]" },
-  { key: "outcome", label: "Outcome", headerClass: "min-w-[10rem]" },
+  { key: "when", label: "When", width: "lg", cellClass: "text-ink-muted" },
+  { key: "maskedRef", label: "Card", width: "lg", cellClass: "font-medium text-ink" },
+  { key: "who", label: "Unit / driver", width: "xl", cellClass: "text-ink-secondary" },
+  { key: "what", label: "What", width: "lg" },
+  { key: "outcome", label: "Outcome", width: "lg" },
 ];
 </script>
 

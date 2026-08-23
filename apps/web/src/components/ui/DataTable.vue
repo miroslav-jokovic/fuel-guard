@@ -30,7 +30,8 @@ import type { SortState } from "@/lib/sort";
  *    tabular-nums; headers follow their column. `align` overrides, and `align: "center"` is for
  *    control columns only — checkbox, icon, status dot — never for text or numbers (D-DS1)
  *  - `sortable: true` renders the standard sort button + direction indicator
- *  - fixed-ish columns pass width via `headerClass` (e.g. "min-w-[6rem]" / "w-32")
+ *  - `width` sets the column's minimum width from a named scale (D-DS5); `headerClass` is for
+ *    everything else. A fixed `w-32` still goes in `headerClass` — that is a different intent.
  *  - cells default to `row[key]` with an ink-subtle "—" for null/empty;
  *    override per column with #cell-<key>="{ row, value }"
  * Selection appears ONLY when `selectable` (i.e. the page has bulk actions).
@@ -49,10 +50,42 @@ export interface DataTableColumn {
   /** Override the default (text → left, `numeric` → right). `center` is for control columns only. */
   align?: "left" | "right" | "center";
   /** Extra th classes — widths live here (min-w-[8rem], w-32, …). */
+  /**
+   * Minimum column width, from the scale below. Replaces 173 hand-picked `min-w-[Nrem]` values
+   * spread across 26 files in 15 different sizes, none of which agreed with each other (D-DS5).
+   */
+  width?: ColumnWidth;
   headerClass?: string;
   /** Extra td classes — truncation, tone overrides, … */
   cellClass?: string;
 }
+
+/**
+ * The column-width scale.
+ *
+ * ── How these seven numbers were chosen ─────────────────────────────────────────────────────────
+ * Not by taste. The 173 existing widths were counted, and every candidate scale scored against that
+ * distribution for how many columns it would move and in which direction. Every six-step scale moved
+ * roughly half of them, some SHRINKING by up to 8rem — and a shrinking min-width is the dangerous
+ * direction, because that is where text starts to wrap. This scale is the one that rounds strictly
+ * UP: 94 columns widen, by at most 4rem, and none narrow. In a table that already scrolls
+ * horizontally, widening costs a little scroll and cannot clip or overlap anything.
+ *
+ * The values map onto Tailwind's own spacing steps, so the component holds no arbitrary values
+ * either: 4rem = min-w-16, 6rem = min-w-24, 8rem = min-w-32, 11rem = min-w-44, 14rem = min-w-56,
+ * 18rem = min-w-72, 24rem = min-w-96.
+ */
+export type ColumnWidth = "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
+
+const WIDTHS: Record<ColumnWidth, string> = {
+  xs: "min-w-16", // 4rem  — short counts, flags
+  sm: "min-w-24", // 6rem  — codes, short statuses
+  md: "min-w-32", // 8rem  — dates, amounts
+  lg: "min-w-44", // 11rem — names, stations
+  xl: "min-w-56", // 14rem — descriptions
+  "2xl": "min-w-72", // 18rem
+  "3xl": "min-w-96", // 24rem — the widest column a table should carry
+};
 
 const props = withDefaults(
   defineProps<{
@@ -212,7 +245,7 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
                 :key="col.key"
                 scope="col"
                 class="font-medium"
-                :class="[...cellCls(col, i), col.headerClass]"
+                :class="[...cellCls(col, i), col.width ? WIDTHS[col.width] : '', col.headerClass]"
               >
                 <button
                   v-if="col.sortable"

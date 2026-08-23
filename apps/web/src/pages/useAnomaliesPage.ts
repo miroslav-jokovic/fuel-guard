@@ -95,24 +95,24 @@ const filtered = computed(() => {
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
 const baseColumns: DataTableColumn[] = [
-  { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
-  { key: "type", label: "Type", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "vehicle", label: "Truck", sortable: true, headerClass: "min-w-[5rem]", cellClass: "font-medium text-ink" },
-  { key: "trailer", label: "Trailer", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
-  { key: "driver", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "message", label: "Detail", headerClass: "min-w-[18rem]", cellClass: "max-w-md truncate text-ink-secondary" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
-  { key: "when", label: "When", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
+  { key: "severity", label: "Severity", sortable: true, width: "sm" },
+  { key: "type", label: "Type", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "vehicle", label: "Truck", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Trailer", sortable: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "message", label: "Detail", width: "2xl", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
+  { key: "when", label: "When", sortable: true, width: "md", cellClass: "text-ink-muted" },
 ];
 // Reefer tab: lead with the assets the reviewer needs — truck, its reefer trailer, and the driver on the fill.
 const reeferColumns: DataTableColumn[] = [
-  { key: "vehicle", label: "Truck", sortable: true, headerClass: "min-w-[5rem]", cellClass: "font-medium text-ink" },
-  { key: "trailer", label: "Trailer", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
-  { key: "driver", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
-  { key: "message", label: "Detail", headerClass: "min-w-[16rem]", cellClass: "max-w-md truncate text-ink-secondary" },
-  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[7rem]" },
-  { key: "when", label: "When", sortable: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-muted" },
+  { key: "vehicle", label: "Truck", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Trailer", sortable: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "severity", label: "Severity", sortable: true, width: "sm" },
+  { key: "message", label: "Detail", width: "2xl", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
+  { key: "when", label: "When", sortable: true, width: "md", cellClass: "text-ink-muted" },
 ];
 const columns = computed(() => (filters.value.reeferOnly ? reeferColumns : baseColumns));
 

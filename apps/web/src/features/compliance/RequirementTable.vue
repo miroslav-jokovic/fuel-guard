@@ -54,7 +54,7 @@ const emit = defineEmits<{
 const session = useSessionStore();
 
 const columns: DataTableColumn[] = [
-  { key: "label", label: "Requirement", headerClass: "min-w-[18rem]", cellClass: "font-medium text-ink" },
+  { key: "label", label: "Requirement", width: "2xl", cellClass: "font-medium text-ink" },
   { key: "state", label: "Status", headerClass: "w-32" },
   { key: "evidenceDate", label: "Evidence date", headerClass: "w-36", cellClass: "text-ink-secondary" },
   { key: "goodUntil", label: "Good until", headerClass: "w-32", cellClass: "text-ink-secondary" },

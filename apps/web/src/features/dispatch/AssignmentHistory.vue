@@ -113,31 +113,31 @@ const columns: DataTableColumn[] = [
   {
     key: "driver_name",
     label: "Driver",
-    headerClass: "min-w-[10rem]",
+    width: "lg",
     cellClass: "font-medium text-ink",
   },
   {
     key: "vehicle_unit",
     label: "Truck",
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
   {
     key: "trailer_unit",
     label: "Trailer",
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
-  { key: "from_at", label: "From", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
-  { key: "to_at", label: "To", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "from_at", label: "From", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "to_at", label: "To", width: "lg", cellClass: "text-ink-secondary" },
   {
     key: "held",
     label: "Held for",
     numeric: true,
-    headerClass: "min-w-[6rem]",
+    width: "sm",
     cellClass: "text-ink-secondary",
   },
-  { key: "seat", label: "Seat", headerClass: "min-w-[7rem]" },
+  { key: "seat", label: "Seat", width: "md" },
 ];
 
 const stamp = (v: string): string =>

@@ -40,9 +40,9 @@ const props = defineProps<{
 }>();
 
 const columns: DataTableColumn[] = [
-  { key: "label", label: "Setting", headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
-  { key: "detail", label: "Applies", headerClass: "min-w-[14rem]", cellClass: "text-ink-secondary" },
-  { key: "origin", label: "Source", headerClass: "min-w-[9rem]" },
+  { key: "label", label: "Setting", width: "xl", cellClass: "font-medium text-ink" },
+  { key: "detail", label: "Applies", width: "xl", cellClass: "text-ink-secondary" },
+  { key: "origin", label: "Source", width: "lg" },
 ];
 
 const sections = computed(() => [

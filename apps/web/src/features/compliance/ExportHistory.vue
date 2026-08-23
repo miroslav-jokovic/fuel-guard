@@ -68,11 +68,11 @@ const columns: DataTableColumn[] = [
   {
     key: "what",
     label: "Exported",
-    headerClass: "min-w-[18rem]",
+    width: "2xl",
     cellClass: "font-medium text-ink",
   },
   { key: "as_at", label: "As at", headerClass: "w-28", cellClass: "text-ink-secondary" },
-  { key: "who", label: "By", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
+  { key: "who", label: "By", width: "xl", cellClass: "text-ink-secondary" },
   { key: "when", label: "Requested", headerClass: "w-40", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", headerClass: "w-32" },
 ];

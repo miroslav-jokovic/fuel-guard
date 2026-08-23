@@ -21,12 +21,12 @@ const actionDescription = computed(() =>
  * real page: text, quantities, a sortable quantity and a control column.
  */
 const shippedColumns: DataTableColumn[] = [
-  { key: "unit", label: "Unit" },
-  { key: "driver", label: "Driver" },
-  { key: "gallons", label: "Gallons", numeric: true, sortable: true },
-  { key: "amount", label: "Amount", numeric: true },
-  { key: "mpg", label: "MPG", numeric: true },
-  { key: "status", label: "Status" },
+  { key: "unit", label: "Unit", width: "sm" },
+  { key: "driver", label: "Driver", width: "lg" },
+  { key: "gallons", label: "Gallons", numeric: true, sortable: true, width: "md" },
+  { key: "amount", label: "Amount", numeric: true, width: "md" },
+  { key: "mpg", label: "MPG", numeric: true, width: "xs" },
+  { key: "status", label: "Status", width: "sm" },
 ];
 
 const shippedRows = [

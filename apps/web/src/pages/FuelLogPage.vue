@@ -202,18 +202,18 @@ const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
     label: "Vehicle",
-    headerClass: "sticky left-0 z-20 bg-surface-subtle min-w-[7rem] border-r border-edge",
+    width: "md", headerClass: "sticky left-0 z-20 bg-surface-subtle border-r border-edge",
     cellClass: "sticky left-0 z-[1] border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
   },
-  { key: "fueled_at", label: "When", sortable: true, headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
-  { key: "trailer", label: "Trailer", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
-  { key: "driver", label: "Driver", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "gallons", label: "Gallons", sortable: true, numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
-  { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
-  { key: "status", label: "Status", headerClass: "min-w-[11rem]" },
+  { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
+  { key: "trailer", label: "Trailer", width: "md", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", width: "lg", cellClass: "text-ink-secondary" },
+  { key: "odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
+  { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", width: "lg" },
 ];
 </script>
 

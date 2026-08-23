@@ -54,19 +54,19 @@ const columns: DataTableColumn[] = [
   {
     key: "label",
     label: "Certification",
-    headerClass: "min-w-[14rem]",
+    width: "xl",
     cellClass: "font-medium text-ink",
   },
   {
     key: "identifier",
     label: "Identifier",
-    headerClass: "min-w-[9rem]",
+    width: "lg",
     cellClass: "text-ink-secondary",
   },
   {
     key: "covered",
     label: "Covered",
-    headerClass: "min-w-[12rem]",
+    width: "xl",
     cellClass: "text-ink-secondary",
   },
   { key: "standing", label: "Standing", headerClass: "w-40" },

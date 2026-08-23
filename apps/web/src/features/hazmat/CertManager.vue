@@ -82,8 +82,8 @@ function statusOf(c: CertificationRow): { label: string; tone: string } {
 }
 
 const columns: DataTableColumn[] = [
-  { key: "kind", label: "Type", headerClass: "min-w-[10rem]", cellClass: "font-medium text-ink" },
-  { key: "qualifier", label: "Qualifier", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "kind", label: "Type", width: "lg", cellClass: "font-medium text-ink" },
+  { key: "qualifier", label: "Qualifier", width: "lg", cellClass: "text-ink-secondary" },
   { key: "expires_at", label: "Expires", headerClass: "w-32", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", headerClass: "w-32" },
 ];
