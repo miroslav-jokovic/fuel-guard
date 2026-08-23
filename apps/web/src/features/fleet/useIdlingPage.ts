@@ -254,7 +254,7 @@ const capColumns: DataTableColumn[] = [
   { key: "recorded", label: "Recorded equipment" },
   { key: "idle_capability", label: "What the data shows" },
   { key: "idle_optimized_pct", label: "Engine off / optimized %", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "cross_check", label: "Cross-check", align: "center" },
+  { key: "cross_check", label: "Cross-check" },
 ];
   return {
     isLoading, isError, error, isFetching, refetch,

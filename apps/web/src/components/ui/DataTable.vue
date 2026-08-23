@@ -26,8 +26,9 @@ import type { SortState } from "@/lib/sort";
  *   </DataTable>
  *
  * Column contract (enterprise table conventions):
- *  - text columns left-aligned; `numeric: true` → right-aligned + tabular-nums
- *    (headers follow their column's alignment)
+ *  - text columns left-aligned (the default — omit `align`); `numeric: true` → right-aligned +
+ *    tabular-nums; headers follow their column. `align` overrides, and `align: "center"` is for
+ *    control columns only — checkbox, icon, status dot — never for text or numbers (D-DS1)
  *  - `sortable: true` renders the standard sort button + direction indicator
  *  - fixed-ish columns pass width via `headerClass` (e.g. "min-w-[6rem]" / "w-32")
  *  - cells default to `row[key]` with an ink-subtle "—" for null/empty;
@@ -43,7 +44,9 @@ export interface DataTableColumn {
   key: string;
   label: string;
   sortable?: boolean;
+  /** Quantity column: right-aligned + tabular-nums, so figures line up on the digit. */
   numeric?: boolean;
+  /** Override the default (text → left, `numeric` → right). `center` is for control columns only. */
   align?: "left" | "right" | "center";
   /** Extra th classes — widths live here (min-w-[8rem], w-32, …). */
   headerClass?: string;
@@ -133,8 +136,27 @@ function toggleRow(row: Row) {
 const isSelected = (row: Row) => props.selected?.has(keyOf(row)) ?? false;
 
 /* ── alignment & padding (headers follow their column) ────────────────── */
-const alignCls = (col: DataTableColumn): string =>
-  col.align === "left" ? "text-left" : col.align === "right" ? "text-right" : "text-center";
+/**
+ * Words left, quantities right, centre only for controls (D-DS1).
+ *
+ * ── What this replaced, and why it mattered ─────────────────────────────────────────────────────
+ * This function used to fall through to `text-center` when `align` was absent — and
+ * `apps/web/CLAUDE.md` told every author to omit `align`. The result: 376 of 387 column definitions
+ * in the app rendered centred, including every gallons, amount, MPG and count column in a product
+ * whose whole job is comparing numbers down a column. The docstring above claimed the opposite
+ * behaviour, so nothing read like a bug; it took mounting the component to see it (audit
+ * 2026-08-23). No gate caught it — `lint:tokens` checks colour, not layout.
+ *
+ * `numeric` now carries alignment as well as `tabular-nums`, because the two are one decision:
+ * right-aligned tabular figures line up on the digit, which is the entire reason to mark a column
+ * numeric. An explicit `align` still wins, for the columns that genuinely need it.
+ */
+const alignCls = (col: DataTableColumn): string => {
+  if (col.align === "left") return "text-left";
+  if (col.align === "right") return "text-right";
+  if (col.align === "center") return "text-center";
+  return col.numeric ? "text-right" : "text-left";
+};
 
 const pad = computed(() => (props.dense ? "px-4 py-2" : "px-4 py-3"));
 

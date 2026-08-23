@@ -27,7 +27,10 @@ changing UI. The rules below are the ones most often violated; the contract has 
   Never import `@hugeicons/core-free-icons` directly — add to `packages/ui/src/icons.ts` first.
 - Every badge is `[BADGE_BASE, toneClass(...)]` from `@/lib/badges` — no local tone maps, no
   status string literals in templates.
-- Omit `align` on DataTable columns; `numeric: true` adds tabular-nums only (does NOT right-align).
+- Omit `align` on DataTable columns — text left-aligns by default and `numeric: true` right-aligns
+  with tabular figures. `align` overrides; `align: "center"` is for control columns (checkbox, icon,
+  status dot) and never for text or numbers (D-DS1; pinned by "never centres by default, for any
+  combination the contract allows" in `components/ui/DataTable.test.ts`).
 - Six text sizes only (`text-sm` default, `text-xs`, `text-base`, `text-lg`, `text-2xl`, `text-3xl`);
   headings `font-semibold`; `font-bold` is for KPI numbers; `font-mono` only for machine identifiers.
 - Page skeleton: `<div class="space-y-6">` → `PageHeader` (no title — that comes from
