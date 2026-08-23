@@ -107,7 +107,7 @@ Everything is built. **The remaining work is running it and reading what comes b
 | Does `internalRefId` round-trip | **Yes** — the driver-resolution design rests on it |
 | What `monitor: true` costs and how enrolment ends (Q5) | **No** — ask support |
 | Per-transaction production price (Q2) | **No** — ask support |
-| Whether a PSP report is an FCRA consumer report (Q7) | **No** — counsel |
+| Whether a PSP report is an FCRA consumer report (Q7) | **No** — counsel. ⚠ **Promoted 2026-08-23** into `RECRUITING-SYSTEM-PLAN.md` §6 and `COUNSEL-REVIEW-PACKAGE.md` §4.1, where somebody will actually read it — R10 (adverse action) is the step it decides. |
 
 ---
 

@@ -291,7 +291,41 @@ the exposure is the account, not only the statute.
 
 ## 4. Part C — four questions that are not about wording
 
-### 4.1 ⚠ C1 — there is no adverse action process, anywhere
+### 4.1 ⚠ C1 — there is no adverse action process, anywhere · **STEP WRITTEN 2026-08-23 (R10)**
+
+⚠ **Not built, and deliberately not built.** `RECRUITING-SYSTEM-PLAN.md` **R10** now carries the
+step, execution-grade, blocked on **Q-REC8** (does the carrier send these from FuelGuard at all?) and
+on P1 for the notice wording. Two things found while writing it that change what counsel is being
+asked:
+
+- **§604(b)(3)(B) carves out this exact case.** An applicant who applied *by computer* for a position
+  over which the Secretary of Transportation sets qualifications is not owed the pre-adverse copy of
+  the report beforehand; the employer instead has **three business days after** the adverse action to
+  give notice naming the agency and the applicant's right to a free copy and to dispute. The generic
+  pre-adverse-plus-waiting-period design every non-trucking source describes is the wrong shape here.
+  ⚠ **The exception is per-application-CHANNEL**, and this product has both: a driver typed in from a
+  paper form handed in at the office is owed §604(b)(3)(A) in full. **Counsel to confirm our reading
+  that an invited link filled in on a phone is inside the exception** — it picks between two
+  procedures.
+- **There is no way to decline an applicant.** `ApplicantStage` runs `not_started → ready_to_screen`
+  and stops; `hireApplicant` is the only exit and it goes one way. The notice is a consequence of a
+  decision the product cannot record — which is also the gap packet page 17 fills on paper, the page
+  §2.4 classified NOT OURS for being carrier-filled. Correct about the packet, and it named a hole
+  nobody had written down.
+
+⚠ **A third thing, and it is a question for you that has been waiting since 2026-08-20.** Whether a
+**PSP record is an FCRA consumer report** was recorded as counsel's in `HANDOFF-2026-08-20-UAT.md`
+§5, and then sat in a handoff, blocking nothing, in front of nobody who could answer it. It is the
+load-bearing unknown in R10: if a PSP record is a consumer report then most of the declines this
+product exists to inform owe a notice; if it is not, comparatively few do. **Please answer it
+alongside the rest of this section.** Until you do, R10's fallback is to assume yes and send the
+notice — the answer that can only ever be over-inclusive.
+
+For contrast, so the question is narrow: an MVR bought through SambaSafety plainly is a consumer
+report, and a former employer's answer to **our own §391.23 letter** plainly is not, because no
+agency sits between us and them. PSP alone is genuinely unclear.
+
+The finding as raised:
 
 Searched the whole repository: no `adverse action`, no `pre-adverse`, no *Summary of Your Rights*,
 no step in any of the four recruitment plans that owns it.
@@ -304,7 +338,14 @@ notice, no waiting period, and no record that one was sent.
 
 **This is the largest compliance gap in the feature and it is not a wording question.** It needs a
 decision (does the carrier do this in FuelGuard, or outside it?) and, if inside, a step of its own.
-It is out of scope for the packet plan and belongs in `RECRUITING-SYSTEM-PLAN.md`.
+It is out of scope for the packet plan and belongs in `RECRUITING-SYSTEM-PLAN.md`. — **Written up
+there as R10 and Q-REC8 on 2026-08-23.**
+
+⚠ **One further distinction R10 makes and this section did not:** not every decline owes a notice.
+A PSP record and an MVR bought through SambaSafety are consumer reports; a previous employer's answer
+to **our own §391.23 letter** is not, because no agency sits between us and them. A decline resting
+only on the second owes nothing, and the same fact arriving inside a purchased report changes the
+answer. The test is the SOURCE, not the fact.
 
 ### 4.2 ~~C2~~ — a `yes` on the §40.25(j) question obliges the carrier · **BUILT 2026-08-23 (0237)**
 

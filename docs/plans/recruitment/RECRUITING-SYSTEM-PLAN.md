@@ -926,6 +926,154 @@ functions the acting surfaces use (P0b's rule, fleet-wide).
 nothing on it can disagree with the files it summarises, and nothing on it says what only
 `canReadTestingRecords` may read.
 
+### R10 · Adverse action — the notices FCRA requires when a report costs somebody the job
+
+**Added 2026-08-23**, from `COUNSEL-REVIEW-PACKAGE.md` §4.1. ⚠ **Nothing of this exists.** Searched
+the whole repository: no `adverse action`, no `pre-adverse`, no *Summary of Your Rights*, no step in
+any of the four recruitment plans that owns it. The product buys PSP reports and MVRs **precisely so
+somebody can decline an applicant on them**, and it has no surface for either notice, no record that
+one was sent, and no way to say "we said no" at all (see the second finding below).
+
+**Prerequisites:** **Q-REC8** (owner — does the carrier run adverse action inside FuelGuard?) and
+**P1** (counsel — the notice wording, like every other instrument in this system). Neither blocks
+writing this step; both block building it. ⚠ It also does not block, and is not blocked by, R9.
+
+---
+
+#### The two findings, because the second one is the reason this is not a small step
+
+**1 · ⚠ The trucking carve-out changes the SHAPE of the flow, and the generic design is wrong here.**
+
+Every description of FCRA adverse action outside this industry is the §604(b)(3)(A) sequence:
+pre-adverse notice with a copy of the report and the CFPB summary of rights, a waiting period, then
+the §615(a) adverse action notice. **That is not the rule for this product.**
+
+§604(b)(3)(B) (read on Cornell LII 2026-08-23, not recalled) carves out applications made *by mail,
+telephone, computer, or other similar means* for a position over which **the Secretary of
+Transportation has power to establish qualifications** — which is exactly a driver filling in
+`ApplyPage` on their phone. Under that exception the employer may give the notice orally, in writing
+or electronically, and **instead of a copy of the report beforehand**, within **three business days**
+of taking the adverse action must provide:
+
+- that adverse action was taken based on a consumer report,
+- the name, address and **toll-free** telephone number of the consumer reporting agency,
+- that the agency did not make the decision and cannot give reasons for it,
+- that the consumer may request a free copy of the report and may dispute its accuracy.
+
+And if the consumer then asks for the report, it goes to them with the summary of rights within
+three business days of the request.
+
+⚠ **Building the generic flow instead would not be unlawful — it is stricter — and it would be
+wrong anyway.** It would invent a waiting period the regulation does not impose on this carrier,
+delaying every decline by days, on a product whose users compete for drivers who take another job in
+the meantime. Choosing the harder-for-the-applicant path by accident is not caution.
+
+⚠ **But the exception is per-APPLICATION-CHANNEL, not per-industry**, and this product has both
+channels. An applicant invited by link applied "by computer". A driver typed into
+`InviteApplicantDrawer` from a paper form handed in at the office did not, and §604(b)(3)(A) applies
+to them in full. **The step must know which channel each applicant came through**, and today nothing
+records it — `application_invitations` proves a link was issued, which is close and is not the same
+fact.
+
+**2 · ⚠ There is no way to decline an applicant. At all.**
+
+`ApplicantStage` is `not_started → history_incomplete → awaiting_releases → ready_to_screen` and
+stops. There is no declined, no rejected, no dispositioned. `hireApplicant` is the only exit from the
+applicant pipeline and it goes one way. 0235's archive is the nearest thing and it is a different
+act — a roster-visibility decision, deliberately not a hiring one.
+
+**So adverse action cannot be attached to anything yet.** The notice is a consequence of a decision
+the product has no way to record. That is the real size of this step, and it is why it is R10 rather
+than a fix.
+
+⚠ **And it is the same hole packet page 17 fills on paper** — `Contracted or Rejected?`,
+`Interviewer`, `Date to start`, `Why?` — the page `APPLICATION-PACKET-PLAN.md` §2.4 classified NOT
+OURS on the grounds that it is "carrier-filled, after the application, by somebody else". Correct
+about the packet, and it named a gap in the product that nobody wrote down. **This step owns it.**
+
+---
+
+#### The distinction that decides which declines need a notice
+
+Not every "no" is FCRA adverse action. What matters is whether the decision rested on a **consumer
+report** — information assembled by a consumer reporting agency:
+
+| What we hold | Consumer report? | Notice needed on a decline resting on it |
+|---|---|---|
+| PSP record | ⚠ **OPEN — Q7** | unknown, and it is the load-bearing unknown |
+| MVR ordered through SambaSafety | **Yes** — a vendor assembles it and sells it for employment decisions | yes |
+| §391.23 previous-employer answer to **our own letter** | **No** — no agency between us and them | no |
+| The applicant's own answers on the application | **No** | no |
+| §40.25(j) admission on the application | **No** | no, and see the note below |
+
+⚠ **The PSP row is not an oversight and must not be filled in by whoever executes this step.**
+`HANDOFF-2026-08-20-UAT.md` §5 already recorded it as **Q7 — "whether a PSP report is an FCRA
+consumer report" — answerable only by counsel**, and it has been sitting in a handoff rather than in
+front of anybody who could answer it. R10 is where it starts to cost something: if a PSP record is a
+consumer report then most declines this product exists to inform owe a notice, and if it is not,
+comparatively few do. **It is added to `COUNSEL-REVIEW-PACKAGE.md` §4.1 rather than guessed at here.**
+
+⚠ **The employer-answer row is the one that will be got wrong**, in both directions. `employer_inquiries`
+holds answers we asked for ourselves, and a decline resting only on those triggers no FCRA notice —
+but the moment the same fact arrives inside a purchased report, it does. The step must decide on the
+SOURCE of the fact, not on the fact.
+
+⚠ **The §40.25(j) block is not adverse action either**, and must not be dressed as one: refusing to
+dispatch a driver under §40.25(j) (R-step P9 / 0237) rests on the applicant's own admission, not on
+anybody's report. A notice sent there would tell a driver a consumer reporting agency was involved in
+a decision no agency touched.
+
+⚠ **And one that is easy to state backwards:** a decline is adverse action because of what the
+DECISION rested on, not because a report exists in the file. An applicant declined for a three-year
+gap they wrote down themselves is owed nothing, even though a PSP record sits beside it.
+
+---
+
+**Build.**
+
+- **Migration.** `applicant_dispositions` — org, driver, `outcome` (`hired` | `declined` |
+  `withdrawn` | `no_response`), `decided_on`, `decided_by`, `reason` (free text, the carrier's own
+  words), and `rested_on_consumer_report boolean`. Evidence-line declaration required by §4: this is
+  a record of a decision about a person and its side is **append-only, prunable** — a correction is a
+  new row, and it ages out under a retention rule rather than joining `RETENTION_FORBIDDEN`, because
+  holding a rejected applicant's disposition for ever is over-retention dressed as diligence (0236's
+  argument, same shape). ⚠ It cascades from `drivers`, so **`merge_driver` learns about it in the
+  same migration** — 0234's standing lesson, and the matrix asserts it.
+- **The channel.** `application_invitations` already proves a link was issued; what is missing is the
+  fact on the applicant. Cheapest honest answer: derive it — an applicant with a submitted
+  `driver_applications` row applied by computer, one without did not. ⚠ Decide this explicitly and
+  write down which, because it is the input that picks between two different legal procedures.
+- **`packages/shared/src/adverseAction.ts`** — pure. Given a disposition, whether it rested on a
+  consumer report, and the channel, return which procedure applies (`604(b)(3)(A)` or
+  `604(b)(3)(B)`), what has to be sent, and by when. Deadlines are **business days**, so the
+  arithmetic is the step's own and gets its own tests, on `sevenDayStatement.ts`'s model.
+- **The notices as versioned instruments**, exactly like `DISCLOSURES`: text composed server-side,
+  the version stored on every row, `isDraftDisclosure()` refusing to send unreviewed wording. They
+  are the same kind of artifact and must not become a second pattern.
+- **The CFPB summary of rights** is a published document, not ours to write — the model is
+  `DISCLOSURES.psp`, where FMCSA's own form is used verbatim (A0). Filed as a `documents` row and
+  referenced, so what the applicant was sent is reproducible from the version.
+- **The clock.** A §604(b)(3)(B) decline owes its notice within three business days, and a request
+  for the report owes it within three more. That is a **worker job**, not a hope — `JobKind`,
+  a handler, and an alert when a deadline is at risk (§4's background rules; schedulers run in
+  exactly one process fleet-wide).
+- **Surfaces.** A disposition control wherever the recruiter says no — `RecruitmentPage`, the driver
+  page — and the outstanding-notice list on R9's board when it exists. Web rules per §4.
+
+**Verify.** Matrix (RLS, org isolation, append-only trigger style declared, `merge_driver` carries
+it); unit tests per procedure and per business-day boundary including a decline that rests on an
+employer answer and therefore needs nothing; a pin that a §40.25(j) dispatch block produces no
+notice; a pin that no notice can be sent while its wording is `v0-draft`; `expectOrgScoped` on every
+read.
+
+**Done when:** a recruiter can decline an applicant and say why, the product knows whether that
+decision rested on a purchased report, the notice the right paragraph requires goes out inside its
+deadline, and the file can show what was sent and when.
+
+⚠ **Not started. Do not build before Q-REC8 is answered** — if the carrier does this outside
+FuelGuard, the honest deliverable is finding 2 (a disposition, so the product can record the
+decision) and nothing else.
+
 E6 and E7 (`EMPLOYER-INQUIRY-PLAN.md`) stay sanctioned at any point; they belong to that plan.
 
 ---
@@ -961,6 +1109,25 @@ date.
   *Fallback:* no retention rule prunes leads until a window is chosen; D-REC2 keeps them
   prunable-by-design (0213-style triggers, cascade FKs) so the choice is one rule, not a schema
   change.
+- **Q7 · Is a PSP report an FCRA consumer report?** (counsel) — ⚠ **not new; promoted here
+  2026-08-23.** Recorded in `HANDOFF-2026-08-20-UAT.md` §5 as counsel's and left in a handoff, where
+  nothing was blocked on it and nobody was going to answer it. R10 is where it costs something: it
+  decides whether most declines this product exists to inform owe an FCRA notice, or few do. Now also
+  in `COUNSEL-REVIEW-PACKAGE.md` §4.1, which is the document counsel actually reads.
+  *Fallback:* R10 assumes **yes** and sends the notice — the answer that cannot be wrong, only
+  over-inclusive, on D-REC7's principle. A notice nobody was owed is a courtesy; a notice somebody
+  was owed and did not get is the violation.
+- **Q-REC8 · Adverse action** (owner, added 2026-08-23): when a purchased report costs an applicant
+  the job, does the carrier send the FCRA notices **from FuelGuard**, or from somewhere else? The
+  question is not whether the notices are owed — they are — but whose system owes them.
+  *Fallback:* R10 is not built. ⚠ **One half of it is owed either way:** the product has no way to
+  record that an applicant was declined at all (`ApplicantStage` stops at `ready_to_screen`), so
+  whatever the answer, the disposition has to exist before anything can be attached to it.
+  ⚠ A second question rides along and is counsel's, not the owner's: §604(b)(3)(B)'s exception turns
+  on the applicant having applied "by mail, telephone, computer, or other similar means" — is an
+  applicant we invited by link, who filled the form on their phone, inside it? We read it as plainly
+  yes; it decides which of two procedures runs, so it should be somebody's written opinion rather
+  than ours.
 - **Standing blockers, unchanged and still the real ones:** **Q-H3** (counsel wording for all
   five instruments — gates every signature, therefore every PSP/MVR order and §40.25 letter),
   the **DOB CSV** (blocks PSP and MVR alike; the import page is live at
