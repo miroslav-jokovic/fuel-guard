@@ -215,6 +215,18 @@ export const TESTING_RECORD_KINDS = [
   "alcohol_test",
   "clearinghouse_full",
   "clearinghouse_limited",
+  /**
+   * §40.305 return-to-duty documentation (0237). Here rather than with the investigation history on
+   * the same reasoning the Clearinghouse kinds are: it states that a driver had a drug or alcohol
+   * programme violation and what a substance abuse professional concluded about it, which is a
+   * §382.401(a) record in substance whatever the paragraph enumerates.
+   *
+   * ⚠ The consequence is deliberate and is felt by the recruiter: they can see THAT a hire is
+   * blocked (the flag on the driver is not a testing record) and they cannot read the document that
+   * unblocks it. That is the right division — §40.25(j) is a decision for the people §382.401(a)
+   * lets hold the file.
+   */
+  "return_to_duty",
 ] as const;
 
 /** §391.53(a)(1) investigation history. */

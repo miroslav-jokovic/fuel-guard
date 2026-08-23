@@ -503,14 +503,79 @@ page; an eighth wizard step for one checkbox is a step somebody abandons on, and
 return-to-duty process before you can drive."* This is the most resented question on the form, and a
 driver who reads "yes ends this" answers no.
 
-⚠ **Recording the answer is the first half only.** A yes obliges the carrier to obtain documentation
-of the return-to-duty process under §40.25(j) before the driver performs a safety-sensitive function.
-Nothing acts on that yet — no queue entry, no block on hire. Worth its own step.
+⚠ **Recording the answer was the first half only** — **the second half shipped 2026-08-23 as P9.**
 
 **Verified by:** `pnpm test` (all unit suites + 19 PGlite matrices; 3 new assertions) ·
 `pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:ui-adoption` ·
 `pnpm --filter web lint:tokens` · `lint:filesize` · `lint:funcsize` · `lint:comment-claims` ·
 `lint:boundaries` · `lint:tests` — all green. No migration: the payload is jsonb.
+
+### P9 · A `yes` on page 26's question stops the driver being dispatched — DONE 2026-08-23 (migration 0237)
+
+P8 collected §40.25(j)'s answer and nothing acted on it. §40.25(j) does not stop at asking: an
+admission forbids the carrier to **use the driver for a safety-sensitive function** until they
+document completion of the return-to-duty process (§40.305). Recording the admission and doing
+nothing is arguably worse than never asking, because the file now proves the carrier knew.
+
+**Done when:** an applicant who answered yes can be hired and cannot be put on a load, and the
+paperwork that lifts the block is a filed record rather than somebody's memory.
+
+**What shipped.** Migration **0237**, `packages/shared/src/returnToDuty.ts` (the predicate and the
+copy), `apps/api/src/services/returnToDuty.ts` (the read), the gate in
+`dispatchLoads/mutations.ts`, the warning in `previewHire`/`HireDrawer`, and a callout on the driver
+page.
+
+⚠ **The gate is at the ASSIGNMENT, not the hire, and that is the whole design decision.** The
+regulation bars performing a safety-sensitive function; it does not bar employment. A carrier may
+lawfully hire somebody mid-process and give them an office job. A gate on `hire_applicant` would have
+been stricter than the rule **and** would have left the thing the rule actually forbids — putting them
+behind the wheel — wide open.
+
+⚠ **Three call sites, not one.** `assignLoad` is the obvious door and it is not the only one:
+`createLoad` takes a `driver_id` on the new load and `updateLoad` takes one in its patch, which is
+the request the board already sends. A gate on the action named "assign" would have been walked
+around by a PATCH. `returnToDutyGate.test.ts` asserts all three, because the one that gets forgotten
+is the one that ships.
+
+⚠ **The obligation is projected by a TRIGGER, not by the API.** There is exactly one way a
+`driver_applications` row comes into existence and a trigger cannot forget; a service that remembered
+today is a service somebody adds a second write path around. Only a literal `true` counts — `null`
+means the form never asked, which is a different fact from "they said no" and is why the contract
+field is nullish.
+
+⚠ **Set-only.** A driver who applies twice and answers no the second time has not unsigned the first
+statement. §40.25(j)'s obligation attaches to the admission; only the documentation discharges it.
+
+⚠ **The discharge is evidence, not a second boolean.** A `return_to_duty` qualification record with
+the SAP's paperwork attached. "The obligation is discharged" and "here is the document that
+discharges it" are the same fact, and storing it twice is how they come to disagree.
+
+⚠ **It is a §382.401(a) TESTING record — the recruiter cannot read it.** The same call 0211 made for
+the Clearinghouse kinds and the opposite of the one 0217 made for `psp_report`. The asymmetry is
+deliberate and is pinned: the recruiter is **told** the driver is blocked (the flag is a column on
+`drivers`) and cannot open the document that says why.
+
+⚠ **`merge_driver` needed no change, and that is proved rather than assumed.** 0234's standing lesson
+says check on the day. Checked: the flag can only be set by an insert into `driver_applications`, and
+MD010 already refuses to merge any source driver holding one. The matrix asserts the refusal.
+
+⚠ **The matrix found a harness bug on the way in.** `tenantIsolation.mjs` read a column's allowed
+value from the FIRST CHECK constraint mentioning it, so recreating the kind check reordered
+`pg_constraint` and the seeder started seeding `psp_report` — the one kind 0219's conditional
+constraint forbids without a `detail.source`. The schema was right and the reader was guessing. It
+now takes candidates from the enumerating check and drops any another check excludes; every future
+table with a conditional constraint on an enumerated column inherits that.
+
+⚠ **What is still owed:** nothing files the RTD document from a dedicated surface yet — it goes in
+through the generic qualification-record path. And counsel has an open question about page 26's third
+state (Q-C2b in `COUNSEL-REVIEW-PACKAGE.md` §4.2).
+
+**Verified by:** `pnpm test` (all unit suites + **21** PGlite matrices — `return-to-duty` is new, 21
+assertions) · `pnpm typecheck` · `pnpm lint` (zero in the tracked tree) · `lint:migrations` ·
+`lint:rls` · `lint:upserts` · `lint:filesize` · `lint:funcsize` · `lint:boundaries` ·
+`lint:comment-claims` · `lint:tests` · `lint:ui-adoption` · `pnpm --filter web lint:tokens` — all green.
+
+⚠ **Not verified in a browser** (the standing vite crash). Worth an eye during U7.
 
 ### P7 · The Seven Day Work Statement, at the hire (D-PKT7) — DONE 2026-08-23 (migration 0236)
 

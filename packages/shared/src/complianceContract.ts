@@ -42,6 +42,12 @@ export const QUALIFICATION_RECORD_KINDS = [
   "cdl_equivalency", "previous_employer_inquiry", "previous_employer_response",
   "clearinghouse_full", "clearinghouse_limited", "eldt", "spe_certificate",
   "medical_registry_verification", "drug_test", "alcohol_test", "accident", "psp_report",
+  /**
+   * §40.305 documentation that a driver completed the return-to-duty process — the ONLY thing that
+   * discharges the §40.25(j) obligation an application's admission creates (0237). Restricted as a
+   * testing record: it names a drug or alcohol programme violation and the SAP's verdict on it.
+   */
+  "return_to_duty",
 ] as const;
 export const qualificationRecordKindSchema = z.enum(QUALIFICATION_RECORD_KINDS);
 export type QualificationRecordKind = (typeof QUALIFICATION_RECORD_KINDS)[number];

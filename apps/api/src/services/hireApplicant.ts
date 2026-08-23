@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { returnToDutyBlocked } from "./returnToDuty.js";
 import {
   hiringGapsAfterHire,
   planHireHandoff,
@@ -42,6 +43,18 @@ export interface HireResult {
   skipped: HandoffSkip[];
   /** §391.51(b) hiring items the file still lacks. Advisory items are never listed (D-PSP1). */
   outstanding: Array<{ key: string; label: string; citation: string }>;
+  /**
+   * §40.25(j): this applicant admitted a positive or refused pre-employment test in the preceding
+   * two years and the §40.305 documentation is not on file (0237).
+   *
+   * ⚠ **Deliberately NOT one of `outstanding`.** Those are the §391.51(b) hiring items, they are
+   * computed from `DQ_ITEMS`, and every one of them is unconditional — a file either holds an MVR or
+   * it does not. This one exists only for the applicants who answered yes, and treating it as a
+   * missing document would either list it for everybody or teach `hiringGapsAfterHire` a condition
+   * it has no way to evaluate. It is also not a reason to refuse the hire, which every item in that
+   * list effectively is.
+   */
+  returnToDutyBlocked: boolean;
 }
 
 export const isHireError = (v: object): v is HireError => "code" in v;
@@ -98,6 +111,10 @@ export async function previewHire(
     status: row.status,
     skipped: plan.skipped,
     outstanding: hiringGapsAfterHire(existing, plan.records),
+    // §40.25(j). Shown on the confirmation screen so the recruiter learns it BEFORE they commit —
+    // hiring is still permitted (the regulation bars the driving, not the hiring), and the person
+    // who has to go and ask the applicant for the paperwork is standing right here.
+    returnToDutyBlocked: await returnToDutyBlocked(admin, orgId, driverId),
   };
 }
 
@@ -177,5 +194,8 @@ export async function hireApplicant(
     filed: Number((data as { filed?: number } | null)?.filed ?? 0),
     skipped: plan.skipped,
     outstanding: hiringGapsAfterHire(existing, plan.records),
+    // Repeated in the RESULT, not only the preview: the drawer closes on success and the operator's
+    // last sight of this hire is the toast, so the obligation has to survive into it.
+    returnToDutyBlocked: await returnToDutyBlocked(admin, orgId, body.driver_id),
   };
 }

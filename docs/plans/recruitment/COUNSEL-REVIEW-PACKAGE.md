@@ -306,7 +306,14 @@ notice, no waiting period, and no record that one was sent.
 decision (does the carrier do this in FuelGuard, or outside it?) and, if inside, a step of its own.
 It is out of scope for the packet plan and belongs in `RECRUITING-SYSTEM-PLAN.md`.
 
-### 4.2 C2 — a `yes` on the §40.25(j) question obliges the carrier, and nothing acts on it
+### 4.2 ~~C2~~ — a `yes` on the §40.25(j) question obliges the carrier · **BUILT 2026-08-23 (0237)**
+
+⚠ **Acted on after this document was written.** An admission now raises a flag on the driver
+(projected from the certified application by trigger), the hire **warns** and the **load assignment
+refuses** — §40.25(j) bars performing a safety-sensitive function, not being hired, so a gate on the
+hire would have been stricter than the rule while leaving the driving open. The discharge is a
+`return_to_duty` qualification record carrying the §40.305 paperwork, restricted under §382.401(a) to
+admin and safety_manager. **Q-C2b below is still counsel's.** The finding as raised:
 
 P8 shipped page 26's question — *did you test positive or refuse a pre-employment test for a job you
 applied for but did not obtain, in the past two years?* — and stores the answer. §40.25(j) then

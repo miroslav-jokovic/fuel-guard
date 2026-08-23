@@ -88,6 +88,9 @@ export function recruitmentHireRouter(): Router {
           filed: result.filed,
           skipped: result.skipped.map((s) => ({ employmentId: s.employmentId, reason: s.reason })),
           outstanding: result.outstanding.map((o) => o.key),
+          // H8's honesty applied to §40.25(j): the audit says the carrier hired somebody it may not
+          // yet put behind the wheel. A gap the entry did not mention is a gap nobody was told about.
+          returnToDutyBlocked: result.returnToDutyBlocked,
         },
       });
 

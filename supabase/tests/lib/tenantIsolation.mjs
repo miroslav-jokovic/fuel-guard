@@ -131,16 +131,39 @@ async function introspect(db) {
 }
 
 /**
- * A literal this column is allowed to hold, read out of its CHECK constraint.
+ * A literal this column is allowed to hold, read out of its CHECK constraints.
  * `status text not null check (status in ('a','b'))` is common here, and 'x' would violate it.
+ *
+ * ── ⚠ WHY IT READS EVERY CHECK ON THE COLUMN AND NOT THE FIRST ────────────────────────────────
+ * A column can carry two: `qualification_records` has `kind in (…)` enumerating the vocabulary AND
+ * `kind <> 'psp_report' or detail ? 'source'` (0219) demanding provenance for one member of it.
+ * This function used to take the first quoted literal out of the first matching constraint, which
+ * meant the seed depended on the order `pg_constraint` happened to return — and that order changes
+ * when a migration drops and recreates one. 0237 recreated the kind check to add `return_to_duty`,
+ * the exclusion constraint sorted first, and the harness started seeding the one value the schema
+ * forbids. The schema was right; the reader was guessing.
+ *
+ * So: candidates come from the ENUMERATING check (`col = ANY (ARRAY[…])`, which is how Postgres
+ * renders `col in (…)`), and any candidate another check excludes with `col <> 'literal'` is
+ * dropped. Every future table with a conditional constraint on an enumerated column inherits this.
  */
 function literalFromCheck(meta, table, col) {
-  for (const def of meta.checkOf.get(table) ?? []) {
-    if (!new RegExp(`\\b${col}\\b`).test(def)) continue;
-    const m = def.match(/'([^']+)'::/) ?? def.match(/'([^']+)'/);
-    if (m) return m[1];
+  const defs = (meta.checkOf.get(table) ?? []).filter((d) => new RegExp(`\\b${col}\\b`).test(d));
+  if (defs.length === 0) return null;
+
+  const forbidden = new Set();
+  for (const def of defs) {
+    for (const m of def.matchAll(new RegExp(`\\b${col}\\b\\s*<>\\s*'([^']+)'`, "g"))) forbidden.add(m[1]);
   }
-  return null;
+
+  // ⚠ The column ITSELF compared with `= ANY`, not merely a check that mentions it and contains an
+  // `= ANY` somewhere: `qualification_records_psp_source_check` names `kind` and then does
+  // `COALESCE(detail ->> 'source') = ANY (ARRAY['psp_api', …])`, whose literals are not kinds at all.
+  const enumerating = defs.find((d) => new RegExp(`\\b${col}\\b\\s*=\\s*ANY`).test(d))
+    ?? defs.find((d) => new RegExp(`\\b${col}\\b\\s+IN\\s*\\(`, "i").test(d));
+  const candidates = [...(enumerating ?? defs[0]).matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+  return candidates.find((c) => !forbidden.has(c)) ?? null;
 }
 
 /**
