@@ -432,3 +432,40 @@
 .dp__menu {
   box-shadow: var(--elevation-overlay);
 }
+
+/* ── Windows High Contrast: give the boundaries back (D-DS16) ─────────────────────────────────────
+   Forced-colors mode forces `box-shadow` to `none`. This system draws 85 structural boundaries with
+   `ring-*` — every card, input, popover, dialog and table surface — and a ring IS a box-shadow. So
+   in High Contrast the whole app lost its edges: cards, inputs and dropdowns rendered as floating
+   text on a flat ground with nothing separating them. Measured in Chromium 2026-08-23, before the
+   rule below: a `BaseCard`'s computed box-shadow came back `none`.
+
+   `border-*` is unaffected — the 92 `border-edge*` uses were never at risk — which is why this
+   block only has to repair the ring-drawn ones.
+
+   `outline` rather than `border`, because outline is painted in forced-colors, is forced to a system
+   colour automatically, and takes no space in the box model; `outline-offset: -1px` draws it just
+   inside the edge, where the inset ring it replaces already sat, so nothing moves.
+
+   Targeted by exact class rather than `[class*="ring-"]`, which was the obvious blunt fix and is
+   wrong: it also matches `focus:ring-2` and `group-hover:ring-edge-control`, giving unfocused
+   controls a permanent outline. A class selector matches whole tokens, so `.ring-edge` cannot match
+   the token `focus:ring-edge` — the variant-prefixed rings are untouched, and stay a focus signal. */
+@media (forced-colors: active) {
+  .ring-edge,
+  .ring-edge-subtle,
+  .ring-edge-control {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  /* The sticky table header's hairline is an inset box-shadow too (--elevation-sticky-edge), so it
+     went the same way. Row separators survive on their own — `divide-y` draws a real border-bottom
+     on each <tr>, measured identical in both modes — but the header had nothing left: its
+     `bg-surface-subtle` is flattened to Canvas in High Contrast, so without this it merged into the
+     first row. A border rather than an outline here because only one edge is wanted; it costs 1px
+     of header height, in High Contrast only. */
+  .shadow-sticky-edge {
+    border-bottom: 1px solid CanvasText;
+  }
+}
