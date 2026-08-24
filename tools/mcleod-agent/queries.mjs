@@ -99,7 +99,12 @@ const TRAILER_IDENTITY = `
  * fields M4 writes) — the column list itself changes, which is what keeps PII out of the link-only phase.
  */
 export function rosterQueries(mode = "link") {
-  const full = mode === "identity";
+  // `create` needs the identity columns as much as `identity` does — arguably more, since the row it
+  // builds has no prior values to fall back on. Until 2026-08-24 this read `mode === "identity"`
+  // alone, so a create sweep would have selected match keys only and inserted drivers carrying a name
+  // and a status and nothing else: no licence, no medical expiry, no hire date, no address. It was
+  // never caught because no create sweep has ever run — the whole point of M-R.
+  const full = mode === "identity" || mode === "create";
   return {
     drivers: `
     SELECT${DRIVER_MATCH}${full ? "," + DRIVER_IDENTITY : ""}

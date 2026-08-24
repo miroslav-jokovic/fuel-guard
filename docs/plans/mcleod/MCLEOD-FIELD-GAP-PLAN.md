@@ -216,6 +216,24 @@ Each question's fallback is **do not map**.
 
 ---
 
+## 7b. ⚠ F3–F7 are now sequenced BEHIND the first run
+
+Verified 2026-08-24: production carries **zero** McLeod links on all three tables and no
+`org_integrations` row for the provider. Nothing has ever moved through this pipeline
+(`MCLEOD-ROSTER-SYNC-PLAN.md` §7b), so every field added here would be added to a foundation no run
+has exercised.
+
+> **D-FG11: F3–F7 wait for M-R.** Not because they are blocked on the recon — they are, and M-R's first
+> step (`--inspect`) supplies it — but because each new field makes the first run harder to diagnose.
+> A sweep that writes eight columns and goes wrong has eight suspects; one that writes the current set
+> and goes wrong has a short list. The recon and the first run need the same thing anyway: one session
+> on a machine with the VPN up.
+
+F1 and F2 are already done and are unaffected: both fixed defects in code paths the first run will
+exercise, which is why they went first.
+
+---
+
 ## 8. Execution
 
 One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped

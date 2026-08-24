@@ -36,6 +36,8 @@ const CFG = {
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
+  // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
+  //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
   // 'identity' — adds the fields FuelGuard writes onto rows it has already matched.
   // 'create'   — identity, plus: a McLeod record matching nothing becomes a new FuelGuard row.
@@ -88,8 +90,8 @@ if (CFG.roster || CFG.retire || CFG.inspect) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
-  if (!["link", "identity", "create"].includes(CFG.rosterMode)) {
-    fail("ROSTER_MODE must be 'link', 'identity' or 'create'.");
+  if (!["report", "link", "identity", "create"].includes(CFG.rosterMode)) {
+    fail("ROSTER_MODE must be 'report', 'link', 'identity' or 'create'.");
   }
 }
 if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {

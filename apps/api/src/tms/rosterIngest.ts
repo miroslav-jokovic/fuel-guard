@@ -49,7 +49,25 @@ import {
  * The API reads with the service role, which bypasses RLS, so every query here org-filters itself.
  */
 
-export type RosterMode = "link" | "identity" | "create";
+export type RosterMode = "report" | "link" | "identity" | "create";
+
+/**
+ * Does this mode touch the database at all?
+ *
+ * `report` exists because the first time this pipeline meets real data, that data is **the carrier's
+ * production fleet**. There is no second FuelGuard org to rehearse against — the only other one holds
+ * seven drivers and no vehicles — so "run it and see" means running it on 264 drivers, 195 vehicles
+ * and 211 trailers that people are using today.
+ *
+ * Report mode answers "what WOULD this do" with the same matcher, the same precedence and the same
+ * ambiguity rules as the real thing, and writes nothing at all. It is how §7's match report
+ * (162 / 175 / 201, computed by hand before any code existed) gets reproduced BY THE PIPELINE, which
+ * is what M3's Done-when actually asks for and what no run has ever demonstrated.
+ */
+const WRITES: Record<RosterMode, boolean> = { report: false, link: true, identity: true, create: true };
+
+/** Identity is written only by the two modes that own it; `report` and `link` never touch a field. */
+const writesIdentity = (mode: RosterMode): boolean => mode === "identity" || mode === "create";
 
 export interface RosterIngestResult {
   received: number;
@@ -149,6 +167,7 @@ async function applyOutcome(
   patch: Record<string, unknown> | null,
   candidateSource: (id: string) => string | null,
   insert: Record<string, unknown> | null,
+  write: boolean,
 ): Promise<void> {
   const { link, company } = LINK_COLUMNS[entity];
   switch (outcome.kind) {
@@ -161,6 +180,18 @@ async function applyOutcome(
       // no field write. Reported so the operator can see the sync is deliberately standing off.
       if (patch && !CLAIMABLE.has(candidateSource(outcome.id) ?? "")) {
         out.skippedOwned++;
+        return;
+      }
+
+      // Report mode stops here: it has decided what it would do and counts it, and that is the whole
+      // deliverable. Everything above this line — the match, the ownership check, the ambiguity
+      // refusal — has already run, so the numbers are the ones a real sweep would produce.
+      if (!write) {
+        if (!already) {
+          out.linked++;
+          out.upserted++;
+        }
+        if (patch) out.updated++;
         return;
       }
 
@@ -244,7 +275,7 @@ export async function ingestDrivers(
       last_name: r.last_name ?? null,
     });
     const outcome = matcher.match({ external_id: r.external_id, cdl_number: r.cdl_number, name });
-    const patch = mode === "link" ? null : driverPatch(r);
+    const patch = writesIdentity(mode) ? driverPatch(r) : null;
     // A driver arrives ACTIVE: the agent's query selects only `is_active = 'Y'` rows, so a record
     // reaching this point is somebody the carrier currently employs.
     //
@@ -255,7 +286,7 @@ export async function ingestDrivers(
     // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
     const insert =
       mode === "create" && name ? { ...patch, full_name: name, status: "active" } : null;
-    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
+    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
   }
   return out;
 }
@@ -273,7 +304,7 @@ export async function ingestVehicles(
   const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    const patch = mode === "link" ? null : vehiclePatch(r);
+    const patch = writesIdentity(mode) ? vehiclePatch(r) : null;
     // `tank_capacity_gal` is NOT NULL and is LEARNED from observed fills, so a new truck is created
     // with zero and reported in `needsCompletion` — exactly what `samsaraVehicleSync` does, and for
     // exactly the same reason: a guessed capacity silently degrades every fuel anomaly on that truck.
@@ -281,7 +312,7 @@ export async function ingestVehicles(
     const insert =
       mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0, status: "active" } : null;
     const before = out.created;
-    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
+    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
     // Only a truck that was actually inserted needs finishing — a matched one already has its capacity.
     if (out.created > before) out.needsCompletion.push(unit);
   }
@@ -303,12 +334,12 @@ export async function ingestTrailers(
   const matcher = makeAssetMatcher(candidates, trailerUnitMatchKey, ["unit", "vin"]);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    const patch = mode === "link" ? null : trailerPatch(r);
+    const patch = writesIdentity(mode) ? trailerPatch(r) : null;
     // New trailers take McLeod's bare unit number. FuelGuard's `R` prefix is a convention applied to
     // rows that already exist; inventing it for a new one would be this sync deciding a naming policy.
     const insert =
       mode === "create" ? { ...patch, unit_number: r.unit_number ?? r.external_id, status: "active" } : null;
-    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
+    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
   }
   return out;
 }

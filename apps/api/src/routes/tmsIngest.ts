@@ -106,11 +106,26 @@ export function tmsIngestRouter(): Router {
         // The agent declares which mode it is running in. Link is the default and the safe one: a
         // misconfigured agent that forgets the parameter refreshes nothing, rather than writing
         // identity onto a roster nobody has reviewed the match for yet.
+        // `report` is the safest and `create` the least safe; the default is `link`, so an agent that
+        // forgets the parameter establishes links and writes no identity, rather than the reverse.
         const mode =
-          req.query.mode === "create" ? "create" : req.query.mode === "identity" ? "identity" : "link";
-        if (mode !== "link" && (await refuseUnlessRosterMaster(admin, orgId, res))) return;
+          req.query.mode === "create"
+            ? "create"
+            : req.query.mode === "identity"
+              ? "identity"
+              : req.query.mode === "report"
+                ? "report"
+                : "link";
+        // `report` and `link` are ungated. Report writes nothing at all, and link writes only the
+        // external link — together they ARE the measurement the mastery decision is made from, so
+        // gating them would make that decision impossible to inform.
+        if (mode !== "link" && mode !== "report" && (await refuseUnlessRosterMaster(admin, orgId, res))) return;
         const result = await run(admin, orgId, rows, mode);
-        await touchLastSynced(admin, orgId, provider);
+        // A REPORT is not a sync. `last_synced_at` drives the "as of HH:MM" freshness the operator
+        // reads (D-MR2), and a rehearsal that deliberately moved no data must not claim the roster
+        // was just refreshed — that would make the one indicator of staleness lie in the direction
+        // nobody checks.
+        if (mode !== "report") await touchLastSynced(admin, orgId, provider);
         res.json(result);
       }),
     );

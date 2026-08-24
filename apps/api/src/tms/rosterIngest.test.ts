@@ -384,3 +384,66 @@ describe("create mode (M5)", () => {
     expect(rec.writes()).toEqual([]);
   });
 });
+
+/**
+ * Report mode — the answer to "what would this do?" against a fleet people are using today.
+ *
+ * There is no second FuelGuard org to rehearse against: the only other one holds seven drivers and no
+ * vehicles at all. So the first time this pipeline meets real data, that data IS Silvicom's 264
+ * drivers, 195 vehicles and 211 trailers. Report mode makes that first contact read-only, and it is
+ * how §7's hand-computed match report (162 / 175 / 201) finally gets reproduced BY THE PIPELINE,
+ * which is what M3's Done-when asks for and what nothing has ever demonstrated — production carries
+ * zero McLeod links on all three tables.
+ */
+describe("report mode", () => {
+  const mcleodDriver = {
+    external_id: "D0001", company_id: "TMS", cdl_number: "S123456789",
+    first_name: "Angel", last_name: "Cora",
+  };
+
+  it("writes NOTHING — not the link, not a field, not a row", async () => {
+    const rec = seed({ drivers: [driver()] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("counts exactly what link mode would have linked", async () => {
+    const seeded = { drivers: [driver()] };
+    const report = await ingestDrivers(seed(seeded).client, ORG, [mcleodDriver], "report");
+    const link = await ingestDrivers(seed(seeded).client, ORG, [mcleodDriver], "link");
+    expect(report.linked).toBe(link.linked);
+    expect(report.upserted).toBe(link.upserted);
+    expect(report.received).toBe(1);
+  });
+
+  it("still reports what it could not place — that IS the deliverable", async () => {
+    const rec = seed({ drivers: [] });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
+    expect(r.unmatched).toEqual(["D0001"]);
+    expect(r.created).toBe(0);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("applies the same ambiguity refusal, so the numbers are the ones a real sweep would produce", async () => {
+    // Two FuelGuard drivers holding the same licence: a real sweep refuses, and so must the rehearsal.
+    const rec = seed({ drivers: [driver(), driver({ id: "d-2" })] });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
+    expect(r.ambiguous).toEqual(["D0001"]);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("counts vehicles and trailers without writing either", async () => {
+    const rec = seed({ vehicles: [vehicle()], trailers: [trailer()] });
+    const v = await ingestVehicles(rec.client, ORG, [{ external_id: "789", vin: "3AKJHHDR4LSLL4083" }], "report");
+    const t = await ingestTrailers(rec.client, ORG, [{ external_id: "532159", unit_number: "532159" }], "report");
+    expect(v.linked).toBe(1);
+    expect(t.linked).toBe(1); // the R-prefix normalisation still applies
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("scopes every read to one org — the service role bypasses RLS", async () => {
+    const rec = seed({ drivers: [driver()] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
+    expectOrgScoped(rec, ORG);
+  });
+});

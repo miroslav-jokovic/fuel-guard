@@ -105,6 +105,16 @@ describe("the TMS may not claim the roster until the org declares it master", ()
     expect((await res.json()) as { unmatched: string[] }).toMatchObject({ unmatched: ["D001"] });
   });
 
+  it("allows REPORT mode without the declaration, and it writes nothing", async () => {
+    // The safest mode of all: it answers "what would this do" against the carrier's live fleet and
+    // touches no row. Gating it would make the mastery decision impossible to inform.
+    const rec = seed(false);
+    holder.client = rec.client;
+    const res = await post("/roster/drivers?mode=report", DRIVERS);
+    expect(res.status).toBe(200);
+    expect(rec.writes()).toEqual([]);
+  });
+
   it("allows an identity sweep once the org has declared mastery", async () => {
     holder.client = seed(true).client;
     expect((await post("/roster/drivers?mode=identity", DRIVERS)).status).toBe(200);

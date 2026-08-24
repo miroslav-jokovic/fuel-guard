@@ -434,6 +434,73 @@ drift the sync would fix on day one is already visible.
 
 ---
 
+## 7b. ⚠ NOTHING HAS EVER RUN — and that is the next milestone
+
+Measured against production on 2026-08-24, after M2–M6 shipped and 0239–0241 deployed:
+
+```
+org_integrations where provider='mcleod'   0 rows
+drivers.mcleod_driver_id populated          0 of 264
+vehicles.mcleod_tractor_id populated        0 of 195
+trailers.mcleod_trailer_id populated        0 of 211
+tms_movements                               0 rows
+```
+
+**Not one row has ever moved through this pipeline.** §7's match report was computed by hand with direct
+SQL *before any code existed* — it is the EXPECTED answer, not a run. So every Done-when below is
+currently untrue:
+
+| Step | Done when | Actually |
+|---|---|---|
+| M3 | "link-only run reproduces §7's numbers (162 / 175 / 201)" | never run |
+| M4 | "a sandbox change appears within one sweep" | never run |
+| M5 | "a McLeod-created driver acquires its `samsara_driver_id`" | never run |
+| M6 | "the 10 stale vehicles retire in a dry run" | never run |
+
+The code and the tests are real; the demonstrations are not. Two defects already found by *re-reading*
+rather than running make the point — `rosterQueries('create')` selected match keys only, so a create
+sweep would have inserted drivers with a name and a status and nothing else; and nothing outside the
+roster module ever read `mcleod_driver_id`. Both would have surfaced in the first minute of a real run.
+
+> **D-MR15: the next milestone is a supervised end-to-end run, not more fields.** Adding F3–F7's columns
+> to a pipeline that has never moved a row is building on an untested foundation, and each new field
+> makes the first run harder to diagnose rather than easier.
+
+### The constraint that shapes it
+
+**There is no rehearsal environment.** Two FuelGuard orgs exist: *Silvicom Inc* (264 / 195 / 211 — the
+carrier) and *FuelGuard EFS QA* (7 drivers, no vehicles, no trailers). The first time this pipeline meets
+real data, that data is the fleet people are using today. And the recon (`--inspect`) needs exactly the
+same thing the first run needs — a session on a machine with the VPN up — so **they are one operation.**
+
+### M-R — the first run, in one supervised session
+
+Each step is gated on the previous, and the ordering is enforced by the code rather than by discipline:
+`report` and `link` are ungated, `identity` / `create` / `retire` are refused with `409` until mastery is
+declared (D-MR13).
+
+| # | Action | Writes | Undo |
+|---|---|---|---|
+| R1 | `agent.mjs --inspect` | nothing, anywhere | n/a |
+| R2 | `POST /api/integrations/mcleod/enable` | issues the ingest token | `/disable` |
+| R3 | `ROSTER_MODE=report agent.mjs --roster --full` | **nothing** — not even `last_synced_at` | n/a |
+| R4 | Compare R3's counts against §7 (162 / 175 / 201) | — | — |
+| R5 | `ROSTER_MODE=link agent.mjs --roster --full` | `mcleod_*_id` only | `update … set mcleod_*_id = null` |
+| R6 | `POST …/roster-master {enabled:true}` | one config flag, audited | `{enabled:false}` |
+| R7 | `ROSTER_MODE=identity` | the §4 field allowlist on claimed rows | office edit re-claims to `manual` |
+| R8 | `ROSTER_MODE=create` | new rows for unmatched McLeod records | archive them |
+| R9 | `agent.mjs --retire` | status + `termination_date` | **NOT undoable — §5.3** |
+
+**R4 is the real go/no-go.** If the pipeline's numbers do not reproduce §7's, the matcher disagrees with
+the hand-computed answer and something is wrong that no amount of extra field mapping will fix. Stop there.
+
+**Done when:** R3 reproduces §7's numbers from the pipeline; R5 leaves the three link counts non-zero and
+every other column untouched; R7 changes a field in the sandbox and it appears; R8 creates one row that
+subsequently acquires its `samsara_driver_id` from the next Samsara tick; R9 retires the 10 stale vehicles
+and the guard refuses a deliberately thin payload. Each result is recorded in this document.
+
+---
+
 ## 8. Execution
 
 One step per branch (`claude/<topic>`), PR to `main`, merge after CI. Mark steps **DONE** in place.
