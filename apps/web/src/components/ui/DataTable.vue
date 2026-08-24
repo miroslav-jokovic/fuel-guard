@@ -2,6 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@fuelguard/ui/icons";
 import { computed, useSlots } from "vue";
+import { useMediaQuery } from "@vueuse/core";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
@@ -210,6 +211,38 @@ const cellValue = (row: Row, col: DataTableColumn) => row[col.key];
 const isBlank = (v: unknown) => v == null || v === "";
 
 const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
+
+/* ── narrow screens get cards, not a table ────────────────────────────────────────────────────────
+ * A seven-column table on a 375px phone is a horizontal scroll with two columns visible, which is
+ * not a table any more — it is a puzzle. Below `md` each row becomes a card: the first column is the
+ * heading, the rest are label/value pairs.
+ *
+ * Rendered through a media query rather than `hidden md:block` on two copies of the markup, because
+ * duplicating means every row exists twice in the DOM. `display: none` does keep the hidden copy out
+ * of the accessibility tree, so duplication would not have been an a11y bug — it would have been a
+ * weight bug, and on the pages that carry these tables the row count is exactly what is large.
+ */
+const isWide = useMediaQuery("(min-width: 768px)");
+
+/** The first column is the card's heading; the others become its body. */
+const headingColumn = computed(() => props.columns[0]);
+const bodyColumns = computed(() => props.columns.slice(1));
+
+/**
+ * Sorting is a header affordance, and cards have no headers — so without this it would simply
+ * disappear below 768px. Losing the ability to order a list is a functional regression, not a
+ * responsive trade-off, so the sortable columns come back as an explicit control.
+ */
+const sortableColumns = computed(() => props.columns.filter((col) => col.sortable));
+
+/** A stable id so the card view's sort control can label itself without colliding across tables. */
+const listId = `dt-${Math.random().toString(36).slice(2, 8)}`;
+
+/** The select picks the COLUMN; the arrow beside it flips direction, matching the header's toggle. */
+function onCardSort(key: string) {
+  if (!key) return;
+  emit("sort", key);
+}
 </script>
 
 <template>
@@ -219,6 +252,72 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
     <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-ink-muted">
       <slot name="empty">{{ emptyText }}</slot>
     </div>
+    <template v-else-if="!isWide">
+      <!-- Narrow: one card per row. Same slots, same data, no table. -->
+      <div v-if="sortableColumns.length" class="flex items-center gap-2 border-b border-edge-subtle px-4 py-2.5">
+        <label class="text-2xs font-medium uppercase tracking-wide text-ink-muted" :for="`${listId}-sort`">
+          Sort
+        </label>
+        <select
+          :id="`${listId}-sort`"
+          class="min-w-0 flex-1 rounded-control bg-surface px-2 py-1.5 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control"
+          :value="sort?.key ?? ''"
+          @change="onCardSort(($event.target as HTMLSelectElement).value)"
+        >
+          <option value="">Default order</option>
+          <option v-for="col in sortableColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
+        </select>
+        <button
+          v-if="sort?.key"
+          type="button"
+          class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control"
+          :aria-label="sort.dir === 'asc' ? 'Sorted ascending, switch to descending' : 'Sorted descending, switch to ascending'"
+          @click="emit('sort', sort.key)"
+        >
+          {{ sort.dir === "asc" ? "↑" : "↓" }}
+        </button>
+      </div>
+
+      <ul class="divide-y divide-edge-subtle">
+        <li v-for="row in rows" :key="keyOf(row)" class="px-4 py-3.5">
+          <div class="flex items-start gap-3">
+            <input
+              v-if="selectable"
+              type="checkbox"
+              class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600"
+              :checked="isSelected(row)"
+              :aria-label="`Select ${String(cellValue(row, headingColumn!) ?? 'row')}`"
+              @change="toggleRow(row)"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-ink">
+                <slot :name="`cell-${headingColumn!.key}`" :row="row" :value="cellValue(row, headingColumn!)">
+                  {{ isBlank(cellValue(row, headingColumn!)) ? "—" : cellValue(row, headingColumn!) }}
+                </slot>
+              </div>
+              <dl class="mt-2 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <template v-for="col in bodyColumns" :key="col.key">
+                  <dt class="text-2xs uppercase tracking-wide text-ink-muted">{{ col.label }}</dt>
+                  <dd class="text-sm text-ink-secondary" :class="col.numeric ? 'tabular-nums' : ''">
+                    <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col)">
+                      {{ isBlank(cellValue(row, col)) ? "—" : cellValue(row, col) }}
+                    </slot>
+                  </dd>
+                </template>
+              </dl>
+              <div v-if="isExpanded(row)" class="mt-2.5">
+                <slot name="expanded" :row="row" />
+              </div>
+            </div>
+            <div v-if="hasActions" class="shrink-0">
+              <slot name="actions" :row="row" />
+            </div>
+          </div>
+        </li>
+      </ul>
+      <slot name="footer" />
+    </template>
+
     <template v-else>
       <div class="overflow-x-auto" :class="stickyHeader ? 'max-h-[70vh] overflow-y-auto' : ''">
         <table
