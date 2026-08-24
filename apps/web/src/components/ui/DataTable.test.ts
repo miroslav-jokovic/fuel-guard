@@ -1,6 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+
+/**
+ * jsdom has no `matchMedia`, so `useMediaQuery` reports false and DataTable renders its NARROW card
+ * branch by default. That is a sensible default for a test environment with no viewport — but the
+ * alignment rules below are about a table, and a card view has no `<th>` to align. So the wide path
+ * has to say so explicitly.
+ *
+ * Worth stating because it bit on the way in: adding the card view turned five green alignment tests
+ * red without touching a line of alignment code. They were right to fail — they had silently stopped
+ * testing a table.
+ */
+function setViewport(wide: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: wide,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 /**
  * Column alignment (D-DS1).
@@ -12,6 +39,8 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
  * mounting it did. Alignment is layout, so `lint:tokens` (colour) will never catch a regression
  * here. This file is the only thing that will.
  */
+
+beforeEach(() => setViewport(true));
 
 const mountTable = (columns: DataTableColumn[]) =>
   mount(DataTable, {
@@ -84,5 +113,73 @@ describe("DataTable column alignment", () => {
     for (const cls of [...headerClasses(wrapper), ...cellClasses(wrapper)]) {
       expect(cls).not.toContain("text-center");
     }
+  });
+});
+
+/**
+ * Narrow-screen card view (phase 6).
+ *
+ * jsdom reports no media query matches by default, so `useMediaQuery("(min-width: 768px)")` is
+ * false here and the component renders its CARD branch. That makes the narrow path the one this
+ * suite exercises for free — which is the right way round, since the wide path is the one a person
+ * looks at every day and the narrow one is the path nobody opens on a desktop.
+ */
+describe("DataTable narrow-screen card view", () => {
+  beforeEach(() => setViewport(false));
+
+  const columns: DataTableColumn[] = [
+    { key: "unit", label: "Unit" },
+    { key: "driver", label: "Driver" },
+    { key: "gallons", label: "Gallons", numeric: true, sortable: true },
+  ];
+  const rows = [
+    { unit: "Unit 204", driver: "Maya Chen", gallons: 118.4 },
+    { unit: "Unit 118", driver: "", gallons: 96.2 },
+  ];
+  const mountNarrow = (props = {}) =>
+    mount(DataTable, {
+      props: { columns, rows, rowKey: "unit", ...props },
+      global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+    });
+
+  it("renders no table at all, which is the entire point", () => {
+    const wrapper = mountNarrow();
+    expect(wrapper.find("table").exists()).toBe(false);
+    expect(wrapper.findAll("li")).toHaveLength(rows.length);
+  });
+
+  it("makes the first column the card heading and the rest labelled pairs", () => {
+    const card = mountNarrow().findAll("li")[0]!;
+    expect(card.text()).toContain("Unit 204");
+    const labels = card.findAll("dt").map((dt) => dt.text());
+    expect(labels).toEqual(["Driver", "Gallons"]);
+  });
+
+  it("shows an em-dash for a blank value rather than an empty row", () => {
+    const card = mountNarrow().findAll("li")[1]!;
+    expect(card.findAll("dd")[0]!.text()).toBe("—");
+  });
+
+  it("keeps sorting reachable, because a header is not available to carry it", () => {
+    const wrapper = mountNarrow();
+    const select = wrapper.find("select");
+    expect(select.exists()).toBe(true);
+    // one option per sortable column, plus the default
+    expect(select.findAll("option")).toHaveLength(2);
+    select.setValue("gallons");
+    expect(wrapper.emitted("sort")?.[0]).toEqual(["gallons"]);
+  });
+
+  it("keeps selection reachable", () => {
+    const wrapper = mountNarrow({ selectable: true, selected: new Set<string>() });
+    const box = wrapper.find('input[type="checkbox"]');
+    expect(box.exists()).toBe(true);
+    box.trigger("change");
+    expect(wrapper.emitted("update:selected")).toBeTruthy();
+  });
+
+  it("still renders empty, error and loading states", () => {
+    expect(mountNarrow({ rows: [], emptyText: "No fills yet." }).text()).toContain("No fills yet.");
+    expect(mountNarrow({ error: "Could not load" }).findComponent({ name: "ErrorState" }).exists()).toBe(true);
   });
 });
