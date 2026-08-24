@@ -4,12 +4,16 @@ import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraDriverLister, type SamsaraDriverLister } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { isTmsRosterMaster } from "../tms/rosterMastery.js";
 
 export interface DriverSyncResult {
   total: number;
   created: number;
   updated: number;
   deactivated: number; // Samsara-sourced drivers marked inactive because they left Samsara's active roster
+  /** LINK-ONLY mode: Samsara drivers matching no FuelGuard row. Reported, never created — somebody is
+   *  driving who is not on the carrier's HR roster, which is a finding for a human, not a row to invent. */
+  unlinked?: string[];
 }
 
 interface ExistingDriver {
@@ -67,6 +71,26 @@ export async function syncDriversFromSamsara(
 
   const result: DriverSyncResult = { total: drivers.length, created: 0, updated: 0, deactivated: 0 };
 
+  // ── LINK-ONLY MODE ────────────────────────────────────────────────────────────────────────────
+  // When the carrier's TMS masters the roster, this sync stops deciding WHO IS EMPLOYED and keeps
+  // doing the two things only it can do.
+  //
+  // The first is `samsara_driver_id`. That column is not an identity field, it is a JOIN KEY —
+  // hosSync dereferences it in seventeen places, and idleSync, idleRollup, idleDutyEvidenceSync,
+  // driverScoreSync and efsImport/reconcile all follow it. A driver row that McLeod created and this
+  // sync never linked has no hours, no idle evidence and no score, and nothing anywhere raises.
+  //
+  // The second is PHONE, and it is why this mode exists rather than simply switching the sync off.
+  // Measured 2026-08-24: McLeod holds no phone number for any of its 1,463 driver rows, while
+  // FuelGuard has one for 164 of 166 active drivers and every one of them came from here. SMS
+  // consent, driver-app invitations and messaging all depend on them.
+  //
+  // What it stops doing is inserting and deactivating. McLeod's `termination_date` is better evidence
+  // than absence from a telematics roster, and two systems both retiring rows would fight on every
+  // tick — the later one always winning, which is not a rule anybody could reason about.
+  const linkOnly = await isTmsRosterMaster(admin, orgId);
+  if (linkOnly) result.unlinked = [];
+
   for (const sd of drivers) {
     const match =
       bySamsara.get(sd.samsaraId) ??
@@ -90,6 +114,24 @@ export async function syncDriversFromSamsara(
       sd.licenseNumber && match?.cdl_number == null
         ? { cdl_number: sd.licenseNumber, cdl_state: sd.licenseState }
         : {};
+
+    if (linkOnly) {
+      if (!match) {
+        result.unlinked!.push(sd.name);
+        continue;
+      }
+      // Even here the office keeps its edits: a 'manual' row gets the link and nothing else, exactly
+      // as it does in full mode. Phone is refreshed only when Samsara actually returned one — a null
+      // in one response must never wipe a good stored value.
+      const patch: Record<string, unknown> = { samsara_driver_id: sd.samsaraId };
+      if (match.identity_source !== "manual") {
+        if (sd.phone) patch.phone = sd.phone;
+        if (sd.username) patch.samsara_username = sd.username;
+      }
+      await admin.from("drivers").update(patch).eq("id", match.id).eq("org_id", orgId);
+      result.updated++;
+      continue;
+    }
 
     if (match) {
       // ENRICH, NEVER CLOBBER. 0098 documented this rule and the deactivation pass below honoured it,
@@ -126,8 +168,10 @@ export async function syncDriversFromSamsara(
   // fetch can't mass-deactivate: (a) only run when the roster returned ≥1 active driver, and (b) never
   // deactivate MORE rows than the active roster size (a run that would wipe most of the roster is treated as a
   // bad fetch and skipped). Deactivation-only (we don't auto-reactivate — that stays an admin decision).
+  // In link-only mode the deactivation pass does not run at all: McLeod owns retirement (M6), and it
+  // has both better evidence and the retention rules that go with it.
   const activeIds = new Set(drivers.filter((d) => d.active).map((d) => d.samsaraId));
-  if (activeIds.size > 0) {
+  if (!linkOnly && activeIds.size > 0) {
     const stale = existing.filter(
       (r) => r.samsara_driver_id && r.status === "active" && r.identity_source !== "manual" && !activeIds.has(r.samsara_driver_id),
     );

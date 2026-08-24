@@ -28,8 +28,9 @@ const CFG = {
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
-  // 'link'   — match keys only; no date of birth or home address is READ, let alone sent.
-  // 'identity' — adds the fields M4 writes.
+  // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
+  // 'identity' — adds the fields FuelGuard writes onto rows it has already matched.
+  // 'create'   — identity, plus: a McLeod record matching nothing becomes a new FuelGuard row.
   rosterMode: (process.env.ROSTER_MODE ?? "link").toLowerCase(),
   lookbackDays: Number(process.env.LOOKBACK_DAYS ?? 35),
   intervalMinutes: Number(process.env.INTERVAL_MINUTES ?? 0), // 0 = run once and exit; >0 = loop forever
@@ -79,7 +80,9 @@ if (CFG.roster) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
-  if (!["link", "identity"].includes(CFG.rosterMode)) fail("ROSTER_MODE must be 'link' or 'identity'.");
+  if (!["link", "identity", "create"].includes(CFG.rosterMode)) {
+    fail("ROSTER_MODE must be 'link', 'identity' or 'create'.");
+  }
 }
 if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {
   fail("MCLEOD_PAGE_SIZE must be an integer from 1 to 1000.");
@@ -124,6 +127,7 @@ async function sendBatched(path, key, rows) {
   let received = 0,
     upserted = 0,
     updated = 0,
+    created = 0,
     skippedOwned = 0;
   const unmatched = new Set();
   for (const batch of chunk(rows, 1000)) {
@@ -131,10 +135,11 @@ async function sendBatched(path, key, rows) {
     received += r.received ?? 0;
     upserted += r.upserted ?? 0;
     updated += r.updated ?? 0;
+    created += r.created ?? 0;
     skippedOwned += r.skippedOwned ?? 0;
     for (const u of r.unmatched ?? []) unmatched.add(u);
   }
-  return { received, upserted, updated, skippedOwned, unmatched: [...unmatched] };
+  return { received, upserted, updated, created, skippedOwned, unmatched: [...unmatched] };
 }
 
 // ── source: mock ────────────────────────────────────────────────────────────────────────────────────
@@ -376,7 +381,7 @@ async function runRoster() {
       continue;
     }
     const res = await sendBatched(path, key, changed);
-    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
+    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0} created=${res.created ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   saveState(CFG.rosterStatePath, nextState);
