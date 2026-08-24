@@ -112,11 +112,16 @@ ok(
     db.query(`insert into drivers (org_id, full_name, identity_source) values ($1,'New Stub','efs')`, [ORG]),
   )) === null,
 );
+// ⚠ This assertion used 'mcleod' as its example of an invalid value, which 0239 then made VALID —
+// the carrier's TMS became a fourth provenance. The intent is unchanged and still worth pinning: the
+// CHECK has to keep CONSTRAINING, or a typo'd provenance silently becomes a new category and the
+// surfaces that exclude EFS stubs start leaking. Only the example moved, to a string no migration is
+// ever going to adopt.
 ok(
-  "the CHECK rejects a fourth value",
+  "the CHECK rejects a value outside the enumerated four",
   /check/i.test(
     (await err(
-      db.query(`insert into drivers (org_id, full_name, identity_source) values ($1,'Bad','mcleod')`, [ORG]),
+      db.query(`insert into drivers (org_id, full_name, identity_source) values ($1,'Bad','not-a-provenance')`, [ORG]),
     )) ?? "",
   ),
 );
