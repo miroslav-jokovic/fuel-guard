@@ -96,16 +96,30 @@ export function authRouter(): Router {
         const admin = getSupabaseAdmin(env);
         const { data } = await admin
           .from("drivers")
-          .select("org_id, app_access_enabled")
+          .select("org_id, app_access_enabled, status")
           .eq("app_username", username)
           .limit(1)
           .maybeSingle();
-        const row = data as { org_id: string; app_access_enabled: boolean | null } | null;
+        const row = data as {
+          org_id: string;
+          app_access_enabled: boolean | null;
+          status: string | null;
+        } | null;
         if (row) {
           orgId = row.org_id;
           // A disabled login gets the SAME error as a wrong password (no state leak); the auth-side
           // ban would refuse it anyway — this just skips a pointless attempt.
-          if (row.app_access_enabled !== false) email = toSyntheticDriverEmail(username);
+          //
+          // `status` is checked here for the same reason, and it is the SECOND of two independent
+          // gates rather than the only one: `resolveDriverId` refuses to resolve a non-active driver,
+          // so a session that somehow got issued still cannot act. Stopping it at sign-in as well
+          // means a terminated driver meets a refusal instead of an app that authenticates and then
+          // 404s on every screen. `app_access_enabled` alone is not sufficient — it is a flag some
+          // writer has to remember to set, and an automated termination is exactly where that gets
+          // forgotten.
+          if (row.app_access_enabled !== false && row.status === "active") {
+            email = toSyntheticDriverEmail(username);
+          }
         }
       }
 
