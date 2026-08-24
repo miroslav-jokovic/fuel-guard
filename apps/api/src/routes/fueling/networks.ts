@@ -11,7 +11,8 @@ import { runKwikTripSync } from "../../services/kwikTripIngest.js";
 import { runRoadRangerFetch } from "../../services/roadRangerIngest.js";
 import { ingestLovesExport } from "../../services/lovesIngest.js";
 import { runLovesApiSync } from "../../services/lovesApiClient.js";
-import { parsePilotPublicPricesXlsx } from "@fuelguard/shared";
+import { parsePilotPublicPricesXlsx, type StatementWord } from "@fuelguard/shared";
+import { ingestFuelStatement } from "../../services/fuelStatementIngest.js";
 
 /** Add a truck-stop network to the org's enabled_brands so freshly loaded/synced stations show up on the
  *  Truck Stops page (and its network filter) immediately, instead of staying hidden until an admin toggles
@@ -46,6 +47,39 @@ export function registerNetworkRoutes(router: Router): void {
       const result = await ingestPilotPrices(admin, env, req.auth!.orgId!, grid as (string | number | null)[][]);
       if (!result.ok) {
         res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the report"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Record a weekly Pilot direct-bill statement. The browser decodes the PDF (only it has pdfjs) and
+  // sends the positioned WORDS plus the original bytes; the server re-parses and refuses anything that
+  // does not reproduce the statement's own printed totals, so a browser can never assert a statement.
+  router.post(
+    "/statements",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const body = req.body as { words?: unknown; filename?: unknown; sourceBase64?: unknown };
+      if (!Array.isArray(body?.words) || body.words.length === 0) {
+        res.status(400).json(apiError("bad_request", "Expected { words: StatementWord[] } from the decoded PDF."));
+        return;
+      }
+      const result = await ingestFuelStatement(admin, req.auth!.orgId!, req.auth!.userId, {
+        words: body.words as StatementWord[],
+        filename: typeof body.filename === "string" ? body.filename : null,
+        sourceBase64: typeof body.sourceBase64 === "string" ? body.sourceBase64 : null,
+      });
+      if (!result.ok) {
+        // The tie-out failures travel with the error on purpose: "the statement didn't add up" is
+        // useless to the person holding the PDF, "fuel total $x vs the printed $y" is actionable.
+        res.status(422).json({
+          ...apiError("statement_rejected", result.error ?? "Could not record the statement"),
+          tieOutFailures: result.tieOutFailures ?? [],
+        });
         return;
       }
       res.json(result);

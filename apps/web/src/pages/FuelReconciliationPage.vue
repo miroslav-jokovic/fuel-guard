@@ -4,17 +4,13 @@ import {
   ArrowUpTrayIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
-import {
-  parsePilotFuelReport,
-  reconcilePilotFuel,
-  DEFAULT_TOLERANCES,
-  type PilotReportParse,
-  type ReconStatus,
-} from "@fuelguard/shared";
-import { readReportGrid } from "@/features/fueling/usePriceUpload";
+import { reconcilePilotFuel, DEFAULT_TOLERANCES, type ReconStatus } from "@fuelguard/shared";
+import { loadFuelReport, ReportLoadError, type LoadedReport } from "@/features/reconcile/loadFuelReport";
+import { useSaveStatement, StatementRejected } from "@/features/reconcile/useSaveStatement";
 import { useSystemFillsQuery, type ReconWindow } from "@/features/reconcile/useFuelReconcile";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
@@ -24,20 +20,34 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /**
- * Fuel reconciliation (Phase — vendor report vs our data). Upload a Pilot / Flying J fuel report; we
- * parse it (reusing the .xls/.xlsx/.csv reader) and match every diesel fill against the org's recorded
- * fuel_transactions, so billing gaps, unbilled/possible-theft fills, and price/volume mismatches surface.
+ * Fuel reconciliation — vendor report vs our data. Upload any Pilot / Flying J fuel report (the weekly
+ * direct-bill statement PDF, or the monthly "All Transactions" export as .xlsx/.csv/.xls) and every
+ * tractor diesel fill is matched against the org's recorded fuel_transactions, so billing gaps,
+ * unbilled/possible-theft fills, and price/volume mismatches surface.
+ *
+ * All formats are accepted equally and normalised by `loadFuelReport`; the page never branches on file
+ * type. The weekly statement additionally prints its own totals, which the parser must reproduce to the
+ * cent before we will show a single number from it.
  */
 
 const toast = useToastStore();
-const report = ref<PilotReportParse | null>(null);
+const saveStatement = useSaveStatement();
+const report = ref<LoadedReport | null>(null);
 const parsing = ref(false);
-const fileName = ref<string | null>(null);
+const fileName = computed(() => report.value?.fileName ?? null);
+const saved = ref(false);
 
 const window = computed<ReconWindow | null>(() =>
   report.value?.startDate && report.value?.endDate ? { from: report.value.startDate, to: report.value.endDate } : null,
 );
 const { data: systemFills, isLoading: fillsLoading, isError, error } = useSystemFillsQuery(window);
+
+/** What the discount actually saved against posted retail — the statement carries both sides per line. */
+const savings = computed(() => {
+  const r = report.value;
+  if (!r || !r.totalRetail) return null;
+  return r.totalRetail - r.totalNet;
+});
 
 const result = computed(() =>
   report.value ? reconcilePilotFuel(report.value.fills, systemFills.value ?? [], DEFAULT_TOLERANCES) : null,
@@ -48,24 +58,50 @@ async function onFiles(files: File[]) {
   if (!file) return;
   parsing.value = true;
   try {
-    const grid = await readReportGrid(file);
-    const parsed = parsePilotFuelReport(grid);
-    if (!parsed.headerFound) {
-      toast.error("Unrecognized report", "Expected a Pilot / Flying J 'All Transactions' export with Authorization_No, Card_No and Quantity columns.");
-      return;
-    }
-    report.value = parsed;
-    fileName.value = file.name;
-    toast.success(`Loaded ${parsed.fills.length.toLocaleString()} diesel fills`, `Account ${parsed.account ?? "—"} · ${parsed.startDate} → ${parsed.endDate}`);
+    const loaded = await loadFuelReport(file);
+    report.value = loaded;
+    for (const note of loaded.tieOut?.notes ?? []) toast.info("Statement note", note);
+    toast.success(
+      `Loaded ${loaded.fills.length.toLocaleString()} diesel fills`,
+      `${loaded.kind === "weekly_statement" ? `Invoice ${loaded.invoiceNumber ?? "—"}` : `Account ${loaded.account ?? "—"}`} · ${loaded.startDate} → ${loaded.endDate}`,
+    );
+    // Keeping the statement is what makes week-over-week possible; the reconciliation below renders
+    // either way, so a save failure never costs the user the parse they are already looking at.
+    if (loaded.statementSource) await persist(loaded);
   } catch (e) {
-    toast.error("Could not read the report", e instanceof Error ? e.message : undefined);
+    if (e instanceof ReportLoadError) toast.error(e.message, e.detail);
+    else toast.error("Could not read the report", e instanceof Error ? e.message : undefined);
   } finally {
     parsing.value = false;
   }
 }
+/** Record the statement server-side. The server re-parses, so this can still be refused. */
+async function persist(loaded: LoadedReport) {
+  if (!loaded.statementSource) return;
+  try {
+    const r = await saveStatement.mutateAsync({
+      words: loaded.statementSource.words,
+      bytes: loaded.statementSource.bytes,
+      filename: loaded.fileName,
+    });
+    saved.value = true;
+    const replaced = r.supersededStatementId ? " · replaced the earlier version of this invoice" : "";
+    toast.success("Statement saved", `${r.lines?.toLocaleString()} lines kept for week-over-week${replaced}`);
+    if (r.unresolvedSites?.length) {
+      toast.warning(
+        `${r.unresolvedSites.length} site${r.unresolvedSites.length === 1 ? "" : "s"} not in the station registry`,
+        `Their lines are kept without a brand rather than guessed: ${r.unresolvedSites.slice(0, 5).join(", ")}`,
+      );
+    }
+  } catch (e) {
+    if (e instanceof StatementRejected) toast.error("Statement not saved", [e.message, ...e.reasons].join(" "));
+    else toast.error("Statement not saved", e instanceof Error ? e.message : undefined);
+  }
+}
+
 function reset() {
   report.value = null;
-  fileName.value = null;
+  saved.value = false;
   statusFilter.value = "discrepancies";
 }
 
@@ -149,7 +185,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Upload a Pilot / Flying J fuel report and reconcile it against your recorded fills — line by line.">
+    <PageHeader description="Upload a Pilot / Flying J fuel report — weekly statement PDF or monthly export — and reconcile it against your recorded fills, line by line.">
       <template #actions>
         <BaseButton v-if="report" variant="ghost" @click="reset">Upload another</BaseButton>
       </template>
@@ -162,11 +198,16 @@ const columns: DataTableColumn[] = [
         <div class="min-w-0 flex-1">
           <h3 class="text-sm font-semibold text-ink">Vendor fuel report</h3>
           <p class="mt-1 text-sm text-ink-muted">
-            The Pilot / Flying J "All Transactions" export (.xls, .xlsx, or .csv). We match each diesel fill to your recorded
-            fuel by card, date, gallons and amount, and flag anything that doesn't line up.
+            Either Pilot / Flying J report, in any format we're sent it: the weekly direct-bill statement
+            (PDF) or the monthly "All Transactions" export (.xlsx, .csv, or .xls). We match each diesel fill
+            to your recorded fuel by card, date, gallons and amount, and flag anything that doesn't line up.
+          </p>
+          <p class="mt-1 text-xs text-ink-tertiary">
+            A weekly statement is checked against the totals Pilot prints on it. If our reading doesn't
+            reproduce them to the cent, we reject the file rather than show you numbers we can't stand behind.
           </p>
           <div class="mt-3">
-            <FileDropzone accept=".xls,.xlsx,.xlsm,.csv,.htm,.html" :disabled="parsing" @files="onFiles" />
+            <FileDropzone accept=".pdf,.xls,.xlsx,.xlsm,.csv,.htm,.html" :disabled="parsing" @files="onFiles" />
           </div>
           <p v-if="parsing" class="mt-3 text-sm text-ink-secondary">Reading the report…</p>
         </div>
@@ -178,9 +219,21 @@ const columns: DataTableColumn[] = [
       <BaseCard padding="sm">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <span class="font-medium text-ink">{{ fileName }}</span>
-          <span class="text-ink-muted">Account {{ report.account ?? "—" }}</span>
+          <span :class="[BADGE_BASE, report.tieOut ? toneClass('success') : toneClass('neutral')]">
+            {{ report.kind === "weekly_statement" ? "Weekly statement" : "Monthly export" }}
+          </span>
+          <span class="text-ink-muted">
+            {{ report.invoiceNumber ? `Invoice ${report.invoiceNumber}` : `Account ${report.account ?? "—"}` }}
+          </span>
           <span class="text-ink-muted">{{ report.startDate }} → {{ report.endDate }}</span>
-          <span class="text-ink-muted">{{ report.fills.length.toLocaleString() }} diesel fills · {{ fmtGal(report.totalDieselGallons) }} gal · {{ fmtUsd(report.totalDieselNet) }} paid</span>
+          <span class="text-ink-muted">{{ report.fills.length.toLocaleString() }} diesel fills · {{ fmtGal(report.totalGallons) }} gal · {{ fmtUsd(report.totalNet) }} paid</span>
+          <span v-if="savings != null" class="text-ink-muted">{{ fmtUsd(savings) }} saved vs retail</span>
+          <span v-if="report.reeferLines.length" class="text-ink-muted">{{ report.reeferLines.length }} reefer</span>
+          <span v-if="report.defLines.length" class="text-ink-muted">{{ report.defLines.length }} DEF</span>
+          <span v-if="report.merchandise.length" class="text-ink-muted">{{ report.merchandise.length }} in-store</span>
+          <span v-if="report.tieOut" class="text-success-700">Ties to the statement's own totals</span>
+          <span v-if="saveStatement.isPending.value" class="text-ink-tertiary">· saving…</span>
+          <span v-else-if="saved" class="text-ink-muted">· saved</span>
           <span v-if="fillsLoading" class="text-ink-tertiary">· matching your fills…</span>
         </div>
       </BaseCard>

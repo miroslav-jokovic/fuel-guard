@@ -221,6 +221,15 @@ export const RETENTION_FORBIDDEN = [
   "platform_audit_log",
   "fuel_transactions", // business records
   "efs_transactions",
+  /**
+   * The vendor's weekly statement and its lines (0243). This is the BILLING record — what the carrier
+   * was actually charged — and the evidence a discount conversation with Pilot would rest on. It is
+   * already immutable by trigger (corrections supersede, they do not overwrite); pinning it here is
+   * what stops someone adding a 12-month prune in six months and deleting the baseline the spend
+   * bridge is measured from.
+   */
+  "fuel_statements",
+  "fuel_statement_lines",
   "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",
