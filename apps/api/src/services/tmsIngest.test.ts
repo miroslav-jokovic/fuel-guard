@@ -93,3 +93,60 @@ describe("tms ingest", () => {
     expect(rows[1]!.external_id).toBe("synthetic:d1:1783641600:open:home_time");
   });
 });
+
+/**
+ * Resolving what a McLeod movement or time-off window names (MCLEOD-FIELD-GAP-PLAN F1).
+ *
+ * The movement feed exists to answer one question — was this a temperature-controlled movement — and
+ * it answers it from the TRAILER. So a trailer that fails to resolve is not a cosmetic gap: it is the
+ * feed silently failing at its only job, on precisely the ~44 reefers whose unit numbers differ by
+ * FuelGuard's `R` prefix (D-FG8).
+ */
+describe("a McLeod movement finds the records it names", () => {
+  it("resolves a reefer whose McLeod unit number lacks FuelGuard's R prefix", async () => {
+    const { admin, writes } = makeAdmin((q) => {
+      if (q.table === "vehicles") return [{ id: "v1", unit_number: "104" }];
+      if (q.table === "trailers") return [{ id: "t1", unit_number: "R532159" }];
+      return [];
+    });
+    await ingestMovements(admin, "org1", "mcleod", [
+      { external_id: "M1", vehicle_unit: "104", trailer_unit: "532159", temperature_controlled: true },
+    ]);
+    const rows = writes.find((w) => w.table === "tms_movements")!.payload;
+    expect(rows[0]!.trailer_id).toBe("t1");
+  });
+
+  it("REPORTS a trailer it cannot place instead of quietly writing null", async () => {
+    // Before F1 an unresolvable trailer produced a null and appeared in no report at all, so a
+    // mis-prefixed fleet looked exactly like a fleet with no reefers.
+    const { admin, writes } = makeAdmin((q) => (q.table === "trailers" ? [{ id: "t1", unit_number: "R1" }] : []));
+    const res = await ingestMovements(admin, "org1", "mcleod", [
+      { external_id: "M1", trailer_unit: "NOPE", temperature_controlled: true },
+    ]);
+    expect(res.unmatched).toContain("NOPE");
+    expect((writes.find((w) => w.table === "tms_movements")!.payload)[0]!.trailer_id).toBeNull();
+  });
+});
+
+describe("a McLeod time-off window finds its driver", () => {
+  it("resolves by the McLeod driver id, because employee_id is empty at this carrier", async () => {
+    const { admin, writes } = makeAdmin((q) =>
+      q.table === "drivers" ? [{ id: "d1", employee_id: null, mcleod_driver_id: "D0001", samsara_driver_id: null }] : [],
+    );
+    await ingestDriverTimeOff(admin, "org1", "mcleod", [
+      { driver_employee_id: "D0001", start_at: "2026-08-01T00:00:00Z", kind: "home_time" },
+    ]);
+    const rows = writes.find((w) => w.table === "driver_time_off")!.payload;
+    expect(rows[0]!.driver_id).toBe("d1");
+  });
+
+  it("still resolves the Samsara id, which is the key that worked before", async () => {
+    const { admin, writes } = makeAdmin((q) =>
+      q.table === "drivers" ? [{ id: "d2", employee_id: null, mcleod_driver_id: null, samsara_driver_id: "S9" }] : [],
+    );
+    await ingestDriverTimeOff(admin, "org1", "mcleod", [
+      { driver_samsara_id: "S9", start_at: "2026-08-01T00:00:00Z", kind: "home_time" },
+    ]);
+    expect((writes.find((w) => w.table === "driver_time_off")!.payload)[0]!.driver_id).toBe("d2");
+  });
+});

@@ -1,4 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  unitResolver,
+  driverResolver,
+  type KeyResolver,
+  type UnitRow,
+  type DriverKeyRow,
+} from "../tms/entityLookup.js";
 import type { TmsMovementInput, DriverTimeOffInput } from "@fuelguard/shared";
 import { generateIngestToken, hashIngestToken } from "../lib/ingestToken.js";
 
@@ -127,13 +134,12 @@ async function unitMap(
   admin: SupabaseClient,
   table: "vehicles" | "trailers",
   orgId: string,
-): Promise<Map<string, string>> {
+): Promise<KeyResolver> {
   const { data } = await admin.from(table).select("id, unit_number").eq("org_id", orgId);
-  const m = new Map<string, string>();
-  for (const r of (data ?? []) as { id: string; unit_number: string | null }[]) {
-    if (r.unit_number) m.set(r.unit_number, r.id);
-  }
-  return m;
+  // Normalised, not raw: FuelGuard prefixes reefers with `R` and McLeod does not, so a raw compare
+  // misses ~44 of this carrier's trailers — on the feed whose entire purpose is spotting reefer
+  // movements (D-FG8).
+  return unitResolver((data ?? []) as UnitRow[], table);
 }
 
 /** Upsert normalized TMS movements for an org (idempotent on org + provider + external_id). */
@@ -148,14 +154,16 @@ export async function ingestMovements(
   const unmatched = new Set<string>();
   const now = new Date().toISOString();
   const rows = movements.map((m) => {
-    const vehicle_id = m.vehicle_unit ? (vehicles.get(m.vehicle_unit) ?? null) : null;
+    const vehicle_id = vehicles.get(m.vehicle_unit) ?? null;
     if (m.vehicle_unit && !vehicle_id) unmatched.add(m.vehicle_unit);
+    const trailer_id = trailers.get(m.trailer_unit) ?? null;
+    if (m.trailer_unit && !trailer_id) unmatched.add(m.trailer_unit);
     return {
       org_id: orgId,
       provider,
       external_id: m.external_id,
       vehicle_id,
-      trailer_id: m.trailer_unit ? (trailers.get(m.trailer_unit) ?? null) : null,
+      trailer_id,
       started_at: m.started_at ?? null,
       ended_at: m.ended_at ?? null,
       temperature_controlled: m.temperature_controlled ?? false,
@@ -197,18 +205,21 @@ export async function ingestDriverTimeOff(
   provider: string,
   windows: DriverTimeOffInput[],
 ): Promise<IngestResult> {
-  const { data: drv } = await admin.from("drivers").select("id, employee_id, samsara_driver_id").eq("org_id", orgId);
-  const byEmp = new Map<string, string>();
+  const { data: drv } = await admin
+    .from("drivers")
+    .select("id, employee_id, mcleod_driver_id, samsara_driver_id")
+    .eq("org_id", orgId);
+  const driverRows = (drv ?? []) as (DriverKeyRow & { samsara_driver_id: string | null })[];
+  // `driver_employee_id` on the wire is "the identifier the TMS quotes", and for McLeod that is
+  // `dbo.driver.id` — which lands in `mcleod_driver_id`, not `employee_id` (0 of 271 populated).
+  const byTms = driverResolver(driverRows);
   const bySam = new Map<string, string>();
-  for (const d of (drv ?? []) as { id: string; employee_id: string | null; samsara_driver_id: string | null }[]) {
-    if (d.employee_id) byEmp.set(d.employee_id, d.id);
-    if (d.samsara_driver_id) bySam.set(d.samsara_driver_id, d.id);
-  }
+  for (const d of driverRows) if (d.samsara_driver_id) bySam.set(d.samsara_driver_id, d.id);
   const unmatched = new Set<string>();
   const now = new Date().toISOString();
   const rows = windows.map((w) => {
     const driver_id =
-      (w.driver_employee_id ? byEmp.get(w.driver_employee_id) : undefined) ??
+      byTms.get(w.driver_employee_id) ??
       (w.driver_samsara_id ? bySam.get(w.driver_samsara_id) : undefined) ??
       null;
     const key = w.driver_employee_id ?? w.driver_samsara_id;

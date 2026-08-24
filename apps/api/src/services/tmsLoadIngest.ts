@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  unitResolver,
+  driverResolver,
+  type KeyResolver,
+  type UnitRow,
+  type DriverKeyRow,
+} from "../tms/entityLookup.js";
+import {
   AMENDABLE_LOAD_FIELDS,
   tmsMayOverwrite,
   type LoadStatus,
@@ -71,22 +78,22 @@ async function lookup(
   admin: SupabaseClient,
   table: "vehicles" | "trailers",
   orgId: string,
-): Promise<Map<string, string>> {
+): Promise<KeyResolver> {
   const { data } = await admin.from(table).select("id, unit_number").eq("org_id", orgId);
-  const m = new Map<string, string>();
-  for (const r of (data ?? []) as { id: string; unit_number: string | null }[]) {
-    if (r.unit_number) m.set(r.unit_number, r.id);
-  }
-  return m;
+  // Trailers normalise the reefer prefix McLeod does not use (D-FG8) — a raw compare drops ~44 of
+  // this carrier's trailers, and a load with no trailer is a load with no reefer context.
+  return unitResolver((data ?? []) as UnitRow[], table);
 }
 
-async function driverLookup(admin: SupabaseClient, orgId: string): Promise<Map<string, string>> {
-  const { data } = await admin.from("drivers").select("id, employee_id").eq("org_id", orgId);
-  const m = new Map<string, string>();
-  for (const d of (data ?? []) as { id: string; employee_id: string | null }[]) {
-    if (d.employee_id) m.set(d.employee_id, d.id);
-  }
-  return m;
+async function driverLookup(admin: SupabaseClient, orgId: string): Promise<KeyResolver> {
+  const { data } = await admin
+    .from("drivers")
+    .select("id, employee_id, mcleod_driver_id")
+    .eq("org_id", orgId);
+  // `mcleod_driver_id` is the key that actually exists. `employee_id` is populated on 0 of 271
+  // production rows, so before D-FG7 every McLeod load resolved to a null driver and said so only in
+  // an unmatched list nobody was reading.
+  return driverResolver((data ?? []) as DriverKeyRow[]);
 }
 
 /** Does this org want ingested loads released without review? Off unless explicitly enabled (D48). */
@@ -208,11 +215,11 @@ export async function ingestLoads(
      */
     const resolve = (
       key: string | null | undefined,
-      map: Map<string, string>,
+      by: KeyResolver,
     ): string | null | undefined => {
       if (key === undefined) return undefined;
       if (key === null) return null;
-      const hit = map.get(key);
+      const hit = by.get(key);
       if (!hit) unmatched.add(key);
       return hit ?? null;
     };
