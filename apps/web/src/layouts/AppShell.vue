@@ -20,6 +20,8 @@ import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import { useThreadsQuery } from "@/features/messages/useMessages";
 import AppLogo from "@/components/AppLogo.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
+import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
+import { useSidebarSections } from "@/composables/useSidebarSections";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
 
 const session = useSessionStore();
@@ -72,6 +74,15 @@ const navLinkClass = (to: string) => [
   activeClass(to),
   "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
 ];
+
+/**
+ * The section that owns the page you are on. `useSidebarSections` keeps it open regardless of what
+ * was stored, so a deep link or a post-sign-in redirect can never land inside a collapsed section.
+ */
+const currentSection = () =>
+  navGroups.value.find((group) => group.label && group.items.some((item) => isCurrent(item.to)))
+    ?.label ?? null;
+const { isOpen: sectionOpen, toggle: toggleSection } = useSidebarSections(currentSection);
 
 /** Icon-only nav link — used in collapsed desktop sidebar. */
 const navLinkClassCollapsed = (to: string) => [
@@ -153,13 +164,15 @@ async function signOut() {
                   <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
                     <ul class="flex flex-1 flex-col gap-y-0.5">
                       <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                        <li
+                        <SidebarNavSection
                           v-if="group.label"
-                          class="sidebar-section-label mb-1 mt-4 px-2.5 text-xs font-medium first:mt-2"
-                        >
-                          {{ group.label }}
-                        </li>
-                        <li v-for="item in group.items" :key="item.name">
+                          :group="group"
+                          :open="sectionOpen(group.label)"
+                          :is-current="isCurrent"
+                          :nav-link-class="navLinkClass"
+                          @toggle="toggleSection(group.label)"
+                        />
+                        <li v-for="item in group.items" v-else :key="item.name">
                           <RouterLink
                             :to="item.to"
                             :class="navLinkClass(item.to)"
@@ -227,13 +240,15 @@ async function signOut() {
             <!-- Expanded: grouped section labels + full links -->
             <ul v-if="!sidebarCollapsed" class="flex flex-1 flex-col gap-y-0.5">
               <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                <li
+                <SidebarNavSection
                   v-if="group.label"
-                  class="sidebar-section-label mb-1 mt-4 px-2.5 text-xs font-medium"
-                >
-                  {{ group.label }}
-                </li>
-                <li v-for="item in group.items" :key="item.name">
+                  :group="group"
+                  :open="sectionOpen(group.label)"
+                  :is-current="isCurrent"
+                  :nav-link-class="navLinkClass"
+                  @toggle="toggleSection(group.label)"
+                />
+                <li v-for="item in group.items" v-else :key="item.name">
                   <RouterLink
                     :to="item.to"
                     :class="navLinkClass(item.to)"
