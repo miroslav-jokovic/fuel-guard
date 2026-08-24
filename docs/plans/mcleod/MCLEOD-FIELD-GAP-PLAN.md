@@ -1,0 +1,254 @@
+# McLeod field gap — finishing drivers, tractors and trailers
+
+**Scope:** widen the roster field set from the 12/11/9 columns the pipeline carries today to everything
+McLeod holds that FuelGuard has a home for. The pipeline itself is done and deployed; this is about
+*what flows through it*. Movements, loads, settlement, accounting and CPM stay out of scope.
+
+**Written:** 2026-08-24, after M2–M6 shipped (migrations 0239–0241 deployed to production).
+**Prerequisite reading:** `MCLEOD-ROSTER-SYNC-PLAN.md` §4 (the verified field mapping — this document
+extends it and does not restate it), `CODEBASE-IMPACT-ANALYSIS.md`, root `CLAUDE.md`.
+
+---
+
+## 1. The rule this plan is written under
+
+> **D-FG1: a column nobody has counted is not mapped.** Every row in §3 carries either a measured
+> coverage number or a named question in §7 that blocks it. The roster plan's §4 exists because three
+> first-draft assumptions were wrong on a compliance surface — `name` was not "LAST, FIRST",
+> `license_date` was not ambiguous, `inspection_date` ran the opposite way to every other date. The
+> cost of guessing is not a bug, it is a wrong licence expiry on a DQ file.
+>
+> Where a question is unanswered the fallback is written next to it, and **the fallback is always
+> "do not map"** — never "assume the common case".
+
+---
+
+## 2. What §4 already settled, so it is not re-litigated
+
+Recorded here because two of these look like open questions and are not:
+
+| Question | Answer | Consequence |
+|---|---|---|
+| Which tractor insurance date is the expiry? | **None.** `insurance_date`, `liability_end_dt` and `insurance_name` are **0 populated** at this carrier | `vehicles.insurance_carrier` / `_policy` / `_expires_at` get **no McLeod source**. Closed, not deferred. |
+| Does McLeod have driver contact data? | **No.** `email`, `cell_phone`, `phone` are 0 of 1,463 | Samsara stays the only phone source (D-MR5). Closed. |
+| Is `trailer.serial_number` usable as a VIN? | Yes, 232 of 240 | **Already mapped and shipping.** FuelGuard held zero trailer VINs before this. |
+| Reefer determination? | `trailer_type = 'R'` (V=187, R=45, blank=8) | Already mapped. `reefer_id`/`min_temp`/`max_temp`/`heater_code` are all 0 populated. |
+| `tractor.inspection_date` direction? | **Performed**, 175/175 in the past | Already mapped, expiry derived at +1 year in `vehiclePatch`. |
+
+---
+
+## 3. The gap
+
+Coverage numbers are McLeod-side and come from §4 where present. "blocked" names the §7 question.
+
+### 3.1 Trailers — the largest gap, and the only entity behind its sibling
+
+`vehicles` already receives registration and inspection dates; `trailers` does not, from the same
+columns on a structurally identical table. That asymmetry is not a decision anybody made.
+
+| FuelGuard | McLeod | Status |
+|---|---|---|
+| `trailer_type` | `trailer_type` | **Ready.** The agent already SELECTs it and the ingest throws it away after deriving `is_reefer`. The column exists and is 59/211 populated from another source. |
+| `registration_expires_at` | `tag_expire_date` | blocked C1 (coverage + direction) |
+| `dot_annual_inspection_expires_at` | `inspection_date` | blocked C1 — and if it is a *performed* date like the tractor's, it needs the same +1y derivation |
+| `purchased_at` | `purchase_date` | blocked C1 |
+| `length_ft` | `length_of` + `length_of_um` | blocked C2 (units) |
+| `capacity_cube_ft` | `volume` + `volume_um` | blocked C2 |
+| `capacity_weight_lb` | `gross_veh_weight` + `_um` | blocked C2 |
+| `tare_weight_lb` | `weight` + `weight_um` | blocked C2 |
+| `door_type` | `door_type_code` | blocked C4 (vocabulary) |
+| `ownership_type` | `ownership` | blocked C6 (vocabulary) |
+| **`axle_count`** *(new column)* | `axles` | blocked C5 |
+| **`height_in`, `width_in`** *(new columns)* | `height`+`_um`, `width`+`_um` | blocked C2 |
+
+### 3.2 Vehicles
+
+| FuelGuard | McLeod | Status |
+|---|---|---|
+| `gvwr_lb` | `gross_veh_weight` + `_um` | blocked B3 (units) |
+| `tare_weight_lb` | `weight` + `weight_um` | blocked B3 |
+| `purchased_at` | `purchase_date` | blocked B1 |
+| `irp_account` | `irp_code` | blocked B2 (coverage) |
+| `ownership_type` | `owner` / `pay_owner` | blocked B4/B5 (vocabulary) |
+| `fuel_type` *(a Postgres enum)* | `fuel_type_code` | blocked B7 — needs a mapping onto the enum, not a passthrough |
+| `axle_count` | `axle_number_code` | blocked B8 — it is a **code**, not a number |
+| `insurance_carrier` / `_policy` / `_expires_at` | — | **closed**, §2 |
+| `tank_capacity_gal` | `fuel_capacity` | **create-only seed**, see D-FG5; blocked B9 |
+
+### 3.3 Drivers — nearly complete already
+
+| FuelGuard | McLeod | Status |
+|---|---|---|
+| `driver_type` | `type_of` | blocked A1 — company vs owner-operator gates settlement and CPM later |
+| `cdl_class` | `drvr_class` | blocked A2 |
+| `home_terminal_id` | `home_location_id` | blocked A3 **and** on terminals existing — see D-FG6 |
+| `cdl_issued_at`, `cdl_restrictions`, `medical_examiner_name`, `medical_registry_number`, `emergency_contact_*` | — | **no McLeod source.** Closed. |
+| `phone`, `phone_alt`, `employee_id` | — | see §4 — `employee_id` is not a mapping question |
+
+---
+
+## 4. Two defects this analysis surfaced that are not field mapping
+
+Both are measured, both are silent, and both break the *next* phase rather than this one. They are
+cheap now and expensive after loads ingest goes live.
+
+### F0a — nothing downstream can resolve a McLeod driver
+
+`ingestLoads` resolves a driver **only** by `drivers.employee_id`; `ingestDriverTimeOff` by
+`employee_id` or `samsara_driver_id`. Measured in production 2026-08-24:
+
+```
+drivers: 271 total · employee_id populated on 0 · mcleod_driver_id populated on 0
+```
+
+So the roster link the whole integration is built on **is read by nothing outside the roster module**.
+A McLeod load carrying a McLeod driver id would resolve to nobody, be reported as unmatched, and land
+with `driver_id = null`. The fix is a choice — populate `employee_id` from `dbo.driver.id`, or teach
+the two ingests the `mcleod_driver_id` key — and it is a decision, not a mapping:
+
+> **D-FG7:** the two ingests learn `mcleod_driver_id` as an additional match key. `employee_id` is
+> **not** overwritten: it is an office-owned field with its own meaning at carriers that use it, and
+> quietly filling it with a vendor's surrogate key would make it unusable for the thing it is for.
+
+### F0b — the trailer prefix is normalised in exactly one place
+
+`trailerUnitMatchKey` strips FuelGuard's `R` prefix so `R532159` matches McLeod's `532159`. The roster
+ingest uses it. **`tmsLoadIngest` and `tmsIngest` (movements) both match trailers by exact
+`unit_number` and do not.** Measured effect of normalisation on the roster: matches went from 157 of
+235 to 201. So roughly 44 reefers would silently fail to attach to their loads and movements — and
+reefers are exactly the trailers the movement feed exists to identify.
+
+> **D-FG8:** both ingests use `trailerUnitMatchKey`. It already lives in `packages/shared`; the roster
+> module is simply the only caller.
+
+---
+
+## 5. A contradiction to settle before anything else
+
+`MCLEOD-ROSTER-SYNC-PLAN.md` §4.1 lists `name_of_spouse` under **"never — not in the allowlist, not in
+the SELECT, not in a log line"**, alongside `social_security_no`, `race` and `sex`.
+
+`tools/mcleod-agent/queries.mjs` **reads it**, because this carrier stores the driver's email address
+there — all 164 active drivers have an `@` in it while `driver.email` is empty on all 1,463 rows. The
+code documents the finding and validates the value before sending it.
+
+Both statements shipped to `main` and only one can be true. The code's reasoning is evidence-based and
+almost certainly right, but the doc is what the next person reads, and a PII list that is wrong in
+either direction is dangerous: it either invites someone to rip out a working mapping, or it under-states
+which sensitive columns are actually being read.
+
+> **D-FG9:** the doc is corrected to record the local convention and the validation, and the "never"
+> list keeps `social_security_no`, `race` and `sex` only. **The PII allowlist has one home**, and it is
+> `queries.mjs`; the plan document describes it and never contradicts it.
+
+---
+
+## 6. Decisions
+
+> **D-FG2 — units are read, never assumed.** Every dimension and weight column has a sibling `*_um`.
+> `gvwr_lb` and `tare_weight_lb` are pounds and `length_ft` is feet; McLeod stores the unit separately
+> and `company.distance_um` / `weight_um` set the default. A single unexpected value makes a blind
+> conversion wrong on every row. The conversion table is built from the counted `*_um` values (§7 B3,
+> C2) and an unrecognised unit **skips the row's dimension fields** rather than guessing.
+
+> **D-FG3 — code columns map through an explicit vocabulary, in the agent.** `owner`, `pay_owner`,
+> `type_of`, `fuel_type_code`, `axle_number_code`, `door_type_code` and `ownership` are `char(n)` codes
+> whose meanings live in `dbo.code`. D-MR3 puts vendor knowledge in the agent, so the code→value
+> mapping goes there and FuelGuard is handed a value from its own vocabulary. An unmapped code sends
+> **nothing** for that field and is reported, so a new code at the carrier degrades to a null rather
+> than writing a string no FuelGuard query recognises. `vehicles.fuel_type` is a Postgres enum and a
+> passthrough would simply fail the insert.
+
+> **D-FG5 — `fuel_capacity` seeds a NEW truck only, never an existing one.** Today `create` mode writes
+> `tank_capacity_gal = 0` and reports the unit in `needsCompletion`, which means the truck drives no
+> fuel detection until a human types a number. McLeod's spec figure is a better *starting* value than
+> zero. It must never touch an existing row: `learnVehicle` refines that column from observed fills and
+> a static spec number would silently degrade every fuel anomaly on that truck. Conditional on B9
+> showing credible values; if the column is sparse or implausible, the zero stays.
+
+> **D-FG6 — `home_terminal_id` is blocked on terminals, not on McLeod.** It is a uuid FK to `terminals`,
+> which is keyed by `code`. Mapping `home_location_id` requires the carrier's locations to exist as
+> FuelGuard terminals first. That is a separate import with its own decisions; this plan stops at
+> reporting the distinct values (A3) so the size of that job is known.
+
+---
+
+## 7. Blocking questions — the inspection pack
+
+One read-only pack answers all of them: aggregates and code vocabularies only, no name, SSN, licence,
+address or date of birth. Each question's fallback is **do not map**.
+
+| # | Question | Blocks |
+|---|---|---|
+| A1 | `driver.type_of` distribution — is it the company/owner-operator split? | `driver_type` |
+| A2 | `driver.drvr_class` distribution | `cdl_class` |
+| A3 | `driver.home_location_id` distinct values | sizing D-FG6 |
+| B1 | `tractor.purchase_date` coverage | `purchased_at` |
+| B2 | `tractor.irp_code`, `dot_number` coverage | `irp_account` |
+| B3 | `tractor` `gross_veh_weight_um` / `weight_um` distinct values + ranges | `gvwr_lb`, `tare_weight_lb` |
+| B4–B8 | `owner`, `pay_owner`, `type_of`, `fuel_type_code`, `axle_number_code` distributions | `ownership_type`, `fuel_type`, `axle_count` |
+| B9 | `tractor.fuel_capacity` coverage + range | D-FG5 |
+| C1 | `trailer` `tag_expire_date` / `inspection_date` / `purchase_date` — coverage and past/future | the three trailer dates |
+| C2 | `trailer` `length_of_um` / `volume_um` / `weight_um` / `gross_veh_weight_um` distinct values | all trailer dimensions |
+| C4–C6 | `door_type_code`, `axles`, `ownership` distributions | `door_type`, `axle_count`, `ownership_type` |
+| D1–D2 | `dbo.code` — which columns have a vocabulary, and the values for the ones above | D-FG3 |
+
+---
+
+## 8. Execution
+
+One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped
+and the gates run — this document is the memory between sessions.
+
+### F1 — the two resolution defects *(not blocked)*
+D-FG7 and D-FG8: `mcleod_driver_id` as a match key in `tmsLoadIngest` and `tmsIngest`;
+`trailerUnitMatchKey` in both trailer lookups.
+**Done when:** a load carrying a McLeod driver id and an unprefixed reefer unit resolves both, pinned by
+tests in each ingest; and the org-scoping assertion still holds via `expectOrgScoped`.
+
+### F2 — settle the contradiction *(not blocked)*
+D-FG9. Doc-only.
+**Done when:** §4.1's "never" list and `queries.mjs` agree, and the plan names `queries.mjs` as the one
+home of the PII allowlist.
+
+### F3 — trailer parity with vehicles *(blocked on C1)*
+`trailer_type` stored (ready now), plus `registration_expires_at`, `dot_annual_inspection_expires_at`
+and `purchased_at` once C1 says which way the dates run.
+**Done when:** a trailer's registration expiry appears in FuelGuard within one sweep; the inspection date
+uses the same derivation as the tractor path if C1 shows it is a performed date; `rosterFields.claimParity`
+still passes, which requires 0241's trigger column list to grow with the mapping.
+
+### F4 — dimensions and weights *(blocked on B3, C2)*
+Per D-FG2, with the conversion table built from counted units and an unrecognised unit skipping the field.
+Schema: `trailers.axle_count`, `trailers.height_in`, `trailers.width_in`.
+**Done when:** the new columns exist with RLS unchanged, the conversion is unit-tested against each
+counted `*_um` value including the unrecognised case, and `lint:migrations` / `check-rls` are green.
+
+### F5 — code vocabularies *(blocked on A1, A2, B4–B8, C4–C6, D1–D2)*
+Per D-FG3, in the agent. `ownership_type`, `fuel_type`, `axle_count`, `door_type`, `driver_type`,
+`cdl_class`.
+**Done when:** every code the carrier actually uses maps to a FuelGuard value or is deliberately
+unmapped-and-reported; `vehicles.fuel_type` is written only through the enum's own vocabulary.
+
+### F6 — tank capacity seed *(blocked on B9)*
+D-FG5, create-path only.
+**Done when:** a newly created truck carries McLeod's capacity instead of 0, an existing truck's capacity
+is provably untouched, and both are pinned by tests.
+
+### F7 — home terminals *(blocked on A3 and on a terminals import)*
+Out of scope here; A3 sizes it.
+
+---
+
+## 9. What this deliberately does not do
+
+- **Endorsements and qualification evidence.** `hazmat_certified`, `tanks_endorsement`,
+  `doubles_certified`, `mvr_date`, `fmcsa_clearinghouse_date`, `last_review_date`. Their home is
+  `certifications` / `qualification_records`, which are **append-only and pinned in
+  `RETENTION_FORBIDDEN`** — a sync writing there is a materially different thing from refreshing a
+  roster column, because corrections become new rows and it needs supersede and dedup rules of its own.
+  Deferred to its own phase by decision, 2026-08-24.
+- **`driver.tractor_id`, `tractor.driver1_id`, `trailer.tractor_id`.** D43: the duty segment is the truth
+  about equipment and dispatch's plan is a plan. `driver_equipment_timeline` already answers this.
+- **Odometer, fuel level, position.** Samsara owns these and is fresher.
+- **Accounting, settlement, CPM, maintenance.** Documented in `docs/McLeod-Testing/`; a later phase.
