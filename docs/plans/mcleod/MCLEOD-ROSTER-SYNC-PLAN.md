@@ -21,9 +21,13 @@ so the reasoning stays auditable.
 | Also present | `lme_dev`, `silvicom_dashboard`, `FleetpalData` (created 2026-08-19) |
 | Our login | `NikiAnalytics`, member of **`db_datareader` only** |
 
-**`lme_analytics` is a one-off restore, not a refreshing feed.** Its creation timestamp matches the "snapshot
-taken today at 0930" note exactly, and three days later it has not moved. **It is ideal for building against
-and cannot back the product.** Production must target `lme`.
+**`lme_analytics` is a SANDBOX the carrier stood up for this work** — a restore taken 2026-08-21 09:46,
+deliberately isolated so an implementation can be got wrong repeatedly without touching production
+LoadMaster. Its staleness is a property, not a defect: a fixed dataset makes §7's match numbers
+reproducible as a regression check.
+
+It is the right target for M3–M6 and the wrong one for M7. Production freshness needs `lme`, on the same
+instance, which this login cannot read — that gates the **cutover**, not the implementation.
 
 **The `db_datareader` grant is the PII problem, confirmed.** This login can `SELECT social_security_no`
 today, and 1,461 of 1,463 driver rows have one populated. §2.3 of the parent document is not a theoretical
@@ -89,8 +93,8 @@ thousands per day. The 228,000 is one system heartbeat column, and `event_date` 
 ### 1.5 What "real time" can honestly mean
 
 Unchanged from the first draft, and now with a hard number under it: **`lme_analytics` is three days stale
-and will never be fresher**, because it is a one-off restore. Production freshness depends entirely on
-getting a login on `lme`.
+and will never be fresher**, by design — it is an isolated sandbox, not a feed. Production freshness
+depends entirely on getting a login on `lme`.
 
 > **D-MR2 (confirmed):** target a **2-minute sweep**, described in the UI as "as of HH:MM" from
 > `org_integrations.last_synced_at`. Given the measured change rate — tens of real changes per month — a
@@ -298,7 +302,8 @@ Measured effect on the match:
 The prefix is meaningful, not noise: FuelGuard has **46** `R`-prefixed trailers, McLeod has **45** with
 `trailer_type='R'`. It is the same fact recorded two ways.
 
-> **D-MR11:** the agent normalises trailer unit numbers by stripping a leading `R` **for matching only**.
+> **D-MR11 (confirmed 2026-08-24):** the agent normalises trailer unit numbers by stripping a leading
+> `R` **for matching only**.
 > The stored `unit_number` keeps FuelGuard's existing convention (renaming 200 trailers is a separate,
 > user-visible decision), and `is_reefer` comes from `trailer_type`, never from the prefix.
 
@@ -306,9 +311,11 @@ The prefix is meaningful, not noise: FuelGuard has **46** `R`-prefixed trailers,
 
 ## 6. Questions — all answered
 
-1. ~~**Is `lme_analytics` a snapshot?**~~ **Yes — a one-off restore created 2026-08-21 09:46, still stale
-   three days on.** Production is **`lme`** on the same instance, which we cannot currently read.
-   *This is now the single biggest blocker: without a login on `lme`, there is no live product.*
+1. ~~**Is `lme_analytics` a snapshot?**~~ **Yes, and deliberately so — it is the carrier's purpose-built
+   SANDBOX**, a restore taken 2026-08-21 09:46, isolated so this work cannot touch production LoadMaster.
+   Correct and sufficient for M3–M6, and its fixed contents make §7's numbers a regression check.
+   Production is **`lme`** on the same instance, which this login cannot read — *that gates the M7
+   cutover, not the build.*
 2. ~~**Which company?**~~ **`company.id = 'TMS'` — Silvicom, Inc., DOT 1864495.** And the key is
    `company.id`, not `company.company_id` (§4.4).
 3. ~~**`license_date` — issue or expiry?**~~ **Expiry.** `medical_cert_expire` likewise. But
@@ -321,7 +328,9 @@ The prefix is meaningful, not noise: FuelGuard has **46** `R`-prefixed trailers,
 5. **Still open — `fuelguard_ro` login.** Now with a precise spec: on **`lme`**, `SELECT` on the allowlisted
    columns of `driver`/`tractor`/`trailer` (**not** `db_datareader`, which exposes 1,461 SSNs), plus
    `GRANT VIEW CHANGE TRACKING` on those three tables.
-6. **Still open — network bridge.** The path used for this inspection is a candidate host for the agent.
+6. ~~**Network bridge.**~~ **Answered: the agent runs on the carrier's box**, reaching SQL Server locally
+   and POSTing outbound to FuelGuard — no inbound firewall change, the posture `tools/mcleod-agent`'s
+   README already documents to their IT.
 7. ~~**Is `audit_log` usable?**~~ **Indexed and cheap, but useless for drivers** — 228k rows/day of
    `event_date` noise (§1.2).
 8. ~~**Name format? Is `tractor.id` the unit number?**~~ **`name` is the surname**; `tractor.id` **is** the
@@ -454,6 +463,15 @@ D-MR7, with the mass-deactivation guard. The 10 stale vehicles from §7 are the 
 ---
 
 ## 9. What this deliberately does not do
+
+The full field-ownership map and risk register — every writer to the three tables, which columns are
+*learned* rather than recorded, and the ten risks a roster swap creates — is in
+**`CODEBASE-IMPACT-ANALYSIS.md`**, written before M3. Two of its findings need a product decision rather
+than an implementation (R1: does an automated termination log a driver out of their phone; R2: the
+applicant-status guard), and both are called out there.
+
+The rule it reduces to, which M3 must build to from the first commit:
+**the sync writes a fixed allowlist of columns, never a row.**
 
 - **Does not import driver↔equipment assignment.** D43; `driver_equipment_timeline` (0150) already answers
   it. `driver.tractor_id` is empty in McLeod anyway.
