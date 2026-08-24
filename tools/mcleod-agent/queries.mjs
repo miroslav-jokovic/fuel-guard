@@ -95,8 +95,9 @@ const TRAILER_IDENTITY = `
       NULLIF(LTRIM(RTRIM(r.license_no)), '')     AS plate,
       NULLIF(LTRIM(RTRIM(r.license_state)), '')  AS plate_state,
       -- Measured 2026-08-24: 228 of 235 populated and 228 of 228 in the PAST, so this is the date the
-      -- annual inspection was PERFORMED — the same shape as the tractor's, and the opposite of every
-      -- driver date. `tag_expire_date` is deliberately absent: 0 of 235 populated.
+      -- annual inspection was PERFORMED -- the same shape as the tractor's, and the opposite of every
+      -- driver date. tag_expire_date is deliberately absent: 0 of 235 populated.
+      -- (No backticks in here: this comment lives inside a JS template literal.)
       CONVERT(varchar(10), r.inspection_date, 23)  AS annual_inspection_performed_at,
       CONVERT(varchar(10), r.purchase_date, 23)    AS purchased_at,
       r.axles                                      AS axle_count`;

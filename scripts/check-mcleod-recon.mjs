@@ -22,6 +22,42 @@
  *     Logistics, which is the mistake §4.4 of the roster plan exists to record.
  */
 import { INSPECTION, FORBIDDEN, COUNT_ONLY } from "../tools/mcleod-agent/inspect.mjs";
+import { rosterQueries, retirementQueries } from "../tools/mcleod-agent/queries.mjs";
+import "../tools/mcleod-agent/roster.mjs";
+
+/**
+ * ── AND THE AGENT HAS TO PARSE AT ALL ───────────────────────────────────────────────────────────
+ *
+ * `tools/mcleod-agent` is deliberately outside the pnpm workspace — it is zero-dependency and ships to
+ * the carrier's own machine — which means `pnpm typecheck` and `pnpm test` never look at it. A syntax
+ * error in it is invisible to every other gate in this repo.
+ *
+ * That is not theoretical. A SQL comment containing `backticks` was added inside a JS template literal
+ * on 2026-08-24, breaking `queries.mjs` outright, and CI stayed green because nothing imports it. The
+ * agent is the half of this integration that runs where we cannot see it; a build that cannot tell us
+ * it is broken is worse than no build.
+ *
+ * The imports above are the check: this file cannot run unless every agent module parses. The
+ * assertions below add the two things a parse alone would not catch.
+ */
+for (const [mode, q] of [["identity", rosterQueries("identity")], ["link", rosterQueries("link")]]) {
+  for (const [entity, sql] of Object.entries(q)) {
+    if (!/@companyId\b/.test(sql)) {
+      console.error(`✗ roster query ${entity} (${mode}) does not bind @companyId`);
+      process.exit(1);
+    }
+    if (/\bselect\s+\*/i.test(sql)) {
+      console.error(`✗ roster query ${entity} (${mode}) uses SELECT * — the column allowlist IS the PII boundary`);
+      process.exit(1);
+    }
+  }
+}
+for (const [entity, sql] of Object.entries(retirementQueries())) {
+  if (!/@companyId\b/.test(sql)) {
+    console.error(`✗ retirement query ${entity} does not bind @companyId`);
+    process.exit(1);
+  }
+}
 
 const FORBIDDEN_STATEMENTS = /\b(insert|update|delete|drop|alter|create|truncate|merge|exec|execute|grant|revoke|into)\b/i;
 const SCOPED_TABLES = /\bdbo\.(driver|tractor|trailer)\b/i;
@@ -70,6 +106,7 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  `✓ McLeod recon ok — ${INSPECTION.length} read-only question(s), ` +
-    `${FORBIDDEN.length} column(s) banned outright, ${COUNT_ONLY.length} countable-but-never-returned.`,
+  `✓ McLeod agent ok — every module parses; roster + retirement queries bind @companyId and name their ` +
+    `columns; ${INSPECTION.length} read-only recon question(s), ${FORBIDDEN.length} column(s) banned ` +
+    `outright, ${COUNT_ONLY.length} countable-but-never-returned.`,
 );

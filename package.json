@@ -59,6 +59,8 @@
     "lint:cli-streams": "node scripts/check-cli-streams.mjs",
     "mcleod:inspect": "node --env-file=tools/mcleod-agent/.env tools/mcleod-agent/agent.mjs --inspect",
     "//mcleod:inspect": "Read-only reconnaissance against the carrier's LoadMaster: the 22 aggregate questions the field mapping cannot answer without measuring. Posts nothing to FuelGuard and needs no ingest token — the people best placed to run it are the carrier's IT against `lme`, before any token exists. Every query is gated by lint:mcleod-recon.",
+    "mcleod:dry-run": "ROSTER_MODE=identity node --env-file=tools/mcleod-agent/.env tools/mcleod-agent/agent.mjs --roster --full --dry-run",
+    "//mcleod:dry-run": "Reads McLeod, maps every row, and prints per-field coverage plus one sample — without posting and without a FuelGuard ingest token. Exercises the whole carrier-side half of the integration (the SQL, the trims, the date and code handling, the change detection) against real data before the two systems are connected at all. Driver names, licences, addresses and dates of birth are masked: coverage counts prove the mapping, printing the values proves nothing extra.",
     "mcleod:report": "ROSTER_MODE=report node --env-file=tools/mcleod-agent/.env tools/mcleod-agent/agent.mjs --roster --full",
     "//mcleod:report": "The match report computed BY the pipeline, writing nothing — not a row, not even last_synced_at. This is what M3's Done-when actually asks for and the go/no-go for everything after it: its counts must reproduce the plan's hand-computed 162 / 175 / 201.",
     "lint:mcleod-recon": "node scripts/check-mcleod-recon.mjs",
