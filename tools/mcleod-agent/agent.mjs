@@ -33,6 +33,11 @@ const CFG = {
   // measuring, and prints them as JSON so the output can be pasted back verbatim. Every query is
   // gated by `pnpm lint:mcleod-recon` before it can reach this file.
   inspect: process.argv.includes("--inspect"),
+  // Read McLeod, map every row, and print what WOULD be posted — without posting, and without
+  // needing a FuelGuard ingest token. Exercises the entire half of this integration that lives on the
+  // carrier's side (the SQL, the trims, the unit and code handling, the change detection) against
+  // real data, before anybody has connected the two systems together.
+  dryRun: process.argv.includes("--dry-run"),
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
@@ -88,11 +93,11 @@ function fail(msg) {
 // the people best placed to run `--inspect` are the carrier's IT against `lme`, and they will be doing
 // it BEFORE anyone has issued an ingest token — demanding one would make the first useful command
 // impossible to run at the only time it matters.
-if (!CFG.inspect && (!CFG.ingestUrl || !CFG.ingestToken)) {
+if (!CFG.inspect && !CFG.dryRun && (!CFG.ingestUrl || !CFG.ingestToken)) {
   fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -375,6 +380,36 @@ async function runOnce() {
  * short because the database was mid-restore. This side cannot tell those apart, and FuelGuard's
  * deactivation pass carries the guard that can (never retire more rows than the incoming roster size).
  */
+/**
+ * Fields that must never be printed by a dry run. It reports COVERAGE — how many rows carry a value —
+ * and one sample row, and a sample row of a driver is a person's date of birth and home address on
+ * somebody's terminal. Counting proves the mapping works; printing the value proves nothing extra.
+ */
+const DRY_MASK = new Set([
+  "first_name", "middle_name", "last_name", "full_name", "cdl_number", "cdl_state",
+  "date_of_birth", "address_line1", "city", "state", "postal_code", "email",
+]);
+
+/** What a sweep WOULD send, as per-field coverage plus one masked sample. */
+function reportDryRun(entity, rows) {
+  console.log(`\n### ${entity} — ${rows.length} row(s) would be sent`);
+  if (!rows.length) return;
+  const coverage = {};
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row)) {
+      coverage[k] = (coverage[k] ?? 0) + (v === null || v === undefined || v === "" ? 0 : 1);
+    }
+  }
+  for (const [field, n] of Object.entries(coverage).sort()) {
+    const flag = n === 0 ? "  ← EMPTY on every row" : n < rows.length ? `  (${rows.length - n} without)` : "";
+    console.log(`  ${String(n).padStart(4)}/${rows.length}  ${field}${flag}`);
+  }
+  const sample = Object.fromEntries(
+    Object.entries(rows[0]).map(([k, v]) => [k, DRY_MASK.has(k) && v != null ? "\u2039masked\u203a" : v]),
+  );
+  console.log(`  sample: ${JSON.stringify(sample)}`);
+}
+
 async function runRoster() {
   const state = loadState(CFG.rosterStatePath);
   log(`roster: reading ${CFG.sql.database} on ${CFG.sql.server} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}${CFG.rosterFull ? ", full" : ""})`);
@@ -394,6 +429,10 @@ async function runRoster() {
     }
     if (changed.length === 0) {
       log(`roster: ${entity} unchanged (${roster[entity].length} active)`);
+      continue;
+    }
+    if (CFG.dryRun) {
+      reportDryRun(entity, changed);
       continue;
     }
     const res = await sendBatched(path, key, changed);
@@ -436,6 +475,11 @@ async function runRetire() {
 
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 async function main() {
+  if (CFG.dryRun) {
+    log(`DRY RUN — reading ${CFG.sql.database} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}); nothing will be posted`);
+    await runRoster();
+    return;
+  }
   if (CFG.inspect) {
     log(`inspect: ${INSPECTION.length} question(s) against ${CFG.sql.database} as company ${CFG.sql.companyId}`);
     for (const r of await runInspection(CFG.sql, INSPECTION)) {
