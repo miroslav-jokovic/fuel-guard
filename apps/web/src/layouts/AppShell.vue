@@ -110,7 +110,7 @@ async function signOut() {
           leave-from="opacity-100"
           leave-to="opacity-0"
         >
-          <div class="fixed inset-0 bg-neutral-900/80 backdrop-blur-sm" />
+          <div class="fixed inset-0 bg-scrim/80 backdrop-blur-sm" />
         </TransitionChild>
         <div class="fixed inset-0 flex">
           <TransitionChild

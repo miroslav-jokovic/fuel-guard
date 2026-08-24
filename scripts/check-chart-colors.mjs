@@ -25,13 +25,25 @@ const tokensCss = readFileSync(`${root}packages/ui/src/tokens.generated.css`, "u
 const declared = new Map();
 for (const m of tokensCss.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)) declared.set(m[1], m[2].trim());
 
-/** Follow `var(--x)` hops; --viz-grid and friends point at a ramp rather than carrying a value. */
+/**
+ * Follow `var(--x)` hops, then take the LIGHT half of a `light-dark()` pair.
+ *
+ * The fallbacks exist for jsdom, which has no computed styles and no colour scheme, so light is the
+ * scheme they stand in for. Taking the light half is not a shortcut — it is the correct comparison.
+ *
+ * ⚠ This function returned the raw `light-dark(…)` string for one commit after D-DS2 landed, and
+ * because the caller treated an unparseable value as "skip", the whole check went silent: a
+ * --viz-brand fallback of #000000 passed. Anything that cannot be parsed is now a FAILURE, not a
+ * shrug, which is the only way a gate survives the format of its input changing under it.
+ */
 function resolveToken(name) {
   let value = declared.get(name);
   for (let hop = 0; value && /^var\(\s*--[\w-]+\s*\)$/.test(value) && hop < 8; hop += 1) {
     value = declared.get(value.match(/^var\(\s*(--[\w-]+)\s*\)$/)[1]);
   }
-  return value ?? null;
+  if (!value) return null;
+  const pair = value.match(/^light-dark\(\s*(.+?)\s*,\s*(.+?)\s*\)$/);
+  return pair ? pair[1] : value;
 }
 
 function oklchToHex(value) {
@@ -154,7 +166,11 @@ for (const m of source.matchAll(/"(--[\w-]+)":\s*"(#[0-9a-fA-F]{6})"/g)) {
     continue;
   }
   const expected = oklchToHex(token);
-  if (expected && expected !== declaredHex) {
+  if (!expected) {
+    console.error(`✗ ${name} resolves to "${token}", which this check cannot read — it is not an ` +
+      `opaque oklch() value. Teach it the new format rather than letting the comparison pass.`);
+    drifted += 1;
+  } else if (expected !== declaredHex) {
     console.error(`✗ ${name} fallback ${declaredHex} but the token is ${expected}`);
     drifted += 1;
   }

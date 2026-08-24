@@ -55,7 +55,7 @@ const panelWidth = computed(() =>
         leave-from="opacity-100"
         leave-to="opacity-0"
       >
-        <div class="fixed inset-0 bg-neutral-900/60" />
+        <div class="fixed inset-0 bg-scrim/60" />
       </TransitionChild>
 
       <div class="fixed inset-0 overflow-y-auto">

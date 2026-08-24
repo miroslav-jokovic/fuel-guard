@@ -494,9 +494,15 @@
 
 /* Shipped primitives (D-DS13): real components on the real canvas, deliberately outside the
    `--prototype-*` vocabulary above so the two are never confused for one another. */
+/* The A/B prototype above runs on the single-valued `--prototype-*` vocabulary and is light-only on
+   purpose — it is a dev surface, not a shipped one (plan Q5). But `.lab-page` sets `color` from that
+   vocabulary, and this section inherited it, so in dark mode the real DataTable's rows rendered
+   dark-on-dark while its header, which sets its own token, stayed readable. Setting the colour from
+   the real role stops the prototype palette leaking into the one place that must show the truth. */
 .lab-shipped {
   padding: 2rem;
   background: var(--canvas);
+  color: var(--ink);
   border-top: 1px solid var(--edge);
 }
 .lab-shipped h2 {
