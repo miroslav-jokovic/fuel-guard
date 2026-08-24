@@ -54,7 +54,7 @@ to see, or a *cross-surface* gap no gate covers.
 | **D-DS5** | Name the column-width scale; `min-w-[Nrem]` leaves the call sites | P1 | Yes for table work |
 | **D-DS6** | Add `text-2xs` (11px); then ban arbitrary text sizes | P1 | Yes |
 | **D-DS7** | Extend `check-design-tokens.mjs` to **radius, shadow, text size, alignment** | P1 | No — enables the rest |
-| **D-DS8** | Promote `DataTable`/`PageHeader` to `@fuelguard/ui`; delete the `App*` twins and 4 dead exports | P2 | No |
+| **D-DS8** | ⚠ **Corrected on execution** — the `App*` "twins" are admin's components, not duplicates. Delete the 4 dead exports; gate against new ones | P2 | No |
 | **D-DS9** | Sidebar CSS becomes a component + roles; `prefers-reduced-motion` / `forced-colors` go global | P2 | Yes for navigation work |
 | **D-DS10** | Contrast stays **WCAG 2.2 AA**. APCA advisory only. WCAG 3 is not adopted | P1 | No |
 | **D-DS11** | `@headlessui/vue` → **Reka UI**, during the redesign, not before | P2 | No |
@@ -359,6 +359,39 @@ right end state is `AppBadge` *consuming* `toneClass`, not either deleting the o
 
 **Done-when.** `lint:ui-adoption` gains a rule that a component name existing in both
 `packages/ui/src/components/` and `apps/web/src/components/ui/` fails the build.
+
+---
+
+### ⚠ D-DS8 as executed — the audit was wrong, and here is the measurement that showed it
+
+The decision above read: *"Usage decides: `PageHeader` 51 vs `AppPageHeader` 9 … The web-local
+composites won on merit; the shared package holds the losers."* That was measured across
+`apps/web` **and** `apps/admin` together, and splitting the counts destroys the conclusion:
+
+| Export | apps/web | apps/admin | What it actually is |
+|---|---|---|---|
+| `AppPageHeader` | **0** | 9 | **admin's page header.** Deleting it breaks admin. |
+| `AppBadge` | **0** | 6 | **admin's badge.** Same. |
+| `AppTable` | 19 | 9 | A **7-line scroll wrapper**, not a rival to the 300-line `DataTable`. |
+
+`AppTable` is the sharpest correction. It is `<div class="overflow-x-auto"><table><slot/></table></div>`
+and nothing more. `DataTable` is column-driven with sorting, selection, loading, empty and error
+states. They do different jobs — and because `lint:ui-adoption` bans a raw `<table>` in `pages/` and
+`features/`, `AppTable` is the **sanctioned escape hatch** for the hand-authored tables in import
+previews and detail panels. Deleting it would have forced 19 call sites into either a gate violation
+or a misuse of `DataTable`.
+
+**Promotion was also dropped, and not only because the premise failed.** The dependency closure was
+never costed: `DataTable` pulls `ErrorState`, `TableSkeleton` and `@/lib/sort` with it, and
+`FilterBar`/`FilterSelect` would add `@floating-ui/vue` to the shared package. Admin uses `AppTable`,
+not `DataTable`, so promotion would serve no existing consumer — which is the definition of a
+speculative architecture change, and the plan forbids those in its own preamble.
+
+**What survived, because it was true:** four exports had no caller anywhere. `AppNumberField` and
+`AppInputGroup` were whole components nothing rendered; `AppSurface` and `AppTextField` were aliases
+for `AppCard` and `AppInput` that nobody used the second name for. Those are gone, and
+`lint:ui-adoption` now fails on any export with no caller — while still counting a component used
+only *inside* `packages/ui` as alive, which is why `AppIconButton` correctly stays.
 
 ---
 

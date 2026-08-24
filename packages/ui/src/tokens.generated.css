@@ -54,7 +54,7 @@
       first-class Tailwind colors: bg-surface, text-ink-muted, ring-edge,
       bg-brand-600, text-danger-700, ring-warning-600/20, …
 
-   Rules for templates (see docs/DESIGN-SYSTEM.md):
+   Rules for templates (see docs/DESIGN-SYSTEM-CONTRACT.md):
    • never use palette utilities (gray, indigo, red, amber, green, orange…)
    • never use raw hex colors or inline `style` for colors
    • use roles for neutrals; ramps only for status/brand tints

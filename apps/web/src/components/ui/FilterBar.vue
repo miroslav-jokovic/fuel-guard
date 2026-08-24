@@ -11,7 +11,7 @@ import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 
 /**
- * The standard table toolbar (see docs/DESIGN-SYSTEM.md §3). One card:
+ * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
  *
  *   [ search ] [ primary filter controls … ] [⏷ Filters] ······ count · actions
  *   [ chip: Unit 204 ✕ ] [ chip: Dates Jul 1 – 13 ✕ ]  Clear all      ← when active

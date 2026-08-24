@@ -152,6 +152,33 @@ function verifyAdoption() {
   if (clones.length)
     failures.push(`local primitive clones: ${clones.map((file) => file.relativePath).join(", ")}`);
 
+  /**
+   * Every barrel export must have a caller (D-DS8).
+   *
+   * ── Why this is a build failure and not a tidy-up ───────────────────────────────────────────────
+   * A barrel is a promise: it says these are the pieces the system is made of. Four of them were not
+   * — AppNumberField and AppInputGroup were whole components nothing rendered, AppSurface and
+   * AppTextField were aliases for AppCard and AppInput that nobody ever used the second name for.
+   * Dead exports are worse than dead files, because they read as choices: the next author picks one,
+   * finds no precedent for how it is meant to be used, and invents one.
+   *
+   * A component used only INSIDE packages/ui counts as alive — AppIconButton has no app call site
+   * but three internal ones, and it is a real primitive, not a leftover.
+   */
+  const barrel = readFileSync(join(root, "packages/ui/src/index.ts"), "utf8");
+  const exported = [...barrel.matchAll(/export \{ default as (App[A-Za-z]+) \}/g)].map((m) => m[1]);
+  const consumers = [
+    ...inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"]))),
+    ...inspectFiles(filesUnder(adminSrc, new Set([".vue", ".ts"]))),
+    ...inspectFiles(filesUnder(join(root, "packages/ui/src/components"), new Set([".vue", ".ts"]))),
+  ];
+  const dead = exported.filter((name) => {
+    const used = new RegExp(`\\b${name}\\b`);
+    return !consumers.some((file) => used.test(file.source));
+  });
+  if (dead.length)
+    failures.push(`exports with no caller anywhere: ${dead.join(", ")}`);
+
   if (failures.length) {
     console.error("✗ UI adoption contract failed:");
     for (const failure of failures) console.error(`  ${failure}`);
