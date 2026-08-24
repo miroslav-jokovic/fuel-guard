@@ -158,6 +158,52 @@ would destroy it.
 > **link-only** — match on their existing precedence, write `samsara_*_id` **and `phone`**, nothing else. No
 > inserts, no deactivation pass. An unmatched Samsara driver is **reported, not created**.
 
+> **D-MR12 (2026-08-24): for VEHICLES and TRAILERS, link-only mode writes NO identity at all** — the link and
+> the gateway's own measurements (odometer, fuel level, pairing), and nothing else. The `phone` carve-out
+> above is a driver-only fact and has no asset analogue; that is a measurement, not a symmetry argument:
+>
+> | column | McLeod | Samsara |
+> |---|---|---|
+> | `vehicles.plate` | 175/190 | **21/194** |
+> | `vehicles.plate_state` | 175/190 | **0/194 — the API has no such field** |
+> | `vehicles.make` / `model` / `year` | every active tractor | 188/194 |
+> | `vehicles.vin` | 197/198 distinct | 186/194 |
+> | `trailers.make` / `year` | every active trailer | **0/211** |
+> | `trailers.model` | **no such column on `dbo.trailer`** | **0/211** |
+> | `trailers.plate` | `license_no` | 9/211 |
+> | `trailers.vin` | `serial_number` | never written — the parser reads `serial` and the sync drops it |
+>
+> **The bug this closes was an eraser, not a tie.** Both syncs build their identity patch unconditionally and
+> the Samsara parser returns `null` for an absent field, so a matched row is written `plate: null, make: null,
+> …` on every tick. Harmless while Samsara is the only writer of those columns; destructive the moment McLeod
+> is the other one. The trailer sync is doing this to 202 of 211 rows today.
+>
+> Unmatched assets are **reported, never created** — the vehicle insert invents `tank_capacity_gal: 0` (which
+> `learnVehicle` then unlearns) and the trailer insert invents `reefer_tank_capacity_gal: 50`.
+> `applyReplacementLifecycle` keeps running in both modes: it stamps `samsara_missing_since` and changes no
+> status, so it is not the deactivation pass this decision switches off, and under TMS mastery it is the only
+> signal that a truck McLeod calls in-service has gone dark.
+
+> **D-MR13 (2026-08-24): one flag, both sides.** `roster_master` also gates the INGEST — `identity`, `create`
+> and `retire` are refused with `409 roster_master_not_declared` unless the org has declared mastery. The
+> ingest mode previously came from a query parameter the on-prem agent chose for itself, so an agent started
+> with `ROSTER_MODE=identity` against an undeclared org put both systems on the same columns. **A client on
+> the carrier's network cannot decide a data-ownership question.** `link` stays ungated: it writes only the
+> external link and produces the §7 match report, which is the measurement the mastery decision is made from.
+>
+> The flag itself is now settable. It had gated the demotion since M5 with no route touching it — the only
+> path was an `UPDATE` in the SQL editor — so `POST /api/integrations/mcleod/roster-master` (admin, audited)
+> exists, refusing to hand the roster to a TMS with no live ingest token. Withdrawal is never refused.
+
+> **D-MR14 (2026-08-24): D-MR6's escape hatch had to be built before it could be relied on.** `identity_source`
+> defaulted to `'samsara'`, so every hand-created row claimed telematics provenance (production: 194 vehicles
+> and 211 trailers, all `'samsara'`, not one `'manual'`); vehicles and trailers had no claim path at all
+> because `apps/web` writes them straight through PostgREST; and `DriversPage.vue` bypassed
+> `resolveDriverUpdate` the same way. Migration 0241 moves the rule to a `BEFORE INSERT OR UPDATE` trigger,
+> service-role exempt, with the claimable columns passed per table and held against `rosterFields.ts` by a
+> test. `status` is excluded from all three lists: retiring a truck is a lifecycle act and must not be why
+> McLeod stops refreshing its plate forever.
+
 ---
 
 ## 4. Field mapping — verified against real data
@@ -447,6 +493,11 @@ stops being overwritten — both pinned by tests.
 ### M5 — Creation + Samsara demotion
 McLeod creates rows (starting with tractors 789–803). Samsara syncs drop to link-only per D-MR5, **still
 writing `phone`**. Unmatched Samsara records reported, not created.
+
+> **Shipped in two parts.** The first pass demoted `samsaraDriverSync` only — `samsaraVehicleSync` and
+> `samsaraTrailerSync` never learned the flag and kept inserting rows and writing identity. See D-MR12 for
+> what that would have cost, D-MR13 for the second place the same ownership question was being answered, and
+> D-MR14 for the escape hatch that turned out not to exist on any path.
 **Done when:** a McLeod-created driver later acquires its `samsara_driver_id` and phone from the next Samsara
 tick — the sequence that proves §3's split works.
 
