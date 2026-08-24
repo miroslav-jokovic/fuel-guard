@@ -15,6 +15,39 @@ import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynce
 import { ingestLoads } from "../services/tmsLoadIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../tms/rosterIngest.js";
 import { retireFromTms } from "../tms/rosterRetire.js";
+import { isTmsRosterMaster } from "../tms/rosterMastery.js";
+
+/**
+ * Writing identity, creating rows and retiring them are all claims on WHO OWNS THE ROSTER, and that
+ * question has exactly one answer per org: `org_integrations.config.roster_master`.
+ *
+ * Until this gate existed the answer was recorded in two places that could disagree. The Samsara
+ * syncs read the flag and stand off when it is set; the mode above came from a QUERY PARAMETER the
+ * on-prem agent chose for itself. An agent configured with ROSTER_MODE=identity against an org that
+ * had never declared mastery would have both systems writing the same columns — McLeod writing 175
+ * tractor plates and the Samsara sync nulling them on its next tick, with nothing raising. A client
+ * on the carrier's network cannot be the one to decide a data-ownership question.
+ *
+ * `link` mode is deliberately NOT gated. It writes only the external link and reports what it could
+ * not place, which is exactly the measurement an operator runs BEFORE deciding whether to hand the
+ * roster over — gating it would make the decision impossible to inform.
+ */
+async function refuseUnlessRosterMaster(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  orgId: string,
+  res: Parameters<Parameters<typeof asyncHandler>[0]>[1],
+): Promise<boolean> {
+  if (await isTmsRosterMaster(admin, orgId)) return false;
+  res
+    .status(409)
+    .json(
+      apiError(
+        "roster_master_not_declared",
+        "This org has not declared its TMS as the roster master, so the TMS may not write identity, create rows or retire them. Run the sweep in link mode, review the match report, then declare mastery.",
+      ),
+    );
+  return true;
+}
 
 /**
  * Inbound TMS ingest from the on-prem sync agent. NO user auth — authenticated by the org's ingest token
@@ -75,6 +108,7 @@ export function tmsIngestRouter(): Router {
         // identity onto a roster nobody has reviewed the match for yet.
         const mode =
           req.query.mode === "create" ? "create" : req.query.mode === "identity" ? "identity" : "link";
+        if (mode !== "link" && (await refuseUnlessRosterMaster(admin, orgId, res))) return;
         const result = await run(admin, orgId, rows, mode);
         await touchLastSynced(admin, orgId, provider);
         res.json(result);
@@ -96,6 +130,11 @@ export function tmsIngestRouter(): Router {
         }
         const { orgId, provider } = req.tms!;
         const admin = getSupabaseAdmin(getAppLocals(req).env);
+        // Retirement is the strongest claim of the three — it takes capability away from a person and
+        // starts the §391.51 retention clock — so it needs the declaration at least as much as the
+        // identity sweep does. Without mastery the Samsara deactivation pass is still running, and two
+        // systems retiring the same rows is the fight D-MR5 exists to prevent.
+        if (await refuseUnlessRosterMaster(admin, orgId, res)) return;
         const result = await retireFromTms(admin, orgId, entity, parsed.data.retire);
         await touchLastSynced(admin, orgId, provider);
         res.json(result);

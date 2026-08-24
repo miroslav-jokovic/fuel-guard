@@ -10,12 +10,18 @@ import {
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { inferTrailerPairings } from "./reeferPairing.js";
+import { isTmsRosterMaster } from "../tms/rosterMastery.js";
 
 export interface TrailerSyncResult {
   total: number;
   created: number;
   updated: number;
   paired: number; // trailers whose tractor pairing was set from Samsara
+  /**
+   * Link-only mode: Samsara trailers that matched no FuelGuard row. Present ONLY when the carrier's
+   * TMS masters the roster, where an unmatched asset is a finding rather than a row to invent.
+   */
+  unlinked?: string[];
 }
 
 interface ExistingTrailer {
@@ -51,7 +57,33 @@ export async function syncTrailersFromSamsara(
   const bySamsara = new Map(existing.filter((r) => r.samsara_asset_id).map((r) => [r.samsara_asset_id!, r]));
   const byUnit = new Map(existing.map((r) => [r.unit_number, r]));
 
-  const result: TrailerSyncResult = { total: trailers.length, created: 0, updated: 0, paired: 0 };
+  // Does the carrier's TMS master the roster? Fails closed — see rosterMastery.
+  //
+  // THE MEASUREMENT THAT DECIDES WHAT THIS MODE KEEPS WRITING. `identity` below is built
+  // unconditionally and `clean()` returns null for a field Samsara omits, so a matched trailer gets
+  // an explicit NULL written into every one of these columns on every tick. Production on
+  // 2026-08-24, across 211 trailer rows:
+  //
+  //   trailers.make   Samsara   0/211 · McLeod every active trailer
+  //   trailers.model  Samsara   0/211 · McLeod has NO model column on dbo.trailer at all
+  //   trailers.year   Samsara   0/211 · McLeod `model_year`
+  //   trailers.plate  Samsara   9/211 · McLeod `license_no`
+  //   trailers.vin    Samsara never written (the parser reads `serial` and the sync drops it) · McLeod
+  //                   `serial_number`
+  //
+  // So this sync currently writes four nulls to 202 of 211 trailers every tick. That is invisible
+  // while it is the only writer of those columns and it is an ERASER the moment McLeod is the other
+  // one. There is no trailer field where Samsara is the better or the only source, so link-only mode
+  // writes the link and nothing else.
+  const linkOnly = await isTmsRosterMaster(admin, orgId);
+
+  const result: TrailerSyncResult = {
+    total: trailers.length,
+    created: 0,
+    updated: 0,
+    paired: 0,
+    unlinked: linkOnly ? [] : undefined,
+  };
 
   for (const t of trailers) {
     const identity = { make: t.make, model: t.model, year: t.year, plate: t.licensePlate };
@@ -59,10 +91,17 @@ export async function syncTrailersFromSamsara(
     if (match) {
       await admin
         .from("trailers")
-        .update({ ...identity, samsara_asset_id: t.samsaraId })
+        .update(linkOnly ? { samsara_asset_id: t.samsaraId } : { ...identity, samsara_asset_id: t.samsaraId })
         .eq("id", match.id)
         .eq("org_id", orgId);
       result.updated++;
+      continue;
+    }
+    // Reported, never created. The insert below invents `reefer_tank_capacity_gal: 50` — a constant,
+    // not a measurement — and under TMS mastery the carrier's fleet list is the authority on what
+    // exists. A trailer with a gateway that the fleet list does not contain is worth a human look.
+    if (linkOnly) {
+      result.unlinked!.push(t.name);
       continue;
     }
     const { error } = await admin.from("trailers").insert({
@@ -82,6 +121,12 @@ export async function syncTrailersFromSamsara(
       throw new Error(error.message);
     }
     result.created++;
+  }
+
+  // See the vehicle sync: a gateway trailer the TMS fleet list does not contain is a finding, and the
+  // log is this integration's reporting surface until M7 builds a better one.
+  if (result.unlinked?.length) {
+    console.warn(`[trailer-sync] ${result.unlinked.length} Samsara trailer(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
   }
 
   // ── Pair each trailer to its current tractor from Samsara assignments (best-effort) ──────────

@@ -10,6 +10,7 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import { isTmsRosterMaster } from "../tms/rosterMastery.js";
 import {
   makeSamsaraVehicleLister,
   makeSamsaraOdometerFetcher,
@@ -27,6 +28,12 @@ export interface VehicleSyncResult {
   needsCompletion: string[]; // unit numbers of NEW vehicles missing tank capacity / baseline MPG
   /** Unit numbers of ACTIVE trucks whose mapped Samsara vehicle no longer exists (likely replaced). */
   samsaraMissing: string[];
+  /**
+   * Link-only mode: Samsara vehicles that matched no FuelGuard row. Present ONLY when the carrier's
+   * TMS masters the roster, where an unmatched truck is a finding rather than a row to invent — a
+   * vehicle reporting telematics that the carrier's own fleet list does not contain.
+   */
+  unlinked?: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -128,7 +135,8 @@ async function upsertSamsaraVehicle(
   odometerMiles: Map<string, number>,
   fuelByVehicle: Map<string, VehicleFuelLevel>,
   maps: ReturnType<typeof buildVehicleMaps>,
-): Promise<{ kind: "created" | "updated"; unit?: string }> {
+  linkOnly: boolean,
+): Promise<{ kind: "created" | "updated" | "unlinked"; unit?: string }> {
   const identity = {
     make: sv.make,
     model: sv.model,
@@ -153,15 +161,35 @@ async function upsertSamsaraVehicle(
     (sv.vin ? maps.byVin.get(sv.vin.toUpperCase()) : undefined) ??
     maps.byUnit.get(sv.name);
   if (match) {
-    await admin
-      .from("vehicles")
-      .update(withStats({ ...identity, samsara_vehicle_id: sv.samsaraId }))
-      .eq("id", match.id)
-      .eq("org_id", orgId);
+    // ── LINK-ONLY: the link and the MEASUREMENTS, never the identity (D-MR5) ─────────────────────
+    //
+    // `identity` above is built unconditionally from the Samsara response, and `clean()` returns null
+    // for a field the response omits — so spreading it writes an explicit NULL over whatever is
+    // stored. That is harmless while Samsara is the only writer of these columns and destructive the
+    // moment a second one exists. Measured against production on 2026-08-24, Samsara supplies a plate
+    // for 21 of 194 vehicles and a plate STATE for none of them (its API has no such field), while
+    // McLeod carries a plate for 175 of 190 active tractors. Leaving this line as it was would have
+    // McLeod write 175 plates and Samsara null them on the next tick, silently.
+    //
+    // The stats stay in both modes because they are not identity: odometer and fuel level are
+    // MEASURED by the gateway, McLeod does not carry them for a tractor, and the plan (§4.2) already
+    // rules them out as an import. Nothing McLeod owns is in this patch.
+    const patch = linkOnly
+      ? withStats({ samsara_vehicle_id: sv.samsaraId })
+      : withStats({ ...identity, samsara_vehicle_id: sv.samsaraId });
+    await admin.from("vehicles").update(patch).eq("id", match.id).eq("org_id", orgId);
     return { kind: "updated" };
   }
 
   const unit = pickUnitNumber(sv);
+  // A truck Samsara reports and the carrier's fleet list does not is REPORTED, never created. The
+  // insert below would have to invent `tank_capacity_gal` (it writes 0, which `learnVehicle` then has
+  // to unlearn) and `fuel_type` (it writes 'diesel'), and under TMS mastery the fleet list is the
+  // authority on what exists. Same posture as the driver sync: an unmatched telematics record means
+  // something is running that the carrier's system of record does not know about, and that is a line
+  // in a report for a human, not a row.
+  if (linkOnly) return { kind: "unlinked", unit };
+
   const { error } = await admin.from("vehicles").insert(
     withStats({
       org_id: orgId,
@@ -272,28 +300,61 @@ export async function syncVehiclesFromSamsara(
 
   const maps = buildVehicleMaps(existing);
 
+  // Does the carrier's TMS master the roster? Two conditions, both explicit (see rosterMastery), and
+  // it fails CLOSED — any error leaves this sync in the full behaviour it has had for a year.
+  //
+  // WHY THE ASSET RULE IS STRICTER THAN THE DRIVER RULE. `syncDriversFromSamsara` keeps writing PHONE
+  // in link-only mode, because McLeod holds no phone number for any of its 1,463 driver rows and
+  // FuelGuard's 164 all came from Samsara — dropping it would break SMS consent and driver-app
+  // invitations. There is no asset analogue, and that is a measurement rather than a symmetry
+  // argument. Production and the carrier's sandbox on 2026-08-24:
+  //
+  //   vehicles.vin          McLeod 197/198 distinct among active tractors · Samsara 186/194
+  //   vehicles.make/model/year   McLeod every active tractor · Samsara 188/194
+  //   vehicles.plate        McLeod 175/190 · Samsara  21/194
+  //   vehicles.plate_state  McLeod 175/190 · Samsara   0/194 — the API has no such field
+  //
+  // For every identity column on this table McLeod is an equal or better source, so link-only mode
+  // writes NO identity at all rather than carving out an exception nothing in the data supports.
+  const linkOnly = await isTmsRosterMaster(admin, orgId);
+
   const result: VehicleSyncResult = {
     total: vehicles.length,
     created: 0,
     updated: 0,
     assigned: 0,
     needsCompletion: [],
+    // The replacement lifecycle runs in BOTH modes. It stamps `samsara_missing_since` and reports the
+    // unit — it never changes `status`, so it takes no capability away and is not the deactivation
+    // pass D-MR5 switches off. Under TMS mastery it is worth MORE, not less: it is the only signal
+    // that a truck McLeod says is in service has stopped reporting telematics.
     samsaraMissing: await applyReplacementLifecycle(
       admin,
       orgId,
       existing,
       new Set(vehicles.map((sv) => sv.samsaraId)),
     ),
+    unlinked: linkOnly ? [] : undefined,
   };
 
   for (const sv of vehicles) {
-    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps);
+    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps, linkOnly);
     if (synced.kind === "created") {
       result.created++;
       result.needsCompletion.push(synced.unit!);
+    } else if (synced.kind === "unlinked") {
+      result.unlinked!.push(synced.unit!);
     } else {
       result.updated++;
     }
+  }
+
+  // An unmatched truck under TMS mastery means a vehicle is reporting telematics that the carrier's
+  // own fleet list does not contain. That is a finding, and until M7 gives it a surface an admin
+  // actually looks at, the log is where this integration already reports — the same place the driver
+  // sync's bad-fetch guard and the trailer sync's pairing pass report from.
+  if (result.unlinked?.length) {
+    console.warn(`[vehicle-sync] ${result.unlinked.length} Samsara vehicle(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
   }
 
   // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────

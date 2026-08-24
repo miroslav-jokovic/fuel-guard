@@ -174,6 +174,49 @@ The mode is read from the existing `org_integrations` row (provider `mcleod`, `e
 `config.roster_master` flag), so an org without McLeod is bit-for-bit unaffected. This is the same opt-in
 posture 0068 established and must be preserved — the module is selectable, not global.
 
+> **D-MR12 (2026-08-24): for VEHICLES and TRAILERS, link-only mode writes no identity at all** — the link
+> and the gateway's own measurements (odometer, fuel level, pairing), and nothing else. The driver rule
+> keeps `phone` because McLeod has none; there is no asset analogue, and this is a measurement rather than
+> a symmetry argument. Counted across production and the carrier's sandbox on 2026-08-24:
+>
+> | column | McLeod | Samsara |
+> |---|---|---|
+> | `vehicles.vin` | 197/198 distinct among active tractors | 186/194 |
+> | `vehicles.make` / `model` / `year` | every active tractor | 188/194 |
+> | `vehicles.plate` | 175/190 | **21/194** |
+> | `vehicles.plate_state` | 175/190 | **0/194 — the API has no such field** |
+> | `trailers.make` / `year` | every active trailer | **0/211** |
+> | `trailers.model` | **no such column on `dbo.trailer`** | **0/211** |
+> | `trailers.plate` | `license_no` | 9/211 |
+> | `trailers.vin` | `serial_number` | never written (the parser reads `serial`; the sync drops it) |
+>
+> There is no asset column where Samsara is the better or the only source, so an exception would have been
+> invented rather than found.
+>
+> **The bug this closes was an eraser, not a tie.** Both syncs build their identity patch
+> unconditionally, and the Samsara parser returns `null` for a field the response omits — so a matched
+> row is written `plate: null, make: null, …` on every tick. Harmless while Samsara is the only writer of
+> those columns; destructive the moment McLeod is the other one. Left alone, McLeod would have set 175
+> tractor plates and Samsara nulled them minutes later, with nothing raising. The trailer sync is doing
+> this to 202 of 211 rows today.
+>
+> Unmatched assets are **reported, never created** — the vehicle insert has to invent `tank_capacity_gal`
+> (it writes 0, which `learnVehicle` then unlearns) and the trailer insert invents
+> `reefer_tank_capacity_gal: 50`, a constant. `applyReplacementLifecycle` keeps running in both modes: it
+> stamps `samsara_missing_since` and changes no status, so it is not the deactivation pass this decision
+> switches off, and under TMS mastery it is the only signal that a truck McLeod calls in-service has gone
+> dark.
+
+> **D-MR13 (2026-08-24): one flag, both sides.** `roster_master` now also gates the INGEST: `identity`,
+> `create` and `retire` are refused with `409 roster_master_not_declared` unless the org has declared
+> mastery. Until this gate existed the answer to "who owns the roster" was recorded in two places that
+> could disagree — the Samsara syncs read the flag, while the ingest mode came from a query parameter the
+> on-prem agent chose for itself. An agent started with `ROSTER_MODE=identity` against an org that had
+> never declared mastery put both systems on the same columns. **A client on the carrier's network cannot
+> be the one to decide a data-ownership question.** `link` mode stays ungated on purpose: it writes only
+> the external link and produces the match report, which is the measurement the mastery decision is made
+> from, so gating it would make the decision impossible to inform.
+
 ---
 
 ## 4. Field mapping and the active predicate
@@ -400,6 +443,11 @@ office-edited field claims to `manual` and stops being overwritten — both pinn
 ### M5 — Creation, and the Samsara demotion
 McLeod creates rows. `samsaraDriverSync` / `samsaraVehicleSync` / `samsaraTrailerSync` drop to link-only when
 `config.roster_master` is set (D-MR5). Unmatched Samsara records are reported, not created.
+
+> **Shipped in two parts.** The first pass demoted `samsaraDriverSync` only; `samsaraVehicleSync` and
+> `samsaraTrailerSync` never learned the flag and kept inserting rows and writing identity — see D-MR12
+> for what that would have cost and D-MR13 for the second place the same question was being answered.
+> Both are now demoted, and the ingest is gated to match.
 **Done when:** a driver created in McLeod appears in FuelGuard and subsequently acquires its
 `samsara_driver_id` from the next Samsara tick — the sequence that proves §3's split works and that HOS will
 attach.
