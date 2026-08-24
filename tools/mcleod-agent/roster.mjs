@@ -31,6 +31,12 @@ const s = (v) => {
   const t = String(v).trim();
   return t === "" ? null : t;
 };
+/** `axles` is an int, but a 0 or a negative is not an axle count — it is a placeholder. */
+const axles = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 20 ? n : null;
+};
+
 /** `model_year` is char(4); anything not a plausible year becomes null rather than NaN. */
 const year = (v) => {
   const n = Number(s(v));
@@ -124,6 +130,7 @@ const MAP = {
           // the past, the opposite of every driver date — and FuelGuard's column is an expiry, so the
           // derivation happens there rather than being baked in here.
           annual_inspection_performed_at: s(r.annual_inspection_performed_at),
+          purchased_at: s(r.purchased_at),
         }
       : {}),
   }),
@@ -143,6 +150,11 @@ const MAP = {
           year: year(r.model_year),
           plate: s(r.plate),
           plate_state: s(r.plate_state),
+          // Same shape as the tractor's and sent as OBSERVED: 228 of 235 populated, 228 of 228 in the
+          // past. The +1 year derivation belongs to FuelGuard, where it stays visible and reviewable.
+          annual_inspection_performed_at: s(r.annual_inspection_performed_at),
+          purchased_at: s(r.purchased_at),
+          axle_count: axles(r.axle_count),
         }
       : {}),
   }),
@@ -301,4 +313,32 @@ async function withPool({ server, port, database, user, password, encrypt, trust
   } finally {
     await pool.close();
   }
+}
+
+/**
+ * Run the committed recon pack (`inspect.mjs`) and return one entry per question.
+ *
+ * Each question is caught INDIVIDUALLY on purpose. This pack is meant to be run by somebody else, on
+ * a login whose grants we do not control — most likely the carrier's IT against `lme`, which we
+ * cannot read. A permission error on one question must not cost the other twenty-one answers, and the
+ * error itself is a finding worth reporting rather than a crash.
+ */
+export async function runInspection(cfg, questions) {
+  return withPool(cfg, async (pool, mssql) => {
+    const out = [];
+    for (const q of questions) {
+      const entry = { id: q.id, question: q.question, blocks: q.blocks };
+      try {
+        const res = await pool
+          .request()
+          .input("companyId", mssql.VarChar(32), cfg.companyId)
+          .query(q.sql);
+        entry.rows = res.recordset ?? [];
+      } catch (e) {
+        entry.error = e.message;
+      }
+      out.push(entry);
+    }
+    return out;
+  });
 }

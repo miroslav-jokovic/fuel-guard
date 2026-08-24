@@ -105,6 +105,36 @@ describe("the TMS may not claim the roster until the org declares it master", ()
     expect((await res.json()) as { unmatched: string[] }).toMatchObject({ unmatched: ["D001"] });
   });
 
+  it("allows REPORT mode without the declaration, and it writes nothing", async () => {
+    // The safest mode of all: it answers "what would this do" against the carrier's live fleet and
+    // touches no row. Gating it would make the mastery decision impossible to inform.
+    const rec = seed(false);
+    holder.client = rec.client;
+    const res = await post("/roster/drivers?mode=report", DRIVERS);
+    expect(res.status).toBe(200);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("REFUSES a mode it does not recognise instead of quietly writing links", async () => {
+    // The version-skew trap this replaced: `report` shipped in the agent before the API that
+    // understands it, and the old fallthrough would have turned the one command that promises to
+    // write nothing into a link sweep over ~589 production rows.
+    const rec = seed(false);
+    holder.client = rec.client;
+    const res = await post("/roster/drivers?mode=repot", DRIVERS);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("unknown_mode");
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("treats a MISSING mode as report — a parameter nobody sent is a misconfiguration", async () => {
+    const rec = seed(false);
+    holder.client = rec.client;
+    const res = await post("/roster/drivers", DRIVERS);
+    expect(res.status).toBe(200);
+    expect(rec.writes()).toEqual([]); // report: nothing, not even last_synced_at
+  });
+
   it("allows an identity sweep once the org has declared mastery", async () => {
     holder.client = seed(true).client;
     expect((await post("/roster/drivers?mode=identity", DRIVERS)).status).toBe(200);

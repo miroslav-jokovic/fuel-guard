@@ -15,7 +15,8 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState } from "./roster.mjs";
+import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
+import { INSPECTION } from "./inspect.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -28,9 +29,15 @@ const CFG = {
   // Retirement is opt-in per RUN, never a mode that rides along with a sweep: it is the one operation
   // that takes capability away from a person and the only one that touches the retention clock.
   retire: process.argv.includes("--retire"),
+  // Read-only reconnaissance. Answers the questions the field mapping cannot decide without
+  // measuring, and prints them as JSON so the output can be pasted back verbatim. Every query is
+  // gated by `pnpm lint:mcleod-recon` before it can reach this file.
+  inspect: process.argv.includes("--inspect"),
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
+  // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
+  //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
   // 'identity' — adds the fields FuelGuard writes onto rows it has already matched.
   // 'create'   — identity, plus: a McLeod record matching nothing becomes a new FuelGuard row.
@@ -77,14 +84,20 @@ function fail(msg) {
   console.error(`[agent] FATAL: ${msg}`);
   process.exit(1);
 }
-if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
+// Reconnaissance POSTS NOTHING, so it must not require FuelGuard credentials. That is not a nicety:
+// the people best placed to run `--inspect` are the carrier's IT against `lme`, and they will be doing
+// it BEFORE anyone has issued an ingest token — demanding one would make the first useful command
+// impossible to run at the only time it matters.
+if (!CFG.inspect && (!CFG.ingestUrl || !CFG.ingestToken)) {
+  fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
+}
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire) {
+if (CFG.roster || CFG.retire || CFG.inspect) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
-  if (!["link", "identity", "create"].includes(CFG.rosterMode)) {
-    fail("ROSTER_MODE must be 'link', 'identity' or 'create'.");
+  if (!["report", "link", "identity", "create"].includes(CFG.rosterMode)) {
+    fail("ROSTER_MODE must be 'report', 'link', 'identity' or 'create'.");
   }
 }
 if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {
@@ -423,6 +436,17 @@ async function runRetire() {
 
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 async function main() {
+  if (CFG.inspect) {
+    log(`inspect: ${INSPECTION.length} question(s) against ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+    for (const r of await runInspection(CFG.sql, INSPECTION)) {
+      console.log(`\n### ${r.id} — ${r.question}`);
+      console.log(`# blocks: ${r.blocks}`);
+      if (r.error) console.log(`# ERROR: ${r.error}`);
+      else if (!r.rows.length) console.log("# (no rows)");
+      else for (const row of r.rows) console.log(JSON.stringify(row));
+    }
+    return;
+  }
   if (CFG.retire) {
     await runRetire();
     return;

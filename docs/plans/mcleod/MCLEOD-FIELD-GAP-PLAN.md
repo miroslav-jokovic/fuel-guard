@@ -48,7 +48,7 @@ columns on a structurally identical table. That asymmetry is not a decision anyb
 
 | FuelGuard | McLeod | Status |
 |---|---|---|
-| `trailer_type` | `trailer_type` | **Ready.** The agent already SELECTs it and the ingest throws it away after deriving `is_reefer`. The column exists and is 59/211 populated from another source. |
+| `trailer_type` | `trailer_type` | blocked C3/D2 — **⚠ this row said "ready" in the first draft and that was wrong.** The plumbing is trivial (the agent already SELECTs the column and discards it after deriving `is_reefer`) but the destination is **constrained**: `CHECK (trailer_type in ('dry_van','reefer','flatbed','tanker','hopper','other'))`, verified in production 2026-08-24, currently `reefer:46, dry_van:13, null:152`. McLeod's codes are single letters — `V`=187, `R`=45. `R → reefer` is verified (§4.3). **`V → dry_van` is not.** "V is obviously Van" is exactly the kind of inference D-FG1 forbids. |
 | `registration_expires_at` | `tag_expire_date` | blocked C1 (coverage + direction) |
 | `dot_annual_inspection_expires_at` | `inspection_date` | blocked C1 — and if it is a *performed* date like the tractor's, it needs the same +1y derivation |
 | `purchased_at` | `purchase_date` | blocked C1 |
@@ -175,8 +175,28 @@ which sensitive columns are actually being read.
 
 ## 7. Blocking questions — the inspection pack
 
-One read-only pack answers all of them: aggregates and code vocabularies only, no name, SSN, licence,
-address or date of birth. Each question's fallback is **do not map**.
+> **D-FG10: the recon is a COMMAND, not a query somebody pastes into an editor.**
+> `tools/mcleod-agent/inspect.mjs` holds the questions; `node agent.mjs --inspect` runs them and prints
+> JSON. The reason is not tidiness. **The answers that decide the cutover can only ever be measured by
+> somebody else:** `lme_analytics` is a one-off restore taken 2026-08-21 09:46, and production is `lme`
+> on the same instance, which our login cannot read (`HAS_DBACCESS('lme') = 0`). A recon that depends
+> on one person's shell access is the wrong shape for a question only the carrier's IT can answer.
+>
+> `pnpm lint:mcleod-recon` enforces what makes it safe to hand over, so its reviewer does not have to
+> read 22 SQL statements closely: every
+> statement is a single `SELECT`; `social_security_no` and seven siblings appear **nowhere at all**;
+> names, licences, addresses and contacts may be **counted but never returned**; and anything reading
+> `driver` / `tractor` / `trailer` binds `@companyId`, because `dbo.company` holds four legal entities
+> in the same tables. Each violation class is verified to fail the gate.
+>
+> **⚠ The CI step is NOT wired yet** and the gate is therefore advisory until it is. The push that
+> would have added it was rejected — the token this work runs under has no `workflow` scope, so
+> `.github/workflows/ci.yml` cannot be edited from here. The one-line step is prepared and needs a
+> commit from an account that can write workflows; until then `lint:mcleod-recon` only runs when
+> somebody types it. Saying otherwise in this document would be exactly the kind of unverified claim
+> D-FG1 exists to prevent.
+
+Each question's fallback is **do not map**.
 
 | # | Question | Blocks |
 |---|---|---|
@@ -188,10 +208,149 @@ address or date of birth. Each question's fallback is **do not map**.
 | B3 | `tractor` `gross_veh_weight_um` / `weight_um` distinct values + ranges | `gvwr_lb`, `tare_weight_lb` |
 | B4–B8 | `owner`, `pay_owner`, `type_of`, `fuel_type_code`, `axle_number_code` distributions | `ownership_type`, `fuel_type`, `axle_count` |
 | B9 | `tractor.fuel_capacity` coverage + range | D-FG5 |
-| C1 | `trailer` `tag_expire_date` / `inspection_date` / `purchase_date` — coverage and past/future | the three trailer dates |
+| C1a–C1c | `trailer` `tag_expire_date` / `inspection_date` / `purchase_date` — coverage and past/future | the three trailer dates |
 | C2 | `trailer` `length_of_um` / `volume_um` / `weight_um` / `gross_veh_weight_um` distinct values | all trailer dimensions |
+| C3 | `trailer.trailer_type` distribution | `trailers.trailer_type` (see §3.1 — the destination has a CHECK) |
 | C4–C6 | `door_type_code`, `axles`, `ownership` distributions | `door_type`, `axle_count`, `ownership_type` |
 | D1–D2 | `dbo.code` — which columns have a vocabulary, and the values for the ones above | D-FG3 |
+
+---
+
+## 7b. ⚠ F3–F7 are now sequenced BEHIND the first run
+
+Verified 2026-08-24: production carries **zero** McLeod links on all three tables and no
+`org_integrations` row for the provider. Nothing has ever moved through this pipeline
+(`MCLEOD-ROSTER-SYNC-PLAN.md` §7b), so every field added here would be added to a foundation no run
+has exercised.
+
+> **D-FG11: F3–F7 wait for M-R.** Not because they are blocked on the recon — they are, and M-R's first
+> step (`--inspect`) supplies it — but because each new field makes the first run harder to diagnose.
+> A sweep that writes eight columns and goes wrong has eight suspects; one that writes the current set
+> and goes wrong has a short list. The recon and the first run need the same thing anyway: one session
+> on a machine with the VPN up.
+
+F1 and F2 are already done and are unaffected: both fixed defects in code paths the first run will
+exercise, which is why they went first.
+
+---
+
+## 7c. RECON RESULTS — measured 2026-08-24, 23 questions, 0 errors
+
+Run with `pnpm mcleod:inspect` against `lme_analytics` as company `TMS`. **The gap is far smaller than
+this document assumed**, because most of the candidate columns are empty at this carrier. That is the
+rule in §1 earning its keep: the plan would otherwise have built unit-conversion machinery for columns
+holding nothing.
+
+### Mappable — real data, verified coverage
+
+| Target | Source | Coverage | Note |
+|---|---|---|---|
+| `vehicles.purchased_at` | `tractor.purchase_date` | **190 / 190** | all past |
+| `trailers.purchased_at` | `trailer.purchase_date` | **224 / 235** | all past |
+| `trailers.dot_annual_inspection_expires_at` | `trailer.inspection_date` **+1 year** | **228 / 235** | 228/228 in the past — a PERFORMED date, exactly like the tractor's, so it takes the same §396.17 derivation |
+| `trailers.axle_count` *(new column)* | `trailer.axles` | **193 / 235** | every populated row is `2` |
+| `drivers.driver_type` | `driver.type_of` | **164 / 164** | `C` = 148, `O` = 16 — the shape of a company / owner-operator split, but see below |
+
+### Not McLeod's — a SOURCE-ROUTING answer, not a gap
+
+> **D-FG13: "McLeod holds nothing here" assigns the column to another source; it does not close it.**
+> This document's first draft framed the empty columns as losses. That was wrong. **Five systems feed
+> this database** — Samsara, McLeod, FleetPal, EFS and PSP/FMCSA — and each owns different columns.
+> `tank_capacity_gal` is the clearest case: it is set locally today and **FleetPal owns it next**, so
+> `tractor.fuel_capacity` being empty on 190 of 190 costs nothing whatsoever. The same reading applies
+> to the tractor weights, the axle and door codes, and the fuel type. The question a measured NULL
+> answers is *"which system owns this?"* — and the answer here is simply *"not this one."*
+
+| Target | Source | Measured |
+|---|---|---|
+| `drivers.cdl_class` | `drvr_class` | NULL on all 164 |
+| `vehicles.irp_account` | `irp_code` | 0 of 190 |
+| `vehicles.fuel_type` | `fuel_type_code` | NULL on all 190 |
+| `vehicles.axle_count` | `axle_number_code` | NULL on all 190 |
+| `vehicles.gvwr_lb`, `tare_weight_lb` | `gross_veh_weight`, `weight` | NULL |
+| `trailers.registration_expires_at` | `tag_expire_date` | **0 of 235** |
+| `trailers.door_type` | `door_type_code` | NULL on all 235 |
+| `trailers.capacity_cube_ft`, `capacity_weight_lb`, `tare_weight_lb` | `volume`, `gross_veh_weight`, `weight` | NULL |
+| `vehicles`/`trailers` equipment type | `tractor.type_of` = `TR` ×190; `trailer.ownership` = `O` ×235 | a single value is not information |
+
+### Three decisions this overturns
+
+> **D-FG5 is DEAD.** `tractor.fuel_capacity` is populated on **0 of 190** tractors. The idea of seeding a
+> new truck's `tank_capacity_gal` from McLeod's spec figure has no data behind it. The zero stays, and
+> `needsCompletion` remains the only answer.
+
+> **D-FG6 was wrong about what `home_location_id` IS.** It is not a terminal code. It holds **164
+> distinct values, one per driver**, each name-shaped (initials + state). These are per-driver home
+> locations, not a small set of company terminals, so `drivers.home_terminal_id` has no source here and
+> no terminals import would help. Closed.
+
+> **D-FG2 is nearly moot.** The unit columns were the biggest piece of planned work. `weight_um` reads
+> `LB` but every weight column it governs is NULL; `length_of_um` and `volume_um` are NULL outright.
+> The one dimension with data is `trailer.length_of`, identical at **53 on all 235 rows** — and with its
+> unit column NULL, "53 means feet" is an inference, not a measurement. Per D-FG1 it stays unmapped;
+> a column whose every row is the same value was never worth much anyway.
+
+### `ownership_type` and `trailer_type` — populated, but undocumented
+
+`tractor.owner` (SILVMEIL ×174, SCORELIL ×9, six singletons) and `tractor.pay_owner` (`D` ×174, `B` ×9,
+`O` ×7) clearly encode ownership, and `trailer.trailer_type` is `V` ×184 / `R` ×44 / null ×7. **None of
+these codes appears in `dbo.code`** — checked twice, once by column name (D2) and once by shape across
+the equipment and driver aliases (D3). The near-miss is instructive: `TRL.trl_type_code` exists with ten
+codes and is a LENGTH vocabulary (`53` = "53 FT DRY VAN", `48F` = "48 FT FLAT BED"), a different column
+entirely.
+
+> **D-FG12: `V → dry_van` stays unmapped, and `R → reefer` ships.** `R` is verified (§4.3, and
+> `is_reefer` already derives from it). `V` is almost certainly Van and that is exactly why it stays out:
+> "almost certainly" is the inference D-FG1 forbids, and `trailers.trailer_type` carries a CHECK that
+> would make a wrong guess permanent. The same applies to `pay_owner`'s `B`/`D`/`O` and to
+> `driver.type_of`'s `C`/`O` — the distributions are suggestive, the meanings are undocumented.
+>
+> **These four are a question for the carrier, not for more SQL.** One email answers all of them, and
+> until it does they are unmapped rather than guessed.
+
+---
+
+## 7d. Schema now, display later — and the one field class that must never be hidden
+
+The proposal: create the columns even where McLeod has nothing, and simply don't display a field that
+has no data, so the structure is ready when another source fills it. Checked against the database
+2026-08-24, and it is **already true almost everywhere**:
+
+| Table | Columns from §7c that do NOT exist |
+|---|---|
+| `vehicles` | **none** — `axle_count`, `fuel_type`, `gvwr_lb`, `tare_weight_lb`, `irp_account`, `ownership_type`, `purchased_at`, `height_in`, `width_in`, `length_in` all exist |
+| `drivers` | **none** — `cdl_class`, `driver_type`, `home_terminal_id`, `cdl_issued_at`, `cdl_restrictions` all exist |
+| `trailers` | `axle_count` (added by 0242), `height_in`, `width_in` |
+
+> **D-FG14: the columns exist; the display rule is recorded now and built when there is a surface to
+> build it on.** `vehicles` has had `height_in`/`length_in`/`width_in` since 0119 and `trailers` had
+> only `length_in` — an asymmetry nobody chose. 0242 closes it. Neither new column has a source today
+> (McLeod's height and width sit behind NULL `*_um` units, so they cannot be converted) and **nothing
+> writes them**; they are reserved for FleetPal, which owns equipment specs next.
+
+### Why the hide-when-empty rule is not built yet
+
+**None of these fields is displayed anywhere.** `gvwr_lb`, `tare_weight_lb`, `capacity_cube_ft`,
+`door_type` and `ownership_type` have **zero references in `apps/web/src`**; `VehicleDetailPage` shows
+tank, baseline MPG, odometer and open anomalies, and there is no equipment-spec surface at all. A
+hide-when-empty mechanism today would be a rule with no caller — the same speculative work that
+`F5b` was just cancelled for.
+
+So the rule is written down instead, to be applied by whoever builds that surface:
+
+> **Hide a field when it is empty for EVERY row in the org** — not when it is empty for the row in
+> front of you. Per-row hiding makes two trailers show different fields and reads as a bug; org-wide
+> emptiness genuinely means "this carrier does not track this", which is worth not showing.
+
+> **⚠ NEVER hide an empty COMPLIANCE field.** An empty `dot_annual_inspection_expires_at`,
+> `medical_card_expires_at` or `cdl_expires_at` is not "nothing to display" — it is **an unrecorded
+> inspection or an expired qualification**, which is precisely what those surfaces exist to surface.
+> Hiding it would turn the absence of evidence into the appearance of compliance, on the one screen
+> where that inversion is most expensive. Empty compliance fields render as a gap, loudly.
+>
+> This matters sooner than it looks: `dot_annual_inspection_expires_at` is written by the McLeod sync
+> for 228 trailers and 175 tractors and is currently **read by nothing at all**. The first surface to
+> read it inherits this rule.
 
 ---
 
@@ -200,43 +359,71 @@ address or date of birth. Each question's fallback is **do not map**.
 One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped
 and the gates run — this document is the memory between sessions.
 
-### F1 — the two resolution defects *(not blocked)*
+### F1 — the two resolution defects — **DONE 2026-08-24**
 D-FG7 and D-FG8: `mcleod_driver_id` as a match key in `tmsLoadIngest` and `tmsIngest`;
 `trailerUnitMatchKey` in both trailer lookups.
 **Done when:** a load carrying a McLeod driver id and an unprefixed reefer unit resolves both, pinned by
 tests in each ingest; and the org-scoping assertion still holds via `expectOrgScoped`.
+**What shipped:** `apps/api/src/tms/entityLookup.ts` — one collision-safe resolver replacing four
+hand-rolled `Map.set` loops, which also fixed a third defect those loops had (a key claimed by two rows
+kept whichever came last). An unresolvable trailer is now REPORTED; before it produced a null and
+appeared in no report. **Verified by:** 18 new cases across `entityLookup.test.ts`,
+`tmsLoadIngest.test.ts` and `tmsIngest.test.ts`; `apps/api` 2,094 tests green; `lint:filesize`,
+`lint:funcsize`, `lint:comment-claims`, `lint:upserts`, `lint:boundaries`, `lint:tests`, eslint,
+`tsc --noEmit`.
 
-### F2 — settle the contradiction *(not blocked)*
+### F2 — settle the contradiction — **DONE 2026-08-24**
 D-FG9. Doc-only.
 **Done when:** §4.1's "never" list and `queries.mjs` agree, and the plan names `queries.mjs` as the one
 home of the PII allowlist.
+**What shipped:** `name_of_spouse` moved out of the "never" row into its own row recording the local
+convention and `usableEmail()`'s truncation test; D-FG9 records that the SELECT is the fact and the
+table is what gets fixed when they disagree.
 
-### F3 — trailer parity with vehicles *(blocked on C1)*
-`trailer_type` stored (ready now), plus `registration_expires_at`, `dot_annual_inspection_expires_at`
-and `purchased_at` once C1 says which way the dates run.
+### F3 + F4 — the fields the recon found — **DONE 2026-08-24 (migration 0242)**
+Four fields, and only four — §7c is why. `vehicles.purchased_at`, `trailers.purchased_at`,
+`trailers.dot_annual_inspection_expires_at` (derived +1 year from a performed date, exactly as the
+tractor path does) and `trailers.axle_count`, a new column.
+
+**What shipped:** migration 0242 adds `trailers.axle_count` and re-attaches the two asset claim
+triggers with the widened column lists — `rosterFields.claimParity.test.ts` failed the moment the
+patch builders learned a field the triggers had not, which is the drift it exists to catch, and it
+caught it on the first run.
+
+**Deliberately absent:** `trailers.registration_expires_at`. McLeod's `tag_expire_date` is populated
+on **0 of 235** active trailers while the tractor equivalent has 175, so the asymmetry between the two
+paths is now a measured decision rather than an oversight — and there is a test asserting the trailer
+path never writes it, so nobody "fixes" it later by symmetry.
+
+**Verified by:** `the fields the recon found` (5 cases) and `report mode` (6 cases) in
+`rosterIngest.test.ts`; the parity gate; `lint:migrations`, `check-rls`, `lint:mcleod-recon`.
 **Done when:** a trailer's registration expiry appears in FuelGuard within one sweep; the inspection date
 uses the same derivation as the tractor path if C1 shows it is a performed date; `rosterFields.claimParity`
 still passes, which requires 0241's trigger column list to grow with the mapping.
 
-### F4 — dimensions and weights *(blocked on B3, C2)*
-Per D-FG2, with the conversion table built from counted units and an unrecognised unit skipping the field.
-Schema: `trailers.axle_count`, `trailers.height_in`, `trailers.width_in`.
-**Done when:** the new columns exist with RLS unchanged, the conversion is unit-tested against each
-counted `*_um` value including the unrecognised case, and `lint:migrations` / `check-rls` are green.
+### F5b — dimensions and weights — **CANCELLED 2026-08-24**
+The largest single piece of planned work, and it has no data behind it. Measured: `length_of_um`,
+`volume_um` and `gross_veh_weight_um` are NULL; `weight_um` reads `LB` but every column it governs is
+NULL. The one dimension with values is `trailer.length_of`, identical at **53 on all 235 rows**, whose
+unit column is NULL — so "53 means feet" is an inference and D-FG1 forbids it. `trailers.height_in`
+and `width_in` are not added: columns with no source are schema debt.
 
-### F5 — code vocabularies *(blocked on A1, A2, B4–B8, C4–C6, D1–D2)*
-Per D-FG3, in the agent. `ownership_type`, `fuel_type`, `axle_count`, `door_type`, `driver_type`,
-`cdl_class`.
-**Done when:** every code the carrier actually uses maps to a FuelGuard value or is deliberately
-unmapped-and-reported; `vehicles.fuel_type` is written only through the enum's own vocabulary.
+### F5 — the four undocumented codes *(blocked on the CARRIER, not on SQL)*
+`trailer_type` `V`/`R`, `pay_owner` `B`/`D`/`O`, `tractor.owner`, and `driver.type_of` `C`/`O`. All are
+populated; none appears in `dbo.code`, checked by column name (D2) and again by shape across the
+equipment and driver aliases (D3). `fuel_type`, `door_type`, `cdl_class` and `vehicles.axle_count` left
+this step entirely — their source columns are empty (§7c).
+**Done when:** the carrier confirms the four vocabularies. One email, not more reconnaissance.
 
-### F6 — tank capacity seed *(blocked on B9)*
-D-FG5, create-path only.
-**Done when:** a newly created truck carries McLeod's capacity instead of 0, an existing truck's capacity
-is provably untouched, and both are pinned by tests.
+### F6 — tank capacity seed — **CANCELLED 2026-08-24**
+`tractor.fuel_capacity` is populated on 0 of 190. It was never McLeod's field: capacity is set locally
+today and **FleetPal owns it next** (D-FG13). `learnVehicle` keeps refining it from observed fills and
+`needsCompletion` keeps reporting the new trucks that need one.
 
-### F7 — home terminals *(blocked on A3 and on a terminals import)*
-Out of scope here; A3 sizes it.
+### F7 — home terminals — **CANCELLED 2026-08-24**
+`home_location_id` is not a terminal code. It holds **164 distinct values, one per driver**, each
+name-shaped — per-driver home locations, not a company's terminals. There is nothing to map and no
+terminals import that would help.
 
 ---
 

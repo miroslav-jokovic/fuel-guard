@@ -53,6 +53,7 @@ const FULL_VEHICLE = {
   plate_state: "MT",
   registration_expires_at: "2027-01-31",
   annual_inspection_performed_at: "2026-03-04",
+  purchased_at: "2019-06-01",
 };
 const FULL_TRAILER = {
   external_id: "532159",
@@ -63,6 +64,9 @@ const FULL_TRAILER = {
   plate: "TR9021",
   plate_state: "MT",
   is_reefer: true,
+  purchased_at: "2018-04-20",
+  annual_inspection_performed_at: "2026-02-11",
+  axle_count: 2,
 };
 
 describe("0241's claim trigger covers exactly what the McLeod sync writes", () => {

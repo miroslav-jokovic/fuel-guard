@@ -97,6 +97,8 @@ export function vehiclePatch(r: TmsVehicleInput): Record<string, unknown> {
     }
   }
 
+  set("purchased_at", r.purchased_at);
+
   // `tank_capacity_gal` is NOT here. It is NOT NULL, it drives fuel detection, and `learnVehicle`
   // refines it from observed fills. McLeod's `tractor.fuel_capacity` is a static spec number, and
   // overwriting a learned capacity with it would silently degrade every fuel anomaly on that truck.
@@ -117,6 +119,24 @@ export function trailerPatch(r: TmsTrailerInput): Record<string, unknown> {
   // A boolean is written even when false: `is_reefer` defaults to false and McLeod's trailer_type is
   // authoritative in both directions, so `set`'s null-skip would wrongly pin a mis-flagged trailer.
   if (typeof r.is_reefer === "boolean") p.is_reefer = r.is_reefer;
+
+  set("purchased_at", r.purchased_at);
+  set("axle_count", r.axle_count);
+
+  // Identical derivation to the tractor's, and for the identical reason: measured 2026-08-24,
+  // `trailer.inspection_date` is populated on 228 of 235 and 228 of those are in the PAST, so it
+  // records when the annual was performed while FuelGuard's column is an expiry. §396.17's interval
+  // is applied here rather than in the agent so the raw observation crosses the wire unchanged.
+  if (r.annual_inspection_performed_at) {
+    const d = new Date(`${r.annual_inspection_performed_at}T00:00:00Z`);
+    if (!Number.isNaN(d.getTime())) {
+      d.setUTCFullYear(d.getUTCFullYear() + 1);
+      set("dot_annual_inspection_expires_at", d.toISOString().slice(0, 10));
+    }
+  }
+
+  // `registration_expires_at` is absent and stays absent: McLeod's `tag_expire_date` is populated on
+  // ZERO of 235 active trailers. The tractor path writes it because there the column has 175 values.
 
   // `unit_number` is NOT written. FuelGuard prefixes reefers with `R` and McLeod does not; the ingest
   // normalises for MATCHING and leaves the stored value alone, because renaming ~46 trailers is a

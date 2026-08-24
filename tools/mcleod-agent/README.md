@@ -91,3 +91,24 @@ The agent remembers the last successful sync time in `state.json`, so each run o
 - Read-only against McLeod; only ever sends data out to FuelGuard.
 - The FuelGuard token can be revoked/rotated anytime from Settings — the agent stops working immediately.
 - Re-running is safe (idempotent): re-sending the same movements just updates them, never duplicates.
+
+## Reconnaissance (`--inspect`)
+
+Answers the questions the FuelGuard field mapping cannot decide without measuring — code vocabularies,
+which units the `*_um` columns use, and which way each date runs. Read-only.
+
+```bash
+node --env-file=.env agent.mjs --inspect
+```
+
+Needs the same `MCLEOD_SQL_*` settings as `--roster`, and prints one JSON object per row under a
+`### <id>` heading so the whole output can be pasted back verbatim.
+
+**It is safe to run against production.** Every statement is a single `SELECT`; `social_security_no`
+and its siblings appear nowhere; names, licences, addresses and contacts are counted but never
+returned; and every query that reads `driver`, `tractor` or `trailer` binds `@companyId`, so it cannot
+blend two of the four legal entities that share those tables. Those properties are enforced by
+`pnpm lint:mcleod-recon` in CI, not by review alone.
+
+A question that fails on a permission error reports the error and the remaining questions still run —
+the pack is meant to be usable on a login whose grants we do not control.

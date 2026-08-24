@@ -79,7 +79,8 @@ const VEHICLE_IDENTITY = `
       NULLIF(LTRIM(RTRIM(t.tag)), '')            AS plate,
       NULLIF(LTRIM(RTRIM(t.tag_state)), '')      AS plate_state,
       CONVERT(varchar(10), t.tag_expire_date, 23)  AS registration_expires_at,
-      CONVERT(varchar(10), t.inspection_date, 23)  AS annual_inspection_performed_at`;
+      CONVERT(varchar(10), t.inspection_date, 23)  AS annual_inspection_performed_at,
+      CONVERT(varchar(10), t.purchase_date, 23)    AS purchased_at`;
 
 const TRAILER_MATCH = `
       LTRIM(RTRIM(r.id))                         AS external_id,
@@ -92,14 +93,25 @@ const TRAILER_IDENTITY = `
       NULLIF(LTRIM(RTRIM(r.make)), '')           AS make,
       NULLIF(LTRIM(RTRIM(r.model_year)), '')     AS model_year,
       NULLIF(LTRIM(RTRIM(r.license_no)), '')     AS plate,
-      NULLIF(LTRIM(RTRIM(r.license_state)), '')  AS plate_state`;
+      NULLIF(LTRIM(RTRIM(r.license_state)), '')  AS plate_state,
+      -- Measured 2026-08-24: 228 of 235 populated and 228 of 228 in the PAST, so this is the date the
+      -- annual inspection was PERFORMED — the same shape as the tractor's, and the opposite of every
+      -- driver date. `tag_expire_date` is deliberately absent: 0 of 235 populated.
+      CONVERT(varchar(10), r.inspection_date, 23)  AS annual_inspection_performed_at,
+      CONVERT(varchar(10), r.purchase_date, 23)    AS purchased_at,
+      r.axles                                      AS axle_count`;
 
 /**
  * Build the three roster queries. `mode` is 'link' (match keys only) or 'identity' (match keys plus the
  * fields M4 writes) — the column list itself changes, which is what keeps PII out of the link-only phase.
  */
 export function rosterQueries(mode = "link") {
-  const full = mode === "identity";
+  // `create` needs the identity columns as much as `identity` does — arguably more, since the row it
+  // builds has no prior values to fall back on. Until 2026-08-24 this read `mode === "identity"`
+  // alone, so a create sweep would have selected match keys only and inserted drivers carrying a name
+  // and a status and nothing else: no licence, no medical expiry, no hire date, no address. It was
+  // never caught because no create sweep has ever run — the whole point of M-R.
+  const full = mode === "identity" || mode === "create";
   return {
     drivers: `
     SELECT${DRIVER_MATCH}${full ? "," + DRIVER_IDENTITY : ""}

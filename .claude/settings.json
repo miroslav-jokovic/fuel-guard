@@ -1,4 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(pnpm mcleod:inspect)",
+      "Bash(pnpm mcleod:report)",
+      "Bash(pnpm lint:mcleod-recon)",
+      "Bash(node scripts/check-mcleod-recon.mjs)"
+    ]
+  },
   "extraKnownMarketplaces": {
     "ui-ux-pro-max-skill": {
       "source": {
