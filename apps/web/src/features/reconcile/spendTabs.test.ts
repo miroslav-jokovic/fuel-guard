@@ -1,0 +1,151 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { mount } from "@vue/test-utils";
+import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
+import SpendBridgeCard from "./SpendBridgeCard.vue";
+import DiscountCaptureTab from "./DiscountCaptureTab.vue";
+import ExceptionsTab from "./ExceptionsTab.vue";
+import AncillaryCard from "./AncillaryCard.vue";
+import SpendOverviewTab from "./SpendOverviewTab.vue";
+
+/**
+ * These tabs are the only place the fuel-spend analytics are ever seen. The functions are covered in
+ * `@fuelguard/shared`; what is NOT covered by those tests is whether a template reads a field that
+ * does not exist, or renders "$NaN" when a period has no gallons — which is exactly the failure a
+ * carrier would report as "the page is broken" and which typecheck cannot catch inside a `<template>`.
+ *
+ * So each tab is mounted against realistic lines and asserted on the figure it exists to show, plus
+ * the empty case, which on this surface is the common one until statements accumulate.
+ */
+
+// DataTable branches on `matchMedia`; jsdom has none, so it renders its narrow card view by default.
+beforeEach(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true, configurable: true,
+    value: (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addListener: () => {}, removeListener: () => {},
+      addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+    }),
+  });
+});
+
+const fill = (o: Partial<SpendLine> & { tranDate: string; gallons: number; netAmount: number; retailAmount: number }): SpendLine => ({
+  brand: "pilot", state: "TX", site: "1", city: "Somewhere", unit: "701", driver: "A DRIVER",
+  product: "diesel", tank: "tractor", miscAmount: null, salesTax: null, ...o,
+});
+
+/** Eight weeks — enough for a 4-week bridge — with the discount compressing as the market rises. */
+function eightWeeks(): SpendLine[] {
+  const out: SpendLine[] = [];
+  for (let w = 0; w < 8; w++) {
+    const day = new Date(Date.UTC(2026, 5, 1) + w * 7 * 86_400_000).toISOString().slice(0, 10);
+    const retail = 4.8 + w * 0.12;
+    const disc = 0.8 - w * 0.04;
+    for (let i = 0; i < 4; i++) {
+      out.push(fill({ tranDate: day, gallons: 150, netAmount: 150 * (retail - disc), retailAmount: 150 * retail, site: String(i + 1), state: ["TX", "OK", "AZ", "NM"][i]! }));
+    }
+  }
+  // one ONE9 fill at the posted price, and one Californian fill
+  out.push(fill({ tranDate: "2026-07-13", gallons: 60, netAmount: 60 * 5.4, retailAmount: 60 * 5.4, brand: "one9", state: "SC", site: "453", unit: "754" }));
+  out.push(fill({ tranDate: "2026-07-13", gallons: 80, netAmount: 80 * 6.8, retailAmount: 80 * 7.0, state: "CA", site: "200", unit: "703" }));
+  return out;
+}
+
+describe("SpendBridgeCard", () => {
+  it("renders the four components and states the residual", () => {
+    const w = mount(SpendBridgeCard, { props: { lines: eightWeeks() } });
+    const t = w.text();
+    expect(t).toContain("Why spend moved");
+    for (const bar of ["More gallons", "The market", "Discount rate", "Where we fuelled"]) expect(t).toContain(bar);
+    expect(t).toMatch(/residual \$0\.00/);
+    expect(t).not.toContain("NaN");
+  });
+
+  it("says what is missing instead of drawing an empty chart", () => {
+    const w = mount(SpendBridgeCard, { props: { lines: eightWeeks().slice(0, 4) } });
+    expect(w.text()).toContain("Not enough history yet");
+    expect(w.text()).not.toContain("NaN");
+  });
+
+  it("reads a compressing discount as market-linked rather than as a repricing", () => {
+    // A rate bar with no context reads as an accusation; the correlation is what stops that.
+    expect(mount(SpendBridgeCard, { props: { lines: eightWeeks() } }).text())
+      .toContain("rack-linked deal");
+  });
+});
+
+describe("DiscountCaptureTab", () => {
+  it("shows the benchmark it used and what fell below it", () => {
+    const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks() } }).text();
+    expect(t).toContain("Discount capture");
+    expect(t).toMatch(/\$\d+\.\d{3} a gallon/); // the median benchmark, to a tenth of a cent
+    expect(t).toContain("below benchmark");
+    expect(t).toContain("captured no discount at all"); // the ONE9 fill
+    expect(t).not.toContain("NaN");
+  });
+
+  it("renders with nothing to report rather than throwing", () => {
+    const t = mount(DiscountCaptureTab, { props: { lines: [] } }).text();
+    expect(t).toContain("Discount capture");
+    expect(t).not.toContain("NaN");
+  });
+});
+
+describe("ExceptionsTab", () => {
+  const ex = () => analyzePolicyExceptions(eightWeeks());
+
+  it("prices an avoided brand against the rest of the fleet", () => {
+    const t = mount(ExceptionsTab, {
+      props: { title: "ONE9 and other off-brand sites", blurb: "…", report: ex().avoidedBrands, slug: "one9" },
+    }).text();
+    expect(t).toContain("ONE9 and other off-brand sites");
+    expect(t).toContain("above the rest of the fleet");
+    expect(t).toContain("754"); // the offending unit is nameable
+    expect(t).not.toContain("NaN");
+  });
+
+  it("states the empty case as the policy holding, not as no data", () => {
+    const t = mount(ExceptionsTab, {
+      props: { title: "California", blurb: "…", report: analyzePolicyExceptions([]).avoidedStates, slug: "ca" },
+    }).text();
+    expect(t).toContain("the policy held for this period");
+    expect(t).not.toContain("NaN");
+  });
+});
+
+describe("AncillaryCard", () => {
+  it("flags a DEF ratio the engines cannot burn", () => {
+    const lines = [
+      fill({ tranDate: "2026-08-17", gallons: 1000, netAmount: 5000, retailAmount: 5600 }),
+      fill({ tranDate: "2026-08-17", gallons: 60, netAmount: 294, retailAmount: 294, product: "def", tank: "none" }),
+    ];
+    const t = mount(AncillaryCard, { props: { lines } }).text();
+    expect(t).toContain("DEF is 6.0% of diesel volume");
+    expect(t).toContain("worth a look");
+  });
+
+  it("says so plainly when the ratio is normal", () => {
+    const lines = [
+      fill({ tranDate: "2026-08-17", gallons: 1000, netAmount: 5000, retailAmount: 5600 }),
+      fill({ tranDate: "2026-08-17", gallons: 25, netAmount: 122, retailAmount: 122, product: "def", tank: "none" }),
+    ];
+    expect(mount(AncillaryCard, { props: { lines } }).text()).toContain("sits inside the 2–3%");
+  });
+});
+
+describe("SpendOverviewTab", () => {
+  it("renders the tiles, the weekly series and the bridge together", () => {
+    const t = mount(SpendOverviewTab, { props: { lines: eightWeeks() } }).text();
+    expect(t).toContain("Paid per gallon");
+    expect(t).toContain("Week by week");
+    expect(t).toContain("Why spend moved");
+    expect(t).toContain("Beyond tractor fuel");
+    expect(t).not.toContain("NaN");
+  });
+
+  it("shows an em dash rather than $0.00 or NaN when a period has no fuel", () => {
+    const t = mount(SpendOverviewTab, { props: { lines: [] } }).text();
+    expect(t).not.toContain("NaN");
+    expect(t).toContain("—");
+  });
+});
