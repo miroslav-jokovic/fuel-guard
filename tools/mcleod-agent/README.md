@@ -8,6 +8,9 @@ network) and to FuelGuard's HTTPS address (outbound, like any web browser). No i
 
 ## What it sends
 
+- **The roster** — drivers, tractors and trailers, read straight from LoadMaster's SQL Server. This is
+  the list FuelGuard treats as authoritative for who is employed and what is in the fleet. Run it with
+  `npm run roster`.
 - **Movements / loads** — including whether each was a **temperature-controlled (reefer) load**. FuelGuard
   uses this to stop false "reefer fuel diversion" alerts on trucks whose reefer wasn't actually running.
 - **Driver home time / time-off** windows.
@@ -15,6 +18,29 @@ network) and to FuelGuard's HTTPS address (outbound, like any web browser). No i
 ## Requirements
 
 - **Node.js 18 or newer** (free: https://nodejs.org — pick the LTS installer). Check with `node --version`.
+- `npm install` once in this folder. The roster sync needs the `mssql` driver; the movement sync has no
+  dependencies and still runs without it.
+
+## The roster sync
+
+```
+npm install
+npm run roster            # sync once
+npm run roster -- --full  # resend every row, ignoring what has already been sent
+```
+
+Fill in the `MCLEOD_SQL_*` block in `.env`. Three things are worth knowing before you run it:
+
+- **It is read-only.** Every statement is a `SELECT` against an explicit list of columns, written out in
+  `queries.mjs` so you can read exactly what leaves your database. It never writes to LoadMaster.
+- **`MCLEOD_COMPANY_ID` is `dbo.company.id`** (`TMS`, `TMS2`, …), *not* `dbo.company.company_id` — that
+  second column is the LoadMaster instance code and reads `TMS` on all four company rows. The wrong
+  value mixes two legal entities together.
+- **`ROSTER_MODE=link` is the starting point.** It sends only the keys needed to match your records to
+  FuelGuard's — no date of birth and no home address is read at all. Move to `identity` once the match
+  report has been reviewed.
+
+It remembers a hash of each row in `roster-state.json`, so a run where nothing changed sends nothing.
 
 ## Setup (once)
 

@@ -2,9 +2,17 @@ import { Router, json } from "express";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
-import { tmsMovementsPayloadSchema, driverTimeOffPayloadSchema, tmsLoadsPayloadSchema } from "@fuelguard/shared";
+import {
+  tmsMovementsPayloadSchema,
+  driverTimeOffPayloadSchema,
+  tmsLoadsPayloadSchema,
+  tmsDriversPayloadSchema,
+  tmsVehiclesPayloadSchema,
+  tmsTrailersPayloadSchema,
+} from "@fuelguard/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../services/tmsIngest.js";
 import { ingestLoads } from "../services/tmsLoadIngest.js";
+import { ingestDrivers, ingestVehicles, ingestTrailers } from "../tms/rosterIngest.js";
 
 /**
  * Inbound TMS ingest from the on-prem sync agent. NO user auth — authenticated by the org's ingest token
@@ -37,6 +45,35 @@ export function tmsIngestRouter(): Router {
       next();
     }),
   );
+
+  // ── roster (M3, link-only) ────────────────────────────────────────────────────────────────────
+  //
+  // Three endpoints rather than one, because the three payloads have different shapes and a partial
+  // failure should strand one entity, not all of them. Each is idempotent on the TMS's own id, so the
+  // agent can re-send a sweep safely — which is what makes the hash-based change detection on its side
+  // an optimisation rather than a correctness requirement.
+  for (const [path, schema, key, run] of [
+    ["/roster/drivers", tmsDriversPayloadSchema, "drivers", ingestDrivers],
+    ["/roster/vehicles", tmsVehiclesPayloadSchema, "vehicles", ingestVehicles],
+    ["/roster/trailers", tmsTrailersPayloadSchema, "trailers", ingestTrailers],
+  ] as const) {
+    router.post(
+      path,
+      asyncHandler(async (req, res) => {
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json(apiError("invalid_payload", parsed.error.issues[0]?.message ?? "invalid payload"));
+          return;
+        }
+        const { orgId, provider } = req.tms!;
+        const admin = getSupabaseAdmin(getAppLocals(req).env);
+        const rows = (parsed.data as Record<string, unknown>)[key] as never;
+        const result = await run(admin, orgId, rows);
+        await touchLastSynced(admin, orgId, provider);
+        res.json(result);
+      }),
+    );
+  }
 
   router.post(
     "/movements",
