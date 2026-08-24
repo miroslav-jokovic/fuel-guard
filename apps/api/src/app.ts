@@ -22,6 +22,7 @@ import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
+import { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./efs/router.js";
 import { fuelCardEchoScanRouter } from "./routes/fuelCards/echoScan.js";
@@ -312,6 +313,8 @@ export function createApp(env: Env): Express {
   app.use("/api/reports", reportsRouter());
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
+  // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
+  app.use("/api/integrations", tmsRosterMasterRouter());
   app.use("/api/fueling", fuelingRouter());
   // Reads, then writes, then the two admin-only diagnostics. Four routers on one prefix (the
   // rosterDriversRouter precedent), each starting with its own `router.use(requireAuth)` so

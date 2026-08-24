@@ -42,6 +42,12 @@ export interface TmsIntegrationStatus {
   hasToken: boolean;
   tokenPrefix: string | null;
   lastSyncedAt: string | null;
+  /**
+   * Has this org declared its TMS the master of the roster? Reported here because it changes what the
+   * SAMSARA syncs are allowed to do (D-MR5), so a settings screen that shows "McLeod: connected"
+   * without it is describing half the arrangement.
+   */
+  rosterMaster: boolean;
 }
 
 /** Non-secret status for the settings UI (never returns the token or its hash). */
@@ -52,16 +58,23 @@ export async function getTmsIntegrationStatus(
 ): Promise<TmsIntegrationStatus> {
   const { data } = await admin
     .from("org_integrations")
-    .select("enabled, ingest_token_hash, ingest_token_prefix, last_synced_at")
+    .select("enabled, ingest_token_hash, ingest_token_prefix, last_synced_at, config")
     .eq("org_id", orgId)
     .eq("provider", provider)
     .maybeSingle();
-  const row = data as { enabled?: boolean; ingest_token_hash?: string | null; ingest_token_prefix?: string | null; last_synced_at?: string | null } | null;
+  const row = data as {
+    enabled?: boolean;
+    ingest_token_hash?: string | null;
+    ingest_token_prefix?: string | null;
+    last_synced_at?: string | null;
+    config?: Record<string, unknown> | null;
+  } | null;
   return {
     enabled: row?.enabled ?? false,
     hasToken: !!row?.ingest_token_hash,
     tokenPrefix: row?.ingest_token_prefix ?? null,
     lastSyncedAt: row?.last_synced_at ?? null,
+    rosterMaster: row?.config?.roster_master === true,
   };
 }
 
