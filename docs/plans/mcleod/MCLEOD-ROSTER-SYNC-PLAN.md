@@ -238,7 +238,16 @@ Every `char(n)` value is space-padded; trim at the agent boundary and treat all-
 | `email`, `cell_phone`, `phone` | **do not map** | **0** | Empty. Samsara stays the phone source. |
 | `tractor_id` | **do not import** | **0 populated** | Empty anyway — and D43 makes `driver_equipment_timeline` authoritative. |
 | `event_date` | **never** | — | The 228k/day churn column. Excluding it is what makes the hash diff work. |
-| `social_security_no` (1,461 populated), `race`, `sex`, `name_of_spouse` | **never** | — | Not in the allowlist, not in the SELECT, not in a log line. |
+| `name_of_spouse` | `email` | 164/164 active | **⚠ NOT a spouse's name at this carrier.** They keep the driver's EMAIL ADDRESS here — all 164 active drivers have an `@` in it, while `driver.email`, the column named for the purpose, is empty on all 1,463 rows. Absorbing a local convention like this is what the agent is for: FuelGuard is told `email` and only `queries.mjs` knows where it lives. `char(28)` truncates, so `usableEmail()` rejects a value at the column limit unless it still ends in a TLD — 14 sit at 28 characters and only 6 survive that test. |
+| `social_security_no` (1,461 populated), `race`, `sex` | **never** | — | Not in the allowlist, not in the SELECT, not in a log line. |
+
+> **D-FG9 (2026-08-24): the PII allowlist has exactly one home, and it is `tools/mcleod-agent/queries.mjs`.**
+> This table describes that file and must never contradict it. It did: `name_of_spouse` was listed above
+> under "never", next to the SSN, while the shipped agent read it — because the first draft of this document
+> reasoned from the column's NAME and the field work later found what the carrier actually stores there.
+> Both statements reached `main`. A PII list that is wrong in either direction is dangerous: it invites
+> someone to delete a working mapping, or it understates which sensitive columns are genuinely read. When
+> the two disagree in future, the SELECT is the fact and this table is the one to fix.
 
 ### 4.2 `dbo.tractor` → `vehicles`
 

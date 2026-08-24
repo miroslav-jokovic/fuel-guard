@@ -21,7 +21,8 @@ interface Captured {
 /** Minimal Supabase stand-in that records every write and serves fixed reads. */
 function stub(opts: {
   vehicles?: { id: string; unit_number: string }[];
-  drivers?: { id: string; employee_id: string }[];
+  trailers?: { id: string; unit_number: string }[];
+  drivers?: { id: string; employee_id: string | null; mcleod_driver_id?: string | null }[];
   existingLoads?: Record<string, unknown>[];
   autoApprove?: boolean;
 }): { admin: SupabaseClient; writes: Captured[] } {
@@ -29,7 +30,7 @@ function stub(opts: {
   const rowsFor = (table: string): unknown[] => {
     switch (table) {
       case "vehicles": return opts.vehicles ?? [];
-      case "trailers": return [];
+      case "trailers": return opts.trailers ?? [];
       case "drivers": return opts.drivers ?? [];
       case "loads": return opts.existingLoads ?? [];
       case "org_integrations": return [{ config: { auto_approve_loads: opts.autoApprove === true } }];
@@ -249,5 +250,42 @@ describe("batch reporting", () => {
     expect(res.received).toBe(3);
     expect(res.results).toHaveLength(3);
     expect(res.results.map((r) => r.external_id)).toEqual(["A", "B", "C"]);
+  });
+});
+
+/**
+ * Resolving a McLeod load to the driver and trailer it names (MCLEOD-FIELD-GAP-PLAN F1).
+ *
+ * Both of these failed silently before D-FG7/D-FG8, and silently is the operative word: the load
+ * still landed, with a null driver or a null trailer, and the only trace was an `unmatched` array in
+ * a response the agent prints to a log.
+ */
+describe("a load from McLeod finds the records it names", () => {
+  const mcleodDriver = [{ id: "d-1", employee_id: null, mcleod_driver_id: "D0001" }];
+
+  it("resolves the driver by the McLeod id, because employee_id is empty at this carrier", async () => {
+    const { admin, writes } = stub({ drivers: mcleodDriver });
+    const res = await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "D0001" })]);
+    expect((loadWrites(writes)[0]!.payload as { driver_id: string }).driver_id).toBe("d-1");
+    expect(res.results[0]!.outcome).toBe("created");
+  });
+
+  it("resolves a reefer whose McLeod unit number lacks FuelGuard's R prefix", async () => {
+    const { admin, writes } = stub({ trailers: [{ id: "t-1", unit_number: "R532159" }] });
+    await ingestLoads(admin, "org1", "mcleod", [load({ trailer_unit: "532159" })]);
+    expect((loadWrites(writes)[0]!.payload as { trailer_id: string }).trailer_id).toBe("t-1");
+  });
+
+  it("still reports a driver nobody holds, rather than inventing one", async () => {
+    const { admin, writes } = stub({ drivers: mcleodDriver });
+    const res = await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "D9999" })]);
+    expect(res.unmatched).toContain("D9999");
+    expect((loadWrites(writes)[0]!.payload as { driver_id: string | null }).driver_id).toBeNull();
+  });
+
+  it("leaves a carrier that really uses employee_id working exactly as before", async () => {
+    const { admin, writes } = stub({ drivers: [{ id: "d-2", employee_id: "EMP-7" }] });
+    await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "EMP-7" })]);
+    expect((loadWrites(writes)[0]!.payload as { driver_id: string }).driver_id).toBe("d-2");
   });
 });
