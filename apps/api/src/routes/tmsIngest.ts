@@ -68,7 +68,11 @@ export function tmsIngestRouter(): Router {
         const { orgId, provider } = req.tms!;
         const admin = getSupabaseAdmin(getAppLocals(req).env);
         const rows = (parsed.data as Record<string, unknown>)[key] as never;
-        const result = await run(admin, orgId, rows);
+        // The agent declares which mode it is running in. Link is the default and the safe one: a
+        // misconfigured agent that forgets the parameter refreshes nothing, rather than writing
+        // identity onto a roster nobody has reviewed the match for yet.
+        const mode = req.query.mode === "identity" ? "identity" : "link";
+        const result = await run(admin, orgId, rows, mode);
         await touchLastSynced(admin, orgId, provider);
         res.json(result);
       }),
