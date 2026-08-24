@@ -57,6 +57,8 @@
     "lint:wsdl": "node scripts/check-wsdl-ops.mjs",
     "//lint:cli-streams": "efs.mjs must put ONLY a JSON result on stdout \u2014 a prompt there makes `efs.mjs <cmd> > file.json` hang, which it did on 2026-08-16.",
     "lint:cli-streams": "node scripts/check-cli-streams.mjs",
+    "lint:mcleod-recon": "node scripts/check-mcleod-recon.mjs",
+    "//lint:mcleod-recon": "The McLeod recon pack (tools/mcleod-agent/inspect.mjs) is meant to be run by the CARRIER'S IT against `lme`, the production LoadMaster database our login cannot read (HAS_DBACCESS = 0). Its reviewer has to be able to trust 22 SQL statements without reading them closely, so the gate enforces the four properties that make it safe to hand over: every statement is a single SELECT; the outright-banned columns (social_security_no and friends \u2014 db_datareader can read it and 1,461 of 1,463 rows have one) appear nowhere at all; names, licences, addresses and contacts may be COUNTED but never returned; and anything reading driver/tractor/trailer binds @companyId, because dbo.company holds four legal entities in the same tables.",
     "lint:codegen": "node scripts/gen-rule-catalog.mjs && pnpm gen:tokens && git diff --exit-code -- 'packages/**/*.generated.ts' 'packages/ui/src/tokens.generated.css'",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

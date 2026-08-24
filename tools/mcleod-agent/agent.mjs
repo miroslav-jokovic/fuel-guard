@@ -15,7 +15,8 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState } from "./roster.mjs";
+import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
+import { INSPECTION } from "./inspect.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -28,6 +29,10 @@ const CFG = {
   // Retirement is opt-in per RUN, never a mode that rides along with a sweep: it is the one operation
   // that takes capability away from a person and the only one that touches the retention clock.
   retire: process.argv.includes("--retire"),
+  // Read-only reconnaissance. Answers the questions the field mapping cannot decide without
+  // measuring, and prints them as JSON so the output can be pasted back verbatim. Every query is
+  // gated by `pnpm lint:mcleod-recon` before it can reach this file.
+  inspect: process.argv.includes("--inspect"),
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
@@ -79,7 +84,7 @@ function fail(msg) {
 }
 if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire) {
+if (CFG.roster || CFG.retire || CFG.inspect) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -423,6 +428,17 @@ async function runRetire() {
 
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 async function main() {
+  if (CFG.inspect) {
+    log(`inspect: ${INSPECTION.length} question(s) against ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+    for (const r of await runInspection(CFG.sql, INSPECTION)) {
+      console.log(`\n### ${r.id} — ${r.question}`);
+      console.log(`# blocks: ${r.blocks}`);
+      if (r.error) console.log(`# ERROR: ${r.error}`);
+      else if (!r.rows.length) console.log("# (no rows)");
+      else for (const row of r.rows) console.log(JSON.stringify(row));
+    }
+    return;
+  }
   if (CFG.retire) {
     await runRetire();
     return;

@@ -302,3 +302,31 @@ async function withPool({ server, port, database, user, password, encrypt, trust
     await pool.close();
   }
 }
+
+/**
+ * Run the committed recon pack (`inspect.mjs`) and return one entry per question.
+ *
+ * Each question is caught INDIVIDUALLY on purpose. This pack is meant to be run by somebody else, on
+ * a login whose grants we do not control — most likely the carrier's IT against `lme`, which we
+ * cannot read. A permission error on one question must not cost the other twenty-one answers, and the
+ * error itself is a finding worth reporting rather than a crash.
+ */
+export async function runInspection(cfg, questions) {
+  return withPool(cfg, async (pool, mssql) => {
+    const out = [];
+    for (const q of questions) {
+      const entry = { id: q.id, question: q.question, blocks: q.blocks };
+      try {
+        const res = await pool
+          .request()
+          .input("companyId", mssql.VarChar(32), cfg.companyId)
+          .query(q.sql);
+        entry.rows = res.recordset ?? [];
+      } catch (e) {
+        entry.error = e.message;
+      }
+      out.push(entry);
+    }
+    return out;
+  });
+}

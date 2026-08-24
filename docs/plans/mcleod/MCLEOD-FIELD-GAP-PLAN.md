@@ -48,7 +48,7 @@ columns on a structurally identical table. That asymmetry is not a decision anyb
 
 | FuelGuard | McLeod | Status |
 |---|---|---|
-| `trailer_type` | `trailer_type` | **Ready.** The agent already SELECTs it and the ingest throws it away after deriving `is_reefer`. The column exists and is 59/211 populated from another source. |
+| `trailer_type` | `trailer_type` | blocked C3/D2 — **⚠ this row said "ready" in the first draft and that was wrong.** The plumbing is trivial (the agent already SELECTs the column and discards it after deriving `is_reefer`) but the destination is **constrained**: `CHECK (trailer_type in ('dry_van','reefer','flatbed','tanker','hopper','other'))`, verified in production 2026-08-24, currently `reefer:46, dry_van:13, null:152`. McLeod's codes are single letters — `V`=187, `R`=45. `R → reefer` is verified (§4.3). **`V → dry_van` is not.** "V is obviously Van" is exactly the kind of inference D-FG1 forbids. |
 | `registration_expires_at` | `tag_expire_date` | blocked C1 (coverage + direction) |
 | `dot_annual_inspection_expires_at` | `inspection_date` | blocked C1 — and if it is a *performed* date like the tractor's, it needs the same +1y derivation |
 | `purchased_at` | `purchase_date` | blocked C1 |
@@ -175,8 +175,28 @@ which sensitive columns are actually being read.
 
 ## 7. Blocking questions — the inspection pack
 
-One read-only pack answers all of them: aggregates and code vocabularies only, no name, SSN, licence,
-address or date of birth. Each question's fallback is **do not map**.
+> **D-FG10: the recon is a COMMAND, not a query somebody pastes into an editor.**
+> `tools/mcleod-agent/inspect.mjs` holds the questions; `node agent.mjs --inspect` runs them and prints
+> JSON. The reason is not tidiness. **The answers that decide the cutover can only ever be measured by
+> somebody else:** `lme_analytics` is a one-off restore taken 2026-08-21 09:46, and production is `lme`
+> on the same instance, which our login cannot read (`HAS_DBACCESS('lme') = 0`). A recon that depends
+> on one person's shell access is the wrong shape for a question only the carrier's IT can answer.
+>
+> `pnpm lint:mcleod-recon` enforces what makes it safe to hand over, so its reviewer does not have to
+> read 22 SQL statements closely: every
+> statement is a single `SELECT`; `social_security_no` and seven siblings appear **nowhere at all**;
+> names, licences, addresses and contacts may be **counted but never returned**; and anything reading
+> `driver` / `tractor` / `trailer` binds `@companyId`, because `dbo.company` holds four legal entities
+> in the same tables. Each violation class is verified to fail the gate.
+>
+> **⚠ The CI step is NOT wired yet** and the gate is therefore advisory until it is. The push that
+> would have added it was rejected — the token this work runs under has no `workflow` scope, so
+> `.github/workflows/ci.yml` cannot be edited from here. The one-line step is prepared and needs a
+> commit from an account that can write workflows; until then `lint:mcleod-recon` only runs when
+> somebody types it. Saying otherwise in this document would be exactly the kind of unverified claim
+> D-FG1 exists to prevent.
+
+Each question's fallback is **do not map**.
 
 | # | Question | Blocks |
 |---|---|---|
@@ -188,8 +208,9 @@ address or date of birth. Each question's fallback is **do not map**.
 | B3 | `tractor` `gross_veh_weight_um` / `weight_um` distinct values + ranges | `gvwr_lb`, `tare_weight_lb` |
 | B4–B8 | `owner`, `pay_owner`, `type_of`, `fuel_type_code`, `axle_number_code` distributions | `ownership_type`, `fuel_type`, `axle_count` |
 | B9 | `tractor.fuel_capacity` coverage + range | D-FG5 |
-| C1 | `trailer` `tag_expire_date` / `inspection_date` / `purchase_date` — coverage and past/future | the three trailer dates |
+| C1a–C1c | `trailer` `tag_expire_date` / `inspection_date` / `purchase_date` — coverage and past/future | the three trailer dates |
 | C2 | `trailer` `length_of_um` / `volume_um` / `weight_um` / `gross_veh_weight_um` distinct values | all trailer dimensions |
+| C3 | `trailer.trailer_type` distribution | `trailers.trailer_type` (see §3.1 — the destination has a CHECK) |
 | C4–C6 | `door_type_code`, `axles`, `ownership` distributions | `door_type`, `axle_count`, `ownership_type` |
 | D1–D2 | `dbo.code` — which columns have a vocabulary, and the values for the ones above | D-FG3 |
 
@@ -200,16 +221,26 @@ address or date of birth. Each question's fallback is **do not map**.
 One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped
 and the gates run — this document is the memory between sessions.
 
-### F1 — the two resolution defects *(not blocked)*
+### F1 — the two resolution defects — **DONE 2026-08-24**
 D-FG7 and D-FG8: `mcleod_driver_id` as a match key in `tmsLoadIngest` and `tmsIngest`;
 `trailerUnitMatchKey` in both trailer lookups.
 **Done when:** a load carrying a McLeod driver id and an unprefixed reefer unit resolves both, pinned by
 tests in each ingest; and the org-scoping assertion still holds via `expectOrgScoped`.
+**What shipped:** `apps/api/src/tms/entityLookup.ts` — one collision-safe resolver replacing four
+hand-rolled `Map.set` loops, which also fixed a third defect those loops had (a key claimed by two rows
+kept whichever came last). An unresolvable trailer is now REPORTED; before it produced a null and
+appeared in no report. **Verified by:** 18 new cases across `entityLookup.test.ts`,
+`tmsLoadIngest.test.ts` and `tmsIngest.test.ts`; `apps/api` 2,094 tests green; `lint:filesize`,
+`lint:funcsize`, `lint:comment-claims`, `lint:upserts`, `lint:boundaries`, `lint:tests`, eslint,
+`tsc --noEmit`.
 
-### F2 — settle the contradiction *(not blocked)*
+### F2 — settle the contradiction — **DONE 2026-08-24**
 D-FG9. Doc-only.
 **Done when:** §4.1's "never" list and `queries.mjs` agree, and the plan names `queries.mjs` as the one
 home of the PII allowlist.
+**What shipped:** `name_of_spouse` moved out of the "never" row into its own row recording the local
+convention and `usableEmail()`'s truncation test; D-FG9 records that the SELECT is the fact and the
+table is what gets fixed when they disagree.
 
 ### F3 — trailer parity with vehicles *(blocked on C1)*
 `trailer_type` stored (ready now), plus `registration_expires_at`, `dot_annual_inspection_expires_at`
