@@ -20,6 +20,27 @@
 -- which is why the trailer half of every axle-dependent question has been unanswerable.
 alter table trailers add column if not exists axle_count integer;
 
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- TWO COLUMNS WITH NO SOURCE TODAY, ADDED DELIBERATELY
+--
+-- `vehicles` has carried `height_in`, `length_in` and `width_in` since 0119; `trailers` has only
+-- `length_in`. That asymmetry is not a decision anybody made, and it is the reason the trailer half of
+-- every dimension question has been unanswerable in the same way `axle_count` was.
+--
+-- Neither has a McLeod source: `trailer.height`/`width` sit behind `*_um` unit columns that are NULL,
+-- so the values cannot be converted and are not imported (D-FG1). They are added anyway, as a product
+-- decision recorded in the field-gap plan: FleetPal owns equipment specs next, and a nullable column
+-- waiting for its source is cheaper than a migration blocking a UI change later. Nothing writes them
+-- today and nothing should pretend to.
+alter table trailers add column if not exists height_in numeric;
+alter table trailers add column if not exists width_in  numeric;
+
+comment on column trailers.height_in is
+  'Exterior height in inches. NO source today — McLeod''s height column is governed by a NULL *_um unit
+   column so it cannot be converted. Reserved for FleetPal (D-FG14); mirrors vehicles.height_in.';
+comment on column trailers.width_in is
+  'Exterior width in inches. NO source today — see height_in. Mirrors vehicles.width_in.';
+
 comment on column trailers.axle_count is
   'Number of axles. Sourced from McLeod dbo.trailer.axles (193 of 235 populated at Silvicom, every one
    a 2). Nullable on purpose — a trailer whose axle count nobody recorded is a trailer with an unknown

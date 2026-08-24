@@ -310,6 +310,50 @@ entirely.
 
 ---
 
+## 7d. Schema now, display later — and the one field class that must never be hidden
+
+The proposal: create the columns even where McLeod has nothing, and simply don't display a field that
+has no data, so the structure is ready when another source fills it. Checked against the database
+2026-08-24, and it is **already true almost everywhere**:
+
+| Table | Columns from §7c that do NOT exist |
+|---|---|
+| `vehicles` | **none** — `axle_count`, `fuel_type`, `gvwr_lb`, `tare_weight_lb`, `irp_account`, `ownership_type`, `purchased_at`, `height_in`, `width_in`, `length_in` all exist |
+| `drivers` | **none** — `cdl_class`, `driver_type`, `home_terminal_id`, `cdl_issued_at`, `cdl_restrictions` all exist |
+| `trailers` | `axle_count` (added by 0242), `height_in`, `width_in` |
+
+> **D-FG14: the columns exist; the display rule is recorded now and built when there is a surface to
+> build it on.** `vehicles` has had `height_in`/`length_in`/`width_in` since 0119 and `trailers` had
+> only `length_in` — an asymmetry nobody chose. 0242 closes it. Neither new column has a source today
+> (McLeod's height and width sit behind NULL `*_um` units, so they cannot be converted) and **nothing
+> writes them**; they are reserved for FleetPal, which owns equipment specs next.
+
+### Why the hide-when-empty rule is not built yet
+
+**None of these fields is displayed anywhere.** `gvwr_lb`, `tare_weight_lb`, `capacity_cube_ft`,
+`door_type` and `ownership_type` have **zero references in `apps/web/src`**; `VehicleDetailPage` shows
+tank, baseline MPG, odometer and open anomalies, and there is no equipment-spec surface at all. A
+hide-when-empty mechanism today would be a rule with no caller — the same speculative work that
+`F5b` was just cancelled for.
+
+So the rule is written down instead, to be applied by whoever builds that surface:
+
+> **Hide a field when it is empty for EVERY row in the org** — not when it is empty for the row in
+> front of you. Per-row hiding makes two trailers show different fields and reads as a bug; org-wide
+> emptiness genuinely means "this carrier does not track this", which is worth not showing.
+
+> **⚠ NEVER hide an empty COMPLIANCE field.** An empty `dot_annual_inspection_expires_at`,
+> `medical_card_expires_at` or `cdl_expires_at` is not "nothing to display" — it is **an unrecorded
+> inspection or an expired qualification**, which is precisely what those surfaces exist to surface.
+> Hiding it would turn the absence of evidence into the appearance of compliance, on the one screen
+> where that inversion is most expensive. Empty compliance fields render as a gap, loudly.
+>
+> This matters sooner than it looks: `dot_annual_inspection_expires_at` is written by the McLeod sync
+> for 228 trailers and 175 tractors and is currently **read by nothing at all**. The first surface to
+> read it inherits this rule.
+
+---
+
 ## 8. Execution
 
 One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped
