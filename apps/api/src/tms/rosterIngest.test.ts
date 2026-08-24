@@ -447,3 +447,61 @@ describe("report mode", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+/**
+ * The four fields the 2026-08-24 reconnaissance actually found (MCLEOD-FIELD-GAP-PLAN §7c).
+ *
+ * The recon asked 23 questions and most answers were empty columns — which is a SOURCE-ROUTING
+ * answer, not a gap: five systems feed this database and "McLeod holds nothing here" means the
+ * column belongs to Samsara, FleetPal, EFS or PSP. `tank_capacity_gal` is the clearest case, set
+ * locally today and FleetPal's next, so `tractor.fuel_capacity` being empty on 190 of 190 costs
+ * nothing.
+ */
+describe("the fields the recon found", () => {
+  it("writes a tractor's purchase date", async () => {
+    const rec = seed({ vehicles: [vehicle()] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", purchased_at: "2019-06-01" },
+    ], "identity");
+    expect(rec.writtenRows("vehicles")[0]).toMatchObject({ purchased_at: "2019-06-01" });
+  });
+
+  it("derives a trailer's annual-inspection EXPIRY from the date it was performed", async () => {
+    // 228 of 235 trailers carry this and 228 of 228 are in the past, so it records when the annual
+    // happened — while FuelGuard's column is an expiry. Same shape as the tractor's.
+    const rec = seed({ trailers: [trailer()] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "532159", unit_number: "532159", annual_inspection_performed_at: "2026-02-11" },
+    ], "identity");
+    expect(rec.writtenRows("trailers")[0]).toMatchObject({
+      dot_annual_inspection_expires_at: "2027-02-11",
+    });
+  });
+
+  it("writes a trailer's purchase date and axle count", async () => {
+    const rec = seed({ trailers: [trailer()] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "532159", unit_number: "532159", purchased_at: "2018-04-20", axle_count: 2 },
+    ], "identity");
+    expect(rec.writtenRows("trailers")[0]).toMatchObject({ purchased_at: "2018-04-20", axle_count: 2 });
+  });
+
+  it("never writes a trailer registration expiry — McLeod has none for ANY trailer", async () => {
+    // `tag_expire_date` is populated on 0 of 235. The tractor path writes the equivalent because
+    // there the column has 175 values; asserting the asymmetry is deliberate keeps it from looking
+    // like an oversight to whoever reads this next.
+    const rec = seed({ trailers: [trailer()] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "532159", unit_number: "532159", purchased_at: "2018-04-20" },
+    ], "identity");
+    expect(rec.writtenRows("trailers")[0]).not.toHaveProperty("registration_expires_at");
+  });
+
+  it("still writes nothing at all in report mode", async () => {
+    const rec = seed({ trailers: [trailer()] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "532159", unit_number: "532159", purchased_at: "2018-04-20", axle_count: 2 },
+    ], "report");
+    expect(rec.writes()).toEqual([]);
+  });
+});

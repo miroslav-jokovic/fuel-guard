@@ -235,6 +235,8 @@ export const tmsVehicleInputSchema = z.object({
    *  175/175 in the past). FuelGuard's column is an expiry, so the derivation happens on ingest and
    *  the raw observation crosses the wire unchanged. */
   annual_inspection_performed_at: isoDate.nullish(),
+  /** `purchase_date` — 190 of 190 active tractors, every one in the past (measured 2026-08-24). */
+  purchased_at: isoDate.nullish(),
 });
 export type TmsVehicleInput = z.infer<typeof tmsVehicleInputSchema>;
 
@@ -259,6 +261,14 @@ export const tmsTrailerInputSchema = z.object({
   year: z.number().int().min(1900).max(2100).nullish(),
   plate: z.string().trim().max(32).nullish(),
   plate_state: z.string().trim().max(8).nullish(),
+  /** `purchase_date` — 224 of 235 active trailers, all past. */
+  purchased_at: isoDate.nullish(),
+  /** `inspection_date` — 228 of 235, and 228 of 228 in the PAST, so it is the date the annual was
+   *  performed, exactly like the tractor's. FuelGuard's column is an expiry; the +1 year derivation
+   *  happens on ingest so the raw observation crosses the wire unchanged. */
+  annual_inspection_performed_at: isoDate.nullish(),
+  /** `axles` — 193 of 235, every populated row a 2. */
+  axle_count: z.number().int().min(1).max(20).nullish(),
 });
 export type TmsTrailerInput = z.infer<typeof tmsTrailerInputSchema>;
 
