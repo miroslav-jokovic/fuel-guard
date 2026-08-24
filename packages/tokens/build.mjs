@@ -44,13 +44,28 @@ const json = (f) => JSON.parse(read(f));
  * token keeps each scheme readable on its own and makes the diff of a re-theme legible.
  */
 const GROUPS = [
-  ["primitives.json", "ramp"],
-  ["roles.light.json", "role"],
+  ["primitives", "ramp"],
+  ["roles", "role"],
 ];
+
+/**
+ * Dark values, keyed by token name (D-DS2).
+ *
+ * A token with no dark entry emits its light value unchanged — correct for anything already
+ * theme-aware, like `--viz-tick: var(--ink-muted)`, which follows the role it points at.
+ */
+const darkValues = new Map();
+for (const [file, group] of GROUPS) {
+  for (const [name, node] of Object.entries(json(`${file}.dark.json`)[group] ?? {})) {
+    darkValues.set(name, node.$value);
+  }
+}
 
 const ordered = [];
 for (const [file, group] of GROUPS) {
-  for (const [name, node] of Object.entries(json(file)[group] ?? {})) ordered.push({ name, ...node });
+  for (const [name, node] of Object.entries(json(`${file}.light.json`)[group] ?? {})) {
+    ordered.push({ name, ...node });
+  }
 }
 const literals = Object.entries(json("theme.json").theme).map(([name, node]) => ({ name, ...node }));
 
@@ -73,11 +88,37 @@ function comment(text, indent = "  ") {
     : `${indent}/* ${lines[0]}\n${lines.slice(1).map((l) => `${indent}   ${l}`).join("\n")} */`;
 }
 
+/**
+ * `light-dark()` rather than a `.dark` class (D-DS2).
+ *
+ * Baseline Newly Available across all engines since May 2026. It replaces the duplicated-variable
+ * pattern the token file's own comment used to propose, and — unlike a class — it also fixes native
+ * form controls, scrollbars and system colours, because the browser knows the scheme rather than
+ * inferring it from a selector. A manual toggle works by setting `color-scheme` on the root element;
+ * no class plumbing and no `dark:` variants, which is why apps/web still has zero of them.
+ *
+ * Shadows cannot go through light-dark() at all — it takes colours, not shadow values. So the four
+ * elevations are built from `--shadow-tint-*` COLOUR tokens, which can. That also keeps them
+ * toggle-compatible: a `prefers-color-scheme` block would follow the OS while light-dark() follows
+ * `color-scheme`, and the two would desync the moment a manual toggle disagreed with the system.
+ */
+function schemeValue(token) {
+  const dark = darkValues.get(token.name);
+  if (dark === undefined || dark === token.$value) return token.$value;
+  return `light-dark(${token.$value}, ${dark})`;
+}
+
 function emitCss() {
-  const out = [":root {"];
+  const out = [
+    "/* `color-scheme` tells the browser both schemes are supported, so light-dark() below resolves",
+    "   against the user's preference — and native controls, scrollbars and system colours follow.",
+    "   A manual toggle overrides it by setting color-scheme on the root element. */",
+    ":root {",
+    "  color-scheme: light dark;",
+  ];
   for (const t of ordered) {
     for (const section of ext(t, "section") ?? []) out.push("", comment(section));
-    out.push(`  --${t.name}: ${t.$value};${t.$description ? ` /* ${t.$description} */` : ""}`);
+    out.push(`  --${t.name}: ${schemeValue(t)};${t.$description ? ` /* ${t.$description} */` : ""}`);
   }
   out.push("}", "", "@theme inline {");
 
@@ -112,7 +153,7 @@ function emitCss() {
 // Style Dictionary loads and shape-checks the same sources; the emitter above formats them.
 StyleDictionary.registerFormat({ name: "fuelguard/css", format: () => emitCss() });
 const sd = new StyleDictionary({
-  source: [src("primitives.json"), src("roles.light.json")],
+  source: [src("primitives.light.json"), src("roles.light.json")],
   platforms: { css: { transformGroup: "css", files: [{ destination: "check.css", format: "fuelguard/css" }] } },
   log: { verbosity: "silent", warnings: "disabled" },
 });

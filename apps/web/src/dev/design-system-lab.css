@@ -1,7 +1,12 @@
+/* The lab's own chrome runs on the REAL roles, so the page frame, its controls and the segmented
+   switches follow the colour scheme like the rest of the product. Only the A/B specimen below keeps
+   the single-valued `--prototype-*` vocabulary — it is a light-only exhibit on purpose (plan Q5),
+   and before this the whole page inherited its light chrome, so in dark mode the frame, the tabs and
+   the buttons inside them stayed light around a dark app. */
 .lab-page {
   min-height: 100vh;
-  background: var(--prototype-surface-muted);
-  color: var(--prototype-text-primary);
+  background: var(--canvas);
+  color: var(--ink);
 }
 .lab-controls {
   display: flex;
@@ -9,8 +14,8 @@
   justify-content: space-between;
   gap: 2rem;
   padding: 1.25rem 2rem;
-  border-bottom: 1px solid var(--prototype-border-default);
-  background: var(--prototype-surface);
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface);
 }
 .lab-controls h1 {
   margin-top: 0.15rem;
@@ -19,11 +24,11 @@
 }
 .lab-controls p:not(.lab-eyebrow) {
   margin-top: 0.2rem;
-  color: var(--prototype-text-tertiary);
+  color: var(--ink-muted);
   font-size: 0.875rem;
 }
 .lab-eyebrow {
-  color: var(--prototype-text-tertiary);
+  color: var(--ink-muted);
   font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.06em;
@@ -35,29 +40,29 @@
 }
 .lab-control-groups legend {
   margin-bottom: 0.3rem;
-  color: var(--prototype-text-tertiary);
+  color: var(--ink-muted);
   font-size: 0.75rem;
   font-weight: 600;
 }
 .lab-segmented {
   display: flex;
   padding: 0.2rem;
-  border: 1px solid var(--prototype-border-default);
+  border: 1px solid var(--edge);
   border-radius: 6px;
-  background: var(--prototype-surface-muted);
+  background: var(--canvas);
 }
 .lab-segmented button {
   min-height: 2rem;
   padding: 0 0.7rem;
   border-radius: 4px;
-  color: var(--prototype-text-secondary);
+  color: var(--ink-secondary);
   font-size: 0.8rem;
   font-weight: 600;
 }
 .lab-segmented button[aria-pressed="true"] {
-  background: var(--prototype-surface);
-  color: var(--prototype-text-primary);
-  box-shadow: 0 1px 2px color-mix(in oklab, var(--prototype-text-primary) 12%, transparent);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--ink) 12%, transparent);
 }
 .lab-segmented button:focus-visible,
 .prototype button:focus-visible,
@@ -68,6 +73,11 @@
   outline-offset: 2px;
 }
 .prototype {
+  /* Self-contained: this specimen is a LIGHT-ONLY exhibit (plan Q5), so it pins its own
+     colour instead of inheriting the page's. Without this it inherited whichever ink the
+     real scheme was using, and in dark mode its headings washed out to near-white on the
+     white cards it draws for itself. */
+  color: var(--prototype-text-primary);
   --lab-action: var(--prototype-action-a);
   --lab-action-hover: var(--prototype-action-a-hover);
   --lab-action-text: var(--prototype-inverse);
@@ -494,9 +504,15 @@
 
 /* Shipped primitives (D-DS13): real components on the real canvas, deliberately outside the
    `--prototype-*` vocabulary above so the two are never confused for one another. */
+/* The A/B prototype above runs on the single-valued `--prototype-*` vocabulary and is light-only on
+   purpose — it is a dev surface, not a shipped one (plan Q5). But `.lab-page` sets `color` from that
+   vocabulary, and this section inherited it, so in dark mode the real DataTable's rows rendered
+   dark-on-dark while its header, which sets its own token, stayed readable. Setting the colour from
+   the real role stops the prototype palette leaking into the one place that must show the truth. */
 .lab-shipped {
   padding: 2rem;
   background: var(--canvas);
+  color: var(--ink);
   border-top: 1px solid var(--edge);
 }
 .lab-shipped h2 {

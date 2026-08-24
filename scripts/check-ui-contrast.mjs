@@ -6,14 +6,28 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const source = readFileSync(`${root}packages/ui/src/tokens.generated.css`, "utf8");
 
-function token(name) {
+/**
+ * Both schemes, not one (D-DS10).
+ *
+ * Every role is a `light-dark(light, dark)` pair since D-DS2, so a gate that read the first value
+ * would have checked half the product and reported a clean bill for the other half. Dark is where a
+ * contrast regression is MORE likely, not less: the light palette was tuned against white over
+ * years, the dark one was derived in an afternoon.
+ */
+function scheme(value, want) {
+  const pair = value.match(/^light-dark\(\s*(.+?)\s*,\s*(.+?)\s*\)$/);
+  if (!pair) return value;                      // single-valued: the same in both schemes
+  return want === "light" ? pair[1] : pair[2];
+}
+
+function token(name, want) {
   const match = source.match(
     new RegExp(`^\\s*${name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*:\\s*([^;]+);`, "m"),
   );
   if (!match) throw new Error(`Missing production token ${name}`);
-  const value = match[1].trim();
+  const value = scheme(match[1].trim(), want);
   const parsed = value.match(/^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
-  if (!parsed) throw new Error(`${name} must be an opaque oklch() value, received ${value}`);
+  if (!parsed) throw new Error(`${name} must be an opaque oklch() value in ${want}, received ${value}`);
   return {
     l: Number(parsed[1]) / (parsed[2] ? 100 : 1),
     c: Number(parsed[3]),
@@ -38,9 +52,9 @@ function luminance({ l: lightness, c: chroma, h: hue }) {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
-function contrast(foreground, background) {
-  const a = luminance(token(foreground));
-  const b = luminance(token(background));
+function contrast(foreground, background, want) {
+  const a = luminance(token(foreground, want));
+  const b = luminance(token(background, want));
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
@@ -70,11 +84,14 @@ const pairs = [
 ];
 
 let failed = false;
-for (const [label, foreground, background, minimum] of pairs) {
-  const ratio = contrast(foreground, background);
-  const pass = ratio + Number.EPSILON >= minimum;
-  console.log(`${pass ? "✓" : "✗"} ${label}: ${ratio.toFixed(2)}:1 (minimum ${minimum}:1)`);
-  failed ||= !pass;
+for (const want of ["light", "dark"]) {
+  console.log(`── ${want} scheme`);
+  for (const [label, foreground, background, minimum] of pairs) {
+    const ratio = contrast(foreground, background, want);
+    const pass = ratio + Number.EPSILON >= minimum;
+    console.log(`${pass ? "✓" : "✗"} ${label}: ${ratio.toFixed(2)}:1 (minimum ${minimum}:1)`);
+    failed ||= !pass;
+  }
 }
 
 if (failed) process.exit(1);

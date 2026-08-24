@@ -1,3 +1,4 @@
+import { initColorScheme } from "@/composables/useColorScheme";
 import { createApp } from "vue";
 import * as Sentry from "@sentry/vue";
 import { createPinia } from "pinia";
@@ -6,6 +7,9 @@ import App from "@/App.vue";
 import { router } from "@/router";
 import "@vuepic/vue-datepicker/dist/main.css";
 import "@/style.css"; // after the datepicker CSS so token overrides win
+
+// Replay the stored colour-scheme override before first paint (D-DS2b).
+initColorScheme();
 
 const app = createApp(App);
 

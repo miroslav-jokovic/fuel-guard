@@ -5,7 +5,7 @@
       "$value": "oklch(98.5% 0.003 300)",
       "$extensions": {
         "fuelguard.section": [
-          "── 2. Semantic roles (a future .dark block re-points these) ──────",
+          "\u2500\u2500 2. Semantic roles (a future .dark block re-points these) \u2500\u2500\u2500\u2500\u2500\u2500",
           "app background + raised surfaces"
         ],
         "fuelguard.expose": "color"
@@ -46,6 +46,14 @@
       "$type": "color",
       "$value": "oklch(23.5% 0.022 300)",
       "$description": "code blocks, tooltips",
+      "$extensions": {
+        "fuelguard.expose": "color"
+      }
+    },
+    "scrim": {
+      "$type": "color",
+      "$value": "oklch(21.5% 0.02 300)",
+      "$description": "modal veil \u2014 stays dark in both schemes, unlike the ramp it came from",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -137,33 +145,54 @@
         "fuelguard.expose": "color"
       }
     },
-    "elevation-card": {
-      "$type": "dimension",
-      "$value": "0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent)",
+    "shadow-tint-1": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ink) 5%, transparent)",
       "$extensions": {
         "fuelguard.section": [
-          "elevation — shadows carry depth so cards and overlays do not need dark perimeters"
+          "Shadow TINTS are colours, so they can be light-dark() pairs like everything else. The elevations below are built from them: a shadow value itself cannot go through light-dark(), which takes colours only, and tinting with --ink in dark would cast a light shadow because ink has inverted."
+        ]
+      }
+    },
+    "shadow-tint-2": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ink) 7%, transparent)"
+    },
+    "shadow-tint-3": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ink) 10%, transparent)"
+    },
+    "shadow-tint-4": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ink) 14%, transparent)"
+    },
+    "elevation-card": {
+      "$type": "dimension",
+      "$value": "0 1px 2px var(--shadow-tint-1)",
+      "$extensions": {
+        "fuelguard.section": [
+          "elevation \u2014 shadows carry depth so cards and overlays do not need dark perimeters"
         ],
         "fuelguard.expose": "shadow"
       }
     },
     "elevation-card-raised": {
       "$type": "dimension",
-      "$value": "0 6px 18px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 3px color-mix(in oklab, var(--ink) 4%, transparent)",
+      "$value": "0 6px 18px var(--shadow-tint-2), 0 1px 3px var(--shadow-tint-1)",
       "$extensions": {
         "fuelguard.expose": "shadow"
       }
     },
     "elevation-overlay": {
       "$type": "dimension",
-      "$value": "0 10px 28px color-mix(in oklab, var(--ink) 10%, transparent), 0 2px 6px color-mix(in oklab, var(--ink) 5%, transparent)",
+      "$value": "0 10px 28px var(--shadow-tint-3), 0 2px 6px var(--shadow-tint-2)",
       "$extensions": {
         "fuelguard.expose": "shadow"
       }
     },
     "elevation-dialog": {
       "$type": "dimension",
-      "$value": "0 20px 48px color-mix(in oklab, var(--ink) 14%, transparent), 0 4px 12px color-mix(in oklab, var(--ink) 7%, transparent)",
+      "$value": "0 20px 48px var(--shadow-tint-4), 0 4px 12px var(--shadow-tint-3)",
       "$extensions": {
         "fuelguard.expose": "shadow"
       }
@@ -173,7 +202,7 @@
       "$value": "inset 0 -1px 0 0 var(--edge)",
       "$extensions": {
         "fuelguard.section": [
-          "Not depth — a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge."
+          "Not depth \u2014 a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge."
         ],
         "fuelguard.expose": "shadow"
       }
@@ -341,7 +370,7 @@
       "$description": "MPG line",
       "$extensions": {
         "fuelguard.section": [
-          "data-viz roles — canvas charts resolve these at runtime (features/dashboard/chartTheme.ts); keep in sync with the ramps"
+          "data-viz roles \u2014 canvas charts resolve these at runtime (features/dashboard/chartTheme.ts); keep in sync with the ramps"
         ]
       }
     },
