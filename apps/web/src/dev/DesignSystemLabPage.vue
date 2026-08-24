@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { AppButton } from "@fuelguard/ui";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 type ActionMode = "graphite" | "gold";
 type SidebarMode = "dark" | "light";
@@ -28,6 +30,9 @@ const shippedColumns: DataTableColumn[] = [
   { key: "mpg", label: "MPG", numeric: true, width: "xs" },
   { key: "status", label: "Status", width: "sm" },
 ];
+
+/** Every tone the badge vocabulary defines, so a re-theme can be read rather than inferred. */
+const shippedTones = ["danger", "caution", "warning", "success", "info", "brand", "neutral"] as const;
 
 const shippedRows = [
   { unit: "Unit 204", driver: "Maya Chen", gallons: "118.4", amount: "$412.86", mpg: "7.4", status: "Clear" },
@@ -261,6 +266,26 @@ const rows = [
         above. Words left, quantities right, headers following their column (D-DS1).
       </p>
       <DataTable :columns="shippedColumns" :rows="shippedRows" row-key="unit" />
+
+      <h3>Identity</h3>
+      <div class="lab-shipped-row">
+        <AppButton variant="primary">Add transaction</AppButton>
+        <AppButton variant="secondary">Export</AppButton>
+        <AppButton variant="soft">Filters</AppButton>
+        <AppButton variant="ghost">Cancel</AppButton>
+        <AppButton variant="danger">Archive</AppButton>
+        <a class="text-link hover:text-link-hover text-sm font-medium" href="#">A link</a>
+      </div>
+      <div class="lab-shipped-row">
+        <span v-for="tone in shippedTones" :key="tone" :class="[BADGE_BASE, toneClass(tone)]">{{ tone }}</span>
+      </div>
+      <div class="lab-shipped-row">
+        <span class="rounded-control bg-brand-accent px-3 py-1.5 text-xs font-medium text-ink">brand-accent</span>
+        <span class="rounded-control bg-brand-accent-soft px-3 py-1.5 text-xs font-medium text-ink">accent-soft</span>
+        <span class="rounded-control bg-brand-accent-strong px-3 py-1.5 text-xs font-medium text-ink-inverse">accent-strong</span>
+        <span class="rounded-control bg-action-primary px-3 py-1.5 text-xs font-medium text-action-primary-foreground">action</span>
+        <span class="rounded-control bg-selected-surface px-3 py-1.5 text-xs font-medium text-ink">selected</span>
+      </div>
     </section>
   </div>
 </template>
