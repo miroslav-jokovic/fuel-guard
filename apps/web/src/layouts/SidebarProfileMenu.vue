@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppIcon } from "@fuelguard/ui";
-import { ChevronUpDownIcon } from "@fuelguard/ui/icons";
+import {
+  ChevronUpDownIcon,
+  SchemeDarkIcon,
+  SchemeLightIcon,
+  SchemeSystemIcon,
+} from "@fuelguard/ui/icons";
+import { useColorScheme, type ColorScheme } from "@/composables/useColorScheme";
 import { USER_ROLE_LABELS, type UserRole } from "@fuelguard/shared";
 import { RouterLink } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -14,6 +20,18 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ signOut: [] }>();
+
+/**
+ * Appearance lives in the account menu rather than in Settings because it is a per-device
+ * preference, not an org one — the same person wants dark on a night dispatch shift and light in a
+ * sunlit cab, and neither choice should follow them onto another machine.
+ */
+const { scheme, set } = useColorScheme();
+const SCHEME_OPTIONS: { value: ColorScheme; label: string; icon: typeof SchemeSystemIcon }[] = [
+  { value: "system", label: "System", icon: SchemeSystemIcon },
+  { value: "light", label: "Light", icon: SchemeLightIcon },
+  { value: "dark", label: "Dark", icon: SchemeDarkIcon },
+];
 
 const avatarLetter = computed(() => (props.email ?? "?")[0]?.toUpperCase() ?? "?");
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
@@ -65,6 +83,30 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
       <p class="truncate text-sm font-semibold text-ink">{{ email }}</p>
       <p class="sidebar-muted mt-0.5 text-xs">{{ roleLabel }}</p>
     </div>
+    <div class="sidebar-divider my-1 border-t" />
+    <p class="sidebar-section-label px-3 pb-1 pt-1.5 text-2xs font-semibold uppercase tracking-wide">
+      Appearance
+    </p>
+    <div class="flex gap-1 px-2 pb-1.5" role="radiogroup" aria-label="Colour scheme">
+      <button
+        v-for="option in SCHEME_OPTIONS"
+        :key="option.value"
+        type="button"
+        role="radio"
+        :aria-checked="scheme === option.value"
+        class="flex flex-1 flex-col items-center gap-1 rounded-control px-2 py-1.5 text-2xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        :class="
+          scheme === option.value
+            ? 'bg-selected-surface text-ink'
+            : 'text-ink-muted hover:bg-surface-muted hover:text-ink-secondary'
+        "
+        @click.stop="set(option.value)"
+      >
+        <AppIcon :icon="option.icon" class="size-4" aria-hidden="true" />
+        {{ option.label }}
+      </button>
+    </div>
+    <div class="sidebar-divider mb-1 border-t" />
     <RouterLink v-if="canManage" to="/settings" class="sidebar-account-item">Settings</RouterLink>
     <button
       type="button"

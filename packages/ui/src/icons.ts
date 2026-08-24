@@ -158,4 +158,9 @@ export {
   ContainerTruck01Icon        as ReeferTruckIcon,
   ChartLineData01Icon         as ReportChartIcon,
 
+  // Colour scheme (D-DS2b): three states, three glyphs — follow the system, pin light, pin dark.
+  Sun03Icon                   as SchemeLightIcon,
+  Moon02Icon                  as SchemeDarkIcon,
+  ComputerIcon                as SchemeSystemIcon,
+
 } from "@hugeicons/core-free-icons";
