@@ -12,7 +12,7 @@ import { runRoadRangerFetch } from "../../services/roadRangerIngest.js";
 import { ingestLovesExport } from "../../services/lovesIngest.js";
 import { runLovesApiSync } from "../../services/lovesApiClient.js";
 import { parsePilotPublicPricesXlsx, type StatementWord } from "@fuelguard/shared";
-import { ingestFuelStatement } from "../../services/fuelStatementIngest.js";
+import { ingestFuelStatement, STATEMENT_BUCKET } from "../../services/fuelStatementIngest.js";
 
 /** Add a truck-stop network to the org's enabled_brands so freshly loaded/synced stations show up on the
  *  Truck Stops page (and its network filter) immediately, instead of staying hidden until an admin toggles
@@ -83,6 +83,35 @@ export function registerNetworkRoutes(router: Router): void {
         return;
       }
       res.json(result);
+    }),
+  );
+
+  // The original PDF behind a statement. Served as a short-lived signed URL rather than a public
+  // object: the bucket has no client policies at all, so this route is the only door, and it re-checks
+  // the caller's org before issuing one — the service role bypasses RLS.
+  router.get(
+    "/statements/:id/source",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const { data } = await admin
+        .from("fuel_statements")
+        .select("source_path")
+        .eq("org_id", req.auth!.orgId!)
+        .eq("id", req.params.id)
+        .maybeSingle();
+      const path = (data as { source_path: string | null } | null)?.source_path;
+      if (!path) {
+        res.status(404).json(apiError("not_found", "No source document was stored for that statement."));
+        return;
+      }
+      const signed = await admin.storage.from(STATEMENT_BUCKET).createSignedUrl(path, 300);
+      if (signed.error || !signed.data?.signedUrl) {
+        res.status(502).json(apiError("storage_unavailable", "Could not open the stored statement."));
+        return;
+      }
+      res.json({ url: signed.data.signedUrl });
     }),
   );
 
