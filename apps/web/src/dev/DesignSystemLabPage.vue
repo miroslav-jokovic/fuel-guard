@@ -2,6 +2,10 @@
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppButton } from "@fuelguard/ui";
+import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
+import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
+import { useSidebarSections } from "@/composables/useSidebarSections";
+import type { NavGroup } from "@/lib/nav";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 type ActionMode = "graphite" | "gold";
@@ -33,6 +37,38 @@ const shippedColumns: DataTableColumn[] = [
 
 /** Every tone the badge vocabulary defines, so a re-theme can be read rather than inferred. */
 const shippedTones = ["danger", "caution", "warning", "success", "info", "brand", "neutral"] as const;
+
+/**
+ * The sidebar's accordion, on the one route that renders without a login.
+ *
+ * `AppShell` itself cannot come here — it needs the router, the session store and three live
+ * queries — but `SidebarNavSection` is the piece the change is actually in, and it takes plain
+ * props. This is the difference between shipping the sidebar verified and shipping it blind, which
+ * is the one thing this work has avoided throughout.
+ */
+/** Every lab section is labelled, so narrow the nullable label away rather than assert past it. */
+const labNavGroups: (NavGroup & { label: string })[] = [
+  { label: "Fuel", items: [
+    { show: true, name: "Fuel log", to: "/lab-fuel-log", icon: FuelCardIcon },
+    { show: true, name: "Transactions", to: "/lab-transactions", icon: FuelCardIcon, badge: 24 },
+  ]},
+  { label: "Safety", items: [
+    { show: true, name: "Driver files", to: "/lab-driver-files", icon: ShieldCheckIcon },
+    { show: true, name: "Hazmat", to: "/lab-hazmat", icon: ShieldCheckIcon, badge: 7 },
+  ]},
+  { label: "Fleet", items: [
+    { show: true, name: "Vehicles", to: "/lab-vehicles", icon: TruckIcon },
+    { show: true, name: "Drivers", to: "/lab-drivers", icon: UserGroupIcon },
+  ]},
+];
+/** The lab pretends you are standing on Fuel log, so the always-open rule is visible too. */
+const labCurrent = "/lab-fuel-log";
+const { isOpen: labSectionOpen, toggle: labToggleSection } = useSidebarSections(() => "Fuel");
+const labIsCurrent = (to: string) => to === labCurrent;
+const labNavLinkClass = (to: string) => [
+  labIsCurrent(to) ? "sidebar-nav-active" : "sidebar-nav-inactive",
+  "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
+];
 
 const shippedRows = [
   { unit: "Unit 204", driver: "Maya Chen", gallons: "118.4", amount: "$412.86", mpg: "7.4", status: "Clear" },
@@ -266,6 +302,28 @@ const rows = [
         above. Words left, quantities right, headers following their column (D-DS1).
       </p>
       <DataTable :columns="shippedColumns" :rows="shippedRows" row-key="unit" />
+
+      <h3>Sidebar sections</h3>
+      <p class="lab-shipped-note">
+        Collapsible sections, with the one holding the current page pinned open. A collapsed section
+        keeps reporting its badge total, because otherwise closing it hides the fact that something
+        inside needs attention.
+      </p>
+      <div class="lab-sidebar">
+        <nav aria-label="Lab navigation">
+          <ul class="flex flex-col gap-y-0.5">
+            <SidebarNavSection
+              v-for="group in labNavGroups"
+              :key="group.label"
+              :group="group"
+              :open="labSectionOpen(group.label)"
+              :is-current="labIsCurrent"
+              :nav-link-class="labNavLinkClass"
+              @toggle="labToggleSection(group.label)"
+            />
+          </ul>
+        </nav>
+      </div>
 
       <h3>Identity</h3>
       <div class="lab-shipped-row">
