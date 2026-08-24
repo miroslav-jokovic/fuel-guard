@@ -2,7 +2,7 @@
 /**
  * Design-token linter: fails if templates use raw palette utilities, hex
  * colors, or inline color styles instead of the semantic tokens defined in
- * src/style.css (see docs/DESIGN-SYSTEM.md).
+ * src/style.css (see docs/DESIGN-SYSTEM-CONTRACT.md).
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -247,7 +247,7 @@ for (const file of walk(SRC)) {
 }
 
 if (failures) {
-  console.error(`\n✗ ${failures} design-token violation(s). See docs/DESIGN-SYSTEM.md.`);
+  console.error(`\n✗ ${failures} design-token violation(s). See docs/DESIGN-SYSTEM-CONTRACT.md.`);
   process.exit(1);
 }
 console.log("✓ design tokens clean");

@@ -23,7 +23,11 @@ changing UI. The rules below are the ones most often violated; the contract has 
   never wrapped in another card), `FilterBar`, `FilterSelect` (toolbars) vs `ComboSelect` (forms),
   `SlideOver` (actions in `#footer`), `KebabMenu` (children are `BaseButton class="kebab-item"` — a
   raw `<button>` in pages/features fails `lint:ui-adoption`), `FileDropzone`, `StatusBadge`.
-- Inside apps/web import `Base*` from `@/components/ui/`; only `AppIcon` comes from `@fuelguard/ui`.
+- Primitives come from `@fuelguard/ui`, aliased to the old local names at the import:
+  `import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui"`. There is no
+  `BaseButton.vue` in `@/components/ui/` — a local clone of a shared primitive fails `lint:ui-adoption`.
+  `@/components/ui/` holds the web-only composites: `DataTable`, `PageHeader`, `FilterBar`, `FilterSelect`,
+  `DataWorkspace`, `StatCard`, `BaseModal`, `FileDropzone`, `SettingsSection`.
   Never import `@hugeicons/core-free-icons` directly — add to `packages/ui/src/icons.ts` first.
 - Every badge is `[BADGE_BASE, toneClass(...)]` from `@/lib/badges` — no local tone maps, no
   status string literals in templates.

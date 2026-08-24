@@ -59,7 +59,7 @@ const winners = computed(() => rows.value.filter((r) => r.isWinner).slice(0, 3))
 const isLoading = computed(() => (isLive.value ? live.isLoading.value : frozen.isLoading.value));
 const isError = computed(() => (isLive.value ? live.isError.value : frozen.isError.value));
 
-// ── Toolbar: Week + Status filters, driver search (standard FilterBar, per docs/DESIGN-SYSTEM.md §3) ──
+// ── Toolbar: Week + Status filters, driver search (standard FilterBar, per docs/DESIGN-SYSTEM-CONTRACT.md) ──
 const weekProxy = computed({
   get: () => selectedWeek.value ?? "",
   set: (v: string) => (selectedWeek.value = v || null),

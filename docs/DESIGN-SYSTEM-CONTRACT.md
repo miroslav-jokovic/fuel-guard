@@ -1,5 +1,11 @@
 # FuelGuard Design Contract
 
+> ⚠ **Reconciled again 2026-08-23** against phases 0–5 of `docs/plans/design-system/DESIGN-SYSTEM-2026.md`.
+> The identity is blue + warm soft purple + soft grey (gold is retired), dark mode ships on `light-dark()`,
+> and the token values live in DTCG JSON rather than in hand-written CSS. Sections below that predate that
+> work describe the gold system; the plan document is the record of what moved. Where this file and a gate
+> script disagree, the script is right — that has been true twice now.
+
 Derived from the code. Everything below is measured from real files, not from `docs/DESIGN-SYSTEM.md` (which is partly stale — noted where it diverges).
 
 **Reconciled with the gates 2026-08-20 (recruiting plan R0b).** The primitives had moved into
@@ -18,18 +24,19 @@ role not defined in `packages/ui/src/tokens.css`).
 
 | Thing | Path |
 |---|---|
-| Colour/radius/shadow tokens (single source) | `packages/ui/src/tokens.css` |
+| Token VALUES (single source) | `packages/tokens/src/{primitives,roles}.{light,dark}.json` — DTCG-shaped |
+| Token CSS (generated — never edit) | `packages/ui/src/tokens.generated.css`, via `pnpm gen:tokens` |
 | App-level `@font-face` + `@layer components` | `apps/web/src/style.css` |
 | Token linter | `apps/web/scripts/check-design-tokens.mjs` (`pnpm --filter web lint:tokens`) |
 | Structure linter | `scripts/ui-system-inventory.mjs` (`pnpm lint:ui-adoption`) |
 | Badge vocabulary | `apps/web/src/lib/badges.ts` |
 | Sort helper | `apps/web/src/lib/sort.ts` |
 | Page shell | `apps/web/src/layouts/AppShell.vue` |
-| Written doc (stale in places) | `docs/DESIGN-SYSTEM.md` |
+| What changed and why | `docs/plans/design-system/DESIGN-SYSTEM-2026.md` (D-DS1…D-DS16) |
 
-There is **no `tailwind.config.js`**. This is Tailwind v4; all theme extension happens in `@theme inline` blocks inside `style.css`.
+There is **no `tailwind.config.js`** for web or admin. This is Tailwind v4; theme extension happens in the `@theme inline` block of `tokens.generated.css`, which is DERIVED from each token's `fuelguard.expose` extension — a role cannot arrive without its utility. (`apps/driver` is the exception: Tailwind v3 + nativewind, its own `tailwind.config.js`, its own values by D-DS3.)
 
-**The linter currently passes clean** (`✓ design tokens clean`). So every deviation below is a *design-system* violation the linter cannot see. That is the point: the linter only catches colour, not structure.
+⚠ **That last sentence is no longer true, and the change is the point of §0b.** The linter caught colour only when this was written. It now also fails on radius, elevation, text size, stacking tier and column width (D-DS7a, D-DS6, D-DS4a, D-DS5), so deviations that were once invisible are build failures.
 
 ---
 

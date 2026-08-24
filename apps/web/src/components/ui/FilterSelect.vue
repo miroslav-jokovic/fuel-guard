@@ -10,7 +10,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 
 /**
- * Compact toolbar filter (see docs/DESIGN-SYSTEM.md §3). Renders as a small
+ * Compact toolbar filter (see docs/DESIGN-SYSTEM-CONTRACT.md). Renders as a small
  * trigger button — "Risk ▾" when idle, "Risk: Review ✕" with a brand tint
  * when active — and opens the standard popover with the option list.
  * Options with more than 8 entries get an inline search box automatically
