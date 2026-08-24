@@ -23,7 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { rosterQueries, ROSTER_COUNTS } from "./queries.mjs";
+import { rosterQueries, retirementQueries, ROSTER_COUNTS } from "./queries.mjs";
 
 /** Trim + empty-to-null. `char(n)` columns arrive space-padded even after a SQL-side RTRIM. */
 const s = (v) => {
@@ -193,6 +193,40 @@ export function saveState(path, state) {
  * Connect, read the three tables, map them. `mssql` is required lazily so that mock mode and the ws
  * path keep working on a box where the driver was never installed.
  */
+/**
+ * Read the rows that have LEFT the active roster, with an explicit status apiece.
+ *
+ * Shares the connection settings of fetchRoster and is deliberately a separate call: retirement is the
+ * one operation here that removes capability from a person, so it runs when an operator asks for it
+ * rather than riding along with a routine identity sweep.
+ */
+export async function fetchRetirements(cfg) {
+  const rows = await withPool(cfg, async (pool, mssql) => {
+    const q = retirementQueries();
+    const out = {};
+    for (const entity of ["drivers", "vehicles", "trailers"]) {
+      const res = await pool.request().input("companyId", mssql.VarChar(32), cfg.companyId).query(q[entity]);
+      out[entity] = res.recordset.map((r) =>
+        entity === "drivers"
+          ? {
+              external_id: s(r.external_id),
+              company_id: s(r.company_id),
+              status: driverStatus(r.is_active, s(r.termination_date)),
+              termination_date: s(r.termination_date),
+            }
+          : {
+              external_id: s(r.external_id),
+              company_id: s(r.company_id),
+              status: "inactive",
+              out_of_service_at: s(r.out_of_service_at),
+            },
+      );
+    }
+    return out;
+  });
+  return rows;
+}
+
 export async function fetchRoster({
   server,
   port,
@@ -205,6 +239,24 @@ export async function fetchRoster({
   trustCert,
   serverName,
 }) {
+  return withPool(
+    { server, port, database, user, password, companyId, encrypt, trustCert, serverName },
+    async (pool, mssql) => {
+      const q = rosterQueries(mode);
+      const out = {};
+      for (const entity of ["drivers", "vehicles", "trailers"]) {
+        const res = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(q[entity]);
+        out[entity] = res.recordset.map(MAP[entity]);
+      }
+      const counts = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(ROSTER_COUNTS);
+      out.counts = Object.fromEntries(counts.recordset.map((r) => [r.entity, r.n]));
+      return out;
+    },
+  );
+}
+
+/** Open a read-only pool, run `fn`, always close. */
+async function withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, fn) {
   const mssql = (await import("mssql")).default;
   const wantEncrypt = encrypt !== false;
 
@@ -245,15 +297,7 @@ export async function fetchRoster({
     pool: { max: 2, min: 0, idleTimeoutMillis: 30_000 },
   });
   try {
-    const q = rosterQueries(mode);
-    const out = {};
-    for (const entity of ["drivers", "vehicles", "trailers"]) {
-      const res = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(q[entity]);
-      out[entity] = res.recordset.map(MAP[entity]);
-    }
-    const counts = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(ROSTER_COUNTS);
-    out.counts = Object.fromEntries(counts.recordset.map((r) => [r.entity, r.n]));
-    return out;
+    return await fn(pool, mssql);
   } finally {
     await pool.close();
   }

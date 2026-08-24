@@ -9,10 +9,12 @@ import {
   tmsDriversPayloadSchema,
   tmsVehiclesPayloadSchema,
   tmsTrailersPayloadSchema,
+  tmsRetirePayloadSchema,
 } from "@fuelguard/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../services/tmsIngest.js";
 import { ingestLoads } from "../services/tmsLoadIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../tms/rosterIngest.js";
+import { retireFromTms } from "../tms/rosterRetire.js";
 
 /**
  * Inbound TMS ingest from the on-prem sync agent. NO user auth — authenticated by the org's ingest token
@@ -74,6 +76,27 @@ export function tmsIngestRouter(): Router {
         const mode =
           req.query.mode === "create" ? "create" : req.query.mode === "identity" ? "identity" : "link";
         const result = await run(admin, orgId, rows, mode);
+        await touchLastSynced(admin, orgId, provider);
+        res.json(result);
+      }),
+    );
+  }
+
+  // Retirement is its own endpoint, not a mode on the sweeps above. It is the one operation that takes
+  // capability away from a person and the only one that touches the retention clock, so it happens when
+  // an operator asks for it rather than riding along with a routine identity refresh.
+  for (const entity of ["drivers", "vehicles", "trailers"] as const) {
+    router.post(
+      `/roster/${entity}/retire`,
+      asyncHandler(async (req, res) => {
+        const parsed = tmsRetirePayloadSchema.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json(apiError("invalid_payload", parsed.error.issues[0]?.message ?? "invalid payload"));
+          return;
+        }
+        const { orgId, provider } = req.tms!;
+        const admin = getSupabaseAdmin(getAppLocals(req).env);
+        const result = await retireFromTms(admin, orgId, entity, parsed.data.retire);
         await touchLastSynced(admin, orgId, provider);
         res.json(result);
       }),

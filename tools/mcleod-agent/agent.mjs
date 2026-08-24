@@ -15,7 +15,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { fetchRoster, diffAgainstState, loadState, saveState } from "./roster.mjs";
+import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState } from "./roster.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -25,6 +25,9 @@ const CFG = {
   // --roster syncs the master-data lists (drivers/tractors/trailers) straight from McLeod's SQL Server.
   // Independent of SOURCE, which selects the movement/time-off path.
   roster: process.argv.includes("--roster"),
+  // Retirement is opt-in per RUN, never a mode that rides along with a sweep: it is the one operation
+  // that takes capability away from a person and the only one that touches the retention clock.
+  retire: process.argv.includes("--retire"),
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
@@ -76,7 +79,7 @@ function fail(msg) {
 }
 if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster) {
+if (CFG.roster || CFG.retire) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -387,8 +390,43 @@ async function runRoster() {
   saveState(CFG.rosterStatePath, nextState);
 }
 
+/** Push the rows that have LEFT the active roster, each with an explicit status. */
+async function runRetire() {
+  log(`roster: reading retirements from ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+  const r = await fetchRetirements(CFG.sql);
+  for (const [entity, path] of [
+    ["drivers", "/api/tms/roster/drivers/retire"],
+    ["vehicles", "/api/tms/roster/vehicles/retire"],
+    ["trailers", "/api/tms/roster/trailers/retire"],
+  ]) {
+    const rows = r[entity];
+    if (!rows.length) continue;
+    // Retirements are sent whole every time and never diffed against local state: this is the sweep
+    // where being slightly stale is the expensive direction, and the ingest is idempotent — a row
+    // already in the right state costs one comparison and no write.
+    let sent = 0;
+    const totals = { retired: 0, unchanged: 0, unknown: 0, skippedOwned: 0, rehires: 0 };
+    let refused = null;
+    for (const batch of chunk(rows, 2000)) {
+      const res = await postToFuelGuard(path, { retire: batch });
+      sent += batch.length;
+      if (res.refused) refused = res.refused;
+      for (const k of Object.keys(totals)) {
+        const v = res[k];
+        totals[k] += Array.isArray(v) ? v.length : (v ?? 0);
+      }
+    }
+    if (refused) log(`roster: ${entity} retirement REFUSED — ${refused}`);
+    else log(`roster: ${entity} retire sent=${sent} retired=${totals.retired} already=${totals.unchanged} not-linked=${totals.unknown} office-owned=${totals.skippedOwned} rehires-to-review=${totals.rehires}`);
+  }
+}
+
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 async function main() {
+  if (CFG.retire) {
+    await runRetire();
+    return;
+  }
   if (CFG.roster) {
     await runRoster();
     if (CFG.intervalMinutes > 0) {
