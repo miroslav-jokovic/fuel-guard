@@ -234,6 +234,74 @@ exercise, which is why they went first.
 
 ---
 
+## 7c. RECON RESULTS — measured 2026-08-24, 23 questions, 0 errors
+
+Run with `pnpm mcleod:inspect` against `lme_analytics` as company `TMS`. **The gap is far smaller than
+this document assumed**, because most of the candidate columns are empty at this carrier. That is the
+rule in §1 earning its keep: the plan would otherwise have built unit-conversion machinery for columns
+holding nothing.
+
+### Mappable — real data, verified coverage
+
+| Target | Source | Coverage | Note |
+|---|---|---|---|
+| `vehicles.purchased_at` | `tractor.purchase_date` | **190 / 190** | all past |
+| `trailers.purchased_at` | `trailer.purchase_date` | **224 / 235** | all past |
+| `trailers.dot_annual_inspection_expires_at` | `trailer.inspection_date` **+1 year** | **228 / 235** | 228/228 in the past — a PERFORMED date, exactly like the tractor's, so it takes the same §396.17 derivation |
+| `trailers.axle_count` *(new column)* | `trailer.axles` | **193 / 235** | every populated row is `2` |
+| `drivers.driver_type` | `driver.type_of` | **164 / 164** | `C` = 148, `O` = 16 — the shape of a company / owner-operator split, but see below |
+
+### Closed — McLeod holds nothing. Not deferred: **closed.**
+
+| Target | Source | Measured |
+|---|---|---|
+| `drivers.cdl_class` | `drvr_class` | NULL on all 164 |
+| `vehicles.irp_account` | `irp_code` | 0 of 190 |
+| `vehicles.fuel_type` | `fuel_type_code` | NULL on all 190 |
+| `vehicles.axle_count` | `axle_number_code` | NULL on all 190 |
+| `vehicles.gvwr_lb`, `tare_weight_lb` | `gross_veh_weight`, `weight` | NULL |
+| `trailers.registration_expires_at` | `tag_expire_date` | **0 of 235** |
+| `trailers.door_type` | `door_type_code` | NULL on all 235 |
+| `trailers.capacity_cube_ft`, `capacity_weight_lb`, `tare_weight_lb` | `volume`, `gross_veh_weight`, `weight` | NULL |
+| `vehicles`/`trailers` equipment type | `tractor.type_of` = `TR` ×190; `trailer.ownership` = `O` ×235 | a single value is not information |
+
+### Three decisions this overturns
+
+> **D-FG5 is DEAD.** `tractor.fuel_capacity` is populated on **0 of 190** tractors. The idea of seeding a
+> new truck's `tank_capacity_gal` from McLeod's spec figure has no data behind it. The zero stays, and
+> `needsCompletion` remains the only answer.
+
+> **D-FG6 was wrong about what `home_location_id` IS.** It is not a terminal code. It holds **164
+> distinct values, one per driver**, each name-shaped (initials + state). These are per-driver home
+> locations, not a small set of company terminals, so `drivers.home_terminal_id` has no source here and
+> no terminals import would help. Closed.
+
+> **D-FG2 is nearly moot.** The unit columns were the biggest piece of planned work. `weight_um` reads
+> `LB` but every weight column it governs is NULL; `length_of_um` and `volume_um` are NULL outright.
+> The one dimension with data is `trailer.length_of`, identical at **53 on all 235 rows** — and with its
+> unit column NULL, "53 means feet" is an inference, not a measurement. Per D-FG1 it stays unmapped;
+> a column whose every row is the same value was never worth much anyway.
+
+### `ownership_type` and `trailer_type` — populated, but undocumented
+
+`tractor.owner` (SILVMEIL ×174, SCORELIL ×9, six singletons) and `tractor.pay_owner` (`D` ×174, `B` ×9,
+`O` ×7) clearly encode ownership, and `trailer.trailer_type` is `V` ×184 / `R` ×44 / null ×7. **None of
+these codes appears in `dbo.code`** — checked twice, once by column name (D2) and once by shape across
+the equipment and driver aliases (D3). The near-miss is instructive: `TRL.trl_type_code` exists with ten
+codes and is a LENGTH vocabulary (`53` = "53 FT DRY VAN", `48F` = "48 FT FLAT BED"), a different column
+entirely.
+
+> **D-FG12: `V → dry_van` stays unmapped, and `R → reefer` ships.** `R` is verified (§4.3, and
+> `is_reefer` already derives from it). `V` is almost certainly Van and that is exactly why it stays out:
+> "almost certainly" is the inference D-FG1 forbids, and `trailers.trailer_type` carries a CHECK that
+> would make a wrong guess permanent. The same applies to `pay_owner`'s `B`/`D`/`O` and to
+> `driver.type_of`'s `C`/`O` — the distributions are suggestive, the meanings are undocumented.
+>
+> **These four are a question for the carrier, not for more SQL.** One email answers all of them, and
+> until it does they are unmapped rather than guessed.
+
+---
+
 ## 8. Execution
 
 One step per branch, PR to `main`, merge after CI. Mark **DONE** in place with the migrations shipped

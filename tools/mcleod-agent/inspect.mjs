@@ -150,4 +150,17 @@ export const INSPECTION = [
    where ltrim(rtrim(c.field_name)) in (
      'type_of', 'drvr_class', 'owner', 'pay_owner', 'ownership', 'fuel_type_code',
      'axle_number_code', 'trailer_type', 'door_type_code', 'equipment_type_id')` },
+  // ⚠ `dbo.code.field_name` does NOT always equal the column name. D2's filter above missed the
+  // trailer-type vocabulary entirely because the column is `trailer.trailer_type` and the codes are
+  // filed under `TRL.trl_type_code` — found only by listing what HAS a vocabulary (D1) and noticing
+  // the near-miss. So this question asks by SHAPE rather than by name: every code on the equipment
+  // and driver aliases whose field name mentions a type, a class or a status.
+  { id: "D3", blocks: "trailers.trailer_type, drivers.driver_type", question: "Type/class/status vocabularies on the equipment and driver aliases, by shape rather than by column name", sql: `
+  select ltrim(rtrim(c.field_table_alias)) as table_alias,
+         ltrim(rtrim(c.field_name))        as field_name,
+         ltrim(rtrim(c.field_code))        as code,
+         ltrim(rtrim(c.field_code_desc))   as meaning
+    from dbo.code as c
+   where (c.field_name like '%type%' or c.field_name like '%class%' or c.field_name like '%status%')
+     and ltrim(rtrim(c.field_table_alias)) in ('TRL', 'tra', 'trl', 'TRA', 'DRV', 'drv', 'PWU')` },
 ];

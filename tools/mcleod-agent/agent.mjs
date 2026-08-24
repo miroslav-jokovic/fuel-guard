@@ -84,7 +84,13 @@ function fail(msg) {
   console.error(`[agent] FATAL: ${msg}`);
   process.exit(1);
 }
-if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
+// Reconnaissance POSTS NOTHING, so it must not require FuelGuard credentials. That is not a nicety:
+// the people best placed to run `--inspect` are the carrier's IT against `lme`, and they will be doing
+// it BEFORE anyone has issued an ingest token — demanding one would make the first useful command
+// impossible to run at the only time it matters.
+if (!CFG.inspect && (!CFG.ingestUrl || !CFG.ingestToken)) {
+  fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
+}
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
 if (CFG.roster || CFG.retire || CFG.inspect) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
