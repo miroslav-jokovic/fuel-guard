@@ -17,15 +17,17 @@ import { str, num, efsInstant, rejectDateToIso } from "./dateTime.js";
  *  Central Time zone") — exported so the UI can render declines in the SAME zone the report prints. */
 export const EFS_REJECT_TZ = "America/Chicago";
 import { pick } from "./parse.js";
+import { matchStationBrand } from "../smartFueling/brands.js";
 
-/** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */
-const STATION_BRANDS: { key: string; label: string; patterns: RegExp[] }[] = [
-  { key: "flying_j", label: "Flying J", patterns: [/\bflying\s*j\b/i, /\bflyingj\b/i] },
-  { key: "pilot", label: "Pilot", patterns: [/\bpilot\b/i] },
-  { key: "loves", label: "Love's", patterns: [/\blove'?s\b/i] },
-  { key: "ta", label: "TA", patterns: [/\bta\b/i, /\btravelcenters?\b/i, /\btravel\s*centers?\s*of\s*america\b/i] },
-  { key: "petro", label: "Petro", patterns: [/\bpetro\b/i] },
-];
+/**
+ * Chain matching comes from the ONE catalog in `smartFueling/brands.ts` (`matchStationBrand`).
+ *
+ * It used to be a second, smaller list right here — five brands, no ONE9, and Flying J spelled only in
+ * full — which is how EFS's actual "FJ-TULSA 706" shape went unrecognised. Audit 2026-08-24 against
+ * production `efs_transactions`: 297 of 1,009 distinct location names, 3,671 transactions and
+ * $1,045,342 since 2026-06-01, filed as brandless independents. Duplicated rules drift; one catalog
+ * cannot.
+ */
 
 export interface StationIdentity {
   /** Chain key (pilot, flying_j, loves, ta, petro) or null for independents. */
@@ -97,30 +99,20 @@ export function parseStationIdentity(
 ): StationIdentity {
   const n = clean(name);
   // Keep the brand's position, not just the fact that it matched: the store number is only meaningful
-  // relative to it (see storeNumberAfterBrand). Brand order still matters (Flying J before a stray J).
-  let brand: (typeof STATION_BRANDS)[number] | null = null;
-  let brandEnd = 0;
-  outer: for (const b of STATION_BRANDS) {
-    for (const p of b.patterns) {
-      const m = p.exec(n);
-      if (m) {
-        brand = b;
-        brandEnd = m.index + m[0].length;
-        break outer;
-      }
-    }
-  }
+  // relative to it (see storeNumberAfterBrand).
+  const brand = matchStationBrand(n);
+  const brandEnd = brand?.end ?? 0;
   const storeNumber = brand ? storeNumberAfterBrand(n.slice(brandEnd)) : null;
 
   const c = clean(city).toLowerCase();
   const st = clean(state).toLowerCase();
   const siteKey =
     brand && storeNumber
-      ? `${brand.key}#${storeNumber}` // globally unique per chain
+      ? `${brand.brand}#${storeNumber}` // globally unique per chain
       : [n.toLowerCase(), c, st].filter(Boolean).join("|") || "unknown";
 
   const label = [brand?.label ?? n, city, state].filter(Boolean).join(" · ") || "Unknown site";
-  return { brand: brand?.key ?? null, brandLabel: brand?.label ?? null, storeNumber, siteKey, label };
+  return { brand: brand?.brand ?? null, brandLabel: brand?.label ?? null, storeNumber, siteKey, label };
 }
 
 /**
