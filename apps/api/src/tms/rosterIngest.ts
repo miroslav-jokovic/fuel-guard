@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@fuelguard/shared";
 import { deriveFullName } from "@fuelguard/shared";
+import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import {
   makeDriverMatcher,
   makeAssetMatcher,
@@ -11,11 +12,31 @@ import {
 } from "./rosterMatch.js";
 
 /**
- * TMS roster ingest — LINK ONLY (MCLEOD-ROSTER-SYNC-PLAN M3).
+ * TMS roster ingest (MCLEOD-ROSTER-SYNC-PLAN M3/M4).
  *
- * This writes the external link and NOTHING else. Not a name, not a licence, not a status. M4 turns on
- * identity writes and M5 turns on creation; until then the sync's whole job is to establish which
- * FuelGuard row corresponds to which McLeod record, and to report everything it could not place.
+ * Two modes, and the caller picks:
+ *   **link**     — write the external link and NOTHING else. Establishes which FuelGuard row is which
+ *                  McLeod record and reports everything it could not place. (M3)
+ *   **identity** — additionally refresh the fields McLeod owns on rows it has CLAIMED. (M4)
+ *
+ * Creation and deactivation are still absent: an unmatched McLeod record is reported, never inserted
+ * (M5), and no row is ever retired here (M6, which carries the retention rules and the
+ * mass-deactivation guard).
+ *
+ * ── WHO OWNS A ROW ──────────────────────────────────────────────────────────────────────────────
+ * Identity is written only where `identity_source` is 'samsara' or 'mcleod', and taking over flips it
+ * to 'mcleod'. The two exclusions are the interesting part:
+ *
+ *   'manual' — the office typed it. This is the existing escape hatch, unchanged: editing an identity
+ *              field claims a row to 'manual' via `resolveDriverUpdate`, after which no sync touches
+ *              it. DQ1 exists because the Samsara sync once reverted hand-corrected names silently.
+ *
+ *   'efs'    — a fuel-card name auto-provisioned so a fill always had somebody to point at (0204).
+ *              These carry no licence, so they can only ever be reached by the NAME fallback — which
+ *              is exactly the irreversible-merge case that belongs in a review queue, not in a sync.
+ *              Measured 2026-08-24: of 163 matches, 162 were by licence and 1 by name, and ALL 163
+ *              landed on 'samsara' rows — not one EFS stub was touched. The exclusion therefore costs
+ *              nothing today and stops the structural risk from ever arriving.
  *
  * THE RULE THIS MODULE EXISTS TO ENFORCE (CODEBASE-IMPACT-ANALYSIS §5):
  *   **the sync writes a fixed allowlist of columns, never a row.**
@@ -27,6 +48,8 @@ import {
  *
  * The API reads with the service role, which bypasses RLS, so every query here org-filters itself.
  */
+
+export type RosterMode = "link" | "identity";
 
 export interface RosterIngestResult {
   received: number;
@@ -43,6 +66,10 @@ export interface RosterIngestResult {
   /** McLeod drivers whose licence matches a row the RECRUITING pipeline owns (`status='applicant'`).
    *  Held out of the match pool on purpose and surfaced for a human — see rosterMatch. */
   applicants: string[];
+  /** identity mode: rows whose fields were refreshed from McLeod. */
+  updated: number;
+  /** identity mode: matched rows left alone because the office or the EFS path owns them. */
+  skippedOwned: number;
 }
 
 const empty = (): RosterIngestResult => ({
@@ -53,9 +80,14 @@ const empty = (): RosterIngestResult => ({
   unmatched: [],
   ambiguous: [],
   applicants: [],
+  updated: 0,
+  skippedOwned: 0,
 });
 
-/** The complete write surface of this module, per entity. Nothing else is ever set. */
+/** Provenances whose identity McLeod may claim. See the header for why the other two are excluded. */
+const CLAIMABLE = new Set(["samsara", "mcleod"]);
+
+/** The link half of the write surface, per entity. */
 const LINK_COLUMNS = {
   drivers: { link: "mcleod_driver_id", company: "mcleod_company_id" },
   vehicles: { link: "mcleod_tractor_id", company: "mcleod_company_id" },
@@ -92,6 +124,12 @@ async function loadCandidates(
   }));
 }
 
+/** Provenance by row id, so the ownership rule can be applied without a second read. */
+function provenanceLookup(candidates: Candidate[]): (id: string) => string | null {
+  const m = new Map(candidates.map((c) => [c.id, c.identity_source]));
+  return (id) => m.get(id) ?? null;
+}
+
 /** Apply one match outcome. The ONLY write this module performs. */
 async function applyOutcome(
   admin: SupabaseClient,
@@ -101,16 +139,35 @@ async function applyOutcome(
   companyId: string | null | undefined,
   outcome: MatchOutcome,
   out: RosterIngestResult,
+  patch: Record<string, unknown> | null,
+  candidateSource: (id: string) => string | null,
 ): Promise<void> {
   const { link, company } = LINK_COLUMNS[entity];
   switch (outcome.kind) {
     case "linked":
-      out.alreadyLinked++;
-      return;
     case "matched": {
+      const already = outcome.kind === "linked";
+      if (already) out.alreadyLinked++;
+
+      // A row the office or the EFS path owns is counted and left exactly as it is — no link refresh,
+      // no field write. Reported so the operator can see the sync is deliberately standing off.
+      if (patch && !CLAIMABLE.has(candidateSource(outcome.id) ?? "")) {
+        out.skippedOwned++;
+        return;
+      }
+
+      const body: Record<string, unknown> = already ? {} : { [link]: externalId, [company]: companyId ?? null };
+      if (patch) {
+        Object.assign(body, patch);
+        // Taking over identity IS the ownership transfer, so it is recorded on the row. Nothing else
+        // in the product infers provenance from the presence of a link.
+        body.identity_source = "mcleod";
+      }
+      if (Object.keys(body).length === 0) return;
+
       const { error } = await admin
         .from(entity)
-        .update({ [link]: externalId, [company]: companyId ?? null })
+        .update(body)
         .eq("id", outcome.id)
         .eq("org_id", orgId);
       // A 23505 means another row in this org already claims this external id — the partial unique
@@ -120,8 +177,11 @@ async function applyOutcome(
         out.ambiguous.push(externalId);
         return;
       }
-      out.linked++;
-      out.upserted++;
+      if (!already) {
+        out.linked++;
+        out.upserted++;
+      }
+      if (patch) out.updated++;
       return;
     }
     case "ambiguous":
@@ -140,10 +200,13 @@ export async function ingestDrivers(
   admin: SupabaseClient,
   orgId: string,
   rows: TmsDriverInput[],
+  mode: RosterMode = "link",
 ): Promise<RosterIngestResult> {
   const out = empty();
   out.received = rows.length;
-  const matcher = makeDriverMatcher(await loadCandidates(admin, orgId, "drivers"));
+  const candidates = await loadCandidates(admin, orgId, "drivers");
+  const sourceOf = provenanceLookup(candidates);
+  const matcher = makeDriverMatcher(candidates);
   for (const r of rows) {
     // Compose here rather than trusting a display name: McLeod's `name` is the SURNAME alone, so the
     // agent sends parts and this is the one place they become a comparable name.
@@ -153,7 +216,8 @@ export async function ingestDrivers(
       last_name: r.last_name ?? null,
     });
     const outcome = matcher.match({ external_id: r.external_id, cdl_number: r.cdl_number, name });
-    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out);
+    const patch = mode === "identity" ? driverPatch(r) : null;
+    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf);
   }
   return out;
 }
@@ -162,13 +226,17 @@ export async function ingestVehicles(
   admin: SupabaseClient,
   orgId: string,
   rows: TmsVehicleInput[],
+  mode: RosterMode = "link",
 ): Promise<RosterIngestResult> {
   const out = empty();
   out.received = rows.length;
-  const matcher = makeAssetMatcher(await loadCandidates(admin, orgId, "vehicles"), vehicleUnitKey);
+  const candidates = await loadCandidates(admin, orgId, "vehicles");
+  const sourceOf = provenanceLookup(candidates);
+  const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out);
+    const patch = mode === "identity" ? vehiclePatch(r) : null;
+    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf);
   }
   return out;
 }
@@ -177,19 +245,19 @@ export async function ingestTrailers(
   admin: SupabaseClient,
   orgId: string,
   rows: TmsTrailerInput[],
+  mode: RosterMode = "link",
 ): Promise<RosterIngestResult> {
   const out = empty();
   out.received = rows.length;
+  const candidates = await loadCandidates(admin, orgId, "trailers");
+  const sourceOf = provenanceLookup(candidates);
   // Unit first for trailers, VIN second: FuelGuard holds no trailer VINs at all today, so VIN can only
   // ever be a tiebreak until McLeod has populated them.
-  const matcher = makeAssetMatcher(
-    await loadCandidates(admin, orgId, "trailers"),
-    trailerUnitMatchKey,
-    ["unit", "vin"],
-  );
+  const matcher = makeAssetMatcher(candidates, trailerUnitMatchKey, ["unit", "vin"]);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out);
+    const patch = mode === "identity" ? trailerPatch(r) : null;
+    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf);
   }
   return out;
 }

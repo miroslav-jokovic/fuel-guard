@@ -54,6 +54,31 @@ export function driverStatus(isActive, terminationDate) {
   return terminationDate ? "terminated" : "inactive";
 }
 
+/**
+ * The email this carrier keeps in `name_of_spouse` (see queries.mjs), returned only when it is
+ * actually usable.
+ *
+ * The column is `char(28)`, which is shorter than plenty of real addresses, and the data shows the
+ * damage: of 164 active drivers 14 sit at exactly 28 characters, and only 6 of those still end in a
+ * plausible TLD. The other 8 are addresses cut off mid-domain.
+ *
+ * So a value AT the column limit is suspect and is accepted only if it still ends in a TLD — truncation
+ * removes the end of a string, so an address that survives to `.com` was not truncated. Everything
+ * below the limit is taken as-is once it looks like an address at all.
+ *
+ * Rejecting is the safe direction. A missing email is recoverable — the office types it in — while a
+ * silently wrong one is not: mail bounces into nobody's inbox and the roster still claims the driver is
+ * contactable.
+ */
+export function usableEmail(raw) {
+  const v = s(raw);
+  if (!v) return null;
+  const at = v.indexOf("@");
+  if (at < 1 || v.indexOf(".", at) < 0) return null; // not an address at all
+  if (v.length < 28) return v;
+  return /\.[a-z]{2,4}$/i.test(v) ? v : null; // at the limit: only if it still ends in a TLD
+}
+
 const MAP = {
   drivers: (r) => ({
     external_id: s(r.external_id),
@@ -77,6 +102,7 @@ const MAP = {
           city: s(r.city),
           state: s(r.state),
           postal_code: s(r.postal_code),
+          email: usableEmail(r.email_raw),
         }
       : {}),
   }),

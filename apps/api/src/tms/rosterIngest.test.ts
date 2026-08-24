@@ -171,3 +171,125 @@ describe("matching", () => {
     expect(m.match({ external_id: "E1", vin: "V1", unit_number: "U1" })).toEqual({ kind: "matched", id: "x", by: "unit" });
   });
 });
+
+describe("identity mode (M4)", () => {
+  const mcleodDriver = {
+    external_id: "D0001", company_id: "TMS", cdl_number: "S123456789", cdl_state: "IL",
+    first_name: "Angel", last_name: "Cora", cdl_expires_at: "2031-04-02",
+    medical_card_expires_at: "2027-06-01", hire_date: "2020-03-01",
+  } as const;
+
+  it("refreshes the fields McLeod owns and claims the row", async () => {
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.updated).toBe(1);
+    const p = rec.writtenRows("drivers")[0]!;
+    expect(p.cdl_expires_at).toBe("2031-04-02");
+    expect(p.medical_card_expires_at).toBe("2027-06-01");
+    expect(p.full_name).toBe("Angel Cora"); // composed from parts; McLeod's `name` is the surname
+    expect(p.identity_source).toBe("mcleod"); // taking over identity IS the ownership transfer
+  });
+
+  it("writes the email the agent extracted, and stays ignorant of where it lived", async () => {
+    // This carrier keeps driver email in McLeod's `name_of_spouse` column. The agent absorbs that and
+    // validates it — the column is char(28) and 8 of 164 addresses are truncated past saving — so by
+    // the time it arrives here it is either usable or absent, and FuelGuard never learns the quirk.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [{ ...mcleodDriver, email: "angel.cora@silvicom.com" }], "identity");
+    expect(rec.writtenRows("drivers")[0]!.email).toBe("angel.cora@silvicom.com");
+  });
+
+  it("leaves a stored email alone when the agent rejected the source value as truncated", async () => {
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity"); // no email on the payload
+    expect(rec.writtenRows("drivers")[0]!).not.toHaveProperty("email");
+  });
+
+  it("never writes phone — McLeod has none, and Samsara's is the only one there is", async () => {
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(rec.writtenRows("drivers")[0]!).not.toHaveProperty("phone");
+  });
+
+  it("omits a field McLeod did not supply rather than nulling a good value", async () => {
+    // Coverage is uneven — 175 of 190 tractors carry a plate — so a blind full-row write would erase
+    // real data on every sweep for the rows the carrier simply has not filled in.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [
+      { external_id: "D0001", cdl_number: "S123456789", first_name: "Angel", last_name: "Cora" },
+    ], "identity");
+    const p = rec.writtenRows("drivers")[0]!;
+    for (const k of ["cdl_expires_at", "medical_card_expires_at", "hire_date", "city", "date_of_birth"]) {
+      expect(p).not.toHaveProperty(k);
+    }
+  });
+
+  it("stands off a row the office owns, and says so", async () => {
+    // The DQ1 rule: an admin who fixed a name must not watch it revert on the next sweep.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001", identity_source: "manual" })] });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.skippedOwned).toBe(1);
+    expect(r.updated).toBe(0);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("stands off an EFS stub — that merge belongs in a review queue, not a sync", async () => {
+    // EFS stubs carry no licence, so they can only be reached by the NAME fallback. Measured
+    // 2026-08-24: all 163 real matches landed on 'samsara' rows and not one stub was touched, so this
+    // costs nothing today and stops the structural risk arriving later.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001", identity_source: "efs", cdl_number: null })] });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.skippedOwned).toBe(1);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("derives an inspection EXPIRY from the date McLeod records it was performed", async () => {
+    // McLeod's inspection_date runs backwards from every other date on the row: 175 of 175 in the
+    // past. FuelGuard's column is an expiry, so the §396.17 annual interval is applied here.
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789" })] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", annual_inspection_performed_at: "2026-08-14" },
+    ], "identity");
+    expect(rec.writtenRows("vehicles")[0]!.dot_annual_inspection_expires_at).toBe("2027-08-14");
+  });
+
+  it("never writes tank capacity, which is learned from fill history", async () => {
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789" })] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", make: "Freightliner", year: 2020 },
+    ], "identity");
+    const p = rec.writtenRows("vehicles")[0]!;
+    for (const k of ["tank_capacity_gal", "tank_capacity_source", "observed_max_fill_gal", "odometer_offset"]) {
+      expect(p).not.toHaveProperty(k);
+    }
+    expect(p.make).toBe("Freightliner");
+  });
+
+  it("writes is_reefer in both directions but never touches pairing", async () => {
+    const rec = seed({ trailers: [trailer({ mcleod_trailer_id: "532159" })] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "532159", unit_number: "532159", is_reefer: false },
+    ], "identity");
+    const p = rec.writtenRows("trailers")[0]!;
+    expect(p.is_reefer).toBe(false); // a false must land, or a mis-flagged trailer stays mis-flagged
+    for (const k of ["assigned_vehicle_id", "pairing_source", "pairing_confidence", "unit_number"]) {
+      expect(p).not.toHaveProperty(k);
+    }
+  });
+
+  it("never writes status or termination — retiring a row is M6 and carries retention rules", async () => {
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [
+      { ...mcleodDriver, status: "terminated", termination_date: "2026-08-01" },
+    ], "identity");
+    const p = rec.writtenRows("drivers")[0]!;
+    expect(p).not.toHaveProperty("status");
+    expect(p).not.toHaveProperty("termination_date");
+  });
+
+  it("link mode is unchanged by any of this", async () => {
+    const rec = seed({ drivers: [driver()] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver]);
+    expect(Object.keys(rec.writtenRows("drivers")[0]!).sort()).toEqual(["mcleod_company_id", "mcleod_driver_id"]);
+  });
+});

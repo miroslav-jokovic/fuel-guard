@@ -122,15 +122,19 @@ async function postToFuelGuard(path, body) {
 /** Send rows in ≤1000-row batches (FuelGuard's per-request cap) and total the reported results. */
 async function sendBatched(path, key, rows) {
   let received = 0,
-    upserted = 0;
+    upserted = 0,
+    updated = 0,
+    skippedOwned = 0;
   const unmatched = new Set();
   for (const batch of chunk(rows, 1000)) {
     const r = await postToFuelGuard(path, { [key]: batch });
     received += r.received ?? 0;
     upserted += r.upserted ?? 0;
+    updated += r.updated ?? 0;
+    skippedOwned += r.skippedOwned ?? 0;
     for (const u of r.unmatched ?? []) unmatched.add(u);
   }
-  return { received, upserted, unmatched: [...unmatched] };
+  return { received, upserted, updated, skippedOwned, unmatched: [...unmatched] };
 }
 
 // ── source: mock ────────────────────────────────────────────────────────────────────────────────────
@@ -358,9 +362,9 @@ async function runRoster() {
 
   const nextState = { ...state };
   for (const [entity, path, key] of [
-    ["drivers", "/api/tms/roster/drivers", "drivers"],
-    ["vehicles", "/api/tms/roster/vehicles", "vehicles"],
-    ["trailers", "/api/tms/roster/trailers", "trailers"],
+    ["drivers", `/api/tms/roster/drivers?mode=${CFG.rosterMode}`, "drivers"],
+    ["vehicles", `/api/tms/roster/vehicles?mode=${CFG.rosterMode}`, "vehicles"],
+    ["trailers", `/api/tms/roster/trailers?mode=${CFG.rosterMode}`, "trailers"],
   ]) {
     const { changed, vanished, nextState: ns } = diffAgainstState(entity, roster[entity], state, CFG.rosterFull);
     nextState[entity] = ns;
@@ -372,7 +376,7 @@ async function runRoster() {
       continue;
     }
     const res = await sendBatched(path, key, changed);
-    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
+    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   saveState(CFG.rosterStatePath, nextState);

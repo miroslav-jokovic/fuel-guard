@@ -56,7 +56,15 @@ const DRIVER_IDENTITY = `
       NULLIF(LTRIM(RTRIM(d.address)), '')        AS address_line1,
       NULLIF(LTRIM(RTRIM(d.city)), '')           AS city,
       NULLIF(LTRIM(RTRIM(d.state)), '')          AS state,
-      NULLIF(LTRIM(RTRIM(d.zip)), '')            AS postal_code`;
+      NULLIF(LTRIM(RTRIM(d.zip)), '')            AS postal_code,
+      -- ⚠ NOT a spouse's name. This carrier stores the driver's EMAIL ADDRESS in name_of_spouse,
+      -- deliberately and consistently: all 164 active drivers have an '@' in it, while driver.email --
+      -- the column actually named for the purpose -- is empty on all 1,463 rows.
+      --
+      -- A local convention like this is exactly what the agent exists to absorb. FuelGuard is told
+      -- 'email'; only this file knows where it really lives, and nothing downstream carries the
+      -- surprise. Sanity-checked and truncation-filtered by usableEmail() before it is sent.
+      NULLIF(LTRIM(RTRIM(d.name_of_spouse)), '') AS email_raw`;
 
 const VEHICLE_MATCH = `
       LTRIM(RTRIM(t.id))                         AS external_id,
