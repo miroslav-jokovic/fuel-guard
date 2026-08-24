@@ -89,3 +89,15 @@ docs/psp-docs/
 # local `vite build` is NOT a faithful check of what ships, and dead CSS inflates it. Same root
 # cause as the ~700 phantom eslint errors. Unresolved; do not trust local bundle contents alone.
 .claude/worktrees/
+
+# Carrier TMS inspection notes and credentials (McLeod / LoadMaster).
+#
+# `setup.md` carries a live SQL Server login, and the rest of the directory is a complete schema map
+# of a CUSTOMER's production system — internal host address included. This repository is PUBLIC, and
+# between 2026-08-21 and 2026-08-24 that credential was readable by anyone on origin/main (commits
+# a286370, 985b698). It was untracked once already (41ab398) and came back on a later merge, which is
+# exactly why this entry exists rather than a one-off `git rm --cached`.
+#
+# Untracking does NOT remove the credential from history — rotation is the mitigation, this entry only
+# stops it recurring. Same posture as docs/psp-docs/ above.
+docs/McLeod-Testing/
