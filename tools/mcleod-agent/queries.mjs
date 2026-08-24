@@ -121,6 +121,57 @@ export function rosterQueries(mode = "link") {
   };
 }
 
+/**
+ * The RETIREMENT sweep: rows that FAIL the active predicate, sent with an explicit status.
+ *
+ * Deliberately a positive assertion rather than an inference from absence. FuelGuard could compare the
+ * active sweep against what it has linked and retire the difference — but a query that returns short
+ * for any reason (a restore in progress, a network truncation, a mis-scoped company id) then looks
+ * exactly like a fleet-wide layoff. Sending "this specific driver is terminated, and here is the date"
+ * cannot be produced by a failure.
+ *
+ * Only the columns needed to retire: the link, the status, and the date. No names, no addresses, no
+ * licences — a sweep about people LEAVING has no business carrying their personal data.
+ *
+ * ⚠ These are NOT the exact complement of the active predicates, and that is deliberate. Verified
+ * 2026-08-24: one tractor and one trailer have a NULL status and no out-of-service date, so they
+ * satisfy neither "clearly in service" nor "clearly retired". They fall through both sweeps and are
+ * left alone. Retiring a row on the strength of a NULL is exactly the inference this design exists to
+ * avoid. (Drivers have no such gap — `is_active IS NULL` is caught explicitly below; there is one such
+ * row and it retires.)
+ *
+ * Counts at the time of writing: 1,299 of 1,463 drivers, 455 of 646 tractors, 168 of 404 trailers.
+ */
+export function retirementQueries() {
+  return {
+    drivers: `
+    SELECT
+      LTRIM(RTRIM(d.id))                           AS external_id,
+      LTRIM(RTRIM(d.company_id))                   AS company_id,
+      d.is_active                                  AS is_active,
+      CONVERT(varchar(10), d.termination_date, 23) AS termination_date
+      FROM dbo.driver AS d
+     WHERE d.company_id = @companyId
+       AND (d.is_active <> 'Y' OR d.is_active IS NULL)`,
+    vehicles: `
+    SELECT
+      LTRIM(RTRIM(t.id))                           AS external_id,
+      LTRIM(RTRIM(t.company_id))                   AS company_id,
+      CONVERT(varchar(10), t.outservice_date, 23)  AS out_of_service_at
+      FROM dbo.tractor AS t
+     WHERE t.company_id = @companyId
+       AND (t.service_status <> 'A' OR t.outservice_date IS NOT NULL)`,
+    trailers: `
+    SELECT
+      LTRIM(RTRIM(r.id))                           AS external_id,
+      LTRIM(RTRIM(r.company_id))                   AS company_id,
+      CONVERT(varchar(10), r.outservice_date, 23)  AS out_of_service_at
+      FROM dbo.trailer AS r
+     WHERE r.company_id = @companyId
+       AND (r.is_active <> 'A' OR r.outservice_date IS NOT NULL)`,
+  };
+}
+
 /** A cheap liveness + scoping check: the row counts the three predicates select. */
 export const ROSTER_COUNTS = `
     SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'

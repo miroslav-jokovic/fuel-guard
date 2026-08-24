@@ -283,3 +283,18 @@ export type TmsTrailersPayload = z.infer<typeof tmsTrailersPayloadSchema>;
 export function trailerUnitMatchKey(unit: string | null | undefined): string {
   return (unit ?? "").trim().toUpperCase().replace(/^R(?=\d)/, "");
 }
+
+/**
+ * One record leaving the active roster. Carries the link, the new status and the date — and nothing
+ * else. A sweep about people LEAVING has no business moving their name, licence or address, and the
+ * agent's retirement query does not read those columns at all.
+ */
+export const tmsRetireInputSchema = z.object({
+  external_id: z.string().trim().min(1).max(64),
+  company_id: z.string().trim().min(1).max(32).optional(),
+  status: z.enum(["inactive", "terminated"]),
+  termination_date: isoDate.nullish(),
+  out_of_service_at: isoDate.nullish(),
+});
+export type TmsRetireInput = z.infer<typeof tmsRetireInputSchema>;
+export const tmsRetirePayloadSchema = z.object({ retire: z.array(tmsRetireInputSchema).max(2000) });
