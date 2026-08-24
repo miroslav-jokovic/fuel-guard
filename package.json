@@ -66,6 +66,8 @@
     "audit:ui:write": "node scripts/ui-system-inventory.mjs --write-markdown",
     "lint:ui-adoption": "node scripts/ui-system-inventory.mjs --check",
     "lint:ui-contrast": "node scripts/check-ui-contrast.mjs",
+    "//lint:light-dark": "Lightning CSS transpiles light-dark() into a prefers-color-scheme polyfill by default, which follows the OS and cannot be overridden by the in-app scheme toggle. Both vite configs must exclude Features.LightDark. The toggle shipped broken because every other gate reads source CSS and the rewrite happens at minification (2026-08-23).",
+    "lint:light-dark": "node scripts/check-light-dark.mjs",
     "lint:chart-colors": "node scripts/check-chart-colors.mjs",
     "postinstall": "node scripts/apply-patches.mjs"
   },

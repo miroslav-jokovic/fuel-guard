@@ -2,27 +2,27 @@
   "role": {
     "canvas": {
       "$type": "color",
-      "$value": "oklch(17% 0.003 300)"
+      "$value": "oklch(21.5% 0.003 300)"
     },
     "surface": {
       "$type": "color",
-      "$value": "oklch(21% 0 0)"
+      "$value": "oklch(24.5% 0 0)"
     },
     "surface-subtle": {
       "$type": "color",
-      "$value": "oklch(24% 0.004 300)"
+      "$value": "oklch(27.5% 0.004 300)"
     },
     "surface-muted": {
       "$type": "color",
-      "$value": "oklch(28% 0.008 300)"
+      "$value": "oklch(31.5% 0.008 300)"
     },
     "surface-navigation": {
       "$type": "color",
-      "$value": "oklch(19% 0.007 300)"
+      "$value": "oklch(23.5% 0.007 300)"
     },
     "surface-inverse": {
       "$type": "color",
-      "$value": "oklch(95% 0.02 300)"
+      "$value": "oklch(93.0% 0.02 300)"
     },
     "scrim": {
       "$type": "color",
@@ -30,19 +30,19 @@
     },
     "ink": {
       "$type": "color",
-      "$value": "oklch(96% 0.02 295)"
+      "$value": "oklch(91.5% 0.02 295)"
     },
     "ink-secondary": {
       "$type": "color",
-      "$value": "oklch(84% 0.02 297)"
+      "$value": "oklch(80.0% 0.02 297)"
     },
     "ink-muted": {
       "$type": "color",
-      "$value": "oklch(74% 0.02 298)"
+      "$value": "oklch(71.5% 0.02 298)"
     },
     "ink-tertiary": {
       "$type": "color",
-      "$value": "oklch(73% 0.019 298)"
+      "$value": "oklch(70.5% 0.019 298)"
     },
     "ink-subtle": {
       "$type": "color",
@@ -50,27 +50,27 @@
     },
     "ink-disabled": {
       "$type": "color",
-      "$value": "oklch(52% 0.017 300)"
+      "$value": "oklch(54.5% 0.017 300)"
     },
     "ink-inverse": {
       "$type": "color",
-      "$value": "oklch(17% 0 0)"
+      "$value": "oklch(21.5% 0 0)"
     },
     "edge-subtle": {
       "$type": "color",
-      "$value": "oklch(28% 0.006 300)"
+      "$value": "oklch(31.5% 0.006 300)"
     },
     "edge": {
       "$type": "color",
-      "$value": "oklch(34% 0.009 300)"
+      "$value": "oklch(38.0% 0.009 300)"
     },
     "edge-strong": {
       "$type": "color",
-      "$value": "oklch(50% 0.017 300)"
+      "$value": "oklch(55.0% 0.017 300)"
     },
     "edge-control": {
       "$type": "color",
-      "$value": "oklch(54.5% 0.018 300)"
+      "$value": "oklch(58.5% 0.018 300)"
     },
     "brand-accent": {
       "$type": "color",
@@ -110,7 +110,7 @@
     },
     "selected-surface": {
       "$type": "color",
-      "$value": "oklch(30% 0.045 258)"
+      "$value": "oklch(33.5% 0.045 258)"
     },
     "selected-strong": {
       "$type": "color",
@@ -126,7 +126,7 @@
     },
     "danger-surface": {
       "$type": "color",
-      "$value": "oklch(26% 0.055 20)"
+      "$value": "oklch(30.0% 0.055 20)"
     },
     "danger-text": {
       "$type": "color",
