@@ -2,7 +2,7 @@
   "role": {
     "canvas": {
       "$type": "color",
-      "$value": "oklch(21.5% 0.003 300)"
+      "$value": "oklch(21.5% 0.003 258)"
     },
     "surface": {
       "$type": "color",
@@ -10,47 +10,47 @@
     },
     "surface-subtle": {
       "$type": "color",
-      "$value": "oklch(27.5% 0.004 300)"
+      "$value": "oklch(27.5% 0.004 258)"
     },
     "surface-muted": {
       "$type": "color",
-      "$value": "oklch(31.5% 0.008 300)"
+      "$value": "oklch(31.5% 0.008 258)"
     },
     "surface-navigation": {
       "$type": "color",
-      "$value": "oklch(23.5% 0.007 300)"
+      "$value": "oklch(23.5% 0.007 258)"
     },
     "surface-inverse": {
       "$type": "color",
-      "$value": "oklch(93.0% 0.02 300)"
+      "$value": "oklch(93.0% 0.02 258)"
     },
     "scrim": {
       "$type": "color",
-      "$value": "oklch(21.5% 0.02 300)"
+      "$value": "oklch(21.5% 0.02 258)"
     },
     "ink": {
       "$type": "color",
-      "$value": "oklch(91.5% 0.02 295)"
+      "$value": "oklch(91.5% 0.02 258)"
     },
     "ink-secondary": {
       "$type": "color",
-      "$value": "oklch(80.0% 0.02 297)"
+      "$value": "oklch(80.0% 0.02 258)"
     },
     "ink-muted": {
       "$type": "color",
-      "$value": "oklch(71.5% 0.02 298)"
+      "$value": "oklch(71.5% 0.02 258)"
     },
     "ink-tertiary": {
       "$type": "color",
-      "$value": "oklch(70.5% 0.019 298)"
+      "$value": "oklch(70.5% 0.019 258)"
     },
     "ink-subtle": {
       "$type": "color",
-      "$value": "oklch(62% 0.017 300)"
+      "$value": "oklch(62% 0.017 258)"
     },
     "ink-disabled": {
       "$type": "color",
-      "$value": "oklch(54.5% 0.017 300)"
+      "$value": "oklch(54.5% 0.017 258)"
     },
     "ink-inverse": {
       "$type": "color",
@@ -58,19 +58,19 @@
     },
     "edge-subtle": {
       "$type": "color",
-      "$value": "oklch(31.5% 0.006 300)"
+      "$value": "oklch(31.5% 0.006 258)"
     },
     "edge": {
       "$type": "color",
-      "$value": "oklch(38.0% 0.009 300)"
+      "$value": "oklch(38.0% 0.009 258)"
     },
     "edge-strong": {
       "$type": "color",
-      "$value": "oklch(55.0% 0.017 300)"
+      "$value": "oklch(55.0% 0.017 258)"
     },
     "edge-control": {
       "$type": "color",
-      "$value": "oklch(58.5% 0.018 300)"
+      "$value": "oklch(58.5% 0.018 258)"
     },
     "brand-accent": {
       "$type": "color",
@@ -158,7 +158,7 @@
     },
     "viz-severity-low": {
       "$type": "color",
-      "$value": "oklch(66% 0.02 300)"
+      "$value": "oklch(66% 0.02 258)"
     },
     "viz-cost-moving": {
       "$type": "color",

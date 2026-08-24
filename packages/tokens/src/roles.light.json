@@ -2,7 +2,7 @@
   "role": {
     "canvas": {
       "$type": "color",
-      "$value": "oklch(98.5% 0.003 300)",
+      "$value": "oklch(98.5% 0.003 258)",
       "$extensions": {
         "fuelguard.section": [
           "\u2500\u2500 2. Semantic roles (a future .dark block re-points these) \u2500\u2500\u2500\u2500\u2500\u2500",
@@ -20,7 +20,7 @@
     },
     "surface-subtle": {
       "$type": "color",
-      "$value": "oklch(98.2% 0.004 300)",
+      "$value": "oklch(98.2% 0.004 258)",
       "$description": "table headers, hover rows",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -28,7 +28,7 @@
     },
     "surface-muted": {
       "$type": "color",
-      "$value": "oklch(94.5% 0.008 300)",
+      "$value": "oklch(94.5% 0.008 258)",
       "$description": "soft buttons, wells",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -36,7 +36,7 @@
     },
     "surface-navigation": {
       "$type": "color",
-      "$value": "oklch(96.8% 0.007 300)",
+      "$value": "oklch(96.8% 0.007 258)",
       "$description": "persistent app navigation",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -44,7 +44,7 @@
     },
     "surface-inverse": {
       "$type": "color",
-      "$value": "oklch(23.5% 0.022 300)",
+      "$value": "oklch(23.5% 0.022 258)",
       "$description": "code blocks, tooltips",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -52,7 +52,7 @@
     },
     "scrim": {
       "$type": "color",
-      "$value": "oklch(21.5% 0.02 300)",
+      "$value": "oklch(21.5% 0.02 258)",
       "$description": "modal veil \u2014 stays dark in both schemes, unlike the ramp it came from",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -60,7 +60,7 @@
     },
     "ink": {
       "$type": "color",
-      "$value": "oklch(29% 0.02 295)",
+      "$value": "oklch(29% 0.02 258)",
       "$extensions": {
         "fuelguard.section": [
           "text"
@@ -70,35 +70,35 @@
     },
     "ink-secondary": {
       "$type": "color",
-      "$value": "oklch(44% 0.022 297)",
+      "$value": "oklch(44% 0.022 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ink-muted": {
       "$type": "color",
-      "$value": "oklch(50.5% 0.02 298)",
+      "$value": "oklch(50.5% 0.02 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ink-tertiary": {
       "$type": "color",
-      "$value": "oklch(51.5% 0.019 298)",
+      "$value": "oklch(51.5% 0.019 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ink-subtle": {
       "$type": "color",
-      "$value": "oklch(63% 0.017 300)",
+      "$value": "oklch(63% 0.017 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ink-disabled": {
       "$type": "color",
-      "$value": "oklch(63% 0.017 300)",
+      "$value": "oklch(63% 0.017 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -112,7 +112,7 @@
     },
     "edge-subtle": {
       "$type": "color",
-      "$value": "oklch(92.5% 0.006 300)",
+      "$value": "oklch(92.5% 0.006 258)",
       "$description": "decorative row dividers",
       "$extensions": {
         "fuelguard.section": [
@@ -123,7 +123,7 @@
     },
     "edge": {
       "$type": "color",
-      "$value": "oklch(87% 0.009 300)",
+      "$value": "oklch(87% 0.009 258)",
       "$description": "surface and overlay grouping",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -131,7 +131,7 @@
     },
     "edge-strong": {
       "$type": "color",
-      "$value": "oklch(64% 0.017 300)",
+      "$value": "oklch(64% 0.017 258)",
       "$description": "compatibility alias",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -139,7 +139,7 @@
     },
     "edge-control": {
       "$type": "color",
-      "$value": "oklch(63.5% 0.018 300)",
+      "$value": "oklch(63.5% 0.018 258)",
       "$description": "essential control boundary; 3:1 on canvas",
       "$extensions": {
         "fuelguard.expose": "color"
@@ -399,7 +399,7 @@
     },
     "viz-severity-low": {
       "$type": "color",
-      "$value": "oklch(45.5% 0.022 300)"
+      "$value": "oklch(45.5% 0.022 258)"
     },
     "viz-cost-moving": {
       "$type": "color",
