@@ -293,3 +293,94 @@ describe("identity mode (M4)", () => {
     expect(Object.keys(rec.writtenRows("drivers")[0]!).sort()).toEqual(["mcleod_company_id", "mcleod_driver_id"]);
   });
 });
+
+describe("create mode (M5)", () => {
+  const newDriver = {
+    external_id: "D9999", company_id: "TMS", cdl_number: "NEW123456",
+    first_name: "Nadia", last_name: "Okonkwo", cdl_expires_at: "2032-01-01",
+  } as const;
+
+  it("inserts an unmatched McLeod driver, stamped as McLeod-owned and active", async () => {
+    const rec = seed({ drivers: [] });
+    const r = await ingestDrivers(rec.client, ORG, [newDriver], "create");
+    expect(r.created).toBe(1);
+    expect(r.unmatched).toEqual([]);
+    const row = rec.writtenRows("drivers")[0]!;
+    expect(row.full_name).toBe("Nadia Okonkwo");
+    expect(row.identity_source).toBe("mcleod");
+    expect(row.mcleod_driver_id).toBe("D9999");
+    // The agent's query selects only is_active='Y', so anything reaching here is currently employed.
+    expect(row.status).toBe("active");
+  });
+
+  it("never creates a duplicate of a driver it can already match", async () => {
+    const rec = seed({ drivers: [driver({ cdl_number: "NEW123456" })] });
+    const r = await ingestDrivers(rec.client, ORG, [newDriver], "create");
+    expect(r.created).toBe(0);
+    expect(r.updated).toBe(1);
+  });
+
+  it("creates a new truck with zero tank capacity and flags it for completion", async () => {
+    // tank_capacity_gal is NOT NULL and is LEARNED from observed fills; a guessed capacity silently
+    // degrades every fuel anomaly on that truck. Same posture as samsaraVehicleSync.
+    const rec = seed({ vehicles: [] });
+    const r = await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", company_id: "TMS", vin: "1FUJGLD56GLGY5844", unit_number: "789", make: "Freightliner" },
+    ], "create");
+    expect(r.created).toBe(1);
+    expect(r.needsCompletion).toEqual(["789"]);
+    const row = rec.writtenRows("vehicles")[0]!;
+    expect(row.tank_capacity_gal).toBe(0);
+    expect(row.unit_number).toBe("789");
+  });
+
+  it("does not flag a MATCHED truck for completion — it already has a capacity", async () => {
+    const rec = seed({ vehicles: [vehicle()] });
+    const r = await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789" },
+    ], "create");
+    expect(r.created).toBe(0);
+    expect(r.needsCompletion).toEqual([]);
+  });
+
+  it("gives a new trailer McLeod's bare unit number, not FuelGuard's R convention", async () => {
+    const rec = seed({ trailers: [] });
+    await ingestTrailers(rec.client, ORG, [
+      { external_id: "533999", company_id: "TMS", unit_number: "533999", is_reefer: true },
+    ], "create");
+    // Inventing the prefix for a new row would be this sync deciding a naming policy.
+    expect(rec.writtenRows("trailers")[0]!.unit_number).toBe("533999");
+  });
+
+  it("creates a driver who has only a first name rather than dropping them", async () => {
+    // I first wrote this the other way — refuse unless a surname is present — and it is the wrong
+    // rule. A refused record is INVISIBLE: it leaves the roster silently and nobody reviews a driver
+    // who was never created. A partially-named one appears in the roster, carries its licence for
+    // matching, and an admin can finish it. Being visible and imperfect beats being absent and tidy.
+    //
+    // The edge case is theoretical against this carrier — all 164 active drivers have a surname —
+    // which is exactly why the rule should favour visibility over strictness.
+    const rec = seed({ drivers: [] });
+    const r = await ingestDrivers(rec.client, ORG, [
+      { external_id: "D8888", cdl_number: "ZZZ1", first_name: "Onlyfirst" },
+    ], "create");
+    expect(r.created).toBe(1);
+    expect(rec.writtenRows("drivers")[0]!.full_name).toBe("Onlyfirst");
+  });
+
+  it("refuses only when there is no name at all — full_name is NOT NULL", async () => {
+    const rec = seed({ drivers: [] });
+    const r = await ingestDrivers(rec.client, ORG, [{ external_id: "D7777", cdl_number: "ZZZ2" }], "create");
+    expect(r.created).toBe(0);
+    expect(r.unmatched).toEqual(["D7777"]);
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("still reports rather than creates in identity mode", async () => {
+    const rec = seed({ drivers: [] });
+    const r = await ingestDrivers(rec.client, ORG, [newDriver], "identity");
+    expect(r.created).toBe(0);
+    expect(r.unmatched).toEqual(["D9999"]);
+    expect(rec.writes()).toEqual([]);
+  });
+});

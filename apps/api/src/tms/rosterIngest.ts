@@ -49,7 +49,7 @@ import {
  * The API reads with the service role, which bypasses RLS, so every query here org-filters itself.
  */
 
-export type RosterMode = "link" | "identity";
+export type RosterMode = "link" | "identity" | "create";
 
 export interface RosterIngestResult {
   received: number;
@@ -70,6 +70,11 @@ export interface RosterIngestResult {
   updated: number;
   /** identity mode: matched rows left alone because the office or the EFS path owns them. */
   skippedOwned: number;
+  /** create mode: rows inserted for McLeod records that matched nothing. */
+  created: number;
+  /** create mode: unit numbers of NEW vehicles that still need a tank capacity before they can drive
+   *  fuel detection — the same signal `samsaraVehicleSync` reports, for the same reason. */
+  needsCompletion: string[];
 }
 
 const empty = (): RosterIngestResult => ({
@@ -82,6 +87,8 @@ const empty = (): RosterIngestResult => ({
   applicants: [],
   updated: 0,
   skippedOwned: 0,
+  created: 0,
+  needsCompletion: [],
 });
 
 /** Provenances whose identity McLeod may claim. See the header for why the other two are excluded. */
@@ -141,6 +148,7 @@ async function applyOutcome(
   out: RosterIngestResult,
   patch: Record<string, unknown> | null,
   candidateSource: (id: string) => string | null,
+  insert: Record<string, unknown> | null,
 ): Promise<void> {
   const { link, company } = LINK_COLUMNS[entity];
   switch (outcome.kind) {
@@ -191,6 +199,26 @@ async function applyOutcome(
       out.applicants.push(externalId);
       return;
     case "unmatched":
+      // Creation is the caller's decision, not this function's: in link and identity mode an unmatched
+      // record is a REPORT, and only in create mode is it a row.
+      if (insert) {
+        const { error } = await admin.from(entity).insert({
+          org_id: orgId,
+          [link]: externalId,
+          [company]: companyId ?? null,
+          identity_source: "mcleod",
+          ...insert,
+        });
+        // 23505 means a row already claims this identity — the 0123/0239 unique indexes doing their
+        // job against a re-run or a racing sweep. Report rather than fail the batch: one bad row must
+        // not strand the other 163, and the operator needs to see WHICH record collided.
+        if (error) {
+          out.ambiguous.push(externalId);
+          return;
+        }
+        out.created++;
+        return;
+      }
       out.unmatched.push(externalId);
       return;
   }
@@ -216,8 +244,18 @@ export async function ingestDrivers(
       last_name: r.last_name ?? null,
     });
     const outcome = matcher.match({ external_id: r.external_id, cdl_number: r.cdl_number, name });
-    const patch = mode === "identity" ? driverPatch(r) : null;
-    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf);
+    const patch = mode === "link" ? null : driverPatch(r);
+    // A driver arrives ACTIVE: the agent's query selects only `is_active = 'Y'` rows, so a record
+    // reaching this point is somebody the carrier currently employs.
+    //
+    // The only bar to creation is having SOME name, because `full_name` is NOT NULL. Deliberately not
+    // "must have a surname": a refused record is INVISIBLE — it leaves the roster silently and nobody
+    // reviews a driver who was never created — whereas a partially-named one appears, carries its
+    // licence for matching, and can be finished by an admin. Visible and imperfect beats absent and
+    // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
+    const insert =
+      mode === "create" && name ? { ...patch, full_name: name, status: "active" } : null;
+    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
   }
   return out;
 }
@@ -235,8 +273,17 @@ export async function ingestVehicles(
   const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    const patch = mode === "identity" ? vehiclePatch(r) : null;
-    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf);
+    const patch = mode === "link" ? null : vehiclePatch(r);
+    // `tank_capacity_gal` is NOT NULL and is LEARNED from observed fills, so a new truck is created
+    // with zero and reported in `needsCompletion` — exactly what `samsaraVehicleSync` does, and for
+    // exactly the same reason: a guessed capacity silently degrades every fuel anomaly on that truck.
+    const unit = r.unit_number ?? r.external_id;
+    const insert =
+      mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0, status: "active" } : null;
+    const before = out.created;
+    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
+    // Only a truck that was actually inserted needs finishing — a matched one already has its capacity.
+    if (out.created > before) out.needsCompletion.push(unit);
   }
   return out;
 }
@@ -256,8 +303,12 @@ export async function ingestTrailers(
   const matcher = makeAssetMatcher(candidates, trailerUnitMatchKey, ["unit", "vin"]);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
-    const patch = mode === "identity" ? trailerPatch(r) : null;
-    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf);
+    const patch = mode === "link" ? null : trailerPatch(r);
+    // New trailers take McLeod's bare unit number. FuelGuard's `R` prefix is a convention applied to
+    // rows that already exist; inventing it for a new one would be this sync deciding a naming policy.
+    const insert =
+      mode === "create" ? { ...patch, unit_number: r.unit_number ?? r.external_id, status: "active" } : null;
+    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert);
   }
   return out;
 }
