@@ -69,10 +69,10 @@
   /* ── 1. Primitive ramps (Tailwind v4 values — do not use directly) ── */
 
   /* neutral = gray */
-  --ramp-neutral-50: light-dark(oklch(98.6% 0.002 300), oklch(24% 0.001 300));
-  --ramp-neutral-100: light-dark(oklch(96.8% 0.004 300), oklch(29% 0.002 300));
-  --ramp-neutral-200: light-dark(oklch(93% 0.006 300), oklch(35% 0.005 300));
-  --ramp-neutral-300: light-dark(oklch(87.5% 0.009 300), oklch(45% 0.008 300));
+  --ramp-neutral-50: light-dark(oklch(98.6% 0.002 300), oklch(28.5% 0.001 300));
+  --ramp-neutral-100: light-dark(oklch(96.8% 0.004 300), oklch(32.5% 0.002 300));
+  --ramp-neutral-200: light-dark(oklch(93% 0.006 300), oklch(38.5% 0.005 300));
+  --ramp-neutral-300: light-dark(oklch(87.5% 0.009 300), oklch(48.0% 0.008 300));
   --ramp-neutral-400: oklch(71.5% 0.016 300);
   --ramp-neutral-500: oklch(56% 0.02 300);
   --ramp-neutral-600: oklch(45.5% 0.022 300);
@@ -81,10 +81,10 @@
   --ramp-neutral-900: light-dark(oklch(21.5% 0.02 300), oklch(93% 0.02 300));
 
   /* brand = warm gold identity. Interactive actions use their own graphite role. */
-  --ramp-brand-50: light-dark(oklch(97.2% 0.014 258), oklch(24% 0.006 258));
-  --ramp-brand-100: light-dark(oklch(93.5% 0.033 258), oklch(29% 0.02 258));
-  --ramp-brand-200: light-dark(oklch(88.5% 0.06 259), oklch(35% 0.045 259));
-  --ramp-brand-300: light-dark(oklch(81.5% 0.105 260), oklch(45% 0.095 260));
+  --ramp-brand-50: light-dark(oklch(97.2% 0.014 258), oklch(28.5% 0.006 258));
+  --ramp-brand-100: light-dark(oklch(93.5% 0.033 258), oklch(32.5% 0.02 258));
+  --ramp-brand-200: light-dark(oklch(88.5% 0.06 259), oklch(38.5% 0.045 259));
+  --ramp-brand-300: light-dark(oklch(81.5% 0.105 260), oklch(48.0% 0.095 260));
   --ramp-brand-400: oklch(71.5% 0.155 262);
   --ramp-brand-500: oklch(63% 0.192 263);
   --ramp-brand-600: oklch(55.2% 0.224 264.2);
@@ -93,10 +93,10 @@
 
   /* accent = warm soft purple. Secondary identity, and the brand series in charts, so it never
      collides with the blue that is now both identity and action. */
-  --ramp-accent-50: light-dark(oklch(97.5% 0.012 322), oklch(24% 0.005 322));
-  --ramp-accent-100: light-dark(oklch(94.5% 0.028 322), oklch(29% 0.017 322));
-  --ramp-accent-200: light-dark(oklch(90% 0.052 321), oklch(35% 0.039 321));
-  --ramp-accent-300: light-dark(oklch(83.5% 0.082 320), oklch(45% 0.074 320));
+  --ramp-accent-50: light-dark(oklch(97.5% 0.012 322), oklch(28.5% 0.005 322));
+  --ramp-accent-100: light-dark(oklch(94.5% 0.028 322), oklch(32.5% 0.017 322));
+  --ramp-accent-200: light-dark(oklch(90% 0.052 321), oklch(38.5% 0.039 321));
+  --ramp-accent-300: light-dark(oklch(83.5% 0.082 320), oklch(48.0% 0.074 320));
   --ramp-accent-400: oklch(75.5% 0.11 318);
   --ramp-accent-500: oklch(67% 0.128 316);
   --ramp-accent-600: oklch(57% 0.134 315);
@@ -104,10 +104,10 @@
   --ramp-accent-800: light-dark(oklch(43.5% 0.102 313), oklch(87% 0.09 313));
 
   /* danger = red */
-  --ramp-danger-50: light-dark(oklch(97.1% 0.013 17.38), oklch(24% 0.006 17.38));
-  --ramp-danger-100: light-dark(oklch(93.6% 0.032 17.717), oklch(29% 0.019 17.717));
-  --ramp-danger-200: light-dark(oklch(88.5% 0.062 18.334), oklch(35% 0.046 18.334));
-  --ramp-danger-300: light-dark(oklch(80.8% 0.114 19.571), oklch(45% 0.103 19.571));
+  --ramp-danger-50: light-dark(oklch(97.1% 0.013 17.38), oklch(28.5% 0.006 17.38));
+  --ramp-danger-100: light-dark(oklch(93.6% 0.032 17.717), oklch(32.5% 0.019 17.717));
+  --ramp-danger-200: light-dark(oklch(88.5% 0.062 18.334), oklch(38.5% 0.046 18.334));
+  --ramp-danger-300: light-dark(oklch(80.8% 0.114 19.571), oklch(48.0% 0.103 19.571));
   --ramp-danger-400: oklch(70.4% 0.191 22.216);
   --ramp-danger-500: oklch(63.7% 0.237 25.331);
   --ramp-danger-600: oklch(57.7% 0.245 27.325);
@@ -115,10 +115,10 @@
   --ramp-danger-800: light-dark(oklch(44.4% 0.177 26.899), oklch(87% 0.09 26.899));
 
   /* caution = red-orange severity-high, separated from the gold identity ramp */
-  --ramp-caution-50: light-dark(oklch(98% 0.015 45), oklch(24% 0.007 45));
-  --ramp-caution-100: light-dark(oklch(95% 0.04 45), oklch(29% 0.024 45));
-  --ramp-caution-200: light-dark(oklch(90% 0.08 45), oklch(35% 0.06 45));
-  --ramp-caution-300: light-dark(oklch(83% 0.13 42), oklch(45% 0.117 42));
+  --ramp-caution-50: light-dark(oklch(98% 0.015 45), oklch(28.5% 0.007 45));
+  --ramp-caution-100: light-dark(oklch(95% 0.04 45), oklch(32.5% 0.024 45));
+  --ramp-caution-200: light-dark(oklch(90% 0.08 45), oklch(38.5% 0.06 45));
+  --ramp-caution-300: light-dark(oklch(83% 0.13 42), oklch(48.0% 0.117 42));
   --ramp-caution-400: oklch(74% 0.18 40);
   --ramp-caution-500: oklch(67% 0.21 38);
   --ramp-caution-600: oklch(60% 0.2 35);
@@ -128,10 +128,10 @@
   /* warning = muted golden amber — same hue family as before but far lower chroma, so badges read
      as calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from
      caution-orange. */
-  --ramp-warning-50: light-dark(oklch(98.6% 0.018 90), oklch(24% 0.008 90));
-  --ramp-warning-100: light-dark(oklch(96% 0.045 90), oklch(29% 0.027 90));
-  --ramp-warning-200: light-dark(oklch(91.5% 0.085 88), oklch(35% 0.064 88));
-  --ramp-warning-300: light-dark(oklch(86% 0.12 85), oklch(45% 0.108 85));
+  --ramp-warning-50: light-dark(oklch(98.6% 0.018 90), oklch(28.5% 0.008 90));
+  --ramp-warning-100: light-dark(oklch(96% 0.045 90), oklch(32.5% 0.027 90));
+  --ramp-warning-200: light-dark(oklch(91.5% 0.085 88), oklch(38.5% 0.064 88));
+  --ramp-warning-300: light-dark(oklch(86% 0.12 85), oklch(48.0% 0.108 85));
   --ramp-warning-400: oklch(80% 0.145 78);
   --ramp-warning-500: oklch(74% 0.155 70);
   --ramp-warning-600: oklch(64% 0.15 60);
@@ -139,10 +139,10 @@
   --ramp-warning-800: light-dark(oklch(46% 0.115 48), oklch(87% 0.09 48));
 
   /* success = green */
-  --ramp-success-50: light-dark(oklch(98.2% 0.018 155.826), oklch(24% 0.008 155.826));
-  --ramp-success-100: light-dark(oklch(96.2% 0.044 156.743), oklch(29% 0.026 156.743));
-  --ramp-success-200: light-dark(oklch(92.5% 0.084 155.995), oklch(35% 0.063 155.995));
-  --ramp-success-300: light-dark(oklch(87.1% 0.15 154.449), oklch(45% 0.135 154.449));
+  --ramp-success-50: light-dark(oklch(98.2% 0.018 155.826), oklch(28.5% 0.008 155.826));
+  --ramp-success-100: light-dark(oklch(96.2% 0.044 156.743), oklch(32.5% 0.026 156.743));
+  --ramp-success-200: light-dark(oklch(92.5% 0.084 155.995), oklch(38.5% 0.063 155.995));
+  --ramp-success-300: light-dark(oklch(87.1% 0.15 154.449), oklch(48.0% 0.135 154.449));
   --ramp-success-400: oklch(79.2% 0.209 151.711);
   --ramp-success-500: oklch(72.3% 0.219 149.579);
   --ramp-success-600: oklch(62.7% 0.194 149.214);
@@ -150,10 +150,10 @@
   --ramp-success-800: light-dark(oklch(44.8% 0.119 151.328), oklch(87% 0.09 151.328));
 
   /* info = blue */
-  --ramp-info-50: light-dark(oklch(97.5% 0.015 215), oklch(24% 0.007 215));
-  --ramp-info-100: light-dark(oklch(93.8% 0.035 213), oklch(29% 0.021 213));
-  --ramp-info-200: light-dark(oklch(89% 0.062 212), oklch(35% 0.046 212));
-  --ramp-info-300: light-dark(oklch(82% 0.098 211), oklch(45% 0.088 211));
+  --ramp-info-50: light-dark(oklch(97.5% 0.015 215), oklch(28.5% 0.007 215));
+  --ramp-info-100: light-dark(oklch(93.8% 0.035 213), oklch(32.5% 0.021 213));
+  --ramp-info-200: light-dark(oklch(89% 0.062 212), oklch(38.5% 0.046 212));
+  --ramp-info-300: light-dark(oklch(82% 0.098 211), oklch(48.0% 0.088 211));
   --ramp-info-400: oklch(72.5% 0.128 210);
   --ramp-info-500: oklch(64.5% 0.138 209);
   --ramp-info-600: oklch(56% 0.132 208);
@@ -163,28 +163,28 @@
   /* ── 2. Semantic roles (a future .dark block re-points these) ────── */
 
   /* app background + raised surfaces */
-  --canvas: light-dark(oklch(98.5% 0.003 300), oklch(17% 0.003 300));
-  --surface: light-dark(oklch(100% 0 0), oklch(21% 0 0));
-  --surface-subtle: light-dark(oklch(98.2% 0.004 300), oklch(24% 0.004 300)); /* table headers, hover rows */
-  --surface-muted: light-dark(oklch(94.5% 0.008 300), oklch(28% 0.008 300)); /* soft buttons, wells */
-  --surface-navigation: light-dark(oklch(96.8% 0.007 300), oklch(19% 0.007 300)); /* persistent app navigation */
-  --surface-inverse: light-dark(oklch(23.5% 0.022 300), oklch(95% 0.02 300)); /* code blocks, tooltips */
+  --canvas: light-dark(oklch(98.5% 0.003 300), oklch(21.5% 0.003 300));
+  --surface: light-dark(oklch(100% 0 0), oklch(24.5% 0 0));
+  --surface-subtle: light-dark(oklch(98.2% 0.004 300), oklch(27.5% 0.004 300)); /* table headers, hover rows */
+  --surface-muted: light-dark(oklch(94.5% 0.008 300), oklch(31.5% 0.008 300)); /* soft buttons, wells */
+  --surface-navigation: light-dark(oklch(96.8% 0.007 300), oklch(23.5% 0.007 300)); /* persistent app navigation */
+  --surface-inverse: light-dark(oklch(23.5% 0.022 300), oklch(93.0% 0.02 300)); /* code blocks, tooltips */
   --scrim: oklch(21.5% 0.02 300); /* modal veil — stays dark in both schemes, unlike the ramp it came from */
 
   /* text */
-  --ink: light-dark(oklch(29% 0.02 295), oklch(96% 0.02 295));
-  --ink-secondary: light-dark(oklch(44% 0.022 297), oklch(84% 0.02 297));
-  --ink-muted: light-dark(oklch(50.5% 0.02 298), oklch(74% 0.02 298));
-  --ink-tertiary: light-dark(oklch(51.5% 0.019 298), oklch(73% 0.019 298));
+  --ink: light-dark(oklch(29% 0.02 295), oklch(91.5% 0.02 295));
+  --ink-secondary: light-dark(oklch(44% 0.022 297), oklch(80.0% 0.02 297));
+  --ink-muted: light-dark(oklch(50.5% 0.02 298), oklch(71.5% 0.02 298));
+  --ink-tertiary: light-dark(oklch(51.5% 0.019 298), oklch(70.5% 0.019 298));
   --ink-subtle: light-dark(oklch(63% 0.017 300), oklch(62% 0.017 300));
-  --ink-disabled: light-dark(oklch(63% 0.017 300), oklch(52% 0.017 300));
-  --ink-inverse: light-dark(oklch(100% 0 0), oklch(17% 0 0));
+  --ink-disabled: light-dark(oklch(63% 0.017 300), oklch(54.5% 0.017 300));
+  --ink-inverse: light-dark(oklch(100% 0 0), oklch(21.5% 0 0));
 
   /* hairlines & control borders */
-  --edge-subtle: light-dark(oklch(92.5% 0.006 300), oklch(28% 0.006 300)); /* decorative row dividers */
-  --edge: light-dark(oklch(87% 0.009 300), oklch(34% 0.009 300)); /* surface and overlay grouping */
-  --edge-strong: light-dark(oklch(64% 0.017 300), oklch(50% 0.017 300)); /* compatibility alias */
-  --edge-control: light-dark(oklch(63.5% 0.018 300), oklch(54.5% 0.018 300)); /* essential control boundary; 3:1 on canvas */
+  --edge-subtle: light-dark(oklch(92.5% 0.006 300), oklch(31.5% 0.006 300)); /* decorative row dividers */
+  --edge: light-dark(oklch(87% 0.009 300), oklch(38.0% 0.009 300)); /* surface and overlay grouping */
+  --edge-strong: light-dark(oklch(64% 0.017 300), oklch(55.0% 0.017 300)); /* compatibility alias */
+  --edge-control: light-dark(oklch(63.5% 0.018 300), oklch(58.5% 0.018 300)); /* essential control boundary; 3:1 on canvas */
 
   /* Shadow TINTS are colours, so they can be light-dark() pairs like everything else. The
      elevations below are built from them: a shadow value itself cannot go through light-dark(),
@@ -218,13 +218,13 @@
   --link: light-dark(oklch(48.8% 0.217 264.4), oklch(74% 0.15 264.4));
   --link-hover: light-dark(oklch(42.4% 0.18 265), oklch(82% 0.12 265));
   --focus-ring: light-dark(oklch(55.2% 0.224 264.2), oklch(72% 0.18 264.2));
-  --selected-surface: light-dark(oklch(93.5% 0.033 258), oklch(30% 0.045 258));
+  --selected-surface: light-dark(oklch(93.5% 0.033 258), oklch(33.5% 0.045 258));
   --selected-strong: light-dark(oklch(55.2% 0.224 264.2), oklch(68% 0.17 264.2));
 
   /* destructive solid and subtle treatments must not share one foreground pair */
   --danger-solid: light-dark(oklch(53% 0.2 27), oklch(60% 0.19 27));
   --danger-solid-foreground: light-dark(oklch(100% 0 0), oklch(15% 0.02 0));
-  --danger-surface: light-dark(oklch(96% 0.025 20), oklch(26% 0.055 20));
+  --danger-surface: light-dark(oklch(96% 0.025 20), oklch(30.0% 0.055 20));
   --danger-text: light-dark(oklch(48% 0.18 27), oklch(78% 0.12 27));
 
   /* semantic geometry and density */
