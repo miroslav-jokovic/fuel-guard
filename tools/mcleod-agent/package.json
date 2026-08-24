@@ -3,9 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "On-prem agent that syncs McLeod LoadMaster movements + driver time-off to FuelGuard.",
-  "engines": { "node": ">=18" },
+  "description": "On-prem agent that syncs the McLeod LoadMaster roster (drivers, tractors, trailers), movements and driver time-off to FuelGuard.",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "start": "node --env-file=.env agent.mjs"
+    "start": "node --env-file=.env agent.mjs",
+    "roster": "node --env-file=.env agent.mjs --roster"
+  },
+  "dependencies": {
+    "mssql": "^11.0.1"
   }
 }

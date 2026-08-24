@@ -15,16 +15,41 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fetchRoster, diffAgainstState, loadState, saveState } from "./roster.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 const CFG = {
   ingestUrl: (process.env.FUELGUARD_INGEST_URL ?? "").replace(/\/+$/, ""), // e.g. https://app.fuelguard.example
   ingestToken: process.env.FUELGUARD_INGEST_TOKEN ?? "", // the fgtms_… token from FuelGuard → Settings
   source: (process.env.SOURCE ?? "mock").toLowerCase(), // 'mock' | 'mcleod'
+  // --roster syncs the master-data lists (drivers/tractors/trailers) straight from McLeod's SQL Server.
+  // Independent of SOURCE, which selects the movement/time-off path.
+  roster: process.argv.includes("--roster"),
+  // Send every row regardless of whether it changed. What the link-only match report needs: it is
+  // measuring a whole roster against FuelGuard's, not a delta.
+  rosterFull: process.argv.includes("--full"),
+  // 'link'   — match keys only; no date of birth or home address is READ, let alone sent.
+  // 'identity' — adds the fields M4 writes.
+  rosterMode: (process.env.ROSTER_MODE ?? "link").toLowerCase(),
   lookbackDays: Number(process.env.LOOKBACK_DAYS ?? 35),
   intervalMinutes: Number(process.env.INTERVAL_MINUTES ?? 0), // 0 = run once and exit; >0 = loop forever
   statePath: process.env.STATE_PATH ?? "./state.json",
+  rosterStatePath: process.env.ROSTER_STATE_PATH ?? "./roster-state.json",
   // McLeod ws (only needed when SOURCE=mcleod)
+  // McLeod SQL Server — the roster source (see roster.mjs / queries.mjs).
+  sql: {
+    server: process.env.MCLEOD_SQL_SERVER ?? "",
+    port: Number(process.env.MCLEOD_SQL_PORT ?? 1433),
+    database: process.env.MCLEOD_SQL_DATABASE ?? "",
+    user: process.env.MCLEOD_SQL_USER ?? "",
+    password: process.env.MCLEOD_SQL_PASSWORD ?? "",
+    // dbo.company.id (TMS, TMS2, …) — NOT dbo.company.company_id, which is the LoadMaster instance
+    // code and reads 'TMS' on all four rows. Getting this wrong mixes two legal entities.
+    companyId: process.env.MCLEOD_COMPANY_ID ?? "",
+    encrypt: (process.env.MCLEOD_SQL_ENCRYPT ?? "true").toLowerCase() !== "false",
+    serverName: process.env.MCLEOD_SQL_SERVERNAME ?? "",
+    trustCert: (process.env.MCLEOD_SQL_TRUST_CERT ?? "true").toLowerCase() !== "false",
+  },
   mcleod: {
     baseUrl: (process.env.MCLEOD_WS_URL ?? "").replace(/\/+$/, ""), // e.g. https://<loadmaster-host>/ws
     company: process.env.MCLEOD_COMPANY ?? "", // loadmaster.company (e.g. TMS)
@@ -50,6 +75,12 @@ function fail(msg) {
 }
 if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
+if (CFG.roster) {
+  for (const k of ["server", "database", "user", "password", "companyId"]) {
+    if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
+  }
+  if (!["link", "identity"].includes(CFG.rosterMode)) fail("ROSTER_MODE must be 'link' or 'identity'.");
+}
 if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {
   fail("MCLEOD_PAGE_SIZE must be an integer from 1 to 1000.");
 }
@@ -310,8 +341,60 @@ async function runOnce() {
   log("sync ok");
 }
 
+// ── roster sync ─────────────────────────────────────────────────────────────────────────────────────
+/**
+ * Read the three master-data lists from McLeod and push what changed.
+ *
+ * The rows that VANISHED from the active predicate are reported to the operator and deliberately NOT
+ * sent as an instruction. A disappearance can mean a driver was terminated — or that a query returned
+ * short because the database was mid-restore. This side cannot tell those apart, and FuelGuard's
+ * deactivation pass carries the guard that can (never retire more rows than the incoming roster size).
+ */
+async function runRoster() {
+  const state = loadState(CFG.rosterStatePath);
+  log(`roster: reading ${CFG.sql.database} on ${CFG.sql.server} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}${CFG.rosterFull ? ", full" : ""})`);
+  const roster = await fetchRoster({ ...CFG.sql, mode: CFG.rosterMode });
+  log(`roster: McLeod reports ${JSON.stringify(roster.counts)}`);
+
+  const nextState = { ...state };
+  for (const [entity, path, key] of [
+    ["drivers", "/api/tms/roster/drivers", "drivers"],
+    ["vehicles", "/api/tms/roster/vehicles", "vehicles"],
+    ["trailers", "/api/tms/roster/trailers", "trailers"],
+  ]) {
+    const { changed, vanished, nextState: ns } = diffAgainstState(entity, roster[entity], state, CFG.rosterFull);
+    nextState[entity] = ns;
+    if (vanished.length > 0) {
+      log(`roster: ${vanished.length} ${entity} left the active list since the last run (reported, not acted on): ${vanished.slice(0, 20).join(", ")}${vanished.length > 20 ? "…" : ""}`);
+    }
+    if (changed.length === 0) {
+      log(`roster: ${entity} unchanged (${roster[entity].length} active)`);
+      continue;
+    }
+    const res = await sendBatched(path, key, changed);
+    log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
+    if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
+  }
+  saveState(CFG.rosterStatePath, nextState);
+}
+
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 async function main() {
+  if (CFG.roster) {
+    await runRoster();
+    if (CFG.intervalMinutes > 0) {
+      log(`roster: looping every ${CFG.intervalMinutes} min (Ctrl-C to stop)`);
+      while (true) {
+        await sleep(CFG.intervalMinutes * 60_000);
+        try {
+          await runRoster();
+        } catch (e) {
+          log(`roster cycle error (will retry next interval): ${e.message}`);
+        }
+      }
+    }
+    return;
+  }
   await runOnce();
   if (CFG.intervalMinutes > 0) {
     log(`looping every ${CFG.intervalMinutes} min (Ctrl-C to stop)`);
