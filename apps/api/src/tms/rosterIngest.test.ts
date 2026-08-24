@@ -190,6 +190,21 @@ describe("identity mode (M4)", () => {
     expect(p.identity_source).toBe("mcleod"); // taking over identity IS the ownership transfer
   });
 
+  it("writes the email the agent extracted, and stays ignorant of where it lived", async () => {
+    // This carrier keeps driver email in McLeod's `name_of_spouse` column. The agent absorbs that and
+    // validates it — the column is char(28) and 8 of 164 addresses are truncated past saving — so by
+    // the time it arrives here it is either usable or absent, and FuelGuard never learns the quirk.
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [{ ...mcleodDriver, email: "angel.cora@silvicom.com" }], "identity");
+    expect(rec.writtenRows("drivers")[0]!.email).toBe("angel.cora@silvicom.com");
+  });
+
+  it("leaves a stored email alone when the agent rejected the source value as truncated", async () => {
+    const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
+    await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity"); // no email on the payload
+    expect(rec.writtenRows("drivers")[0]!).not.toHaveProperty("email");
+  });
+
   it("never writes phone — McLeod has none, and Samsara's is the only one there is", async () => {
     const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
     await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");

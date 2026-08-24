@@ -202,6 +202,9 @@ export const tmsDriverInputSchema = z.object({
   /** `medical_cert_expire`. Note `physical_date` is byte-identical to it and is not sent twice. */
   medical_card_expires_at: isoDate.nullish(),
   date_of_birth: isoDate.nullish(),
+  /** Already validated by the agent — present only when it is a usable address. Where the TMS keeps
+   *  it is the agent's business; this side is only ever told `email`. */
+  email: z.string().trim().email().max(320).nullish(),
   address_line1: z.string().trim().max(300).nullish(),
   city: z.string().trim().max(120).nullish(),
   state: z.string().trim().max(60).nullish(),

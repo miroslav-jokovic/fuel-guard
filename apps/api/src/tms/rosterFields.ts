@@ -58,6 +58,9 @@ export function driverPatch(r: TmsDriverInput): Record<string, unknown> {
 
   set("hire_date", r.hire_date);
   set("date_of_birth", r.date_of_birth);
+  // The carrier keeps this in McLeod's `name_of_spouse` column; the agent knows that and validates it,
+  // so by the time it arrives it is either a usable address or absent.
+  set("email", r.email);
   set("address_line1", r.address_line1);
   set("city", r.city);
   set("state", r.state);
