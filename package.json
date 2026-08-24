@@ -62,6 +62,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:tokens-parity": "node scripts/check-token-parity.mjs",
+    "//lint:token-schema": "The 14 role names apps/web and apps/driver genuinely share \u2014 canvas, surfaces, ink, edges. Measured 2026-08-23: of 61 web roles and 33 driver roles only those 14 overlap, so the gate pins the shared neutral ground rather than pretending the two schemas match. Everything else is the two products being different (operation-*/sync-* on driver, elevation-*/viz-*/link on web).",
+    "lint:token-schema": "node scripts/check-token-schema.mjs",
     "audit:ui": "node scripts/ui-system-inventory.mjs --summary",
     "audit:ui:write": "node scripts/ui-system-inventory.mjs --write-markdown",
     "lint:ui-adoption": "node scripts/ui-system-inventory.mjs --check",

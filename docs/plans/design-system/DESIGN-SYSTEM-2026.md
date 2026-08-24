@@ -49,7 +49,7 @@ to see, or a *cross-surface* gap no gate covers.
 |---|---|---|---|
 | **D-DS1** | Data-table columns default to **left**; `numeric` implies **right**; centre only for controls | **P0** | Yes — a redesign would re-ship it |
 | **D-DS2** | Ship dark mode **now**, on `light-dark()`, before the redesign — not after | **P0** | Yes — otherwise the redesign is done twice |
-| **D-DS3** | Driver and web keep **separate values**, share **one schema**: DTCG + Style Dictionary | P1 | No, but sets the ceiling |
+| **D-DS3** | Driver and web keep **separate values**; the shared schema is a **14-role neutral core**, gated. Driver emitter deferred — see D-DS3b | P1 | No, but sets the ceiling |
 | **D-DS4** | Overlays move to the **Popover API top layer**; every `z-[9999]` is deleted | P1 | Yes for overlay work |
 | **D-DS5** | Name the column-width scale; `min-w-[Nrem]` leaves the call sites | P1 | Yes for table work |
 | **D-DS6** | Add `text-2xs` (11px); then ban arbitrary text sizes | P1 | Yes |
@@ -228,6 +228,38 @@ at the generated file; driver `lint:theme` (4 themes × 33 roles) still green; a
 value is hand-edited anywhere; `git diff --exit-code` on generated output is a gate.
 
 **Sequencing.** After D-DS2. Doing it before means round-tripping the token file twice.
+
+---
+
+### ⚠ D-DS3b as executed — "share the semantic layer" was about 40% true
+
+D-DS3 promised the two surfaces would *"share the semantic layer, specialise the value layer."*
+Measured 2026-08-23: of the driver's **33** roles and web's **61**, exactly **14 names appear on
+both**.
+
+| | |
+|---|---|
+| **Shared (14)** | `canvas`, `surface`, `surface-subtle`, `surface-muted`, `surface-inverse`, `ink`, `ink-secondary`, `ink-muted`, `ink-subtle`, `ink-disabled`, `ink-inverse`, `edge-subtle`, `edge`, `edge-strong` |
+| **Driver-only (19)** | `operation-current`, `operation-blocked`, `sync-pending`, `brand-fg`, … |
+| **Web-only (47)** | `elevation-*`, `shadow-tint-*`, `viz-*`, `link`, `action-primary*`, … |
+
+The divergence is **not drift** — it is the two products being different. A truck app has operation
+and sync states; a dashboard does not. A pointer-driven document UI has elevations, chart series and
+link colours; a phone in a cab does not. Forcing either vocabulary onto the other would be worse
+than leaving them apart.
+
+So `lint:token-schema` pins **the 14**, not all 33 or all 61. The list is written out rather than
+computed, because an intersection derived from the two files can never fail — drop a role from both
+and the intersection quietly shrinks. Declaring it means a fifteenth shared role is a decision about
+the design system rather than a side effect of editing one app.
+
+**The full form — moving the driver's four themes into `packages/tokens` and emitting them through a
+second Style Dictionary platform — is deliberately not done.** The gain is one place to look. The
+cost is a second emitter and a restructure of theme loading in a shipping React Native app **that
+cannot be run or seen from here** — the driver is Expo, and every visual change in this whole plan
+has been verified in a browser before shipping. Doing it blind, for a payoff of tidiness, against a
+vocabulary that turns out to overlap by 40%, is not a trade worth making. It stays available: the
+`platforms` extension point in `build.mjs` is exactly where it would go.
 
 ---
 
