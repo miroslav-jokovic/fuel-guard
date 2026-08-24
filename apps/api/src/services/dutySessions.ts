@@ -51,6 +51,30 @@ export async function resolveDriverId(
     .select("id")
     .eq("org_id", orgId)
     .eq("user_id", userId)
+    // ── THE STATUS GATE ────────────────────────────────────────────────────────────────────────
+    // Only a CURRENTLY EMPLOYED driver may act as one. Without this line a terminated driver whose
+    // app credential was never explicitly revoked could still accept loads, open a duty session and
+    // complete stops.
+    //
+    // It is easy to believe RLS already covered this, and that belief is why the gap survived:
+    // `auth_driver_id()` (0083) does require `status = 'active'`, but it reads the caller's JWT and
+    // therefore only guards DIRECT client reads. The driver app does not take that path — every
+    // /api/me route resolves through here and then queries with the SERVICE ROLE, which bypasses RLS
+    // entirely. 0141 moved the driver load mutations onto that same service-role path and its header
+    // says the safety "is not dropped, it is made explicit: every function now verifies that
+    // `p_driver` is a live driver row"; `assert_driver_load` in fact verifies only that the driver is
+    // in the org. So between them the status check was lost on the one path the app actually uses.
+    //
+    // Matching `auth_driver_id()` exactly — 'active', not "not terminated" — keeps the two answers
+    // identical rather than merely similar, which is what stops this drifting apart again.
+    //
+    // Measured before the change (2026-08-24): of 271 drivers exactly one had a login, and they were
+    // active, so nobody is locked out by this. The exposure was latent, and the milestone that
+    // automates termination for 164 drivers (roster sync M6) is what would have made it live.
+    //
+    // Every caller already renders a null as `404 no_driver_record`, so a gated session gets a clean
+    // refusal rather than a crash.
+    .eq("status", "active")
     .maybeSingle();
   return (data?.id as string | undefined) ?? null;
 }
