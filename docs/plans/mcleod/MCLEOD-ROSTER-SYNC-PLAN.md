@@ -2,305 +2,301 @@
 
 **Scope:** McLeod becomes the master for the three master-data lists — drivers, tractors, trailers — with
 changes reflected in FuelGuard continuously. Nothing else. Movements, loads, fuel, settlement, and CPM are
-explicitly out of scope and are addressed in `../MCLEOD-SQL-SOURCE-OF-TRUTH.md` §5.
+out of scope and are addressed in `../MCLEOD-SQL-SOURCE-OF-TRUTH.md` §5.
 
-**Written:** 2026-08-23.
-**Supersedes for these three entities:** the driver section of `../MCLEOD-SQL-SOURCE-OF-TRUTH.md` §4, which
-this document expands and generalises.
-**Prerequisite reading:** `../MCLEOD-SQL-SOURCE-OF-TRUTH.md` (why the DB and not the `ws` API; the credential
-and network posture), `docs/McLeod-Testing/data-segments-and-extraction-guide.md` §3 (the extraction rules
-this plan treats as binding), root `CLAUDE.md`.
+**Written:** 2026-08-23. **Verified against the live sandbox 2026-08-24** — §1, §4, §5 and §6 now record
+measured facts, not inferences. Where the first draft guessed wrong, the correction is marked **⚠ CORRECTED**
+so the reasoning stays auditable.
+**Prerequisite reading:** `../MCLEOD-SQL-SOURCE-OF-TRUTH.md`, `docs/McLeod-Testing/`, root `CLAUDE.md`.
 
 ---
 
-## 1. The finding that shapes everything: how change is detected
+## 0. What we are connected to
 
-The requirement is "real time up to date lists, and any change in McLeod reflected in our system". Before
-choosing a mechanism I inspected what McLeod actually offers for change detection. Four facts:
+| Fact | Value |
+|---|---|
+| Server | `APPNEW`, SQL Server 2019 Enterprise (15.0.2120.1) |
+| Our database | `lme_analytics` — **created 2026-08-21 09:46:06**, SIMPLE recovery |
+| **Production database** | **`lme`** — created 2022-11-28, FULL recovery, on the same instance. `HAS_DBACCESS('lme') = 0` — we cannot read it |
+| Also present | `lme_dev`, `silvicom_dashboard`, `FleetpalData` (created 2026-08-19) |
+| Our login | `NikiAnalytics`, member of **`db_datareader` only** |
 
-**1. There is no row-version column anywhere.** Zero `rowversion` / `timestamp` columns across all 1,459
-tables and 34,852 columns. The standard cheap watermark does not exist.
+**`lme_analytics` is a SANDBOX the carrier stood up for this work** — a restore taken 2026-08-21 09:46,
+deliberately isolated so an implementation can be got wrong repeatedly without touching production
+LoadMaster. Its staleness is a property, not a defect: a fixed dataset makes §7's match numbers
+reproducible as a regression check.
 
-**2. The three master tables carry no row-modified timestamp.** `dbo.driver` (159 columns), `dbo.tractor`
-(108), and `dbo.trailer` (80) have plenty of *business* dates — `hire_date`, `termination_date`,
-`inservice_date`, `outservice_date`, `tag_expire_date` — but not one "this row was last written at" column.
-Database-wide there are only 15 `modified_date` columns, on other tables. So there is no
-`where modified > @watermark` query to write.
+It is the right target for M3–M6 and the wrong one for M7. Production freshness needs `lme`, on the same
+instance, which this login cannot read — that gates the **cutover**, not the implementation.
 
-**3. The three tables are tiny.** 1,491 + 660 + 459 = **2,610 rows total.** With a ~40-column allowlist that
-is a few hundred kilobytes. Reading *all of it* is cheaper than most systems' incremental queries.
+**The `db_datareader` grant is the PII problem, confirmed.** This login can `SELECT social_security_no`
+today, and 1,461 of 1,463 driver rows have one populated. §2.3 of the parent document is not a theoretical
+concern.
 
-**4. McLeod keeps a field-level audit trail.** `dbo.audit_log` — **45,546,200 rows** — with `table_name`,
-`primary_key_values`, `changed_values`, `change_date_time`, `user_id`, `application_id`. If the three tables
-are audited, this is a true change feed including *who* made the change.
+---
 
-### The design these facts imply
+## 1. Change detection — three mechanisms measured, one clear winner
 
-**Full-table hash diff, on a short interval, is the primary mechanism.** Not a fallback — the primary. At
-2,610 rows it is correct by construction: it cannot miss a change, cannot miss a delete, cannot drift, needs
-no DDL on McLeod's side, needs no watermark that a snapshot restore can corrupt, and is trivially resumable
-after any failure because it holds no incremental state that matters.
+### 1.1 What exists
 
-`audit_log` is an **optimisation to evaluate later**, not the foundation, for four reasons:
+**Change Tracking is already enabled**, on both `lme` and `lme_analytics`, 10-day retention, auto-cleanup on,
+**91 tables tracked — including `driver`, `tractor`, and `trailer`, all three with
+`is_track_columns_updated_on = 1`** (column-level masks). McLeod evidently uses it for its own integrations.
+Because CT configuration is part of the database and survives backup/restore, its presence here is direct
+evidence that **production `lme` has it too**.
 
-- It is only correct if these tables are audited *and* their fields are not in `audit_log_exclude` (34 rows,
-  contents unknown to us). Unverifiable until we can query.
-- It captures changes made through the *application*. Bulk loads, EDI, and direct SQL may bypass it.
-- Querying 45.5M rows by `change_date_time` is a table scan unless an index exists. On the carrier's
-  production box that is a cost we would be imposing on them, and we do not know the index situation.
-- A snapshot restore can move the watermark backwards, replaying or skipping. The hash diff is immune
-  because its state is *content*, not *position*.
+We cannot use it yet: `CHANGETABLE(CHANGES dbo.driver, …)` returns
+*"The VIEW CHANGE TRACKING permission was denied."* That is **one GRANT per table**, not an infrastructure
+project — by far the cheapest ask in this plan.
 
-> **D-MR1:** primary change detection is a full-table hash diff of the three master tables on a short
-> interval. `audit_log` is evaluated during M1 and adopted only as a latency optimisation on top, never as
-> the sole source. **A missed change is worse than a slow change**, and the hash diff is the one that cannot
-> miss.
+**`audit_log` is real and well-indexed** — 45.5M rows, with `idx_al_purge_assist (table_name,
+change_date_time)` and `x_aud_table_date (company_id, table_name, change_date_time)`. My earlier worry about
+table scans was wrong: querying it by table and date is cheap. `audit_log_exclude` excludes only dispatch
+telemetry (`avl_*`, `currenteqpgrpid`, `last_home_date`, `pta_date` on driver; `current_hub`, `fuel_level` on
+tractor) — none of the fields we import.
 
-### What "real time" can honestly mean
+### 1.2 The measurement that decides it
 
-Two ceilings sit above any polling interval we choose, and both are outside our control:
+Change volume for the three tables, from `audit_log`:
 
-1. **The snapshot ceiling.** `lme_analytics` is described as "the SQL snapshot taken today at 0930". If
-   production is a scheduled restore, freshness is bounded by the restore cadence and **no poll interval
-   matters.** Continuous sync against a daily snapshot delivers daily data, quickly. This is the single most
-   important unanswered question in this plan (§6 Q1). For the *sandbox* it is irrelevant — static test data
-   is ideal for building against.
-2. **The agent ceiling.** McLeod is behind their firewall; FuelGuard cannot pull. The agent on their network
-   polls and pushes, so end-to-end latency is `agent interval + push + apply`.
+| Table | Changes/day | What is actually changing |
+|---|---:|---|
+| `driver` | **~228,000** | **`event_date`, and essentially nothing else** — written by the `loadmaster` system user (application 52) about 7× per driver per hour |
+| `trailer` | ~200 | `currenteqpgrpid` and the `empty` Y/N flag — dispatch state |
+| `tractor` | ~15 | `tractor_status` A↔V, `dispatcher`, `fleet_id`, `assign_date` — dispatch state |
 
-> **D-MR2:** the target is **near-real-time: a 2-minute agent interval**, giving a p95 end-to-end of under
-> three minutes against a live source. We should describe it that way to the carrier and in the UI —
-> "as of HH:MM", driven by `org_integrations.last_synced_at`, which already exists and is already stamped.
-> A roster is not a telemetry stream; a driver hired this morning matters within minutes, not seconds, and
-> claiming "real time" over a link with a restore cadence we do not control is a promise we cannot keep.
+Real identity changes — a licence expiry, a new hire, an inspection date — are **tens per month**, not
+thousands per day. The 228,000 is one system heartbeat column, and `event_date` is *not* in
+`audit_log_exclude`.
 
-At 2,610 rows a 2-minute sweep is roughly 30 reads/hour of a few hundred KB. That is negligible for SQL
-Server and comfortably inside the `/api/tms` rate limit (300 requests / 15 min, and a sweep with no changes
-posts *nothing*).
+### 1.3 What that rules out, with evidence
+
+- **`audit_log` polling for drivers is unusable.** 228k rows/day of `event_date` noise to find perhaps two
+  real changes. We would be reading ~158 rows/second to learn nothing.
+- **Change Tracking is a weaker delta than it looks.** CT records a row version per *row*, and `event_date`
+  touches every driver row several times an hour — so `CHANGETABLE` would return all ~1,463 rows on every
+  poll. The column mask lets us discard them client-side, but the "delta" is the whole table either way.
+
+### 1.4 The decision
+
+> **D-MR1 (confirmed, now on evidence):** change detection is a **full-table hash diff over the allowlisted
+> columns only**. It is *immune to the churn by construction* — `event_date` is not in the allowlist, so it
+> is not in the hash, so the noisiest column in the database is silently free. It needs no permission grant,
+> no DDL, and no watermark a restore can corrupt.
+>
+> At 164 + 190 + 235 = **589 active rows** (2,610 including inactive), a sweep is a few hundred kilobytes.
+>
+> **Adopt Change Tracking later only as a bandwidth optimisation** — it can tell us *which rows* to re-read
+> without reading all of them — and only after `VIEW CHANGE TRACKING` is granted. Ask for the grant now
+> (it is nearly free and it future-proofs the design), but do not build on it.
+
+### 1.5 What "real time" can honestly mean
+
+Unchanged from the first draft, and now with a hard number under it: **`lme_analytics` is three days stale
+and will never be fresher**, by design — it is an isolated sandbox, not a feed. Production freshness
+depends entirely on getting a login on `lme`.
+
+> **D-MR2 (confirmed):** target a **2-minute sweep**, described in the UI as "as of HH:MM" from
+> `org_integrations.last_synced_at`. Given the measured change rate — tens of real changes per month — a
+> 2-minute interval is far faster than the business needs and is chosen for simplicity, not necessity.
 
 ---
 
 ## 2. Architecture — one pipeline, three entities
 
-The user requirement is modularity, and the entities are structurally identical: a small master table in
-McLeod, keyed `char(8)` per `company_id`, mapping onto a FuelGuard table that already has an
-`identity_source` provenance column and a partial unique index per external id. So this builds as **one
-parameterised pipeline instantiated three times**, not three sync services.
+Unchanged from the first draft and validated by the field work: the three entities are structurally
+identical, so this is **one parameterised pipeline instantiated three times**, not three sync services.
 
 ```
 McLeod SQL Server (their network)
         │  read-only, column allowlist, company_id bound
         ▼
 tools/mcleod-agent  ── SOURCE=sqlserver ─────────────────────┐
-  queries.mjs      one named, parameterised, column-explicit  │  the ONLY place that
-                   SELECT per entity                          │  knows McLeod's schema
-  hash.mjs         stable row hash + local state.json          │
-  map.mjs          McLeod row → neutral roster contract        │
-        │  HTTPS outbound, Bearer fgtms_…, ≤1000-row batches   │
-        ▼                                                      ┘
+  queries.mjs   one named, parameterised, column-explicit     │  the ONLY place that
+                SELECT per entity                             │  knows McLeod's schema
+  hash.mjs      stable row hash over the allowlist + state.json
+  map.mjs       McLeod row → neutral roster contract          │
+        │  HTTPS outbound, Bearer fgtms_…, ≤1000-row batches  │
+        ▼                                                     ┘
 POST /api/tms/roster/{drivers|vehicles|trailers}
-        │  token → org by hash, enabled-only  (already built + tested)
         ▼
-apps/api/src/tms/                       ← new module, mirrors src/efs/ and src/psp/
-  rosterIngest.ts     generic: match → resolve → apply → report
-  entities/driver.ts  } per-entity config: match precedence, owned fields,
-  entities/vehicle.ts } deactivation rule, contract
-  entities/trailer.ts }
+apps/api/src/tms/     rosterIngest.ts + entities/{driver,vehicle,trailer}.ts
         ▼
 drivers / vehicles / trailers   (+ mcleod_* link columns)
 ```
 
-**Why the mapping lives in the agent.** `packages/shared/src/tms.ts` already states the rule and the reason:
-the agent owns the vendor field mapping so FuelGuard never learns a vendor schema. That seam matters *more*
-against a database than it did against the `ws` API, because a database schema is a **private** interface —
-159 columns McLeod may reshape in any release with no compatibility promise. If `apps/api` learns that
-`driver.id` is `char(8)` and space-padded, we are coupled to that forever and every carrier upgrade is our
-problem. Keep it in one file on their side of the seam.
+> **D-MR3 / D-MR4 (unchanged):** the agent is the only component that speaks SQL Server or knows a McLeod
+> column name; `apps/api/src/tms/` is the module home, following `src/efs/` and `src/psp/`. Split
+> `rosterIngest.ts` into match / resolve / apply from the first commit (`lint:filesize`, warn at 450).
 
-> **D-MR3:** the agent is the only component that speaks SQL Server or knows a McLeod column name.
-> `apps/api` gains no database client. The wire contract stays provider-neutral, so a second TMS is a new
-> agent mapping and zero backend change.
-
-> **D-MR4:** `apps/api/src/tms/` is the module home, following the `src/efs/` and `src/psp/` precedent.
-> Watch the 500-line file budget (`lint:filesize`, warn at 450) — `rosterIngest.ts` should be split into
-> match / resolve / apply from the first commit rather than grown and split later.
-
-### The generic pipeline
-
-Per entity, five parameters:
+Per-entity parameters, now with **measured** match precedence:
 
 | Parameter | driver | vehicle | trailer |
 |---|---|---|---|
-| McLeod source | `dbo.driver` | `dbo.tractor` | `dbo.trailer` |
-| FuelGuard table | `drivers` | `vehicles` | `trailers` |
+| Source | `dbo.driver` | `dbo.tractor` | `dbo.trailer` |
+| Target | `drivers` | `vehicles` | `trailers` |
 | Link column | `mcleod_driver_id` | `mcleod_tractor_id` | `mcleod_trailer_id` |
-| Match precedence | link → `driverMatchKey(name)` → phone | link → VIN → `unit_number` | link → VIN → `unit_number` |
-| Active predicate | §4.1 | §4.2 | §4.3 |
-
-Everything else — the enrich-never-clobber rule, the `manual` claim, the mass-deactivation guard, the org
-scoping, the unmatched report — is shared code written once.
+| Match precedence | link → **CDL** → name | link → **VIN** → unit | link → **normalised unit** |
+| Active predicate | `is_active='Y'` | `service_status='A' and outservice_date is null` | `is_active='A' and outservice_date is null` |
+| Active rows | **164** | **190** | **235** |
 
 ---
 
-## 3. The trap at the centre: Samsara is a join key, not just a roster
+## 3. The trap at the centre: Samsara is a join key
 
-`samsara_driver_id` and `samsara_vehicle_id` are not merely identity fields. They are the join keys for every
-telematics feature in the product: `hosSync.ts` (17 sites), `idleSync.ts`, `idleRollup.ts`,
-`idleDutyEvidenceSync.ts`, `driverScoreSync.ts`, `driverReconcile.ts`, `efsImport/reconcile.ts`.
+Unchanged and still the most important structural point. `samsara_driver_id` / `samsara_vehicle_id` are the
+join keys for `hosSync.ts` (17 sites), `idleSync.ts`, `idleRollup.ts`, `idleDutyEvidenceSync.ts`,
+`driverScoreSync.ts`, `driverReconcile.ts`. A McLeod-created driver with a null Samsara link silently has no
+HOS, no idle evidence, and no score, and nothing errors.
 
-Switching the roster source without care produces the worst failure mode available: McLeod creates a driver,
-the row has a null `samsara_driver_id`, and that person silently has no HOS, no idle evidence, and no score.
-Nothing errors. Nobody notices until an audit.
+The field work adds a second, independent reason the split is mandatory: **McLeod holds no contact data at
+all** (§4.1). Samsara is the *only* source of driver phone numbers — 164 of 166 FuelGuard active drivers have
+one, and all of them came from Samsara. Demoting the Samsara sync to link-only preserves that; replacing it
+would destroy it.
 
-So this is **not a replacement — it is a split of two responsibilities Samsara currently holds together.**
+> **D-MR5 (confirmed, now with a second reason):** when McLeod roster sync is enabled, the Samsara syncs run
+> **link-only** — match on their existing precedence, write `samsara_*_id` **and `phone`**, nothing else. No
+> inserts, no deactivation pass. An unmatched Samsara driver is **reported, not created**.
 
-| Responsibility | Today | After |
-|---|---|---|
-| Who is on the list (create / deactivate) | Samsara sync | **McLeod sync** |
-| Identity fields (name, CDL, medical, plate, VIN, dates) | Samsara sync | **McLeod sync** |
-| The telematics link (`samsara_*_id`) | Samsara sync | **Samsara sync, link-only** |
-| Office corrections | `resolveDriverUpdate` → claims to `manual` | unchanged |
-
-> **D-MR5:** when McLeod roster sync is enabled for an org, the Samsara syncs run in **link-only mode**:
-> they match against existing rows using their current precedence and write `samsara_*_id` and nothing
-> else. They do **not** insert, and they do **not** run the deactivation pass — McLeod's `termination_date`
-> / `outservice_date` is better evidence than absence from a telematics roster, and two systems both
-> deactivating will fight each other on every tick.
->
-> An unmatched Samsara driver is **reported, not created**. It means somebody is driving who is not on the
-> HR roster. That is a finding worth a human looking at it, not a row to invent.
-
-The mode is read from the existing `org_integrations` row (provider `mcleod`, `enabled`, plus a
-`config.roster_master` flag), so an org without McLeod is bit-for-bit unaffected. This is the same opt-in
-posture 0068 established and must be preserved — the module is selectable, not global.
-
-> **D-MR12 (2026-08-24): for VEHICLES and TRAILERS, link-only mode writes no identity at all** — the link
-> and the gateway's own measurements (odometer, fuel level, pairing), and nothing else. The driver rule
-> keeps `phone` because McLeod has none; there is no asset analogue, and this is a measurement rather than
-> a symmetry argument. Counted across production and the carrier's sandbox on 2026-08-24:
+> **D-MR12 (2026-08-24): for VEHICLES and TRAILERS, link-only mode writes NO identity at all** — the link and
+> the gateway's own measurements (odometer, fuel level, pairing), and nothing else. The `phone` carve-out
+> above is a driver-only fact and has no asset analogue; that is a measurement, not a symmetry argument:
 >
 > | column | McLeod | Samsara |
 > |---|---|---|
-> | `vehicles.vin` | 197/198 distinct among active tractors | 186/194 |
-> | `vehicles.make` / `model` / `year` | every active tractor | 188/194 |
 > | `vehicles.plate` | 175/190 | **21/194** |
 > | `vehicles.plate_state` | 175/190 | **0/194 — the API has no such field** |
+> | `vehicles.make` / `model` / `year` | every active tractor | 188/194 |
+> | `vehicles.vin` | 197/198 distinct | 186/194 |
 > | `trailers.make` / `year` | every active trailer | **0/211** |
 > | `trailers.model` | **no such column on `dbo.trailer`** | **0/211** |
 > | `trailers.plate` | `license_no` | 9/211 |
-> | `trailers.vin` | `serial_number` | never written (the parser reads `serial`; the sync drops it) |
+> | `trailers.vin` | `serial_number` | never written — the parser reads `serial` and the sync drops it |
 >
-> There is no asset column where Samsara is the better or the only source, so an exception would have been
-> invented rather than found.
+> **The bug this closes was an eraser, not a tie.** Both syncs build their identity patch unconditionally and
+> the Samsara parser returns `null` for an absent field, so a matched row is written `plate: null, make: null,
+> …` on every tick. Harmless while Samsara is the only writer of those columns; destructive the moment McLeod
+> is the other one. The trailer sync is doing this to 202 of 211 rows today.
 >
-> **The bug this closes was an eraser, not a tie.** Both syncs build their identity patch
-> unconditionally, and the Samsara parser returns `null` for a field the response omits — so a matched
-> row is written `plate: null, make: null, …` on every tick. Harmless while Samsara is the only writer of
-> those columns; destructive the moment McLeod is the other one. Left alone, McLeod would have set 175
-> tractor plates and Samsara nulled them minutes later, with nothing raising. The trailer sync is doing
-> this to 202 of 211 rows today.
->
-> Unmatched assets are **reported, never created** — the vehicle insert has to invent `tank_capacity_gal`
-> (it writes 0, which `learnVehicle` then unlearns) and the trailer insert invents
-> `reefer_tank_capacity_gal: 50`, a constant. `applyReplacementLifecycle` keeps running in both modes: it
-> stamps `samsara_missing_since` and changes no status, so it is not the deactivation pass this decision
-> switches off, and under TMS mastery it is the only signal that a truck McLeod calls in-service has gone
-> dark.
+> Unmatched assets are **reported, never created** — the vehicle insert invents `tank_capacity_gal: 0` (which
+> `learnVehicle` then unlearns) and the trailer insert invents `reefer_tank_capacity_gal: 50`.
+> `applyReplacementLifecycle` keeps running in both modes: it stamps `samsara_missing_since` and changes no
+> status, so it is not the deactivation pass this decision switches off, and under TMS mastery it is the only
+> signal that a truck McLeod calls in-service has gone dark.
 
-> **D-MR13 (2026-08-24): one flag, both sides.** `roster_master` now also gates the INGEST: `identity`,
-> `create` and `retire` are refused with `409 roster_master_not_declared` unless the org has declared
-> mastery. Until this gate existed the answer to "who owns the roster" was recorded in two places that
-> could disagree — the Samsara syncs read the flag, while the ingest mode came from a query parameter the
-> on-prem agent chose for itself. An agent started with `ROSTER_MODE=identity` against an org that had
-> never declared mastery put both systems on the same columns. **A client on the carrier's network cannot
-> be the one to decide a data-ownership question.** `link` mode stays ungated on purpose: it writes only
-> the external link and produces the match report, which is the measurement the mastery decision is made
-> from, so gating it would make the decision impossible to inform.
+> **D-MR13 (2026-08-24): one flag, both sides.** `roster_master` also gates the INGEST — `identity`, `create`
+> and `retire` are refused with `409 roster_master_not_declared` unless the org has declared mastery. The
+> ingest mode previously came from a query parameter the on-prem agent chose for itself, so an agent started
+> with `ROSTER_MODE=identity` against an undeclared org put both systems on the same columns. **A client on
+> the carrier's network cannot decide a data-ownership question.** `link` stays ungated: it writes only the
+> external link and produces the §7 match report, which is the measurement the mastery decision is made from.
+>
+> The flag itself is now settable. It had gated the demotion since M5 with no route touching it — the only
+> path was an `UPDATE` in the SQL editor — so `POST /api/integrations/mcleod/roster-master` (admin, audited)
+> exists, refusing to hand the roster to a TMS with no live ingest token. Withdrawal is never refused.
+
+> **D-MR14 (2026-08-24): D-MR6's escape hatch had to be built before it could be relied on.** `identity_source`
+> defaulted to `'samsara'`, so every hand-created row claimed telematics provenance (production: 194 vehicles
+> and 211 trailers, all `'samsara'`, not one `'manual'`); vehicles and trailers had no claim path at all
+> because `apps/web` writes them straight through PostgREST; and `DriversPage.vue` bypassed
+> `resolveDriverUpdate` the same way. Migration 0241 moves the rule to a `BEFORE INSERT OR UPDATE` trigger,
+> service-role exempt, with the claimable columns passed per table and held against `rosterFields.ts` by a
+> test. `status` is excluded from all three lists: retiring a truck is a lifecycle act and must not be why
+> McLeod stops refreshing its plate forever.
 
 ---
 
-## 4. Field mapping and the active predicate
+## 4. Field mapping — verified against real data
 
-Column names below are verified against `docs/McLeod-Testing/database-schema-table-catalog.md`. Every
-`char(n)` value is space-padded and must be trimmed at the agent boundary; an all-space value is `null`, not
-`""`.
+Every `char(n)` value is space-padded; trim at the agent boundary and treat all-space as `null`.
 
-### 4.1 `dbo.driver` → `drivers`
+### 4.1 `dbo.driver` → `drivers` — measured coverage over 1,463 TMS rows
 
-| McLeod | FuelGuard | Note |
+**⚠ CORRECTED — the three assumptions that were wrong:**
+
+| Column | First draft assumed | **Measured reality** |
 |---|---|---|
-| `id` char(8) | `mcleod_driver_id` | The key. |
-| `company_id` char(4) | `mcleod_company_id` | Also the mandatory query filter (§6 Q2). |
-| `name` char(28), `first_name`, `name_mid_initial` | `full_name`, `first_name`, `middle_name`, `last_name` | `name` is probably "LAST, FIRST". **Confirm against real rows** — `driverMatchKey` is order-independent so matching survives a wrong guess, but the displayed name does not. |
-| `cell_phone`, `phone` | `phone`, `phone_alt` | Confirm which reaches drivers. |
-| `email` char(30) | `email` | 30 chars truncates real addresses. **Treat a value at exactly 30 chars as suspect and do not write it** — a truncated address is worse than none (the driver app sends to it). |
-| `license_no`, `license_state` | `cdl_number`, `cdl_state` | See §4.4. |
-| `license_date` | `cdl_expires_at` **or** `cdl_issued_at` | **Ambiguous and consequential** (§6 Q3). Backwards puts every driver permanently expired or permanently valid, on a compliance surface. Do not write it until confirmed. |
-| `medical_cert_expire`, `medical_cert_exempt` | `medical_card_expires_at` | Feeds the DQ file. |
-| `hire_date`, `termination_date` | `hire_date`, `termination_date` | See §5.3 — retention consequences. |
-| `address`, `city`, `state`, `zip` | `address_line1`, `city`, `state`, `postal_code` | |
-| `birth_date` | `date_of_birth` | PII. Pull deliberately because DQ needs it, not incidentally. |
-| `is_active`, `status_code`, `termination_date` | `status` | The active predicate (§6 Q4). |
-| `mvr_date`, `physical_date`, `fmcsa_clearinghouse_date`, `last_review_date`, `hazmat_date` | *(not now)* | These are qualification *evidence*, belonging to `qualification_records`, not to `drivers`. A strong later phase; out of scope here. |
-| `tractor_id` | **do not import** | Dispatch's plan. `driver_equipment_timeline` (0150, decision D43) is authoritative for what a driver was *actually* in. Importing this creates a second, conflicting answer to a question we already answer correctly. |
-| `payee_id`, `dri_uid`, `mc_login`, `tenstreet_id` | *(hold)* | Useful for later settlement / ATS linkage. |
-| `social_security_no`, `race`, `sex`, `name_of_spouse`, `enginedata_pwd`, `mc_unit_password` | **never** | Not in the allowlist, not in the SELECT, not in a log line. |
+| `name` | `char(28)`, "LAST, FIRST" | **The SURNAME only.** 0 of 164 contain a comma; `name` never contains `first_name`; lengths 3–20. Full name = `first_name` + `name_mid_initial` + `name`. |
+| `license_date` | ambiguous, issue or expiry | **CDL EXPIRY.** 164/164 in the future, out to 2034-02-12. |
+| `email`, `cell_phone`, `phone` | map to `email`, `phone`, `phone_alt` | **100% EMPTY — 0 of 1,463 rows.** McLeod holds no contact data. |
+
+| McLeod | FuelGuard | Coverage | Note |
+|---|---|---|---|
+| `id` char(8) | `mcleod_driver_id` | 100% | The link key. |
+| `company_id` char(4) | `mcleod_company_id` | 100% | **⚠ references `company.id` (`TMS`), not `company.company_id`** — see §4.4. |
+| `first_name` + `name_mid_initial` + `name` | `first_name`, `middle_name`, `last_name`, `full_name` | 164/164 | Compose; do not parse. |
+| `license_no`, `license_state` | `cdl_number`, `cdl_state` | **164/164, all distinct** | 8–13 chars, alphanumeric, no punctuation. **The match key.** |
+| `license_date` | `cdl_expires_at` | 164/164 | Expiry, confirmed. |
+| `medical_cert_expire` | `medical_card_expires_at` | 164/164 | Expiry, confirmed (the control). |
+| `physical_date` | **do not map** | 164/164 | **Byte-identical to `medical_cert_expire` in all 164 rows.** A duplicate column. |
+| `mvr_date` | *(qualification evidence, later)* | 164/164 | **⚠ Not "last MVR pulled" — it is the NEXT MVR DUE date.** All future, in a tight 2027 band. |
+| `hire_date` | `hire_date` | 164/164 actives | Latest 2026-08-18 — actively hiring. |
+| `termination_date` | `termination_date` | 1,227 rows | See §5.3. |
+| `is_active` `Y`/`N` | `status` | 100% | **The active predicate.** `status_code` is NULL for every row — unused, no vocabulary needed. |
+| `address`, `city`, `state`, `zip` | `address_line1`, `city`, `state`, `postal_code` | 1,461 / 1,462 | Populated. |
+| `birth_date` | `date_of_birth` | 1,461 | PII; DQ needs it. |
+| `email`, `cell_phone`, `phone` | **do not map** | **0** | Empty. Samsara stays the phone source. |
+| `tractor_id` | **do not import** | **0 populated** | Empty anyway — and D43 makes `driver_equipment_timeline` authoritative. |
+| `event_date` | **never** | — | The 228k/day churn column. Excluding it is what makes the hash diff work. |
+| `social_security_no` (1,461 populated), `race`, `sex`, `name_of_spouse` | **never** | — | Not in the allowlist, not in the SELECT, not in a log line. |
 
 ### 4.2 `dbo.tractor` → `vehicles`
 
-| McLeod | FuelGuard | Note |
-|---|---|---|
-| `id` char(8) | `mcleod_tractor_id` + `unit_number` | McLeod's tractor id *is* the unit number at most carriers. Confirm; if it is a surrogate, `unit_number` needs another source. |
-| `serial_number` varchar(17) | `vin` | 17 chars — this is the VIN. Second match key, and `uq_vehicles_org_vin` already enforces one row per VIN. |
-| `make`, `model`, `model_year` | `make`, `model`, `year` | |
-| `tag`, `tag_state`, `tag_expire_date` | `plate`, `plate_state`, `registration_expires_at` | |
-| `insurance_name`, `insurance_date`, `insurance_account` | `insurance_carrier`, `insurance_expires_at`, `insurance_policy` | Confirm `insurance_date` is expiry not effective. |
-| `inspection_date` | `dot_annual_inspection_expires_at` | Confirm expiry vs. performed. Same class of error as `license_date`. |
-| `fuel_capacity` | `tank_capacity_source`-governed | **Do not blind-write.** Tank capacity is user-owned and drives fuel detection; `samsaraVehicleSync` deliberately never clobbers it and reports new trucks in `needsCompletion` instead. Same rule here. |
-| `gross_veh_weight`, `weight` | `gvwr_lb`, `tare_weight_lb` | Watch `*_um` unit columns — McLeod stores the unit separately and `company.distance_um`/`weight_um` set the context. Convert, do not assume pounds. |
-| `owner`, `pay_owner`, `fleet_id` | `ownership_type` | Needs the code vocabulary. |
-| `inservice_date`, `outservice_date`, `status` char(2), `service_status`, `tractor_status` | `status` | Four status-ish columns. The predicate needs their vocabulary (§6 Q4). |
-| `driver1_id`, `driver2_id` | **do not import** | Same reason as `driver.tractor_id` — D43. |
-| `dispatcher`, `pnn_*`, `daily_*_goal`, `*_hub` | *(ignore)* | Dispatch/planning internals. |
+| McLeod | FuelGuard | Coverage | Note |
+|---|---|---|---|
+| `id` char(8) | `mcleod_tractor_id`, `unit_number` | 100% | Confirmed to be the real unit number (`789`, `790`, …). |
+| `serial_number` | `vin` | 197 of 198 active | 17 chars. **Unique among ACTIVE tractors; NOT unique overall** — 72+ VINs repeat across retired rows, one 5×. See §5.2. |
+| `make`, `model`, `model_year` | `make`, `model`, `year` | good | |
+| `tag`, `tag_state`, `tag_expire_date` | `plate`, `plate_state`, `registration_expires_at` | 175 | `tag_expire_date` is an expiry (175/175 future). |
+| `inspection_date` | `dot_annual_inspection_expires_at` | 175 | **⚠ CORRECTED — it is the date the inspection was PERFORMED** (175/175 in the *past*, 2025-07 → 2026-08), the opposite of every driver date. Store as performed and derive expiry = +1 year, or add a `_performed_at` column. Do not write it into an `_expires_at` column raw. |
+| `insurance_date`, `liability_end_dt`, `insurance_name` | **do not map** | **0 populated** | Unused at this carrier. |
+| `service_status` `A`/`I` | `status` | 100% | The predicate, with `outservice_date`. |
+| `fuel_capacity` | **do not blind-write** | | User-owned; drives fuel detection. Report new trucks via `needsCompletion` as the Samsara path does. |
+| `driver1_id`, `driver2_id`, `dispatcher`, `fleet_id`, `current_hub` | **do not import** | | Dispatch state; `fleet_id` and `dispatcher` are among the churning columns. |
 
 ### 4.3 `dbo.trailer` → `trailers`
 
-| McLeod | FuelGuard | Note |
-|---|---|---|
-| `id` char(8) | `mcleod_trailer_id` + `unit_number` | |
-| `serial_number` char(17) | `vin` | |
-| `make`, `model_year` | `make`, `year` | No `model` column on trailer. |
-| `license_no`, `license_state`, `tag_expire_date` | `plate`, `plate_state`, `registration_expires_at` | Note: trailer uses `license_no`, tractor uses `tag`. |
-| `min_temp`, `max_temp`, `heater_code`, `reefer_id` | **`is_reefer`** | The reefer determination. `reefer_id` populated or a temp range present ⇒ reefer. This is the column that makes the reefer-diversion rule correct later — worth getting right now. |
-| `trailer_type`, `type_of` | `trailer_type` | Code vocabulary needed. |
-| `length_of` + `length_of_um` | `length_ft` / `length_in` | Unit conversion, per `*_um`. |
-| `volume`, `gross_veh_weight`, `weight` | `capacity_cube_ft`, `capacity_weight_lb`, `tare_weight_lb` | Unit conversion. |
-| `door_type_code`, `axles` | `door_type` | Code vocabulary. |
-| `is_active`, `statuscode`, `disposition_code`, `inservice_date`, `outservice_date`, `trailer_status` | `status` | Predicate (§6 Q4). |
-| `tractor_id`, `is_hooked`, `disconnect_date` | **do not import** | We derive pairing ourselves (`pairing_source`, `pairing_confidence`). |
-| `odometer`, `odometer_update_date`, `fuel_level` | *(ignore)* | Telematics; Samsara owns it and is fresher. |
+| McLeod | FuelGuard | Coverage | Note |
+|---|---|---|---|
+| `id` char(8) | `mcleod_trailer_id`, `unit_number` | 100% | **Needs prefix normalisation — see §5.4.** |
+| `trailer_type` | **`is_reefer`** | 232 of 240 | **⚠ CORRECTED — this is the reefer signal.** `V`=187, `R`=45, blank=8. `is_reefer := trailer_type='R'`. |
+| `reefer_id`, `min_temp`, `max_temp`, `heater_code` | **do not map** | **0 populated** | The first draft proposed these for `is_reefer`. All empty. |
+| `serial_number` | `vin` | 232 of 240 | FuelGuard currently stores **no** trailer VINs — this is new data, and a future match key once populated. |
+| `is_active` `A`/`I` | `status` | 100% | The predicate. `statuscode` and `disposition_code` are entirely NULL — unused. |
+| `make`, `model_year`, `length_of`, `volume`, `weight` | `make`, `year`, `length_ft`, `capacity_cube_ft`, `tare_weight_lb` | | Convert via the `*_um` unit columns. |
+| `tractor_id`, `is_hooked`, `currenteqpgrpid`, `empty` | **do not import** | | Dispatch state; `currenteqpgrpid` and `empty` are the churning columns. |
 
-### 4.4 The CDL / identity-field rule inverts for McLeod, and that is an improvement
+### 4.4 The tenant key is `company.id`, not `company_id` — ⚠ CORRECTED
 
-`samsaraDriverSync` writes `cdl_number` **only when empty** (decision D6), with a documented reason: editing
-a licence does not claim a row for the office, so a hand-corrected licence on a telematics row would be
-silently reverted every sync. That was correct *for telematics*, where the licence is a convenience field.
+`dbo.company` has 4 rows and **`company_id` is `'TMS'` on all of them**. The discriminator is `company.id`,
+and `driver.company_id` / `tractor.company_id` / `trailer.company_id` reference *that*:
 
-McLeod is the carrier's system of record for driver qualification. Its `license_no`, `license_state`, and
-`medical_cert_expire` are what the safety department maintains and would defend in an audit.
+| `company.id` | Legal entity | DOT | drivers / tractors / trailers |
+|---|---|---|---|
+| **`TMS`** | **Silvicom, Inc.** | 1864495 | **1,463 / 646 / 404 ← the carrier** |
+| `TMS2` | Silvicom Logistics, Inc. | 2127913 | 27 / 13 / 54 (0 active drivers) |
+| `TMS3` | JVM Freight Group Corporation | 2117026 | 0 / 0 / 0 |
+| `TMS4` | VIP Equipment Holding, Inc. | — | 1 / 1 / 1 |
 
-> **D-MR6:** for rows with `identity_source = 'mcleod'`, the CDL, medical, plate, registration, and
-> insurance fields are **authoritative and refreshed every sweep**, not enrich-only. The office's escape
-> hatch is unchanged: editing an identity field claims the row to `manual` via `resolveDriverUpdate`, after
-> which McLeod stops writing it. This does mean a clerk who corrects a licence in FuelGuard rather than in
-> McLeod will see it reverted — the correct outcome, but it must be said plainly in the UI, not discovered.
+> **D-MR10:** every query binds `company_id = 'TMS'`. The value is configuration
+> (`org_integrations.config.mcleod_company`), never a literal in code — TMS2 becomes a second FuelGuard org
+> if Silvicom Logistics is ever onboarded.
+
+### 4.5 The CDL rule inverts for McLeod — unchanged, and now better supported
+
+> **D-MR6 (confirmed):** for `identity_source = 'mcleod'` rows the CDL, medical, plate and registration
+> fields are **authoritative and refreshed every sweep**, not enrich-only (D6's rule was right for
+> telematics, where the licence is a convenience field). The office's escape hatch is unchanged: editing an
+> identity field claims the row to `manual` via `resolveDriverUpdate`. Say so plainly in the UI.
+>
+> The measurement backs this: McLeod carries a complete, unique CDL and a valid medical expiry for
+> **164 of 164** active drivers. It is the qualification system of record, in fact and not just in principle.
 
 ---
 
 ## 5. Schema
 
-Migration numbers are **not pinned here** — next-numbered at execution (`lint:migrations`). Head at time of
-writing is `0238_applicant_dispositions.sql`.
+Migration numbers **not pinned** — next-numbered at execution. Head is `0238_applicant_dispositions.sql`.
 
 ### 5.1 Link columns and provenance
 
@@ -320,163 +316,219 @@ create unique index if not exists uq_trailers_org_mcleod
   on trailers (org_id, mcleod_trailer_id) where mcleod_trailer_id is not null;
 ```
 
-Plus `'mcleod'` added to the three `identity_source` CHECK constraints (`drivers` currently admits
-`samsara | manual | efs`; `vehicles` and `trailers` admit `samsara | manual`).
+Plus `'mcleod'` in the three `identity_source` CHECK constraints.
 
-### 5.2 Two things that are easy to miss and will bite
+### 5.2 Two hazards, one of them now measured
 
-- **`merge_driver` must learn `mcleod_driver_id`.** `0203_merge_driver_preserves_dqf.sql` handles
-  `efs_driver_id` by nulling it on the source row *before* coalescing onto the canonical, precisely so the
-  partial unique index does not trip mid-merge. The new column needs identical treatment. **No lint gate
-  covers `merge_driver` completeness** — this has to be done deliberately and pinned by a PGlite case.
-- **The unique indexes refuse to build over existing duplicates**, by design (0123's posture, after the
-  2026-08 fleet-duplication incident). A first sync into a fresh column cannot create duplicates, but a
-  re-run after a partial failure can, so the ingest must key on `(org_id, mcleod_*_id)` and never
-  blind-insert.
+- **`merge_driver` must learn `mcleod_driver_id`.** `0203_merge_driver_preserves_dqf.sql` nulls
+  `efs_driver_id` on the source row *before* coalescing onto the canonical, so the partial unique index does
+  not trip mid-merge. Identical treatment needed. **No lint gate covers this.**
+- **⚠ VIN uniqueness is real but conditional.** `uq_vehicles_org_vin` is org-wide and refuses to build over
+  duplicates (0123's posture after the 2026-08 duplication incident). McLeod's `tractor.serial_number` is
+  unique among the 198 active rows (197 distinct + 1 blank) but **has 72+ duplicate VINs across retired
+  rows** — the same truck re-entered under a new unit number. **Importing retired tractors would break the
+  index.** Import active only, and match VIN only against active rows.
 
-### 5.3 Deactivation and the retention clock
+### 5.3 Deactivation and the retention clock — unchanged
 
-`drivers.termination_date` is not an ordinary column: it starts the retention clock, and evidence tables
-(`certifications`, `qualification_records`, `documents`, `dq_exports`) are append-only and pinned in
-`RETENTION_FORBIDDEN`. An automated writer needs an explicit decision.
+> **D-MR7 (confirmed):** the sync may **set** `termination_date` / move status to inactive; it may **never
+> clear** a termination date and never delete. Re-hire surfaces as a review item, not an auto-reactivation.
+> The mass-deactivation guard from `samsaraDriverSync` carries over verbatim.
 
-> **D-MR7:** the McLeod sync may **set** `termination_date` from `dbo.driver.termination_date` and move
-> `status` to `inactive`. It may **never clear** a termination date and never delete a row. A re-hire
-> (McLeod clears the date) surfaces as a **review item**, not an automatic reactivation — mirroring the
-> existing Samsara rule that reactivation stays an admin decision.
->
-> `samsaraDriverSync`'s mass-deactivation guard carries over verbatim and matters more here: never
-> deactivate more rows than the incoming active count, and skip the pass entirely on a thin result. A
-> mis-scoped `company_id` against a 1,491-row table could otherwise terminate an entire fleet in one sweep,
-> with retention consequences a re-run does not undo.
+### 5.4 Trailer unit-number normalisation — new, and it matters a lot
 
-The same shape applies to vehicles and trailers via `outservice_date`, minus the retention clock.
+**FuelGuard prefixes reefer trailer units with `R`; McLeod does not.** `R532159` here is `532159` there.
+Measured effect on the match:
 
-### 5.4 Sync state
+| Match basis | Matched | McLeod-only | FuelGuard-only |
+|---|---:|---:|---:|
+| Raw unit number | 157 / 235 | 78 | 50 |
+| **Strip leading `R`** | **201 / 235** | **34** | **6** |
 
-`org_integrations.config` (jsonb, already exists) carries the non-secret settings: `company_id`, the resolved
-status vocabularies, which entities are enabled, and `roster_master: true`. `last_synced_at` already exists
-and is already stamped by `touchLastSynced` — it becomes the "as of HH:MM" the UI shows.
+The prefix is meaningful, not noise: FuelGuard has **46** `R`-prefixed trailers, McLeod has **45** with
+`trailer_type='R'`. It is the same fact recorded two ways.
 
-The **row hashes live in the agent's `state.json`**, not in FuelGuard. They are a detail of how the agent
-avoids re-posting unchanged rows; FuelGuard's ingest stays stateless and idempotent, which is what makes a
-full re-push always safe.
+> **D-MR11 (confirmed 2026-08-24):** the agent normalises trailer unit numbers by stripping a leading
+> `R` **for matching only**.
+> The stored `unit_number` keeps FuelGuard's existing convention (renaming 200 trailers is a separate,
+> user-visible decision), and `is_reefer` comes from `trailer_type`, never from the prefix.
 
 ---
 
-## 6. Blocking questions
+## 6. Questions — all answered
 
-None of these can be guessed. Q1–Q4 gate correctness; Q5–Q6 gate connecting at all.
-
-1. **Is `lme_analytics` a one-off restore, a scheduled restore, or a readable secondary of live?** At what
-   lag? This determines whether "continuously up to date" is achievable at all in production (§1). If it is
-   a daily restore, we need a different production target and should say so now rather than after building.
-2. **Which of the 4 rows in `dbo.company` is the carrier?** Are any others in scope? 1,491 McLeod driver rows
-   against ~248 active FuelGuard drivers — some of that gap is terminated, some is other companies, and we
-   cannot write one correct query until we know which.
-3. **`driver.license_date` — issue or expiry?** Same question for `tractor.inspection_date` and
-   `tractor.insurance_date`. Getting these backwards is a compliance-surface error.
-4. **The status vocabularies.** `driver.status_code` char(4) + `reason_for_leaving` char(3);
-   `tractor.status` char(2) + `service_status` + `tractor_status`; `trailer.statuscode` char(4) +
-   `disposition_code` + `trailer_status`. Which combinations mean *in service / currently employed*? Their
-   `dbo.code` and `dbo.reason_code` tables hold the answer.
-5. **A dedicated `fuelguard_ro` login with a column allowlist** (see `../MCLEOD-SQL-SOURCE-OF-TRUTH.md`
-   §2.2–2.3), and the same for production. `db_datareader` grants SELECT on `social_security_no` and the
-   payroll and banking columns.
-6. **Network bridge**: agent on their box (recommended) or a tunnel. Unchanged and still open since the
-   2026-08-11 plan.
-
-Two more that M1 answers by inspection rather than by asking:
-
-7. Are `driver`, `tractor`, `trailer` covered by `audit_log`, and are their fields in `audit_log_exclude`?
-   Is `audit_log.change_date_time` indexed? (Decides whether D-MR1's optimisation is available.)
-8. Is `driver.name` "LAST, FIRST"? Is `tractor.id` the unit number the carrier actually uses?
+1. ~~**Is `lme_analytics` a snapshot?**~~ **Yes, and deliberately so — it is the carrier's purpose-built
+   SANDBOX**, a restore taken 2026-08-21 09:46, isolated so this work cannot touch production LoadMaster.
+   Correct and sufficient for M3–M6, and its fixed contents make §7's numbers a regression check.
+   Production is **`lme`** on the same instance, which this login cannot read — *that gates the M7
+   cutover, not the build.*
+2. ~~**Which company?**~~ **`company.id = 'TMS'` — Silvicom, Inc., DOT 1864495.** And the key is
+   `company.id`, not `company.company_id` (§4.4).
+3. ~~**`license_date` — issue or expiry?**~~ **Expiry.** `medical_cert_expire` likewise. But
+   **`tractor.inspection_date` is the date PERFORMED**, not an expiry (§4.2), and **`mvr_date` is the next
+   due date**, not the last pull.
+4. ~~**Status vocabularies?**~~ **`driver.status_code` is NULL for every row — unused.** The predicates are
+   `driver.is_active='Y'` (164), `tractor.service_status='A' and outservice_date is null` (190),
+   `trailer.is_active='A' and outservice_date is null` (235). Validated: **163 of the 164 active drivers
+   have HOS activity in the last 180 days.**
+5. **Still open — `fuelguard_ro` login.** Now with a precise spec: on **`lme`**, `SELECT` on the allowlisted
+   columns of `driver`/`tractor`/`trailer` (**not** `db_datareader`, which exposes 1,461 SSNs), plus
+   `GRANT VIEW CHANGE TRACKING` on those three tables.
+6. ~~**Network bridge.**~~ **Answered: the agent runs on the carrier's box**, reaching SQL Server locally
+   and POSTing outbound to FuelGuard — no inbound firewall change, the posture `tools/mcleod-agent`'s
+   README already documents to their IT.
+7. ~~**Is `audit_log` usable?**~~ **Indexed and cheap, but useless for drivers** — 228k rows/day of
+   `event_date` noise (§1.2).
+8. ~~**Name format? Is `tractor.id` the unit number?**~~ **`name` is the surname**; `tractor.id` **is** the
+   unit number.
 
 ---
 
-## 7. Execution
+## 7. The match report — computed 2026-08-24, before any code
 
-One step per branch (`claude/<topic>`), PR to `main`, merge after CI. Mark steps **DONE** in place with the
-migrations shipped and the gates run — this document is the memory between sessions.
+Normally M3's deliverable. It was cheap to compute directly, so the go/no-go evidence exists now. Driver
+comparison was done on **SHA-256 hashes of the normalised CDL** — no licence number left either system.
 
-### M0 — Credential hygiene *(not blocked, do first)*
-Gitignore `docs/McLeod-Testing/` (it holds a plaintext password and is currently untracked but **not**
-ignored — one `git add -A` publishes it; `docs/psp-docs/` is already ignored for this reason at
-`.gitignore:80`). Rotate that password. Consider scrubbing the internal host IP from the catalog header
-before that document is ever committed.
-**Done when:** `git check-ignore docs/McLeod-Testing/setup.md` matches, and the carrier has rotated.
+### Drivers — match on CDL: **162 of 164 (98.8%)**
 
-### M1 — Connectivity and reconnaissance *(blocked on Q5, Q6)*
-`SOURCE=sqlserver` in `tools/mcleod-agent` + `queries.mjs` with the three column-explicit, `company_id`-bound
-SELECTs, run from inside their network. In the same session, answer Q7 and Q8 by inspection, and capture a
-**de-identified fixture** of each entity for the test suite.
-**Done when:** row counts per `company_id` are reported for all three tables and match the carrier's
-expectation; the fixture files exist; Q7/Q8 are answered in §6 in place.
+| | Count | Meaning |
+|---|---:|---|
+| Matched | **162** | McLeod active ↔ FuelGuard active |
+| McLeod only | 2 | New hires not yet in FuelGuard (37 were hired in the last 90 days, so Samsara is keeping up well) |
+| FuelGuard only | 7 | **Entirely unknown to McLeod** — absent from all 1,457 CDLs, not merely terminated. Includes the 3 `manual` rows. Needs a human. |
 
-*This is the step that also proves the `company_id` filter, which every later step depends on.*
+Both sides carry a complete, unique CDL for every active driver (164/164 and 166/166). **CDL is the match
+key** — and it has to be, because McLeod has no phone or email at all.
+
+### Vehicles — match on VIN and on unit number: **175 of 190 (92%)**
+
+Both keys select the same 175, so they corroborate rather than complement.
+
+| | Count | Meaning |
+|---|---:|---|
+| Matched | **175** | |
+| McLeod only | 15 | Units **789–803** — one contiguous block of new tractors. Straightforward creates. |
+| FuelGuard only | 15 | **5** are retired `"… — OLD"` rows (0123's rename convention, correctly excluded). **10 are real drift** — see below. |
+
+**The 10 are immediate, concrete value.** Every one is present in McLeod *with an `outservice_date` set* —
+units 552, 555, 563, 564, 565, 567, 569, 720, 721, 752, out of service since dates ranging from **2021-08-09**
+to 2026-06-25. FuelGuard has been carrying them as active vehicles, one of them for four years. The sync
+retires them on day one.
+
+### Trailers — match on normalised unit number: **201 of 235 (86%)**
+
+157 before stripping the `R` prefix (§5.4). The remaining 34 McLeod-only and 6 FuelGuard-only need eyes, but
+the bulk is a naming convention, not a data problem.
+
+**Verdict: go.** The rosters agree far more than they disagree, every disagreement is explainable, and the
+drift the sync would fix on day one is already visible.
+
+---
+
+## 8. Execution
+
+One step per branch (`claude/<topic>`), PR to `main`, merge after CI. Mark steps **DONE** in place.
+
+### M0 — Credential exposure — **DONE 2026-08-24 (containment only)**, rotation OUTSTANDING
+
+**⚠ This was written as hygiene and turned out to be an incident.** The first draft said the directory
+was "untracked but not ignored" and warned that `git add -A` would publish it. On checking the history:
+it already had.
+
+What was found:
+
+| | |
+|---|---|
+| Exposed | `docs/McLeod-Testing/setup.md` — McLeod SQL login (`NikiAnalytics`), host `10.0.1.171`, db `lme_analytics` |
+| Since | **2026-08-21 21:05** (commit `a286370`), also `985b698` |
+| Where | **`origin/main` and ~45 remote branches** |
+| Repository | **PUBLIC** (`github.com/miroslav-jokovic/fuel-guard`) |
+| Prior attempt | `41ab398` untracked it; a later merge from main brought it straight back |
+
+Also public for those three days: the other nine files — a 1,459-table, 34,852-column schema map of a
+customer's production TMS, naming their internal host.
+
+**Shipped (containment):** `.gitignore` entry + `git rm -r --cached docs/McLeod-Testing/`. A gitignore
+entry rather than another `git rm --cached` specifically because the bare untrack already failed once.
+
+**Outstanding — not ours to do, and containment is not mitigation:**
+
+1. **Rotate the password.** The carrier's DBA. This is the only action that neutralises the exposure —
+   untracking does not remove a credential from history, and anyone who cloned or forked in the window
+   still holds it. Treat as compromised.
+2. **Tell the carrier.** It was their credential and their system map. Their call what follows; they
+   cannot make it without knowing.
+3. **Decide on a history rewrite.** `git filter-repo` over main and ~45 branches, plus a GitHub Support
+   request to purge cached commit views (rewritten commits stay reachable by SHA otherwise). Disruptive,
+   and largely moot once the password is rotated — but the schema map is a separate disclosure that
+   rotation does not address.
+
+**Done when:** ~~gitignore matches~~ (done) **and the carrier confirms rotation**.
+
+### M1 — The production ask *(blocked on the carrier; now fully specified)*
+Send their DBA the §6 Q5/Q6 spec. **This is the critical path** — everything below can be built against the
+sandbox, but nothing can *ship* without a login on `lme`.
+**Done when:** a `fuelguard_ro` login on `lme` authenticates and returns the TMS driver count.
 
 ### M2 — Schema
-The migration from §5.1, `merge_driver` updated per §5.2, and a PGlite matrix pinning: the merge case, the
-unique indexes, and the `identity_source` constraint.
-**Done when:** `pnpm test` green with the new matrix printing its `RESULT` line; `lint:migrations`,
-`check-rls.mjs`, `lint:comment-claims` green.
+Migration per §5.1, `merge_driver` per §5.2, PGlite matrix pinning the merge case, the unique indexes, and
+the `identity_source` constraint.
+**Done when:** `pnpm test` green with the new matrix printing `RESULT`; `lint:migrations`, `check-rls.mjs`,
+`lint:comment-claims` green.
 
-### M3 — Contracts and link-only ingest
-`tmsDriverInput` / `tmsVehicleInput` / `tmsTrailerInput` in `packages/shared/src/tms.ts`; the generic
-`apps/api/src/tms/rosterIngest.ts` + three entity configs; three routes under `/api/tms/roster/*`.
-Run in **link-only mode**: write `mcleod_*_id` onto matched rows and change nothing else.
-
-Then produce **the match report** — how many of each entity match, how many McLeod actives have no FuelGuard
-row, how many FuelGuard actives are absent from McLeod.
-**Done when:** the report is produced against real sandbox data and reviewed. **This report is the go/no-go
-for M4–M6** and is worth having before any further argument about semantics.
-
-Tests: fixture-driven with an injectable row-lister (the `listerOverride` pattern from `samsaraDriverSync`),
-so CI never needs SQL Server. `expectOrgScoped` on every query via `supabaseRecorder`.
+### M3 — Agent + contracts + link-only ingest
+`SOURCE=sqlserver` with `queries.mjs` (three column-explicit, `company_id`-bound SELECTs), `hash.mjs`;
+`tmsDriverInput`/`tmsVehicleInput`/`tmsTrailerInput` in `packages/shared/src/tms.ts`; generic
+`apps/api/src/tms/rosterIngest.ts` + three entity configs; routes under `/api/tms/roster/*`. Link-only.
+Tests fixture-driven with an injectable row-lister (`listerOverride` pattern), so CI never needs SQL Server.
+`expectOrgScoped` on every query.
+**Done when:** link-only run reproduces §7's numbers (162 / 175 / 201) against the sandbox. *§7 replaces this
+step's original discovery purpose — it is now a regression check, which is a better use of it.*
 
 ### M4 — Identity writes
-Turn on field writes for matched `identity_source = 'mcleod'` rows only, per §4 and D-MR6. Still no creation,
-still no deactivation.
-**Done when:** a change made in the McLeod sandbox appears in FuelGuard within one sweep, and an
-office-edited field claims to `manual` and stops being overwritten — both pinned by tests.
+Field writes for matched `identity_source='mcleod'` rows per §4 and D-MR6. No creation, no deactivation.
+**Done when:** a sandbox change appears within one sweep, and an office-edited field claims to `manual` and
+stops being overwritten — both pinned by tests.
 
-### M5 — Creation, and the Samsara demotion
-McLeod creates rows. `samsaraDriverSync` / `samsaraVehicleSync` / `samsaraTrailerSync` drop to link-only when
-`config.roster_master` is set (D-MR5). Unmatched Samsara records are reported, not created.
+### M5 — Creation + Samsara demotion
+McLeod creates rows (starting with tractors 789–803). Samsara syncs drop to link-only per D-MR5, **still
+writing `phone`**. Unmatched Samsara records reported, not created.
 
-> **Shipped in two parts.** The first pass demoted `samsaraDriverSync` only; `samsaraVehicleSync` and
-> `samsaraTrailerSync` never learned the flag and kept inserting rows and writing identity — see D-MR12
-> for what that would have cost and D-MR13 for the second place the same question was being answered.
-> Both are now demoted, and the ingest is gated to match.
-**Done when:** a driver created in McLeod appears in FuelGuard and subsequently acquires its
-`samsara_driver_id` from the next Samsara tick — the sequence that proves §3's split works and that HOS will
-attach.
+> **Shipped in two parts.** The first pass demoted `samsaraDriverSync` only — `samsaraVehicleSync` and
+> `samsaraTrailerSync` never learned the flag and kept inserting rows and writing identity. See D-MR12 for
+> what that would have cost, D-MR13 for the second place the same ownership question was being answered, and
+> D-MR14 for the escape hatch that turned out not to exist on any path.
+**Done when:** a McLeod-created driver later acquires its `samsara_driver_id` and phone from the next Samsara
+tick — the sequence that proves §3's split works.
 
 ### M6 — Deactivation
-`termination_date` / `outservice_date` handling per D-MR7, with the mass-deactivation guard.
-**Done when:** the guard is pinned by a test that feeds a thin result and asserts nothing is deactivated.
+D-MR7, with the mass-deactivation guard. The 10 stale vehicles from §7 are the acceptance case.
+**Done when:** the guard is pinned by a test feeding a thin result and asserting nothing is deactivated; the
+10 vehicles retire in a dry run.
 
 ### M7 — Continuous operation
-Agent interval to 2 minutes; `last_synced_at` surfaced in the UI as "as of HH:MM" with a staleness warning;
-the unmatched/exception report surfaced somewhere an admin will actually see it.
-**Done when:** the freshness indicator is live and a deliberately stopped agent raises the staleness state.
-
-### Out of scope until all of the above ships
-Movements, loads, fuel, settlement, qualification evidence, CPM. They are well documented in
-`docs/McLeod-Testing/` and they will still be there.
+2-minute interval; `last_synced_at` surfaced as "as of HH:MM" with a staleness warning; the exception report
+(§7's 7 unknown drivers, 34 unmatched trailers) surfaced where an admin will see it.
+**Done when:** the freshness indicator is live and a stopped agent raises the staleness state.
 
 ---
 
-## 8. What this deliberately does not do
+## 9. What this deliberately does not do
 
-- **Does not import driver↔tractor assignment** (`driver.tractor_id`, `tractor.driver1_id`,
-  `trailer.tractor_id`). D43 makes the duty segment the truth about equipment and dispatch's plan merely a
-  plan; `driver_equipment_timeline` (0150) already answers "what were they actually in" correctly. A second
-  answer would be a regression dressed as data.
+The full field-ownership map and risk register — every writer to the three tables, which columns are
+*learned* rather than recorded, and the ten risks a roster swap creates — is in
+**`CODEBASE-IMPACT-ANALYSIS.md`**, written before M3. Two of its findings need a product decision rather
+than an implementation (R1: does an automated termination log a driver out of their phone; R2: the
+applicant-status guard), and both are called out there.
+
+The rule it reduces to, which M3 must build to from the first commit:
+**the sync writes a fixed allowlist of columns, never a row.**
+
+- **Does not import driver↔equipment assignment.** D43; `driver_equipment_timeline` (0150) already answers
+  it. `driver.tractor_id` is empty in McLeod anyway.
 - **Does not import odometer, fuel level, or position.** Samsara owns these and is fresher.
-- **Does not touch tank capacity or baseline MPG.** User-owned, drives fuel detection; new vehicles get
-  reported in `needsCompletion` exactly as the Samsara path does today.
-- **Does not auto-merge the EFS stubs.** 0204 measured 81 of 248 "active" drivers as fuel-card identities
-  rather than employees, and a real HR roster is the first thing that can resolve them — but `merge_driver`
-  is irreversible and touches DQF evidence, so that ships as a **review queue** in a later step
-  (`driverReconcile.ts` is the existing home).
+- **Does not import contact data.** There is none.
+- **Does not touch tank capacity or baseline MPG.** User-owned; new vehicles go to `needsCompletion`.
+- **Does not auto-merge the EFS stubs.** 36 active EFS-sourced drivers remain, none with a CDL — so they
+  cannot be matched to McLeod on the one reliable key, and name matching alone is not enough to justify an
+  irreversible `merge_driver`. Ships later as a review queue in `driverReconcile.ts`.
