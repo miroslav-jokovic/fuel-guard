@@ -301,7 +301,13 @@ const rows = [
         The real <code>DataTable</code> with the real design tokens — not the prototype vocabulary
         above. Words left, quantities right, headers following their column (D-DS1).
       </p>
-      <DataTable :columns="shippedColumns" :rows="shippedRows" row-key="unit" />
+      <DataTable :columns="shippedColumns" :rows="shippedRows" row-key="unit">
+        <template #cell-status="{ value }">
+          <span :class="[BADGE_BASE, toneClass(String(value) === 'Alert' ? 'danger' : String(value) === 'Review' ? 'warning' : 'success')]">
+            {{ value }}
+          </span>
+        </template>
+      </DataTable>
 
       <h3>Sidebar sections</h3>
       <p class="lab-shipped-note">

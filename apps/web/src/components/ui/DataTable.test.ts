@@ -148,11 +148,25 @@ describe("DataTable narrow-screen card view", () => {
     expect(wrapper.findAll("li")).toHaveLength(rows.length);
   });
 
-  it("makes the first column the card heading and the rest labelled pairs", () => {
+  it("makes the first column the card heading, and keeps words in the labelled list", () => {
     const card = mountNarrow().findAll("li")[0]!;
     expect(card.text()).toContain("Unit 204");
-    const labels = card.findAll("dt").map((dt) => dt.text());
-    expect(labels).toEqual(["Driver", "Gallons"]);
+    // Quantities are pulled out of the <dl> into their own row — on a phone they are compared
+    // against each other, and a two-column grid puts them too far apart to compare.
+    expect(card.findAll("dt").map((dt) => dt.text())).toEqual(["Driver"]);
+    expect(card.text()).toContain("118.4");
+  });
+
+  it("promotes a status column to the heading row, where a scan looks for it", () => {
+    const withStatus: DataTableColumn[] = [...columns, { key: "status", label: "Status" }];
+    const wrapper = mount(DataTable, {
+      props: { columns: withStatus, rows: [{ ...rows[0], status: "Alert" }], rowKey: "unit" },
+      global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+    });
+    const card = wrapper.findAll("li")[0]!;
+    // present on the card, but NOT as one of the labelled rows
+    expect(card.text()).toContain("Alert");
+    expect(card.findAll("dt").map((dt) => dt.text())).not.toContain("Status");
   });
 
   it("shows an em-dash for a blank value rather than an empty row", () => {
