@@ -18,6 +18,7 @@
  */
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { fit, label } from "./fuelSpendReportCharts.js";
+import { ensure, gap, withoutAutoBreak } from "./fuelSpendReportFlow.js";
 
 const M = GEOM.margin;
 const RIGHT = GEOM.pageWidth - GEOM.margin;
@@ -89,8 +90,16 @@ export interface Row {
  * A measured-height table exists to survive prose in a cell, which this one never has, and fixed rows
  * keep the banding regular — which is the whole point of banding.
  */
+/** A column header plus two rows — the least that is worth starting a table with. */
+export function tableHeadHeight(subLines = false): number {
+  return HEAD_H + 2 + (subLines ? ROW_H + 9 : ROW_H) * 2;
+}
+
 export function figureTable(doc: PDFKit.PDFDocument, columns: readonly Column[], rows: readonly Row[]): void {
   const barMax = barScale(columns, rows);
+  // A header drawn in the last inch of a page with its rows overleaf is how "Avoided brands" and its
+  // SITE / FILLS header came out marooned at the foot of page 1.
+  ensure(doc, tableHeadHeight(rows.some((r) => r.cells.some((c) => c.sub))));
   drawHeader(doc, columns);
 
   rows.forEach((row, i) => {
@@ -109,7 +118,7 @@ export function figureTable(doc: PDFKit.PDFDocument, columns: readonly Column[],
     }
 
     let x = M;
-    columns.forEach((col, ci) => {
+    withoutAutoBreak(doc, () => columns.forEach((col, ci) => {
       const cell = row.cells[ci];
       if (!cell) { x += col.width; return; }
       const pad = ci === 0 ? 8 : 0;
@@ -146,14 +155,15 @@ export function figureTable(doc: PDFKit.PDFDocument, columns: readonly Column[],
         }
       }
       x += col.width;
-    });
+    }));
 
     doc.x = M;
     doc.y = top + height;
   });
 
   doc.save().lineWidth(0.5).strokeColor(C.rule).moveTo(M, doc.y).lineTo(RIGHT, doc.y).stroke().restore();
-  doc.y += 10;
+  // 4pt clears the rule itself; everything past that is air and may be squeezed.
+  doc.y += 4 + gap(doc, 7);
 }
 
 /**
@@ -164,9 +174,12 @@ export function figureTable(doc: PDFKit.PDFDocument, columns: readonly Column[],
  * a total sits under the column it totals.
  */
 export function totalRow(doc: PDFKit.PDFDocument, columns: readonly Column[], cells: readonly Cell[]): void {
-  const top = doc.y - 6;
+  // Starts where the table left off rather than reaching 6pt back into the gap behind it. Reaching
+  // back was fine at full density and set the totals straight through the closing rule at the tighter
+  // one, which is what a negative offset into a variable gap will always eventually do.
+  const top = doc.y;
   let x = M;
-  columns.forEach((col, ci) => {
+  withoutAutoBreak(doc, () => columns.forEach((col, ci) => {
     const cell = cells[ci];
     if (!cell) { x += col.width; return; }
     const pad = ci === 0 ? 8 : 0;
@@ -174,7 +187,7 @@ export function totalRow(doc: PDFKit.PDFDocument, columns: readonly Column[], ce
     doc.fillColor(cell.color ?? C.ink).font("Helvetica-Bold").fontSize(T.body);
     doc.text(fit(doc, cell.text, cellW), x + pad, top, { width: cellW, align: col.align ?? "left", lineBreak: false });
     x += col.width;
-  });
+  }));
   doc.x = M;
   doc.y = top + ROW_H;
 }
@@ -182,12 +195,12 @@ export function totalRow(doc: PDFKit.PDFDocument, columns: readonly Column[], ce
 function drawHeader(doc: PDFKit.PDFDocument, columns: readonly Column[]): void {
   const top = doc.y;
   let x = M;
-  for (const col of columns) {
+  withoutAutoBreak(doc, () => { for (const col of columns) {
     // Right-aligned headers are pulled 6pt left of their column edge, the same inset the numbers under
     // them get, so a column header sits over its own digits rather than over the gap to the next one.
     label(doc, col.header, x + (col.align === "right" ? 0 : 8), top + 4, col.width - 6, C.inkSubtle, col.align ?? "left");
     x += col.width;
-  }
+  } });
   doc.save().lineWidth(0.8).strokeColor(C.rule)
     .moveTo(M, top + HEAD_H).lineTo(RIGHT, top + HEAD_H).stroke().restore();
   doc.x = M;

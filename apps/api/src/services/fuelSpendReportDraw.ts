@@ -14,6 +14,7 @@
 import { C, CONTENT_W, GEOM, T, TRACK_LABEL } from "./fuelSpendReportTheme.js";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
 import { label } from "./fuelSpendReportCharts.js";
+import { ensure, gap, withoutAutoBreak } from "./fuelSpendReportFlow.js";
 
 const M = GEOM.margin;
 const RIGHT = GEOM.pageWidth - GEOM.margin;
@@ -24,14 +25,14 @@ const RIGHT = GEOM.pageWidth - GEOM.margin;
 export function lead(doc: PDFKit.PDFDocument, text: string): void {
   doc.fillColor(C.ink).font("Helvetica").fontSize(T.subhead)
     .text(winAnsi(text), M, doc.y, { width: CONTENT_W, lineGap: 1.2 });
-  doc.moveDown(0.45);
+  doc.y += gap(doc, 6);
 }
 
 /** Supporting prose — the caveats, the coverage, the reason a figure is what it is. */
 export function note(doc: PDFKit.PDFDocument, text: string, color: string = C.inkMuted): void {
   doc.fillColor(color).font("Helvetica").fontSize(T.small)
     .text(winAnsi(text), M, doc.y, { width: CONTENT_W, lineGap: 1 });
-  doc.moveDown(0.4);
+  doc.y += gap(doc, 5);
 }
 
 /**
@@ -43,13 +44,14 @@ export function note(doc: PDFKit.PDFDocument, text: string, color: string = C.in
  * the figures around it.
  */
 export function withheld(doc: PDFKit.PDFDocument, text: string): void {
+  ensure(doc, 30);
   const top = doc.y;
   doc.fillColor(C.warn).font("Helvetica").fontSize(T.small)
     .text(winAnsi(text), M + 10, top, { width: CONTENT_W - 10, lineGap: 1 });
   doc.save().lineWidth(1.6).strokeColor(C.warn).opacity(0.55)
     .moveTo(M + 2, top + 1).lineTo(M + 2, doc.y - 1).stroke().restore();
   doc.x = M;
-  doc.moveDown(0.5);
+  doc.y += gap(doc, 6);
 }
 
 // ── letterhead ──────────────────────────────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ export function metaStrip(doc: PDFKit.PDFDocument, meta: readonly MetaField[]): 
   doc.save().roundedRect(M, top, CONTENT_W, height, GEOM.radius).fillColor(C.wash).fill().restore();
 
   const w = CONTENT_W / meta.length;
-  meta.forEach((f, i) => {
+  withoutAutoBreak(doc, () => meta.forEach((f, i) => {
     const x = M + i * w;
     if (i > 0) {
       doc.save().lineWidth(0.5).strokeColor(C.hairline)
@@ -110,10 +112,10 @@ export function metaStrip(doc: PDFKit.PDFDocument, meta: readonly MetaField[]): 
     label(doc, f.label, x + 11, top + 8, w - 20, C.inkSubtle);
     doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.small)
       .text(winAnsi(f.value), x + 11, top + 18, { width: w - 20, lineBreak: false });
-  });
+  }));
 
   doc.x = M;
-  doc.y = top + height + 18;
+  doc.y = top + height + gap(doc, 18);
 }
 
 // ── sections ────────────────────────────────────────────────────────────────────────────────────
@@ -126,28 +128,61 @@ export function metaStrip(doc: PDFKit.PDFDocument, meta: readonly MetaField[]): 
  * The old headings were navy text with nothing else, which at 12pt inside a page of 9pt tables is not
  * enough of a break for the eye to find.
  */
+/** What `sectionHead` will occupy, including the standfirst it has to wrap. */
+export function sectionHeadHeight(doc: PDFKit.PDFDocument, standfirst?: string): number {
+  const lead = gap(doc, 10) + T.section + 6;
+  if (!standfirst) return lead;
+  doc.font("Helvetica").fontSize(T.small);
+  return lead + doc.heightOfString(winAnsi(standfirst), { width: CONTENT_W, lineGap: 1 }) + gap(doc, 6);
+}
+
+/**
+ * Open a section, having first made sure the page can hold its head AND the first thing under it.
+ *
+ * ── WHY THE CALLER PASSES A MEASURED `needs` ────────────────────────────────────────────────────
+ * Sections used to open with `keepTogether(doc, 150)` — one guessed constant for five sections of
+ * different shapes. Guessed low, a numbered heading was drawn in the last inch of a page with its
+ * waterfall on the next. Guessed high, a section with 140pt of content jumped to a fresh page and left
+ * a third of the previous one blank, which is most of where this document's white space came from.
+ *
+ * `needs` is the height of the first block that cannot be split — the waterfall, the proportion bar,
+ * a table header and two rows. Everything after it is prose, and prose is allowed to flow.
+ */
+export function startSection(
+  doc: PDFKit.PDFDocument,
+  n: number,
+  title: string,
+  standfirst: string | undefined,
+  needs: number,
+): void {
+  ensure(doc, sectionHeadHeight(doc, standfirst) + needs);
+  sectionHead(doc, n, title, standfirst);
+}
+
 export function sectionHead(doc: PDFKit.PDFDocument, n: number, title: string, standfirst?: string): void {
-  doc.moveDown(0.5);
+  doc.y += gap(doc, 10);
   const top = doc.y;
   const numeral = String(n).padStart(2, "0");
 
-  doc.fillColor(C.mark).font("Helvetica-Bold").fontSize(T.section)
-    .text(numeral, M, top, { width: 24, lineBreak: false });
-  doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.section)
-    .text(winAnsi(title), M + 26, top, { width: CONTENT_W - 26, lineBreak: false });
+  withoutAutoBreak(doc, () => {
+    doc.fillColor(C.mark).font("Helvetica-Bold").fontSize(T.section)
+      .text(numeral, M, top, { width: 24, lineBreak: false });
+    doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.section)
+      .text(winAnsi(title), M + 26, top, { width: CONTENT_W - 26, lineBreak: false });
 
-  const titleW = doc.widthOfString(winAnsi(title)) + 34;
-  if (titleW < CONTENT_W - 24) {
-    doc.save().lineWidth(0.5).strokeColor(C.hairline)
-      .moveTo(M + titleW, top + T.section * 0.55).lineTo(RIGHT, top + T.section * 0.55).stroke().restore();
-  }
+    const titleW = doc.widthOfString(winAnsi(title)) + 34;
+    if (titleW < CONTENT_W - 24) {
+      doc.save().lineWidth(0.5).strokeColor(C.hairline)
+        .moveTo(M + titleW, top + T.section * 0.55).lineTo(RIGHT, top + T.section * 0.55).stroke().restore();
+    }
+  });
   doc.x = M;
   doc.y = top + T.section + 6;
 
   if (standfirst) {
     doc.fillColor(C.inkMuted).font("Helvetica").fontSize(T.small)
       .text(winAnsi(standfirst), M, doc.y, { width: CONTENT_W, lineGap: 1 });
-    doc.moveDown(0.5);
+    doc.y += gap(doc, 6);
   }
 }
 
@@ -170,30 +205,20 @@ export function verdictBand(doc: PDFKit.PDFDocument, sentence: string, support?:
   const h2 = support ? doc.heightOfString(winAnsi(support), { width: CONTENT_W - padX - 16, lineGap: 1 }) + 5 : 0;
   const height = h1 + h2 + 22;
 
-  doc.save().roundedRect(M, top, CONTENT_W, height, GEOM.radius).fillColor(C.markWash).fill().restore();
-  doc.save().rect(M, top + 2, 2.5, height - 4).fillColor(C.mark).fill().restore();
+  withoutAutoBreak(doc, () => {
+    doc.save().roundedRect(M, top, CONTENT_W, height, GEOM.radius).fillColor(C.markWash).fill().restore();
+    doc.save().rect(M, top + 2, 2.5, height - 4).fillColor(C.mark).fill().restore();
 
-  doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.section)
-    .text(winAnsi(sentence), M + padX, top + 11, { width: CONTENT_W - padX - 16, lineGap: 1.5 });
-  if (support) {
-    doc.fillColor(C.inkSecondary).font("Helvetica").fontSize(T.small)
-      .text(winAnsi(support), M + padX, doc.y + 4, { width: CONTENT_W - padX - 16, lineGap: 1 });
-  }
+    doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.section)
+      .text(winAnsi(sentence), M + padX, top + 11, { width: CONTENT_W - padX - 16, lineGap: 1.5 });
+    if (support) {
+      doc.fillColor(C.inkSecondary).font("Helvetica").fontSize(T.small)
+        .text(winAnsi(support), M + padX, doc.y + 4, { width: CONTENT_W - padX - 16, lineGap: 1 });
+    }
+  });
 
   doc.x = M;
-  doc.y = top + height + 16;
-}
-
-/**
- * Start a new page when less than `needed` points remain.
- *
- * `table` moves a ROW that would straddle a break, but nothing stops a heading and a column header
- * being drawn in the last inch of a page with their rows on the next one — which is exactly how
- * "Avoided brands" and its SITE / FILLS header came out marooned at the foot of page 1. A block that
- * cannot show at least its header and a couple of rows is better started overleaf.
- */
-export function keepTogether(doc: PDFKit.PDFDocument, needed = 96): void {
-  if (doc.y + needed > GEOM.contentBottom) doc.addPage();
+  doc.y = top + height + gap(doc, 16);
 }
 
 // ── page stamps ─────────────────────────────────────────────────────────────────────────────────

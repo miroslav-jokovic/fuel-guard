@@ -21,6 +21,8 @@ import {
   comparablePeriods,
   periodTotals,
   type ContractCapture,
+  type FleetIdleVerdict,
+  type SpendPeriod,
   spendSeries,
   type SpendDay,
   type SpendGrain,
@@ -29,6 +31,8 @@ import {
 import { eachPage } from "../lib/paging.js";
 import { newDrawing, winAnsi } from "./dqBinder/pdfDraw.js";
 import { letterhead, stampPages } from "./fuelSpendReportDraw.js";
+import { setDensity } from "./fuelSpendReportFlow.js";
+import { GEOM } from "./fuelSpendReportTheme.js";
 import { drawBridge, drawHeadline, drawSeries, drawVerdict } from "./fuelSpendReportSections.js";
 import { drawDiscount, drawExceptions, drawIdle } from "./fuelSpendReportPolicy.js";
 import { plural, usd, windowLabel } from "./fuelSpendReportFormat.js";
@@ -57,7 +61,7 @@ export interface FuelSpendReportInput {
 export async function renderFuelSpendReport(
   admin: SupabaseClient,
   input: FuelSpendReportInput,
-): Promise<{ pdf: Buffer; periods: number; carrier: string }> {
+): Promise<{ pdf: Buffer; periods: number; carrier: string; pages: number }> {
   const vehicleIds = input.vehicleIds ?? [];
   const [days, lines, carrier, units, idle] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
@@ -89,37 +93,117 @@ export async function renderFuelSpendReport(
       ? `Units ${units.join(", ")}`
       : plural(units.length, "unit");
 
-  const { doc, done } = newDrawing("FuelGuard — Fuel spend", { bufferPages: true });
-  letterhead(doc, carrier, "Fuel spend", "What fuel cost, why it moved, and where the fuel policy was not followed.", [
-    { label: "Period", value: window },
-    { label: "Reported", value: GRAIN_LABEL[input.grain] },
-    { label: "Scope", value: fleet },
-    { label: "Fills", value: plural(lines.length, "fill") },
-  ]);
-
-  drawVerdict(doc, overall, comparison, input.grain, supportLine(exceptions, capture));
-  drawHeadline(doc, overall, series, comparison, input.grain);
-  drawBridge(doc, comparison, input.grain, 1);
-  drawSeries(doc, series, overall, input.grain, 2);
-  drawDiscount(doc, capture, lines, 3);
-  drawExceptions(doc, exceptions, 4);
-  drawIdle(doc, series, input.grain, idle, 5);
-
   const refused = days.reduce((a: number, d: SpendDay) => a + d.milesRejected, 0);
+  const compose = (density: number) =>
+    composeDocument({
+      density, carrier, window, refused, idle, series, overall, comparison, exceptions, capture, lines,
+      grain: input.grain, generatedAt: input.generatedAt,
+      meta: [
+        { label: "Period", value: window },
+        { label: "Reported", value: GRAIN_LABEL[input.grain] },
+        { label: "Scope", value: fleet },
+        { label: "Fills", value: plural(lines.length, "fill") },
+      ],
+    });
+
+  const roomy = await compose(1);
+  const chosen = await tightenIfTailIsAStub(roomy, compose);
+  // `pages` is returned so the pagination itself is testable. It was not, and the document spent a
+  // release emitting pages that held one string each.
+  return { pdf: chosen.pdf, periods: series.length, carrier, pages: chosen.pages };
+}
+
+/**
+ * Keep the roomy composition unless its last page is a stub AND composing tighter saves a page.
+ *
+ * ── WHY THE SECOND PASS IS CONDITIONAL AND WHY IT CAN BE REJECTED ───────────────────────────────
+ * Measured across the shapes production actually produces — a fortnight at day grain, a quarter at
+ * week grain, one truck, a carrier with no quotes on file — the failure was always the same: content
+ * coming to a bit over a whole number of pages, and the remainder stranded on a final page 80% white.
+ * Every individual break was correct; the document was still wrong.
+ *
+ * Composing is a few milliseconds of in-memory pdfkit, so the cheap answer is to do it twice and keep
+ * the better one. The tight pass is DISCARDED unless it drops the page count, because a document that
+ * gave up its air and still runs to three pages is strictly worse than one that did not.
+ */
+const STUB_TAIL = 0.4;
+/**
+ * Two attempts, not one. The gentler density recovers a page on its own in most of the cases that need
+ * it, and only where it does not is the harder one tried — so a document is never squeezed further
+ * than it had to be to lose the stub. `MIN_GAP` in `fuelSpendReportFlow` bounds the bottom of this.
+ */
+const TIGHT_DENSITIES = [0.55, 0.3];
+
+async function tightenIfTailIsAStub(
+  roomy: Composed,
+  compose: (density: number) => Promise<Composed>,
+): Promise<Composed> {
+  const tail = (roomy.lastY - MARGIN) / (CONTENT_BOTTOM - MARGIN);
+  if (roomy.pages < 2 || tail >= STUB_TAIL) return roomy;
+  for (const density of TIGHT_DENSITIES) {
+    const tight = await compose(density);
+    if (tight.pages < roomy.pages) return tight;
+  }
+  return roomy;
+}
+
+interface Composed {
+  pdf: Buffer;
+  pages: number;
+  /** Where content stopped on the final page — how full the tail is. */
+  lastY: number;
+}
+
+interface ComposeInput {
+  density: number;
+  carrier: string;
+  window: string;
+  refused: number;
+  meta: { label: string; value: string }[];
+  idle: FleetIdleVerdict | null;
+  series: SpendPeriod[];
+  overall: SpendPeriod;
+  comparison: { prior: SpendPeriod; current: SpendPeriod } | null;
+  exceptions: ReturnType<typeof analyzePolicyExceptions>;
+  capture: ContractCapture;
+  lines: SpendLine[];
+  grain: SpendGrain;
+  generatedAt: string;
+}
+
+/** Draw the whole document at one density. Called once, or twice — see above. */
+async function composeDocument(c: ComposeInput): Promise<Composed> {
+  const { doc, done } = newDrawing("FuelGuard — Fuel spend", { bufferPages: true });
+  setDensity(doc, c.density);
+
+  letterhead(doc, c.carrier, "Fuel spend", "What fuel cost, why it moved, and where the fuel policy was not followed.", c.meta);
+  drawVerdict(doc, c.overall, c.comparison, c.grain, supportLine(c.exceptions, c.capture));
+  drawHeadline(doc, c.overall, c.series, c.comparison, c.grain);
+  drawBridge(doc, c.comparison, c.grain, 1);
+  drawSeries(doc, c.series, c.overall, c.grain, 2);
+  drawDiscount(doc, c.capture, c.lines, 3);
+  drawIdle(doc, c.series, c.grain, c.idle, 4);
+  drawExceptions(doc, c.exceptions, 5);
+
+  // Read BEFORE `stampPages`, which switches to page 1 and leaves `doc.y` wherever the footer left it.
+  const lastY = doc.y;
+  const pages = doc.bufferedPageRange().count;
+
   stampPages(
     doc,
-    winAnsi(`${carrier} · Fuel spend · ${window}`),
+    winAnsi(`${c.carrier} · Fuel spend · ${c.window}`),
     winAnsi(
-      `FuelGuard · derived from recorded fills, odometer intervals and engine time · generated ${input.generatedAt.slice(0, 16).replace("T", " ")} UTC` +
-        (refused > 0 ? ` · ${refused} odometer interval(s) refused as implausible` : ""),
+      `FuelGuard · derived from recorded fills, odometer intervals and engine time · generated ${c.generatedAt.slice(0, 16).replace("T", " ")} UTC` +
+        (c.refused > 0 ? ` · ${c.refused} odometer interval(s) refused as implausible` : ""),
     ),
   );
   doc.end();
-  return { pdf: await done, periods: series.length, carrier };
+  return { pdf: await done, pages, lastY };
 }
 
 
 const GRAIN_LABEL: Record<SpendGrain, string> = { day: "Daily", week: "Weekly", month: "Monthly" };
+const { margin: MARGIN, contentBottom: CONTENT_BOTTOM } = GEOM;
 
 /**
  * The line under the verdict: the two findings that are somebody's to answer for.
