@@ -120,6 +120,18 @@ export function waterfall(doc: PDFKit.PDFDocument, bars: WaterfallBar[], total: 
   doc.moveDown(0.5);
 }
 
+/**
+ * Start a new page when less than `needed` points remain.
+ *
+ * `table` moves a ROW that would straddle a break, but nothing stops a heading and a column header
+ * being drawn in the last inch of a page with their rows on the next one — which is exactly how
+ * "Avoided brands" and its SITE / FILLS header came out marooned at the foot of page 1. A block that
+ * cannot show at least its header and a couple of rows is better started overleaf.
+ */
+export function keepTogether(doc: PDFKit.PDFDocument, needed = 96): void {
+  if (doc.y + needed > PAGE_HEIGHT - MARGIN - 18) doc.addPage();
+}
+
 export function money(n: number): string {
   const v = Math.abs(Math.round(n)).toLocaleString("en-US");
   return `${n < 0 ? "-" : "+"}$${v}`;

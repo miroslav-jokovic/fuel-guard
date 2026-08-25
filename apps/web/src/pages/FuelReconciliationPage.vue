@@ -15,6 +15,7 @@ import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { usd } from "@/features/reconcile/format";
 
@@ -136,6 +137,15 @@ const caNote = computed(() => {
         filtered
         <BaseButton variant="ghost" class="ml-1" @click="f.reset()">Clear</BaseButton>
       </span>
+      <template #actions>
+        <ReportExportButton
+          :query="f.asQuery.value"
+          :from="f.from.value"
+          :to="f.to.value"
+          :grain="f.grain.value"
+          :truck-count="f.vehicleIds.value.length"
+        />
+      </template>
     </FilterBar>
 
     <SpendTrendTab v-if="tab === 'spend'" :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />
