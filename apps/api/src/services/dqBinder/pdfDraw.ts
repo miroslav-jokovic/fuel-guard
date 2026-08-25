@@ -59,6 +59,12 @@ export function winAnsi(text: string): string {
     // copy uses — a formatted negative number carries a true minus (U+2212), and "-88.1% vs prior" was
     // reaching a boss's PDF as "?88.1% vs prior", which reads as corruption rather than as a minus.
     .replace(/[\u2010-\u2015\u2212]/g, "-")
+    // U+2192 reaches here from GENERATED copy, not from prose: `operatingBridge` builds its withheld
+    // messages as "Fleet MPG of 12.7 for 2026-08-17 \u2192 2026-08-23 is outside what a tractor can do",
+    // and with no rule for it the arrow fell through to the '?' catch-all below. A boss's PDF read
+    // "2026-08-17 ? 2026-08-23", which is the corruption this whole function exists to avoid printing.
+    .replace(/\u2192/g, "-")
+    .replace(/\u2190/g, "-")
     .replace(/\u2026/g, "...")
     .replace(/\u2022/g, "\u00b7")
     .replace(/[^\u0020-\u007e\u00a0-\u00ff]/g, "?");

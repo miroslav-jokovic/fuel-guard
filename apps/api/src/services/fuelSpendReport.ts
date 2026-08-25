@@ -20,6 +20,7 @@ import {
   analyzePolicyExceptions,
   comparablePeriods,
   periodTotals,
+  type ContractCapture,
   spendSeries,
   type SpendDay,
   type SpendGrain,
@@ -27,8 +28,10 @@ import {
 } from "@fuelguard/shared";
 import { eachPage } from "../lib/paging.js";
 import { newDrawing, winAnsi } from "./dqBinder/pdfDraw.js";
-import { letterhead, stampFooters } from "./fuelSpendReportDraw.js";
-import { drawBridge, drawDiscount, drawExceptions, drawHeadline, drawIdle, drawSeries } from "./fuelSpendReportSections.js";
+import { letterhead, stampPages } from "./fuelSpendReportDraw.js";
+import { drawBridge, drawHeadline, drawSeries, drawVerdict } from "./fuelSpendReportSections.js";
+import { drawDiscount, drawExceptions, drawIdle } from "./fuelSpendReportPolicy.js";
+import { plural, usd, windowLabel } from "./fuelSpendReportFormat.js";
 import { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
 
 export interface FuelSpendReportInput {
@@ -78,30 +81,34 @@ export async function renderFuelSpendReport(
   // saving from "miles driven" — a collapse that never happened, in a document meant to be forwarded.
   const comparison = comparablePeriods(series);
   const exceptions = analyzePolicyExceptions(lines);
+  const capture = analyzeContractCapture(lines);
+  const window = windowLabel(input.from, input.to);
+  const fleet = units.length === 0
+    ? "Whole fleet"
+    : units.length <= 4
+      ? `Units ${units.join(", ")}`
+      : plural(units.length, "unit");
 
   const { doc, done } = newDrawing("FuelGuard — Fuel spend", { bufferPages: true });
-  letterhead(
-    doc,
-    carrier,
-    "Fuel spend report",
-    `${input.from} to ${input.to}  ·  by ${input.grain}  ·  ` +
-      (units.length === 0
-        ? "whole fleet"
-        : units.length <= 6
-          ? `units ${units.join(", ")}`
-          : `${units.length} units`),
-  );
+  letterhead(doc, carrier, "Fuel spend", "What fuel cost, why it moved, and where the fuel policy was not followed.", [
+    { label: "Period", value: window },
+    { label: "Reported", value: GRAIN_LABEL[input.grain] },
+    { label: "Scope", value: fleet },
+    { label: "Fills", value: plural(lines.length, "fill") },
+  ]);
 
-  drawHeadline(doc, overall, comparison);
-  drawBridge(doc, comparison);
-  drawSeries(doc, series, input.grain);
-  drawDiscount(doc, analyzeContractCapture(lines), lines);
-  drawExceptions(doc, exceptions, overall);
-  drawIdle(doc, series, input.grain, idle);
+  drawVerdict(doc, overall, comparison, input.grain, supportLine(exceptions, capture));
+  drawHeadline(doc, overall, series, comparison, input.grain);
+  drawBridge(doc, comparison, input.grain, 1);
+  drawSeries(doc, series, overall, input.grain, 2);
+  drawDiscount(doc, capture, lines, 3);
+  drawExceptions(doc, exceptions, 4);
+  drawIdle(doc, series, input.grain, idle, 5);
 
   const refused = days.reduce((a: number, d: SpendDay) => a + d.milesRejected, 0);
-  stampFooters(
+  stampPages(
     doc,
+    winAnsi(`${carrier} · Fuel spend · ${window}`),
     winAnsi(
       `FuelGuard · derived from recorded fills, odometer intervals and engine time · generated ${input.generatedAt.slice(0, 16).replace("T", " ")} UTC` +
         (refused > 0 ? ` · ${refused} odometer interval(s) refused as implausible` : ""),
@@ -109,6 +116,41 @@ export async function renderFuelSpendReport(
   );
   doc.end();
   return { pdf: await done, periods: series.length, carrier };
+}
+
+
+const GRAIN_LABEL: Record<SpendGrain, string> = { day: "Daily", week: "Weekly", month: "Monthly" };
+
+/**
+ * The line under the verdict: the two findings that are somebody's to answer for.
+ *
+ * Deliberately only these two. The verdict band is the one thing in the document guaranteed to be
+ * read, and a band that tried to summarise all five sections would be a paragraph — which is the shape
+ * the eye skips. Off-policy excess and money billed above contract are the two figures a carrier can
+ * actually go and recover, so they are the two that ride at the top.
+ */
+function supportLine(
+  exceptions: ReturnType<typeof analyzePolicyExceptions>,
+  capture: ContractCapture,
+): string {
+  const parts: string[] = [];
+  const offPolicy = exceptions.offNetwork.excess + exceptions.avoidedStates.excess + exceptions.avoidedBrands.excess;
+  if (offPolicy > 0) {
+    parts.push(
+      `Fills outside the fuel policy cost ${usd(offPolicy)} more than the fleet paid elsewhere over the same window`,
+    );
+  }
+  if (capture.overDollars > 0) {
+    parts.push(
+      `${capture.overLines} fill(s) were billed above the contracted price, ${usd(capture.overDollars)} in total`,
+    );
+  }
+  if (parts.length === 0) {
+    return capture.measuredLines > 0
+      ? "Every measurable fill was billed at its contracted price, and no fill fell outside the fuel policy."
+      : "No fill in this window could be matched to a quote, so nothing here is measured against contract.";
+  }
+  return `${parts.join(", and ")}.`;
 }
 
 // ── reads ───────────────────────────────────────────────────────────────────────────────────────
