@@ -31,27 +31,37 @@ export function registerStationRoutes(router: Router): void {
       const SAMPLE_CAP = 40; // recent samples kept per station for the estimate (bounds memory)
 
       // Latest diesel price per station + a bounded recent-history window for estimating stale/missing prices.
+      //
+      // Read through `fuel_prices_for_planning` (0245) rather than by paging the table. Until prices were
+      // KEPT this was a single page, because the table held one day; three months of daily reports make it
+      // roughly forty, on every load of this page. The function caps samples PER STATION and still returns
+      // each station's most recent row however old it is, so the cost stops growing with history while the
+      // rows this loop sees are exactly the ones it saw before.
       const latest = new Map<string, { net: number | null; posted: number | null; at: string }>();
       const samples = new Map<string, { net: number | null; observedAtMs: number }[]>();
-      const PAGE = 1000;
+      const PAGE = 5000;
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await admin
-          .from("fuel_prices")
-          .select("station_id, net_price, posted_price, observed_at")
-          .eq("org_id", orgId).eq("product", "diesel")
-          .order("observed_at", { ascending: false })
+          .rpc("fuel_prices_for_planning", {
+            p_org: orgId,
+            p_since: new Date(cutoffMs).toISOString(),
+            p_cap: SAMPLE_CAP,
+            p_product: "diesel",
+          })
           .range(from, from + PAGE - 1);
         if (error) { dbErrorResponse(res, "fuel_prices read", error, "Could not load fuel prices"); return; }
-        for (const p of (data ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
+        const rows = (data ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>;
+        for (const p of rows) {
           const net = p.net_price != null ? Number(p.net_price) : null;
           const atMs = Date.parse(p.observed_at);
+          // Rows arrive station-major, newest first, so the first row for a station IS its latest.
           if (!latest.has(p.station_id)) latest.set(p.station_id, { net, posted: p.posted_price != null ? Number(p.posted_price) : null, at: p.observed_at });
           if (atMs >= cutoffMs) {
             const arr = samples.get(p.station_id) ?? samples.set(p.station_id, []).get(p.station_id)!;
             if (arr.length < SAMPLE_CAP) arr.push({ net, observedAtMs: atMs });
           }
         }
-        if (!data || data.length < PAGE) break;
+        if (rows.length < PAGE) break;
       }
 
       // The full registry for the enabled networks (not just tenant-priced stations — a station with
