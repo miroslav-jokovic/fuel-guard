@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { buildFuelSpendRollup } from "../../services/fuelSpendRollup.js";
+import { resolveFuelTransactionStations } from "../../services/fuelStationResolve.js";
 
 /**
  * The daily fuel-spend rollup (migration 0244) is READ straight from PostgREST by the web app — the
@@ -22,6 +23,30 @@ const MAX_WINDOW_DAYS = 400;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 export function registerSpendRoutes(router: Router): void {
+  // Point fills at the station they were bought from. The nightly sweep does this for whatever is
+  // still unresolved; this endpoint exists to seed history, and to re-resolve EVERYTHING after a change
+  // to the matcher, which the sweep deliberately will not do on its own.
+  router.post(
+    "/station-resolve",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const all = (req.body as { all?: unknown })?.all === true;
+      const result = await resolveFuelTransactionStations(admin, orgId, { onlyUnresolved: !all });
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "fuel.station_resolve",
+        entity: "fuel_transactions",
+        meta: { all, scanned: result.scanned, resolved: result.resolved, updates: result.updates, byReason: result.byReason },
+      });
+      res.json({ ok: true, ...result });
+    }),
+  );
+
   router.post(
     "/spend-rollup",
     requireOrg,

@@ -1,6 +1,7 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { buildFuelSpendRollup } from "./fuelSpendRollup.js";
+import { resolveFuelTransactionStations } from "./fuelStationResolve.js";
 
 /**
  * Nightly rebuild of the daily fuel-spend rollup (migration 0244).
@@ -14,6 +15,11 @@ import { buildFuelSpendRollup } from "./fuelSpendRollup.js";
  *
  * The rebuild is idempotent — it upserts every derived row and sweeps whatever it did not touch — so
  * re-deriving a fortnight nightly costs a few seconds and cannot double-count.
+ *
+ * It also resolves stations for fills that have none. A backfill alone would have gone stale within a
+ * day — the EFS feed writes new fills continuously and none of them carry a station — so brand analysis
+ * would have decayed from the moment it shipped. Stations are resolved BEFORE the rollup so a fill
+ * bought today is already placed at a brand by the time anything reads it.
  *
  * Run in EXACTLY ONE process (see `startAllSchedulers`). This scheduler has no job-ledger guard, and
  * two processes rebuilding the same window would race each other's sweep: the loser's rows carry the
@@ -43,6 +49,14 @@ export function startFuelSpendRollupScheduler(env: Env): void {
       // carrier's spend report from being rebuilt.
       for (const org of (data ?? []) as { id: string }[]) {
         try {
+          // Cheap after the first run: only fills with no station are scanned.
+          const st = await resolveFuelTransactionStations(admin, org.id);
+          if (st.resolved > 0) {
+            console.log(
+              `[fuel-spend] org ${org.id}: ${st.resolved} of ${st.scanned} unplaced fill(s) resolved to a station` +
+                (st.topUnmatched.length > 0 ? `; biggest gap ${st.topUnmatched[0]!.key} (${st.topUnmatched[0]!.fills} fills)` : ""),
+            );
+          }
           const r = await buildFuelSpendRollup(admin, org.id, from, to);
           if (r.written > 0 || r.deleted > 0) {
             console.log(
