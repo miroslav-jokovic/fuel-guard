@@ -18,6 +18,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@vendor/*": [
+        "./vendor/*"
+      ],
       "@fuelguard/shared": [
         "../../packages/shared/src/index.ts"
       ],

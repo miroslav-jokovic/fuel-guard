@@ -49,6 +49,7 @@ export default tseslint.config(
       "_probes/**",
       "_to_delete/**",
       "**/*.generated.ts", // codegen output — authored by scripts/gen-*.mjs, verified by the drift check
+      "apps/web/vendor/**", // vendored third-party builds — not ours to lint; pinned by digest instead
     ],
   },
   js.configs.recommended,

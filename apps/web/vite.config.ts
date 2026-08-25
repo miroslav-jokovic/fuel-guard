@@ -60,6 +60,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
+        // Vendored third-party builds live OUTSIDE src so lint, coverage and the file-size budget do
+        // not treat a megabyte of somebody else's minified code as ours. See vendor/sheetjs/README.md.
+        "@vendor": fileURLToPath(new URL("./vendor", import.meta.url)),
       },
     },
     server: {

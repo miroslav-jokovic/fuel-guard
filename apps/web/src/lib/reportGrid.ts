@@ -48,6 +48,38 @@ async function readXlsxGrid(buf: ArrayBuffer): Promise<Grid> {
 }
 
 
+/**
+ * Genuine Excel 97-2003 binary (BIFF8), which the carrier's daily Pilot price report actually is.
+ *
+ * This used to be a hard rejection telling the reader to open the file in Excel and re-save it — fine
+ * for one file, and the reason ninety of them sat unimported. ExcelJS cannot read BIFF8 and Papa is
+ * CSV, so a second decoder is genuinely needed rather than nice to have.
+ *
+ * Lazy-imported exactly like ExcelJS and pdfjs: it is ~1 MB and only an upload pays for it.
+ */
+async function readLegacyXlsGrid(buf: ArrayBuffer): Promise<Grid> {
+  const XLSX = await import("@vendor/sheetjs/xlsx.mjs");
+  // `cellDates` so a date cell arrives as a Date rather than an Excel serial — `parsePilotPriceReport`
+  // and `parsePilotFuelReport` both already handle Date, and a bare 46174 reads as a number.
+  const wb = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true });
+  const first = wb.SheetNames[0];
+  if (!first) throw new Error("The workbook has no sheets.");
+  const sheet = wb.Sheets[first];
+  if (!sheet) throw new Error("The workbook has no sheets.");
+  // `header: 1` gives rows as arrays — the same shape the other decoders produce. `defval: null` keeps
+  // blank cells as positions rather than collapsing them, so column indexes stay aligned across rows.
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null, blankrows: true });
+  return rows.map((row) =>
+    (Array.isArray(row) ? row : []).map((v) => {
+      if (v == null || v === "") return null;
+      if (typeof v === "number" || typeof v === "string") return v;
+      if (v instanceof Date) return v.toISOString();
+      if (typeof v === "boolean") return Number(v);
+      return String(v);
+    }),
+  );
+}
+
 /** Many fuel-price "reports" are an HTML <table> saved with an .xls extension. Parse the biggest table. */
 function readHtmlGrid(text: string): Grid {
   const doc = new DOMParser().parseFromString(text, "text/html");
@@ -78,7 +110,8 @@ function readCsvGrid(text: string): Grid {
  * Decode a fuel-price report into a raw cell grid, client-side, sniffing the ACTUAL format by magic
  * bytes rather than trusting the extension. Enterprise reports are routinely a `.xls` that is really an
  * HTML table (or CSV). Modern spreadsheets (.xlsx/.xlsm) go through ExcelJS; genuine legacy binary OLE
- * `.xls` is rejected with a convert-to-xlsx prompt.
+ * `.xls` goes through the vendored SheetJS build (see `vendor/sheetjs/README.md` for why it is
+ * vendored rather than installed).
  */
 export async function readReportGrid(input: File | ArrayBuffer): Promise<Grid> {
   const buf = input instanceof ArrayBuffer ? input : await input.arrayBuffer();
@@ -87,11 +120,7 @@ export async function readReportGrid(input: File | ArrayBuffer): Promise<Grid> {
   const isOle = head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0; // legacy .xls
 
   if (isZip) return readXlsxGrid(buf);
-  if (isOle) {
-    throw new Error(
-      "Legacy .xls binary files are not supported. Open the file in Excel and choose File → Save As → Excel Workbook (.xlsx), then re-upload.",
-    );
-  }
+  if (isOle) return readLegacyXlsGrid(buf);
 
   const text = new TextDecoder("utf-8").decode(buf);
   const looksHtml = /^\s*<(!doctype|html|table|meta|\?xml)/i.test(text) || /<table[\s>]/i.test(text);
