@@ -13,6 +13,17 @@ describe("winAnsi", () => {
     expect(winAnsi("2026-08-17 — 2026-08-23")).toBe("2026-08-17 - 2026-08-23");
   });
 
+  /**
+   * The arrow is not decorative punctuation somebody typed — `operatingBridge` BUILDS its withheld
+   * messages with it, so it reaches a forwarded PDF on the one line the reader most needs to trust.
+   * With no rule for U+2192 it fell through to the catch-all and printed "2026-08-17 ? 2026-08-23".
+   */
+  it("folds the arrow that generated bridge copy puts between two dates", () => {
+    expect(winAnsi("Fleet MPG of 12.7 for 2026-08-17 → 2026-08-23 is outside what a tractor can do"))
+      .toBe("Fleet MPG of 12.7 for 2026-08-17 - 2026-08-23 is outside what a tractor can do");
+    expect(winAnsi("← saved")).toBe("- saved");
+  });
+
   it("folds curly quotes and ellipses", () => {
     expect(winAnsi("the carrier’s report…")).toBe("the carrier's report...");
     expect(winAnsi("“Off-network”")).toBe('"Off-network"');
