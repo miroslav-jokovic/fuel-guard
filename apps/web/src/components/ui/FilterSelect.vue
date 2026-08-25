@@ -16,6 +16,20 @@ import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
  * Options with more than 8 entries get an inline search box automatically
  * (units, drivers, error codes). The "" option means "no filter".
  *
+ * ── WHY `multiple` DRAWS A BOX AND SINGLE-SELECT DRAWS A TICK ───────────────────────────────────
+ * Single-select showed a tick on the chosen row and `opacity-0` on the rest, which is right: exactly
+ * one row is in force and an empty box beside every other one would be noise.
+ *
+ * Multi-select inherited that, and it was wrong. An unchosen truck rendered NOTHING — no box, no
+ * outline, nothing to click at — so the panel gave no sign it accepted more than one answer, and the
+ * only evidence a truck WAS picked was a tick on a tint measuring 1.04:1 against the panel behind it.
+ * Reported as "the checkboxes are so light they are almost invisible", which was generous: for the
+ * unchecked rows there was no checkbox at all.
+ *
+ * So `multiple` gets a real box — `border-edge-control` at 3.43:1 empty, filled `brand-600` at 4.60:1
+ * with a white tick — and the row tint moved to `brand-100`. The tint is support, never the signal:
+ * even `brand-200` only reaches 1.34:1, so no wash can carry selection on its own.
+ *
  *   <FilterSelect v-model="suspicion" label="Risk" :options="suspicionOptions" />
  */
 interface Option {
@@ -68,6 +82,14 @@ const chosen = computed<string[]>(() =>
     : typeof props.modelValue === "string" && props.modelValue !== "" ? [props.modelValue] : [],
 );
 const isChosen = (value: string) => chosen.value.includes(value);
+/**
+ * What the row should LOOK like, which is not always what is in `modelValue`.
+ *
+ * The "" row means "no filter", so with nothing picked it is the row that is in force and has always
+ * been ticked. Its checkbox has to agree, or a multi-select opens with every box empty while the
+ * trigger says "All trucks" — the state shown and the state described disagreeing on the first frame.
+ */
+const rowChecked = (value: string) => isChosen(value) || (value === "" && !active.value);
 const selected = computed(() => (chosen.value.length > 0 ? props.options.find((o) => o.value === chosen.value[0]) : undefined));
 /** What the trigger says after the label: one name, or how many are picked. */
 const summary = computed(() => {
@@ -204,8 +226,8 @@ function clear() {
               type="button"
               class="flex w-full items-center px-3 py-1.5 text-left"
               :class="
-                isChosen(opt.value) || (opt.value === '' && !active)
-                  ? 'bg-brand-50 font-medium text-brand-700'
+                rowChecked(opt.value)
+                  ? 'bg-brand-100 font-medium text-brand-700'
                   : 'text-ink hover:bg-surface-subtle'
               "
               role="option"
@@ -213,10 +235,29 @@ function clear() {
               @click="select(opt.value)"
               @keydown="onOptionKeydown"
             >
+              <!-- ── MULTI-SELECT: A BOX THAT IS THERE WHEN IT IS EMPTY ────────────────────────
+                   Drawn, not an <input type="checkbox">: this row is a `role="option"` button and
+                   nesting a focusable control inside it would break both the listbox semantics and
+                   the keyboard handling above. `aria-selected` on the button is what a screen reader
+                   reads; the box is for eyes, so it is aria-hidden.
+
+                   `AppCheckbox` is the real control and is deliberately NOT used here for the same
+                   reason — it wraps a native input in a <label>. -->
+              <span
+                v-if="multiple"
+                class="mr-2.5 flex size-4 shrink-0 items-center justify-center rounded-detail border transition-colors"
+                :class="rowChecked(opt.value)
+                  ? 'border-brand-600 bg-brand-600 text-white'
+                  : 'border-edge-control bg-surface'"
+                aria-hidden="true"
+              >
+                <AppIcon v-if="rowChecked(opt.value)" :icon="CheckIcon" class="size-3" />
+              </span>
               <AppIcon
-:icon="CheckIcon"
+                v-else
+                :icon="CheckIcon"
                 class="mr-2 size-4 shrink-0 text-brand-600"
-                :class="isChosen(opt.value) || (opt.value === '' && !active) ? 'opacity-100' : 'opacity-0'"
+                :class="rowChecked(opt.value) ? 'opacity-100' : 'opacity-0'"
                 aria-hidden="true"
               />
               <span class="truncate">{{ opt.label }}</span>
