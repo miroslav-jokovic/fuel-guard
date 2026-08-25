@@ -90,8 +90,10 @@ async function onFiles(files: File[]) {
       <div>
         <h3 class="text-sm font-semibold text-ink">Daily fuel prices</h3>
         <p class="mt-1 text-sm text-ink-muted">
-          Upload the Pilot "Better Of Pricing Report" (.xls, .xlsx, or .csv). Drop as many as you like — each report is
-          kept under its own effective date, so a backlog can go in at once and re-uploading one changes nothing.
+          Upload the Pilot "Better Of Pricing Report" — any format it arrives in, including the legacy
+          Excel 97-2003 <code class="font-mono text-xs">.xls</code> Pilot actually sends. Drop as many as you like:
+          each report is kept under its own effective date, so a backlog goes in at once and re-uploading one
+          changes nothing.
         </p>
       </div>
       <AppIcon :icon="ArrowUpTrayIcon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />

@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Mirrors vite.config.ts — vendored third-party builds live outside src.
+      "@vendor": fileURLToPath(new URL("./vendor", import.meta.url)),
     },
   },
   test: {
