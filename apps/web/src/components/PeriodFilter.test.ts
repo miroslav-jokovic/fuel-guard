@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach } from "vitest";
 import { defineComponent } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import SpendWindowFilter from "./SpendWindowFilter.vue";
-import { useSpendFilters } from "./useSpendFilters";
+import PeriodFilter from "./PeriodFilter.vue";
+import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import { defaultWindow, windowDays } from "@fuelguard/shared";
 
 /**
@@ -30,12 +30,12 @@ afterEach(() => {
 });
 
 const Harness = defineComponent({
-  components: { SpendWindowFilter },
+  components: { PeriodFilter },
   setup() {
     const f = useSpendFilters();
     return { f };
   },
-  template: `<SpendWindowFilter
+  template: `<PeriodFilter
     :from="f.from.value" :to="f.to.value" :presets="f.presets"
     :active-preset="f.preset.value" :notice="f.windowNotice.value"
     @apply="(a, b) => f.setWindow(a, b)" @preset="(k) => f.applyPreset(k)" @clear="f.reset()" />`,
@@ -63,7 +63,7 @@ const openPanel = async (w: ReturnType<typeof mount>) => {
 const presetButton = (label: string): HTMLElement | undefined =>
   [...(panel()?.querySelectorAll("button") ?? [])].find((b) => b.textContent?.trim() === label) as HTMLElement | undefined;
 
-describe("SpendWindowFilter", () => {
+describe("PeriodFilter", () => {
   it("names the period on the trigger instead of making the reader subtract two dates", async () => {
     const { w } = await mountFilter();
     expect(w.find("button[aria-haspopup='dialog']").text()).toContain("Last 90 days");

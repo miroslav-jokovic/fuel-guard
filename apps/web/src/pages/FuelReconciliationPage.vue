@@ -14,7 +14,7 @@ import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
-import SpendWindowFilter from "@/features/reconcile/SpendWindowFilter.vue";
+import PeriodFilter from "@/components/PeriodFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { usd } from "@/features/reconcile/format";
@@ -133,7 +133,7 @@ const caNote = computed(() => {
            window is what welded it to 90 days: the two writes landed in one tick and the second
            clobbered the first. See `useSpendFilters`. -->
       <template #filters>
-        <SpendWindowFilter
+        <PeriodFilter
           :from="f.from.value"
           :to="f.to.value"
           :presets="f.presets"

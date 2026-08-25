@@ -21,6 +21,14 @@ import { describeWindow, windowDays, type SpendPreset } from "@fuelguard/shared"
  * keyboard or a screen reader. Nothing here can leave the window half-set: every control commits both
  * ends together through `setWindow`.
  *
+ * ── WHY IT LIVES IN components/ ──────────────────────────────────────────────────────────────────
+ * Beside `FilterBar`, `FilterSelect` and `DateRangeFilter`, which are the same kind of thing: reusable
+ * toolbar composites that own a trigger and a teleported panel. `lint:ui-adoption` counts raw `<button>`
+ * in `pages/` and `features/` because markup hand-rolled there is markup the design system has lost
+ * control of — a control with a scrim and a custom trigger is a composite, and composites belong here
+ * where its siblings already are. Nothing about it is specific to fuel spend: it takes its periods as
+ * data.
+ *
  * ── WHY THE FIELDS ARE LOCAL UNTIL THEY ARE VALID ────────────────────────────────────────────────
  * A `<input type="date">` emits on every keystroke, so a half-typed year is a real emit — binding it
  * straight to the window would rewrite the URL to 0002-08-05 while somebody types 2026. The draft is
