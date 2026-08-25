@@ -70,3 +70,45 @@ export async function apiFetch<T = unknown>(
   }
   return { ok: true, status: res.status, data: payload as T };
 }
+
+/**
+ * Download a file the API generates, as the signed-in user.
+ *
+ * `apiFetch` cannot do this: it parses every response as JSON, which turns a PDF into a thrown parse
+ * error. And a plain `<a href>` cannot either, because these routes are behind `requireAuth` and a
+ * browser navigation carries no Authorization header — the download would 401, or worse, hand back a
+ * login page saved under a .pdf name.
+ *
+ * So the bytes are fetched with the same headers every other call uses, and handed to the browser as a
+ * blob. Errors come back as JSON from the API, so a failure is reported with the server's own message
+ * rather than as a corrupt file the reader discovers on opening.
+ */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...stepUpHeader(),
+    },
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { error?: { message?: string } };
+      message = body?.error?.message ?? message;
+    } catch {
+      // a non-JSON error body; the status text is what we have
+    }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

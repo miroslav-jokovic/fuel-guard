@@ -89,6 +89,15 @@ const props = withDefaults(
     pressed?: boolean;
     /** Dim the value when it is a zero worth showing but not worth alarming about. */
     muted?: boolean;
+    /**
+     * Semantic colour for `sub`, e.g. "text-danger-700" — for a period-over-period delta, where the
+     * DIRECTION is the message and grey throws it away.
+     *
+     * ⚠ Deliberately a class rather than a `tone: "up" | "down"` enum: up is bad for spend and good for
+     * MPG, so only the caller knows which way is which. An enum here would have to guess, and would be
+     * wrong on half the tiles of the first page that used it.
+     */
+    subTone?: string;
   }>(),
   {
     // `withDefaults` makes every optional prop want an explicit default (vue/require-default-prop).
@@ -102,6 +111,7 @@ const props = withDefaults(
     tone: undefined,
     spark: undefined,
     sparkColor: undefined,
+    subTone: undefined,
     to: undefined,
   },
 );
@@ -158,7 +168,7 @@ const valueClass = computed(() =>
             <p :class="[valueClass, muted ? 'text-ink-muted' : 'text-ink']" :title="valueTitle">
               {{ value }}
             </p>
-            <p v-if="sub" class="mt-0.5 flex items-center gap-1 text-xs text-ink-tertiary">
+            <p v-if="sub" :class="['mt-0.5 flex items-center gap-1 text-xs', subTone ?? 'text-ink-tertiary']">
               {{ sub }}
               <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
             </p>

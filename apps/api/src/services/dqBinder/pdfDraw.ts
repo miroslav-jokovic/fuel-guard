@@ -55,7 +55,11 @@ export function winAnsi(text: string): string {
     .replace(/\u0142/g, "l") // L-with-stroke likewise
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
-    .replace(/[\u2013\u2014]/g, "-")
+    // U+2013/U+2014 are the dashes prose uses; U+2010-U+2012, U+2015 and U+2212 are the ones GENERATED
+    // copy uses — a formatted negative number carries a true minus (U+2212), and "-88.1% vs prior" was
+    // reaching a boss's PDF as "?88.1% vs prior", which reads as corruption rather than as a minus.
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
     .replace(/\u2022/g, "\u00b7")
     .replace(/[^\u0020-\u007e\u00a0-\u00ff]/g, "?");
 }

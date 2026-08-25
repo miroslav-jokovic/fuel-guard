@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { totalsOf, weeklySpendSeries, isTractorFuel, type SpendLine } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import SpendBridgeCard from "./SpendBridgeCard.vue";
 import AncillaryCard from "./AncillaryCard.vue";
 import { usd, usd3, gal, pct1 } from "./format";
@@ -12,6 +13,14 @@ const props = defineProps<{ lines: SpendLine[] }>();
 
 const totals = computed(() => totalsOf(props.lines.filter(isTractorFuel)));
 const series = computed(() => weeklySpendSeries(props.lines));
+
+const tiles = computed(() => [
+  { label: "Gallons", value: gal(totals.value.gallons), sub: `${totals.value.lines.toLocaleString()} tractor fills` },
+  { label: "Fuel spend", value: usd(totals.value.net), sub: "fuel only, before tax and in-store" },
+  { label: "Paid per gallon", value: usd3(totals.value.netPerGal), sub: `posted ${usd3(totals.value.retailPerGal)}` },
+  { label: "Discount captured", value: usd3(totals.value.discountPerGal), sub: `${pct1(totals.value.capturePct)} of posted` },
+  { label: "Saved vs posted", value: usd(totals.value.discount), sub: "what the deal was worth" },
+]);
 
 const rows = computed(() =>
   [...series.value].reverse().map((w) => ({
@@ -33,20 +42,10 @@ const cols: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      <BaseCard
-v-for="t in [
-        { label: 'Gallons', value: gal(totals.gallons), hint: `${totals.lines.toLocaleString()} tractor fills` },
-        { label: 'Fuel spend', value: usd(totals.net), hint: 'fuel only, before tax and in-store' },
-        { label: 'Paid per gallon', value: usd3(totals.netPerGal), hint: `posted ${usd3(totals.retailPerGal)}` },
-        { label: 'Discount captured', value: usd3(totals.discountPerGal), hint: `${pct1(totals.capturePct)} of posted` },
-        { label: 'Saved vs posted', value: usd(totals.discount), hint: 'what the deal was worth' },
-      ]" :key="t.label" padding="sm">
-        <dt class="text-xs uppercase tracking-wide text-ink-muted">{{ t.label }}</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ t.value }}</dd>
-        <dd class="text-2xs text-ink-tertiary">{{ t.hint }}</dd>
-      </BaseCard>
-    </dl>
+    <!-- The one KPI tile (D-UI2) — these reproduced StatCard's kpi anatomy by hand. -->
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <StatCard v-for="t in tiles" :key="t.label" :label="t.label" :value="t.value" :sub="t.sub" />
+    </div>
 
     <SpendBridgeCard :lines="lines" />
 

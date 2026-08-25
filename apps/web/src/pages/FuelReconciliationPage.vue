@@ -8,64 +8,46 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ReconcileTab from "@/features/reconcile/ReconcileTab.vue";
 import StatementsCard from "@/features/reconcile/StatementsCard.vue";
-import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
 import DiscountCaptureTab from "@/features/reconcile/DiscountCaptureTab.vue";
+import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
 import ExceptionsTab from "@/features/reconcile/ExceptionsTab.vue";
 import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
+import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
+import { SPEND_WINDOWS } from "@/features/reconcile/useSpendDays";
 import { usd } from "@/features/reconcile/format";
 
 /**
- * Fuel spend — what the fuel bill is, and why it moved.
+ * Fuel spend — what the fuel bill is, why it moved, and where the policy is not being followed.
  *
- * ── WHY THIS PAGE HAS TABS NOW ───────────────────────────────────────────────────────────────────
- * It used to be one thing: drop a file, see how it reconciles, refresh, lose it. That answers whether
- * a statement matches our records and cannot answer "spend is up, why", because nothing was kept to
- * compare against. Every tab except Reconcile reads from STORED statements, so a page load lands on
- * history instead of an empty dropzone.
+ * ── TWO SOURCES, AND EVERY TAB SAYS WHICH ONE IT IS ON ───────────────────────────────────────────
+ * The EFS feed is continuous and covers every fill; the vendor's weekly statement is uploaded by hand
+ * and covers whatever weeks somebody remembered. So each tab is fed by whichever can actually answer
+ * its question:
+ *
+ *   FEED       Spend & trend, ONE9 & off-brand, California, Off-network — these need brand, state and
+ *              distance, all of which the feed carries now that fills resolve to a station.
+ *   STATEMENT  Discount capture, and the statement list. These need the POSTED price per line, which
+ *              the feed does not record at all: EFS knows what we paid and never what was on the sign.
+ *
+ * Everything but Discount capture used to read statements, which is why every tab except the first was
+ * empty until somebody uploaded a PDF — for questions the carrier asks weekly and a statement that
+ * arrives monthly.
  *
  * ── WHY "SPEND & TREND" IS FIRST ─────────────────────────────────────────────────────────────────
- * It is the only tab that answers the question the carrier actually asks — "fuel cost more this week,
- * why" — and the only one fed by a source that is always there. Every other tab reads uploaded vendor
- * statements; this one reads a nightly rollup of the EFS feed, the odometer and the engine hours, so it
- * has months of history the day it ships and needs nobody to remember to upload anything.
- *
+ * It is the tab that answers the question actually being asked — "fuel cost more this week, why".
  * Reconcile keeps its place beside it because it is still the one that catches a fill we were billed
- * for and never recorded — the fuel-theft surface. The rest are procurement questions, a different job.
+ * for and never recorded — the fuel-theft surface, which is a different job from cost.
  *
- * ── WHY THE TAB IS IN THE URL ────────────────────────────────────────────────────────────────────
+ * ── WHY THE TAB AND WINDOW ARE IN THE URL ────────────────────────────────────────────────────────
  * A page whose state dies on refresh cannot be sent to anybody, and this one exists to be sent to
- * somebody. The tab is a query parameter so a link opens on the view the sender was looking at.
+ * somebody. Both live in the query string so a link opens on what the sender was looking at.
  */
-const { data: statements, isLoading, isError, error, refetch } = useStatementsQuery();
-
-/** Period scope. "Everything" is the default because five weeks is not a lot to slice. */
-const scope = ref<string>("all");
-const scopeOptions = computed(() => [
-  { value: "all", label: "All statements" },
-  { value: "last4", label: "Last 4 weeks" },
-  ...(statements.value ?? []).map((s) => ({ value: s.id, label: `${s.periodStart} → ${s.periodEnd}` })),
-]);
-// A saved scope can point at a statement a later upload superseded; fall back rather than show nothing.
-watch(scopeOptions, (opts) => {
-  if (!opts.some((o) => o.value === scope.value)) scope.value = "all";
-});
-
-const scopedStatements = computed(() => {
-  const all = statements.value ?? [];
-  if (scope.value === "all") return all;
-  if (scope.value === "last4") return all.slice(0, 4);
-  return all.filter((s) => s.id === scope.value);
-});
-const scopedIds = computed(() => scopedStatements.value.map((s) => s.id));
-const { data: lineData, isLoading: linesLoading } = useStatementLinesQuery(scopedIds);
-const lines = computed<SpendLine[]>(() => lineData.value ?? []);
-
-const exceptions = computed(() => analyzePolicyExceptions(lines.value));
 
 const route = useRoute();
 const router = useRouter();
-const TAB_VALUES = ["spend", "reconcile", "overview", "discount", "avoid_brand", "california", "off_network"];
+
+const TAB_VALUES = ["spend", "avoid_brand", "california", "off_network", "discount", "reconcile", "statements"];
 const tab = computed<string>({
   get: () => {
     const q = route.query.tab;
@@ -76,65 +58,96 @@ const tab = computed<string>({
   // expects to leave the page, not to walk their own tab history.
   set: (v) => void router.replace({ query: { ...route.query, tab: v } }),
 });
+
+/** How far back the FEED-fed tabs look. Thirteen weeks shows a seasonal move and still supports a
+ *  trailing comparison at both ends. */
+const weeksChoice = computed<string>({
+  get: () => {
+    const q = route.query.window;
+    const v = Array.isArray(q) ? q[0] : q;
+    return typeof v === "string" && SPEND_WINDOWS.some((w) => w.value === v) ? v : "13";
+  },
+  set: (v) => void router.replace({ query: { ...route.query, window: v } }),
+});
+const weeks = computed(() => Number(weeksChoice.value));
+const windowOptions = SPEND_WINDOWS.map((w) => ({ value: w.value, label: w.label }));
+
+// ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
+const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(weeks);
+const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
+const exceptions = computed(() => analyzePolicyExceptions(feedLines.value));
+
+// ── the statement source: only what discount capture needs ──────────────────────────────────────
+const { data: statements, isLoading: stmtLoading, isError: stmtError, refetch } = useStatementsQuery();
+const scope = ref<string>("all");
+const scopeOptions = computed(() => [
+  { value: "all", label: "All statements" },
+  { value: "last4", label: "Last 4 weeks" },
+  ...(statements.value ?? []).map((s) => ({ value: s.id, label: `${s.periodStart} → ${s.periodEnd}` })),
+]);
+// A saved scope can point at a statement a later upload superseded; fall back rather than show nothing.
+watch(scopeOptions, (opts) => {
+  if (!opts.some((o) => o.value === scope.value)) scope.value = "all";
+});
+const scopedStatements = computed(() => {
+  const all = statements.value ?? [];
+  if (scope.value === "all") return all;
+  if (scope.value === "last4") return all.slice(0, 4);
+  return all.filter((s) => s.id === scope.value);
+});
+const { data: stmtLineData, isLoading: stmtLinesLoading } = useStatementLinesQuery(
+  computed(() => scopedStatements.value.map((s) => s.id)),
+);
+const statementLines = computed<SpendLine[]>(() => stmtLineData.value ?? []);
+
 const tabs = computed<TabItem[]>(() => [
   { value: "spend", label: "Spend & trend" },
-  { value: "reconcile", label: "Reconcile a file" },
-  { value: "overview", label: "Statements", badge: scopedStatements.value.length || undefined },
-  { value: "discount", label: "Discount capture" },
   { value: "avoid_brand", label: "ONE9 & off-brand", badge: exceptions.value.avoidedBrands.lines || undefined },
   { value: "california", label: "California", badge: exceptions.value.avoidedStates.lines || undefined },
   { value: "off_network", label: "Off-network", badge: exceptions.value.offNetwork.lines || undefined },
+  { value: "discount", label: "Discount capture" },
+  { value: "reconcile", label: "Reconcile a file" },
+  { value: "statements", label: "Statements", badge: (statements.value ?? []).length || undefined },
 ]);
+
+const isFeedTab = computed(() => ["avoid_brand", "california", "off_network"].includes(tab.value));
 
 const caNote = computed(() => {
   const f = exceptions.value.avoidedStateFillSize;
   if (f.inside == null || f.outside == null) return null;
   return `Average fill inside California is ${f.inside.toFixed(0)} gallons against ${f.outside.toFixed(0)} elsewhere — the buy-minimum discipline the policy asks for, and the gap to watch.`;
 });
-
-const hasHistory = computed(() => (statements.value ?? []).length > 0);
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What fuel is costing, why it moved, and how the vendor's statement compares." />
+    <PageHeader description="What fuel is costing, why it moved, and where the fuel policy is not being followed." />
 
     <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
 
-    <SpendTrendTab v-if="tab === 'spend'" />
+    <SpendTrendTab v-if="tab === 'spend'" v-model:weeks="weeksChoice" />
 
     <ReconcileTab v-else-if="tab === 'reconcile'" @saved="refetch()" />
 
-    <template v-else>
+    <!-- ── feed-fed policy reports ──────────────────────────────────────────────────────────── -->
+    <template v-else-if="isFeedTab">
       <FilterBar>
-        <FilterSelect v-model="scope" :options="scopeOptions" label="Period" />
+        <FilterSelect v-model="weeksChoice" :options="windowOptions" label="Window" />
         <span class="text-sm text-ink-muted">
-          {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }}
-          <template v-if="lines.length">· {{ lines.length.toLocaleString() }} lines</template>
-          <template v-if="linesLoading"> · loading…</template>
+          <template v-if="feedLoading">Loading…</template>
+          <template v-else>{{ feedLines.length.toLocaleString() }} recorded fills</template>
         </span>
       </FilterBar>
 
-      <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-        Couldn't load your statements: {{ error instanceof Error ? error.message : "unknown error" }}
+      <p v-if="feedError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+        Couldn't load your fills: {{ feedErr instanceof Error ? feedErr.message : "unknown error" }}
       </p>
 
-      <BaseCard v-else-if="!hasHistory && !isLoading">
-        <h3 class="text-sm font-semibold text-ink">Nothing kept yet</h3>
-        <p class="mt-1 text-sm text-ink-muted">
-          Upload a weekly Pilot statement on the first tab and it stays here — these views read from the statements on
-          file, not from the last file you opened. Four weeks is enough to explain a change in spend; two is enough to
-          see one.
-        </p>
-      </BaseCard>
-
       <template v-else>
-        <SpendOverviewTab v-if="tab === 'overview'" :lines="lines" />
-        <DiscountCaptureTab v-else-if="tab === 'discount'" :lines="lines" />
         <ExceptionsTab
-          v-else-if="tab === 'avoid_brand'"
+          v-if="tab === 'avoid_brand'"
           title="ONE9 and other off-brand sites"
-          :blurb="`Networks your fuel policy says to avoid. Across this period they captured ${usd(exceptions.avoidedBrands.discountPerGal)} a gallon of discount — the posted price is also usually higher, so it is the worst gallon the fleet can buy twice over.`"
+          :blurb="`Networks your fuel policy says to avoid. Across this window they cost ${usd(exceptions.avoidedBrands.netPerGal)} a gallon against ${usd(exceptions.avoidedBrands.baselinePerGal)} for the rest of the fleet.`"
           :report="exceptions.avoidedBrands"
           slug="one9-off-brand"
         />
@@ -147,19 +160,52 @@ const hasHistory = computed(() => (statements.value ?? []).length > 0);
           :note="caNote"
         />
         <ExceptionsTab
-          v-else-if="tab === 'off_network'"
+          v-else
           title="Off the preferred network"
           blurb="Fills outside Pilot and Flying J, including sites we could not identify — an unidentified site is certainly not a preferred one, so it counts here rather than being assumed compliant."
           :report="exceptions.offNetwork"
           slug="off-network"
         />
+      </template>
+    </template>
 
-        <StatementsCard
-          v-if="tab === 'overview'"
-          :statements="statements ?? []"
-          :loading="isLoading"
-          :error="isError ? 'Could not load statements' : null"
-        />
+    <!-- ── statement-fed views ──────────────────────────────────────────────────────────────── -->
+    <template v-else>
+      <FilterBar>
+        <FilterSelect v-model="scope" :options="scopeOptions" label="Period" />
+        <span class="text-sm text-ink-muted">
+          {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }}
+          <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
+          <template v-if="stmtLinesLoading"> · loading…</template>
+        </span>
+      </FilterBar>
+
+      <p v-if="stmtError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+        Couldn't load your statements.
+      </p>
+
+      <BaseCard v-else-if="!(statements ?? []).length && !stmtLoading">
+        <h3 class="text-sm font-semibold text-ink">No statements on file</h3>
+        <p class="mt-1 text-sm text-ink-muted">
+          This view needs the vendor's weekly statement, because it is the only source that prints the POSTED price
+          beside what we paid — the EFS feed records what we paid and never what was on the sign. Upload one on
+          <strong>Reconcile a file</strong> and it stays here. Every other tab reads the feed and works without it.
+        </p>
+      </BaseCard>
+
+      <template v-else>
+        <DiscountCaptureTab v-if="tab === 'discount'" :lines="statementLines" />
+        <template v-else>
+          <!-- The statement's OWN story: what the vendor billed, the market-vs-discount decomposition
+               only it can support, and the non-fuel charges it bundles onto a fuel ticket. None of
+               this is derivable from the feed, which is why it lives beside the statement list. -->
+          <SpendOverviewTab :lines="statementLines" />
+          <StatementsCard
+            :statements="statements ?? []"
+            :loading="stmtLoading"
+            :error="stmtError ? 'Could not load statements' : null"
+          />
+        </template>
       </template>
     </template>
   </div>
