@@ -13,12 +13,10 @@
  * below is one a reader can be told about, because `normalizeWindow` reports what it CHANGED rather
  * than quietly changing it.
  *
- * ── WHY PRESETS ARE DATA ─────────────────────────────────────────────────────────────────────────
- * They were buried inside the date picker's menu, which meant the only discoverable way to change the
- * window was the calendar's two-click range gesture — click once and nothing happens, by design, and a
- * reader who does not know that concludes the control is broken. Presets as data can be rendered as
- * first-class buttons on the filter bar AND matched against the current window, so the bar can say
- * "Last 30 days" instead of making somebody read two dates and do the subtraction.
+ * ── WHAT THIS DOES NOT DO ────────────────────────────────────────────────────────────────────────
+ * It does not decide how the window is PICKED. That is `DateRangeFilter`'s job, the same control every
+ * other page in the app uses, and this module deliberately holds no opinion about it — it validates
+ * whatever arrives, from a picker or from a link, and nothing more.
  */
 
 /** A calendar day, `YYYY-MM-DD`. The only date representation this module accepts or returns. */
@@ -53,76 +51,21 @@ export const addDays = (ymd: Ymd, n: number): Ymd => {
 export const windowDays = (from: Ymd, to: Ymd): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 
-export const startOfMonth = (ymd: Ymd): Ymd => `${ymd.slice(0, 7)}-01`;
-export const endOfMonth = (ymd: Ymd): Ymd => {
-  const d = new Date(`${startOfMonth(ymd)}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1);
-  d.setUTCDate(0);
-  return d.toISOString().slice(0, 10);
-};
-
-/**
- * The last COMPLETE Monday–Sunday week.
- *
- * A weekly report is read against the week before it, so the period has to be a calendar week — and a
- * FINISHED one, or a Tuesday's report covers two days and reads as a collapse in everything. "Last 7
- * days" is a different question and is offered separately rather than conflated with this.
- */
-export function lastCompleteWeek(today: Ymd): { from: Ymd; to: Ymd } {
-  const d = new Date(`${today}T00:00:00Z`);
-  const backToMonday = (d.getUTCDay() + 6) % 7; // 0 = Monday
-  const to = addDays(today, -backToMonday - 1); // the Sunday just gone
-  return { from: addDays(to, -6), to };
-}
-
 export interface SpendWindow {
   from: Ymd;
   to: Ymd;
 }
 
-export interface SpendPreset {
-  key: string;
-  label: string;
-  /** Built from `today` so the same key means the same thing on any day. */
-  resolve: (today: Ymd) => SpendWindow;
-}
+/** Default span: long enough to show a seasonal move and to support a trailing comparison at both ends. */
+export const DEFAULT_WINDOW_DAYS = 90;
 
-/**
- * Default span: long enough to show a seasonal move and to support a trailing comparison at both ends.
- * Kept as a preset key too, so "the default" and "Last 90 days" are the same object rather than two
- * definitions that can drift.
- */
-export const DEFAULT_PRESET_KEY = "d90";
-
-export const SPEND_PRESETS: readonly SpendPreset[] = [
-  { key: "d7", label: "Last 7 days", resolve: (t) => ({ from: addDays(t, -6), to: t }) },
-  { key: "d30", label: "Last 30 days", resolve: (t) => ({ from: addDays(t, -29), to: t }) },
-  { key: DEFAULT_PRESET_KEY, label: "Last 90 days", resolve: (t) => ({ from: addDays(t, -89), to: t }) },
-  { key: "week", label: "Last full week", resolve: lastCompleteWeek },
-  { key: "mtd", label: "This month", resolve: (t) => ({ from: startOfMonth(t), to: t }) },
-  {
-    key: "lastmonth",
-    label: "Last month",
-    resolve: (t) => {
-      const end = addDays(startOfMonth(t), -1);
-      return { from: startOfMonth(end), to: end };
-    },
-  },
-];
-
-export const defaultWindow = (today: Ymd): SpendWindow =>
-  SPEND_PRESETS.find((p) => p.key === DEFAULT_PRESET_KEY)!.resolve(today);
-
-/** Which preset the window IS, if any — so the bar can name it instead of printing two dates. */
-export function matchPreset(w: SpendWindow, today: Ymd): SpendPreset | null {
-  return SPEND_PRESETS.find((p) => {
-    const r = p.resolve(today);
-    return r.from === w.from && r.to === w.to;
-  }) ?? null;
-}
+export const defaultWindow = (today: Ymd): SpendWindow => ({
+  from: addDays(today, -(DEFAULT_WINDOW_DAYS - 1)),
+  to: today,
+});
 
 /** What normalisation had to do. Empty means the input was already a sound window. */
-export type WindowFix = "from-invalid" | "to-invalid" | "swapped" | "clamped-future" | "clamped-span";
+export type WindowFix = "from-invalid" | "to-invalid" | "swapped" | "clamped-future";
 
 export interface NormalizedWindow {
   window: SpendWindow;
@@ -133,26 +76,13 @@ export interface NormalizedWindow {
 }
 
 /**
- * The longest window the page will build. Not a performance guard — `fuel_spend_lines` pages fine — but
- * a correctness one: the comparison bridge needs two comparable periods, and a window measured in years
- * silently spans fuel-contract changes, so a "why did spend move" answer computed across one is
- * comparing two different commercial arrangements and calling the difference a price move.
- */
-export const MAX_WINDOW_DAYS = 400;
-
-/**
  * Turn whatever is in the URL into a window that cannot produce a misleading report.
  *
  * Order matters and is deliberate: parse, then swap, then clamp. Swapping BEFORE clamping means a
  * reversed range whose later end is in the future is fixed once rather than twice, and the reader is
  * told about both.
  */
-export function normalizeWindow(
-  rawFrom: unknown,
-  rawTo: unknown,
-  today: Ymd,
-  maxDays: number = MAX_WINDOW_DAYS,
-): NormalizedWindow {
+export function normalizeWindow(rawFrom: unknown, rawTo: unknown, today: Ymd): NormalizedWindow {
   const fixes: WindowFix[] = [];
   let from = parseYmd(rawFrom);
   let to = parseYmd(rawTo);
@@ -168,7 +98,7 @@ export function normalizeWindow(
 
   // One end given: the other is inferred rather than defaulted to the full 90 days, because a reader
   // who set an end date meant to bound the window, not to widen it.
-  if (from == null) from = addDays(to!, -(windowDays(defaultWindow(today).from, today) - 1));
+  if (from == null) from = addDays(to!, -(DEFAULT_WINDOW_DAYS - 1));
   if (to == null) to = today;
 
   if (from > to) {
@@ -180,11 +110,6 @@ export function normalizeWindow(
     if (from > to) from = to;
     fixes.push("clamped-future");
   }
-  if (windowDays(from, to) > maxDays) {
-    from = addDays(to, -(maxDays - 1));
-    fixes.push("clamped-span");
-  }
-
   return { window: { from, to }, fixes, usedDefault: false };
 }
 
@@ -195,7 +120,6 @@ export function describeFixes(fixes: readonly WindowFix[]): string | null {
   if (fixes.includes("from-invalid") || fixes.includes("to-invalid")) parts.push("a date in the link was not a real date");
   if (fixes.includes("swapped")) parts.push("the start was after the end, so they were swapped");
   if (fixes.includes("clamped-future")) parts.push("the end was in the future, so it was moved to today");
-  if (fixes.includes("clamped-span")) parts.push(`the window was longer than ${MAX_WINDOW_DAYS} days, so it was shortened`);
   return `Adjusted: ${parts.join("; ")}.`;
 }
 

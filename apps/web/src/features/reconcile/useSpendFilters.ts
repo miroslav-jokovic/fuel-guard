@@ -21,12 +21,9 @@
  */
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import {
-  normalizeWindow, describeFixes, matchPreset, defaultWindow, SPEND_PRESETS,
-  type SpendGrain,
-} from "@fuelguard/shared";
+import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "@fuelguard/shared";
 
-/** Kept for existing importers; the span itself is now the `d90` preset, defined once with the rest. */
+/** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@fuelguard/shared`. */
 export const DEFAULT_DAYS = 90;
 
 const todayYmd = (): string => new Date().toISOString().slice(0, 10);
@@ -109,15 +106,6 @@ export function useSpendFilters() {
     set: (v) => setWindow(normalized.value.window.from, v),
   });
 
-  /** Which named period the window is, or null when the reader built it by hand. */
-  const preset = computed(() => matchPreset(normalized.value.window, todayYmd()));
-  function applyPreset(key: string): void {
-    const p = SPEND_PRESETS.find((x) => x.key === key);
-    if (!p) return;
-    const w = p.resolve(todayYmd());
-    setWindow(w.from, w.to);
-  }
-
   /** What normalisation corrected, as a sentence for the reader. Null when the link was sound. */
   const windowNotice = computed(() => describeFixes(normalized.value.fixes));
 
@@ -163,8 +151,5 @@ export function useSpendFilters() {
     set({ from: undefined, to: undefined, trucks: undefined });
   }
 
-  return {
-    from, to, setWindow, preset, presets: SPEND_PRESETS, applyPreset, windowNotice,
-    vehicleIds, grain, tab, range, active, asQuery, reset,
-  };
+  return { from, to, setWindow, windowNotice, vehicleIds, grain, tab, range, active, asQuery, reset };
 }

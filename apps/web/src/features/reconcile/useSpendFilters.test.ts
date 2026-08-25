@@ -3,7 +3,7 @@ import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { useSpendFilters } from "./useSpendFilters";
-import { defaultWindow, windowDays } from "@fuelguard/shared";
+import { defaultWindow } from "@fuelguard/shared";
 
 /**
  * The regression these exist for shipped to production and looked like a broken control rather than a
@@ -123,20 +123,7 @@ describe("useSpendFilters", () => {
     expect(f.windowNotice.value).toBeTruthy();
   });
 
-  it("names the period when it matches a preset, so the bar need not print two dates", async () => {
-    const { f } = await mountFilters();
-    f.applyPreset("d7");
-    await settle();
-    expect(f.preset.value?.key).toBe("d7");
-    expect(windowDays(f.range.value.from, f.range.value.to)).toBe(7);
-  });
 
-  it("reports no preset for a window built by hand", async () => {
-    const { f } = await mountFilters();
-    f.setWindow("2026-08-05", "2026-08-12");
-    await settle();
-    expect(f.preset.value).toBeNull();
-  });
 
   it("does not light up Clear for a link that merely pins the default window", async () => {
     // Pressing Clear here used to leave the screen identical, which reads as a broken button.
