@@ -29,11 +29,20 @@ const coverage = computed(() => {
   const priced = tractor.filter((l) => l.retailAmount != null);
   const gal = tractor.reduce((a, l) => a + l.gallons, 0);
   const pricedGal = priced.reduce((a, l) => a + l.gallons, 0);
+  // The earliest fill we could price. Price reports were only KEPT from 0245 onward, so on a window
+  // wider than the reports on file the shortfall is history that does not exist rather than anything
+  // wrong — and a reader shown "21% of gallons" with no reason will read it as broken.
+  const pricedDates = priced.map((l) => l.tranDate).filter((d): d is string => !!d).sort();
   return {
     fills: tractor.length,
     priced: priced.length,
     share: gal > 0 ? pricedGal / gal : null,
     missing: tractor.length - priced.length,
+    from: pricedDates[0] ?? null,
+    /** True when the window reaches back before any price report exists. */
+    startsBeforePrices:
+      pricedDates.length > 0 &&
+      tractor.some((l) => l.tranDate != null && l.tranDate < pricedDates[0]!),
   };
 });
 
@@ -85,9 +94,16 @@ function exportLines() {
       class="rounded-surface bg-caution-50 px-4 py-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
     >
       Measured on {{ coverage.priced.toLocaleString() }} of {{ coverage.fills.toLocaleString() }} fills —
-      {{ pct1(coverage.share) }} of the gallons. The other {{ coverage.missing.toLocaleString() }} were bought at a
-      station with no price report for that day, so what they should have cost is unknown; they are left out rather
-      than counted as having captured no discount. Uploading more daily reports closes the gap.
+      {{ pct1(coverage.share) }} of the gallons.
+      <template v-if="coverage.startsBeforePrices">
+        Price reports on file begin <strong>{{ coverage.from }}</strong>, and fills before that cannot be measured
+        against a posted price because none was kept — nothing is wrong with them.
+      </template>
+      <template v-else>
+        The rest were bought at a station with no price report for that day.
+      </template>
+      Unmeasurable fills are left out rather than counted as having captured no discount. Narrow the date filter to
+      the priced period for a like-for-like figure.
     </p>
 
     <BaseCard>
