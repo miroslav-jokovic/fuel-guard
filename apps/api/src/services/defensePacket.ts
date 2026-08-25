@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { placardSvg, PLACARD_ART_VERSION } from "@hazmat/placards";
 import type { PlacardName, Verdict } from "@hazmat/engine";
 import type { QualFinding } from "@fuelguard/shared";
+import { INK, MUTED, NAVY } from "./dqBinder/pdfDraw.js";
 
 /**
  * M12.1 — the Roadside Defense Packet. One tap → a SELF-CONTAINED PDF a driver can hand to an
@@ -114,10 +115,6 @@ export async function renderPacketPdf(data: PacketData): Promise<Buffer> {
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
-
-  const NAVY = "#1F3864";
-  const INK = "#1a1a1a";
-  const MUTED = "#666666";
 
   const h1 = (t: string) => doc.moveDown(0.6).fillColor(NAVY).font("Helvetica-Bold").fontSize(13).text(t).moveDown(0.2);
   const body = (t: string, opts: object = {}) => doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(t, opts);

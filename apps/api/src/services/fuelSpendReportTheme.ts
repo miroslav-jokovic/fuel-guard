@@ -13,11 +13,17 @@
  * to hex because pdfkit cannot read a CSS variable and OKLCH is not a PDF colour space. A spend bar in
  * this PDF is the same green as the spend bar on the dashboard, on purpose.
  *
- * ── THE KNOWN DIVERGENCE ─────────────────────────────────────────────────────────────────────────
- * That leaves two palettes in one product: this one, and the binder's older navy. That is a real cost
- * and it is taken deliberately rather than by accident — closing it means re-theming a compliance
- * document whose look auditors already recognise, which is not this change's to do. Whoever does it
- * next should move the binder onto these tokens and delete the constants at the top of `pdfDraw`.
+ * ── TWO PALETTES, AND WHY THE OTHER ONE STAYS ───────────────────────────────────────────────────
+ * That leaves two palettes in one product: this one, and `dqBinder/pdfDraw`'s. An earlier version of
+ * this comment called that a cost to be paid down and told whoever came next to move the binder onto
+ * these tokens. That was wrong, and it was measured on 2026-08-25: six of the binder's seven constants
+ * sit within deltaE-OK 0.075 of their nearest product token — RULE 0.009, DANGER 0.018, MUTED 0.020 —
+ * so aligning them changes nothing anyone can see on a filed document.
+ *
+ * The seventh, NAVY, is 0.250 away, and that gap is the point rather than the problem: the product's
+ * identity mark is a purple, and a DQ binder handed to a DOT auditor should not be purple. An
+ * analytical report forwarded to a fleet manager and a compliance filing are different genres. Both
+ * palettes are deliberate; neither is drift.
  *
  * ── WHY THE HEXES ARE PINNED RATHER THAN COMPUTED ───────────────────────────────────────────────
  * `chartTheme.ts` has the same problem and solved it the same way: canvas cannot read CSS variables
