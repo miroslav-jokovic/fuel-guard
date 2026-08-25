@@ -22,6 +22,8 @@ import {
 import { eachPage } from "../lib/paging.js";
 import { CONTENT_WIDTH, INK, MUTED, body, heading, muted, newDrawing, table, winAnsi } from "./dqBinder/pdfDraw.js";
 import { kpiRow, letterhead, money, stampFooters, waterfall, type Kpi } from "./fuelSpendReportDraw.js";
+import { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
+import type { FleetIdleVerdict } from "@fuelguard/shared";
 
 export interface FuelSpendReportInput {
   orgId: string;
@@ -65,11 +67,15 @@ export async function renderFuelSpendReport(
   input: FuelSpendReportInput,
 ): Promise<{ pdf: Buffer; periods: number; carrier: string }> {
   const vehicleIds = input.vehicleIds ?? [];
-  const [days, lines, carrier, units] = await Promise.all([
+  const [days, lines, carrier, units, idle] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
     readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
     readUnitNumbers(admin, input.orgId, vehicleIds),
+    // The real verdict — equipment flags, HOS duty overlay, temperature envelope — not idle seconds
+    // times a burn rate. Fleet-wide: the truck filter narrows FUEL, and an idle figure for three
+    // trucks against a fleet-wide baseline would be the more misleading of the two options.
+    readFleetIdleVerdict(admin, input.orgId, input.from, input.to),
   ]);
 
   // The requested window, so an edge bucket is labelled by the days it holds rather than by the
@@ -99,7 +105,7 @@ export async function renderFuelSpendReport(
 
   drawHeadline(doc, overall, comparison);
   drawBridge(doc, comparison);
-  drawIdle(doc, series, input.grain);
+  drawIdle(doc, series, input.grain, idle);
   drawSeries(doc, series, input.grain);
   drawExceptions(doc, exceptions, overall);
 
@@ -175,57 +181,62 @@ function drawBridge(doc: PDFKit.PDFDocument, cmp: { prior: SpendPeriod; current:
 }
 
 /**
- * Idling — the HOURS and the share, and deliberately not a verdict.
+ * Idling, with the verdict rather than a total charged as waste.
  *
- * ── WHY THERE IS NO DOLLAR FIGURE HERE ──────────────────────────────────────────────────────────
- * The first version of this section multiplied idle seconds by a burn rate and printed the total as
- * money "burned standing still". That is the every-truck-is-avoidable over-count
- * `docs/plans/IDLE-AVOIDABLE-HOS.md` was written to kill: only 17 of 195 trucks carry a confirmed APU
- * and 36 an Optimized Idle flag, so for most of the fleet the driver had no alternative to running the
- * main engine, and the plan is explicit that those trucks are not blamed.
+ * ── WHAT THIS SECTION USED TO GET WRONG, TWICE ──────────────────────────────────────────────────
+ * First it multiplied idle seconds by a burn rate and printed the whole thing in red — the
+ * every-truck-is-avoidable over-count `docs/plans/IDLE-AVOIDABLE-HOS.md` exists to prevent. Then it
+ * dropped the money entirely, which was honest but told a boss to go and look somewhere else.
  *
- * The real verdict is `computeAvoidable` — equipment flags, HOS duty overlay, temperature envelope —
- * and it needs `idle_park_sessions` and each vehicle's admin-confirmed equipment, which this report
- * does not read. Rather than approximate it with a number that reads as an accusation, the document
- * reports the measured hours and says where the judgement lives. A figure a boss acts on has to be one
- * somebody can defend in the room.
+ * It now reports what `computeAvoidable` decided, and the three numbers stay apart because they mean
+ * different things: idle hours are a fact about running trucks, AVOIDABLE is the only figure that is
+ * anyone's fault, and REDUCIBLE is a capex case for equipping the trucks that had no alternative.
+ * Only a truck with an admin-confirmed APU or Optimized Idle can contribute to the middle one.
  */
-function drawIdle(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
+function drawIdle(
+  doc: PDFKit.PDFDocument,
+  series: SpendPeriod[],
+  grain: SpendGrain,
+  idle: FleetIdleVerdict | null,
+): void {
   heading(doc, "Idling");
-  const usable = series.filter((p) => p.idleUsable);
   const withheld = series.filter((p) => !p.idleUsable && p.idleCoverage != null);
-  if (usable.length === 0) {
-    muted(doc, "No period in this range had enough engine-feed coverage to measure idle against.");
+  if (!idle || idle.idleH === 0) {
+    muted(doc, "No idle measured in this range with enough engine-feed coverage to judge.");
     return;
   }
-  const idleSec = usable.reduce((a, p) => a + p.idleSec, 0);
-  const driveSec = usable.reduce((a, p) => a + p.driveSec, 0);
-  const gallons = usable.reduce((a, p) => a + (p.idleGallons ?? 0), 0);
-  const share = idleSec + driveSec > 0 ? (idleSec / (idleSec + driveSec)) * 100 : 0;
 
   doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
     winAnsi(
-      `The fleet idled ${num(idleSec / 3600)} hours across the ${usable.length} measured ${grain}(s) — ` +
-        `${share.toFixed(1)}% of every hour an engine was running — burning roughly ${num(gallons)} gallons.`,
+      `The fleet idled ${num(idle.idleH)} hours — ${idle.idlePct.toFixed(1)}% of every hour an engine was running. ` +
+        `Of that, ${num(idle.avoidableH)} hours worth ${usd(idle.avoidableUsd)} were avoidable: idle on the ` +
+        `${idle.confidentTrucks} truck(s) that had a confirmed APU or Optimized Idle and could have rested without ` +
+        `running the main engine.`,
     ),
     { width: CONTENT_WIDTH },
   );
   doc.moveDown(0.4);
   body(
     doc,
-    "How much of that anyone could have avoided depends on which trucks had an alternative: only a truck " +
-      "with an admin-confirmed APU or Optimized Idle could have rested without running the main engine. " +
-      "The Idling page carries that verdict per truck, with the duty status and temperature evidence behind it. " +
-      "Treating every idle hour as waste would blame drivers who had no choice.",
+    `A further ${usd(idle.reducibleUsd)} (${num(idle.reducibleH)} hours) is REDUCIBLE across ${idle.reducibleTrucks} ` +
+      `truck(s) — what the same rest idle would be worth if the trucks that lack the equipment had it. That is a case ` +
+      `for buying APUs, not a performance figure: those drivers had no alternative and are not being blamed for it.`,
+    MUTED,
+  );
+  doc.moveDown(0.25);
+  body(
+    doc,
+    `Judged over ${idle.rangeDays} day(s) across ${idle.totalTrucks} truck(s), of which ${idle.confidentTrucks} had ` +
+      "enough engine-feed coverage to score. Avoidability comes only from admin-confirmed equipment — a diesel APU is " +
+      "invisible to telematics, so behaviour learned from the truck is never allowed to make idle somebody's fault.",
     MUTED,
   );
   if (withheld.length > 0) {
     doc.moveDown(0.2);
     body(
       doc,
-      `${withheld.length} ${grain}(s) are left out: the engine feed covered too little of those days to measure ` +
-        "idle against, and idle measured across a gap in the feed reads as a fleet that stopped idling rather " +
-        "than as a sync that stopped reporting. Their fuel is counted everywhere else in this report.",
+      `${withheld.length} ${grain}(s) of the fuel table are marked "-" for idle share: the engine feed covered too ` +
+        "little of those days to measure against. Their fuel is counted everywhere else in this report.",
       MUTED,
     );
   }
