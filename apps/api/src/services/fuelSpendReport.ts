@@ -28,6 +28,14 @@ export interface FuelSpendReportInput {
   from: string;
   to: string;
   grain: SpendGrain;
+  /**
+   * Vehicles the reader had narrowed to, or empty for the whole fleet.
+   *
+   * A report that quietly covered every truck while the screen showed three is a document somebody
+   * acts on and cannot reconcile later, so the filter travels with the request and is printed on the
+   * page rather than assumed.
+   */
+  vehicleIds?: string[];
   /** Stamped on the document; the caller owns the clock so the render stays deterministic in tests. */
   generatedAt: string;
 }
@@ -54,26 +62,40 @@ export async function renderFuelSpendReport(
   admin: SupabaseClient,
   input: FuelSpendReportInput,
 ): Promise<{ pdf: Buffer; periods: number; carrier: string }> {
-  const [days, lines, carrier] = await Promise.all([
-    readSpendDays(admin, input.orgId, input.from, input.to),
-    readSpendLines(admin, input.orgId, input.from, input.to),
+  const vehicleIds = input.vehicleIds ?? [];
+  const [days, lines, carrier, units] = await Promise.all([
+    readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
+    readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
+    readUnitNumbers(admin, input.orgId, vehicleIds),
   ]);
 
-  const series = spendSeries(days, input.grain);
+  // The requested window, so an edge bucket is labelled by the days it holds rather than by the
+  // calendar week it belongs to — see `spendSeries`.
+  const series = spendSeries(days, input.grain, { from: input.from, to: input.to });
   const overall = periodTotals(days, input.from, input.to);
   // NOT `includePartial`. The newest bucket is normally still filling, and comparing a one-day week
   // against a finished one made the first render of this report announce spend down 88% and a $271,841
   // saving from "miles driven" — a collapse that never happened, in a document meant to be forwarded.
-  const comparison = comparablePeriods(series, input.to);
+  const comparison = comparablePeriods(series);
   const exceptions = analyzePolicyExceptions(lines);
 
   const { doc, done } = newDrawing("FuelGuard — Fuel spend", { bufferPages: true });
-  letterhead(doc, carrier, "Fuel spend report", `${input.from} to ${input.to}  ·  by ${input.grain}`);
+  letterhead(
+    doc,
+    carrier,
+    "Fuel spend report",
+    `${input.from} to ${input.to}  ·  by ${input.grain}  ·  ` +
+      (units.length === 0
+        ? "whole fleet"
+        : units.length <= 6
+          ? `units ${units.join(", ")}`
+          : `${units.length} units`),
+  );
 
   drawHeadline(doc, overall, comparison);
   drawBridge(doc, comparison);
-  drawSeries(doc, series, input.grain, input.to);
+  drawSeries(doc, series, input.grain);
   drawExceptions(doc, exceptions, overall);
 
   const refused = days.reduce((a, d) => a + d.milesRejected, 0);
@@ -147,7 +169,7 @@ function drawBridge(doc: PDFKit.PDFDocument, cmp: { prior: SpendPeriod; current:
   doc.moveDown(0.4);
 }
 
-function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain, today: string): void {
+function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
   heading(doc, grain === "day" ? "Day by day" : grain === "month" ? "Month by month" : "Week by week");
   const cols = [
     { width: 96, header: "Period" },
@@ -159,11 +181,11 @@ function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: Spend
     { width: 42, header: "MPG", align: "right" as const },
     { width: 66, header: "Cost / mile", align: "right" as const },
   ];
-  // A period still filling is kept but LABELLED. Dropping it hides the most recent days from a reader
-  // looking for them; leaving it unmarked invites the comparison the bridge deliberately refuses to
-  // make, which is how a one-day week reads as a collapse in spend.
+  // Newest first, and a period still filling is kept but LABELLED. Dropping it hides the most recent
+  // days from a reader looking for them; leaving it unmarked invites the comparison the bridge
+  // deliberately refuses to make, which is how a one-day week reads as a collapse in spend.
   const rows = [...series].reverse().map((p) => [
-    { text: grain === "day" ? p.from : `${p.from} - ${p.to}`, sub: p.to >= today ? "in progress" : undefined },
+    { text: periodLabel(p, grain), sub: p.partial ? "in progress" : undefined },
     { text: String(p.activeTrucks) },
     { text: num(p.gallons) },
     { text: usd(p.spend), bold: true },
@@ -213,16 +235,25 @@ function drawExceptions(doc: PDFKit.PDFDocument, ex: ReturnType<typeof analyzePo
   );
 }
 
+/** "2026-08-17 - 2026-08-23", or just the date when a clamped period covers a single day. */
+function periodLabel(p: SpendPeriod, grain: SpendGrain): string {
+  if (grain === "day" || p.from === p.to) return p.from;
+  return `${p.from} - ${p.to}`;
+}
+
 // ── reads ───────────────────────────────────────────────────────────────────────────────────────
 
-async function readSpendDays(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<SpendDay[]> {
+async function readSpendDays(admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[]): Promise<SpendDay[]> {
   const out: SpendDay[] = [];
   await eachPage<Record<string, unknown>>(
     (a, b) =>
-      admin.from("fuel_spend_days")
-        .select("day, vehicle_id, fills, gallons_tractor, gallons_reefer, gallons_def, spend_tractor, spend_reefer, spend_def, miles, mpg_gallons, miles_rejected, drive_sec, idle_sec, off_sec, coverage_sec")
-        .eq("org_id", orgId).gte("day", from).lte("day", to)
-        .order("day", { ascending: true }).range(a, b),
+      (() => {
+        const q = admin.from("fuel_spend_days")
+          .select("day, vehicle_id, fills, gallons_tractor, gallons_reefer, gallons_def, spend_tractor, spend_reefer, spend_def, miles, mpg_gallons, miles_rejected, drive_sec, idle_sec, off_sec, coverage_sec")
+          .eq("org_id", orgId).gte("day", from).lte("day", to);
+        return (vehicleIds.length > 0 ? q.in("vehicle_id", vehicleIds) : q)
+          .order("day", { ascending: true }).range(a, b);
+      })(),
     (rows) => {
       const n = (v: unknown) => (v == null ? 0 : Number(v) || 0);
       for (const r of rows) {
@@ -241,15 +272,18 @@ async function readSpendDays(admin: SupabaseClient, orgId: string, from: string,
 }
 
 /** Fills with their brand, for the policy section. Same projection the page's feed source uses. */
-async function readSpendLines(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<SpendLine[]> {
+async function readSpendLines(admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[]): Promise<SpendLine[]> {
   const out: SpendLine[] = [];
   await eachPage<Record<string, unknown>>(
     (a, b) =>
-      admin.from("fuel_transactions")
-        .select("fueled_at, state, gallons, total_cost, tank_type, location_text, fuel_stations(brand, store_number, city), vehicles(unit_number), drivers(full_name)")
-        .eq("org_id", orgId)
-        .gte("fueled_at", `${from}T00:00:00.000Z`).lte("fueled_at", `${to}T23:59:59.999Z`)
-        .order("fueled_at", { ascending: true }).range(a, b),
+      (() => {
+        const q = admin.from("fuel_transactions")
+          .select("fueled_at, state, gallons, total_cost, tank_type, location_text, fuel_stations(brand, store_number, city), vehicles(unit_number), drivers(full_name)")
+          .eq("org_id", orgId)
+          .gte("fueled_at", `${from}T00:00:00.000Z`).lte("fueled_at", `${to}T23:59:59.999Z`);
+        return (vehicleIds.length > 0 ? q.in("vehicle_id", vehicleIds) : q)
+          .order("fueled_at", { ascending: true }).range(a, b);
+      })(),
     (rows) => {
       const one = <T,>(v: unknown): T | null => (Array.isArray(v) ? ((v[0] as T) ?? null) : ((v as T) ?? null));
       for (const r of rows) {
@@ -269,6 +303,22 @@ async function readSpendLines(admin: SupabaseClient, orgId: string, from: string
     },
   );
   return out;
+}
+
+/**
+ * Unit numbers for the letterhead — a report has to say which trucks it covers.
+ *
+ * Note that narrowing to trucks excludes the unattributed row by construction: `.in()` on a null
+ * `vehicle_id` never matches. That is correct — fuel belonging to no truck cannot belong to the ones
+ * the reader asked about — but it does mean a filtered report will not tie to the whole invoice.
+ */
+async function readUnitNumbers(admin: SupabaseClient, orgId: string, vehicleIds: string[]): Promise<string[]> {
+  if (vehicleIds.length === 0) return [];
+  const { data } = await admin.from("vehicles").select("unit_number").eq("org_id", orgId).in("id", vehicleIds);
+  return ((data ?? []) as { unit_number: string | null }[])
+    .map((v) => v.unit_number)
+    .filter((u): u is string => !!u)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
 async function readCarrier(admin: SupabaseClient, orgId: string): Promise<string> {

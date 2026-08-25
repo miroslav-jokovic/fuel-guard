@@ -3,13 +3,11 @@ import {
   BRIDGE_TIE_TOLERANCE,
   periodTotals,
   operatingBridge,
-  spendSeries,
-  periodBounds,
-  comparablePeriods,
   PLAUSIBLE_FLEET_MPG,
   MIN_MEASURED_SHARE,
   type SpendDay,
 } from "./operatingBridge.js";
+import { spendSeries, periodBounds, comparablePeriods } from "./spendPeriods.js";
 
 /**
  * This bridge exists to be shown to somebody who did not build it, so its bars have to ADD UP to the
@@ -236,14 +234,40 @@ describe("periods", () => {
 
   it("excludes the period still filling, so a two-day week is not compared with a finished one", () => {
     const s = spendSeries([...AUG10, ...AUG17, ...week("2026-08-24", { trucks: 54, fills: 57, gallons: 6490, spend: 34221, miles: 48000, mpgGallons: 6400 })], "week");
-    const c = comparablePeriods(s, "2026-08-25")!;
+    const c = comparablePeriods(s)!;
     expect(c.current.from).toBe("2026-08-17"); // the complete week, not the two-day stub
     expect(c.prior.from).toBe("2026-08-10");
-    expect(comparablePeriods(s, "2026-08-25", true)!.current.from).toBe("2026-08-24");
+    expect(comparablePeriods(s, { includePartial: true })!.current.from).toBe("2026-08-24");
+  });
+
+  it("clamps an edge bucket to the data, so no row is labelled past the window it belongs to", () => {
+    // The bug this fixes: a report covering "to 2026-08-24" printed a row reading "2026-08-24 -
+    // 2026-08-30", a week ending six days after the report ends.
+    const s = spendSeries([...AUG17, ...week("2026-08-24", { trucks: 10, fills: 10, gallons: 1000, spend: 5000, miles: 7500, mpgGallons: 1000 })], "week");
+    const last = s[s.length - 1]!;
+    expect(last.from).toBe("2026-08-24");
+    expect(last.to).toBe("2026-08-24"); // NOT 2026-08-30
+    expect(last.partial).toBe(true);
+    expect(s[0]!.partial).toBe(false); // a whole week inside the data is not partial
+  });
+
+  it("clamps to the REQUESTED window when one is given, not just to the data", () => {
+    const s = spendSeries(AUG17, "week", { from: "2026-08-19", to: "2026-08-21" });
+    expect(s[0]!.from).toBe("2026-08-19");
+    expect(s[0]!.to).toBe("2026-08-21");
+    expect(s[0]!.partial).toBe(true);
+  });
+
+  it("marks a leading part-week partial too, which a comparison against today never caught", () => {
+    // Data starting mid-week: the first bucket is as incomplete as the last one, and anchoring a
+    // comparison on it understates the prior period exactly the way the trailing stub overstates.
+    const s = spendSeries([...week("2026-08-13", { trucks: 5, fills: 5, gallons: 500, spend: 2500, miles: 3750, mpgGallons: 500 }), ...AUG17], "week");
+    expect(s[0]!.partial).toBe(true);
+    expect(s[0]!.from).toBe("2026-08-13"); // not the Monday, 2026-08-10
   });
 
   it("returns null rather than a bridge against nothing when there is only one period", () => {
-    expect(comparablePeriods(spendSeries(AUG17, "week"), "2026-08-25")).toBeNull();
+    expect(comparablePeriods(spendSeries(AUG17, "week"))).toBeNull();
   });
 });
 

@@ -25,17 +25,27 @@ interface Option {
 
 const props = withDefaults(
   defineProps<{
-    modelValue: string;
+    /** Single-select value, or the selected values when `multiple`. */
+    modelValue: string | string[];
     options: Option[];
     /** Dimension name shown on the trigger, e.g. "Risk", "Unit". */
     label: string;
     disabled?: boolean;
     /** Full-width trigger — for use inside the "Filters" popover. */
     block?: boolean;
+    /**
+     * Pick several at once. The panel stays open between clicks and the trigger summarises the count.
+     *
+     * Added here rather than as a second component on purpose: a multi-select filter is the same job as
+     * a single-select filter — same toolbar chip, same popover, same search, same keyboard handling —
+     * and the design contract's "one primitive per job" is what stops a page growing two controls that
+     * look almost but not quite alike.
+     */
+    multiple?: boolean;
   }>(),
-  { disabled: false, block: false },
+  { disabled: false, block: false, multiple: false },
 );
-const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+const emit = defineEmits<{ "update:modelValue": [value: string | string[]] }>();
 
 const open = ref(false);
 const query = ref("");
@@ -51,7 +61,21 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
   whileElementsMounted: autoUpdate,
 });
 
-const selected = computed(() => props.options.find((o) => o.value !== "" && o.value === props.modelValue));
+/** Selected values, normalised — one code path for both modes below. */
+const chosen = computed<string[]>(() =>
+  props.multiple
+    ? Array.isArray(props.modelValue) ? props.modelValue : []
+    : typeof props.modelValue === "string" && props.modelValue !== "" ? [props.modelValue] : [],
+);
+const isChosen = (value: string) => chosen.value.includes(value);
+const selected = computed(() => (chosen.value.length > 0 ? props.options.find((o) => o.value === chosen.value[0]) : undefined));
+/** What the trigger says after the label: one name, or how many are picked. */
+const summary = computed(() => {
+  if (chosen.value.length === 0) return "";
+  if (chosen.value.length === 1) return selected.value?.label ?? chosen.value[0]!;
+  return `${chosen.value.length} selected`;
+});
+const active = computed(() => chosen.value.length > 0);
 const searchable = computed(() => props.options.length > 8);
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -95,11 +119,22 @@ function onOptionKeydown(event: KeyboardEvent) {
 }
 
 function select(value: string) {
-  emit("update:modelValue", value);
-  open.value = false;
+  if (!props.multiple) {
+    emit("update:modelValue", value);
+    open.value = false;
+    return;
+  }
+  // Multi-select keeps the panel OPEN: picking five trucks should be five clicks, not five
+  // click-reopen-scroll cycles. The scrim click and Escape are how it closes.
+  if (value === "") {
+    emit("update:modelValue", []);
+    return;
+  }
+  const next = isChosen(value) ? chosen.value.filter((v) => v !== value) : [...chosen.value, value];
+  emit("update:modelValue", next);
 }
 function clear() {
-  emit("update:modelValue", "");
+  emit("update:modelValue", props.multiple ? [] : "");
   open.value = false;
 }
 </script>
@@ -113,7 +148,7 @@ function clear() {
         :disabled="disabled"
         class="inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
         :class="[
-          selected
+          active
             ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50'
             : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
           block ? 'min-w-0 flex-1 justify-between' : '',
@@ -124,12 +159,12 @@ function clear() {
         @keydown="onTriggerKeydown"
       >
         <span class="truncate" :class="block ? '' : 'max-w-[14rem]'">
-          {{ label }}<template v-if="selected">: {{ selected.label }}</template>
+          {{ label }}<template v-if="summary">: {{ summary }}</template>
         </span>
         <AppIcon :icon="ChevronDownIcon" class="size-4 shrink-0 text-ink-tertiary" aria-hidden="true" />
       </button>
       <button
-        v-if="selected"
+        v-if="active"
         type="button"
         class="inline-flex size-8 shrink-0 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         :aria-label="`Clear ${label} filter`"
@@ -147,6 +182,7 @@ function clear() {
           :style="floatingStyles"
           class="z-popover w-60 rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
           role="listbox"
+          :aria-multiselectable="multiple || undefined"
           :aria-label="`${label} options`"
         >
           <div v-if="searchable" class="border-b border-edge-subtle px-2 pb-2 pt-1.5">
@@ -168,19 +204,19 @@ function clear() {
               type="button"
               class="flex w-full items-center px-3 py-1.5 text-left"
               :class="
-                opt.value === modelValue || (opt.value === '' && !selected)
+                isChosen(opt.value) || (opt.value === '' && !active)
                   ? 'bg-brand-50 font-medium text-brand-700'
                   : 'text-ink hover:bg-surface-subtle'
               "
               role="option"
-              :aria-selected="opt.value === modelValue"
+              :aria-selected="isChosen(opt.value)"
               @click="select(opt.value)"
               @keydown="onOptionKeydown"
             >
               <AppIcon
 :icon="CheckIcon"
                 class="mr-2 size-4 shrink-0 text-brand-600"
-                :class="opt.value === modelValue || (opt.value === '' && !selected) ? 'opacity-100' : 'opacity-0'"
+                :class="isChosen(opt.value) || (opt.value === '' && !active) ? 'opacity-100' : 'opacity-0'"
                 aria-hidden="true"
               />
               <span class="truncate">{{ opt.label }}</span>
