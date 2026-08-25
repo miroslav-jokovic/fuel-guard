@@ -11,7 +11,26 @@ import PDFDocument from "pdfkit";
  * font/colour calls, and so a change to the house style is one file.
  */
 
-/** Mirrors the palette `defensePacket.ts` established, so the two PDFs this product emits match. */
+/**
+ * The house style for the documents this product FILES: the DQ binder, the §391.21 application packet
+ * and the roadside defense packet.
+ *
+ * ── WHY THIS IS NOT THE PRODUCT'S WEB PALETTE, AND SHOULD NOT BECOME IT ──────────────────────────
+ * The fuel-spend report draws with the app's own tokens (`fuelSpendReportTheme`), and the obvious
+ * conclusion — that these should follow — is wrong. Measured 2026-08-25 as deltaE-OK against the
+ * nearest product token: RULE 0.009, DANGER 0.018, MUTED 0.020, WARN 0.025, OK 0.050, INK 0.075.
+ * Five of the six are at or below the threshold where anyone could tell them apart on paper. Moving
+ * them would be churn on documents that get filed with the FMCSA, for no visible gain.
+ *
+ * The seventh is NAVY, and it is the only real difference: 0.250 from `--viz-brand`. That gap should
+ * STAY. `--viz-brand` is the purple the dashboard uses for its brand series, and a driver
+ * qualification binder handed to a DOT auditor should not be purple. These documents are a different
+ * genre from an analytical report and are allowed to look like a filing.
+ *
+ * So: two palettes, on purpose, each suited to its genre — not drift waiting to be tidied up.
+ * `defensePacket.ts` used to keep its own copies of NAVY, INK and MUTED, which is what actual drift
+ * looks like; it imports these now.
+ */
 export const NAVY = "#1F3864";
 export const INK = "#1a1a1a";
 export const MUTED = "#666666";
