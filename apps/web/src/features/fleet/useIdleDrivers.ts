@@ -11,7 +11,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
-import { fetchRollupRows, fetchDayPrices } from "./useIdleBreakdown";
+import { fetchRollupRows, fetchDayPrices } from "@/composables/useIdleBreakdown";
 import { sumRollupByVehicle } from "@fuelguard/shared";
 
 const WINDOW_DAYS = 30;

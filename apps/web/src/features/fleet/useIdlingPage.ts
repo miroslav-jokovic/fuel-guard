@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { type IdleDateFilter } from "./useIdleScores";
-import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
+import { useIdleBreakdown, type TruckBreakdown } from "@/composables/useIdleBreakdown";
 import { useIdleDrivers } from "./useIdleDrivers";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
