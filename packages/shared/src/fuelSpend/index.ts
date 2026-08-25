@@ -4,6 +4,7 @@ export * from "./varianceBridge.js";
 export * from "./discountCapture.js";
 export * from "./contractCapture.js";
 export * from "./policyExceptions.js";
+export * from "./policyLabels.js";
 export * from "./ancillary.js";
 export * from "./operatingBridge.js";
 export * from "./rollupDerive.js";

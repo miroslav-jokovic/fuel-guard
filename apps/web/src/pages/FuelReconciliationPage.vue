@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@fuelguard/ui";
-import { analyzePolicyExceptions, DEFAULT_FUEL_POLICY, type SpendLine } from "@fuelguard/shared";
+import { analyzePolicyExceptions, avoidedBrandsLabel, avoidedStatesLabel, listStates, type SpendLine } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -17,6 +17,7 @@ import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useFuelPolicy } from "@/composables/useRouteFuelSettings";
 import { usd3 } from "@/features/reconcile/format";
 
 /**
@@ -47,10 +48,12 @@ import { usd3 } from "@/features/reconcile/format";
  * somebody. Both live in the query string so a link opens on what the sender was looking at.
  */
 
-const TAB_VALUES = ["spend", "avoid_brand", "california", "off_network", "discount", "reconcile", "statements"];
 const f = useSpendFilters();
+// Falls back to the trend for anything this org cannot show: a stale link, a hand-edited one, or a tab
+// whose policy list has since been emptied (see `tabs`). `visibleTabs` is declared below and read
+// lazily, which is what a computed is for.
 const tab = computed<string>({
-  get: () => (TAB_VALUES.includes(f.tab.value) ? f.tab.value : "spend"),
+  get: () => (visibleTabs.value.has(f.tab.value) ? f.tab.value : "spend"),
   set: (v) => { f.tab.value = v; },
 });
 
@@ -71,13 +74,11 @@ const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehic
 // ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
 const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(queryFilters);
 const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
-// ⚠ The policy is passed EXPLICITLY even though it is the module's default, because the default is
-// the thing being removed: `route_fuel_settings` already carries this org's `avoid_states`,
-// `avoid_brands` and `preferred_brands`, the Fuel Planning Settings page already edits them, and the
-// route planner already honours them — while this report, the one that claims to measure policy
-// compliance, reads a constant. Naming the argument here is what makes F3 a change at a call site
-// rather than a hunt for one.
-const exceptions = computed(() => analyzePolicyExceptions(feedLines.value, DEFAULT_FUEL_POLICY));
+// This org's own policy, from `route_fuel_settings` — the same three columns the route planner has
+// honoured since 0058. The report used to measure a hardcoded {CA} / {one9} instead, so a carrier who
+// added Oregon got a planner that avoided it and a compliance report that said the policy held.
+const policy = useFuelPolicy();
+const exceptions = computed(() => analyzePolicyExceptions(feedLines.value, policy.value));
 
 // ── the statement source ────────────────────────────────────────────────────────────────────────
 // Scoped by the PAGE's window, like everything else here. There was a `scope` selector for this and it
@@ -91,22 +92,56 @@ const { data: stmtLineData, isLoading: stmtLinesLoading } = useStatementLinesQue
 );
 const statementLines = computed<SpendLine[]>(() => stmtLineData.value ?? []);
 
+/**
+ * The two policy tabs name the policy they measure, and disappear when there is none.
+ *
+ * "California" and "ONE9 & off-brand" were literal strings beside an analyzer reading a hardcoded
+ * constant — true of one carrier and of no other. Both halves now come from `route_fuel_settings`, so
+ * a tab cannot be headed with a state the org does not avoid. An EMPTY list is a policy too: a carrier
+ * who clears `avoid_states` is saying there is no state to avoid, and the honest answer is no tab
+ * rather than an empty report under a heading they did not choose.
+ */
+const stateLabel = computed(() => avoidedStatesLabel(policy.value.avoidStates));
+const brandLabel = computed(() => avoidedBrandsLabel(policy.value.avoidBrands));
+
 const tabs = computed<TabItem[]>(() => [
   { value: "spend", label: "Spend & trend" },
-  { value: "avoid_brand", label: "ONE9 & off-brand", badge: exceptions.value.avoidedBrands.lines || undefined },
-  { value: "california", label: "California", badge: exceptions.value.avoidedStates.lines || undefined },
+  ...(brandLabel.value
+    ? [{ value: "avoid_brand", label: `${brandLabel.value} & off-brand`, badge: exceptions.value.avoidedBrands.lines || undefined }]
+    : []),
+  ...(stateLabel.value
+    ? [{ value: "california", label: stateLabel.value, badge: exceptions.value.avoidedStates.lines || undefined }]
+    : []),
   { value: "off_network", label: "Off-network", badge: exceptions.value.offNetwork.lines || undefined },
   { value: "discount", label: "Discount capture" },
   { value: "reconcile", label: "Reconcile a file" },
   { value: "statements", label: "Statements", badge: (statements.value ?? []).length || undefined },
 ]);
 
+// A link to a tab this org's policy no longer has must not land on a blank page — the same fallback
+// the unknown-tab case already takes.
+const visibleTabs = computed(() => new Set(tabs.value.map((t) => t.value)));
+
 const isFeedTab = computed(() => ["avoid_brand", "california", "off_network", "discount"].includes(tab.value));
 
-const caNote = computed(() => {
+/**
+ * The avoided-state blurb, written from the policy rather than about California.
+ *
+ * The CARB-and-fuel-tax sentence was true and specific to one state, on a tab that measures whichever
+ * states the org listed. Naming them is both more useful and the only version that stays true — but
+ * the WHY differs per state and we do not know it, so the copy states the policy and the mechanism it
+ * asks for, which is what the report actually measures.
+ */
+const stateBlurb = computed(() => {
+  const names = listStates(policy.value.avoidStates);
+  return `Every gallon bought in ${names} costs more — state fuel taxes, and in some of them a reformulated diesel — which is why the policy is to cross on as little fuel as possible.`;
+});
+
+const stateNote = computed(() => {
   const f = exceptions.value.avoidedStateFillSize;
+  const names = listStates(policy.value.avoidStates);
   if (f.inside == null || f.outside == null) return null;
-  return `Average fill inside California is ${f.inside.toFixed(0)} gallons against ${f.outside.toFixed(0)} elsewhere — the buy-minimum discipline the policy asks for, and the gap to watch.`;
+  return `Average fill inside ${names} is ${f.inside.toFixed(0)} gallons against ${f.outside.toFixed(0)} elsewhere — the buy-minimum discipline the policy asks for, and the gap to watch.`;
 });
 </script>
 
@@ -160,18 +195,18 @@ const caNote = computed(() => {
       <template v-else>
         <ExceptionsTab
           v-if="tab === 'avoid_brand'"
-          title="ONE9 and other off-brand sites"
+          :title="`${brandLabel} and other off-brand sites`"
           :blurb="`Networks your fuel policy says to avoid. Across this window they cost ${usd3(exceptions.avoidedBrands.netPerGal)} a gallon against ${usd3(exceptions.avoidedBrands.baselinePerGal)} for the rest of the fleet.`"
           :report="exceptions.avoidedBrands"
-          slug="one9-off-brand"
+          slug="off-brand"
         />
         <ExceptionsTab
           v-else-if="tab === 'california'"
-          title="California"
-          blurb="CARB diesel and California's fuel taxes make every gallon bought in the state cost more, which is why the policy is to cross on as little fuel as possible."
+          :title="stateLabel ?? ''"
+          :blurb="stateBlurb"
           :report="exceptions.avoidedStates"
-          slug="california"
-          :note="caNote"
+          slug="avoided-states"
+          :note="stateNote"
         />
         <DiscountCaptureTab v-else-if="tab === 'discount'" :lines="feedLines" />
         <ExceptionsTab

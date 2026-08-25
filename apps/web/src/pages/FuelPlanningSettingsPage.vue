@@ -6,7 +6,7 @@ import {
 } from "@fuelguard/ui/icons";
 import { reactive, ref, computed, watch } from "vue";
 import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, EQUIPMENT_TYPES, type RouteFuelSettingsForm } from "@fuelguard/shared";
-import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/features/fueling/useRouteFuelSettings";
+import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/composables/useRouteFuelSettings";
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCard as BaseCard } from "@fuelguard/ui";

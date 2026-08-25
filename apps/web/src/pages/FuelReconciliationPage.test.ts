@@ -71,6 +71,16 @@ vi.mock("@/features/reconcile/useStatements", () => ({
   useStatementLinesQuery: () => asQuery([]),
   statementSourceUrl: vi.fn(),
 }));
+// The org's policy, swappable per test — F3 made the two compliance tabs read `route_fuel_settings`
+// instead of a constant, so what the page is even ABLE to show now depends on this.
+const policy = ref<{ avoidStates: string[]; avoidBrands: string[]; preferredBrands: string[] }>({
+  avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"],
+});
+vi.mock("@/composables/useRouteFuelSettings", () => ({
+  useFuelPolicy: () => computed(() => policy.value),
+  useRouteFuelSettings: () => asQuery(null),
+  useSaveRouteFuelSettings: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
+}));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => asQuery([{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]),
 }));
@@ -104,6 +114,7 @@ beforeEach(() => {
   seen.spendLineFilters = null;
   seen.statementWindow = null;
   seen.policyArgs = [];
+  policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"] };
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -122,6 +133,10 @@ async function mountPage(query = "") {
   });
   await router.push(`/fuel-reconciliation${query}`);
   await router.isReady();
+  // Vue Test Utils does not unmount between tests, so a component from an earlier `it` is still alive
+  // and still reactive: changing `policy` re-runs ITS computeds too, and those calls land in `seen`
+  // before this mount's do. Clearing here makes every assertion about the page being mounted now.
+  seen.policyArgs = [];
   // The export button reads the toast store, so the page needs a Pinia even to render.
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -171,14 +186,40 @@ describe("FuelReconciliationPage", () => {
     expect(seen.spendLineFilters?.value.vehicleIds).toEqual(["v1", "v2"]);
   });
 
-  it("passes a fuel policy rather than leaning on the analyzer's default", async () => {
-    // F3 replaces this argument with the org's `route_fuel_settings`. Naming it here is what makes
-    // that a change at a call site; the report and the planner disagreed about the policy because
-    // this call had no second argument at all.
+  it("measures the org's own policy rather than the analyzer's default", async () => {
+    // The report and the route planner read the same three `route_fuel_settings` columns; until F3
+    // only the planner did, so a carrier who added a state got a planner that avoided it and a
+    // compliance report that said the policy held.
+    policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"] };
     await mountPage();
     expect(seen.policyArgs.length).toBeGreaterThan(0);
-    expect(seen.policyArgs[0]).toHaveLength(2);
-    expect(seen.policyArgs[0]![1]).toMatchObject({ avoidStates: ["CA"], avoidBrands: ["one9"] });
+    expect(seen.policyArgs[0]![1]).toMatchObject({ avoidStates: ["OR", "WA"], avoidBrands: ["pride"] });
+  });
+
+  it("names the avoided-state tab after the states the org actually listed", async () => {
+    policy.value = { ...policy.value, avoidStates: ["CA", "OR"] };
+    const t = (await mountPage("?tab=california")).w.text();
+    expect(t).toContain("California and Oregon");
+    expect(t).toContain("bought in California, Oregon"); // the blurb lists them in full
+  });
+
+  it("names the avoided-brand tab after the brands the org actually listed", async () => {
+    policy.value = { ...policy.value, avoidBrands: ["pride"] };
+    const t = (await mountPage("?tab=avoid_brand")).w.text();
+    expect(t).toContain("Pride and other off-brand sites");
+    expect(t).not.toContain("ONE9");
+  });
+
+  it("hides a policy tab the org has deliberately emptied, rather than heading a report they did not ask for", async () => {
+    policy.value = { ...policy.value, avoidStates: [] };
+    const { w } = await mountPage();
+    expect(w.text()).not.toContain("California");
+  });
+
+  it("falls back rather than blanking when a link points at a tab the policy no longer has", async () => {
+    policy.value = { ...policy.value, avoidStates: [] };
+    // A link sent last month, to a tab this org has since stopped having.
+    expect((await mountPage("?tab=california")).w.text()).toContain("SPEND TREND TAB");
   });
 
   // ── the URL is the page's state, because the page exists to be sent to somebody ────────────────
