@@ -15,10 +15,15 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve as resolvePath } from "node:path";
 import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
 import { INSPECTION } from "./inspect.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
+/** A path beside agent.mjs itself, so state does not follow the working directory around. */
+const beside = (name) => resolvePath(dirname(fileURLToPath(import.meta.url)), name);
+
 const CFG = {
   ingestUrl: (process.env.FUELGUARD_INGEST_URL ?? "").replace(/\/+$/, ""), // e.g. https://app.fuelguard.example
   ingestToken: process.env.FUELGUARD_INGEST_TOKEN ?? "", // the fgtms_… token from FuelGuard → Settings
@@ -49,8 +54,22 @@ const CFG = {
   rosterMode: (process.env.ROSTER_MODE ?? "link").toLowerCase(),
   lookbackDays: Number(process.env.LOOKBACK_DAYS ?? 35),
   intervalMinutes: Number(process.env.INTERVAL_MINUTES ?? 0), // 0 = run once and exit; >0 = loop forever
-  statePath: process.env.STATE_PATH ?? "./state.json",
-  rosterStatePath: process.env.ROSTER_STATE_PATH ?? "./roster-state.json",
+  // ── WHY THESE RESOLVE AGAINST THE AGENT AND NOT AGAINST THE WORKING DIRECTORY ────────────────
+  // They defaulted to "./state.json" and "./roster-state.json", which is the CWD — so where the state
+  // landed depended on where somebody happened to be standing when they ran the agent. Run from a
+  // FuelGuard checkout, as it is during development, and it lands in the ROOT OF A PUBLIC REPOSITORY.
+  //
+  // That matters because of what the roster state contains. The values are row hashes and harmless;
+  // the keys are a carrier's actual identifiers — 164 driver codes, 190 unit numbers, 235 trailer
+  // numbers. One `git add -A` away from publishing a customer's roster. It sat untracked in a working
+  // tree for four days before anybody noticed it was there.
+  //
+  // Resolved against this file's own directory, the state is always beside the agent that wrote it,
+  // wherever it is invoked from — and `.gitignore` can name one path rather than guess at every CWD
+  // an operator might use. An explicit STATE_PATH / ROSTER_STATE_PATH still wins, and is still
+  // interpreted relative to the CWD, which is what somebody passing an absolute path expects.
+  statePath: process.env.STATE_PATH ?? beside("state.json"),
+  rosterStatePath: process.env.ROSTER_STATE_PATH ?? beside("roster-state.json"),
   // McLeod ws (only needed when SOURCE=mcleod)
   // McLeod SQL Server — the roster source (see roster.mjs / queries.mjs).
   sql: {

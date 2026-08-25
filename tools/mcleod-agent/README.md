@@ -40,7 +40,9 @@ Fill in the `MCLEOD_SQL_*` block in `.env`. Three things are worth knowing befor
   FuelGuard's — no date of birth and no home address is read at all. Move to `identity` once the match
   report has been reviewed.
 
-It remembers a hash of each row in `roster-state.json`, so a run where nothing changed sends nothing.
+It remembers a hash of each row in `roster-state.json` — written beside `agent.mjs`, not in whatever
+directory you launched from — so a run where nothing changed sends nothing. That file lists your driver
+codes, unit numbers and trailer numbers, so keep it on the agent host and out of any repository.
 
 ## Setup (once)
 
