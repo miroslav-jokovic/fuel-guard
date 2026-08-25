@@ -487,3 +487,124 @@ evidence that the column layout is stable.
 6. **Gallons are up 5.7% (4-week average) — do we know why?** More trucks, more miles, or worse MPG? It
    is 20.7% of the spend increase (§2.1) and the only component this report cannot explain from fuel
    data alone; it needs the fleet/odometer side.
+
+---
+
+# Part B — Operating analytics from the EFS feed (2026-08-24)
+
+**Correcting Part A's framing.** Part A built the statement pipeline on the premise that the weekly
+Pilot PDF was the road to "why is fuel up". It is not, and the carrier said so: the EFS feed is live
+and continuous (21,428 lines back to 2026-02-04), the statements are five weeks that arrive by hand,
+and the trend question needs neither of them to be uploaded. The statement pipeline keeps its value —
+it is the only source of per-line POSTED retail, so discount capture has no other home, and it is the
+right tool for finding a fill we were billed for and never recorded. It is not the spine.
+
+The spine is `fuel_transactions` + `vehicle_engine_days` + the odometer, joined nightly.
+
+## What the data supports (measured 2026-08-24 against production)
+
+| Source | Rows | Coverage |
+|---|---|---|
+| `efs_transactions` | 21,428 | 2026-02-04 → 08-24 |
+| `fuel_transactions` | 11,265 | same; `vehicle_id` 97.5%, `driver_id` 97.7%, `odometer` 97.6%, `miles_since_last` 86% |
+| `vehicle_engine_days` | 19,169 | 2026-04-14 → |
+| `idle_rollup_days` | 20,116 | 2026-04-15 →, idle classified with HOS evidence |
+| `driver_scores` | 1,288 | weekly Samsara miles — a mileage source INDEPENDENT of the odometer |
+| `declined_transactions` | 3,357 | 2026-02-04 → |
+| `loads` | **0** | no dispatch data, so no revenue-per-mile and no loaded-vs-empty MPG |
+
+## Decisions
+
+**D-FS1 — The rollup is org × vehicle × day, and carries no fuel dimension.** Miles and engine seconds
+are properties of a truck's day and cannot be split across the two states it bought fuel in. A grain
+carrying state or brand would either duplicate the day's miles onto every dimension row or park them on
+an arbitrary one. State/site/brand drill-downs read `fuel_transactions` directly — 11k rows, fast
+enough that pre-aggregating buys nothing.
+
+**D-FS2 — Unattributed fuel is kept, on its own row.** 160 fills since 2026-06-01 ($25,953, 0.88% of
+spend) carry no vehicle. A spend report that cannot be reconciled to the invoice is worth less than no
+report. `nulls not distinct` on the unique index is what makes that row upsertable rather than
+multiplying on every rebuild.
+
+**D-FS3 — MPG is Σmiles ÷ Σ`mpg_gallons`, never ÷ Σ`gallons_tractor`.** A rejected odometer interval
+loses its miles and keeps its gallons, because the fuel was still bought. Dividing trustworthy miles by
+every gallon collapses MPG. Weekly fleet MPG computed the naive way over 2026-06 reads 85.7, 55.4,
+35.8, then 6.94 — only the last is real, and a report printing that series shows an efficiency collapse
+that never happened.
+
+**D-FS4 — Interval miles are allocated across their days by drive time.** `miles_since_last` spans the
+gap between two fills, so a truck fuelling every third day books three days of driving against one
+date. `vehicle_engine_days.drive_sec` covers every truck that fuels (170/170), so miles and the gallons
+paired with them are spread in proportion to how far the truck actually drove each day. Intervals are
+half-open on the left, so no day is counted twice. A day driven THROUGH therefore carries miles and
+gallons while having bought nothing — the `fuel_spend_days_miles_pair` constraint is written to permit
+exactly that, and to refuse either one appearing without the other.
+
+**D-FS5 — Derived, therefore not evidence.** Every row is reproducible from its sources, so the table
+is deliberately absent from `RETENTION_FORBIDDEN` and carries no append-only trigger. `fuel_statements`
+(0243) is the opposite case and is pinned.
+
+**D-FS6 — Non-fuel spend is out of scope; DEF is in.** CAT scale, oil and washer fluid ($9,073 over
+five weeks) stay in `efs_transactions` for the ancillary report. DEF does not: `fuel_transactions`
+carries none at all and DEF is $55,512 of a five-week bill, so a "total fuel spend" without it is wrong
+by more than every discount finding combined. It is joined from EFS by unit number, which matched
+2,394 of 2,397 lines; the three that miss go to the unattributed row.
+
+**D-FS7 — Miles are scaled to the measured MPG, and say so.** The first draft carried the gap between
+`gallons_tractor` and `mpg_gallons` as a third "unmeasured gallons" bridge term. It was exact and
+useless: measured coverage moved 92.2% → 97.5% between two real weeks and produced a −$13,400 bar
+describing nothing but our own ability to measure. `miles` is now the measured miles scaled by the
+measured share, `milesMeasured` keeps the provable figure beside it, and below `MIN_MEASURED_SHARE`
+(60%) the split is withheld rather than extrapolated.
+
+**D-FS8 — The comparison uses the last COMPLETE period.** Comparing a two-day week against a finished
+one is the easiest way to publish a 60% collapse in spend that never happened.
+
+## The bridge
+
+```
+Δspend  =  pump price  +  volume                       (exact, Laspeyres volume / Paasche price)
+volume  =  distance  +  efficiency                     (exact: gal = miles ÷ MPG)
+distance=  more trucks  +  each truck covering more    (exact, shift-share)
+```
+
+Every split returns its residual, computed before rounding, so a chart asserts the identity rather than
+trusting it. Property-tested over 200 pseudo-random period pairs plus shapes chosen to break it
+(efficiency moving against volume, a shrinking fleet, a contaminated odometer, a period with no
+mileage at all).
+
+**Verified end to end against production** (2026-08-03 → 08-23, 2,509 fills, 5,233 engine days, 3,439
+derived truck-days, 15 intervals refused):
+
+| Week of | Trucks | Gallons | Spend | $/gal | MPG | Proven | Idle | mi/truck |
+|---|---|---|---|---|---|---|---|---|
+| 08-03 | 165 | 53,999 | $259,298 | 4.8019 | 7.453 | 97.5% | 52.1% | 2,439 |
+| 08-10 | 165 | 53,656 | $262,751 | 4.8970 | 7.518 | 91.9% | 53.1% | 2,445 |
+| 08-17 | 162 | 58,190 | $303,707 | 5.2192 | 7.651 | 95.0% | 53.6% | 2,748 |
+
+```
+Δ spend  +$40,955   residual $0
+  Pump price       +$18,752   +$0.3222/gal on 58,190 gal
+  Miles driven     +$27,230   +41,807 mi at 7.52 MPG
+  Fuel efficiency   −$5,026   +0.13 MPG — saved $5,026
+  distance from:   −7,335 mi fewer trucks, +49,142 mi busier trucks
+```
+
+The fleet did not grow; each truck drove ~300 miles more, into a market $0.32/gal dearer, and improving
+MPG gave $5,026 of it back.
+
+## Two data-quality facts the report must keep gating on
+
+- **`miles_since_last` is corrupt before ~2026-06-22.** The plausibility gate
+  (`MAX_INTERVAL_MILES = 2500`) and the fleet-MPG band (3–12) exist for this; without them the June
+  series shows a fake collapse.
+- **`idle_rollup_days` has coverage holes** in the weeks of 07-13 and 07-20 (`idle_sec` smaller than
+  its own `rest_idle_sec` component). Not yet gated — idle is reported here only as a share of engine
+  time, and the avoidable-idle costing on the Idling page is a separate, already-defensible pipeline.
+
+## What is NOT built
+
+Items 9–39 of the analysis catalogue: state/site/brand mix, truck- and driver-level MPG ranking, idle
+in dollars joined to the fuel bill, tank-capacity and GPS-mismatch integrity checks, DEF dosing ratio,
+declines, and the weekly emailed digest. `fuel_transactions.station_id` is still 0% populated, so brand
+and off-network questions remain unanswerable from the EFS side; the backfill is the next unblock.
