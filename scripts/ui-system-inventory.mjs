@@ -108,6 +108,8 @@ function verifyAdoption() {
     // H5b: the applicant's own §391.21 form. `PageHeader` carries the app's breadcrumb and
     // route-title chrome, and this page is rendered in ApplyLayout for somebody with no session and
     // no app around them — there is no workspace for a header to sit in.
+    // (The breadcrumb half of that sentence was aspirational until G2 shipped it on 2026-08-25;
+    // `PageHeader` now walks `meta.parent` via `lib/breadcrumbs.ts`. It is true as written.)
     "ApplyPage.vue",
     "auth/AcceptInvitePage.vue",
     "auth/DriverAppRedirectPage.vue",
