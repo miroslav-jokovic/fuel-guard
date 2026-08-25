@@ -16,7 +16,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  analyzeDiscountCapture,
+  analyzeContractCapture,
   analyzePolicyExceptions,
   comparablePeriods,
   periodTotals,
@@ -58,7 +58,7 @@ export async function renderFuelSpendReport(
   const vehicleIds = input.vehicleIds ?? [];
   const [days, lines, carrier, units, idle] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
-    readSpendLines(admin, input.from, input.to, vehicleIds),
+    readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
     readUnitNumbers(admin, input.orgId, vehicleIds),
     // The real verdict — equipment flags, HOS duty overlay, temperature envelope — not idle seconds
@@ -95,7 +95,7 @@ export async function renderFuelSpendReport(
   drawHeadline(doc, overall, comparison);
   drawBridge(doc, comparison);
   drawSeries(doc, series, input.grain);
-  drawDiscount(doc, analyzeDiscountCapture(lines), lines);
+  drawDiscount(doc, analyzeContractCapture(lines), lines);
   drawExceptions(doc, exceptions, overall);
   drawIdle(doc, series, input.grain, idle);
 
@@ -149,9 +149,17 @@ async function readSpendDays(admin: SupabaseClient, orgId: string, from: string,
  * "no fill could be matched to a posted price" while the screen beside it measured 1,201 of them. Page
  * and report must read the same source or they will disagree exactly like that.
  */
-// `fuel_spend_lines` scopes itself: it is security-invoker over org-scoped tables, and the service
-// role reaches it with the org already established by the caller.
-async function readSpendLines(admin: SupabaseClient, from: string, to: string, vehicleIds: string[]): Promise<SpendLine[]> {
+/**
+ * ⚠ `p_org` IS NOT OPTIONAL HERE, whatever its default says.
+ *
+ * This comment used to read "fuel_spend_lines scopes itself: it is security-invoker over org-scoped
+ * tables". The first half is true and the second does not follow. Security-invoker means RLS decides —
+ * and `admin` is the SERVICE ROLE, which bypasses RLS. The function took no org, so this read returned
+ * every carrier in the database and the document below mixed a test org's 267 fills into a real
+ * carrier's exception and discount sections. That is the hard rule in CLAUDE.md: a service query
+ * org-filters itself or it is wrong. See D-FC1 in migration 0247.
+ */
+async function readSpendLines(admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[]): Promise<SpendLine[]> {
   const out: SpendLine[] = [];
   const str = (v: unknown): string | null => (v == null ? null : String(v));
   const n = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
@@ -162,6 +170,7 @@ async function readSpendLines(admin: SupabaseClient, from: string, to: string, v
           p_from: from,
           p_to: to,
           p_vehicles: vehicleIds.length > 0 ? vehicleIds : null,
+          p_org: orgId,
         })
         .range(a, b),
     (rows) => {
@@ -178,9 +187,11 @@ async function readSpendLines(admin: SupabaseClient, from: string, to: string, v
           tank: r.tank === "reefer" ? "reefer" : "tractor",
           gallons: n(r.gallons),
           netAmount: r.net_amount == null ? null : n(r.net_amount),
-          // Null when no report covered that station that day — never 0, which would read as a fill
-          // that captured no discount at all.
+          // Null when no quote was in range — never 0, which would read as a fill billed exactly at
+          // contract rather than as one nobody could measure.
           retailAmount: r.retail_amount == null ? null : n(r.retail_amount),
+          contractAmount: r.contract_amount == null ? null : n(r.contract_amount),
+          quoteStaleDays: r.quote_stale_days == null ? null : n(r.quote_stale_days),
         });
       }
     },
