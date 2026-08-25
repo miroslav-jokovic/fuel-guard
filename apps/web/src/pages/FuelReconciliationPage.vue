@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { AppTabs, AppCard as BaseCard, type TabItem } from "@fuelguard/ui";
 import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -10,6 +11,7 @@ import StatementsCard from "@/features/reconcile/StatementsCard.vue";
 import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
 import DiscountCaptureTab from "@/features/reconcile/DiscountCaptureTab.vue";
 import ExceptionsTab from "@/features/reconcile/ExceptionsTab.vue";
+import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
 import { usd } from "@/features/reconcile/format";
 
@@ -22,8 +24,18 @@ import { usd } from "@/features/reconcile/format";
  * compare against. Every tab except Reconcile reads from STORED statements, so a page load lands on
  * history instead of an empty dropzone.
  *
- * Reconcile stays first because it is still the one that catches a fill we were billed for and never
- * recorded — the fuel-theft surface. The rest are cost questions, which are a different job.
+ * ── WHY "SPEND & TREND" IS FIRST ─────────────────────────────────────────────────────────────────
+ * It is the only tab that answers the question the carrier actually asks — "fuel cost more this week,
+ * why" — and the only one fed by a source that is always there. Every other tab reads uploaded vendor
+ * statements; this one reads a nightly rollup of the EFS feed, the odometer and the engine hours, so it
+ * has months of history the day it ships and needs nobody to remember to upload anything.
+ *
+ * Reconcile keeps its place beside it because it is still the one that catches a fill we were billed
+ * for and never recorded — the fuel-theft surface. The rest are procurement questions, a different job.
+ *
+ * ── WHY THE TAB IS IN THE URL ────────────────────────────────────────────────────────────────────
+ * A page whose state dies on refresh cannot be sent to anybody, and this one exists to be sent to
+ * somebody. The tab is a query parameter so a link opens on the view the sender was looking at.
  */
 const { data: statements, isLoading, isError, error, refetch } = useStatementsQuery();
 
@@ -51,10 +63,23 @@ const lines = computed<SpendLine[]>(() => lineData.value ?? []);
 
 const exceptions = computed(() => analyzePolicyExceptions(lines.value));
 
-const tab = ref("reconcile");
+const route = useRoute();
+const router = useRouter();
+const TAB_VALUES = ["spend", "reconcile", "overview", "discount", "avoid_brand", "california", "off_network"];
+const tab = computed<string>({
+  get: () => {
+    const q = route.query.tab;
+    const v = Array.isArray(q) ? q[0] : q;
+    return typeof v === "string" && TAB_VALUES.includes(v) ? v : "spend";
+  },
+  // `replace` so flipping between tabs does not fill the back button with them; a reader pressing back
+  // expects to leave the page, not to walk their own tab history.
+  set: (v) => void router.replace({ query: { ...route.query, tab: v } }),
+});
 const tabs = computed<TabItem[]>(() => [
+  { value: "spend", label: "Spend & trend" },
   { value: "reconcile", label: "Reconcile a file" },
-  { value: "overview", label: "Overview", badge: scopedStatements.value.length || undefined },
+  { value: "overview", label: "Statements", badge: scopedStatements.value.length || undefined },
   { value: "discount", label: "Discount capture" },
   { value: "avoid_brand", label: "ONE9 & off-brand", badge: exceptions.value.avoidedBrands.lines || undefined },
   { value: "california", label: "California", badge: exceptions.value.avoidedStates.lines || undefined },
@@ -72,11 +97,13 @@ const hasHistory = computed(() => (statements.value ?? []).length > 0);
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Upload the weekly Pilot statement, then see what fuel is costing and why it moved." />
+    <PageHeader description="What fuel is costing, why it moved, and how the vendor's statement compares." />
 
     <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
 
-    <ReconcileTab v-if="tab === 'reconcile'" @saved="refetch()" />
+    <SpendTrendTab v-if="tab === 'spend'" />
+
+    <ReconcileTab v-else-if="tab === 'reconcile'" @saved="refetch()" />
 
     <template v-else>
       <FilterBar>

@@ -17,6 +17,7 @@ import { startStorageReconcileScheduler } from "./services/storageReconcileSched
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
 import { startDqExportSweeper } from "./services/dqExportSweeper.js";
 import { startPatternSweepScheduler } from "./services/patternSweepScheduler.js";
+import { startFuelSpendRollupScheduler } from "./services/fuelSpendRollupScheduler.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -54,4 +55,5 @@ export function startAllSchedulers(env: Env): void {
   startNotificationPushScheduler(env); // Expo Push delivery of pending notification_events (5N/Phase 6)
   startDqExportSweeper(env); // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
   startPatternSweepScheduler(env); // durable enrichment requests survive queue dispatch outages
+  startFuelSpendRollupScheduler(env); // 0244: nightly re-derivation of the daily fuel-spend rollup
 }
