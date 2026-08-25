@@ -1,0 +1,56 @@
+import type { RouteRecordRaw } from "vue-router";
+
+/**
+ * Signing in, and the three surfaces reachable without an account.
+ *
+ * Everything here is `public: true` or `allowNoOrg: true`, which is the whole reason the area is
+ * its own file: these are the records the guard in `../index.ts` reads before a session exists, and
+ * a mistake in one of them is reachable by anyone on the internet.
+ */
+export const authRoutes: RouteRecordRaw[] = [
+  // Auth (public / no-org) pages — rendered in the centered AuthLayout.
+  {
+    path: "/login",
+    name: "login",
+    component: () => import("@/pages/auth/LoginPage.vue"),
+    meta: { public: true, layout: "auth" },
+  },
+  // M7 — free public placard calculator (unauthenticated, indexable; its own layout).
+  {
+    path: "/placard-calculator",
+    name: "public-placard-calculator",
+    component: () => import("@/pages/PublicPlacardCalculatorPage.vue"),
+    meta: { public: true, layout: "public", title: "Free DOT Placard Calculator" },
+  },
+  /**
+   * H5b — the applicant's own form. Unauthenticated by necessity: they fill it in before they are
+   * anyone, from an emailed link whose token IS the access control. `public: true` so the guard lets
+   * them through without a session, and `noindex` because an application link is not a page for
+   * crawlers even though a crawler could never hold a valid token.
+   */
+  {
+    path: "/apply/:token",
+    name: "driver-application",
+    component: () => import("@/pages/ApplyPage.vue"),
+    meta: { public: true, layout: "apply", title: "Driver application", noindex: true },
+  },
+  {
+    path: "/accept-invite",
+    name: "accept-invite",
+    component: () => import("@/pages/auth/AcceptInvitePage.vue"),
+    meta: { requiresAuth: true, allowNoOrg: true, layout: "auth" },
+  },
+  {
+    path: "/pending",
+    name: "pending",
+    component: () => import("@/pages/auth/PendingPage.vue"),
+    meta: { requiresAuth: true, allowNoOrg: true, layout: "auth" },
+  },
+  {
+    // Drivers are redirected here — they use the Driver app, not the web dashboard.
+    path: "/use-the-app",
+    name: "driver-app",
+    component: () => import("@/pages/auth/DriverAppRedirectPage.vue"),
+    meta: { requiresAuth: true, layout: "auth" },
+  },
+];
