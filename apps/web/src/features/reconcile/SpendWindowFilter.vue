@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { AppButton as BaseButton, AppDateField, AppIcon } from "@fuelguard/ui";
 import { CalendarIcon, XMarkIcon } from "@fuelguard/ui/icons";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
@@ -70,6 +70,29 @@ const draftReversed = computed(() => draftValid.value && draftFrom.value > draft
 const label = computed(() => props.activePreset?.label ?? describeWindow({ from: props.from, to: props.to }));
 const dayCount = computed(() => windowDays(props.from, props.to));
 
+/**
+ * Escape closes the panel, and focus moves into it when it opens.
+ *
+ * The listener is on the DOCUMENT rather than on the panel. A `role="dialog"` div is not an interactive
+ * element, so a `@keydown` bound to it is unreachable for anyone who has not happened to focus that
+ * exact node — which is what `vuejs-accessibility/no-static-element-interactions` objects to, and it is
+ * right. Listening at the document means Escape works from wherever focus actually is: the trigger, a
+ * preset button, or half-way through typing a date.
+ */
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape") open.value = false;
+}
+watch(open, async (isOpen) => {
+  if (!isOpen) {
+    document.removeEventListener("keydown", onKeydown);
+    return;
+  }
+  document.addEventListener("keydown", onKeydown);
+  await nextTick();
+  panelRef.value?.focus();
+});
+onBeforeUnmount(() => document.removeEventListener("keydown", onKeydown));
+
 function commit(): void {
   if (!draftValid.value) return;
   emit("apply", draftFrom.value, draftTo.value);
@@ -107,7 +130,7 @@ function choose(key: string): void {
           class="z-popover w-80 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle"
           role="dialog"
           aria-label="Reporting period"
-          @keydown.escape="open = false"
+          tabindex="-1"
         >
           <!-- Named periods first: one click, and a click cannot leave the window half-set. -->
           <p class="text-xs font-semibold text-ink">Period</p>

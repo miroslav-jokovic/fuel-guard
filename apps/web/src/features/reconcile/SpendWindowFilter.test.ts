@@ -167,13 +167,31 @@ describe("SpendWindowFilter", () => {
     expect(windowDays(defaultWindow(today()).from, defaultWindow(today()).to)).toBe(90);
   });
 
-  it("closes on escape without changing anything", async () => {
+  it("closes on escape from wherever focus happens to be, and changes nothing", async () => {
+    // Dispatched at the DOCUMENT, not at the trigger: a `role="dialog"` div is not focusable, so a
+    // handler bound to it only fires for someone who already focused that exact node. Escape has to
+    // work mid-way through typing a date too.
     const { w, router } = await mountFilter();
     const before = { ...router.currentRoute.value.query };
     await openPanel(w);
     expect(panel()).toBeTruthy();
-    await w.find("button[aria-haspopup='dialog']").trigger("keydown.escape");
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await flushPromises();
+    expect(panel()).toBeNull();
     expect(router.currentRoute.value.query).toEqual(before);
+  });
+
+  it("stops listening for escape once it is closed", async () => {
+    // A document listener that outlives its panel is a leak that also steals Escape from whatever the
+    // reader does next.
+    const { w } = await mountFilter();
+    await openPanel(w);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flushPromises();
+    expect(panel()).toBeNull();
+    // Re-opening must still work, which it would not if the handler had been torn down permanently.
+    await openPanel(w);
+    expect(panel()).toBeTruthy();
   });
 });
