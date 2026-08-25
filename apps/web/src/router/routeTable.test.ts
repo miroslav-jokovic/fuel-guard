@@ -55,6 +55,10 @@ const PROBES = [
   "/settings", "/settings/users", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data",
   "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
+  // G1's operator-visited dead ends. The catch-all is deliberately NOT probed here — an unmatched
+  // URL is the one case this file cannot express as "declared path resolves to itself", and it has
+  // its own suite in `notFound.test.ts`.
+  "/error", "/maintenance",
 ] as const;
 
 describe("the route table survives being split by area", () => {
@@ -89,6 +93,7 @@ describe("the route table survives being split by area", () => {
     const shape = (p: string) => p.replace(/:[^/]+/g, "*");
     const declared = new Set(router.getRoutes().map((r) => shape(r.path)));
     declared.delete("/__design-system"); // dev-only, asserted by its absence from PROBES
+    declared.delete("/*"); // the G1 catch-all — covered by `notFound.test.ts`, not probeable here
     const probed = new Set(
       PROBES.map((p) => {
         const r = router.resolve(p);

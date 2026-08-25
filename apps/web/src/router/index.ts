@@ -9,6 +9,7 @@ import { driverRoutes } from "./routes/drivers";
 import { recruitmentRoutes } from "./routes/recruitment";
 import { fuelRoutes } from "./routes/fuel";
 import { settingsRoutes } from "./routes/settings";
+import { systemRoutes, notFoundRoute } from "./routes/system";
 
 /**
  * The route table, composed from one module per product area.
@@ -36,6 +37,9 @@ const routes: RouteRecordRaw[] = [
   ...recruitmentRoutes,
   ...fuelRoutes,
   ...settingsRoutes,
+  ...systemRoutes,
+  // Must stay last: it matches everything. See `routes/system.ts`.
+  notFoundRoute,
 ];
 
 const designSystemLabEnabled =

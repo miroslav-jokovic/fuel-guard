@@ -333,6 +333,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "params": {},
     "url": "/settings/audit",
   },
+  {
+    "name": "server-error",
+    "params": {},
+    "url": "/error",
+  },
+  {
+    "name": "maintenance",
+    "params": {},
+    "url": "/maintenance",
+  },
 ]
 `;
 
@@ -355,6 +365,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "design-system-lab",
     "path": "/__design-system",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layoutWhenSignedOut": "auth",
+      "public": true,
+      "title": "Page not found",
+    },
+    "name": "not-found",
+    "path": "/:pathMatch(.*)*",
     "redirect": null,
   },
   {
@@ -477,6 +497,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "driver-detail",
     "path": "/drivers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layoutWhenSignedOut": "auth",
+      "public": true,
+      "title": "Something went wrong",
+    },
+    "name": "server-error",
+    "path": "/error",
     "redirect": null,
   },
   {
@@ -653,6 +683,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "login",
     "path": "/login",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layoutWhenSignedOut": "auth",
+      "public": true,
+      "title": "Down for maintenance",
+    },
+    "name": "maintenance",
+    "path": "/maintenance",
     "redirect": null,
   },
   {
