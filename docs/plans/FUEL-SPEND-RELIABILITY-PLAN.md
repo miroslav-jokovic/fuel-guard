@@ -453,7 +453,33 @@ headline dollar figure on the page is missing the share of spend it covers.
 
 ---
 
-### F2 · Pin the page under test
+### F2 · Pin the page under test — DONE 2026-08-25 (no migrations)
+
+**What shipped.** 29 tests across four files that nothing mounted, taking the reconcile feature from
+25 web tests to 58.
+
+| File | Tests | The failure it is aimed at |
+|---|---|---|
+| `pages/FuelReconciliationPage.test.ts` | 10 | a control that reaches nothing — the shape of B1, B2 and B4a |
+| `reconcile/ReconcileTab.test.ts` | 6 | the tab the page is named after, previously zero coverage |
+| `reconcile/spendTrendTab.test.ts` | 7 | a period still running compared against a finished one; a bucket labelled past the window |
+| `reconcile/statementsCard.test.ts` | 6 | a button that opens nothing where evidence should be |
+
+**The pins were verified to fail.** Reverting `FuelReconciliationPage.vue` and `useStatements.ts` to
+their pre-F1 state (d231d4e) turns exactly four of the ten page tests red — the statements window, the
+window moving on both queries together, the policy argument, and the per-gallon formatting. A test
+that cannot fail pins nothing, so this was checked rather than assumed.
+
+**Two notes carried in the test files themselves.** `spendTrendTab.test.ts` records L13's *current*
+behaviour — headline tiles describe the last complete period and name no period — as an explicit
+negative assertion, so F7's fix announces itself by turning that test red instead of landing silently.
+`statementsCard.test.ts` records that `fuel_statements` is empty in production, so every assertion in
+it describes a surface no carrier has seen yet (F0-bis).
+
+**Verified by:** `pnpm test` (all suites, 26 PGlite matrices), `pnpm typecheck`, `pnpm lint` (only
+real-source finding is the same 2 pre-existing `vue/one-component-per-file` warnings), `lint:filesize`,
+`lint:funcsize`, `lint:comment-claims`, `lint:boundaries`, `lint:upserts`, `lint:ui-adoption`,
+`lint:tokens-parity`, `pnpm --filter web lint:tokens`.
 
 **Prerequisites:** F1 (so the tests pin the corrected behaviour).
 
