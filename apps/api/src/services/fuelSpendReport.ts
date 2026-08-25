@@ -18,7 +18,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   analyzeContractCapture,
   analyzePolicyExceptions,
-  DEFAULT_FUEL_POLICY,
+  fuelPolicyFromSettings,
+  type FuelPolicy,
+  type FuelPolicyRow,
   comparablePeriods,
   periodTotals,
   type ContractCapture,
@@ -64,7 +66,7 @@ export async function renderFuelSpendReport(
   input: FuelSpendReportInput,
 ): Promise<{ pdf: Buffer; periods: number; carrier: string; pages: number }> {
   const vehicleIds = input.vehicleIds ?? [];
-  const [days, lines, carrier, units, idle] = await Promise.all([
+  const [days, lines, carrier, units, idle, policy] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
     readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
@@ -73,6 +75,7 @@ export async function renderFuelSpendReport(
     // times a burn rate. Fleet-wide: the truck filter narrows FUEL, and an idle figure for three
     // trucks against a fleet-wide baseline would be the more misleading of the two options.
     readFleetIdleVerdict(admin, input.orgId, input.from, input.to),
+    readFuelPolicy(admin, input.orgId),
   ]);
 
   // The requested window, so an edge bucket is labelled by the days it holds rather than by the
@@ -85,10 +88,11 @@ export async function renderFuelSpendReport(
   // against a finished one made the first render of this report announce spend down 88% and a $271,841
   // saving from "miles driven" — a collapse that never happened, in a document meant to be forwarded.
   const comparison = comparablePeriods(series);
-  // Explicit for the same reason the page is (F3): the policy this report measures against belongs to
-  // `route_fuel_settings`, not to a constant in the analyzer. Named here so the two surfaces cannot
-  // start disagreeing about which one they read.
-  const exceptions = analyzePolicyExceptions(lines, DEFAULT_FUEL_POLICY);
+  // This org's policy, from the same `route_fuel_settings` columns the page and the route planner read.
+  // A document is the worst place for the constant this used to be: it outlives the session that made
+  // it and gets quoted back, so a report headed with a state the carrier does not avoid is a claim
+  // nobody can trace or correct.
+  const exceptions = analyzePolicyExceptions(lines, policy);
   const capture = analyzeContractCapture(lines);
   const window = windowLabel(input.from, input.to);
   const fleet = units.length === 0
@@ -100,7 +104,7 @@ export async function renderFuelSpendReport(
   const refused = days.reduce((a: number, d: SpendDay) => a + d.milesRejected, 0);
   const compose = (density: number) =>
     composeDocument({
-      density, carrier, window, refused, idle, series, overall, comparison, exceptions, capture, lines,
+      density, carrier, window, refused, idle, series, overall, comparison, exceptions, capture, lines, policy,
       grain: input.grain, generatedAt: input.generatedAt,
       meta: [
         { label: "Period", value: window },
@@ -169,6 +173,7 @@ interface ComposeInput {
   overall: SpendPeriod;
   comparison: { prior: SpendPeriod; current: SpendPeriod } | null;
   exceptions: ReturnType<typeof analyzePolicyExceptions>;
+  policy: FuelPolicy;
   capture: ContractCapture;
   lines: SpendLine[];
   grain: SpendGrain;
@@ -187,7 +192,7 @@ async function composeDocument(c: ComposeInput): Promise<Composed> {
   drawSeries(doc, c.series, c.overall, c.grain, 2);
   drawDiscount(doc, c.capture, c.lines, 3);
   drawIdle(doc, c.series, c.grain, c.idle, 4);
-  drawExceptions(doc, c.exceptions, 5);
+  drawExceptions(doc, c.exceptions, 5, c.policy);
 
   // Read BEFORE `stampPages`, which switches to page 1 and leaves `doc.y` wherever the footer left it.
   const lastY = doc.y;
@@ -222,7 +227,10 @@ function supportLine(
   capture: ContractCapture,
 ): string {
   const parts: string[] = [];
-  const offPolicy = exceptions.offNetwork.excess + exceptions.avoidedStates.excess + exceptions.avoidedBrands.excess;
+  // NOT the sum of the three reports: they select overlapping populations, so a ONE9 fill in an
+  // avoided state was counted three times in the figure a boss reads first. `offPolicy` is the union,
+  // scored once (see `PolicyExceptions.offPolicy`).
+  const offPolicy = exceptions.offPolicy.excess;
   if (offPolicy > 0) {
     parts.push(
       `Fills outside the fuel policy cost ${usd(offPolicy)} more than the fleet paid elsewhere over the same window`,
@@ -343,6 +351,20 @@ async function readUnitNumbers(admin: SupabaseClient, orgId: string, vehicleIds:
     .map((v) => v.unit_number)
     .filter((u): u is string => !!u)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+/**
+ * The org's fuel policy. Org-filtered explicitly: `admin` is the SERVICE ROLE and bypasses RLS, so the
+ * `.eq("org_id", …)` here is the only tenant boundary this read has — the same rule 0247's D-FC1 states
+ * for `fuel_spend_lines`, and the reason `expectOrgScoped` asserts it.
+ */
+async function readFuelPolicy(admin: SupabaseClient, orgId: string): Promise<FuelPolicy> {
+  const { data } = await admin
+    .from("route_fuel_settings")
+    .select("avoid_states, avoid_brands, preferred_brands")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  return fuelPolicyFromSettings(data as FuelPolicyRow | null);
 }
 
 async function readCarrier(admin: SupabaseClient, orgId: string): Promise<string> {

@@ -85,6 +85,24 @@ describe("renderFuelSpendReport", () => {
     }
   });
 
+  // ── the policy the document measures belongs to the org ─────────────────────────────────────
+  // It used to be a constant, so a report headed "California" went to carriers who avoid Oregon. The
+  // rendered glyphs cannot be asserted (pdfkit compresses its content streams), so what is pinned is
+  // that the row is READ, and read scoped — `admin` is the service role and bypasses RLS, so the
+  // `.eq("org_id", …)` is this query's only tenant boundary.
+  it("reads the org's own fuel policy rather than assuming one", async () => {
+    const rec = seed({ route_fuel_settings: { data: { avoid_states: ["OR"], avoid_brands: ["pride"], preferred_brands: ["loves"] } } });
+    await render(rec);
+    expect(rec.forTable("route_fuel_settings"), "the report never asked for the org's policy").not.toHaveLength(0);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("still renders for an org that has never configured a policy", async () => {
+    // `route_fuel_settings` absent → the analyzer's documented defaults, not a crash.
+    const { pdf } = await render(seed());
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
   it("produces a PDF, and names the carrier on it", async () => {
     const rec = seed();
     const { pdf, carrier } = await render(rec);

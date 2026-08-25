@@ -500,7 +500,46 @@ real-source finding is the same 2 pre-existing `vue/one-component-per-file` warn
 
 ---
 
-### F3 · Policy becomes org configuration
+### F3 · Policy becomes org configuration — DONE 2026-08-25 (no migrations)
+
+**What shipped.**
+- **Shared** — `fuelPolicyFromSettings(row)` maps the three `route_fuel_settings` columns to a
+  `FuelPolicy`, and `policyLabels.ts` names them (`avoidedStatesLabel`, `avoidedBrandsLabel`,
+  `listStates`, `STATE_NAMES`). Brand names reuse `BRAND_LABELS` rather than a second catalogue.
+- **The null-vs-empty distinction, which is the subtle part.** `resolveRouteFuelConfig` treats `[]` as
+  unset and substitutes the default — correct for the PLANNER, which can plan nothing without a
+  preferred list. It is wrong for a compliance report: a carrier who clears `avoid_states` is saying
+  *there is no state we avoid*, and answering with a California report is the same error as ignoring
+  the column. So `fuelPolicyFromSettings` keeps them apart: `null` → default, `[]` → no rule, no tab.
+  Values are also case-normalised, because the settings form takes free text and a lower-case `"ca"`
+  in a `Set` match simply never fires and reports a clean period.
+- **Web** — `useRouteFuelSettings` moved from `features/fueling/` to `@/composables/` (shared state
+  belongs there per `apps/web/CLAUDE.md`, and the reconcile feature must not reach into another
+  feature). `useFuelPolicy()` sits on the SAME query, so saving settings invalidates both surfaces at
+  once rather than giving them two caches to disagree from.
+- **The page** — tab labels, titles and blurbs derive from the policy; a tab whose list is empty is
+  hidden, and a stale link to it falls back to the trend rather than blanking.
+- **Server** — `readFuelPolicy` reads the row org-scoped (service role bypasses RLS), and the PDF's
+  exception rows are named from it.
+
+**Found and fixed while doing it — the verdict band was triple-counting.** `supportLine` summed
+`offNetwork.excess + avoidedStates.excess + avoidedBrands.excess`. Those three reports select
+OVERLAPPING populations: a ONE9 fill in California appears in all three with its full excess, so the
+one line of the document guaranteed to be read multiplied it by three. This is L11, in the worst
+possible place. `PolicyExceptions` gained `offPolicy` — the union, scored once against the fills that
+broke no rule — and the band reads it. The PDF's own note now says the rows must not be added, which
+it could not honestly say before.
+
+**On production this changes nothing visible today, and that is the correct outcome.** Silvicom's
+configured policy is exactly `{CA} / {one9} / {pilot, flying_j}`, and the QA org has no row at all, so
+both render as before. What changed is that the value is now *read* rather than assumed — the day
+either org adds a state, the report follows the planner instead of contradicting it.
+
+**Verified by:** `pnpm test` (all suites, 26 PGlite matrices), `pnpm typecheck`, `pnpm lint`, plus
+`lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`, `lint:upserts`,
+`lint:ui-adoption`, `lint:tokens-parity`, `pnpm --filter web lint:tokens`. 16 new tests: 11 shared
+(mapper, labels, `offPolicy` de-duplication), 5 page/API including `expectOrgScoped` on the new
+service-role read.
 
 **Prerequisites:** F1.
 

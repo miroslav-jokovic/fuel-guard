@@ -139,17 +139,71 @@ export interface FuelPolicy {
   preferredBrands: readonly string[];
 }
 
-/** Mirrors the `route_fuel_settings` defaults, so a report works before an org has customised them. */
+/**
+ * The policy for an org that has configured none — NOT the policy for every org.
+ *
+ * This was the analyzer's only policy until F3: every caller took the default, so the compliance report
+ * measured `{CA}` and `{one9}` for a carrier whose `route_fuel_settings` said something else, while the
+ * route planner reading the same table avoided the states it was actually told to. Use
+ * `fuelPolicyFromSettings` with the org's row; this stays as its fallback.
+ */
 export const DEFAULT_FUEL_POLICY: FuelPolicy = {
   avoidStates: ["CA"],
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
 };
 
+/** The three policy columns of `route_fuel_settings`, as PostgREST returns them. */
+export interface FuelPolicyRow {
+  avoid_states?: string[] | null;
+  avoid_brands?: string[] | null;
+  preferred_brands?: string[] | null;
+}
+
+/**
+ * Read an org's `route_fuel_settings` row as a policy.
+ *
+ * ── NULL AND EMPTY ARE DIFFERENT ANSWERS, AND `resolveRouteFuelConfig` MERGES THEM ───────────────
+ * The planner's resolver treats an empty array as "unset" and substitutes the default, which is right
+ * for routing — a planner with no preferred brands can plan nothing. It is wrong for a compliance
+ * report: a carrier who deliberately clears `avoid_states` is saying *there is no state we avoid*, and
+ * handing them a California exception report back is the same class of error as ignoring the column in
+ * the first place. So this mapper keeps the distinction:
+ *
+ *   column is null / absent  →  never configured  →  the default applies
+ *   column is []             →  configured empty  →  no report; the policy is that there is no rule
+ *
+ * Values are also normalised on the way in — states upper-cased, brand slugs lower-cased — because the
+ * settings form takes free text and `analyzePolicyExceptions` matches with a `Set`, where "Ca" simply
+ * never fires and reports a clean period rather than a broken filter.
+ */
+export function fuelPolicyFromSettings(row: FuelPolicyRow | null | undefined): FuelPolicy {
+  const list = (v: string[] | null | undefined, fallback: readonly string[], norm: (s: string) => string) =>
+    v == null ? [...fallback] : v.map((x) => norm(x.trim())).filter(Boolean);
+  return {
+    avoidStates: list(row?.avoid_states, DEFAULT_FUEL_POLICY.avoidStates, (s) => s.toUpperCase()),
+    avoidBrands: list(row?.avoid_brands, DEFAULT_FUEL_POLICY.avoidBrands, (s) => s.toLowerCase()),
+    preferredBrands: list(row?.preferred_brands, DEFAULT_FUEL_POLICY.preferredBrands, (s) => s.toLowerCase()),
+  };
+}
+
 export interface PolicyExceptions {
   avoidedBrands: ExceptionReport;
   avoidedStates: ExceptionReport;
   offNetwork: ExceptionReport;
+  /**
+   * Every fill breaking ANY of the three rules, counted once.
+   *
+   * ── WHY THE THREE CANNOT BE ADDED ──────────────────────────────────────────────────────────────
+   * The reports select overlapping populations: a ONE9 fill in California is off-brand, in an avoided
+   * state and off the preferred network, and appears with its full excess in all three. Summing them
+   * triples it. The server-rendered report's verdict band — the one line of the document guaranteed to
+   * be read — did exactly that, and a document is forwarded and quoted back.
+   *
+   * This is the union, scored against the fills that broke no rule at all, so it is both correct and a
+   * stricter baseline than any of the three has on its own.
+   */
+  offPolicy: ExceptionReport;
   /** Average fill size inside vs outside the avoided states — the buy-minimum discipline check. */
   avoidedStateFillSize: { inside: number | null; outside: number | null };
 }
@@ -167,12 +221,17 @@ export function analyzePolicyExceptions(
   const outside = fuel.filter((l) => l.state == null || !avoidState.has(l.state));
   const avgFill = (ls: SpendLine[]) => (ls.length ? totalsOf(ls).gallons / ls.length : null);
 
+  const isAvoidedBrand = (l: SpendLine) => l.brand != null && avoidBrand.has(l.brand);
+  const isAvoidedState = (l: SpendLine) => l.state != null && avoidState.has(l.state);
+  const isOffNetwork = (l: SpendLine) => l.brand == null || !preferred.has(l.brand);
+
   return {
-    avoidedBrands: exceptionReport(lines, (l) => l.brand != null && avoidBrand.has(l.brand)),
-    avoidedStates: exceptionReport(lines, (l) => l.state != null && avoidState.has(l.state)),
+    avoidedBrands: exceptionReport(lines, isAvoidedBrand),
+    avoidedStates: exceptionReport(lines, isAvoidedState),
+    offPolicy: exceptionReport(lines, (l) => isAvoidedBrand(l) || isAvoidedState(l) || isOffNetwork(l)),
     // An unresolved brand counts as off-network: it is certainly not a preferred site, and treating
     // "we could not identify it" as compliant is how off-network spend stayed invisible.
-    offNetwork: exceptionReport(lines, (l) => l.brand == null || !preferred.has(l.brand)),
+    offNetwork: exceptionReport(lines, isOffNetwork),
     avoidedStateFillSize: { inside: avgFill(inside), outside: avgFill(outside) },
   };
 }

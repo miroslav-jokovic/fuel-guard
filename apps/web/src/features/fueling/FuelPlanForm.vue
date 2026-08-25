@@ -9,7 +9,7 @@ import {
 import { reactive, computed, ref, watch } from "vue";
 import { EQUIPMENT_TYPES } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useRouteFuelSettings } from "./useRouteFuelSettings";
+import { useRouteFuelSettings } from "@/composables/useRouteFuelSettings";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";

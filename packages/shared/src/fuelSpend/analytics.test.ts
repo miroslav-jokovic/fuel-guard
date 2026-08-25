@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { analyzeDiscountCapture, weeklyDiscountCapture } from "./discountCapture.js";
-import { analyzePolicyExceptions, exceptionReport, DEFAULT_FUEL_POLICY } from "./policyExceptions.js";
+import { analyzePolicyExceptions, exceptionReport, DEFAULT_FUEL_POLICY, fuelPolicyFromSettings } from "./policyExceptions.js";
+import { avoidedStatesLabel, avoidedBrandsLabel, listStates } from "./policyLabels.js";
 import { analyzeAncillary, DEF_EXPECTED_RATIO } from "./ancillary.js";
 import { totalsOf, isTractorFuel, weekOf, type SpendLine } from "./types.js";
 
@@ -203,5 +204,103 @@ describe("analyzeAncillary", () => {
     expect(normal.def.ratio).toBeCloseTo(0.025, 4);
     expect(normal.def.outsideExpected).toBe(false);
     expect(DEF_EXPECTED_RATIO.high).toBe(0.03);
+  });
+});
+
+// ── the policy comes from the org, not from a constant ─────────────────────────────────────────
+describe("fuelPolicyFromSettings", () => {
+  it("uses the defaults only when the org has never configured a column", () => {
+    expect(fuelPolicyFromSettings(null)).toEqual(DEFAULT_FUEL_POLICY);
+    expect(fuelPolicyFromSettings({}).avoidStates).toEqual(["CA"]);
+    expect(fuelPolicyFromSettings({ avoid_states: null }).avoidStates).toEqual(["CA"]);
+  });
+
+  it("reads the org's own lists, which is the whole point", () => {
+    const p = fuelPolicyFromSettings({ avoid_states: ["CA", "OR"], avoid_brands: ["one9", "pride"] });
+    expect(p.avoidStates).toEqual(["CA", "OR"]);
+    expect(p.avoidBrands).toEqual(["one9", "pride"]);
+    expect(p.preferredBrands).toEqual(["pilot", "flying_j"]); // untouched column keeps its default
+  });
+
+  // `resolveRouteFuelConfig` deliberately merges these two for the PLANNER, where an empty preferred
+  // list can plan nothing. A compliance report has the opposite need: a carrier who clears the column
+  // is saying there is no rule, and answering with a California report is the bug F3 exists to fix.
+  it("treats a deliberately emptied list as a policy, not as an unset one", () => {
+    const p = fuelPolicyFromSettings({ avoid_states: [], avoid_brands: [] });
+    expect(p.avoidStates).toEqual([]);
+    expect(p.avoidBrands).toEqual([]);
+  });
+
+  it("normalises case, because the settings form takes free text and the analyzer matches on a Set", () => {
+    const p = fuelPolicyFromSettings({ avoid_states: [" ca ", "or"], avoid_brands: ["ONE9"] });
+    expect(p.avoidStates).toEqual(["CA", "OR"]);
+    expect(p.avoidBrands).toEqual(["one9"]);
+    // And it actually fires: a lower-case "ca" in settings used to report a clean period.
+    const ca = at(80, 6.5, 0, { state: "CA", site: "c1" });
+    const tx = at(120, 5, 0.6, { state: "TX", site: "t1" });
+    expect(analyzePolicyExceptions([ca, tx], p).avoidedStates.lines).toBe(1);
+  });
+
+  it("reports nothing at all for a policy that avoids nothing", () => {
+    const p = fuelPolicyFromSettings({ avoid_states: [] });
+    const lines = [at(80, 6.5, 0, { state: "CA" }), at(120, 5, 0.6, { state: "TX" })];
+    expect(analyzePolicyExceptions(lines, p).avoidedStates.lines).toBe(0);
+  });
+});
+
+// ── the three reports overlap, and the document added them ────────────────────────────────────
+describe("analyzePolicyExceptions offPolicy", () => {
+  // A ONE9 fill in California is off-brand, in an avoided state AND off the preferred network. The
+  // server report's verdict band — the one line guaranteed to be read — summed the three excesses and
+  // therefore counted this fill's cost three times, in a document that gets forwarded and quoted back.
+  const one9InCa = at(100, 7, 0, { brand: "one9", state: "CA", site: "z1" });
+  const cheapPilot = at(200, 5, 0.6, { brand: "pilot", state: "TX", site: "p1" });
+  const lines = [one9InCa, cheapPilot];
+
+  it("counts a fill that breaks three rules once, not three times", () => {
+    const ex = analyzePolicyExceptions(lines);
+    expect(ex.avoidedBrands.lines).toBe(1);
+    expect(ex.avoidedStates.lines).toBe(1);
+    expect(ex.offNetwork.lines).toBe(1);
+    // The union is still ONE fill, and its excess is not the sum of the three.
+    expect(ex.offPolicy.lines).toBe(1);
+    const summed = ex.avoidedBrands.excess + ex.avoidedStates.excess + ex.offNetwork.excess;
+    expect(ex.offPolicy.excess).toBeLessThan(summed);
+    expect(ex.offPolicy.excess).toBeCloseTo(summed / 3, 2);
+  });
+
+  it("still gathers fills that break only one rule each", () => {
+    const offBrandOnly = at(80, 6, 0, { brand: "one9", state: "TX", site: "z2" });
+    const inStateOnly = at(90, 6.4, 0.2, { brand: "pilot", state: "CA", site: "p2" });
+    const ex = analyzePolicyExceptions([offBrandOnly, inStateOnly, cheapPilot]);
+    expect(ex.offPolicy.lines).toBe(2);
+  });
+
+  it("reports nothing off policy when every fill is compliant", () => {
+    expect(analyzePolicyExceptions([cheapPilot]).offPolicy.lines).toBe(0);
+    expect(analyzePolicyExceptions([cheapPilot]).offPolicy.excess).toBe(0);
+  });
+});
+
+describe("policy labels", () => {
+  it("names the states the policy actually lists", () => {
+    expect(avoidedStatesLabel(["CA"])).toBe("California");
+    expect(avoidedStatesLabel(["CA", "OR"])).toBe("California and Oregon");
+    expect(avoidedStatesLabel(["CA", "OR", "WA", "NV"])).toBe("California, Oregon and 2 more");
+    expect(avoidedStatesLabel([])).toBeNull();
+  });
+
+  it("falls back to the code rather than dropping a state it cannot spell", () => {
+    expect(avoidedStatesLabel(["ZZ"])).toBe("ZZ");
+  });
+
+  it("names brands from the catalogue the rest of the product uses", () => {
+    expect(avoidedBrandsLabel(["one9"])).toBe("ONE9");
+    expect(avoidedBrandsLabel(["one9", "pride"])).toBe("ONE9 and Pride");
+    expect(avoidedBrandsLabel([])).toBeNull();
+  });
+
+  it("lists every state in full where there is room for it", () => {
+    expect(listStates(["CA", "OR", "WA"])).toBe("California, Oregon, Washington");
   });
 });

@@ -8,13 +8,14 @@
  * `packages/shared` and all tested there, so a figure in this document and the same figure on the page
  * cannot come out different.
  */
-import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, FleetIdleVerdict, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
+import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, FleetIdleVerdict, FuelPolicy, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { proportionBar, proportionBarHeight, rankedBars, rankedBarsHeight, type Rank, type Segment } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, type Column, type Row } from "./fuelSpendReportTable.js";
 import { lead, note, startSection } from "./fuelSpendReportDraw.js";
 import { ensure, gap } from "./fuelSpendReportFlow.js";
 import { num, plural, shortDay, usd, usd3 } from "./fuelSpendReportFormat.js";
+import { avoidedBrandsLabel, avoidedStatesLabel } from "@fuelguard/shared";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
 
 const M = GEOM.margin;
@@ -160,12 +161,18 @@ export function drawExceptions(
   doc: PDFKit.PDFDocument,
   ex: ReturnType<typeof analyzePolicyExceptions>,
   n: number,
+  policy: FuelPolicy,
 ): void {
   startSection(doc, n, "Where the fuel policy was not followed", undefined, tableHeadHeight(true));
 
+  // Named from `route_fuel_settings`, not from the one carrier this was built against. A document is
+  // the worst place to hardcode a policy: it is forwarded, filed and quoted back months later, so a
+  // row headed "California" for a fleet that avoids Oregon is a claim nobody can trace or correct.
+  const brands = avoidedBrandsLabel(policy.avoidBrands);
+  const states = avoidedStatesLabel(policy.avoidStates);
   const reports = [
-    { name: "Avoided brands (ONE9, off-brand)", r: ex.avoidedBrands },
-    { name: "California", r: ex.avoidedStates },
+    ...(brands ? [{ name: `Avoided brands (${brands})`, r: ex.avoidedBrands }] : []),
+    ...(states ? [{ name: states, r: ex.avoidedStates }] : []),
     { name: "Off the preferred network", r: ex.offNetwork },
   ];
   if (reports.every((x) => x.r.lines === 0)) {
@@ -189,7 +196,10 @@ export function drawExceptions(
   );
   note(
     doc,
-    "Excess is what these gallons cost above what the rest of the fleet paid over the same period - not against a fixed price, which in a moving market invents a finding every time diesel rises. The three rows overlap: a ONE9 fill in California is counted in all of them.",
+    "Excess is what these gallons cost above what the rest of the fleet paid over the same period - not against a fixed price, which in a moving market invents a finding every time diesel rises. " +
+      (reports.length > 1
+        ? "The rows OVERLAP and must not be added: a fill can be off-brand, in an avoided state and off the preferred network at once, and is counted in each."
+        : ""),
   );
 
   // The summary above says how much; this says WHERE, which is the only part anybody can act on. The
