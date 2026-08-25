@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   BRIDGE_TIE_TOLERANCE,
+  MIN_IDLE_COVERAGE,
   periodTotals,
   operatingBridge,
   PLAUSIBLE_FLEET_MPG,
@@ -125,6 +126,71 @@ describe("periodTotals", () => {
     const p = periodTotals(rows, "2026-08-17", "2026-08-23");
     expect(p.gallons).toBe(140); // ties to the bill
     expect(p.activeTrucks).toBe(1); // nobody's truck is not a truck
+  });
+});
+
+describe("idle is costed only when the engine feed was watching", () => {
+  /** `n` truck-days, each with `coverage` seconds observed out of the 86,400 in a day. */
+  const truckDays = (n: number, coverage: number, idleSec: number) =>
+    Array.from({ length: n }, (_, i) =>
+      day({
+        day: "2026-08-17", vehicleId: `t${i}`, fills: 1,
+        gallonsTractor: 100, spendTractor: 520, miles: 750, mpgGallons: 100,
+        idleSec, driveSec: 28800, coverageSec: coverage,
+      }),
+    );
+
+  it("costs idle at the period's OWN price per gallon, not a configured constant", () => {
+    const p = periodTotals(truckDays(10, 86400, 3600), "2026-08-17", "2026-08-23");
+    expect(p.idleUsable).toBe(true);
+    // 10 trucks × 1 h × 0.8 gal/h = 8 gal, at $5.20/gal (520 ÷ 100) = $41.60.
+    expect(p.idleGallons).toBeCloseTo(8, 2);
+    expect(p.idleCost).toBeCloseTo(41.6, 2);
+    expect(p.pricePerGal).toBeCloseTo(5.2, 4);
+  });
+
+  it("honours the org's own idle rate when it has one", () => {
+    const p = periodTotals(truckDays(10, 86400, 3600), "2026-08-17", "2026-08-23", { idleGalPerHour: 1.2 });
+    expect(p.idleGallons).toBeCloseTo(12, 2);
+  });
+
+  it("withholds every idle figure when the feed barely watched the period", () => {
+    // The real outage: 2026-07-13 recorded 10.9% of each day. Idle computed over it reads as a
+    // collapse in idling, which is a broken sync being reported as an achievement.
+    const p = periodTotals(truckDays(10, Math.round(86400 * 0.109), 3600), "2026-07-13", "2026-07-19");
+    expect(p.idleCoverage).toBeCloseTo(0.109, 2);
+    expect(p.idleUsable).toBe(false);
+    expect(p.idleGallons).toBeNull();
+    expect(p.idleCost).toBeNull();
+    expect(p.idleShare).toBeNull(); // the share is as unusable as the dollars
+  });
+
+  it("still reports the FUEL for those days — only the idle claim is withheld", () => {
+    const p = periodTotals(truckDays(10, Math.round(86400 * 0.109), 3600), "2026-07-13", "2026-07-19");
+    expect(p.spend).toBe(5200); // the fuel was still bought
+    expect(p.gallons).toBe(1000);
+  });
+
+  it("uses the same coverage bar the Idling page scores by", () => {
+    const just_under = periodTotals(truckDays(10, Math.round(86400 * (MIN_IDLE_COVERAGE - 0.01)), 3600), "a", "b");
+    const just_over = periodTotals(truckDays(10, Math.round(86400 * (MIN_IDLE_COVERAGE + 0.01)), 3600), "a", "b");
+    expect(just_under.idleUsable).toBe(false);
+    expect(just_over.idleUsable).toBe(true);
+  });
+
+  it("does not count the unattributed row against coverage", () => {
+    // Fuel with no truck behind it has no engine time and was never observable; counting it as a
+    // truck-day would drag coverage under the bar and withhold idle for a fleet that was fully watched.
+    const rows = [...truckDays(4, 86400, 3600), day({ day: "2026-08-17", vehicleId: null, fills: 1, gallonsTractor: 40, spendTractor: 208 })];
+    const p = periodTotals(rows, "2026-08-17", "2026-08-23");
+    expect(p.idleCoverage).toBe(1);
+    expect(p.idleUsable).toBe(true);
+  });
+
+  it("says nothing rather than zero when a period has no engine data at all", () => {
+    const p = periodTotals(truckDays(5, 0, 0), "2026-08-17", "2026-08-23");
+    expect(p.idleUsable).toBe(false);
+    expect(p.idleCost).toBeNull();
   });
 });
 

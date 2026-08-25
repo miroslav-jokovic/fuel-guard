@@ -8,6 +8,8 @@ import { apiDownload } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
 import { useToastStore } from "@/stores/toast";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
+import IdleCostCard from "./IdleCostCard.vue";
+import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useSpendDaysQuery, type SpendQueryFilters } from "./useSpendDays";
 import { usd, usd2, usd3, gal, pct1 } from "./format";
 
@@ -37,7 +39,13 @@ const days = computed<SpendDay[]>(() => data.value ?? []);
 
 // The requested window, so an edge bucket is labelled by the days it holds rather than by the
 // calendar week it belongs to.
-const series = computed(() => spendSeries(days.value, grain.value, { from: props.filters.from, to: props.filters.to }));
+// The org's configured idle burn rate, so this page and the Idling page cost an idle hour identically.
+const idleBasis = useIdleCostBasis();
+const series = computed(() =>
+  spendSeries(days.value, grain.value, { from: props.filters.from, to: props.filters.to }, {
+    idleGalPerHour: idleBasis.value.idleGalPerHour,
+  }),
+);
 const comparison = computed(() => comparablePeriods(series.value));
 /** Everything in the window, for the tiles — the totals a boss opens the page for. */
 const overall = computed(() => periodTotals(days.value, series.value[0]?.from ?? "", series.value[series.value.length - 1]?.to ?? ""));
@@ -78,6 +86,9 @@ const tiles = computed(() => {
     // sits beside them rather than being left for the reader to divide out.
     { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true },
     { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
+    // Idle sits in the headline row because it is bought with the same gallons as the miles beside it.
+    // It reads "—" rather than zero when the engine feed did not cover the period; see IdleCostCard.
+    { label: "Idle cost", value: c?.idleCost == null ? "—" : usd(c.idleCost), pick: (p: SpendPeriod) => p.idleCost, upIsBad: true },
   ].map((t) => ({
     label: t.label,
     value: t.value,
@@ -107,7 +118,8 @@ const rows = computed(() =>
     miles: gal(p.miles),
     mpg: p.mpg?.toFixed(2) ?? "—",
     perMile: usd2(p.costPerMile),
-    idle: pct1(p.idleShare),
+    idle: p.idleUsable ? pct1(p.idleShare) : "—",
+    idleCost: p.idleCost == null ? "—" : usd(p.idleCost),
   })),
 );
 const columns: DataTableColumn[] = [
@@ -121,6 +133,7 @@ const columns: DataTableColumn[] = [
   { key: "mpg", label: "MPG", numeric: true, width: "xs" },
   { key: "perMile", label: "Cost / mile", numeric: true, width: "sm" },
   { key: "idle", label: "Idle", numeric: true, width: "xs" },
+  { key: "idleCost", label: "Idle cost", numeric: true, width: "sm" },
 ];
 
 const hasData = computed(() => days.value.length > 0);
@@ -154,10 +167,13 @@ function exportCsv() {
   const { from, to } = range.value;
   downloadCsv(
     `fuelguard-fuel-spend-${from}-to-${to}.csv`,
-    ["Period start", "Period end", "Trucks", "Fills", "Gallons", "Fuel spend", "Paid per gal", "Miles", "MPG", "Cost per mile", "Idle share"],
+    ["Period start", "Period end", "In progress", "Trucks", "Fills", "Gallons", "Fuel spend", "Paid per gal", "Miles", "MPG", "Cost per mile", "Idle hours", "Idle gallons", "Idle cost", "Idle share", "Engine coverage"],
     series.value.map((p) => [
-      p.from, p.to, p.activeTrucks, p.fills, p.gallons, p.spend,
-      p.pricePerGal, p.miles, p.mpg, p.costPerMile, p.idleShare,
+      p.from, p.to, p.partial ? "yes" : "", p.activeTrucks, p.fills, p.gallons, p.spend,
+      p.pricePerGal, p.miles, p.mpg, p.costPerMile,
+      // Blank, not zero, where coverage cannot support the claim — a zero in a spreadsheet gets summed.
+      p.idleUsable ? Math.round(p.idleSec / 36) / 100 : "", p.idleGallons ?? "", p.idleCost ?? "", p.idleShare ?? "",
+      p.idleCoverage ?? "",
     ]),
   );
 }
@@ -194,7 +210,7 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
 
       <!-- The one KPI tile (D-UI2). These were hand-rolled BaseCards reproducing StatCard's kpi anatomy
            class for class, which is exactly the drift StatCard was extracted to end. -->
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard
           v-for="t in tiles"
           :key="t.label"
@@ -220,6 +236,8 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
           come back once the current {{ grainLabel }} has finished.
         </p>
       </BaseCard>
+
+      <IdleCostCard :periods="series" :grain-label="grainLabel" />
 
       <div>
         <h4 class="mb-2 text-sm font-semibold text-ink">{{ grainLabel === "day" ? "Day" : grainLabel === "month" ? "Month" : "Week" }} by {{ grainLabel }}</h4>

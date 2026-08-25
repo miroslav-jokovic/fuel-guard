@@ -41,6 +41,10 @@
  * instead of published with a caveat nobody reads.
  */
 
+// ONE idle rate for the product. `smartFueling/consumption` owns it and the planner already burns
+// fuel at it; declaring a second 0.8 here is how two screens start disagreeing about an idle hour.
+import { DEFAULT_IDLE_GAL_PER_HOUR } from "../smartFueling/consumption.js";
+
 /** Physically possible fleet MPG for a Class-8 tractor. Outside this, the odometer is wrong, not the truck. */
 export const PLAUSIBLE_FLEET_MPG = { low: 3, high: 12 } as const;
 
@@ -50,6 +54,20 @@ export const PLAUSIBLE_FLEET_MPG = { low: 3, high: 12 } as const;
  * miles/efficiency split is withheld instead.
  */
 export const MIN_MEASURED_SHARE = 0.6;
+
+/**
+ * How much of a period's wall-clock the engine feed must have actually watched before an idle figure is
+ * reported at all.
+ *
+ * 0.8 is not a new number — it is `computeAvoidable`'s `minCoverage` default, the rule the Idling page
+ * already scores by. Reusing it means one definition of "we were watching" rather than two.
+ *
+ * This is load-bearing, not defensive. The Samsara engine-state feed was largely down from 2026-07-13 to
+ * 07-26: 467 truck-days recorded against a normal 1,100, each covering 10.9% of its day. Idle computed
+ * over those weeks reads as a collapse in idling, and a report that showed it would be congratulating
+ * the fleet for a broken sync.
+ */
+export const MIN_IDLE_COVERAGE = 0.8;
 
 /** One truck-day from the rollup. A `null` vehicle is the day's unattributed fuel, kept so totals tie. */
 export interface SpendDay {
@@ -104,8 +122,19 @@ export interface SpendPeriod {
   mpg: number | null;
   costPerMile: number | null;
   milesPerTruck: number | null;
-  /** Idle seconds as a share of engine-on (idle + drive) time. */
+  /**
+   * Idle seconds as a share of engine-on (idle + drive) time. Null when the feed was not watching
+   * enough of the period to say — see `idleCoverage`.
+   */
   idleShare: number | null;
+  /** Share of the period's truck-days the engine feed actually covered, 0–1. */
+  idleCoverage: number | null;
+  /** False when coverage is below `MIN_IDLE_COVERAGE`; every idle figure above is then null. */
+  idleUsable: boolean;
+  /** Fuel burned standing still, at the org's idle rate. Null when coverage cannot support it. */
+  idleGallons: number | null;
+  /** What that fuel cost, valued at the period's OWN price per gallon rather than a configured constant. */
+  idleCost: number | null;
   /** Share of tractor gallons whose miles are measurable — how much of `miles` is proven, not implied. */
   measuredShare: number | null;
   /** False when MPG is missing, physically impossible, or too thinly measured to scale. */
@@ -140,12 +169,25 @@ const r3 = (n: number) => unsign(Math.round(n * 1000) / 1000);
 export const BRIDGE_TIE_TOLERANCE = 0.005;
 const ratio = (num: number, den: number): number | null => (den > 0 ? num / den : null);
 
+export interface PeriodOptions {
+  /** The bucket reaches beyond the data; `from`/`to` have been clamped. */
+  partial?: boolean;
+  /** The org's configured idle burn rate. Defaults to `DEFAULT_IDLE_GAL_PER_HOUR`. */
+  idleGalPerHour?: number;
+}
+
 /** Aggregate truck-days into one period. Empty input yields a zeroed period, never a throw. */
-export function periodTotals(days: readonly SpendDay[], from: string, to: string, partial = false): SpendPeriod {
+export function periodTotals(
+  days: readonly SpendDay[],
+  from: string,
+  to: string,
+  opts: PeriodOptions = {},
+): SpendPeriod {
+  const partial = opts.partial === true;
   const trucks = new Set<string>();
   const dates = new Set<string>();
   let fills = 0, gallonsRaw = 0, spendRaw = 0, gReefer = 0, sReeferRaw = 0, gDef = 0, sDefRaw = 0;
-  let milesRaw = 0, mpgGallonsRaw = 0, rejected = 0, driveSec = 0, idleSec = 0, coverageSec = 0;
+  let milesRaw = 0, mpgGallonsRaw = 0, rejected = 0, driveSec = 0, idleSec = 0, coverageSec = 0, truckDays = 0;
 
   for (const d of days) {
     dates.add(d.day);
@@ -167,6 +209,10 @@ export function periodTotals(days: readonly SpendDay[], from: string, to: string
     driveSec += d.driveSec;
     idleSec += d.idleSec;
     coverageSec += d.coverageSec;
+    // Truck-days the feed could have watched — the denominator for coverage. The unattributed row is
+    // fuel with no truck behind it and no engine time, so counting it would dilute coverage with days
+    // that were never observable.
+    if (d.vehicleId) truckDays += 1;
   }
 
   // Derive every ratio from the values this object will actually EXPOSE, not from the raw sums behind
@@ -192,6 +238,16 @@ export function periodTotals(days: readonly SpendDay[], from: string, to: string
   // gallons rather than on the measured subset. See the header.
   const impliedMiles = mpg != null ? gallons * mpg : milesMeasured;
   const totalSpend = r2(spend + sReefer + sDef);
+
+  // ── idle, gated on whether the engine feed was actually watching ────────────────────────────────
+  const idleCoverage = truckDays > 0 ? Math.min(1, coverageSec / (truckDays * 86_400)) : null;
+  const idleUsable = idleCoverage != null && idleCoverage >= MIN_IDLE_COVERAGE && idleSec > 0;
+  const idleGallons = idleUsable ? r2((idleSec / 3600) * (opts.idleGalPerHour ?? DEFAULT_IDLE_GAL_PER_HOUR)) : null;
+  const pricePerGal = ratio(spend, gallons);
+  // Valued at what this period ACTUALLY paid, not at a configured constant. An idle hour in a $5.22
+  // week did not cost what an idle hour in a $3.96 week cost, and the whole point of costing idle is
+  // to compare it against the fuel bill sitting beside it.
+  const idleCost = idleGallons != null && pricePerGal != null ? r2(idleGallons * pricePerGal) : null;
   return {
     from,
     to,
@@ -212,14 +268,18 @@ export function periodTotals(days: readonly SpendDay[], from: string, to: string
     driveSec,
     idleSec,
     coverageSec,
-    pricePerGal: ratio(spend, gallons),
+    pricePerGal,
     mpg,
     // Cost per mile deliberately uses TOTAL spend against IMPLIED miles: a boss asking what a mile costs
     // is not asking about tractor diesel alone (reefer and DEF are on the same invoice), and dividing by
     // only the miles we could prove would overstate the cost of every mile by the coverage gap.
     costPerMile: ratio(totalSpend, impliedMiles),
     milesPerTruck: trucks.size > 0 ? impliedMiles / trucks.size : null,
-    idleShare: ratio(idleSec, idleSec + driveSec),
+    idleShare: idleUsable ? ratio(idleSec, idleSec + driveSec) : null,
+    idleCoverage: idleCoverage == null ? null : Math.round(idleCoverage * 1000) / 1000,
+    idleUsable,
+    idleGallons,
+    idleCost,
     measuredShare,
     mpgUsable,
     partial,

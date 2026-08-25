@@ -5,7 +5,7 @@
  * already had: this decides WHICH days belong together and how an edge bucket is labelled; the bridge
  * decides what the difference between two of them means.
  */
-import { periodTotals, type SpendDay, type SpendPeriod } from "./operatingBridge.js";
+import { periodTotals, type PeriodOptions, type SpendDay, type SpendPeriod } from "./operatingBridge.js";
 
 export type SpendGrain = "day" | "week" | "month";
 
@@ -53,6 +53,7 @@ export function spendSeries(
   days: readonly SpendDay[],
   grain: SpendGrain,
   window?: { from: string; to: string },
+  opts: Omit<PeriodOptions, "partial"> = {},
 ): SpendPeriod[] {
   const buckets = new Map<string, { from: string; to: string; rows: SpendDay[] }>();
   let lo: string | null = window?.from ?? null;
@@ -73,7 +74,7 @@ export function spendSeries(
     .map((b) => {
       const from = lo != null && b.from < lo ? lo : b.from;
       const to = hi != null && b.to > hi ? hi : b.to;
-      return periodTotals(b.rows, from, to, from !== b.from || to !== b.to);
+      return periodTotals(b.rows, from, to, { ...opts, partial: from !== b.from || to !== b.to });
     });
 }
 
