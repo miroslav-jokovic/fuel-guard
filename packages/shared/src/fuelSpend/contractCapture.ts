@@ -107,6 +107,27 @@ export interface ContractCapture {
   unmeasuredLines: number;
   unmeasuredGallons: number;
   unmeasuredPaid: number;
+  /**
+   * ── THE FIGURE THAT TELLS THE READER HOW BIG THE ANSWER IS ────────────────────────────────────
+   *
+   * `paid ÷ (paid + unmeasuredPaid)` — the share of in-scope fuel spend this whole analysis covers.
+   * Null when nothing is in scope.
+   *
+   * The module already reports `unmeasuredLines` and the surface already prints it, but as a caveat
+   * BELOW the headline rather than as part of it, and as a count of fills rather than a share of
+   * dollars. Measured on production 2026-08-25 over the default 90-day window, that gap is not
+   * cosmetic:
+   *
+   *     5,552 tractor fills · $3,056,926 paid
+   *     1,409 quoted (25.4% of fills) · $849,913 measurable (27.8% of SPEND)
+   *
+   * `fuel_prices` held 20 days, 2026-08-02 → 2026-08-25, and nothing before it — a historical gap,
+   * not an operational one, and one a backfill closes without any code. Until it is closed, a net
+   * variance rendered as a fleet-wide finding describes just over a quarter of the bill. A dollar
+   * figure whose denominator is not beside it is the same defect as `totalsOf` dividing a partial
+   * retail sum by every gallon; this is the field that lets a consumer avoid it.
+   */
+  measuredSpendShare: number | null;
   /** Of the measured fills, how many used a quote carried forward from the previous day. */
   carriedForwardLines: number;
 
@@ -195,6 +216,9 @@ export function analyzeContractCapture(lines: readonly SpendLine[]): ContractCap
   const expected = scored.reduce((a, c) => a + c.expected, 0);
   const capturedGallons = withRetail.reduce((a, c) => a + c.gallons, 0);
   const captured = withRetail.reduce((a, c) => a + c.captured!, 0);
+  // The denominator the headline is measured against: every in-scope dollar, priced or not.
+  const unmeasuredPaid = unmeasured.reduce((a, l) => a + (l.netAmount ?? 0), 0);
+  const inScopePaid = paid + unmeasuredPaid;
 
   return {
     measuredLines: scored.length,
@@ -219,7 +243,8 @@ export function analyzeContractCapture(lines: readonly SpendLine[]): ContractCap
 
     unmeasuredLines: unmeasured.length,
     unmeasuredGallons: r2(unmeasured.reduce((a, l) => a + l.gallons, 0)),
-    unmeasuredPaid: r2(unmeasured.reduce((a, l) => a + (l.netAmount ?? 0), 0)),
+    unmeasuredPaid: r2(unmeasuredPaid),
+    measuredSpendShare: inScopePaid > 0 ? paid / inScopePaid : null,
     carriedForwardLines: scored.filter((c) => (c.staleDays ?? 0) > 0).length,
 
     exceptions: [...beyond].sort((a, b) => b.variance - a.variance),

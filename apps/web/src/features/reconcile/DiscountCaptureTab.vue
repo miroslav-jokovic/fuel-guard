@@ -110,7 +110,7 @@ function exportLines() {
               station charged over.
             </p>
           </div>
-          <div class="text-right">
+          <div class="shrink-0 text-right">
             <p
               class="text-2xl font-bold"
               :class="capture.netVariance > 0 ? 'text-danger-700' : 'text-ink'"
@@ -118,6 +118,19 @@ function exportLines() {
               {{ usd(Math.abs(capture.netVariance)) }}
             </p>
             <p class="text-xs text-ink-muted">{{ capture.netVariance >= 0 ? "over" : "under" }} contract</p>
+            <!-- ⚠ The denominator belongs HERE, beside the figure, not in the caution strip below.
+                 On production 2026-08-25 this headline covered $849,913 of $3,056,926 — 27.8% of the
+                 window's fuel — while reading as a fleet-wide verdict. A dollar figure whose scope is
+                 a paragraph away is the same defect as `totalsOf` dividing a partial retail sum by
+                 every gallon; both were found in the same audit. -->
+            <p v-if="capture.measuredSpendShare != null" class="mt-1.5 text-xs text-ink-tertiary">
+              measured over {{ usd(capture.paid) }}<br />
+              of {{ usd(capture.paid + capture.unmeasuredPaid) }} —
+              <span :class="capture.measuredSpendShare < 0.75 ? 'font-medium text-caution-800' : ''">{{
+                pct1(capture.measuredSpendShare)
+              }}</span>
+              of this window's fuel
+            </p>
           </div>
         </div>
 

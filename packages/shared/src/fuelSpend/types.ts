@@ -64,36 +64,74 @@ export interface SpendTotals {
   gallons: number;
   net: number;
   retail: number;
-  /** retail − net, in dollars. */
+  /** retail − net, over the retail-bearing lines ONLY. See `retailGallons`. */
   discount: number;
   /** net ÷ gallons. Null when no gallons — never 0, which would read as free fuel. */
   netPerGal: number | null;
+  /**
+   * ── EVERY RETAIL FIGURE BELOW IS MEASURED OVER `retailGallons`, NOT `gallons` ──────────────────
+   *
+   * A posted price is not available for every fill. EFS records what we PAID and never what was on
+   * the sign, so `retailAmount` is filled in from the daily Pilot report and is NULL wherever no
+   * quote was in range — for an off-network site, that is every single line.
+   *
+   * These used to divide a partial retail sum by the FULL gallon count, which is not a weaker
+   * measurement but a wrong one: with no retail anywhere, `discountPerGal` collapsed to `−netPerGal`
+   * and the off-network tab printed a large NEGATIVE dollar figure under the label "Discount
+   * captured". Measured on production 2026-08-25, only 27.8% of the default window's spend carries a
+   * quote at all, so the mismatch between the two denominators is the normal case and not an edge.
+   *
+   * `contractCapture` has always got this right and says so at length; this is the same rule, applied
+   * in the module every other consumer reads. Null when nothing was measurable — never 0, which reads
+   * as "we captured no discount" when the truth is "we could not tell".
+   */
   retailPerGal: number | null;
   discountPerGal: number | null;
   /** discount ÷ retail — how much of the posted price the contract took off. */
   capturePct: number | null;
+  /** Lines carrying a posted price — the denominator of every retail figure above. */
+  retailLines: number;
+  /** Gallons on those lines. */
+  retailGallons: number;
+  /** `retailGallons ÷ gallons` — how much of this total the discount figures actually cover. */
+  retailShare: number | null;
 }
 
 export function totalsOf(lines: readonly SpendLine[]): SpendTotals {
   let gallons = 0;
   let net = 0;
   let retail = 0;
+  // The retail-bearing subset, accumulated separately — a posted price and the amount paid for the
+  // SAME gallons, so `retail − netOnRetail` is a discount and not the difference of two populations.
+  let retailLines = 0;
+  let retailGallons = 0;
+  let netOnRetail = 0;
   for (const l of lines) {
     gallons += l.gallons;
     net += l.netAmount ?? 0;
-    retail += l.retailAmount ?? 0;
+    if (l.retailAmount != null) {
+      retail += l.retailAmount;
+      retailLines += 1;
+      retailGallons += l.gallons;
+      netOnRetail += l.netAmount ?? 0;
+    }
   }
   const r2 = (n: number) => Math.round(n * 100) / 100;
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+  const discount = retail - netOnRetail;
   return {
     lines: lines.length,
-    gallons: Math.round(gallons * 1000) / 1000,
+    gallons: r3(gallons),
     net: r2(net),
     retail: r2(retail),
-    discount: r2(retail - net),
+    discount: r2(discount),
     netPerGal: gallons > 0 ? net / gallons : null,
-    retailPerGal: gallons > 0 ? retail / gallons : null,
-    discountPerGal: gallons > 0 ? (retail - net) / gallons : null,
-    capturePct: retail > 0 ? (retail - net) / retail : null,
+    retailPerGal: retailGallons > 0 ? retail / retailGallons : null,
+    discountPerGal: retailGallons > 0 ? discount / retailGallons : null,
+    capturePct: retail > 0 ? discount / retail : null,
+    retailLines,
+    retailGallons: r3(retailGallons),
+    retailShare: gallons > 0 ? retailGallons / gallons : null,
   };
 }
 

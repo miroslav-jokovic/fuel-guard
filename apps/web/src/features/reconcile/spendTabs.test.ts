@@ -29,7 +29,12 @@ beforeEach(() => {
   });
 });
 
-const fill = (o: Partial<SpendLine> & { tranDate: string; gallons: number; netAmount: number; retailAmount: number }): SpendLine => ({
+// `retailAmount` is deliberately nullable: EFS records what we PAID and never what was posted, so a
+// fill only carries a posted price when the daily Pilot report covered its station that day. Requiring
+// one here made every fixture in this file more measurable than production, where 27.8% of the default
+// window's spend carries a quote — which is how a tile dividing a partial retail sum by every gallon
+// went unnoticed.
+const fill = (o: Partial<SpendLine> & { tranDate: string; gallons: number; netAmount: number; retailAmount: number | null }): SpendLine => ({
   brand: "pilot", state: "TX", site: "1", city: "Somewhere", unit: "701", driver: "A DRIVER",
   product: "diesel", tank: "tractor", miscAmount: null, salesTax: null, ...o,
 });
@@ -114,6 +119,25 @@ describe("DiscountCaptureTab", () => {
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("NaN");
   });
+
+  // ── how big is the answer? ────────────────────────────────────────────────────────────────────
+  // Measured on production 2026-08-25, this headline covered $849,913 of $3,056,926 — 27.8% of the
+  // window's fuel — while reading as a fleet-wide verdict, because `fuel_prices` held 20 days and the
+  // window is 90. The share belongs beside the figure; it was in a caution strip below it.
+  it("states the share of spend the headline variance was measured over", () => {
+    // Half the fills quoted, half with no quote in range.
+    const lines = quoted().map((l, i) => (i % 2 === 0 ? l : { ...l, contractAmount: null, retailAmount: null }));
+    const t = mount(DiscountCaptureTab, { props: { lines } }).text();
+    expect(t).toContain("of this window's fuel");
+    expect(t).toMatch(/measured over \$[\d,]+/);
+    expect(t).not.toContain("NaN");
+  });
+
+  it("does not claim partial coverage when every fill was priced", () => {
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted() } }).text();
+    expect(t).toContain("100.0% of this window's fuel");
+    expect(t).not.toContain("had no quote in range");
+  });
 });
 
 describe("ExceptionsTab", () => {
@@ -134,6 +158,41 @@ describe("ExceptionsTab", () => {
       props: { title: "California", blurb: "…", report: analyzePolicyExceptions([]).avoidedStates, slug: "ca" },
     }).text();
     expect(t).toContain("the policy held for this period");
+    expect(t).not.toContain("NaN");
+  });
+
+  // ── the negative discount ─────────────────────────────────────────────────────────────────────
+  // Off-network fills are the ones the Pilot price report does not cover, so no posted price is the
+  // ORDINARY case for this report. Divided by every gallon the discount resolved to −netPerGal, and
+  // the tile printed a large negative dollar figure captioned "none captured at all" — an accusation
+  // built entirely out of missing data.
+  it("says it cannot tell, rather than printing a negative discount, when no fill has a posted price", () => {
+    const offNetwork = [
+      fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 700, retailAmount: null, brand: null, site: "ta1" }),
+      fill({ tranDate: "2026-08-18", gallons: 80, netAmount: 550, retailAmount: null, brand: null, site: "ta2" }),
+      fill({ tranDate: "2026-08-17", gallons: 120, netAmount: 500, retailAmount: 560, brand: "pilot", site: "p1" }),
+    ];
+    const t = mount(ExceptionsTab, {
+      props: { title: "Off the preferred network", blurb: "…", report: analyzePolicyExceptions(offNetwork).offNetwork, slug: "off" },
+    }).text();
+    expect(t).toContain("no posted price for these fills");
+    expect(t).not.toContain("none captured at all");
+    expect(t).not.toMatch(/\$-/); // the shape of the bug: "$-7.007/gal"
+    expect(t).not.toContain("NaN");
+  });
+
+  it("states the share of gallons a partial discount was measured over", () => {
+    // Two off-network fills, one of which happens to carry a posted price.
+    const mixed = [
+      fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 600, retailAmount: 660, brand: null, site: "x1" }),
+      fill({ tranDate: "2026-08-18", gallons: 100, netAmount: 620, retailAmount: null, brand: null, site: "x2" }),
+      fill({ tranDate: "2026-08-17", gallons: 120, netAmount: 500, retailAmount: 560, brand: "pilot", site: "p1" }),
+    ];
+    const t = mount(ExceptionsTab, {
+      props: { title: "Off the preferred network", blurb: "…", report: analyzePolicyExceptions(mixed).offNetwork, slug: "off" },
+    }).text();
+    expect(t).toContain("$0.600/gal");        // $60 over the 100 priced gallons, not over 200
+    expect(t).toContain("of these gallons");  // and it says so
     expect(t).not.toContain("NaN");
   });
 });
