@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  parsePilotFuelReport,
-  parsePilotSiteDescr,
-  reconcilePilotFuel,
-  type ReconGrid,
-  type SystemFill,
-  type PilotReportFill,
-} from "./pilotFuelReport.js";
+import { parsePilotFuelReport, parsePilotSiteDescr, type ReconGrid } from "./pilotFuelReport.js";
 
 // A synthetic grid in the real Pilot "All Transactions" shape (metadata rows, header, then lines).
 const GRID: ReconGrid = [
@@ -19,6 +12,10 @@ const GRID: ReconGrid = [
   [2, 139445, "Silvicom Inc", 354187, 672, 947552, 747, "747 Springville UT", 70.71, 345.69, 400.17, "2026-06-01", "00:15", 20, "Truck Diesel"],
   [2, 139445, "Silvicom Inc", 370325, 700, 595140, 662, "662 Oak Grove KY", 3.34, 16.7, 16.7, "2026-06-01", "01:49", 140, "Diesel Exhaust Fluid"],
   [2, 139445, "Silvicom Inc", 370325, 700, 595140, 662, "662 Oak Grove KY", 75.96, 327.63, 363.79, "2026-06-01", "01:49", 20, "Truck Diesel"],
+  // Reefer and merchandise, in Pilot's own words. Product code 33 is dyed off-road diesel; the word
+  // "Reefer" contains no "diesel", which is exactly why the old description-only rule lost it.
+  [2, 139445, "Silvicom Inc", 370326, 701, 595141, 662, "662 Oak Grove KY", 30.6, 161.93, 170.0, "2026-06-02", "02:10", 33, "Reefer"],
+  [2, 139445, "Silvicom Inc", 370327, 701, 595141, 662, "662 Oak Grove KY", 1, 12.99, 12.99, "2026-06-02", "02:11", 400, "Miscellaneous"],
 ];
 
 describe("parsePilotSiteDescr", () => {
@@ -47,30 +44,27 @@ describe("parsePilotFuelReport", () => {
   });
 });
 
-describe("reconcilePilotFuel", () => {
-  const rf = (o: Partial<PilotReportFill>): PilotReportFill => ({ authNo: "A1", unit: "100", cardRef: "947552", site: "747", city: "X", state: "UT", gallons: 70, netAmount: 300, retailAmount: 350, tranDate: "2026-06-01", time: "00:15", product: "diesel", rowNumber: 1, ...o });
-  const sf = (o: Partial<SystemFill>): SystemFill => ({ id: "s1", cardRef: "947552", controlId: null, unit: "100", fueledAt: "2026-06-01T00:15:00Z", tranDate: "2026-06-01", gallons: 70, totalCost: 300, ...o });
+describe("the product taxonomy, on the export's real shapes", () => {
+  const p = parsePilotFuelReport(GRID);
 
-  it("clean", () => expect(reconcilePilotFuel([rf({})], [sf({})]).summary.clean).toBe(1));
-  it("amount mismatch counts $ at stake", () => {
-    const r = reconcilePilotFuel([rf({ netAmount: 320 })], [sf({ totalCost: 300 })]);
-    expect(r.summary.amountMismatch).toBe(1);
-    expect(r.summary.dollarsAtStake).toBeCloseTo(20);
+  it("keeps reefer out of the tractor bucket AND out of the bin", () => {
+    // Measured on the real 2026-06/07 export: 120 reefer lines fell through to `other` and the UI then
+    // reported "0 reefer", because `/truck diesel|diesel(?! exhaust)/i` cannot match the word "Reefer".
+    expect(p.fills.map((f) => f.gallons)).toEqual([70.71, 75.96]);
+    expect(p.reeferLines).toHaveLength(1);
+    expect(p.reeferLines[0]!.gallons).toBe(30.6);
+    expect(p.defLines).toHaveLength(1);
+    expect(p.other).toHaveLength(1); // the merchandise line, and only that
   });
-  it("gallon mismatch", () => expect(reconcilePilotFuel([rf({ gallons: 80 })], [sf({ gallons: 70 })]).summary.gallonMismatch).toBe(1));
-  it("missing in system", () => {
-    const r = reconcilePilotFuel([rf({ netAmount: 450 })], []);
-    expect(r.summary.missingInSystem).toBe(1);
-    expect(r.summary.dollarsAtStake).toBeCloseTo(450);
+
+  it("carries Pilot's own code and words on every line, padded to three", () => {
+    expect(p.fills[0]!.productCode).toBe("020");
+    expect(p.reeferLines[0]!.productCode).toBe("033");
+    expect(p.defLines[0]!.productCode).toBe("140");
+    expect(p.fills[0]!.productDescription).toBe("Truck Diesel");
   });
-  it("missing on report (in-window only)", () => {
-    const r = reconcilePilotFuel([rf({})], [sf({ id: "s1" }), sf({ id: "old", tranDate: "2025-01-01", cardRef: "999999", gallons: 99 })]);
-    expect(r.summary.missingOnReport).toBe(0);
-    expect(r.summary.systemFills).toBe(1);
-  });
-  it("card drift -> other", () => expect(reconcilePilotFuel([rf({})], [sf({ cardRef: "000000" })]).summary.other).toBe(1));
-  it("no double-consume", () => {
-    const r = reconcilePilotFuel([rf({ authNo: "A1", gallons: 70 }), rf({ authNo: "A2", gallons: 71 })], [sf({ id: "only", gallons: 70 })]);
-    expect(r.summary.missingInSystem).toBe(1);
+
+  it("counts only tractor diesel in the diesel totals", () => {
+    expect(p.totalDieselGallons).toBeCloseTo(70.71 + 75.96, 2);
   });
 });

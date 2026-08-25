@@ -612,7 +612,63 @@ tab measures, and the two surfaces can no longer disagree about the policy.
 
 ---
 
-### F4 · The matcher, rewritten
+### F4 · The matcher, rewritten — DONE 2026-08-25 (no migrations)
+
+**What shipped.** `pilotFuelReport.ts` 329 → 199 lines (parser only), plus `fuelProducts.ts` (88, the
+product taxonomy) and `fuelMatch.ts` (the reconciler). The parser keeps its filename: it *is* the
+grid parser now, every consumer imports through the barrel, and a rename would have been churn without
+a behavioural gain.
+
+- **L1 / D-FX3** — no exact key exists (F0-bis measured it). The matcher keys on the card's last SIX
+  (D-FR6) with last-4 as a *labelled weaker* fallback, and the summary reports the two populations
+  apart (`matchedOnCard6` / `matchedOnCard4` / `matchedOnDateGallons`).
+- **L2 / D-FX4** — `date_drift`: ±1 day, one row, and a same-day candidate always beats a drifted one.
+- **L5** — candidates are scored, sorted and consumed cheapest-first. Order-independence is pinned by
+  permuting report and system **independently** (36 combinations); an earlier version of that test
+  shuffled them in step and passed against a first-come scan, which is why it is written this way.
+- **L4** — `within()` returns `null` for unknown, and a fill with no recorded cost is `amount_unknown`,
+  not an amount mismatch worth $0.00.
+- **L7 / D-FR7 — and my audit had this wrong.** I wrote that reefer in the export "becomes a false
+  `missing_in_system`". It does not: `/truck diesel|diesel(?! exhaust)/i` never matched "Reefer", so
+  those lines fell into `other` and **vanished**. Measured on the real 2026-06/07 export: 120 reefer
+  lines dropped, while the screen reported `0 reefer`. The defect is real and worse in a quieter way —
+  billed fuel, invisible. One code-keyed taxonomy now classifies both documents, and the system query
+  fetches both tanks (the matcher keeps the classes apart itself).
+- **L6** — the window comes from the report's declared dates.
+- **L9** — a card-less line is never bucketed with other card-less lines.
+- **L3 / D-FX5** — `dollarsAtStake` is gone. Four figures with four meanings, and nothing sums them.
+- Status vocabulary + labels in shared; tones in `lib/badges.ts` (`reconStatusBadge`).
+
+**Verified against all five real statements and production fills** (3,919 lines, 2,432 fills):
+
+| invoice | clean | drift | missing in system | missing on report | keys |
+|---|---|---|---|---|---|
+| 790722856 | 451 | 2 | 0 | 4 | 453 all card6 |
+| 791794052 | 454 | 3 | 0 | 2 | 457 all card6 |
+| 793170296 | 458 | 5 | 0 | 4 | 463 all card6 |
+| 794335795 | 438 | 2 | 0 | 2 | 440 all card6 |
+| 795506105 | 495 | 4 | 1 | 7 | 501 all card6 |
+
+**2,314 matches, every one on the card's last six — zero fell back.** The 16 drifted rows are the ones
+the old matcher would have reported as 16 `missing_in_system` PLUS 16 `missing_on_report`, with their
+dollars counted twice in "at stake".
+
+**The real data corrected the exposure arithmetic.** The first version summed every non-zero amount
+delta and reported *"85 lines overbilled"* on a week whose overbilling came to **one dollar** — EFS
+bills a four-decimal rate and rounds to the cent, so a cent of disagreement is arithmetic. Exposure now
+counts only rows whose status says they disagree. The same week then reads: overbilled $55 (1 row),
+underbilled $54 (1), unrecorded $242 (1), unbilled $2,334 (7).
+
+**The golden corpus is generated, not copied.** A week at the fleet's shape — 316 fuel lines, 100 DEF,
+40 cards colliding on their last four — with four planted defects. The real statements and the fills
+they were checked against are a carrier's billing records and do not belong in this repository
+(`data-samples/` is gitignored for the same reason); what the generator keeps is the shape, not the
+right to call the numbers Silvicom's.
+
+**Verified by:** `pnpm test`, `pnpm typecheck`, `pnpm lint`, `lint:filesize`, `lint:funcsize`,
+`lint:comment-claims`, `lint:boundaries`, `lint:upserts`, `lint:ui-adoption`, `lint:tokens-parity`,
+`pnpm --filter web lint:tokens`. Matcher tests 8 → 23; every determinism and drift test was confirmed
+to FAIL against a regressed matcher before being kept.
 
 **Prerequisites:** F0 (the key), F2 (the tests). This is the step the page is named after.
 

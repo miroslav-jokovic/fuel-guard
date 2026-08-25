@@ -394,6 +394,9 @@ export function parsePilotStatement(words: StatementWord[]): PilotStatementParse
         product: cls.product,
         rowNumber,
         productCode: code,
+        // The statement prints a legend rather than a description column; the code IS the identity
+        // here, so the description is left null and `classifyPilotProduct` resolves on the code alone.
+        productDescription: null,
         tank: cls.tank,
         unitCost: numOf(b.cost),
         odometer: numOf(b.odometer),

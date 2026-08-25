@@ -37,6 +37,8 @@ export * from "./ai.js";
 export * from "./anomaly.js";
 export * from "./dashboard.js";
 export * from "./reconcile/pilotFuelReport.js";
+export * from "./reconcile/fuelProducts.js";
+export * from "./reconcile/fuelMatch.js";
 export * from "./reconcile/pilotStatement.js";
 export * from "./reconcile/pilotStatementTieOut.js";
 export * from "./fuelSpend/index.js";
