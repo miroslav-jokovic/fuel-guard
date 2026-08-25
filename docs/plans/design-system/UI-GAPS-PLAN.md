@@ -40,7 +40,12 @@ Counted, not recalled:
 | Barrel exports in `@fuelguard/ui` | 21 components | `packages/ui/src/index.ts` |
 | Avatar implementations | **1, written twice in one file** | `SidebarProfileMenu.vue:54` and `:65`, both `.sidebar-avatar` from `style.css:168` |
 
-**The 404 is a live defect, not a cosmetic gap.** `App.vue` selects `AppShell` for any route whose
+⚠ **§0 was measured at `83907b1` and G1 has since changed three of its rows** (2026-08-25): there
+IS a catch-all now, `router/index.ts` is ~87 lines rather than 480 because #250 split the table into
+`routes/*.ts`, and the route count is 67. The rest still holds. The paragraph below is kept in the
+past tense as the record of what G1 fixed.
+
+**The 404 was a live defect, not a cosmetic gap.** `App.vue` selects `AppShell` for any route whose
 `meta.layout` is unset. An unmatched path has no matched record at all, so `meta.layout` is
 undefined, `AppShell` is chosen, and `<RouterView />` inside it renders **nothing**. A typo'd URL
 today produces the full application chrome — sidebar, header, notification bell — wrapped around an
@@ -116,7 +121,7 @@ buys:
 
 | Order | Step | Why here | Rough size |
 |---|---|---|---|
-| 1 | **G1 — error pages** | The only one fixing a live defect. Independent of everything. | ~half a day |
+| 1 | **G1 — error pages** ✅ DONE 2026-08-25 | The only one fixing a live defect. Cost two PRs, not one — the 500-line budget bit here rather than at G2. | shipped as #250 + #251 |
 | 2 | **G2 — breadcrumbs** | Highest orientation gain; 24 routes benefit with no per-route work. | ~half a day |
 | 3 | **G3 — timeline** | One consumer, whose data already ships unrendered. | ~half a day |
 | 4 | **G4 — avatar** | Smallest. Skippable — see §7. | ~an hour |
@@ -225,7 +230,7 @@ matrix, no API route. If a step starts to need one, stop — it has grown past w
 
 ## 5. The steps
 
-### G1 — The router always matches something · not started
+### G1 — The router always matches something — DONE 2026-08-25 (PRs #250, #251)
 
 **The defect, precisely.** No catch-all route exists (§0). `App.vue` falls through to `AppShell` for
 any route without `meta.layout`, and an unmatched path has no matched record, so `meta.layout` is
@@ -266,6 +271,33 @@ undefined. Result: full app chrome around an empty `<main>`. Silent.
 
 **Done when:** an unknown URL renders a page that names the path, in both signed-in and signed-out
 states; `PlaceholderPage.vue` is untouched; the router test passes.
+
+**What shipped.** `NotFoundPage.vue`, `ServerErrorPage.vue`, `MaintenancePage.vue`, a shared
+`components/ErrorPanel.vue` for their common body, `router/routes/system.ts` holding the two operator
+routes plus the catch-all exported separately, `lib/layout.ts` + its test, and the three route
+records. `PlaceholderPage.vue` untouched, as specified.
+
+**Verified by:** `pnpm --filter @fuelguard/web test` (68 files, 600 tests) including
+`router/notFound.test.ts` and `lib/layout.test.ts`; `typecheck`; `lint:ui-adoption`, `lint:tokens`,
+`lint:filesize`, `lint:comment-claims`, `lint:boundaries`, eslint; CI `build` green on both PRs.
+Browser-checked signed-out at `/nope`, `/error`, `/maintenance` via `preview:local`.
+
+**Three corrections a later step should not have to re-derive:**
+
+1. ⚠ **The budget bit at G1, not G2.** §4 predicted `router/index.ts` would survive until G2. Three
+   route records took it 480 → **514**, a hard `lint:filesize` failure. #250 split the table into
+   nine area modules first, with snapshots captured against the unsplit table as the equivalence
+   proof; index.ts is ~87 lines now and the budget is no longer near. **G2's budget warning in §4 is
+   therefore spent** — it has room.
+2. ⚠ **A public route needed two layouts, not one.** §4's gate note anticipated `meta.layout` might
+   be the fix and it was not quite: the choice depends on the *session*, not the route. `AppShell`
+   calls `useModulesQuery()` unconditionally, so rendering it signed-out fires a guaranteed 401
+   behind the page. The mechanism is `meta.layoutWhenSignedOut`, resolved by `resolveLayout()` in
+   `lib/layout.ts` — a pure function, so **G2's `breadcrumbs.ts` has a precedent to copy** for
+   keeping router-adjacent rules testable without mounting anything.
+3. The equivalence snapshots from #250 **failed on G1's own routes**, which is the harness working.
+   Updating them was deliberate and the diff was 40 insertions, 0 deletions. Any step adding a route
+   from here on must expect that failure and read the diff rather than reflexively passing `-u`.
 
 ---
 
@@ -385,6 +417,12 @@ and both stale comments are gone.
   *Fallback until answered:* show the ISO timestamp and the path, and say "quote this when you
   report it." Both are certainly available and both are useful to whoever reads the logs.
   *Owner:* whoever executes G1.
+  ⚠ **Still open after G1 (2026-08-25).** G1 shipped the fallback and did not answer the question,
+  deliberately: no error boundary is wired, so there was no render-time context in which to test
+  whether an event id is reachable. Established while looking: `Sentry.init` lives in `main.ts` and
+  is a no-op without `VITE_SENTRY_DSN`, and **`lastEventId` and `captureException` are called
+  nowhere in the codebase**. Answering this means wiring the boundary first, which is its own
+  decision — see the note on `/error` below.
 - **Q-UI2 — does any non-production-seeded anomaly carry a non-empty `nearThresholdTimeline`?**
   Unknown. *Fallback:* verify G3 with a unit test over a fixture and check the empty state in the
   browser; ship it, and confirm against production data afterwards rather than blocking on a
@@ -394,6 +432,12 @@ and both stale comments are gone.
   `meta.parent` on any route, and no 404 either. *Fallback:* out of scope. Nothing here is written
   in a way that blocks a later port; `breadcrumbs.ts` is pure and would move as-is. Revisit only if
   the admin console grows past ~15 pages.
+- **Q-UI5 — should a global error boundary route to `/error`?** Raised by G1, not answered by it.
+  The page and its route exist; nothing navigates to them. A boundary is a new app-wide behaviour
+  and G1's scope fence (§4: "no step here touches the database… if a step starts to need one, stop")
+  applied equally to app-wide render behaviour. *Fallback:* `/error` stays a URL an operator sends
+  somebody to. It accepts `?from=<path>`, which is the seam a boundary would use.
+  ⚠ Answering Q-UI5 is the prerequisite for answering Q-UI1, not the other way round.
 - **Q-UI4 — does the maintenance page ever get shown automatically?** Nothing sets it today, so it
   is a manually-visited URL. *Fallback:* ship it as a reachable route and leave the trigger for
   whoever needs it. ⚠ Do not add a health-check poll to the SPA for this — that is a new background
