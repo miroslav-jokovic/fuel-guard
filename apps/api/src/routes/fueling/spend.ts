@@ -6,6 +6,8 @@ import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { buildFuelSpendRollup } from "../../services/fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../services/fuelStationResolve.js";
+import { renderFuelSpendReport } from "../../services/fuelSpendReport.js";
+import type { SpendGrain } from "@fuelguard/shared";
 
 /**
  * The daily fuel-spend rollup (migration 0244) is READ straight from PostgREST by the web app — the
@@ -22,7 +24,42 @@ import { resolveFuelTransactionStations } from "../../services/fuelStationResolv
 const MAX_WINDOW_DAYS = 400;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
+const GRAINS = new Set(["day", "week", "month"]);
+
 export function registerSpendRoutes(router: Router): void {
+  // The report as a document, for somebody who will not open the app. Rendered on the server from the
+  // rollup rather than from whatever the browser is showing: a figure in a PDF gets quoted back months
+  // later, so it comes from the same pure functions the page uses and cannot disagree with it.
+  router.get(
+    "/spend-report.pdf",
+    requireOrg,
+    requireRole("admin", "fleet_manager", "dispatcher"),
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : "";
+      const to = typeof req.query.to === "string" ? req.query.to : "";
+      const grain = typeof req.query.grain === "string" && GRAINS.has(req.query.grain) ? (req.query.grain as SpendGrain) : "week";
+      if (!YMD.test(from) || !YMD.test(to) || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const { pdf, periods } = await renderFuelSpendReport(admin, {
+        orgId, from, to, grain, generatedAt: new Date().toISOString(),
+      });
+
+      await writeAudit(admin, {
+        orgId, actorId: req.auth!.userId, action: "export.generated",
+        entity: "fuel_spend_days", meta: { report: "spend-report.pdf", from, to, grain, periods },
+      });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="fuelguard-fuel-spend-${from}-to-${to}.pdf"`);
+      res.send(pdf);
+    }),
+  );
+
   // Point fills at the station they were bought from. The nightly sweep does this for whatever is
   // still unresolved; this endpoint exists to seed history, and to re-resolve EVERYTHING after a change
   // to the matcher, which the sweep deliberately will not do on its own.

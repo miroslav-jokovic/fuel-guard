@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { spendSeries, comparablePeriods, periodTotals, type SpendDay, type SpendGrain } from "@fuelguard/shared";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { spendSeries, comparablePeriods, periodTotals, type SpendDay, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import StatCard from "@/components/ui/StatCard.vue";
+import { apiDownload } from "@/lib/api";
+import { downloadCsv } from "@/lib/csv";
+import { useToastStore } from "@/stores/toast";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
-import { SPEND_WINDOWS, useSpendDaysQuery } from "./useSpendDays";
+import { SPEND_WINDOWS, useSpendDaysQuery, windowStart } from "./useSpendDays";
 import { usd, usd2, usd3, gal, pct1 } from "./format";
 
 /**
@@ -22,10 +26,15 @@ import { usd, usd2, usd3, gal, pct1 } from "./format";
  * happened.
  */
 const grain = ref<SpendGrain>("week");
-// FilterSelect models a string, so the window lives as one and is converted where it is used. Keeping
-// the ref numeric and leaning on `.number` puts a number into a string-typed model and only fails at
-// the boundary, in a component that would render either way.
-const weeksChoice = ref<string>("13");
+/**
+ * The window is owned by the PAGE and lives in the URL, so switching from this tab to a policy report
+ * keeps the period the reader chose instead of silently resetting it — two tabs disagreeing about which
+ * weeks they are showing is how a figure gets quoted against the wrong period.
+ *
+ * It models a STRING because that is what `FilterSelect` binds; keeping it numeric and leaning on
+ * `.number` puts a number into a string-typed model and only fails at the boundary.
+ */
+const weeksChoice = defineModel<string>("weeks", { default: "13" });
 const weeks = computed(() => Number(weeksChoice.value));
 const grainOptions = [
   { value: "day", label: "By day" },
@@ -64,17 +73,29 @@ const deltaTone = (pick: (p: (typeof series.value)[number]) => number | null, up
   return up === upIsBad ? "text-danger-700" : "text-success-700";
 };
 
+/** The last 30 periods of a measure, for the tile's sparkline. */
+const trail = (pick: (p: (typeof series.value)[number]) => number | null): (number | null)[] =>
+  series.value.slice(-30).map(pick);
+
 const tiles = computed(() => {
   const c = comparison.value?.current;
   return [
-    { label: "Fuel spend", value: usd(c?.spend ?? overall.value.spend), hint: delta((p) => p.spend), tone: deltaTone((p) => p.spend) },
-    { label: "Gallons", value: gal(c?.gallons ?? overall.value.gallons), hint: delta((p) => p.gallons), tone: deltaTone((p) => p.gallons) },
-    { label: "Paid per gallon", value: usd3(c?.pricePerGal ?? overall.value.pricePerGal), hint: delta((p) => p.pricePerGal), tone: deltaTone((p) => p.pricePerGal) },
+    // `upIsBad` is the whole reason the tone is per-tile: spend rising is bad, MPG rising is good, and a
+    // tile that coloured every increase red would call the one genuine saving on this page a problem.
+    { label: "Fuel spend", value: usd(c?.spend ?? overall.value.spend), pick: (p: SpendPeriod) => p.spend, upIsBad: true },
+    { label: "Gallons", value: gal(c?.gallons ?? overall.value.gallons), pick: (p: SpendPeriod) => p.gallons, upIsBad: true },
+    { label: "Paid per gallon", value: usd3(c?.pricePerGal ?? overall.value.pricePerGal), pick: (p: SpendPeriod) => p.pricePerGal, upIsBad: true },
     // Cost per mile is the figure that survives both a market move and a busier fleet, which is why it
     // sits beside them rather than being left for the reader to divide out.
-    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), hint: delta((p) => p.costPerMile), tone: deltaTone((p) => p.costPerMile) },
-    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", hint: delta((p) => p.mpg), tone: deltaTone((p) => p.mpg, false) },
-  ];
+    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true },
+    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
+  ].map((t) => ({
+    label: t.label,
+    value: t.value,
+    sub: delta(t.pick) ?? `no prior ${grainLabel.value}`,
+    subTone: deltaTone(t.pick, t.upIsBad),
+    spark: trail(t.pick),
+  }));
 });
 
 const rows = computed(() =>
@@ -106,6 +127,44 @@ const columns: DataTableColumn[] = [
 ];
 
 const hasData = computed(() => days.value.length > 0);
+
+// ── export ──────────────────────────────────────────────────────────────────────────────────────
+// The PDF is rendered on the SERVER from the same rollup, not from what this component is holding: a
+// figure in a document gets quoted back months later, so page and document must come from one source.
+const toast = useToastStore();
+const exporting = ref(false);
+const range = computed(() => ({
+  from: series.value[0]?.from ?? windowStart(weeks.value),
+  to: series.value[series.value.length - 1]?.to ?? today,
+}));
+
+async function exportPdf() {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const { from, to } = range.value;
+    await apiDownload(
+      `/api/fueling/spend-report.pdf?from=${from}&to=${to}&grain=${grain.value}`,
+      `fuelguard-fuel-spend-${from}-to-${to}.pdf`,
+    );
+  } catch (e) {
+    toast.error("Could not build the report", e instanceof Error ? e.message : undefined);
+  } finally {
+    exporting.value = false;
+  }
+}
+
+function exportCsv() {
+  const { from, to } = range.value;
+  downloadCsv(
+    `fuelguard-fuel-spend-${from}-to-${to}.csv`,
+    ["Period start", "Period end", "Trucks", "Fills", "Gallons", "Fuel spend", "Paid per gal", "Miles", "MPG", "Cost per mile", "Idle share"],
+    series.value.map((p) => [
+      p.from, p.to, p.activeTrucks, p.fills, p.gallons, p.spend,
+      p.pricePerGal, p.miles, p.mpg, p.costPerMile, p.idleShare,
+    ]),
+  );
+}
 const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected, 0));
 </script>
 
@@ -120,6 +179,12 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
           {{ series.length }} {{ grainLabel }}{{ series.length === 1 ? "" : "s" }} · {{ days.length.toLocaleString() }} truck-days
         </template>
       </span>
+      <template #actions>
+        <BaseButton variant="ghost" :disabled="!hasData" @click="exportCsv">Export CSV</BaseButton>
+        <BaseButton variant="secondary" :disabled="!hasData || exporting" @click="exportPdf">
+          {{ exporting ? "Building…" : "Export report" }}
+        </BaseButton>
+      </template>
     </FilterBar>
 
     <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
@@ -135,13 +200,21 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
     </BaseCard>
 
     <template v-else>
-      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <BaseCard v-for="t in tiles" :key="t.label" padding="sm">
-          <dt class="text-xs uppercase tracking-wide text-ink-muted">{{ t.label }}</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ t.value }}</dd>
-          <dd class="text-2xs" :class="t.tone">{{ t.hint ?? "no prior period" }}</dd>
-        </BaseCard>
-      </dl>
+      <!-- The one KPI tile (D-UI2). These were hand-rolled BaseCards reproducing StatCard's kpi anatomy
+           class for class, which is exactly the drift StatCard was extracted to end. -->
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard
+          v-for="t in tiles"
+          :key="t.label"
+          :label="t.label"
+          :value="t.value"
+          :sub="t.sub"
+          :sub-tone="t.subTone"
+          :spark="t.spark"
+          spark-color="currentColor"
+          :loading="isLoading"
+        />
+      </div>
 
       <OperatingBridgeCard
         v-if="comparison"

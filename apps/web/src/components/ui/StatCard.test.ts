@@ -86,3 +86,16 @@ describe("StatCard anatomy", () => {
     expect(w.findAll(".animate-pulse")).toHaveLength(2);
   });
 });
+
+describe("subTone", () => {
+  it("colours the sub-line when the caller says which direction is bad", () => {
+    // Spend up is bad, MPG up is good — only the caller knows, so the tone is a class and not an enum.
+    const up = mount(StatCard, { props: { label: "Fuel spend", value: "$303,707", sub: "+15.7% vs prior week", subTone: "text-danger-700" } });
+    expect(up.get("p.text-danger-700").text()).toContain("+15.7%");
+  });
+
+  it("stays the quiet default when no tone is given, so existing tiles are unchanged", () => {
+    const plain = mount(StatCard, { props: { label: "Gallons", value: "57,696", sub: "4 weeks" } });
+    expect(plain.get("p.text-ink-tertiary").text()).toContain("4 weeks");
+  });
+});
