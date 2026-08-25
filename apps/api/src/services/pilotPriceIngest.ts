@@ -9,9 +9,9 @@
  * unplaced by the budget or a transient limit is retried — and instantly resolved — on the next upload. Every
  * report site is (re)placed each load, correcting earlier misses/misplacements.
  *
- * Replace-on-upload per (org, source): a new daily report fully supersedes the org's prior Pilot net prices
- * (no accumulation of stale nets), and stations upsert on (brand, store_number) — so re-uploads never create
- * duplicate stations or prices.
+ * KEPT, not replaced (0245). Each report is one day's observation, keyed on its own printed Effective
+ * Date, so uploads accumulate into a per-station price series and a re-upload of the same file is a
+ * no-op. Stations upsert on (brand, store_number), so re-uploads never duplicate a station either.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@fuelguard/shared";
@@ -135,10 +135,22 @@ export async function ingestPilotPrices(admin: SupabaseClient, env: Env, orgId: 
     stationsUpserted += data?.length ?? 0;
   }
 
-  // Replace this org's Pilot net prices ENTIRELY — today's report supersedes all prior daily uploads so
-  // old prices never linger in the table (a station dropped from today's file falls back to posted/estimate,
-  // not a stale net from days ago). A re-upload of the same day is still idempotent.
-  await admin.from("fuel_prices").delete().eq("org_id", orgId).eq("source", SOURCE);
+  // KEEP every report (0245). This used to DELETE the org's prior Pilot prices before inserting, which
+  // meant months of daily posted and net prices were destroyed on arrival — measured 2026-08-25, the
+  // table held exactly one day. The retail series that deletion threw away is the only in-house source
+  // for "how much of the pump price does our contract take off", because the EFS feed records what we
+  // PAID and never what was posted.
+  //
+  // The reason the delete existed is still real and is handled elsewhere now: a station dropped from
+  // today's report must not keep quoting a stale net. It does not, because every reader already treats
+  // these rows as a time series — `estimateStationPrice` ages a quote out after
+  // DEFAULT_PRICE_LOOKBACK_HOURS and marks anything older as estimated, and the planner takes the most
+  // recent row per station rather than any row. Freshness is a property of `observed_at`, not of the
+  // row's continued existence.
+  //
+  // Upsert, because `observed_at` is the report's own Effective Date: re-uploading the same file is a
+  // no-op on the same key, while a new day accumulates beside it. That is what lets a backfill of three
+  // months of reports run in any order and be re-run safely.
   const priceRows: Record<string, unknown>[] = [];
   for (const [site, row] of bySite) {
     const stationId = stationIdBySite.get(site);
@@ -147,8 +159,10 @@ export async function ingestPilotPrices(admin: SupabaseClient, env: Env, orgId: 
   }
   let pricesInserted = 0;
   for (const part of chunk(priceRows, 500)) {
-    const { error } = await admin.from("fuel_prices").insert(part);
-    if (error) return { ok: false, error: `Price insert failed: ${error.message}`, ...base, stationsUpserted, geocodeFailed };
+    const { error } = await admin
+      .from("fuel_prices")
+      .upsert(part, { onConflict: "org_id,source,station_id,product,observed_at" });
+    if (error) return { ok: false, error: `Price write failed: ${error.message}`, ...base, stationsUpserted, geocodeFailed };
     pricesInserted += part.length;
   }
 
