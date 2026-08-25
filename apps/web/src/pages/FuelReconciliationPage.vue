@@ -26,14 +26,15 @@ import { usd } from "@/features/reconcile/format";
  * and covers whatever weeks somebody remembered. So each tab is fed by whichever can actually answer
  * its question:
  *
- *   FEED       Spend & trend, ONE9 & off-brand, California, Off-network — these need brand, state and
- *              distance, all of which the feed carries now that fills resolve to a station.
- *   STATEMENT  Discount capture, and the statement list. These need the POSTED price per line, which
- *              the feed does not record at all: EFS knows what we paid and never what was on the sign.
+ *   FEED       Spend & trend, ONE9 & off-brand, California, Off-network, Discount capture. Brand, state
+ *              and distance came with the station backfill; the POSTED price — which EFS never records —
+ *              now comes from the daily price reports, kept since 0245 and joined per station-day by
+ *              `fuel_spend_lines` (0246).
+ *   STATEMENT  The statement list and the vendor's own market-vs-discount decomposition. What is left
+ *              that only a statement can answer: what the vendor BILLED, line by line.
  *
- * Everything but Discount capture used to read statements, which is why every tab except the first was
- * empty until somebody uploaded a PDF — for questions the carrier asks weekly and a statement that
- * arrives monthly.
+ * Every tab but the first used to read statements, which is why they were empty until somebody uploaded
+ * a PDF — for questions the carrier asks weekly and a document that arrives monthly.
  *
  * ── WHY "SPEND & TREND" IS FIRST ─────────────────────────────────────────────────────────────────
  * It is the tab that answers the question actually being asked — "fuel cost more this week, why".
@@ -104,7 +105,7 @@ const tabs = computed<TabItem[]>(() => [
   { value: "statements", label: "Statements", badge: (statements.value ?? []).length || undefined },
 ]);
 
-const isFeedTab = computed(() => ["avoid_brand", "california", "off_network"].includes(tab.value));
+const isFeedTab = computed(() => ["avoid_brand", "california", "off_network", "discount"].includes(tab.value));
 
 const caNote = computed(() => {
   const f = exceptions.value.avoidedStateFillSize;
@@ -165,6 +166,7 @@ const caNote = computed(() => {
           slug="california"
           :note="caNote"
         />
+        <DiscountCaptureTab v-else-if="tab === 'discount'" :lines="feedLines" />
         <ExceptionsTab
           v-else
           title="Off the preferred network"
@@ -197,18 +199,14 @@ const caNote = computed(() => {
       </BaseCard>
 
       <template v-else>
-        <DiscountCaptureTab v-if="tab === 'discount'" :lines="statementLines" />
-        <template v-else>
-          <!-- The statement's OWN story: what the vendor billed, the market-vs-discount decomposition
-               only it can support, and the non-fuel charges it bundles onto a fuel ticket. None of
-               this is derivable from the feed, which is why it lives beside the statement list. -->
-          <SpendOverviewTab :lines="statementLines" />
-          <StatementsCard
-            :statements="statements ?? []"
-            :loading="stmtLoading"
-            :error="stmtError ? 'Could not load statements' : null"
-          />
-        </template>
+        <!-- The statement's OWN story: what the vendor billed, the market-vs-discount decomposition
+             only it can support, and the non-fuel charges it bundles onto a fuel ticket. -->
+        <SpendOverviewTab :lines="statementLines" />
+        <StatementsCard
+          :statements="statements ?? []"
+          :loading="stmtLoading"
+          :error="stmtError ? 'Could not load statements' : null"
+        />
       </template>
     </template>
   </div>

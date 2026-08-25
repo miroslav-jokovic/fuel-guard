@@ -8,13 +8,15 @@
  * feed, and since the station backfill 98.5% of them carry a `station_id`, so the brand dimension those
  * reports are built on is finally available without a statement.
  *
- * ── WHAT THIS SOURCE CANNOT DO, AND WHY THAT IS FINE HERE ───────────────────────────────────────
- * `retailAmount` is null: EFS records what we PAID and never the posted price. Discount capture
- * therefore CANNOT be computed from these rows and stays on the statement source — see
- * `DiscountCaptureTab`. The three policy reports do not need it, because `analyzePolicyExceptions`
- * prices every exception against what the rest of the fleet paid over the SAME period, not against
- * retail. A ONE9 fill is expensive relative to the Pilot fills around it whether or not we know what
- * ONE9 posted that day.
+ * ── RETAIL COMES FROM THE KEPT PRICE REPORTS ────────────────────────────────────────────────────
+ * EFS records what we PAID and never what was posted, so this used to return `retailAmount: null` and
+ * discount capture had no source at all. Since 0245 the daily Pilot report is KEPT rather than deleted
+ * by the next upload, so `fuel_spend_lines` (0246) joins each fill to the price that applied at that
+ * station on that day and the discount is finally measurable from the feed.
+ *
+ * A fill with no same-day price keeps `retailAmount: null`, and that is not the same as a zero
+ * discount: `analyzeDiscountCapture` drops those lines rather than scoring them as having captured
+ * nothing. A missing upload must not manufacture a shortfall.
  *
  * ── UNRESOLVED STATIONS COUNT AS OFF-NETWORK, DELIBERATELY ──────────────────────────────────────
  * A fill whose site could not be matched has `brand: null`. `analyzePolicyExceptions` treats that as
@@ -31,10 +33,6 @@ const PAGE = 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
 const str = (v: unknown): string | null => (v == null ? null : String(v));
 
-/** PostgREST returns an embedded to-one relation as an object or a single-element array by version. */
-const embed = <T,>(v: unknown): T | null =>
-  Array.isArray(v) ? ((v[0] as T) ?? null) : ((v as T) ?? null);
-
 export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>) {
   return useQuery({
     queryKey: ["fuel_spend_lines", filters],
@@ -44,35 +42,30 @@ export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>) {
       const f = filters.value;
       const out: SpendLine[] = [];
       for (let start = 0; ; start += PAGE) {
-        let q = supabase
-          .from("fuel_transactions")
-          .select(
-            "fueled_at, state, gallons, total_cost, tank_type, location_text, fuel_stations(brand, store_number, city), vehicles(unit_number), drivers(full_name)",
-          )
-          .gte("fueled_at", `${f.from}T00:00:00.000Z`)
-          .lte("fueled_at", `${f.to}T23:59:59.999Z`);
-        if (f.vehicleIds.length) q = q.in("vehicle_id", f.vehicleIds);
-        const { data, error } = await q.order("fueled_at", { ascending: true }).range(start, start + PAGE - 1);
+        const { data, error } = await supabase
+          .rpc("fuel_spend_lines", {
+            p_from: f.from,
+            p_to: f.to,
+            p_vehicles: f.vehicleIds.length ? f.vehicleIds : null,
+          })
+          .range(start, start + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as Record<string, unknown>[];
         for (const r of batch) {
-          const station = embed<{ brand: string | null; store_number: string | null; city: string | null }>(r.fuel_stations);
-          const vehicle = embed<{ unit_number: string | null }>(r.vehicles);
-          const driver = embed<{ full_name: string | null }>(r.drivers);
           out.push({
-            tranDate: r.fueled_at ? String(r.fueled_at).slice(0, 10) : null,
-            brand: station?.brand ?? null,
+            tranDate: str(r.tran_date),
+            brand: str(r.brand),
             state: str(r.state),
-            site: station?.store_number ?? null,
-            // Fall back to the location string so an unresolved site is still nameable in the table.
-            city: station?.city ?? str(r.location_text),
-            unit: vehicle?.unit_number ?? null,
-            driver: driver?.full_name ?? null,
+            site: str(r.site),
+            city: str(r.city),
+            unit: str(r.unit),
+            driver: str(r.driver),
             product: "diesel",
-            tank: r.tank_type === "reefer" ? "reefer" : "tractor",
+            tank: r.tank === "reefer" ? "reefer" : "tractor",
             gallons: num(r.gallons),
-            netAmount: r.total_cost == null ? null : num(r.total_cost),
-            retailAmount: null, // the feed never carries posted price — see the header
+            netAmount: r.net_amount == null ? null : num(r.net_amount),
+            // Null when no report covered that station that day — NOT a zero discount. See the header.
+            retailAmount: r.retail_amount == null ? null : num(r.retail_amount),
           });
         }
         if (batch.length < PAGE) break;
