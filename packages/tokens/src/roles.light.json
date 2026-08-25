@@ -275,7 +275,7 @@
     },
     "selected-surface": {
       "$type": "color",
-      "$value": "oklch(93.5% 0.033 258)",
+      "$value": "oklch(93.5% 0.0312 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -306,7 +306,7 @@
     },
     "danger-surface": {
       "$type": "color",
-      "$value": "oklch(96% 0.025 20)",
+      "$value": "oklch(96% 0.0197 20)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -376,12 +376,12 @@
     },
     "viz-spend": {
       "$type": "color",
-      "$value": "oklch(59.6% 0.145 163.225)",
+      "$value": "oklch(59.6% 0.1282 163.225)",
       "$description": "fuel spend (emerald)"
     },
     "viz-spend-hover": {
       "$type": "color",
-      "$value": "oklch(50.8% 0.118 165.612)",
+      "$value": "oklch(50.8% 0.1058 165.612)",
       "$description": "emerald-700"
     },
     "viz-severity-critical": {
@@ -403,7 +403,7 @@
     },
     "viz-cost-moving": {
       "$type": "color",
-      "$value": "oklch(59.6% 0.145 163.225)",
+      "$value": "oklch(59.6% 0.1282 163.225)",
       "$description": "normal fuel movement (emerald)"
     },
     "viz-cost-idle": {

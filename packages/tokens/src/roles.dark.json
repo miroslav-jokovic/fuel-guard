@@ -90,7 +90,7 @@
     },
     "action-primary-hover": {
       "$type": "color",
-      "$value": "oklch(70% 0.17 264.4)"
+      "$value": "oklch(70% 0.1561 264.4)"
     },
     "action-primary-foreground": {
       "$type": "color",
@@ -98,15 +98,15 @@
     },
     "link": {
       "$type": "color",
-      "$value": "oklch(74% 0.15 264.4)"
+      "$value": "oklch(74% 0.1332 264.4)"
     },
     "link-hover": {
       "$type": "color",
-      "$value": "oklch(82% 0.12 265)"
+      "$value": "oklch(82% 0.0893 265)"
     },
     "focus-ring": {
       "$type": "color",
-      "$value": "oklch(72% 0.18 264.2)"
+      "$value": "oklch(72% 0.1446 264.2)"
     },
     "selected-surface": {
       "$type": "color",
@@ -114,7 +114,7 @@
     },
     "selected-strong": {
       "$type": "color",
-      "$value": "oklch(68% 0.17 264.2)"
+      "$value": "oklch(68% 0.1678 264.2)"
     },
     "danger-solid": {
       "$type": "color",
@@ -150,11 +150,11 @@
     },
     "viz-severity-high": {
       "$type": "color",
-      "$value": "oklch(75% 0.15 295)"
+      "$value": "oklch(75% 0.1439 295)"
     },
     "viz-severity-medium": {
       "$type": "color",
-      "$value": "oklch(85% 0.13 52)"
+      "$value": "oklch(85% 0.0925 52)"
     },
     "viz-severity-low": {
       "$type": "color",
@@ -170,7 +170,7 @@
     },
     "viz-cost-reefer": {
       "$type": "color",
-      "$value": "oklch(72% 0.15 264.4)"
+      "$value": "oklch(72% 0.1445 264.4)"
     },
     "shadow-tint-1": {
       "$type": "color",

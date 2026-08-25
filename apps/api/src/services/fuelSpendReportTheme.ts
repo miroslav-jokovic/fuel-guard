@@ -53,7 +53,7 @@ export const C = {
 
   // ── data (tokens: --viz-spend, --viz-severity-*, --viz-cost-idle) ─────────────────────────────
   /** Money saved, contract honoured, a metric moving the right way. */
-  good: "#009966",
+  good: "#019669",
   goodWash: "#e8f7f1",
   /** Money added, an overcharge, a policy exception. */
   bad: "#9f0712",

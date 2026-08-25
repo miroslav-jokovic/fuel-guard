@@ -58,7 +58,7 @@
     },
     "ramp-brand-400": {
       "$type": "color",
-      "$value": "oklch(71.5% 0.155 262)"
+      "$value": "oklch(71.5% 0.1478 262)"
     },
     "ramp-brand-500": {
       "$type": "color",
@@ -74,7 +74,7 @@
     },
     "ramp-brand-800": {
       "$type": "color",
-      "$value": "oklch(84.0% 0.09 265)"
+      "$value": "oklch(84.0% 0.0787 265)"
     },
     "ramp-accent-50": {
       "$type": "color",
@@ -130,7 +130,7 @@
     },
     "ramp-danger-400": {
       "$type": "color",
-      "$value": "oklch(70.4% 0.191 22.216)"
+      "$value": "oklch(70.4% 0.1873 22.216)"
     },
     "ramp-danger-500": {
       "$type": "color",
@@ -138,7 +138,7 @@
     },
     "ramp-danger-600": {
       "$type": "color",
-      "$value": "oklch(57.7% 0.245 27.325)"
+      "$value": "oklch(57.7% 0.235 27.325)"
     },
     "ramp-danger-700": {
       "$type": "color",
@@ -146,7 +146,7 @@
     },
     "ramp-danger-800": {
       "$type": "color",
-      "$value": "oklch(85.1% 0.09 26.899)"
+      "$value": "oklch(85.1% 0.081 26.899)"
     },
     "ramp-caution-50": {
       "$type": "color",
@@ -166,7 +166,7 @@
     },
     "ramp-caution-400": {
       "$type": "color",
-      "$value": "oklch(74% 0.18 40)"
+      "$value": "oklch(74% 0.1636 40)"
     },
     "ramp-caution-500": {
       "$type": "color",
@@ -182,7 +182,7 @@
     },
     "ramp-caution-800": {
       "$type": "color",
-      "$value": "oklch(85.0% 0.09 32)"
+      "$value": "oklch(85.0% 0.0823 32)"
     },
     "ramp-warning-50": {
       "$type": "color",
@@ -198,7 +198,7 @@
     },
     "ramp-warning-300": {
       "$type": "color",
-      "$value": "oklch(50.0% 0.108 85)"
+      "$value": "oklch(50.0% 0.1024 85)"
     },
     "ramp-warning-400": {
       "$type": "color",
@@ -234,7 +234,7 @@
     },
     "ramp-success-300": {
       "$type": "color",
-      "$value": "oklch(47.9% 0.135 154.449)"
+      "$value": "oklch(47.9% 0.1196 154.449)"
     },
     "ramp-success-400": {
       "$type": "color",
@@ -242,11 +242,11 @@
     },
     "ramp-success-500": {
       "$type": "color",
-      "$value": "oklch(72.3% 0.219 149.579)"
+      "$value": "oklch(72.3% 0.2008 149.579)"
     },
     "ramp-success-600": {
       "$type": "color",
-      "$value": "oklch(62.7% 0.194 149.214)"
+      "$value": "oklch(62.7% 0.1757 149.214)"
     },
     "ramp-success-700": {
       "$type": "color",
@@ -270,19 +270,19 @@
     },
     "ramp-info-300": {
       "$type": "color",
-      "$value": "oklch(48.9% 0.088 211)"
+      "$value": "oklch(48.9% 0.0848 211)"
     },
     "ramp-info-400": {
       "$type": "color",
-      "$value": "oklch(72.5% 0.128 210)"
+      "$value": "oklch(72.5% 0.1252 210)"
     },
     "ramp-info-500": {
       "$type": "color",
-      "$value": "oklch(64.5% 0.138 209)"
+      "$value": "oklch(64.5% 0.111 209)"
     },
     "ramp-info-600": {
       "$type": "color",
-      "$value": "oklch(56% 0.132 208)"
+      "$value": "oklch(56% 0.0961 208)"
     },
     "ramp-info-700": {
       "$type": "color",

@@ -3,8 +3,13 @@ import type { ChartOptions, TooltipItem } from "chart.js";
 /**
  * Shared chart look for the dashboard, driven by the design tokens in
  * src/style.css. Canvas can't read CSS variables, so `resolve()` computes
- * each --viz-* role to an rgb() string at first use (cached; charts mount
- * after styles load). Hex fallbacks keep unit tests (jsdom) rendering.
+ * each --viz-* role at first use (cached; charts mount after styles load).
+ * Hex fallbacks keep unit tests (jsdom) rendering.
+ *
+ * NOT necessarily an rgb() string, whatever this comment used to claim: the
+ * tokens are authored in oklch(), and Chrome returns `oklch(0.596 0.128 163)`
+ * from getComputedStyle rather than resolving it to rgb. `resolveAlpha` case 3
+ * is what handles that, and it is the reason it exists.
  *
  * scripts/check-chart-colors.mjs verifies contrast and pairwise separation
  * under protan, deutan, and tritan simulation. Color is never the only cue:
@@ -12,13 +17,13 @@ import type { ChartOptions, TooltipItem } from "chart.js";
  */
 const FALLBACK: Record<string, string> = {
   "--viz-brand": "#955cad",
-  "--viz-spend": "#009966",
-  "--viz-spend-hover": "#007a55",
+  "--viz-spend": "#019669",
+  "--viz-spend-hover": "#017857",
   "--viz-severity-critical": "#9f0712",
   "--viz-severity-high": "#7610e4",
   "--viz-severity-medium": "#aa530a",
   "--viz-severity-low": "#4f5763",
-  "--viz-cost-moving": "#009966",
+  "--viz-cost-moving": "#019669",
   "--viz-cost-idle": "#ba2f12",
   "--viz-cost-reefer": "#1d4ed8",
   "--viz-grid": "#eef0f3",
