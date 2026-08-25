@@ -4,12 +4,37 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppButton } from "@fuelguard/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
+import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
+import type { Crumb } from "@/lib/breadcrumbs";
 import { useSidebarSections } from "@/composables/useSidebarSections";
 import type { NavGroup } from "@/lib/nav";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 type ActionMode = "graphite" | "gold";
 type SidebarMode = "dark" | "light";
+
+/**
+ * Breadcrumb specimens (G2). The real `BreadcrumbTrail` component with hand-written trails, because the
+ * pages that grow a trail in production are all behind the auth wall and this route is the only one
+ * that renders production components without a session (D-DS13). The three-level case is the real
+ * `/hazmat` chain; the one-crumb case must render nothing at all.
+ *
+ * ⚠ The `to` paths are the real ones and deliberately NOT `/__design-system`. Pointing a specimen at
+ * the route it is rendered on makes `RouterLink` mark it `aria-current="page"`, which put the
+ * current-page marker on the FIRST crumb here and read as a bug in the component. It was a bug in
+ * the specimen. Production is unaffected — a parent is never the current route, and `/settings`
+ * while on `/settings/audit` is an inclusive match, which RouterLink does not treat as current.
+ */
+const labTrailDeep: Crumb[] = [
+  { label: "HazmatGuard", to: "/hazmat" },
+  { label: "Hazmat Loads", to: "/hazmat/loads" },
+  { label: "Hazmat Load", to: "/hazmat/loads/specimen" },
+];
+const labTrailTwo: Crumb[] = [
+  { label: "Settings", to: "/settings" },
+  { label: "Audit Log", to: "/settings/audit" },
+];
+const labTrailOne: Crumb[] = [{ label: "Dashboard", to: "/" }];
 
 const actionMode = ref<ActionMode>("graphite");
 const sidebarMode = ref<SidebarMode>("light");
@@ -308,6 +333,20 @@ const rows = [
           </span>
         </template>
       </DataTable>
+
+      <h3>Breadcrumbs</h3>
+      <p class="lab-shipped-note">
+        Walked from <code>meta.parent</code>, never declared per route (D-DS17) — so a renamed route
+        cannot leave a stale trail behind. The last crumb is the current page and is text, not a
+        link. Below <code>sm</code> only the immediate parent survives; the back chevron in the
+        header bar is the full-trail fallback on a phone, which is why it was not retired.
+      </p>
+      <div class="lab-shipped-row" style="flex-direction: column; align-items: flex-start; gap: 1rem">
+        <BreadcrumbTrail :trail="labTrailDeep" />
+        <BreadcrumbTrail :trail="labTrailTwo" />
+        <!-- Renders nothing: one crumb is the current page, which the h1 beneath already says. -->
+        <BreadcrumbTrail :trail="labTrailOne" />
+      </div>
 
       <h3>Sidebar sections</h3>
       <p class="lab-shipped-note">
