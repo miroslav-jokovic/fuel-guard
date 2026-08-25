@@ -175,14 +175,23 @@ function drawBridge(doc: PDFKit.PDFDocument, cmp: { prior: SpendPeriod; current:
 }
 
 /**
- * Fuel burned standing still — on the fuel bill, because it is bought with the same gallons as the miles.
+ * Idling — the HOURS and the share, and deliberately not a verdict.
  *
- * Periods the engine feed did not cover are NAMED and left out rather than averaged in. Idle measured
- * across a gap reads as a fleet that stopped idling, and a document is exactly where that would be
- * believed.
+ * ── WHY THERE IS NO DOLLAR FIGURE HERE ──────────────────────────────────────────────────────────
+ * The first version of this section multiplied idle seconds by a burn rate and printed the total as
+ * money "burned standing still". That is the every-truck-is-avoidable over-count
+ * `docs/plans/IDLE-AVOIDABLE-HOS.md` was written to kill: only 17 of 195 trucks carry a confirmed APU
+ * and 36 an Optimized Idle flag, so for most of the fleet the driver had no alternative to running the
+ * main engine, and the plan is explicit that those trucks are not blamed.
+ *
+ * The real verdict is `computeAvoidable` — equipment flags, HOS duty overlay, temperature envelope —
+ * and it needs `idle_park_sessions` and each vehicle's admin-confirmed equipment, which this report
+ * does not read. Rather than approximate it with a number that reads as an accusation, the document
+ * reports the measured hours and says where the judgement lives. A figure a boss acts on has to be one
+ * somebody can defend in the room.
  */
 function drawIdle(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
-  heading(doc, "Fuel burned standing still");
+  heading(doc, "Idling");
   const usable = series.filter((p) => p.idleUsable);
   const withheld = series.filter((p) => !p.idleUsable && p.idleCoverage != null);
   if (usable.length === 0) {
@@ -192,26 +201,22 @@ function drawIdle(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGr
   const idleSec = usable.reduce((a, p) => a + p.idleSec, 0);
   const driveSec = usable.reduce((a, p) => a + p.driveSec, 0);
   const gallons = usable.reduce((a, p) => a + (p.idleGallons ?? 0), 0);
-  const cost = usable.reduce((a, p) => a + (p.idleCost ?? 0), 0);
-  const fuel = usable.reduce((a, p) => a + p.spend, 0);
   const share = idleSec + driveSec > 0 ? (idleSec / (idleSec + driveSec)) * 100 : 0;
-  const perPeriod = cost / usable.length;
-  const annual = perPeriod * (grain === "week" ? 52 : grain === "month" ? 12 : 365);
 
   doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
     winAnsi(
       `The fleet idled ${num(idleSec / 3600)} hours across the ${usable.length} measured ${grain}(s) — ` +
-        `${share.toFixed(1)}% of every hour an engine was running — burning ${num(gallons)} gallons worth ` +
-        `${usd(cost)} at the prices actually paid, ${fuel > 0 ? ((cost / fuel) * 100).toFixed(1) : "0"}% of the fuel bill. ` +
-        `At this rate that is ${usd(annual)} a year.`,
+        `${share.toFixed(1)}% of every hour an engine was running — burning roughly ${num(gallons)} gallons.`,
     ),
     { width: CONTENT_WIDTH },
   );
   doc.moveDown(0.4);
   body(
     doc,
-    "Not all of this is waste — a driver resting in a sleeper through a summer night is idling for a reason. " +
-      "The Idling page separates avoidable from unavoidable idle using each truck's confirmed APU equipment.",
+    "How much of that anyone could have avoided depends on which trucks had an alternative: only a truck " +
+      "with an admin-confirmed APU or Optimized Idle could have rested without running the main engine. " +
+      "The Idling page carries that verdict per truck, with the duty status and temperature evidence behind it. " +
+      "Treating every idle hour as waste would blame drivers who had no choice.",
     MUTED,
   );
   if (withheld.length > 0) {
@@ -240,7 +245,7 @@ function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: Spend
     { width: 58, header: "Miles", align: "right" as const },
     { width: 36, header: "MPG", align: "right" as const },
     { width: 52, header: "$ / mile", align: "right" as const },
-    { width: 50, header: "Idle $", align: "right" as const },
+    { width: 50, header: "Idle", align: "right" as const },
   ];
   // Newest first, and a period still filling is kept but LABELLED. Dropping it hides the most recent
   // days from a reader looking for them; leaving it unmarked invites the comparison the bridge
@@ -254,7 +259,9 @@ function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: Spend
     { text: num(p.miles) },
     { text: p.mpg?.toFixed(2) ?? "—" },
     { text: usd2(p.costPerMile) },
-    { text: p.idleCost == null ? "-" : usd(p.idleCost) },
+    // The SHARE, not a cost: how much of this truck-time was stationary is a fact; what it was worth
+    // in blame is not this report's to say.
+    { text: p.idleShare == null ? "-" : `${(p.idleShare * 100).toFixed(0)}%` },
   ]);
   table(doc, cols, rows);
 }

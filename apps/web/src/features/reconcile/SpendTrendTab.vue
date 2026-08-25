@@ -86,9 +86,9 @@ const tiles = computed(() => {
     // sits beside them rather than being left for the reader to divide out.
     { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true },
     { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
-    // Idle sits in the headline row because it is bought with the same gallons as the miles beside it.
-    // It reads "—" rather than zero when the engine feed did not cover the period; see IdleCostCard.
-    { label: "Idle cost", value: c?.idleCost == null ? "—" : usd(c.idleCost), pick: (p: SpendPeriod) => p.idleCost, upIsBad: true },
+    // Idle is NOT a headline tile. Total idle cost is a fact about running trucks, not an accusation,
+    // and a tile that reddens when it rises says the opposite. The idle card below carries the number
+    // that IS actionable — avoidable idle, on trucks that had an alternative.
   ].map((t) => ({
     label: t.label,
     value: t.value,
@@ -119,7 +119,6 @@ const rows = computed(() =>
     mpg: p.mpg?.toFixed(2) ?? "—",
     perMile: usd2(p.costPerMile),
     idle: p.idleUsable ? pct1(p.idleShare) : "—",
-    idleCost: p.idleCost == null ? "—" : usd(p.idleCost),
   })),
 );
 const columns: DataTableColumn[] = [
@@ -133,7 +132,6 @@ const columns: DataTableColumn[] = [
   { key: "mpg", label: "MPG", numeric: true, width: "xs" },
   { key: "perMile", label: "Cost / mile", numeric: true, width: "sm" },
   { key: "idle", label: "Idle", numeric: true, width: "xs" },
-  { key: "idleCost", label: "Idle cost", numeric: true, width: "sm" },
 ];
 
 const hasData = computed(() => days.value.length > 0);
@@ -210,7 +208,7 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
 
       <!-- The one KPI tile (D-UI2). These were hand-rolled BaseCards reproducing StatCard's kpi anatomy
            class for class, which is exactly the drift StatCard was extracted to end. -->
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           v-for="t in tiles"
           :key="t.label"
@@ -237,7 +235,7 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
         </p>
       </BaseCard>
 
-      <IdleCostCard :periods="series" :grain-label="grainLabel" />
+      <IdleCostCard :from="props.filters.from" :to="props.filters.to" />
 
       <div>
         <h4 class="mb-2 text-sm font-semibold text-ink">{{ grainLabel === "day" ? "Day" : grainLabel === "month" ? "Month" : "Week" }} by {{ grainLabel }}</h4>

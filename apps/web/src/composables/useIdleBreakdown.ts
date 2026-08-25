@@ -13,8 +13,17 @@ import {
   type OptimizedEnvelopeEvidence,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
-import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
+
+/**
+ * An inclusive date window. Declared here rather than imported from `features/fleet/useIdleScores`:
+ * this composable moved OUT of that feature so the fuel-spend surface could read the same verdict, and
+ * a composable reaching back into a feature is the same boundary violation pointing the other way.
+ */
+export interface IdleDateFilter {
+  from?: string; // ISO (inclusive)
+  to?: string; // ISO (inclusive — pass an end-of-day time for a timestamp column)
+}
 
 const DEFAULT_COST_BASIS: IdleCostBasis = {
   idleGalPerHour: 0.8,
@@ -24,6 +33,18 @@ const DEFAULT_COST_BASIS: IdleCostBasis = {
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
+
+/**
+ * ── WHY THIS IS A COMPOSABLE AND NOT A FEATURE INTERNAL ─────────────────────────────────────────
+ * It was `features/fleet/useIdleBreakdown`, read only by the Idling page. The fuel-spend surface then
+ * costed idle by multiplying `vehicle_engine_days.idle_sec` by a burn rate and printing the total in
+ * red — which is the "everything is avoidable" over-count `IDLE-AVOIDABLE-HOS.md` was written to kill,
+ * reintroduced on a second page because the verdict lived somewhere it could not be imported from.
+ *
+ * Only 17 of 195 trucks carry a confirmed APU and 36 an Optimized Idle flag, so at most a quarter of
+ * the fleet HAS an alternative to idling; the rest is a driver with no choice, and the plan is explicit
+ * that those trucks are not blamed. One home for that judgement, read by both surfaces.
+ */
 
 /** One truck's engine-time + avoidable breakdown for the selected range (hours, 0.1h precision). */
 export interface TruckBreakdown {
