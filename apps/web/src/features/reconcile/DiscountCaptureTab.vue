@@ -1,87 +1,86 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
-import { analyzeDiscountCapture, weeklyDiscountCapture, type SpendLine } from "@fuelguard/shared";
+import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
 
 /**
- * Fills that did not get the discount the rest of the week's fills got (plan §4.2).
+ * Was every fill billed at the price Pilot contracted for it?
  *
- * The benchmark is the period's own MEDIAN, not a contract rate, because the deal moves with the
- * market — capture ran $0.81/gal when diesel bottomed and $0.53 when it peaked. A fixed benchmark
- * invents loss in a falling market and hides it in a rising one. The copy says so on the card, because
- * a number labelled "lost" that nobody can explain gets ignored.
+ * ── WHY THIS TAB STOPPED USING A MEDIAN ──────────────────────────────────────────────────────────
+ * It used to score each fill against the median discount of the fills around it, because that is all a
+ * parsed vendor statement supports. The daily Pilot report has always carried something better —
+ * "Your Price", the fleet's net per-gallon with the contract discount already applied, for all 683
+ * sites — and since 0245 those are kept rather than deleted by the next upload. 0247 joins it onto
+ * every fill, so the question became "did this fill cost what we were quoted" instead of "did this fill
+ * do as well as our other fills".
+ *
+ * The difference is not cosmetic. A median measures the carrier against itself: a week where every
+ * station billed uniformly over contract moves the median with it and reports nothing wrong. Measured
+ * over 2026-08-02 → 2026-08-25, the contract found $177.76 across 19 fills that no median could have
+ * surfaced, because $177.76 spread over 1,409 fills does not move one.
+ *
+ * ── WHAT IS NOT MEASURED IS SAID ─────────────────────────────────────────────────────────────────
+ * A fill with no quote in range is UNMEASURED, never scored as billed correctly. Zero variance and no
+ * measurement look identical in a total and mean opposite things, so they are reported apart.
  */
 const props = defineProps<{ lines: SpendLine[] }>();
 
-/**
- * How much of the period we can actually SEE the posted price for.
- *
- * `analyzeDiscountCapture` drops fills with no retail rather than scoring them as having captured
- * nothing — the right call, and it means the figures below describe a subset. Saying which subset is
- * the difference between a measurement and a guess: a day nobody uploaded a price report for looks
- * exactly like a day the fleet bought no fuel, and only this line tells them apart.
- */
-const coverage = computed(() => {
-  const tractor = props.lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0);
-  const priced = tractor.filter((l) => l.retailAmount != null);
-  const gal = tractor.reduce((a, l) => a + l.gallons, 0);
-  const pricedGal = priced.reduce((a, l) => a + l.gallons, 0);
-  // The earliest fill we could price. Price reports were only KEPT from 0245 onward, so on a window
-  // wider than the reports on file the shortfall is history that does not exist rather than anything
-  // wrong — and a reader shown "21% of gallons" with no reason will read it as broken.
-  const pricedDates = priced.map((l) => l.tranDate).filter((d): d is string => !!d).sort();
-  return {
-    fills: tractor.length,
-    priced: priced.length,
-    share: gal > 0 ? pricedGal / gal : null,
-    missing: tractor.length - priced.length,
-    from: pricedDates[0] ?? null,
-    /** True when the window reaches back before any price report exists. */
-    startsBeforePrices:
-      pricedDates.length > 0 &&
-      tractor.some((l) => l.tranDate != null && l.tranDate < pricedDates[0]!),
-  };
-});
+const capture = computed(() => analyzeContractCapture(props.lines));
+const weekly = computed(() => weeklyContractCapture(props.lines));
 
-const capture = computed(() => analyzeDiscountCapture(props.lines));
-const weekly = computed(() => weeklyDiscountCapture(props.lines));
-
-const bandRows = computed(() =>
-  capture.value.bands.map((b) => ({ id: b.key, band: b.label, lines: b.lines, gallons: gal(b.gallons), spend: usd(b.spend), shortfall: usd(b.shortfall) })),
+/** Every fill in scope, so the unmeasured share can be stated against a real denominator. */
+const inScope = computed(
+  () => props.lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0).length,
 );
-const bandCols: DataTableColumn[] = [
-  { key: "band", label: "Captured discount", width: "md" },
-  { key: "lines", label: "Fills", numeric: true, width: "xs" },
+
+const exceptionRows = computed(() =>
+  capture.value.exceptions.slice(0, 50).map((c, i) => ({
+    id: `${i}-${c.line.site ?? "?"}-${c.line.tranDate ?? ""}`,
+    date: c.line.tranDate ?? "—",
+    site: `${c.line.site ?? "?"} ${c.line.city ?? ""} ${c.line.state ?? ""}`.trim(),
+    unit: c.line.unit ?? "—",
+    gallons: gal(c.gallons),
+    quoted: usd3(c.contractPerGal),
+    billed: usd3(c.paidPerGal),
+    variance: usd(c.variance),
+  })),
+);
+const exceptionCols: DataTableColumn[] = [
+  { key: "date", label: "Date", width: "sm" },
+  { key: "site", label: "Site", width: "xl" },
+  { key: "unit", label: "Unit", width: "xs" },
   { key: "gallons", label: "Gallons", numeric: true, width: "sm" },
-  { key: "spend", label: "Spend", numeric: true, width: "sm" },
-  { key: "shortfall", label: "Below benchmark", numeric: true, width: "md" },
+  { key: "quoted", label: "Quoted / gal", numeric: true, width: "sm" },
+  { key: "billed", label: "Billed / gal", numeric: true, width: "sm" },
+  { key: "variance", label: "Over contract", numeric: true, width: "md" },
 ];
 
 const siteRows = computed(() =>
-  capture.value.bySite.slice(0, 25).map((r, i) => ({
+  capture.value.bySite.filter((r) => r.variance > 0).slice(0, 25).map((r, i) => ({
     id: `${i}-${r.key}`, site: r.key, lines: r.lines, gallons: gal(r.gallons),
-    perGal: usd3(r.discountPerGal), shortfall: usd(r.shortfall),
+    perGal: usd3(r.variancePerGal), variance: usd(r.variance),
   })),
 );
 const siteCols: DataTableColumn[] = [
   { key: "site", label: "Site", width: "xl" },
   { key: "lines", label: "Fills", numeric: true, width: "xs" },
   { key: "gallons", label: "Gallons", numeric: true, width: "sm" },
-  { key: "perGal", label: "Discount / gal", numeric: true, width: "sm" },
-  { key: "shortfall", label: "Below benchmark", numeric: true, width: "md" },
+  { key: "perGal", label: "Over / gal", numeric: true, width: "sm" },
+  { key: "variance", label: "Over contract", numeric: true, width: "md" },
 ];
 
 function exportLines() {
   downloadCsv(
-    "fuel-discount-capture",
-    ["Date", "Site", "City", "State", "Brand", "Unit", "Gallons", "Paid", "Posted", "Discount $/gal", "Benchmark $/gal", "Below benchmark $"],
-    capture.value.lines.map((c) => [
+    "fuel-contract-reconciliation",
+    ["Date", "Site", "City", "State", "Brand", "Unit", "Gallons", "Billed", "Quoted", "Billed $/gal", "Quoted $/gal", "Variance $", "Quote age (days)"],
+    capture.value.exceptions.map((c) => [
       c.line.tranDate, c.line.site, c.line.city, c.line.state, c.line.brand, c.line.unit,
-      c.line.gallons.toFixed(1), c.line.netAmount?.toFixed(2), c.line.retailAmount?.toFixed(2),
-      c.discountPerGal.toFixed(4), c.benchmarkPerGal.toFixed(4), c.shortfall.toFixed(2),
+      c.gallons.toFixed(1), c.paid.toFixed(2), c.expected.toFixed(2),
+      c.paidPerGal.toFixed(4), c.contractPerGal.toFixed(4), c.variance.toFixed(2),
+      c.staleDays == null ? "" : String(c.staleDays),
     ]),
   );
 }
@@ -89,69 +88,120 @@ function exportLines() {
 
 <template>
   <div class="space-y-6">
-    <p
-      v-if="coverage.missing > 0"
-      class="rounded-surface bg-caution-50 px-4 py-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
-    >
-      Measured on {{ coverage.priced.toLocaleString() }} of {{ coverage.fills.toLocaleString() }} fills —
-      {{ pct1(coverage.share) }} of the gallons.
-      <template v-if="coverage.startsBeforePrices">
-        Price reports on file begin <strong>{{ coverage.from }}</strong>, and fills before that cannot be measured
-        against a posted price because none was kept — nothing is wrong with them.
-      </template>
-      <template v-else>
-        The rest were bought at a station with no price report for that day.
-      </template>
-      Unmeasurable fills are left out rather than counted as having captured no discount. Narrow the date filter to
-      the priced period for a like-for-like figure.
-    </p>
-
-    <BaseCard>
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h3 class="text-sm font-semibold text-ink">Discount capture</h3>
-          <p class="mt-1 max-w-2xl text-sm text-ink-muted">
-            Every fill scored against the benchmark for this period —
-            <span class="font-medium text-ink-secondary">{{ usd3(capture.benchmarkPerGal) }} a gallon</span>, the median
-            of these fills. The benchmark moves with the period on purpose: the deal tracks the market, so a fixed
-            target would invent losses in a falling market and hide them in a rising one.
-          </p>
-        </div>
-        <div class="text-right">
-          <p class="text-2xl font-bold text-danger-700">{{ usd(capture.totalShortfall) }}</p>
-          <p class="text-xs text-ink-muted">below benchmark</p>
-        </div>
-      </div>
-      <p v-if="capture.zeroDiscount.length" class="mt-3 rounded-surface bg-caution-50 px-3 py-2 text-sm text-caution-800 ring-1 ring-caution-100">
-        {{ capture.zeroDiscount.length }} fill{{ capture.zeroDiscount.length === 1 ? "" : "s" }} captured no discount at
-        all — {{ usd(capture.zeroDiscount.reduce((a, c) => a + (c.line.netAmount ?? 0), 0)) }} of fuel at the posted price.
+    <BaseCard v-if="capture.measuredLines === 0">
+      <h3 class="text-sm font-semibold text-ink">Nothing here can be priced yet</h3>
+      <p class="mt-1 max-w-2xl text-sm text-ink-muted">
+        No fill in this window matched a Pilot quote, so what these fills should have cost is unknown. Quotes come
+        from the daily price report — upload the days this window covers, or narrow the dates to a period that has
+        them.
       </p>
     </BaseCard>
 
-    <BaseCard padding="none">
-      <DataTable :columns="bandCols" :rows="bandRows" empty-text="No fills with a posted price to compare." />
-    </BaseCard>
+    <template v-else>
+      <!-- The two rates side by side, because the claim is that they should be the SAME rate. -->
+      <BaseCard>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-ink">Billed against contract</h3>
+            <p class="mt-1 max-w-2xl text-sm text-ink-muted">
+              Every fill scored against <span class="font-medium text-ink-secondary">"Your Price"</span> — the net
+              per-gallon Pilot quoted for that station on that day, contract discount already applied. Not a median
+              of what we paid: that would measure the fleet against itself and could never show a week where every
+              station charged over.
+            </p>
+          </div>
+          <div class="text-right">
+            <p
+              class="text-2xl font-bold"
+              :class="capture.netVariance > 0 ? 'text-danger-700' : 'text-ink'"
+            >
+              {{ usd(Math.abs(capture.netVariance)) }}
+            </p>
+            <p class="text-xs text-ink-muted">{{ capture.netVariance >= 0 ? "over" : "under" }} contract</p>
+          </div>
+        </div>
 
-    <div>
-      <div class="mb-2 flex items-center justify-between">
-        <h4 class="text-sm font-semibold text-ink">Worst sites</h4>
-        <BaseButton variant="ghost" @click="exportLines">Download every fill (CSV)</BaseButton>
-      </div>
-      <BaseCard padding="none">
-        <DataTable :columns="siteCols" :rows="siteRows" empty-text="Nothing below the benchmark." />
+        <dl class="mt-4 grid grid-cols-2 gap-4 border-t border-edge-subtle pt-4 sm:grid-cols-4">
+          <div>
+            <dt class="text-xs text-ink-muted">Quoted / gal</dt>
+            <dd class="text-lg font-semibold text-ink">{{ usd3(capture.contractPerGal) }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-ink-muted">Billed / gal</dt>
+            <dd class="text-lg font-semibold text-ink">{{ usd3(capture.paidPerGal) }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-ink-muted">Billed at contract</dt>
+            <dd class="text-lg font-semibold text-ink">{{ pct1(capture.honouredShare) }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-ink-muted">Captured vs retail</dt>
+            <dd class="text-lg font-semibold text-ink">{{ usd(capture.captured) }}</dd>
+          </div>
+        </dl>
+
+        <p class="mt-3 text-sm text-ink-muted">
+          {{ capture.honouredLines.toLocaleString() }} of {{ capture.measuredLines.toLocaleString() }} measured fills
+          were billed at the quoted price, within a cent a gallon.
+          <template v-if="capture.overLines">
+            {{ capture.overLines }} came in above it by {{ usd(capture.overDollars) }}<template
+              v-if="capture.underLines"
+            >, and {{ capture.underLines }} below it by {{ usd(Math.abs(capture.underDollars)) }}</template>.
+          </template>
+          <template v-else>No fill was billed above contract by more than a cent a gallon.</template>
+        </p>
       </BaseCard>
-    </div>
 
-    <BaseCard v-if="weekly.length > 1" padding="sm">
-      <h4 class="text-sm font-semibold text-ink">By week</h4>
-      <ul class="mt-2 space-y-1 text-sm">
-        <li v-for="w in weekly" :key="w.week" class="flex flex-wrap items-baseline gap-x-4 text-ink-secondary">
-          <span class="font-medium text-ink">{{ w.week }}</span>
-          <span>benchmark {{ usd3(w.benchmarkPerGal) }}</span>
-          <span>{{ usd(w.shortfall) }} below it</span>
-          <span v-if="w.zeroDiscountLines" class="text-caution-800">{{ w.zeroDiscountLines }} with no discount</span>
-        </li>
-      </ul>
-    </BaseCard>
+      <!-- How the figures above were resolved. Both caveats are independent: a window can be fully
+           measured and still lean on carried-forward quotes, and an earlier version nested the second
+           inside the first so it disappeared exactly when every fill WAS measurable. -->
+      <p
+        v-if="capture.unmeasuredLines > 0 || capture.carriedForwardLines > 0"
+        class="rounded-surface bg-caution-50 px-4 py-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
+      >
+        <template v-if="capture.unmeasuredLines > 0">
+          {{ capture.unmeasuredLines.toLocaleString() }} of {{ inScope.toLocaleString() }} fills
+          ({{ gal(capture.unmeasuredGallons) }} gallons, {{ usd(capture.unmeasuredPaid) }}) had no quote in range — an
+          off-network site, or a station absent from that day's report. They are left out of every figure above rather
+          than counted as having been billed correctly.
+        </template>
+        <template v-if="capture.carriedForwardLines > 0">
+          {{ capture.carriedForwardLines.toLocaleString() }} fill{{ capture.carriedForwardLines === 1 ? " was" : "s were" }}
+          measured against the previous day's quote, the report not having been issued that day.
+        </template>
+      </p>
+
+      <div v-if="exceptionRows.length">
+        <div class="mb-2 flex items-center justify-between">
+          <h4 class="text-sm font-semibold text-ink">Fills billed off contract</h4>
+          <BaseButton variant="ghost" @click="exportLines">Download every exception (CSV)</BaseButton>
+        </div>
+        <BaseCard padding="none">
+          <DataTable :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
+        </BaseCard>
+      </div>
+
+      <div v-if="siteRows.length">
+        <h4 class="mb-2 text-sm font-semibold text-ink">Worst sites</h4>
+        <BaseCard padding="none">
+          <DataTable :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
+        </BaseCard>
+      </div>
+
+      <BaseCard v-if="weekly.length > 1" padding="sm">
+        <h4 class="text-sm font-semibold text-ink">By week</h4>
+        <ul class="mt-2 space-y-1 text-sm">
+          <li v-for="w in weekly" :key="w.week" class="flex flex-wrap items-baseline gap-x-4 text-ink-secondary">
+            <span class="font-medium text-ink">{{ w.week }}</span>
+            <span>quoted {{ usd3(w.contractPerGal) }}</span>
+            <span>billed {{ usd3(w.paidPerGal) }}</span>
+            <span :class="w.netVariance > 0 ? 'text-danger-700' : undefined">
+              {{ usd(Math.abs(w.netVariance)) }} {{ w.netVariance >= 0 ? "over" : "under" }}
+            </span>
+            <span v-if="w.overLines" class="text-caution-800">{{ w.overLines }} off contract</span>
+          </li>
+        </ul>
+      </BaseCard>
+    </template>
   </div>
 </template>

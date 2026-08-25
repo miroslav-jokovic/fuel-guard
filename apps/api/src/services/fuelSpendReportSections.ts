@@ -9,7 +9,7 @@
 import {
   analyzePolicyExceptions,
   operatingBridge,
-  type DiscountCapture,
+  type ContractCapture,
   type FleetIdleVerdict,
   type SpendGrain,
   type SpendLine,
@@ -187,49 +187,76 @@ export function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain
  * will read a partial measurement as a complete one. The shortfall in the section is a shortfall
  * against the fills we can see, not against the fuel bill.
  */
-export function drawDiscount(doc: PDFKit.PDFDocument, capture: DiscountCapture, lines: SpendLine[]): void {
+export function drawDiscount(doc: PDFKit.PDFDocument, capture: ContractCapture, lines: SpendLine[]): void {
   keepTogether(doc, 120);
-  heading(doc, "Discount capture");
+  heading(doc, "Contracted price");
 
   const tractor = lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0);
-  const priced = tractor.filter((l) => l.retailAmount != null);
-  if (priced.length === 0) {
+  if (capture.measuredLines === 0) {
     muted(
       doc,
-      "No fill in this period could be matched to a posted price, so the discount cannot be measured. " +
-        "Posted prices come from the daily price report; upload the days this period covers to fill it in.",
+      "No fill in this period could be matched to a Pilot quote, so what these fills should have cost is " +
+        "unknown. Quotes come from the daily price report; upload the days this period covers to fill it in.",
     );
     return;
   }
-  const gal = priced.reduce((a, l) => a + l.gallons, 0);
-  const paid = priced.reduce((a, l) => a + (l.netAmount ?? 0), 0);
-  const retail = priced.reduce((a, l) => a + (l.retailAmount ?? 0), 0);
-  const coverageGal = tractor.reduce((a, l) => a + l.gallons, 0);
 
+  // The headline is a comparison of two rates, not a single derived number, because the whole claim is
+  // that they should be the SAME rate and any gap is the vendor's to explain.
   doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
     winAnsi(
-      `Across ${num(gal)} measurable gallons the posted price was ${usd3(retail / gal)} a gallon and we paid ` +
-        `${usd3(paid / gal)} — a captured discount of ${usd(retail - paid)}, ${usd3((retail - paid) / gal)} a gallon.`,
+      `Across ${num(capture.measuredGallons)} measurable gallons the contract quoted ` +
+        `${usd3(capture.contractPerGal)} a gallon and we were billed ${usd3(capture.paidPerGal)} — ` +
+        `${capture.netVariance >= 0 ? "over" : "under"} contract by ${usd(Math.abs(capture.netVariance))}.`,
     ),
     { width: CONTENT_WIDTH },
   );
   doc.moveDown(0.35);
+
+  const honoured = capture.honouredShare == null ? "—" : `${(capture.honouredShare * 100).toFixed(1)}%`;
   body(
     doc,
-    `Measured on ${priced.length.toLocaleString()} of ${tractor.length.toLocaleString()} fills — ` +
-      `${((gal / (coverageGal || 1)) * 100).toFixed(0)}% of the gallons. The rest were bought where no price report ` +
-      "covers that day, so what they should have cost is unknown; they are left out rather than counted as having " +
-      "captured nothing.",
+    `${capture.honouredLines.toLocaleString()} of ${capture.measuredLines.toLocaleString()} measured fills — ` +
+      `${honoured} — were billed at the quoted price. Against the posted retail those fills captured ` +
+      `${usd(capture.captured)}, ${usd3(capture.capturedPerGal)} a gallon.`,
     MUTED,
   );
   doc.moveDown(0.35);
 
-  const worst = capture.bySite.filter((r) => r.shortfall > 0).slice(0, 8);
+  // Unmeasured is stated as its own sentence rather than folded into a coverage percentage, because a
+  // fill nobody could price and a fill billed correctly are the two things this report must not merge.
+  if (capture.unmeasuredLines > 0) {
+    body(
+      doc,
+      `${capture.unmeasuredLines.toLocaleString()} of ${tractor.length.toLocaleString()} fills ` +
+        `(${num(capture.unmeasuredGallons)} gallons, ${usd(capture.unmeasuredPaid)}) had no quote in range — an ` +
+        "off-network site, or a station absent from that day's report. They are left out of every figure above " +
+        "rather than counted as having been billed correctly.",
+      MUTED,
+    );
+    doc.moveDown(0.35);
+  }
+  if (capture.carriedForwardLines > 0) {
+    body(
+      doc,
+      `${capture.carriedForwardLines.toLocaleString()} fill(s) were measured against the previous day's quote, the ` +
+        "report having not been issued that day — the daily report is not sent on a Sunday. Measured against " +
+        "production, carrying a quote forward produced no overcharge at all: all 19 fills over contract in that " +
+        "window were scored against a same-day quote.",
+      MUTED,
+    );
+    doc.moveDown(0.35);
+  }
+
+  const worst = capture.exceptions.filter((c) => c.variance > 0).slice(0, 8);
   if (worst.length > 0) {
     body(
       doc,
-      `Benchmarked against ${usd3(capture.benchmarkPerGal)} a gallon — this period's own median capture, so a moving ` +
-        "market cannot invent a gap. The sites furthest below it:",
+      `${capture.overLines} fill(s) were billed above contract, ${usd(capture.overDollars)} in total` +
+        (capture.underLines > 0
+          ? `, and ${capture.underLines} below it by ${usd(Math.abs(capture.underDollars))}.`
+          : ".") +
+        " The largest overcharges, each traceable to a station and a date:",
       MUTED,
     );
     doc.moveDown(0.2);
@@ -237,32 +264,25 @@ export function drawDiscount(doc: PDFKit.PDFDocument, capture: DiscountCapture, 
       doc,
       [
         // Header text must FIT its column: `table` does not shrink or wrap a header, it lets it run
-        // into the next one, and "Captured / gal" beside "Below benchmark" came out as two collided
-        // lines of grey.
-        { width: 186, header: "Site" },
-        { width: 44, header: "Fills", align: "right" },
-        { width: 62, header: "Gallons", align: "right" },
-        { width: 72, header: "Spend", align: "right" },
-        { width: 68, header: "Capt/gal", align: "right" },
-        { width: 72, header: "Shortfall", align: "right" },
+        // into the next one.
+        { width: 74, header: "Date" },
+        { width: 148, header: "Site" },
+        { width: 56, header: "Gallons", align: "right" },
+        { width: 62, header: "Quoted", align: "right" },
+        { width: 62, header: "Billed", align: "right" },
+        { width: 62, header: "Over", align: "right" },
       ],
-      worst.map((r) => [
-        { text: r.key },
-        { text: String(r.lines) },
-        { text: num(r.gallons) },
-        { text: usd(r.spend) },
-        { text: usd3(r.discountPerGal) },
-        { text: usd(r.shortfall), bold: true },
+      worst.map((c) => [
+        { text: c.line.tranDate ?? "—" },
+        { text: `${c.line.site ?? "?"} ${c.line.city ?? ""} ${c.line.state ?? ""}`.trim() },
+        { text: num(c.gallons) },
+        { text: usd3(c.contractPerGal) },
+        { text: usd3(c.paidPerGal) },
+        { text: usd(c.variance), bold: true },
       ]),
     );
-  }
-  if (capture.zeroDiscount.length > 0) {
-    body(
-      doc,
-      `${capture.zeroDiscount.length} fill(s) captured no discount at all. On every statement examined so far, ` +
-        "each one of those was an off-brand site.",
-      MUTED,
-    );
+  } else {
+    body(doc, "No fill was billed above its contracted price by more than a cent a gallon.", MUTED);
   }
   doc.moveDown(0.3);
 }

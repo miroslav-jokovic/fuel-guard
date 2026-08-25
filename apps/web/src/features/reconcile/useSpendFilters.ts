@@ -12,7 +12,7 @@
  * screenshot of a filtered view is unreproducible by the person receiving it. Everything that changes
  * what the numbers mean — dates, trucks, grain, tab — is a query parameter.
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { SpendGrain } from "@fuelguard/shared";
 
@@ -45,52 +45,80 @@ export function useSpendFilters() {
   const route = useRoute();
   const router = useRouter();
 
+  /**
+   * Patches applied since the last navigation settled.
+   *
+   * ── WHY THIS EXISTS: THE DATE RANGE WAS WELDED TO 90 DAYS ───────────────────────────────────────
+   * `router.replace` is ASYNCHRONOUS — `route.query` does not change until the navigation resolves.
+   * `DateRangeFilter` emits `update:from` and `update:to` back-to-back in one tick, so both setters read
+   * the SAME pre-change `route.query`, and the second `replace` overwrote the first. `to` landed, `from`
+   * was dropped, and the getter below fell back to `shiftDays(-DEFAULT_DAYS)`. The visible symptom was a
+   * date picker permanently stuck on the last 90 days: every pick appeared to do nothing, because the
+   * only half that survived was the end date, which was already today.
+   *
+   * It is not specific to dates — any two filters set in one tick collided the same way. So patches
+   * accumulate here and each `replace` is built from `route.query` PLUS everything written since,
+   * rather than from a snapshot the router has not caught up to yet.
+   */
+  const pending = ref<Record<string, string | undefined>>({});
+  /** The query as it will be once the router settles. Getters read this so the UI never lags a tick. */
+  const q = computed<Record<string, unknown>>(() => ({ ...route.query, ...pending.value }));
+
   // `replace` throughout: adjusting a filter is not a navigation, and a reader pressing back expects to
   // leave the page rather than walk their own filter history.
-  const set = (patch: Record<string, string | undefined>) =>
-    void router.replace({ query: { ...route.query, ...patch } });
+  const set = (patch: Record<string, string | undefined>) => {
+    const merged = { ...pending.value, ...patch };
+    pending.value = merged;
+    void router
+      .replace({ query: { ...route.query, ...merged } })
+      // Cleared only if nothing else was written while this navigation was in flight; a later patch owns
+      // the buffer and must keep it until ITS navigation lands.
+      .finally(() => {
+        if (pending.value === merged) pending.value = {};
+      });
+  };
 
   const from = computed<string>({
     get: () => {
-      const v = one(route.query.from);
+      const v = one(q.value.from);
       return v && YMD.test(v) ? v : shiftDays(-DEFAULT_DAYS);
     },
     set: (v) => set({ from: v || undefined }),
   });
   const to = computed<string>({
     get: () => {
-      const v = one(route.query.to);
+      const v = one(q.value.to);
       return v && YMD.test(v) ? v : ymd(new Date());
     },
     set: (v) => set({ to: v || undefined }),
   });
   const vehicleIds = computed<string[]>({
-    get: () => (one(route.query.trucks) ?? "").split(",").filter(Boolean),
+    get: () => (one(q.value.trucks) ?? "").split(",").filter(Boolean),
     set: (v) => set({ trucks: v.length ? v.join(",") : undefined }),
   });
   const grain = computed<SpendGrain>({
     get: () => {
-      const v = one(route.query.grain);
+      const v = one(q.value.grain);
       return v === "day" || v === "month" ? v : "week";
     },
     set: (v) => set({ grain: v }),
   });
   const tab = computed<string>({
-    get: () => one(route.query.tab) ?? "",
+    get: () => one(q.value.tab) ?? "",
     set: (v) => set({ tab: v }),
   });
 
   /** True when the reader has narrowed anything — used to say so on the export and in empty states. */
   const active = computed(
-    () => one(route.query.from) != null || one(route.query.to) != null || vehicleIds.value.length > 0,
+    () => one(q.value.from) != null || one(q.value.to) != null || vehicleIds.value.length > 0,
   );
 
   const range = computed(() => ({ from: from.value, to: to.value }));
   /** Everything the server needs to reproduce this view, as query-string pairs. */
   const asQuery = computed(() => {
-    const q = new URLSearchParams({ from: from.value, to: to.value, grain: grain.value });
-    if (vehicleIds.value.length) q.set("vehicles", vehicleIds.value.join(","));
-    return q.toString();
+    const params = new URLSearchParams({ from: from.value, to: to.value, grain: grain.value });
+    if (vehicleIds.value.length) params.set("vehicles", vehicleIds.value.join(","));
+    return params.toString();
   });
 
   function reset(): void {

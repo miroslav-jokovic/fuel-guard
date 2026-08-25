@@ -75,18 +75,43 @@ describe("SpendBridgeCard", () => {
 });
 
 describe("DiscountCaptureTab", () => {
-  it("shows the benchmark it used and what fell below it", () => {
+  /** Fills carrying a contracted quote, the shape `fuel_spend_lines` returns since 0247. */
+  const quoted = (): SpendLine[] =>
+    eightWeeks().map((l) => ({
+      ...l,
+      // Quoted at exactly what was paid, except one fill billed 10c/gal over.
+      contractAmount: l.site === "3" ? l.netAmount! - 0.1 * l.gallons : l.netAmount,
+      quoteStaleDays: 0,
+    }));
+
+  it("compares what was billed against what was quoted, and names the gap", () => {
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted() } }).text();
+    expect(t).toContain("Billed against contract");
+    expect(t).toContain("Quoted / gal");
+    expect(t).toContain("Billed / gal");
+    expect(t).toMatch(/\$\d+\.\d{3}/); // rates to a tenth of a cent
+    expect(t).toContain("over contract");
+    expect(t).not.toContain("NaN");
+  });
+
+  it("reports fills with no quote as unmeasured rather than as billed correctly", () => {
+    // eightWeeks() carries no contractAmount at all, so nothing is measurable.
     const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks() } }).text();
-    expect(t).toContain("Discount capture");
-    expect(t).toMatch(/\$\d+\.\d{3} a gallon/); // the median benchmark, to a tenth of a cent
-    expect(t).toContain("below benchmark");
-    expect(t).toContain("captured no discount at all"); // the ONE9 fill
+    expect(t).toContain("Nothing here can be priced yet");
+    expect(t).not.toContain("Billed against contract");
+    expect(t).not.toContain("NaN");
+  });
+
+  it("says so when a quote had to be carried forward from the day before", () => {
+    const lines = quoted().map((l) => ({ ...l, quoteStaleDays: 1 }));
+    const t = mount(DiscountCaptureTab, { props: { lines } }).text();
+    expect(t).toContain("previous day's quote");
     expect(t).not.toContain("NaN");
   });
 
   it("renders with nothing to report rather than throwing", () => {
     const t = mount(DiscountCaptureTab, { props: { lines: [] } }).text();
-    expect(t).toContain("Discount capture");
+    expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("NaN");
   });
 });

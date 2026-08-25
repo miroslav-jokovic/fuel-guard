@@ -56,6 +56,35 @@ describe("renderFuelSpendReport", () => {
     });
   });
 
+  /**
+   * The regression: `fuel_spend_lines` took no org and this file called it with the SERVICE ROLE, which
+   * bypasses RLS. The document read every carrier in the database — a test org's 267 fills landed in a
+   * real carrier's exception and discount sections, and its 10 mis-keyed rows were mistaken for a unit
+   * bug in the derivation.
+   *
+   * `expectOrgScoped` cannot catch this: it filters `rpc:` calls out by construction, because an RPC's
+   * scoping lives in its ARGUMENTS rather than in a chained `.eq()`. That exemption is exactly the gap
+   * the leak went through, so the argument is asserted directly.
+   */
+  it("passes its org to every RPC, which no .eq() chain would show", async () => {
+    const rec = seed();
+    await render(rec);
+    const lines = rec.rpcs().filter((r) => r.fn === "fuel_spend_lines");
+    expect(lines.length).toBeGreaterThan(0);
+    for (const call of lines) expect((call.args as Record<string, unknown>).p_org).toBe(ORG);
+  });
+
+  it("never asks for fills without naming an org, which would return every carrier", async () => {
+    const rec = seed();
+    await render(rec);
+    for (const call of rec.rpcs()) {
+      const args = (call.args ?? {}) as Record<string, unknown>;
+      // A null or absent p_org falls back to auth_org_id(), which is null under the service role — the
+      // function fails closed rather than leaking, but a caller relying on that is still a bug.
+      if ("p_org" in args) expect(args.p_org).toBeTruthy();
+    }
+  });
+
   it("produces a PDF, and names the carrier on it", async () => {
     const rec = seed();
     const { pdf, carrier } = await render(rec);

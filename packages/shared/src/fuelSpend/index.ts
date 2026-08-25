@@ -2,6 +2,7 @@
 export * from "./types.js";
 export * from "./varianceBridge.js";
 export * from "./discountCapture.js";
+export * from "./contractCapture.js";
 export * from "./policyExceptions.js";
 export * from "./ancillary.js";
 export * from "./operatingBridge.js";
