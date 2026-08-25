@@ -15,7 +15,15 @@ describe("the series table fits the page", () => {
     expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(CONTENT_WIDTH);
   });
 
-  it("and the exceptions table does too", () => {
+  it("and the exceptions summary does too", () => {
     expect([190, 48, 66, 52, 74, 74].reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(CONTENT_WIDTH);
+  });
+
+  it("and the exception detail table", () => {
+    expect([150, 38, 54, 58, 22, 100, 82].reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(CONTENT_WIDTH);
+  });
+
+  it("and the discount capture table", () => {
+    expect([186, 44, 62, 72, 68, 72].reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(CONTENT_WIDTH);
   });
 });

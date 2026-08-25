@@ -15,6 +15,7 @@ import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { usd } from "@/features/reconcile/format";
 
@@ -123,19 +124,25 @@ const caNote = computed(() => {
     <!-- ONE filter bar for every view that reads data. Dates, trucks and grain are the page's, so a
          figure read on one tab is the same period as a figure read on the next, and the export sends
          exactly these to the server. -->
-    <FilterBar v-if="tab !== 'reconcile'">
-      <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
-      <FilterSelect
-        v-model="f.vehicleIds.value"
-        :options="truckOptions"
-        label="Trucks"
-        multiple
-      />
-      <FilterSelect v-if="tab === 'spend'" v-model="f.grain.value" :options="grainOptions" label="Grain" />
-      <span v-if="f.active.value" class="text-sm text-ink-muted">
-        filtered
-        <BaseButton variant="ghost" class="ml-1" @click="f.reset()">Clear</BaseButton>
-      </span>
+    <FilterBar v-if="tab !== 'reconcile'" :count="feedLines.length" count-label="fills">
+      <!-- ⚠ These MUST be in the #filters slot. FilterBar has no default slot — only #filters, #more
+           and #actions — so controls placed as plain children are silently dropped and the bar renders
+           empty. That is exactly how this whole filter row went missing on a live page. -->
+      <template #filters>
+        <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
+        <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Trucks" multiple />
+        <FilterSelect v-if="tab === 'spend'" v-model="f.grain.value" :options="grainOptions" label="Grain" />
+        <BaseButton v-if="f.active.value" variant="ghost" @click="f.reset()">Clear filters</BaseButton>
+      </template>
+      <template #actions>
+        <ReportExportButton
+          :query="f.asQuery.value"
+          :from="f.from.value"
+          :to="f.to.value"
+          :grain="f.grain.value"
+          :truck-count="f.vehicleIds.value.length"
+        />
+      </template>
     </FilterBar>
 
     <SpendTrendTab v-if="tab === 'spend'" :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />

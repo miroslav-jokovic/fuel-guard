@@ -191,22 +191,44 @@ export function createSupabaseRecorder(opts: {
 
   const client = {
     from: (table: string) => builder(table),
-    rpc: async (fn: string, args: unknown) => {
+    /**
+     * `.rpc()` is THENABLE rather than async, so a caller may chain the PostgREST modifiers a function
+     * returning `setof` accepts — `.range()` above all, which is how a service pages an RPC the same
+     * way it pages a table. Awaiting it directly still works, so every existing call site is unchanged.
+     *
+     * It returned a bare promise until the spend report started paging `fuel_spend_lines`, at which
+     * point every test of that path died on `admin.rpc(...).range is not a function` — a limitation of
+     * the fake, not of the code it was standing in for.
+     */
+    rpc: (fn: string, args: unknown) => {
       queries.push({
         table: `rpc:${fn}`,
         ops: [{ method: "rpc", args: [args] }],
         write: null,
         filters: () => [],
       });
-      const r = typeof opts.rpc === "function" ? opts.rpc(fn, args) : opts.rpc?.[fn];
-      // A scripted `{ error }` passes through as a FAILED call, the same shape a table fixture uses.
-      // Added when the hire path had to prove it turns the transaction's own refusal (SQLSTATE
-      // HA010, "somebody hired them first") into an answer rather than a 500 — a recorder that can
-      // only succeed forces that test to hand-roll a client, and then it is not testing this one.
-      if (r !== null && typeof r === "object" && "error" in r && (r as { error?: unknown }).error) {
-        return { data: null, error: (r as { error: unknown }).error };
+      const settle = () => {
+        const r = typeof opts.rpc === "function" ? opts.rpc(fn, args) : opts.rpc?.[fn];
+        // A scripted `{ error }` passes through as a FAILED call, the same shape a table fixture uses.
+        // Added when the hire path had to prove it turns the transaction's own refusal (SQLSTATE
+        // HA010, "somebody hired them first") into an answer rather than a 500 — a recorder that can
+        // only succeed forces that test to hand-roll a client, and then it is not testing this one.
+        if (r !== null && typeof r === "object" && "error" in r && (r as { error?: unknown }).error) {
+          return { data: null, error: (r as { error: unknown }).error };
+        }
+        return { data: r ?? null, error: null };
+      };
+      // Every modifier records itself and returns the same chainable object; only awaiting resolves.
+      const chain: Record<string, unknown> = {};
+      for (const m of ["range", "order", "limit", "eq", "in", "gte", "lte", "select", "filter", "single", "maybeSingle"]) {
+        chain[m] = (...a: unknown[]) => {
+          queries[queries.length - 1]!.ops.push({ method: m, args: a });
+          return chain;
+        };
       }
-      return { data: r ?? null, error: null };
+      chain.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>
+        Promise.resolve(settle()).then(res, rej);
+      return chain;
     },
     storage: {
       from: (bucket: string) =>

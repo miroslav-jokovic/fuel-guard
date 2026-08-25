@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
 import { spendSeries, comparablePeriods, periodTotals, type SpendDay, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import { apiDownload } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
-import { useToastStore } from "@/stores/toast";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
 import IdleCostCard from "./IdleCostCard.vue";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
@@ -136,30 +134,10 @@ const columns: DataTableColumn[] = [
 
 const hasData = computed(() => days.value.length > 0);
 
-// ── export ──────────────────────────────────────────────────────────────────────────────────────
-// The PDF is rendered on the SERVER from the same rollup, not from what this component is holding: a
-// figure in a document gets quoted back months later, so page and document must come from one source.
-const toast = useToastStore();
-const exporting = ref(false);
+// The PDF is a PAGE-level action (see ReportExportButton) because it covers every tab. What stays here
+// is this tab's own series as CSV.
 const range = computed(() => ({ from: props.filters.from, to: props.filters.to }));
 
-async function exportPdf() {
-  if (exporting.value) return;
-  exporting.value = true;
-  try {
-    const { from, to } = range.value;
-    // Every filter goes to the server. A report that quietly covered the whole fleet while the screen
-    // showed three trucks is the kind of document somebody acts on and cannot reconcile later.
-    await apiDownload(
-      `/api/fueling/spend-report.pdf?${props.query}`,
-      `fuelguard-fuel-spend-${from}-to-${to}.pdf`,
-    );
-  } catch (e) {
-    toast.error("Could not build the report", e instanceof Error ? e.message : undefined);
-  } finally {
-    exporting.value = false;
-  }
-}
 
 function exportCsv() {
   const { from, to } = range.value;
@@ -199,10 +177,9 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
           {{ days.length.toLocaleString() }} truck-days
         </p>
         <div class="flex items-center gap-2">
+          <!-- The PDF is a PAGE-level action now (it covers every tab), so only this tab's own series
+               CSV stays here. -->
           <BaseButton variant="ghost" :disabled="!hasData" @click="exportCsv">Export CSV</BaseButton>
-          <BaseButton variant="secondary" :disabled="!hasData || exporting" @click="exportPdf">
-            {{ exporting ? "Building…" : "Export report" }}
-          </BaseButton>
         </div>
       </div>
 

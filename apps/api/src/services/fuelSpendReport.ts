@@ -16,14 +16,20 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  analyzePolicyExceptions, comparablePeriods, operatingBridge, periodTotals, spendSeries,
-  type SpendDay, type SpendGrain, type SpendLine, type SpendPeriod,
+  analyzeDiscountCapture,
+  analyzePolicyExceptions,
+  comparablePeriods,
+  periodTotals,
+  spendSeries,
+  type SpendDay,
+  type SpendGrain,
+  type SpendLine,
 } from "@fuelguard/shared";
 import { eachPage } from "../lib/paging.js";
-import { CONTENT_WIDTH, INK, MUTED, body, heading, muted, newDrawing, table, winAnsi } from "./dqBinder/pdfDraw.js";
-import { kpiRow, letterhead, money, stampFooters, waterfall, type Kpi } from "./fuelSpendReportDraw.js";
+import { newDrawing, winAnsi } from "./dqBinder/pdfDraw.js";
+import { letterhead, stampFooters } from "./fuelSpendReportDraw.js";
+import { drawBridge, drawDiscount, drawExceptions, drawHeadline, drawIdle, drawSeries } from "./fuelSpendReportSections.js";
 import { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
-import type { FleetIdleVerdict } from "@fuelguard/shared";
 
 export interface FuelSpendReportInput {
   orgId: string;
@@ -44,23 +50,6 @@ export interface FuelSpendReportInput {
   generatedAt: string;
 }
 
-const usd = (n: number | null | undefined) =>
-  n == null ? "-" : `$${Math.round(n).toLocaleString("en-US")}`;
-const usd2 = (n: number | null | undefined) => (n == null ? "-" : `$${n.toFixed(2)}`);
-const usd3 = (n: number | null | undefined) => (n == null ? "-" : `$${n.toFixed(3)}`);
-const num = (n: number | null | undefined, dp = 0) =>
-  n == null ? "-" : n.toLocaleString("en-US", { maximumFractionDigits: dp });
-/** A formatted delta plus the verdict on it — `upIsBad` says which direction is the bad one. */
-function change(a: number | null | undefined, b: number | null | undefined, upIsBad: boolean): Pick<Kpi, "delta" | "deltaIsBad"> {
-  if (a == null || b == null || a === 0 || a === b) return {};
-  const p = ((b - a) / Math.abs(a)) * 100;
-  return {
-    delta: `${p >= 0 ? "+" : "-"}${Math.abs(p).toFixed(1)}% vs prior`,
-    // The sign and the preference resolved together. Spend up is bad; MPG up is the one good headline
-    // this report ever gets, and a tile that painted it red would bury it.
-    deltaIsBad: p > 0 === upIsBad,
-  };
-}
 
 export async function renderFuelSpendReport(
   admin: SupabaseClient,
@@ -69,7 +58,7 @@ export async function renderFuelSpendReport(
   const vehicleIds = input.vehicleIds ?? [];
   const [days, lines, carrier, units, idle] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
-    readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
+    readSpendLines(admin, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
     readUnitNumbers(admin, input.orgId, vehicleIds),
     // The real verdict — equipment flags, HOS duty overlay, temperature envelope — not idle seconds
@@ -105,11 +94,12 @@ export async function renderFuelSpendReport(
 
   drawHeadline(doc, overall, comparison);
   drawBridge(doc, comparison);
-  drawIdle(doc, series, input.grain, idle);
   drawSeries(doc, series, input.grain);
+  drawDiscount(doc, analyzeDiscountCapture(lines), lines);
   drawExceptions(doc, exceptions, overall);
+  drawIdle(doc, series, input.grain, idle);
 
-  const refused = days.reduce((a, d) => a + d.milesRejected, 0);
+  const refused = days.reduce((a: number, d: SpendDay) => a + d.milesRejected, 0);
   stampFooters(
     doc,
     winAnsi(
@@ -119,206 +109,6 @@ export async function renderFuelSpendReport(
   );
   doc.end();
   return { pdf: await done, periods: series.length, carrier };
-}
-
-// ── sections ────────────────────────────────────────────────────────────────────────────────────
-
-function drawHeadline(
-  doc: PDFKit.PDFDocument,
-  overall: SpendPeriod,
-  cmp: { prior: SpendPeriod; current: SpendPeriod } | null,
-): void {
-  const c = cmp?.current;
-  const p = cmp?.prior;
-  const kpis: Kpi[] = [
-    { label: "Fuel spend", value: usd(c?.spend ?? overall.spend), ...change(p?.spend, c?.spend, true) },
-    { label: "Gallons", value: num(c?.gallons ?? overall.gallons), ...change(p?.gallons, c?.gallons, true) },
-    { label: "Paid / gal", value: usd3(c?.pricePerGal ?? overall.pricePerGal), ...change(p?.pricePerGal, c?.pricePerGal, true) },
-    { label: "Cost / mile", value: usd2(c?.costPerMile ?? overall.costPerMile), ...change(p?.costPerMile, c?.costPerMile, true) },
-    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.mpg?.toFixed(2) ?? "-", ...change(p?.mpg, c?.mpg, false) },
-  ];
-  kpiRow(doc, kpis);
-}
-
-function drawBridge(doc: PDFKit.PDFDocument, cmp: { prior: SpendPeriod; current: SpendPeriod } | null): void {
-  heading(doc, "Why spend moved");
-  if (!cmp) {
-    muted(doc, "Two complete periods are needed before a change can be explained against anything.");
-    return;
-  }
-  const b = operatingBridge(cmp.prior, cmp.current);
-
-  // The plain-English answer first. Somebody reads one sentence of a report and this is it.
-  doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
-    winAnsi(
-      `Tractor fuel went ${usd(cmp.prior.spend)} to ${usd(cmp.current.spend)}, a change of ${money(b.deltaSpend)}. ` +
-        (b.volumeSplit
-          ? `The fleet covered ${num(cmp.current.miles)} miles against ${num(cmp.prior.miles)}, at ${usd3(cmp.current.pricePerGal)} a gallon against ${usd3(cmp.prior.pricePerGal)}.`
-          : ""),
-    ),
-    { width: CONTENT_WIDTH },
-  );
-  doc.moveDown(0.6);
-
-  waterfall(doc, b.terms.map((t) => ({ label: t.label, dollars: t.dollars, detail: t.detail })), b.deltaSpend);
-
-  if (b.volumeSplit) {
-    const m = b.volumeSplit.milesFrom;
-    doc.fillColor(MUTED).font("Helvetica").fontSize(7.5).text(
-      winAnsi(
-        `Distance splits into ${num(m.trucks)} miles from running ${cmp.current.activeTrucks} trucks against ${cmp.prior.activeTrucks}, ` +
-          `and ${num(m.perTruck)} miles from each covering ${num(cmp.current.milesPerTruck)} against ${num(cmp.prior.milesPerTruck)}. ` +
-          `Components sum to the change exactly${b.tiesOut ? "" : " — RESIDUAL PRESENT, the decomposition is wrong"}.`,
-      ),
-      { width: CONTENT_WIDTH },
-    );
-  }
-  if (b.withheld) {
-    doc.moveDown(0.3);
-    doc.fillColor(MUTED).font("Helvetica-Oblique").fontSize(7.5).text(winAnsi(b.withheld), { width: CONTENT_WIDTH });
-  }
-  doc.moveDown(0.4);
-}
-
-/**
- * Idling, with the verdict rather than a total charged as waste.
- *
- * ── WHAT THIS SECTION USED TO GET WRONG, TWICE ──────────────────────────────────────────────────
- * First it multiplied idle seconds by a burn rate and printed the whole thing in red — the
- * every-truck-is-avoidable over-count `docs/plans/IDLE-AVOIDABLE-HOS.md` exists to prevent. Then it
- * dropped the money entirely, which was honest but told a boss to go and look somewhere else.
- *
- * It now reports what `computeAvoidable` decided, and the three numbers stay apart because they mean
- * different things: idle hours are a fact about running trucks, AVOIDABLE is the only figure that is
- * anyone's fault, and REDUCIBLE is a capex case for equipping the trucks that had no alternative.
- * Only a truck with an admin-confirmed APU or Optimized Idle can contribute to the middle one.
- */
-function drawIdle(
-  doc: PDFKit.PDFDocument,
-  series: SpendPeriod[],
-  grain: SpendGrain,
-  idle: FleetIdleVerdict | null,
-): void {
-  heading(doc, "Idling");
-  const withheld = series.filter((p) => !p.idleUsable && p.idleCoverage != null);
-  if (!idle || idle.idleH === 0) {
-    muted(doc, "No idle measured in this range with enough engine-feed coverage to judge.");
-    return;
-  }
-
-  doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
-    winAnsi(
-      `The fleet idled ${num(idle.idleH)} hours — ${idle.idlePct.toFixed(1)}% of every hour an engine was running. ` +
-        `Of that, ${num(idle.avoidableH)} hours worth ${usd(idle.avoidableUsd)} were avoidable: idle on the ` +
-        `${idle.confidentTrucks} truck(s) that had a confirmed APU or Optimized Idle and could have rested without ` +
-        `running the main engine.`,
-    ),
-    { width: CONTENT_WIDTH },
-  );
-  doc.moveDown(0.4);
-  body(
-    doc,
-    `A further ${usd(idle.reducibleUsd)} (${num(idle.reducibleH)} hours) is REDUCIBLE across ${idle.reducibleTrucks} ` +
-      `truck(s) — what the same rest idle would be worth if the trucks that lack the equipment had it. That is a case ` +
-      `for buying APUs, not a performance figure: those drivers had no alternative and are not being blamed for it.`,
-    MUTED,
-  );
-  doc.moveDown(0.25);
-  body(
-    doc,
-    `Judged over ${idle.rangeDays} day(s) across ${idle.totalTrucks} truck(s), of which ${idle.confidentTrucks} had ` +
-      "enough engine-feed coverage to score. Avoidability comes only from admin-confirmed equipment — a diesel APU is " +
-      "invisible to telematics, so behaviour learned from the truck is never allowed to make idle somebody's fault.",
-    MUTED,
-  );
-  if (withheld.length > 0) {
-    doc.moveDown(0.2);
-    body(
-      doc,
-      `${withheld.length} ${grain}(s) of the fuel table are marked "-" for idle share: the engine feed covered too ` +
-        "little of those days to measure against. Their fuel is counted everywhere else in this report.",
-      MUTED,
-    );
-  }
-  doc.moveDown(0.3);
-}
-
-function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
-  heading(doc, grain === "day" ? "Day by day" : grain === "month" ? "Month by month" : "Week by week");
-  // Widths must sum to CONTENT_WIDTH (504pt) or less — `table` does not wrap or shrink them, it draws
-  // past the right margin, which is how the idle column arrived clipped in half on the first render.
-  const cols = [
-    { width: 92, header: "Period" },
-    { width: 40, header: "Trucks", align: "right" as const },
-    { width: 56, header: "Gallons", align: "right" as const },
-    { width: 68, header: "Fuel spend", align: "right" as const },
-    { width: 52, header: "Paid / gal", align: "right" as const },
-    { width: 58, header: "Miles", align: "right" as const },
-    { width: 36, header: "MPG", align: "right" as const },
-    { width: 52, header: "$ / mile", align: "right" as const },
-    { width: 50, header: "Idle", align: "right" as const },
-  ];
-  // Newest first, and a period still filling is kept but LABELLED. Dropping it hides the most recent
-  // days from a reader looking for them; leaving it unmarked invites the comparison the bridge
-  // deliberately refuses to make, which is how a one-day week reads as a collapse in spend.
-  const rows = [...series].reverse().map((p) => [
-    { text: periodLabel(p, grain), sub: p.partial ? "in progress" : undefined },
-    { text: String(p.activeTrucks) },
-    { text: num(p.gallons) },
-    { text: usd(p.spend), bold: true },
-    { text: usd3(p.pricePerGal) },
-    { text: num(p.miles) },
-    { text: p.mpg?.toFixed(2) ?? "—" },
-    { text: usd2(p.costPerMile) },
-    // The SHARE, not a cost: how much of this truck-time was stationary is a fact; what it was worth
-    // in blame is not this report's to say.
-    { text: p.idleShare == null ? "-" : `${(p.idleShare * 100).toFixed(0)}%` },
-  ]);
-  table(doc, cols, rows);
-}
-
-function drawExceptions(doc: PDFKit.PDFDocument, ex: ReturnType<typeof analyzePolicyExceptions>, overall: SpendPeriod): void {
-  heading(doc, "Where the fuel policy was not followed");
-  const share = (g: number) => (overall.gallons > 0 ? `${((g / overall.gallons) * 100).toFixed(1)}%` : "—");
-  const reports = [
-    { name: "Avoided brands (ONE9 and other off-brand)", r: ex.avoidedBrands },
-    { name: "California", r: ex.avoidedStates },
-    { name: "Off the preferred network", r: ex.offNetwork },
-  ];
-  if (reports.every((x) => x.r.lines === 0)) {
-    muted(doc, "No fills outside the fuel policy in this window.");
-    return;
-  }
-  table(
-    doc,
-    [
-      { width: 190, header: "Exception" },
-      { width: 48, header: "Fills", align: "right" },
-      { width: 66, header: "Gallons", align: "right" },
-      { width: 52, header: "Share", align: "right" },
-      { width: 74, header: "Spend", align: "right" },
-      { width: 74, header: "Excess", align: "right" },
-    ],
-    reports.map((x) => [
-      { text: x.name, sub: x.r.netPerGal != null ? `${usd3(x.r.netPerGal)}/gal against ${usd3(x.r.baselinePerGal)} elsewhere` : undefined },
-      { text: String(x.r.lines) },
-      { text: num(x.r.gallons) },
-      { text: share(x.r.gallons) },
-      { text: usd(x.r.spend) },
-      { text: usd(x.r.excess), bold: true },
-    ]),
-  );
-  body(
-    doc,
-    "Excess is what these gallons cost above what the rest of the fleet paid over the same period — not against a fixed price, which in a moving market invents a finding every time diesel rises.",
-    MUTED,
-  );
-}
-
-/** "2026-08-17 - 2026-08-23", or just the date when a clamped period covers a single day. */
-function periodLabel(p: SpendPeriod, grain: SpendGrain): string {
-  if (grain === "day" || p.from === p.to) return p.from;
-  return `${p.from} - ${p.to}`;
 }
 
 // ── reads ───────────────────────────────────────────────────────────────────────────────────────
@@ -351,33 +141,46 @@ async function readSpendDays(admin: SupabaseClient, orgId: string, from: string,
   return out;
 }
 
-/** Fills with their brand, for the policy section. Same projection the page's feed source uses. */
-async function readSpendLines(admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[]): Promise<SpendLine[]> {
+/**
+ * Fills with their brand AND the posted price that applied that day, through `fuel_spend_lines` (0246).
+ *
+ * ⚠ This used to be a direct query that hard-coded `retailAmount: null`, matching what the feed alone
+ * can supply. When the page moved onto the joined function this did not, so the document kept saying
+ * "no fill could be matched to a posted price" while the screen beside it measured 1,201 of them. Page
+ * and report must read the same source or they will disagree exactly like that.
+ */
+// `fuel_spend_lines` scopes itself: it is security-invoker over org-scoped tables, and the service
+// role reaches it with the org already established by the caller.
+async function readSpendLines(admin: SupabaseClient, from: string, to: string, vehicleIds: string[]): Promise<SpendLine[]> {
   const out: SpendLine[] = [];
+  const str = (v: unknown): string | null => (v == null ? null : String(v));
+  const n = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
   await eachPage<Record<string, unknown>>(
     (a, b) =>
-      (() => {
-        const q = admin.from("fuel_transactions")
-          .select("fueled_at, state, gallons, total_cost, tank_type, location_text, fuel_stations(brand, store_number, city), vehicles(unit_number), drivers(full_name)")
-          .eq("org_id", orgId)
-          .gte("fueled_at", `${from}T00:00:00.000Z`).lte("fueled_at", `${to}T23:59:59.999Z`);
-        return (vehicleIds.length > 0 ? q.in("vehicle_id", vehicleIds) : q)
-          .order("fueled_at", { ascending: true }).range(a, b);
-      })(),
+      admin
+        .rpc("fuel_spend_lines", {
+          p_from: from,
+          p_to: to,
+          p_vehicles: vehicleIds.length > 0 ? vehicleIds : null,
+        })
+        .range(a, b),
     (rows) => {
-      const one = <T,>(v: unknown): T | null => (Array.isArray(v) ? ((v[0] as T) ?? null) : ((v as T) ?? null));
       for (const r of rows) {
-        const st = one<{ brand: string | null; store_number: string | null; city: string | null }>(r.fuel_stations);
         out.push({
-          tranDate: r.fueled_at ? String(r.fueled_at).slice(0, 10) : null,
-          brand: st?.brand ?? null, state: r.state == null ? null : String(r.state),
-          site: st?.store_number ?? null, city: st?.city ?? (r.location_text == null ? null : String(r.location_text)),
-          unit: one<{ unit_number: string | null }>(r.vehicles)?.unit_number ?? null,
-          driver: one<{ full_name: string | null }>(r.drivers)?.full_name ?? null,
-          product: "diesel", tank: r.tank_type === "reefer" ? "reefer" : "tractor",
-          gallons: r.gallons == null ? 0 : Number(r.gallons) || 0,
-          netAmount: r.total_cost == null ? null : Number(r.total_cost),
-          retailAmount: null,
+          tranDate: str(r.tran_date),
+          brand: str(r.brand),
+          state: str(r.state),
+          site: str(r.site),
+          city: str(r.city),
+          unit: str(r.unit),
+          driver: str(r.driver),
+          product: "diesel",
+          tank: r.tank === "reefer" ? "reefer" : "tractor",
+          gallons: n(r.gallons),
+          netAmount: r.net_amount == null ? null : n(r.net_amount),
+          // Null when no report covered that station that day — never 0, which would read as a fill
+          // that captured no discount at all.
+          retailAmount: r.retail_amount == null ? null : n(r.retail_amount),
         });
       }
     },

@@ -49,10 +49,29 @@ const lastDays = (n: number): [Date, Date] => {
   const start = new Date(end.getTime() - n * 86400_000);
   return [start, end];
 };
+/**
+ * The last COMPLETE Monday-to-Sunday week.
+ *
+ * "Last 7 days" is a rolling window and answers a different question: it straddles two weekends and
+ * cannot be compared with the seven days before it. A weekly report is read against the week before it,
+ * so the period has to be a calendar week — and it has to be a FINISHED one, or a Tuesday's report
+ * covers two days and reads as a collapse in everything.
+ */
+const lastCompleteWeek = (): [Date, Date] => {
+  const now = new Date();
+  const backToMonday = (now.getDay() + 6) % 7; // 0 = Monday
+  const end = new Date(now);
+  end.setDate(now.getDate() - backToMonday - 1); // yesterday's Sunday
+  const start = new Date(end);
+  start.setDate(end.getDate() - 6);
+  return [start, end];
+};
+
 const presetDates = computed(() =>
   props.presets
     ? [
         { label: "Today", value: [new Date(), new Date()] },
+        { label: "Last week", value: lastCompleteWeek() },
         { label: "Last 7 days", value: lastDays(7) },
         { label: "Last 30 days", value: lastDays(30) },
         { label: "Last 90 days", value: lastDays(90) },
