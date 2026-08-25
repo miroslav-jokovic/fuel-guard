@@ -101,3 +101,23 @@ docs/psp-docs/
 # Untracking does NOT remove the credential from history — rotation is the mitigation, this entry only
 # stops it recurring. Same posture as docs/psp-docs/ above.
 docs/McLeod-Testing/
+
+# The McLeod agent's sync state (tools/mcleod-agent/agent.mjs — STATE_PATH, ROSTER_STATE_PATH).
+#
+# The VALUES in roster-state.json are row hashes and harmless. The KEYS are not: 164 driver codes
+# (ABRAVO, ACASTILL — a carrier's actual driver identifiers), 190 unit numbers and 235 trailer
+# numbers. This repository is PUBLIC. Committing it would publish a customer's roster — the same
+# class of mistake as the McLeod credentials above, caught before it happened rather than after.
+#
+# Both defaults now resolve beside agent.mjs rather than to the CWD, so `tools/mcleod-agent/` is
+# where they land however the agent is invoked. The bare names stay because they are what four days
+# of running it from the repository root already produced, and because an operator who sets
+# STATE_PATH by hand will reach for the old relative path.
+tools/mcleod-agent/state.json
+tools/mcleod-agent/roster-state.json
+roster-state.json
+state.json
+
+# Playwright MCP scratch (snapshots, console logs, screenshots) — written into whatever directory the
+# server is started from, which is the repository root.
+.playwright-mcp/
