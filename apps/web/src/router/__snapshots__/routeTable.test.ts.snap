@@ -1,0 +1,950 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the route table survives being split by area > resolution 1`] = `
+[
+  {
+    "name": "login",
+    "params": {},
+    "url": "/login",
+  },
+  {
+    "name": "public-placard-calculator",
+    "params": {},
+    "url": "/placard-calculator",
+  },
+  {
+    "name": "driver-application",
+    "params": {
+      "token": "tok_123",
+    },
+    "url": "/apply/tok_123",
+  },
+  {
+    "name": "accept-invite",
+    "params": {},
+    "url": "/accept-invite",
+  },
+  {
+    "name": "pending",
+    "params": {},
+    "url": "/pending",
+  },
+  {
+    "name": "driver-app",
+    "params": {},
+    "url": "/use-the-app",
+  },
+  {
+    "name": "dashboard",
+    "params": {},
+    "url": "/",
+  },
+  {
+    "name": "assignments",
+    "params": {},
+    "url": "/assignments",
+  },
+  {
+    "name": "loads",
+    "params": {},
+    "url": "/loads",
+  },
+  {
+    "name": "load-new",
+    "params": {},
+    "url": "/loads/new",
+  },
+  {
+    "name": "load-detail",
+    "params": {
+      "id": "ld_1",
+    },
+    "url": "/loads/ld_1",
+  },
+  {
+    "name": "",
+    "params": {},
+    "url": "/dispatch/loads",
+  },
+  {
+    "name": "",
+    "params": {},
+    "url": "/dispatch/loads/new",
+  },
+  {
+    "name": "",
+    "params": {
+      "id": "ld_1",
+    },
+    "url": "/dispatch/loads/ld_1",
+  },
+  {
+    "name": "hazmat",
+    "params": {},
+    "url": "/hazmat",
+  },
+  {
+    "name": "hazmat-calculator",
+    "params": {},
+    "url": "/hazmat/calculator",
+  },
+  {
+    "name": "hazmat-loads",
+    "params": {},
+    "url": "/hazmat/loads",
+  },
+  {
+    "name": "hazmat-load-new",
+    "params": {},
+    "url": "/hazmat/loads/new",
+  },
+  {
+    "name": "hazmat-load-detail",
+    "params": {
+      "id": "hz_1",
+    },
+    "url": "/hazmat/loads/hz_1",
+  },
+  {
+    "name": "hazmat-review",
+    "params": {},
+    "url": "/hazmat/review",
+  },
+  {
+    "name": "",
+    "params": {},
+    "url": "/hazmat/settings/equipment",
+  },
+  {
+    "name": "vehicles",
+    "params": {},
+    "url": "/vehicles",
+  },
+  {
+    "name": "vehicle-detail",
+    "params": {
+      "id": "v_1",
+    },
+    "url": "/vehicles/v_1",
+  },
+  {
+    "name": "odometer",
+    "params": {},
+    "url": "/odometer",
+  },
+  {
+    "name": "coverage",
+    "params": {},
+    "url": "/coverage",
+  },
+  {
+    "name": "recall-audit",
+    "params": {},
+    "url": "/recall-audit",
+  },
+  {
+    "name": "trailers",
+    "params": {},
+    "url": "/trailers",
+  },
+  {
+    "name": "reefer-coverage",
+    "params": {},
+    "url": "/reefer-coverage",
+  },
+  {
+    "name": "fuel-planning",
+    "params": {},
+    "url": "/fuel-planning",
+  },
+  {
+    "name": "truck-stops",
+    "params": {},
+    "url": "/truck-stops",
+  },
+  {
+    "name": "idling",
+    "params": {},
+    "url": "/idling",
+  },
+  {
+    "name": "drivers",
+    "params": {},
+    "url": "/drivers",
+  },
+  {
+    "name": "driver-detail",
+    "params": {
+      "id": "dr_1",
+    },
+    "url": "/drivers/dr_1",
+  },
+  {
+    "name": "compliance",
+    "params": {},
+    "url": "/compliance",
+  },
+  {
+    "name": "driver-qualification",
+    "params": {
+      "id": "dr_1",
+    },
+    "url": "/compliance/dr_1",
+  },
+  {
+    "name": "recruitment",
+    "params": {},
+    "url": "/recruitment",
+  },
+  {
+    "name": "screening-readiness",
+    "params": {},
+    "url": "/recruitment/screening",
+  },
+  {
+    "name": "inquiry-queue",
+    "params": {},
+    "url": "/recruitment/inquiries",
+  },
+  {
+    "name": "driver-performance",
+    "params": {},
+    "url": "/driver-performance",
+  },
+  {
+    "name": "fuel-log",
+    "params": {},
+    "url": "/fuel-log",
+  },
+  {
+    "name": "fuel-reconciliation",
+    "params": {},
+    "url": "/fuel-reconciliation",
+  },
+  {
+    "name": "import",
+    "params": {},
+    "url": "/import",
+  },
+  {
+    "name": "transactions",
+    "params": {},
+    "url": "/transactions",
+  },
+  {
+    "name": "rejections",
+    "params": {},
+    "url": "/rejections",
+  },
+  {
+    "name": "fuel-cards",
+    "params": {},
+    "url": "/fuel-cards",
+  },
+  {
+    "name": "fuel-card-detail",
+    "params": {
+      "id": "fc_1",
+    },
+    "url": "/fuel-cards/fc_1",
+  },
+  {
+    "name": "card-control-settings",
+    "params": {},
+    "url": "/settings/card-control",
+  },
+  {
+    "name": "anomalies",
+    "params": {},
+    "url": "/anomalies",
+  },
+  {
+    "name": "",
+    "params": {},
+    "url": "/fuel-events",
+  },
+  {
+    "name": "ask",
+    "params": {},
+    "url": "/ask",
+  },
+  {
+    "name": "reports",
+    "params": {},
+    "url": "/reports",
+  },
+  {
+    "name": "settings",
+    "params": {},
+    "url": "/settings",
+  },
+  {
+    "name": "users",
+    "params": {},
+    "url": "/settings/users",
+  },
+  {
+    "name": "thresholds",
+    "params": {},
+    "url": "/settings/thresholds",
+  },
+  {
+    "name": "driver-performance-settings",
+    "params": {},
+    "url": "/settings/driver-performance",
+  },
+  {
+    "name": "messages",
+    "params": {},
+    "url": "/messages",
+  },
+  {
+    "name": "driver-app-settings",
+    "params": {},
+    "url": "/settings/driver-app",
+  },
+  {
+    "name": "fuel-planning-settings",
+    "params": {},
+    "url": "/settings/fuel-planning",
+  },
+  {
+    "name": "data-sync",
+    "params": {},
+    "url": "/settings/data",
+  },
+  {
+    "name": "efs-soap",
+    "params": {},
+    "url": "/settings/efs-soap",
+  },
+  {
+    "name": "org-settings",
+    "params": {},
+    "url": "/settings/org",
+  },
+  {
+    "name": "notifications",
+    "params": {},
+    "url": "/settings/notifications",
+  },
+  {
+    "name": "audit",
+    "params": {},
+    "url": "/settings/audit",
+  },
+]
+`;
+
+exports[`the route table survives being split by area > route table 1`] = `
+[
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Dashboard",
+    },
+    "name": "dashboard",
+    "path": "/",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "lab",
+      "public": true,
+      "title": "Design system lab",
+    },
+    "name": "design-system-lab",
+    "path": "/__design-system",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "allowNoOrg": true,
+      "layout": "auth",
+      "requiresAuth": true,
+    },
+    "name": "accept-invite",
+    "path": "/accept-invite",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Alerts",
+    },
+    "name": "anomalies",
+    "path": "/anomalies",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "noindex": true,
+      "public": true,
+      "title": "Driver application",
+    },
+    "name": "driver-application",
+    "path": "/apply/:token",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Ask AI",
+    },
+    "name": "ask",
+    "path": "/ask",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Assignments",
+    },
+    "name": "assignments",
+    "path": "/assignments",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Driver Qualification",
+    },
+    "name": "compliance",
+    "path": "/compliance",
+    "redirect": null,
+  },
+  {
+    "meta": {},
+    "name": "driver-qualification",
+    "path": "/compliance/:id",
+    "redirect": "fn",
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Detection Coverage",
+    },
+    "name": "coverage",
+    "path": "/coverage",
+    "redirect": null,
+  },
+  {
+    "meta": {},
+    "name": "",
+    "path": "/dispatch/loads",
+    "redirect": {
+      "name": "loads",
+    },
+  },
+  {
+    "meta": {},
+    "name": "",
+    "path": "/dispatch/loads/:id",
+    "redirect": "fn",
+  },
+  {
+    "meta": {},
+    "name": "",
+    "path": "/dispatch/loads/new",
+    "redirect": {
+      "name": "load-new",
+    },
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Driver Performance",
+    },
+    "name": "driver-performance",
+    "path": "/driver-performance",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Drivers",
+    },
+    "name": "drivers",
+    "path": "/drivers",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Driver",
+    },
+    "name": "driver-detail",
+    "path": "/drivers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel Cards",
+    },
+    "name": "fuel-cards",
+    "path": "/fuel-cards",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/fuel-cards",
+      "requiresAuth": true,
+      "title": "Fuel Card",
+    },
+    "name": "fuel-card-detail",
+    "path": "/fuel-cards/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {},
+    "name": "",
+    "path": "/fuel-events",
+    "redirect": "/fuel-log",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel Log",
+    },
+    "name": "fuel-log",
+    "path": "/fuel-log",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel Planning",
+    },
+    "name": "fuel-planning",
+    "path": "/fuel-planning",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "Fuel Reconciliation",
+    },
+    "name": "fuel-reconciliation",
+    "path": "/fuel-reconciliation",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "HazmatGuard",
+    },
+    "name": "hazmat",
+    "path": "/hazmat",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/hazmat",
+      "requiresAuth": true,
+      "title": "Placard Calculator",
+    },
+    "name": "hazmat-calculator",
+    "path": "/hazmat/calculator",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/hazmat",
+      "requiresAuth": true,
+      "title": "Hazmat Loads",
+    },
+    "name": "hazmat-loads",
+    "path": "/hazmat/loads",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/hazmat/loads",
+      "requiresAuth": true,
+      "title": "Hazmat Load",
+    },
+    "name": "hazmat-load-detail",
+    "path": "/hazmat/loads/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/hazmat/loads",
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "New Hazmat Load",
+    },
+    "name": "hazmat-load-new",
+    "path": "/hazmat/loads/new",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/hazmat",
+      "requiresAuth": true,
+      "title": "Hazmat Review",
+    },
+    "name": "hazmat-review",
+    "path": "/hazmat/review",
+    "redirect": null,
+  },
+  {
+    "meta": {},
+    "name": "",
+    "path": "/hazmat/settings/equipment",
+    "redirect": "/trailers",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Idling",
+    },
+    "name": "idling",
+    "path": "/idling",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "Import EFS Report",
+    },
+    "name": "import",
+    "path": "/import",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Loads",
+    },
+    "name": "loads",
+    "path": "/loads",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/loads",
+      "requiresAuth": true,
+      "title": "Load Details",
+    },
+    "name": "load-detail",
+    "path": "/loads/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "New Load",
+    },
+    "name": "load-new",
+    "path": "/loads/new",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "auth",
+      "public": true,
+    },
+    "name": "login",
+    "path": "/login",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Messages",
+    },
+    "name": "messages",
+    "path": "/messages",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Odometer Mismatches",
+    },
+    "name": "odometer",
+    "path": "/odometer",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "allowNoOrg": true,
+      "layout": "auth",
+      "requiresAuth": true,
+    },
+    "name": "pending",
+    "path": "/pending",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "public",
+      "public": true,
+      "title": "Free DOT Placard Calculator",
+    },
+    "name": "public-placard-calculator",
+    "path": "/placard-calculator",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Recall Audit",
+    },
+    "name": "recall-audit",
+    "path": "/recall-audit",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Applicants",
+    },
+    "name": "recruitment",
+    "path": "/recruitment",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/recruitment",
+      "requiresAuth": true,
+      "title": "Inquiry Queue",
+    },
+    "name": "inquiry-queue",
+    "path": "/recruitment/inquiries",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/recruitment",
+      "requiresAuth": true,
+      "title": "Screening Readiness",
+    },
+    "name": "screening-readiness",
+    "path": "/recruitment/screening",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Reefer Coverage",
+    },
+    "name": "reefer-coverage",
+    "path": "/reefer-coverage",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Rejections",
+    },
+    "name": "rejections",
+    "path": "/rejections",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Reports",
+    },
+    "name": "reports",
+    "path": "/reports",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "Settings",
+    },
+    "name": "settings",
+    "path": "/settings",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuditAccess": true,
+      "requiresAuth": true,
+      "title": "Audit Log",
+    },
+    "name": "audit",
+    "path": "/settings/audit",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Card control",
+    },
+    "name": "card-control-settings",
+    "path": "/settings/card-control",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "Data & Sync",
+    },
+    "name": "data-sync",
+    "path": "/settings/data",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "requiresManage": true,
+      "title": "Driver App",
+    },
+    "name": "driver-app-settings",
+    "path": "/settings/driver-app",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Driver Performance",
+    },
+    "name": "driver-performance-settings",
+    "path": "/settings/driver-performance",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "EFS Integration",
+    },
+    "name": "efs-soap",
+    "path": "/settings/efs-soap",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Planned Fueling",
+    },
+    "name": "fuel-planning-settings",
+    "path": "/settings/fuel-planning",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Notifications",
+    },
+    "name": "notifications",
+    "path": "/settings/notifications",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Organization",
+    },
+    "name": "org-settings",
+    "path": "/settings/org",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Anomaly Thresholds",
+    },
+    "name": "thresholds",
+    "path": "/settings/thresholds",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Users",
+    },
+    "name": "users",
+    "path": "/settings/users",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Trailers",
+    },
+    "name": "trailers",
+    "path": "/trailers",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Transactions",
+    },
+    "name": "transactions",
+    "path": "/transactions",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Truck Stops",
+    },
+    "name": "truck-stops",
+    "path": "/truck-stops",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "auth",
+      "requiresAuth": true,
+    },
+    "name": "driver-app",
+    "path": "/use-the-app",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Vehicles",
+    },
+    "name": "vehicles",
+    "path": "/vehicles",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Vehicle",
+    },
+    "name": "vehicle-detail",
+    "path": "/vehicles/:id",
+    "redirect": null,
+  },
+]
+`;
