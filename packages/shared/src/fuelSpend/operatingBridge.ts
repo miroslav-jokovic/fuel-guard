@@ -59,8 +59,13 @@ export const MIN_MEASURED_SHARE = 0.6;
  * How much of a period's wall-clock the engine feed must have actually watched before an idle figure is
  * reported at all.
  *
- * 0.8 is not a new number — it is `computeAvoidable`'s `minCoverage` default, the rule the Idling page
- * already scores by. Reusing it means one definition of "we were watching" rather than two.
+ * ⚠ This is a STRICTER bar than `computeAvoidable`'s, and deliberately so. That function's `minCoverage`
+ * defaults to 0.5, because it is deciding whether a truck can be scored at all and would rather judge a
+ * half-observed truck than drop it. This one decides whether a PERIOD TOTAL is worth printing on a spend
+ * report, where a figure summed across a half-watched fortnight is not thin, it is wrong.
+ *
+ * (An earlier version of this comment claimed 0.8 was `computeAvoidable`'s own default. It is not — 0.8
+ * is that function's `minDutyEvidencedShare`, a different threshold entirely.)
  *
  * This is load-bearing, not defensive. The Samsara engine-state feed was largely down from 2026-07-13 to
  * 07-26: 467 truck-days recorded against a normal 1,100, each covering 10.9% of its day. Idle computed
