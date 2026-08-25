@@ -123,6 +123,72 @@ describe("renderFuelSpendReport", () => {
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   });
 
+  /**
+   * ── THE PAGINATION REGRESSION ─────────────────────────────────────────────────────────────────
+   * pdfkit answers a write past the bottom margin by starting a new page and putting that write on it.
+   * `rankedBars` positions its rows at coordinates it computes itself, so once the list crossed the
+   * margin every remaining string got a page of its own: a seven-day report came out as six pages, of
+   * which page 3 held the single string "Unit 111", page 4 held "$52" and page 5 held "1 fill, 107
+   * gal". Six pages for two pages of content.
+   *
+   * The exception rankings are what walk off the page, so the fixture has to produce them: several
+   * sites and several trucks with excess against the fleet baseline. Without lines there are no
+   * exceptions, no rankings, and the bug is invisible — which is why it shipped.
+   */
+  describe("pagination", () => {
+    const site = (i: number) => ["ONE9 #77", "Loves #301", "TA #55", "Pilot #442", "Cardlock 8821"][i % 5]!;
+    const brand = (i: number) => ["one9", "loves", "ta", "pilot", null][i % 5];
+    const fills = Array.from({ length: 60 }, (_, i) => ({
+      tran_date: `2026-08-${String(10 + (i % 14)).padStart(2, "0")}`,
+      brand: brand(i), state: i % 3 === 0 ? "CA" : "TX", site: site(i), city: "Somewhere",
+      unit: `10${i % 7}`, driver: `Driver ${i % 7}`, tank: "tractor",
+      gallons: 100 + (i % 40), net_amount: (100 + (i % 40)) * (3.5 + (i % 9) * 0.05),
+      retail_amount: null, contract_amount: null, quote_stale_days: 0,
+    }));
+
+    const withFills = () =>
+      createSupabaseRecorder({
+        tables: {
+          fuel_spend_days: [
+            ...Array.from({ length: 7 }, (_, i) => day("2026-08-10", i)),
+            ...Array.from({ length: 7 }, (_, i) => day("2026-08-17", i, { spend_tractor: 700 })),
+          ],
+          fuel_transactions: [],
+          organizations: { data: { name: "Silvicom Inc" } },
+        },
+        rpc: { fuel_spend_lines: fills },
+      });
+
+    it("never spends a page on a fragment of a ranking", async () => {
+      const { pages } = await renderFuelSpendReport(withFills().client, {
+        orgId: ORG, from: "2026-08-10", to: "2026-08-23", grain: "day",
+        generatedAt: "2026-08-25T05:00:00Z",
+      });
+      // Six before the fix, three of them holding one string each.
+      expect(pages).toBeLessThanOrEqual(3);
+    });
+
+    /**
+     * The other half: content coming to a bit over a page printed with the remainder stranded on a
+     * final page 80% white. `renderFuelSpendReport` composes again with the gaps between blocks
+     * reduced and keeps that only if it drops the page count, so this asserts the OUTCOME — a page
+     * count no worse than the roomy composition — rather than which pass produced it.
+     */
+    it("does not leave the tail of the document on a page of its own", async () => {
+      const { pages } = await renderFuelSpendReport(withFills().client, {
+        orgId: ORG, from: "2026-08-10", to: "2026-08-23", grain: "week",
+        generatedAt: "2026-08-25T05:00:00Z",
+      });
+      expect(pages).toBeLessThanOrEqual(2);
+    });
+
+    it("still renders a document with no exceptions to rank at all", async () => {
+      const { pdf, pages } = await render(seed());
+      expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+      expect(pages).toBeGreaterThan(0);
+    });
+  });
+
   it("falls back to a neutral carrier name rather than printing 'undefined' on a letterhead", async () => {
     const rec = seed({ organizations: { data: null } });
     expect((await render(rec)).carrier).toBe("Carrier");

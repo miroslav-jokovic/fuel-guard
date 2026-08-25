@@ -8,11 +8,12 @@
  * `packages/shared` and all tested there, so a figure in this document and the same figure on the page
  * cannot come out different.
  */
-import type { analyzePolicyExceptions, ContractCapture, FleetIdleVerdict, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
-import { C, CONTENT_W, GEOM } from "./fuelSpendReportTheme.js";
-import { proportionBar, rankedBars, type Segment } from "./fuelSpendReportCharts.js";
-import { figureTable, type Column, type Row } from "./fuelSpendReportTable.js";
-import { keepTogether, lead, note, sectionHead } from "./fuelSpendReportDraw.js";
+import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, FleetIdleVerdict, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
+import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
+import { proportionBar, proportionBarHeight, rankedBars, rankedBarsHeight, type Rank, type Segment } from "./fuelSpendReportCharts.js";
+import { figureTable, tableHeadHeight, type Column, type Row } from "./fuelSpendReportTable.js";
+import { lead, note, startSection } from "./fuelSpendReportDraw.js";
+import { ensure, gap } from "./fuelSpendReportFlow.js";
 import { num, plural, shortDay, usd, usd3 } from "./fuelSpendReportFormat.js";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
 
@@ -56,8 +57,8 @@ export const exceptionColumnWidths = EXCEPTION_COLUMNS.map((c) => c.width);
  * to assemble from two numbers in different sentences.
  */
 export function drawDiscount(doc: PDFKit.PDFDocument, capture: ContractCapture, lines: readonly SpendLine[], n: number): void {
-  keepTogether(doc, 170);
-  sectionHead(doc, n, "Contracted price", "What Pilot quoted against what Pilot billed, fill by fill.");
+  // Three lines of the lead rate comparison, then the coverage bar, which is one object.
+  startSection(doc, n, "Contracted price", "What Pilot quoted against what Pilot billed, fill by fill.", 40 + proportionBarHeight(doc));
 
   const tractor = lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0);
   if (capture.measuredLines === 0) {
@@ -112,7 +113,7 @@ export function drawDiscount(doc: PDFKit.PDFDocument, capture: ContractCapture, 
     note(doc, "No fill was billed above its contracted price by more than a cent a gallon.");
     return;
   }
-  keepTogether(doc, 120);
+  ensure(doc, 24 + tableHeadHeight());
   note(
     doc,
     `${capture.overLines} fill(s) were billed above contract, ${usd(capture.overDollars)} in total` +
@@ -153,8 +154,7 @@ export function drawExceptions(
   ex: ReturnType<typeof analyzePolicyExceptions>,
   n: number,
 ): void {
-  keepTogether(doc, 160);
-  sectionHead(doc, n, "Where the fuel policy was not followed");
+  startSection(doc, n, "Where the fuel policy was not followed", undefined, tableHeadHeight(true));
 
   const reports = [
     { name: "Avoided brands (ONE9, off-brand)", r: ex.avoidedBrands },
@@ -188,23 +188,35 @@ export function drawExceptions(
   // The summary above says how much; this says WHERE, which is the only part anybody can act on. The
   // page lists every fill — a document cannot, so it ranks the sites and the trucks the money is at.
   for (const x of reports) {
-    const sites = x.r.bySite.filter((g) => g.excess > 0).slice(0, 5);
-    const units = x.r.byUnit.filter((g) => g.excess > 0).slice(0, 5);
+    // ── WHY A RANKING OF ONE IS NOT DRAWN ─────────────────────────────────────────────────────
+    // A list with a single entry is not a ranking; it is the summary row above repeated with a bar
+    // next to it. On a report filtered to one truck, "Worst trucks" ranked that truck against itself
+    // and printed the same $142 the Excess column had just printed — three times, once per exception,
+    // filling a page nobody needed. Two entries is the least that can put anything in an order.
+    const sites = rank(x.r.bySite);
+    const units = rank(x.r.byUnit, "Unit ");
     if (sites.length === 0 && units.length === 0) continue;
-    keepTogether(doc, 130);
-    doc.moveDown(0.3);
-    doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(9.5)
+
+    const both = sites.length > 0 && units.length > 0;
+    const colW = both ? (CONTENT_W - 26) / 2 : CONTENT_W;
+    // The sub-heading plus the TALLER of the two rankings beside it. Measured rather than guessed is
+    // what stopped the list walking off the page one "Unit 111" at a time.
+    ensure(doc, 20 + Math.max(rankedBarsHeight(sites.length), rankedBarsHeight(units.length)));
+    doc.y += gap(doc, 4);
+    doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.subhead)
       .text(winAnsi(x.name), M, doc.y, { width: CONTENT_W });
-    doc.moveDown(0.35);
+    doc.y += gap(doc, 4);
 
     // Two independent rankings drawn as two lists, side by side. Interleaving them into one table is
     // what produced the row of em-dashes `rankedBars` was written to kill.
-    const colW = (CONTENT_W - 26) / 2;
     const top = doc.y;
-    const a = rankedBars(doc, "Worst sites", sites.map((g) => ({ key: g.key, value: g.excess, detail: `${plural(g.lines, "fill")}, ${num(g.gallons)} gal` })), M, top, colW, C.bad, usd);
-    const b = rankedBars(doc, "Worst trucks", units.map((g) => ({ key: `Unit ${g.key}`, value: g.excess, detail: `${plural(g.lines, "fill")}, ${num(g.gallons)} gal` })), M + colW + 26, top, colW, C.bad, usd);
+    let bottom = top;
+    if (sites.length > 0) bottom = Math.max(bottom, rankedBars(doc, "Worst sites", sites, M, top, colW, C.bad, usd));
+    if (units.length > 0) {
+      bottom = Math.max(bottom, rankedBars(doc, "Worst trucks", units, both ? M + colW + 26 : M, top, colW, C.bad, usd));
+    }
     doc.x = M;
-    doc.y = Math.max(a, b) + 4;
+    doc.y = bottom + gap(doc, 4);
   }
 }
 
@@ -233,8 +245,11 @@ export function drawIdle(
   idle: FleetIdleVerdict | null,
   n: number,
 ): void {
-  keepTogether(doc, 150);
-  sectionHead(doc, n, "Idling", "Engine time the trucks spent stationary, and how much of it anybody could have prevented.");
+  startSection(
+    doc, n, "Idling",
+    "Engine time the trucks spent stationary, and how much of it anybody could have prevented.",
+    26 + proportionBarHeight(doc),
+  );
   const gaps = series.filter((p) => !p.idleUsable && p.idleCoverage != null);
   if (!idle || idle.idleH === 0) {
     note(doc, "No idle measured in this range with enough engine-feed coverage to judge.");
@@ -278,6 +293,17 @@ export function drawIdle(
         "little of those days to measure against. Their fuel is counted everywhere else in this report.",
     );
   }
+}
+
+/** The top five by excess, or nothing at all when there are too few to put in an order. */
+function rank(groups: readonly ExceptionGroup[], prefix = ""): Rank[] {
+  const top = groups.filter((g) => g.excess > 0).slice(0, 5);
+  if (top.length < 2) return [];
+  return top.map((g) => ({
+    key: `${prefix}${g.key}`,
+    value: g.excess,
+    detail: `${plural(g.lines, "fill")}, ${num(g.gallons)} gal`,
+  }));
 }
 
 /** "Pilot #442, Amarillo TX" — and never a stray comma when the station arrived without a city. */

@@ -9,9 +9,10 @@
  */
 import { operatingBridge, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
-import { metricStrip, money, waterfall, type Metric } from "./fuelSpendReportCharts.js";
-import { figureTable, totalRow, type Column, type Row } from "./fuelSpendReportTable.js";
-import { keepTogether, lead, note, sectionHead, verdictBand, withheld } from "./fuelSpendReportDraw.js";
+import { METRIC_STRIP_HEIGHT, metricStrip, money, waterfall, waterfallHeight, type Metric } from "./fuelSpendReportCharts.js";
+import { figureTable, tableHeadHeight, totalRow, type Column, type Row } from "./fuelSpendReportTable.js";
+import { lead, note, startSection, verdictBand, withheld } from "./fuelSpendReportDraw.js";
+import { ensure } from "./fuelSpendReportFlow.js";
 import { change, num, plural, rangeLabel, usd, usd2, usd3, usdCompact } from "./fuelSpendReportFormat.js";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
 
@@ -95,6 +96,7 @@ export function drawHeadline(
     { label: "Cost / mile", value: usd2(overall.costPerMile), scope: "fuel only", trend: full.map((x) => x.costPerMile), ...change(p?.costPerMile, c?.costPerMile, true) },
     { label: "Fleet MPG", value: overall.mpg?.toFixed(2) ?? "-", scope: "measured miles", trend: full.map((x) => x.mpg), ...change(p?.mpg, c?.mpg, false) },
   ];
+  ensure(doc, METRIC_STRIP_HEIGHT + 14);
   metricStrip(doc, metrics);
 
   doc.fillColor(C.inkSubtle).font("Helvetica").fontSize(T.micro).text(
@@ -108,12 +110,15 @@ export function drawHeadline(
 }
 
 export function drawBridge(doc: PDFKit.PDFDocument, cmp: Comparison, grain: SpendGrain, n: number): void {
-  sectionHead(doc, n, "Why spend moved");
   if (!cmp) {
+    startSection(doc, n, "Why spend moved", undefined, 30);
     note(doc, `Two complete ${GRAIN_WORD[grain]}s are needed before a change can be explained against anything.`);
     return;
   }
   const b = operatingBridge(cmp.prior, cmp.current);
+
+  // Two lines of the lead sentence plus the whole waterfall, which cannot be split across a page.
+  startSection(doc, n, "Why spend moved", undefined, 28 + waterfallHeight(b.terms.length));
 
   lead(
     doc,
@@ -161,14 +166,14 @@ export function drawSeries(
   grain: SpendGrain,
   n: number,
 ): void {
-  keepTogether(doc, 150);
   const word = GRAIN_WORD[grain];
   const average = series.length > 0 ? series.reduce((a, p) => a + p.spend, 0) / series.length : 0;
   const columns = SERIES_COLUMNS.map((c) => (c.bar ? { ...c, barBaseline: average } : c));
-  sectionHead(
+  startSection(
     doc, n,
     grain === "day" ? "Day by day" : grain === "month" ? "Month by month" : "Week by week",
     `The mark under each spend figure is that ${word} against the ${usd(average)} ${word}ly average - right of the tick is a heavier ${word} than usual, left is a lighter one.`,
+    tableHeadHeight(),
   );
 
   // Newest first, and a period still filling is kept but LABELLED. Dropping it hides the most recent

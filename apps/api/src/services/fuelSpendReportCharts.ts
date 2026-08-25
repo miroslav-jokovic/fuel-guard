@@ -19,6 +19,7 @@
  */
 import { C, CONTENT_W, GEOM, T, TRACK_LABEL } from "./fuelSpendReportTheme.js";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
+import { gap, withoutAutoBreak } from "./fuelSpendReportFlow.js";
 
 const M = GEOM.margin;
 
@@ -122,12 +123,15 @@ const CARD_GAP = 7;
  * So `scope` is REQUIRED rather than optional, and it is drawn under every value. A metric that cannot
  * say what period it covers does not belong in the headline of a document about a period.
  */
+/** The cards themselves. The gap after them is density-scaled and added by `metricStrip`. */
+export const METRIC_STRIP_HEIGHT = CARD_H + 16;
+
 export function metricStrip(doc: PDFKit.PDFDocument, metrics: readonly Metric[]): void {
   if (metrics.length === 0) return;
   const w = (CONTENT_W - CARD_GAP * (metrics.length - 1)) / metrics.length;
   const top = doc.y;
 
-  metrics.forEach((m, i) => {
+  withoutAutoBreak(doc, () => metrics.forEach((m, i) => {
     const x = M + i * (w + CARD_GAP);
     doc.save().roundedRect(x, top, w, CARD_H, GEOM.radius).fillColor(C.wash).fill().restore();
     doc.save().roundedRect(x, top, w, CARD_H, GEOM.radius).lineWidth(0.5).strokeColor(C.hairline).stroke().restore();
@@ -154,10 +158,10 @@ export function metricStrip(doc: PDFKit.PDFDocument, metrics: readonly Metric[])
         .font("Helvetica-Bold").fontSize(T.micro)
         .text(winAnsi(m.delta), x + w - 9 - 42, trendTop + 4, { width: 42, align: "right", lineBreak: false });
     }
-  });
+  }));
 
   doc.x = M;
-  doc.y = top + CARD_H + 16;
+  doc.y = top + CARD_H + gap(doc, 16);
 }
 
 // ── waterfall ───────────────────────────────────────────────────────────────────────────────────
@@ -171,6 +175,8 @@ export interface WaterfallBar {
 
 const BAR_H = 12;
 const ROW_H = 25;
+/** One `rankedBars` entry: key line, bar, detail line. Kept beside `rankedBarsHeight` so they agree. */
+const ROW_PITCH = 27;
 const LABEL_W = 116;
 const VALUE_W = 78;
 
@@ -188,6 +194,11 @@ const VALUE_W = 78;
  * at the head of the track — SAVED and ADDED — cost one line and remove the inference. The share under
  * each value is captioned once for the same reason.
  */
+/** Axis captions, one row per bar, and the gap that follows. Measured, so `ensure` need not guess. */
+export function waterfallHeight(bars: number): number {
+  return bars === 0 ? 0 : 13 + ROW_H * (bars - 1) + BAR_H + 10;
+}
+
 export function waterfall(doc: PDFKit.PDFDocument, bars: readonly WaterfallBar[], total: number): void {
   if (bars.length === 0) return;
   const trackX = M + LABEL_W;
@@ -207,7 +218,7 @@ export function waterfall(doc: PDFKit.PDFDocument, bars: readonly WaterfallBar[]
   const firstTop = captionTop + 13;
   doc.y = firstTop;
 
-  for (const b of bars) {
+  withoutAutoBreak(doc, () => { for (const b of bars) {
     const top = doc.y;
     doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.small)
       .text(winAnsi(b.label), M, top, { width: LABEL_W - 8, lineBreak: false });
@@ -228,7 +239,7 @@ export function waterfall(doc: PDFKit.PDFDocument, bars: readonly WaterfallBar[]
         trackX + trackW + 10, top + 13, { width: VALUE_W, align: "right", lineBreak: false });
 
     doc.y = top + ROW_H;
-  }
+  } });
 
   // The zero line last, so it sits over the bars and the eye reads it as the axis it is. Anchored to the
   // top captured before the loop — reconstructing it from `doc.y` afterwards drew it a row short and
@@ -236,7 +247,7 @@ export function waterfall(doc: PDFKit.PDFDocument, bars: readonly WaterfallBar[]
   doc.save().strokeColor(C.ink).lineWidth(0.7).opacity(0.5)
     .moveTo(centre, firstTop - 3).lineTo(centre, firstTop + ROW_H * (bars.length - 1) + BAR_H + 3).stroke().restore();
   doc.x = M;
-  doc.y = firstTop + ROW_H * (bars.length - 1) + BAR_H + 10;
+  doc.y = firstTop + ROW_H * (bars.length - 1) + BAR_H + gap(doc, 10);
 }
 
 export function money(n: number): string {
@@ -262,6 +273,21 @@ export interface Segment {
  * paragraphs of prose each, and a reader who wanted the proportion had to build it from two numbers in
  * different sentences. The bar is the proportion; the prose underneath is why it is what it is.
  */
+/**
+ * The bar plus its two-line legend. `LEGEND_H` is the legend's own ink, NOT air.
+ *
+ * ── THE DISTINCTION THAT MATTERS ────────────────────────────────────────────────────────────────
+ * The trailing space used to be one number, 22, covering both the legend's second line and the gap
+ * after it. Density-scaling that number then scaled the legend's own height, so at the tighter setting
+ * the next paragraph was set on top of "4,658 gal, $16,981". Only the air may shrink; a block's ink is
+ * a fixed size or it is not a block.
+ */
+const LEGEND_H = 17;
+
+export function proportionBarHeight(doc: PDFKit.PDFDocument, height = 15): number {
+  return height + 7 + LEGEND_H + gap(doc, 6);
+}
+
 export function proportionBar(doc: PDFKit.PDFDocument, segments: readonly Segment[], height = 15): void {
   const parts = segments.filter((s) => s.value > 0);
   if (parts.length === 0) return;
@@ -293,7 +319,7 @@ export function proportionBar(doc: PDFKit.PDFDocument, segments: readonly Segmen
   // diagonally across the page under its own bar.
   const legendY = top + height + 7;
   const w = CONTENT_W / parts.length;
-  parts.forEach((s, i) => {
+  withoutAutoBreak(doc, () => parts.forEach((s, i) => {
     const lx = M + i * w;
     const share = `${((s.value / total) * 100).toFixed(1)}%`;
     doc.save().roundedRect(lx, legendY + 1.5, 5, 5, 1).fillColor(s.color).fill().restore();
@@ -303,9 +329,9 @@ export function proportionBar(doc: PDFKit.PDFDocument, segments: readonly Segmen
       doc.fillColor(C.inkSubtle).font("Helvetica").fontSize(T.micro);
       doc.text(fit(doc, s.detail, w - 13), lx + 9, legendY + 8.5, { width: w - 13, lineBreak: false });
     }
-  });
+  }));
   doc.x = M;
-  doc.y = legendY + 22;
+  doc.y = legendY + LEGEND_H + gap(doc, 6);
 }
 
 // ── ranked bars ─────────────────────────────────────────────────────────────────────────────────
@@ -327,7 +353,31 @@ export interface Rank {
  * report had failed to collect. Two independent lists are two lists; drawing them as one table was
  * always a layout convenience pretending to be a relationship.
  */
+/**
+ * The height `rankedBars` will occupy. A caller drawing two of them side by side must `ensure` the
+ * TALLER one — this is the measurement that stopped the list walking off the foot of the page one
+ * fragment at a time.
+ */
+export function rankedBarsHeight(rows: number): number {
+  // 27 per row, not 17: the key sets at `cy`, the bar at `cy + 10`, the detail under that, and the next
+  // row starts at `barY + 17`. Measuring the last hop instead of the whole one put a five-row ranking
+  // 50pt past the bottom of the page, straight through the footer, once `withoutAutoBreak` stopped
+  // pdfkit from papering over it with a new page.
+  return rows === 0 ? 23 : 11 + rows * ROW_PITCH;
+}
+
 export function rankedBars(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  rows: readonly Rank[],
+  x: number, y: number, w: number,
+  color: string,
+  fmt: (n: number) => string,
+): number {
+  return withoutAutoBreak(doc, () => drawRanked(doc, title, rows, x, y, w, color, fmt));
+}
+
+function drawRanked(
   doc: PDFKit.PDFDocument,
   title: string,
   rows: readonly Rank[],
@@ -356,7 +406,7 @@ export function rankedBars(
     doc.save().rect(x, barY, Math.max(1, (Math.abs(r.value) / widest) * trackW), 3).fillColor(color).opacity(0.9).fill().restore();
     doc.fillColor(C.inkSubtle).font("Helvetica").fontSize(T.micro)
       .text(winAnsi(r.detail), x, barY + 5.5, { width: w, lineBreak: false });
-    cy = barY + 17;
+    cy = barY + (ROW_PITCH - 10);
   }
   doc.x = M;
   return cy;

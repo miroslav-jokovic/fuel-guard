@@ -4,10 +4,18 @@
  */
 import type { Metric } from "./fuelSpendReportCharts.js";
 
+/**
+ * The sign goes before the dollar, not after it.
+ *
+ * `$${Math.round(n)}` prints a negative as "$-1", which is not how money is written anywhere and read
+ * as a typo in the Excess column the first time a carrier came in UNDER the fleet baseline.
+ */
+const money = (n: number, body: (v: number) => string) => `${n < 0 ? "-" : ""}$${body(Math.abs(n))}`;
+
 export const usd = (n: number | null | undefined) =>
-  n == null ? "-" : `$${Math.round(n).toLocaleString("en-US")}`;
-export const usd2 = (n: number | null | undefined) => (n == null ? "-" : `$${n.toFixed(2)}`);
-export const usd3 = (n: number | null | undefined) => (n == null ? "-" : `$${n.toFixed(3)}`);
+  n == null ? "-" : money(n, (v) => Math.round(v).toLocaleString("en-US"));
+export const usd2 = (n: number | null | undefined) => (n == null ? "-" : money(n, (v) => v.toFixed(2)));
+export const usd3 = (n: number | null | undefined) => (n == null ? "-" : money(n, (v) => v.toFixed(3)));
 export const num = (n: number | null | undefined, dp = 0) =>
   n == null ? "-" : n.toLocaleString("en-US", { maximumFractionDigits: dp });
 
