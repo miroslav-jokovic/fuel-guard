@@ -38,6 +38,19 @@ export interface SpendLine {
   gallons: number;
   netAmount: number | null;
   retailAmount: number | null;
+  /**
+   * What the fill SHOULD have cost: the Pilot report's "Your Price" for that station on that business
+   * date, × gallons. Null when no quote was in range — which is NOT zero, and must never be summed as
+   * though the fill had been billed exactly at contract. Only the EFS-feed projection can supply it; a
+   * parsed vendor statement carries no quote, so it stays undefined there.
+   */
+  contractAmount?: number | null;
+  /**
+   * How old the quote was, in days, when it was applied — 0 for same-day, 1 for carried forward from
+   * yesterday. Surfaced rather than hidden because a figure resolved from a stale quote is a weaker
+   * claim than one resolved from that morning's report, and the reader is entitled to know which.
+   */
+  quoteStaleDays?: number | null;
   miscAmount?: number | null;
   salesTax?: number | null;
 }

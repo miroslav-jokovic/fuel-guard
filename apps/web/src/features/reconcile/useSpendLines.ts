@@ -8,15 +8,27 @@
  * feed, and since the station backfill 98.5% of them carry a `station_id`, so the brand dimension those
  * reports are built on is finally available without a statement.
  *
- * ── RETAIL COMES FROM THE KEPT PRICE REPORTS ────────────────────────────────────────────────────
- * EFS records what we PAID and never what was posted, so this used to return `retailAmount: null` and
- * discount capture had no source at all. Since 0245 the daily Pilot report is KEPT rather than deleted
- * by the next upload, so `fuel_spend_lines` (0246) joins each fill to the price that applied at that
- * station on that day and the discount is finally measurable from the feed.
+ * ── BOTH PRICES COME FROM THE KEPT PILOT REPORTS ────────────────────────────────────────────────
+ * EFS records what we PAID and neither what was posted nor what we were quoted, so this used to return
+ * `retailAmount: null` and discount capture had no source at all. Since 0245 the daily Pilot report is
+ * KEPT rather than deleted by the next upload, and `fuel_spend_lines` (0247) joins BOTH of its prices
+ * onto every fill:
  *
- * A fill with no same-day price keeps `retailAmount: null`, and that is not the same as a zero
- * discount: `analyzeDiscountCapture` drops those lines rather than scoring them as having captured
- * nothing. A missing upload must not manufacture a shortfall.
+ *   `retailAmount`   ← "Retail Price" × gallons — the posted price, what the discount is measured FROM.
+ *   `contractAmount` ← "Your Price"   × gallons — the contracted cost, what the fill SHOULD have been
+ *                       billed at. This is the one the reconciliation runs on; measured on production
+ *                       it matches what EFS billed to $0.0005/gal on 1,314 of 1,409 quoted fills, so it
+ *                       is a reconciliation key and not an estimate.
+ *
+ * A fill with no quote in range keeps BOTH null, and null is not zero: `analyzeContractCapture` reports
+ * those lines as unmeasured rather than scoring them as billed exactly at contract. A missing upload
+ * must not read as a clean bill of health.
+ *
+ * ── SCOPE COMES FROM THE SESSION ────────────────────────────────────────────────────────────────
+ * No `p_org` is passed here on purpose. The function is `security invoker`, so a browser is scoped by
+ * RLS and by `auth_org_id()` off its own JWT — passing an org from client-side state would add a value
+ * a caller could get wrong without adding any authority. `apps/api` is the opposite case and MUST pass
+ * it: the service role bypasses RLS. See D-FC1 in migration 0247.
  *
  * ── UNRESOLVED STATIONS COUNT AS OFF-NETWORK, DELIBERATELY ──────────────────────────────────────
  * A fill whose site could not be matched has `brand: null`. `analyzePolicyExceptions` treats that as
@@ -64,8 +76,10 @@ export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>) {
             tank: r.tank === "reefer" ? "reefer" : "tractor",
             gallons: num(r.gallons),
             netAmount: r.net_amount == null ? null : num(r.net_amount),
-            // Null when no report covered that station that day — NOT a zero discount. See the header.
+            // Null when no quote was in range — NOT a zero discount, and NOT billed at contract.
             retailAmount: r.retail_amount == null ? null : num(r.retail_amount),
+            contractAmount: r.contract_amount == null ? null : num(r.contract_amount),
+            quoteStaleDays: r.quote_stale_days == null ? null : num(r.quote_stale_days),
           });
         }
         if (batch.length < PAGE) break;
