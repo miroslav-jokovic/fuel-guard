@@ -122,7 +122,7 @@ buys:
 | Order | Step | Why here | Rough size |
 |---|---|---|---|
 | 1 | **G1 — error pages** ✅ DONE 2026-08-25 | The only one fixing a live defect. Cost two PRs, not one — the 500-line budget bit here rather than at G2. | shipped as #250 + #251 |
-| 2 | **G2 — breadcrumbs** | Highest orientation gain; 24 routes benefit with no per-route work. | ~half a day |
+| 2 | **G2 — breadcrumbs** ✅ DONE 2026-08-25 | Highest orientation gain; 24 routes benefit with no per-route work. | shipped as #255 |
 | 3 | **G3 — timeline** | One consumer, whose data already ships unrendered. | ~half a day |
 | 4 | **G4 — avatar** | Smallest. Skippable — see §7. | ~an hour |
 
@@ -301,7 +301,7 @@ Browser-checked signed-out at `/nope`, `/error`, `/maintenance` via `preview:loc
 
 ---
 
-### G2 — Breadcrumbs derived from `meta.parent` · not started
+### G2 — Breadcrumbs derived from `meta.parent` — DONE 2026-08-25 (PR #255)
 
 **Prerequisites:** G1 merged (both edit the router; rebase rather than parallelise).
 
@@ -343,6 +343,33 @@ Browser-checked signed-out at `/nope`, `/error`, `/maintenance` via `preview:loc
 
 **Done when:** the 24 `parent`-carrying routes show a trail; top-level pages show none; the back
 chevron still works; the parent-resolution test passes.
+
+**What shipped.** `lib/breadcrumbs.ts` (pure walk), `components/ui/BreadcrumbTrail.vue`
+(presentational), `PageHeader.vue` wiring the two, three test files, a permanent specimen in the
+design lab, and the `ui-system-inventory.mjs:108` comment made true.
+
+**Verified by:** 622 tests — `lib/breadcrumbs.test.ts` (8), `components/ui/PageHeader.test.ts` (6,
+including an axe-core run on a three-level trail), `router/breadcrumbTargets.test.ts` (4);
+typecheck; `lint:ui-adoption`, `lint:tokens`, `lint:filesize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:codegen`, eslint; CI `build` green. Browser at 1200px and 390px.
+
+**Four things a later step should not re-derive:**
+
+1. ⚠ **G1's catch-all changed what `router.resolve` proves.** It now matches *everything*, so
+   `matched.length > 0` is no longer evidence that a route exists — the obvious way to write the
+   parent-resolution test would have passed on a deleted route. Both the test and `PageHeader` ask
+   whether the resolved name is `not-found`. **Any future code asking "does this path exist?" has
+   the same trap.**
+2. **The plan predicted the render, not the split.** G2 shipped `BreadcrumbTrail.vue` as a separate
+   presentational component, which §5 did not call for. The reason is D-DS13: every page that grows
+   a trail is behind the auth wall, so without a router-free, session-free component there is no way
+   to look at this in the browser. **G3 has the same problem** — `EntityHistory` needs an anomaly —
+   and the same answer is available.
+3. A design-lab specimen pointing at the route it renders on makes `RouterLink` stamp
+   `aria-current="page"` on it, which reads as a component bug and is not one. Point specimens at
+   real, other paths.
+4. `vue/multi-word-component-names` is on: `Breadcrumbs.vue` failed eslint and became
+   `BreadcrumbTrail.vue`. A one-word component name will not land.
 
 ---
 
