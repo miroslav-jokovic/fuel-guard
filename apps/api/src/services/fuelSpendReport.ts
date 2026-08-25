@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   analyzeContractCapture,
   analyzePolicyExceptions,
+  DEFAULT_FUEL_POLICY,
   comparablePeriods,
   periodTotals,
   type ContractCapture,
@@ -84,7 +85,10 @@ export async function renderFuelSpendReport(
   // against a finished one made the first render of this report announce spend down 88% and a $271,841
   // saving from "miles driven" — a collapse that never happened, in a document meant to be forwarded.
   const comparison = comparablePeriods(series);
-  const exceptions = analyzePolicyExceptions(lines);
+  // Explicit for the same reason the page is (F3): the policy this report measures against belongs to
+  // `route_fuel_settings`, not to a constant in the analyzer. Named here so the two surfaces cannot
+  // start disagreeing about which one they read.
+  const exceptions = analyzePolicyExceptions(lines, DEFAULT_FUEL_POLICY);
   const capture = analyzeContractCapture(lines);
   const window = windowLabel(input.from, input.to);
   const fleet = units.length === 0

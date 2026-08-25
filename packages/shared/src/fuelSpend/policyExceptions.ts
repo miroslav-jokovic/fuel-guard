@@ -49,7 +49,18 @@ export interface ExceptionReport {
   gallons: number;
   spend: number;
   netPerGal: number | null;
+  /**
+   * Discount per gallon over the fills that HAVE a posted price, or null when none of them do.
+   *
+   * Null is the ordinary case here, not an edge: these reports select the fills that went off the
+   * preferred network, and an off-network site is precisely one the Pilot price report does not
+   * cover. Read against every gallon this used to resolve to `−netPerGal` and print a large negative
+   * dollar figure under the label "Discount captured". `discountMeasuredShare` says how much of these
+   * gallons it covers, so a consumer can state the scope instead of implying there is none.
+   */
   discountPerGal: number | null;
+  /** Share of these fills' gallons carrying a posted price — the denominator of `discountPerGal`. */
+  discountMeasuredShare: number | null;
   /** Total paid above the baseline for these gallons. */
   excess: number;
   /** Share of all tractor gallons in the input. */
@@ -113,6 +124,7 @@ export function exceptionReport(lines: readonly SpendLine[], selects: (l: SpendL
     spend: hitT.net,
     netPerGal: hitT.netPerGal,
     discountPerGal: hitT.discountPerGal,
+    discountMeasuredShare: hitT.retailShare,
     excess: r2(fills.reduce((a, f) => a + f.excess, 0)),
     gallonShare: allGallons > 0 ? hitT.gallons / allGallons : null,
     fills: [...fills].sort((a, b) => b.excess - a.excess),

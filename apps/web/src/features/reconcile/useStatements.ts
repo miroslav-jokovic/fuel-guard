@@ -34,18 +34,38 @@ export interface StatementSummary {
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 const str = (v: unknown): string | null => (v == null ? null : String(v));
 
-/** Live statements only — a superseded one is history, not a week to read totals from. */
-export function useStatementsQuery() {
+/**
+ * Live statements only — a superseded one is history, not a week to read totals from — and only the
+ * ones OVERLAPPING the window the page is set to.
+ *
+ * ── WHY THE WINDOW IS AN ARGUMENT AND NOT AN AFTERTHOUGHT ───────────────────────────────────────
+ * This query used to take no window at all and return every statement ever kept, while the filter bar
+ * above it rendered a date range, a truck picker and a fill count — none of which reached it. The page
+ * carried a `scope` selector to compensate, and that selector was never rendered, so it was pinned to
+ * "all" and the two dead branches beside it could not be reached. The visible effect was a tab whose
+ * controls did nothing.
+ *
+ * `useSpendFilters` exists to end exactly this: one period, read by every tab, so a figure quoted off
+ * one is the same weeks as a figure quoted off the next. A statement is a week-long period, so it is
+ * selected by OVERLAP rather than containment — a statement running Mon–Sun belongs in a window that
+ * starts on the Wednesday, because part of its spend happened inside.
+ */
+export function useStatementsQuery(window: Ref<{ from: string; to: string }>) {
   return useQuery({
-    queryKey: ["fuel_statements"],
+    queryKey: ["fuel_statements", window],
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     queryFn: async (): Promise<StatementSummary[]> => {
+      const w = window.value;
       const { data, error } = await supabase
         .from("fuel_statements")
         .select(
           "id, invoice_no, period_start, period_end, billing_date, total_gallons, fuel_amount, invoice_total, retail_total, savings, line_count, source_filename, source_path, created_at",
         )
         .is("superseded_by", null)
+        // Overlap, not containment: starts on or before the window ends, ends on or after it starts.
+        .lte("period_start", w.to)
+        .gte("period_end", w.from)
         .order("period_start", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((r: Record<string, unknown>) => ({

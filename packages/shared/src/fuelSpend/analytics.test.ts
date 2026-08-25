@@ -29,6 +29,34 @@ describe("totalsOf / isTractorFuel", () => {
     expect(weekOf("2026-08-23")).toBe("2026-08-17"); // the Sunday that closes it
     expect(weekOf("2026-08-24")).toBe("2026-08-24");
   });
+
+  // ── the retail denominator ──────────────────────────────────────────────────────────────────
+  // Measured on production 2026-08-25, only 27.8% of the default window's spend carries a posted
+  // price, so a total mixing priced and unpriced fills is the normal case rather than an edge one.
+  it("measures the discount over the gallons that HAVE a posted price, not over all of them", () => {
+    // 100 gal priced and discounted $0.60/gal; 100 gal with no quote at all.
+    const t = totalsOf([at(100, 5, 0.6), fill({ gallons: 100, netAmount: 440 })]);
+    expect(t.gallons).toBe(200);
+    expect(t.retailGallons).toBe(100);
+    expect(t.retailShare).toBe(0.5); // the caller can say what the figure covers
+    // $0.60/gal over the priced 100 gal — NOT $60 spread across 200 gal, which would read as $0.30.
+    expect(t.discountPerGal).toBeCloseTo(0.6, 6);
+    expect(t.retailPerGal).toBeCloseTo(5, 6);
+    // netPerGal still spans everything: what we PAID is known for every fill.
+    expect(t.netPerGal).toBeCloseTo((440 + 440) / 200, 6);
+  });
+
+  it("says it cannot tell rather than reporting a negative discount when nothing has a posted price", () => {
+    // The off-network case: EFS records what we paid, and no Pilot quote covers these sites. Divided
+    // by all gallons this produced −$4.40/gal under the label "Discount captured".
+    const t = totalsOf([fill({ gallons: 100, netAmount: 440 }), fill({ gallons: 50, netAmount: 260 })]);
+    expect(t.retailLines).toBe(0);
+    expect(t.retailShare).toBe(0);
+    expect(t.discountPerGal).toBeNull();
+    expect(t.retailPerGal).toBeNull();
+    expect(t.capturePct).toBeNull();
+    expect(t.discount).toBe(0); // no measured discount, not a negative one
+  });
 });
 
 describe("analyzeDiscountCapture", () => {

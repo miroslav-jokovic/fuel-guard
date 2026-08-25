@@ -9,6 +9,14 @@ surface fed by the Pilot Flying J direct-bill statement (PDF), the EFS API feed,
 Every number below was measured against **real production data** (Silvicom, org 139445) and the real
 statement `db139445F.pdf` (invoice 795506105, period 08/17/26–08/23/26). Nothing here is estimated.
 
+> **Superseded for everything after WP6 — see `FUEL-SPEND-RELIABILITY-PLAN.md` (2026-08-25).**
+> This document remains canonical for what the surface *is* and how the statement decodes (§1–§4, §7)
+> and for the still-open contract questions (§8, which the newer plan tracks as Q-FX3/Q-FX5/Q-FX6).
+> WP7 is withdrawn: the 2026-08-25 audit found four defects putting wrong numbers on screen, a matcher
+> that double-counts a one-day date drift, and no persistence, lifecycle or recovery tracking for the
+> exceptions this feature finds. The reliability plan replaces WP7 with F0–F15 and states the
+> architecture the feature has to end in before more surface is added to it.
+
 ---
 
 ## 0. What exists today (audit)

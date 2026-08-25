@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@fuelguard/ui";
-import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
+import { analyzePolicyExceptions, DEFAULT_FUEL_POLICY, type SpendLine } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -17,7 +17,7 @@ import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { usd } from "@/features/reconcile/format";
+import { usd3 } from "@/features/reconcile/format";
 
 /**
  * Fuel spend — what the fuel bill is, why it moved, and where the policy is not being followed.
@@ -71,26 +71,21 @@ const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehic
 // ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
 const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(queryFilters);
 const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
-const exceptions = computed(() => analyzePolicyExceptions(feedLines.value));
+// ⚠ The policy is passed EXPLICITLY even though it is the module's default, because the default is
+// the thing being removed: `route_fuel_settings` already carries this org's `avoid_states`,
+// `avoid_brands` and `preferred_brands`, the Fuel Planning Settings page already edits them, and the
+// route planner already honours them — while this report, the one that claims to measure policy
+// compliance, reads a constant. Naming the argument here is what makes F3 a change at a call site
+// rather than a hunt for one.
+const exceptions = computed(() => analyzePolicyExceptions(feedLines.value, DEFAULT_FUEL_POLICY));
 
-// ── the statement source: only what discount capture needs ──────────────────────────────────────
-const { data: statements, isLoading: stmtLoading, isError: stmtError, refetch } = useStatementsQuery();
-const scope = ref<string>("all");
-const scopeOptions = computed(() => [
-  { value: "all", label: "All statements" },
-  { value: "last4", label: "Last 4 weeks" },
-  ...(statements.value ?? []).map((s) => ({ value: s.id, label: `${s.periodStart} → ${s.periodEnd}` })),
-]);
-// A saved scope can point at a statement a later upload superseded; fall back rather than show nothing.
-watch(scopeOptions, (opts) => {
-  if (!opts.some((o) => o.value === scope.value)) scope.value = "all";
-});
-const scopedStatements = computed(() => {
-  const all = statements.value ?? [];
-  if (scope.value === "all") return all;
-  if (scope.value === "last4") return all.slice(0, 4);
-  return all.filter((s) => s.id === scope.value);
-});
+// ── the statement source ────────────────────────────────────────────────────────────────────────
+// Scoped by the PAGE's window, like everything else here. There was a `scope` selector for this and it
+// was never rendered — pinned to "all" forever, with two unreachable branches behind it — so the
+// statement tab showed every week ever kept while the filter bar above it advertised a date range.
+// One period control, and it is the one in the URL. See `useStatementsQuery`.
+const { data: statements, isLoading: stmtLoading, isError: stmtError, refetch } = useStatementsQuery(f.range);
+const scopedStatements = computed(() => statements.value ?? []);
 const { data: stmtLineData, isLoading: stmtLinesLoading } = useStatementLinesQuery(
   computed(() => scopedStatements.value.map((s) => s.id)),
 );
@@ -166,7 +161,7 @@ const caNote = computed(() => {
         <ExceptionsTab
           v-if="tab === 'avoid_brand'"
           title="ONE9 and other off-brand sites"
-          :blurb="`Networks your fuel policy says to avoid. Across this window they cost ${usd(exceptions.avoidedBrands.netPerGal)} a gallon against ${usd(exceptions.avoidedBrands.baselinePerGal)} for the rest of the fleet.`"
+          :blurb="`Networks your fuel policy says to avoid. Across this window they cost ${usd3(exceptions.avoidedBrands.netPerGal)} a gallon against ${usd3(exceptions.avoidedBrands.baselinePerGal)} for the rest of the fleet.`"
           :report="exceptions.avoidedBrands"
           slug="one9-off-brand"
         />
@@ -202,7 +197,7 @@ const caNote = computed(() => {
       </p>
 
       <BaseCard v-else-if="!(statements ?? []).length && !stmtLoading">
-        <h3 class="text-sm font-semibold text-ink">No statements on file</h3>
+        <h3 class="text-sm font-semibold text-ink">No statements for {{ f.from.value }} → {{ f.to.value }}</h3>
         <p class="mt-1 text-sm text-ink-muted">
           This view needs the vendor's weekly statement, because it is the only source that prints the POSTED price
           beside what we paid — the EFS feed records what we paid and never what was on the sign. Upload one on

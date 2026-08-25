@@ -1,0 +1,787 @@
+# Fuel Spend & Reconciliation — Reliability, Architecture and Savings Plan
+
+**Opened 2026-08-25 against `main` @ 78862bb.** Companion to `FUEL-SPEND-RECONCILIATION-PLAN.md`,
+which built the thing. This one makes it precise, reliable, and worth selling to a carrier whose
+controller will audit it.
+
+The audit behind §0 is recorded at
+`https://claude.ai/code/artifact/3d084778-59ee-425b-bc91-10693a71ee5e` — 47 findings with stable ids
+(B1–B4, L1–L14, X1–X12, A1–A8, E1–E9, N1–N10). This plan cites those ids; it does not repeat them.
+
+---
+
+## 0. Ground truth (measured 2026-08-25, not recalled)
+
+**What is built and good.** `packages/shared/src/fuelSpend/` is the strongest layer in this feature
+and probably in the repo. `contractCapture` scores every fill against Pilot's own quoted "Your Price"
+and reports what it could not measure rather than scoring it as correct. `operatingBridge` decomposes
+Δspend to a $0 residual and withholds its miles/efficiency split when odometer coverage cannot
+support it. `policyExceptions` prices each exception against the fleet's *other* fuel with the
+exception excluded from its own baseline. 152 shared tests and 25 web tests pass.
+
+**What is not.** That discipline stops at the module boundary. Four defects put visibly wrong numbers
+on screen (B1–B4), and none is detectable by the suite, because **no test mounts
+`FuelReconciliationPage.vue` or `ReconcileTab.vue`** — where all four live (E9). Beneath them:
+
+- The matcher the page is named after is a card-and-date heuristic that ignores an exact vendor key it
+  already parses (L1), cannot tolerate one day of business-date drift and emits *two* false findings
+  plus a double-counted dollar figure when it happens (L2, L3), scores null as mismatch (L4), and
+  gives different answers for the same week depending on which file format Pilot sent (L7, L8).
+- A reconciliation run is ephemeral. Upload, read, navigate away, gone. Nothing persists what was
+  compared, against what, with which tolerances, by whom, or what it concluded (E4, X11).
+- An exception has no state, owner, dispute artifact or recovery tracking, so the product finds money
+  and structurally cannot follow it (E1–E3). This is the half of the feature that does not exist.
+
+**The one-line thesis.** The arithmetic is right and the *system around the arithmetic* is missing.
+Everything in §5 is either closing that gap or protecting the arithmetic while it is closed.
+
+---
+
+## 1. The architecture this must end in
+
+Five theses. Every step in §5 serves one of them; a step that serves none does not belong here.
+
+### 1.1 A reconciliation is a domain object, not a screen state
+
+Today: the browser parses a file, runs `reconcilePilotFuel` in memory, renders a table, and forgets
+it. Every reliability property being asked for — reproducibility, audit, dispute, recovery tracking,
+tolerance versioning, "what did we conclude in June" — requires the run to be a **persisted,
+server-computed artifact**. This is the largest single change here and E1–E5, X11 and L8 all collapse
+into it.
+
+The pattern already exists in this codebase and does not need inventing: `POST /api/fueling/statements`
+has the browser decode bytes to positioned words (only it has `pdfjs`) and send *words plus the
+original bytes*, then the **server re-parses and refuses anything it cannot stand behind**. The
+reconciliation takes exactly that shape. The browser never asserts a conclusion.
+
+    browser                          server                                database
+    ─────────                        ──────                                ────────
+    decode bytes → words / grid ───▶ re-parse                              fuel_recon_runs   (evidence,
+                                     tie out (both formats — L8)             append-only)
+                                     read system fills (service role,
+                                       org-filtered — RLS is bypassed)
+                                     match (pure, @fuelguard/shared)  ───▶ fuel_exceptions  (operational,
+                                     price                                   mutable lifecycle)
+                                     persist + audit                  ───▶ fuel_exception_events
+                                                                            (append-only act log)
+    render the persisted run ◀────── GET the run
+
+### 1.2 One ledger, many detectors
+
+Reconciliation discrepancies, contract variance, off-network premium, missed-station savings and
+plan deviation are **the same object**: a priced, dated, attributable finding with a lifecycle. If
+each grows its own table, its own status vocabulary and its own screen, the product ends with six
+half-workflows and no answer to "what did we recover last quarter" (E3).
+
+One `fuel_exceptions` table with a `kind` discriminator, one lifecycle, one surface. A new detector is
+a new `kind` and a new producer — never a new table.
+
+**Why not `anomalies`, which already has this lifecycle.** `anomalies.transaction_id` is `not null`
+and references `fuel_transactions`. A `missing_in_system` finding — the fuel-theft surface, the most
+valuable thing the reconciler produces — has **no `fuel_transactions` row by definition**. That is the
+whole point of the finding. `anomalies` structurally cannot hold half the reconciliation output, so
+reuse is not available; the lifecycle *columns* are copied, the table is not (D-FX2).
+
+### 1.3 The pure core stays pure, and grows the parameters it should always have had
+
+`packages/shared/src/fuelSpend` and `packages/shared/src/reconcile` do no I/O, take no clock, and are
+the reason the PDF and the page cannot disagree. Nothing in this plan moves logic out of them. B4's
+fix is to **thread `FuelPolicy` in as a parameter** — which the signature already accepts and no
+caller passes — not to relocate the decision. Same for tolerances (D-FX9).
+
+The rule this makes explicit: **anything that varies by org is a parameter of the pure function and a
+column in the database. It is never a constant in the module that computes it.**
+
+### 1.4 Aggregation belongs where the rows are
+
+Every feed-fed tab pages the *entire window* into the browser 1,000 rows at a time — in a serial
+`await` loop — and aggregates client-side (E6). At ~1,400 fills/month this is fine. It is also the
+exact shape of the problem migration 0248 found on the server, where two un-inlinable scalars cost
+46× and took the spend report down silently.
+
+Direction: the **line-level** reads stay (the exception tables genuinely need lines), but every
+**aggregate** — tiles, weekly series, rollups, coverage — moves behind a set-based function beside
+`fuel_spend_lines`, on the same `security invoker` + `coalesce(p_org, auth_org_id())` pattern (D-FC1,
+0247). Not because it is slow today, but because the client-side half has never had the scrutiny the
+server-side half got.
+
+### 1.5 Evidence and operations are different tables, and each says which it is
+
+House rule, already enforced: evidence is append-only and pinned in `RETENTION_FORBIDDEN`; operational
+data is mutable and prunable. This feature needs both, and the split is not obvious, so it is decided
+here rather than at the migration:
+
+| Table | Side | Why |
+|---|---|---|
+| `fuel_recon_runs` | **Evidence** — append-only, `RETENTION_FORBIDDEN` | What we concluded about a vendor's bill on a date, with the inputs and tolerances that produced it. A correction is a new run that supersedes, never an overwrite — the `fuel_statements` argument verbatim. |
+| `fuel_exceptions` | **Operational** — mutable lifecycle, prunable | Status, owner, note. A human's working state, not a record of fact. Its *evidence* is the immutable `run_id` + line snapshot it points at. |
+| `fuel_exception_events` | **Evidence** — append-only act log | Who changed what, when, and why. 0213's trigger style (`auth_role() is null` passes) so retention can still prune with the exception it belongs to. |
+
+---
+
+## 2. Decisions
+
+**D-FX1 — The reconciliation runs on the server and is persisted.** The browser decodes and displays;
+it never concludes. Mirrors `POST /api/fueling/statements` (WP4). Consequence: the monthly export path
+gains the tie-out gate it never had (L8), because there is now one place that can refuse.
+
+**D-FX2 — One `fuel_exceptions` table, not `anomalies` and not one per detector.** Argument in §1.2:
+`anomalies.transaction_id is not null` and `missing_in_system` has no transaction. Lifecycle columns
+are copied from `anomalies` (`status`, `assigned_to`, `resolved_by`, `resolved_at`,
+`resolution_note`, `evidence jsonb`) so the vocabulary and the badge tones are already familiar.
+
+**D-FX3 — The match key is measured before it is chosen.** `PilotReportFill.authNo` is parsed and
+unused (L1); `fuel_transactions.transaction_id` holds EFS's own id (0107) and `efs_transactions`
+holds the verbatim `invoice`; `StatementLine` additionally carries `ticket` and `poNumber`. **Whether
+any of these join is unknown and will not be assumed.** F0 measures the join rate of every candidate
+pair on production and the answer is recorded in §6. The fallback if none joins above ~95%: keep the
+heuristic, but make it drift-tolerant and deterministic (F4 ships either way).
+
+**D-FX4 — Drift is a status, not a pair of findings.** A report line and a system fill that agree on
+card, gallons and amount but sit one business day apart are **one fill, dated differently** — status
+`date_drift`, one row, its dollars counted once. Today this is a `missing_in_system` plus a
+`missing_on_report` plus double-counted exposure (L2, L3). The window widens by ±1 day, never further:
+a two-day tolerance starts matching genuinely different fills.
+
+**D-FX5 — Gross and net exposure are reported apart and never summed.** `dollarsAtStake` becomes four
+figures with four meanings: `overbilled` (recoverable), `underbilled` (owed), `unbilled` (recorded,
+never invoiced), `unrecorded` (invoiced, never recorded — the theft surface). A single "at stake"
+number that adds all four is the thing being removed, not renamed.
+
+**D-FX6 — Policy and tolerance are org configuration, everywhere.** `route_fuel_settings` already
+carries `avoid_states`, `avoid_brands`, `preferred_brands`, is editable on the Fuel Planning Settings
+page, and is honoured by the planner. The compliance report ignores it (B4). Fixed by threading, not
+by moving. `DEFAULT_FUEL_POLICY` and `DEFAULT_TOLERANCES` survive as **documented defaults for an org
+that has configured nothing** — which is what they were always meant to be.
+
+**D-FX7 — Unmeasured is never zero, in `totalsOf` as well as `contractCapture`.** `contractCapture`
+gets this right and says so at length. `totalsOf` does not: it sums `retailAmount ?? 0` and divides
+by all gallons (B3), which is how the off-network tab prints a negative discount. Same rule, same
+module, one gap. `SpendTotals` gains an explicit retail-bearing denominator; every consumer that
+shows a discount figure shows what share of gallons it was measured over.
+
+**D-FX8 — The page is Fuel Spend; Reconciliation is one tab of it.** Five of seven tabs are spend
+analytics and the source comments say so throughout (X1). Rename nav and `meta.title`, keep
+`/fuel-reconciliation` as a permanent redirect — links to it exist in the wild and the page's own
+header argues that a link that dies is a page nobody can send.
+
+**D-FX9 — Tolerances are snapshotted onto the run, not read at display time.** A run reconciled at 1¢
+must still read as 1¢ after somebody widens the org setting to 2¢. The values in force are columns on
+`fuel_recon_runs`.
+
+**D-FX10 — A detector never writes a lifecycle.** Re-running a reconciliation over a period that
+already has exceptions must not reset a human's work. Exceptions carry a deterministic
+`fingerprint` (kind + the natural key of the thing found); a new run **upserts evidence and leaves
+`status`, `assigned_to` and `resolution_note` alone**, and closes what it no longer finds with
+`status = 'resolved_by_reingest'` and an event row saying so. Never `.upsert()` with a partial payload
+(`lint:upserts`) — this is an UPDATE or a set-based RPC, on 0174/0175's model.
+
+**D-FX11 — Savings claims wait for fuel tax.** N1 (missed-station) and N3 (buy-quantity) both
+recommend *where to buy*. Nothing in the repo models state fuel tax or IFTA; `ifta` appears once, as a
+compliance licence label. Pump price is not landed cost, so a "buy here instead" recommendation can be
+actively wrong and the California premium is overstated. F10 lands before F11/F13, or those steps ship
+with the recommendation suppressed and only the observation shown.
+
+---
+
+## 3. Facts the design is bound by (each verified 2026-08-25 against the tree; none recalled)
+
+1. **`fuel_transactions.transaction_id` exists and is nullable** (0107), with partial unique indexes
+   on `(org_id, transaction_id, tank_type)` — because one EFS transaction is *not* one fill: a
+   tractor+reefer swipe is one id and two rows. Any exact-key matcher must key on the pair, never the
+   id alone.
+2. **`fuel_transactions` carries no DEF at all.** `fuelSpendRollup.ts:39` states it; DEF comes from
+   `efs_transactions` on item codes `DEFD`/`DEF`. So `useSpendLines`' hardcoded `product: "diesel"`
+   (A8) is *correct today* and becomes wrong the moment that changes. It gets a column, not a comment.
+3. **`fuel_spend_lines` is `security invoker` with `coalesce(p_org, auth_org_id())`** (D-FC1, 0247) —
+   a browser is scoped by its JWT, the API must pass `p_org` explicitly because the service role
+   bypasses RLS, and a caller that passes neither gets no rows. Every new function follows this.
+4. **Do not add `set search_path` to a per-row scalar** (D-FI1, 0248). It blocks inlining; measured at
+   128× per row and 46× on the report, which timed out rather than slowing down. Entry points keep it;
+   scalars schema-qualify instead.
+5. **`anomalies.transaction_id` is `not null`** (0003) — the reason D-FX2 exists.
+6. **`fuel_statements` / `fuel_statement_lines` are append-only by trigger and pinned in
+   `RETENTION_FORBIDDEN`** (0243), with a superseded row frozen entirely. `fuel_recon_runs` copies
+   this exactly.
+7. **`fuel_prices` writes are service-role only** since 0245 (D-FP2); the client write policy was
+   removed deliberately, because a price series a browser session can rewrite is not evidence.
+   Idempotent on `(org, source, station, product, observed_at)`, `observed_at` being the report's own
+   printed effective date at noon UTC — so re-uploading three months in any order is safe.
+8. **Quotes carry forward at most one day** (`p_max_stale_days = 1`, 0248) and the price report is a
+   **manual upload every 1–2 days** on `/import` — not this page (X2, A4). Coverage is therefore an
+   operational fact the surface must show, not a footnote (X3).
+9. **`route_fuel_settings` is readable by the browser** (`useRouteFuelSettings.ts` reads it via
+   PostgREST) and already carries every field B4 needs.
+10. **`TablePagination` lives at `apps/web/src/components/TablePagination.vue`**, not in
+    `components/ui/`, and pairs with `DataTable`'s `#footer` slot — `OdometerPage.vue:191` is the
+    reference call site. `DataTable` itself neither paginates nor virtualizes, by design (X12).
+11. **No file in this feature is grandfathered** in `scripts/check-file-size.mjs`. Budget is 500 with a
+    450 warning. `operatingBridge.ts` is at 481 and `pilotStatement.ts` at 462 — both already warn, so
+    neither may absorb new code. `pilotFuelReport.ts` (329) will split in F4.
+12. **PGlite matrices exist for the neighbours** — `fuel-spend-lines`, `fuel-spend-days`,
+    `fuel-statements`, `fuel-price-history` — and `fuel-spend-lines.test.mjs` documents the four
+    properties that fail quietly. New tables copy its shape, including the default-privileges block
+    and `role` inside the claims JSON.
+13. **The spend rollup rebuild and station re-resolve endpoints exist and have no UI anywhere**
+    (`routes/fueling/spend.ts:77,100`) — X10 is a button, not a backend.
+14. **`useIdleBreakdown` takes a date filter only** — no vehicle scoping — and is shared with the
+    Idling page. X7 is therefore disclosure first; scoping only if it can be added without disturbing
+    that page (memory: fix the state behind a shared control, never fork it).
+
+---
+
+## 4. Execution protocol
+
+**Resume ritual (a fresh chat starts here):**
+
+1. Read this document top to bottom, then `FUEL-SPEND-RECONCILIATION-PLAN.md` §6–§8 (the risks and the
+   still-open contract questions), then the `CLAUDE.md` of every package the step touches.
+2. Establish reality: `git log --oneline -15`, `pnpm verify:live`, and
+   `gh run list --workflow=migrate.yml` before believing any schema mismatch — deploy and migrate
+   finish at different times.
+3. Find the first §5 step not marked **DONE**. Check its prerequisites against §6. A missing
+   prerequisite means **run the fallback written next to it** — never guess.
+4. One step per branch (`claude/<topic>`), branched from `origin/main` **explicitly** (parallel chats
+   share this working tree), PR to `main`, merge after CI. `main` is branch-protected; there is no
+   other path.
+5. When a step ships, mark it **— DONE \<date\> (migrations NNNN–NNNN)** in place with a "What
+   shipped" list and "Verified by:" naming the gates run. When a §6 question is answered, strike it
+   through in place with the answer and the date. **This document is the memory between sessions.**
+
+**Rules this feature is bound by, beyond the root `CLAUDE.md`:**
+
+- Migration numbers are **never pinned in advance** — next-numbered at execution.
+- Every new table: `org_id`, `enable row level security` (`check-rls.mjs`), no client write policy
+  unless argued in a comment above it, a PGlite matrix printing a `RESULT` line, and a stated side of
+  the evidence line (§1.5).
+- Every service query org-filters itself; a test asserts it via `supabaseRecorder`'s `expectOrgScoped`.
+  The service role bypasses RLS and this feature reads across four tables.
+- Never `.upsert()` with a partial payload (`lint:upserts`) — D-FX10's re-ingest is an UPDATE or a
+  set-based RPC (0174/0175).
+- A comment claiming coverage quotes a real test title (`lint:comment-claims`).
+- Money figures are **named by what they mean**, never "at stake" (D-FX5). A dollar figure whose
+  denominator is not on screen beside it is a defect, not a formatting choice.
+- Any new status vocabulary ships as machine tokens in shared **plus** an exported label map beside
+  them, with tones in `apps/web/src/lib/badges.ts` only — no `.vue` file carries a status literal or a
+  local tone `Record`. `ReconcileTab.vue`'s `STATUS_LABEL` and `statusTone` are existing instances and
+  move in F4.
+- Gates before any PR: `pnpm test`, `pnpm typecheck`, `pnpm lint`, plus the step's named extras.
+  ⚠ `pnpm lint` scans `.claude/worktrees` — filter the path before believing a failure count.
+
+---
+
+## 5. Steps
+
+Ordered so each phase makes the next one's numbers trustworthy. F1 and F2 are a pair and should land
+in the same week; nothing after F2 is worth building on a screen a reader has learned to distrust.
+
+---
+
+### F0 · The match-key spike — DONE 2026-08-25 (no migrations, no PR)
+
+**What it found.** Two questions answered, one blocked, and three facts that reorder the steps below.
+All figures `supabase db query --linked`, org **Silvicom Inc** (11,043 fills) unless stated.
+
+**Q-FX2 — ANSWERED: `state` is null on 0 of 11,310 fills, both orgs.** `localBusinessDate`'s UTC
+fallback (`useFuelReconcile.ts`) **never fires in production**. L2's drift is therefore not the
+systematic mis-dating the audit implied — it can still arise from the vendor's own business-date
+cutoff, so D-FX4's ±1-day tolerance and the L3 double-count fix both stand, but neither is urgent.
+L2 drops from Major to Moderate.
+
+**Q-FX1 — BLOCKED, and the reason outranks the question. `fuel_statements` = 0 rows and
+`fuel_statement_lines` = 0 rows in production.** No statement has ever been persisted. The join rate
+cannot be measured because the vendor side of the join does not exist in the database, and the
+WP4 ingest path — the server-side re-parse and tie-out gate — **has never run against the real
+deployment**. Fallback taken, per this step's own instruction: F4 ships drift-tolerance and
+determinism regardless, and takes the two evidence-backed key improvements already decided and never
+built (below) instead of waiting on a key nobody can measure yet.
+
+**Two F4 decisions already exist and were verified against all five real statements.** They belong to
+`FUEL-SPEND-RECONCILIATION-PLAN.md` §3 and WP6 shipped without either:
+- **D-FR6** — the statement's `Card Number` is the **last 6** of the EFS PAN
+  (`7083050030490367971` → `367971`), verified. The matcher uses `last4`. A strictly stronger,
+  collision-free key is available for free, with last-4 as a labelled weaker fallback.
+- **D-FR7** — drop the `tank_type = 'tractor'` filter and match **within product class**
+  (`020→tractor`, `033→reefer`, `021→tractor`, `140→def`), the codes resolved empirically against
+  `efs_transactions.item` with exact count agreement. This is the audit's L7 under another name, and
+  the older plan already calls it "a permanent false-positive block".
+
+F4 cites these rather than re-deciding them. Q-FX1 stays open for a *third* improvement on top.
+
+**System-side identifier shapes, for whenever Q-FX1 can be measured.** `fuel_transactions.transaction_id`
+is 9–10 digits (`1494839957`, 10,844 of 11,310 populated) and equals field 2 of
+`efs_transactions.external_ref` — so 0011's comment calling that field `invoice` is stale; it is the
+EFS transaction id. **`efs_transactions.invoice` is a different number**: 10 chars with leading zeros
+(`0036764554`, 20,830 rows) and a 12-char `…DB` variant (537 rows). That is the candidate that could
+carry a Pilot-side ticket or authorization number, and it is 100% populated. Measuring it needs one
+statement in production.
+
+**THE FINDING THAT MOVES THE MOST MONEY, and it is not code.** Quote coverage on the default 90-day
+window, tractor diesel:
+
+    fills                   5,552
+    with a contract quote   1,409     25.4% of fills
+    spend                  $3,056,926
+    spend measurable        $849,913   27.8% of spend
+
+`fuel_prices` holds **20 days, 2026-08-02 → 2026-08-25**, and nothing before 2026-08-02. The gap is
+**historical, not operational**: since the first priced day only 4 of 24 days are missing, which the
+one-day carry-forward mostly absorbs. So the Discount Capture tab's headline variance describes
+**28% of the fuel bill**, and the page does not say so at the headline.
+
+0245 made the price ingest idempotent on `(org, source, station, product, observed_at)` with
+`observed_at` taken from the report's own printed effective date — explicitly so that "re-uploading
+three months of reports is safe in ANY order". **Backfilling the price reports the carrier already
+has roughly triples the measurable share of the bill and requires no code at all.** Raised as
+Q-FX9 and as the first item of F1.
+
+**Consequences for the steps below** — applied in place:
+1. **B1 is downgraded.** Statements ignoring the page window is real, but with zero statements in
+   production it is currently unobservable. It stays in F1 (it is three lines and a deletion) but it
+   is no longer the reason F1 exists.
+2. **Coverage is promoted out of F7 into F1.** A headline over 28% of spend that does not say so is a
+   worse defect than any of B1–B4, and it is the same class of error: a figure without its denominator.
+3. **F5 acquires a second purpose.** The statement ingest has never run in production; F5's runs
+   endpoint should not be the first thing to discover that.
+
+---
+
+### F0-bis · Prove the statement ingest against production — no code ships
+
+**Prerequisites:** one real Pilot weekly statement PDF (five are in hand per
+`FUEL-SPEND-RECONCILIATION-PLAN.md` §7) and a user who can sign in as admin or fleet_manager.
+
+**Do.** Upload one statement through **Reconcile a file** on the deployed app. Confirm
+`fuel_statements` and `fuel_statement_lines` receive rows, the tie-out gate passes server-side, the
+source PDF lands in the private bucket, and `unresolvedSites` is empty. Then re-run the Q-FX1 join
+measurement from F0 against the real `auth_no` / `ticket_no` values now stored.
+
+**Done when:** Q-FX1 is answered with numbers, and WP4's re-parse gate has been exercised once
+against the real deployment rather than only in tests.
+
+**Do.** For the five statement PDFs and the monthly exports already in hand, measure the join rate of
+every candidate key pair against `fuel_transactions` / `efs_transactions` over the same window:
+
+| Report side | System side | Notes |
+|---|---|---|
+| `PilotReportFill.authNo` (`Authorization_No`) | `fuel_transactions.transaction_id` | 0107's EFS id. Different issuers — may not join at all. |
+| `authNo` | `efs_transactions.invoice` | The verbatim EFS column. |
+| `StatementLine.ticket` | `efs_transactions.invoice` | Pilot's own ticket number. |
+| `cardRef` + `tranDate` + `gallons` | same | Today's heuristic — the control. |
+
+Report, per pair: match rate, collision rate (one report line matching >1 system row), and the shape of
+the misses. Also measure **how many `fuel_transactions` rows have a null `state`**, which is L2's
+trigger via `localBusinessDate`'s UTC fallback.
+
+**Deliverable:** §6 Q-FX1 and Q-FX2 answered in place, with the numbers. **No PR.**
+
+**Done when:** F4 can be written without a guess about its join key.
+
+---
+
+### F1 · Stop showing wrong numbers — DONE 2026-08-25 (no migrations)
+
+**What shipped.** C1, B1, B2, B3, B4a as specified, plus the two things the work turned up.
+- **C1** — `ContractCapture.measuredSpendShare` (paid ÷ in-scope paid). The Discount Capture hero now
+  reads *"measured over $849,913 of $3,056,926 — 27.8% of this window's fuel"* beside the variance,
+  and the PDF's contracted-price lead carries the same sentence. `ExceptionReport` gained
+  `discountMeasuredShare` for the same reason.
+- **B3** — `totalsOf` accumulates a retail-bearing subset (`retailLines`, `retailGallons`,
+  `retailShare`) and every retail figure divides by it. **Verified against production**: 201
+  off-network fills over 21,102 gallons, *none* with a posted price, printed
+  **−$4.779/gal** under the label "Discount captured", in red, captioned "none captured at all". It
+  now reads "—  ·  no posted price for these fills".
+- **B2** — the ONE9 blurb uses `usd3`; it read "$4 a gallon against $4".
+- **B1** — `useStatementsQuery` takes the page window and selects statements by **overlap**; the dead
+  `scope`/`scopeOptions`/`watch` block is deleted, not wired (one period control, and it is the URL's).
+  The empty state names the window it searched.
+- **B4a** — both callers pass `DEFAULT_FUEL_POLICY` explicitly with the reason above the call, so F3
+  is a change at two named sites.
+- **Not in the original scope, found while doing it:** `spendTabs.test.ts`'s `fill` helper *required*
+  `retailAmount: number`, so every fixture in the file was more measurable than production and the
+  B3 defect was unreachable by construction. Widened to `number | null`.
+
+**Verified by:** `pnpm test` (all suites, 26 PGlite matrices), `pnpm typecheck`, `pnpm lint` (the only
+real-source finding is 2 pre-existing `vue/one-component-per-file` warnings in a file this branch does
+not touch; the 700 errors are the `.claude/worktrees` copy), `lint:filesize`, `lint:funcsize`,
+`lint:comment-claims`, `lint:boundaries`, `lint:upserts`, `lint:tokens-parity`, `lint:ui-adoption`,
+`pnpm --filter web lint:tokens`. Six new tests: two on `totalsOf`, two on `analyzeContractCapture`,
+four on the tabs.
+
+**Prerequisites:** none. Do this first; it is small and everything else sits on top of it.
+
+**Scope raised by F0.** The largest defect on this page is not in B1–B4 — it is that Discount
+Capture's headline variance describes **27.8% of the fuel bill** ($849,913 of $3,056,926 on the
+default window) and says so only in a caution strip below the fold. A figure without its denominator
+is the same class of error as B3, so the coverage line moves out of F7 and ships here.
+
+**Build.**
+- **C1 (new, first)** — every discount, capture and variance headline states the share of spend it
+  was measured over, beside the figure and not below it. Discount Capture's hero reads
+  *"$96 net variance, measured over $849,913 of $3,056,926 — 28% of this window's fuel"*. The same
+  line goes on the PDF's discount section. No new query: `ContractCapture` already carries
+  `measuredLines`, `unmeasuredPaid` and the rest; it needs `measuredPaid` beside them and a consumer
+  that prints it.
+- **B2** — `FuelReconciliationPage.vue:169`: `usd()` → `usd3()` on `netPerGal` and `baselinePerGal`.
+  A per-gallon figure printed with `maximumFractionDigits: 0` reads "$4 a gallon against $4".
+- **B3** — `packages/shared/src/fuelSpend/types.ts`: `totalsOf` counts retail-bearing gallons
+  separately from all gallons. `retailPerGal`, `discountPerGal`, `discount` and `capturePct` divide by
+  the **retail-bearing** denominator and are `null` when it is zero. Add `retailLines` /
+  `retailGallons` to `SpendTotals` so a consumer can state the share. Then `ExceptionsTab`'s "Discount
+  captured" tile shows the share it was measured over, or an em dash — it currently prints a large
+  negative dollar figure on the off-network tab (D-FX7).
+- **B1** (downgraded by F0 — `fuel_statements` is empty in production, so this is currently
+  unobservable there; it stays because it is three lines and a deletion) — statements obey the page
+  window. Two halves, both required:
+  `useStatementsQuery` takes the window and filters on overlap (`period_start <= to and period_end >=
+  from`); and the dead `scope` / `scopeOptions` / `watch` block is **deleted**, not wired — the window
+  is the page's one period control (`useSpendFilters`' whole argument) and a second scope selector
+  reintroduces the disagreement it was written to end. The statement tab's empty state names the
+  window it found nothing in.
+- **B4a** — thread the policy parameter. `analyzePolicyExceptions(lines, policy)` already accepts one;
+  neither caller passes it. Page and `fuelSpendReport.ts:87` both pass an explicit
+  `DEFAULT_FUEL_POLICY` **for now**, so F3 is a one-line change at each call site rather than a hunt.
+
+**Verify:** a unit test on `totalsOf` where half the lines carry no retail, asserting the discount is
+measured over the retail-bearing gallons and the share is reported; a test that an off-network report
+(no retail anywhere) yields `discountPerGal: null` rather than a negative number; a test that a
+capture headline over a partial denominator renders the share (the C1 pin, and the one that would
+have caught this class of defect twice).
+**Done when:** the ONE9 blurb quotes cents, the off-network discount tile shows an em dash rather than
+a negative dollar figure, the Statements tab shows the weeks the filter bar says it does, and no
+headline dollar figure on the page is missing the share of spend it covers.
+
+---
+
+### F2 · Pin the page under test
+
+**Prerequisites:** F1 (so the tests pin the corrected behaviour).
+
+**Build.** Component tests for the four files with no coverage, in
+`apps/web/src/features/reconcile/` beside `spendTabs.test.ts`:
+
+- `FuelReconciliationPage.vue` — every tab renders; **the filter bar's controls all reach the data
+  they claim to** (the B1 regression pin); the tab and window survive a round-trip through the URL;
+  an unknown `tab=` falls back to `spend`.
+- `ReconcileTab.vue` — a parsed report renders its buckets; a bucket tile filters the table; the
+  status vocabulary comes from shared, not from the file.
+- `SpendTrendTab.vue` — tiles name the period they refer to (pins L13 once F7 lands); the empty state
+  renders; the rejected-interval footnote appears only when there are rejects.
+- `StatementsCard.vue` — a statement with no stored source shows an em dash rather than a dead button.
+
+**Verify:** `pnpm --filter web test`; the new tests fail if F1's fixes are reverted.
+**Done when:** every one of B1–B4 is caught by a test that would have failed before F1.
+
+---
+
+### F3 · Policy becomes org configuration
+
+**Prerequisites:** F1.
+
+**Build.** The page reads `route_fuel_settings` through the existing `useRouteFuelSettings` and passes
+a `FuelPolicy` to `analyzePolicyExceptions`; `renderFuelSpendReport` reads it server-side with the
+service role, org-filtered. Tab labels become **derived**: "California" is generated from
+`avoid_states` (`"California"` for one state, `"Avoided states"` for several, and named in the blurb);
+"ONE9 & off-brand" from `avoid_brands`. An org with an empty `avoid_states` gets the tab hidden rather
+than an empty report labelled with a state it does not avoid.
+
+`DEFAULT_FUEL_POLICY` stays and its comment changes to say what it now is: the default for an org that
+has configured nothing.
+
+**Verify:** unit test — an org with `avoid_states = {CA, OR}` produces a report covering both and a
+label that names both; an org with `avoid_states = {}` produces no avoided-state report.
+`expectOrgScoped` on the server-side settings read.
+**Done when:** changing `avoid_states` on the Fuel Planning Settings page changes what the compliance
+tab measures, and the two surfaces can no longer disagree about the policy.
+
+---
+
+### F4 · The matcher, rewritten
+
+**Prerequisites:** F0 (the key), F2 (the tests). This is the step the page is named after.
+
+**Build.** Split `pilotFuelReport.ts` (329 lines, and growing past budget) along the seam it already
+has: `pilotReportParse.ts` (the grid → fills parser) and `fuelMatch.ts` (the reconciler). Then:
+
+- **L1 / D-FX3** — match on the exact key F0 chose, first. Fall through to the heuristic only for
+  lines the key could not place, and **report the two populations apart** — "1,380 matched on the
+  vendor's transaction id, 29 matched on card and date" is a materially different claim from one
+  number.
+- **L2 / D-FX4** — `date_drift` status. Candidate window widens to ±1 day; a line that agrees on card,
+  gallons and amount one day apart is **one row**, not two.
+- **L5** — deterministic assignment. Within a (key, day) bucket, resolve as a minimum-cost assignment
+  over |Δgallons| then |Δamount|, not a first-come greedy scan. Two fills on one card-day must not be
+  paired crosswise, and re-exporting the same month in a different row order must produce a byte-identical
+  result. Pin that with a test that shuffles the input.
+- **L4** — `within()` stops returning `false` for null. A missing amount yields
+  `amount: "unknown"`, never `amount_mismatch` worth $0.00.
+- **L7** — reefer is separated in **both** formats. `isDieselRow`'s `/diesel(?! exhaust)/i` claims dyed
+  reefer diesel in the monthly export, which is then matched against a tractor-only system set. The
+  product taxonomy moves to one table keyed on Pilot's product code (`020`, `021`, `033`, `140`),
+  which the statement parser already reads from the printed legend, with description matching as the
+  fallback for the export.
+- **L6** — the `missing_on_report` window comes from the report's declared `startDate`/`endDate`, the
+  same window the fills were fetched on. Not the min/max of the fills found.
+- **L9** — a card-less line is never bucketed with other card-less lines. No card, no card-key match;
+  it goes to the heuristic or to `unmatched`.
+- **L3 / D-FX5** — `dollarsAtStake` is deleted and replaced by `overbilled`, `underbilled`,
+  `unbilled`, `unrecorded`, each with its own count. No function returns their sum.
+- Status vocabulary and label map move to shared with tones in `lib/badges.ts` (§4).
+
+**Verify:** the matcher's test file goes from 8 single-row cases to a real matrix — date drift in both
+directions; a null amount; two fills on one card-day; the same input shuffled; a reefer line in each
+format; a card-less line; a report line matching two system rows. Plus a **golden-file test** over one
+real monthly export and one real statement, asserting the bucket counts, so a future change to the
+matcher has to state what it moved.
+**Done when:** the same week reconciles identically from the PDF and the export; a one-day drift
+produces one `date_drift` row rather than two false findings; and no single number on the tab adds
+recoverable dollars to owed dollars.
+
+---
+
+### F5 · A reconciliation run is persisted, and the export gains its tie-out
+
+**Prerequisites:** F4.
+
+**Build.**
+- Migration (next-numbered): **`fuel_recon_runs`** — `org_id`, `source_kind`
+  (`weekly_statement | monthly_export`), `statement_id` FK null, `source_filename`, `source_sha256`,
+  `period_start`, `period_end`, the **tolerances in force** (D-FX9), the matcher version, the four
+  exposure figures and their counts (D-FX5), `key_matched` / `heuristic_matched` counts (F4),
+  `created_by`, `created_at`, `superseded_by` self-FK. **Evidence** (§1.5): append-only by trigger in
+  the `fuel_statements` style — a superseded row frozen entirely — pinned in `RETENTION_FORBIDDEN`,
+  named five-character SQLSTATE mapped by the API to an answer rather than a 500. Read policy
+  org-scoped, no client write policy.
+- API: `POST /api/fueling/recon-runs` — takes the same `{ words | grid, filename, sourceBase64 }` shape
+  as `POST /api/fueling/statements`, **re-parses server-side**, and refuses anything that fails its own
+  arithmetic. This is where **L8** is fixed: the monthly export gets a tie-out against its own
+  PivotTable grand total, and the endpoint refuses rather than reconciling a file it mis-read.
+  `GET /api/fueling/recon-runs` and `/:id`. Writes an audit row (`fuel.recon_run`) — E4.
+- Web: `ReconcileTab` posts instead of computing, renders the persisted run, and gains a **run history
+  list** — the reconciliation stops dying with the tab (X11). CSV export of the run's rows, which is
+  the one tab that has never had one.
+
+**Verify:** PGlite matrix `supabase/tests/fuel-recon-runs.test.mjs` — RLS deny-all for a client write,
+the append-only SQLSTATE on UPDATE and DELETE, supersede leaves the earlier run intact, service-role
+delete succeeds (the retention pin). Service tests with `expectOrgScoped` on every query. A test that
+a mis-read export is **refused**, not reconciled.
+**Done when:** a reconciliation run from three weeks ago can be reopened, and a monthly export that
+does not add up is refused with the same rigour a PDF already is.
+
+---
+
+### F6 · The exception ledger
+
+**Prerequisites:** F5. This is the step that makes the feature enterprise-grade; everything before it
+is repair.
+
+**Build.**
+- Migration: **`fuel_exceptions`** — `org_id`, `kind` (closed set, opening with
+  `recon_missing_in_system`, `recon_missing_on_report`, `recon_amount`, `recon_gallons`,
+  `recon_date_drift`, `contract_variance`, `off_network_premium`, `avoided_state_premium`,
+  `avoided_brand_premium`), `run_id` FK null, `transaction_id` FK **null** (D-FX2's whole argument),
+  `statement_line_id` FK null, `vehicle_id`, `driver_id`, `station_id`, `occurred_on date`,
+  `amount numeric` with `amount_kind` (`overbilled | underbilled | unbilled | unrecorded |
+  premium | opportunity`), `evidence jsonb`, `fingerprint text not null` (D-FX10), plus the lifecycle
+  columns copied from `anomalies`: `status`, `assigned_to`, `resolved_by`, `resolved_at`,
+  `resolution_note`. **Operational** (§1.5) — mutable, prunable, deliberately not in
+  `RETENTION_FORBIDDEN`, with the reason in the header. Unique on `(org_id, fingerprint)`.
+- Same migration: **`fuel_exception_events`** — append-only act log, `on delete cascade`, 0213's
+  trigger style so retention can prune with its parent. Named SQLSTATE.
+- Same migration: RPC `sync_fuel_exceptions(p_org, p_run, p_findings jsonb, p_actor)` — `security
+  definer`, set-based, **upserts evidence and never touches `status`, `assigned_to` or
+  `resolution_note`** (D-FX10); closes what it no longer finds as `resolved_by_reingest` with an event
+  row; writes its own audit row from `p_actor`. Not a partial `.upsert()` — an explicit UPDATE set
+  (`lint:upserts`, 0174/0175 the pattern).
+- Shared: `packages/shared/src/fuelSpend/exceptions.ts` — the `kind` and `status` vocabularies with
+  their **label maps**, the fingerprint derivation (pure, so the server and a test agree), and the
+  pure fold that turns a `ReconResult` + a `ContractCapture` + a `PolicyExceptions` into findings.
+  One producer signature, so a new detector is a new call and not a new shape.
+- API: `apps/api/src/routes/fueling/exceptions.ts` + a service (split from day one — six verbs).
+- Web: `/fuel-spend/exceptions` — `FilterBar` (kind, status, owner, search, count) → `DataTable` +
+  `TablePagination` (`components/TablePagination.vue`, `OdometerPage.vue:191` the call site) →
+  `SlideOver` with the evidence, the assign/resolve actions and the event log. Tones in
+  `lib/badges.ts`. Route record, `meta.title`, `parent`, and a **nav entry** in the same commit.
+- **The dispute packet** (E2): `GET /api/fueling/exceptions/packet.pdf?ids=…` — rendered server-side
+  from the persisted runs by the same `dqBinder/pdfDraw` machinery the spend report uses. Exception
+  lines, quoted-vs-billed per line, invoice and auth references, the total, the period, the generating
+  user and date. Writes `export.generated`.
+- **Recovery** (E3): resolving an exception as `credited` captures the credited amount and date. The
+  ledger's header figure is then `identified / claimed / recovered` — three numbers, never one.
+
+**Verify:** PGlite matrix — RLS deny-all; the append-only SQLSTATE on the event log; **a re-ingest
+over an exception a human has assigned and noted leaves both intact** (D-FX10's pin, and the one that
+matters most); a finding that disappears is closed rather than deleted; cascade behaviour on prune.
+Unit tests on the fingerprint being stable across runs and distinct across kinds.
+**Done when:** a discrepancy found in March can be assigned, disputed, credited and counted, and
+re-running March's reconciliation does not erase any of it.
+
+---
+
+### F7 · Say what is measured
+
+**Prerequisites:** F1. Independent of F4–F6 and can run in parallel with them.
+
+**Build.** Cheap, and each item removes a way to misread the screen.
+- **E8** — one coverage line at the top of the page, from a new set-based function beside
+  `fuel_spend_lines`: *"this window covers $312,400 of fuel; 94.1% priced against a contract quote,
+  98.5% resolved to a station, 3 of 13 weeks have a statement on file."*
+- **X3** — a price-report coverage strip on the Discount Capture tab: which days in the window have a
+  quote, which carried forward, which have none. This is the reader's actual next action and is
+  currently a count.
+- **L13** — the trend tiles name their period. "Fuel spend · week of 2026-08-10", not "Fuel spend".
+- **L14** — "Captured vs retail" states its own denominator, or moves out of a row whose other three
+  figures share a different one.
+- **L11** — the exception tabs state that they overlap and must not be summed; the PDF says the same.
+- **L12** — the cost-per-mile tile says it includes reefer and DEF while the spend tile does not.
+- **X6** — "showing 50 of 214" wherever a table truncates.
+- **X8** — the filter bar's count is the count of what the **current tab** is showing.
+- **N7** — render the `byUnit` and `bySite` rollups `ExceptionReport` already computes and no surface
+  displays, plus a `byDriver` grouping on the field already carried per line. Template work over
+  existing data; the cheapest coaching surface available.
+
+**Verify:** extend `spendTabs.test.ts` — a truncated table states its truncation; a tile with a
+partial denominator states it; the coverage line renders from a stubbed function.
+**Done when:** no dollar figure on the page lacks a visible denominator, and no two figures share a
+row without sharing one.
+
+---
+
+### F8 · The remaining UX debt
+
+**Prerequisites:** F2.
+
+**Build.** **X4** render `windowNotice` — it is computed, explained at length in its own header, and
+displayed nowhere, so a forwarded link with a bad range is silently corrected. **X5** `reset()` clears
+`grain`, and `active` counts it. **X7** the Idling card states that it is fleet-wide while the tiles
+above it are filtered (`useIdleBreakdown` takes no vehicle filter and is shared with the Idling page —
+disclose here; scope it only if that page is undisturbed). **X9** the reconcile summary tiles stop
+being `<button>` children of a `<dl>`; selection state gets `aria-pressed`. **X10** the empty state
+gets the rebuild button for the endpoint that already exists. **X12** `TablePagination` on the
+exception and reconcile tables. **X2** the Discount Capture empty state links to the price-report
+upload by name. **D-FX8** the page becomes Fuel Spend, with `/fuel-reconciliation` redirecting.
+
+**Verify:** existing suites plus `lint:ui-adoption`, `lint:tokens`; a test that the reconcile tiles
+render valid list markup.
+**Done when:** every control on the page affects what is beneath it, and every claim the page makes
+about its own scope is true.
+
+---
+
+### F9 · Aggregation moves to where the rows are
+
+**Prerequisites:** F7 (which defines the aggregates worth moving).
+
+**Build.** Set-based functions beside `fuel_spend_lines`, same `security invoker` +
+`coalesce(p_org, auth_org_id())` contract (D-FC1), same **no `set search_path` on per-row scalars**
+rule (D-FI1): `fuel_spend_totals`, `fuel_spend_by_period`, `fuel_spend_coverage`. The browser stops
+paging the window to compute a tile. Line-level reads stay — the exception tables need lines.
+⚠ Every new function ships with its `explain (analyze, buffers)` numbers in the migration header, on
+0248's model. That migration exists because two scalars cost 46× and nobody measured.
+
+**Verify:** the matrix asserts each function returns identical figures to the pure functions over the
+same fixture — the page and the database must not become a second place arithmetic happens.
+**Done when:** the first tile renders without fifteen sequential round trips.
+
+---
+
+### F10 · Landed cost — state fuel tax and IFTA
+
+**Prerequisites:** Q-FX4 (§6). **Gates F11 and F13** (D-FX11).
+
+**Build.** A versioned per-state diesel tax rate table (the same shape as `packages/hazmat-data`:
+pure, versioned, dated, with its source cited), and a `landedCostPerGal` in shared that nets the
+purchase-state tax against the burn-state liability. The California tab reports pump premium **and**
+landed premium, apart. Nothing else changes yet — this step exists to make F11 and F13 defensible.
+
+**Verify:** unit tests per state with the rate's effective date; a test that a purchase in a
+high-tax state burned elsewhere nets down.
+**Done when:** the California premium can be stated as landed cost, and a "buy here instead"
+recommendation has a basis.
+
+---
+
+### F11 · Missed savings at the pump
+
+**Prerequisites:** F6 (the ledger to hold the findings), F10 (or ship observation-only).
+
+**Build.** For each fill: the cheapest qualifying station within N road-miles on that business date,
+from `fuel_stations` (lat/lng), `fuel_prices` (our net) and `fuel_prices_posted` (the network-wide
+public layer, already fetched on a scheduler behind parse, completeness and sanity gates). Emit a
+`kind = 'missed_station'` exception with the alternative **named** and the difference priced at landed
+cost. N and the brand filter come from `route_fuel_settings`.
+
+This is also **the fix for L10**: the alternative station's price on the same day is the time-matched
+baseline the current 90-day fleet average is not.
+
+**Verify:** unit tests on the candidate selection (radius, brand policy, price freshness, a station
+with no price that day); a test that a fill with no candidate emits **nothing** rather than a
+zero-saving finding (D-FX7's rule, applied to a new detector).
+**Done when:** "you fuelled somewhere expensive" becomes "the Flying J 14 miles further on was
+$0.34/gal cheaper that morning", with a dollar figure and a lifecycle.
+
+---
+
+### F12 · Plan versus actual
+
+**Prerequisites:** F6.
+
+**Build.** `fuel_plans` (0074) stores `total_gallons`, `total_cost`, `arrival_fuel_pct` and the full
+plan JSON for every plan a dispatcher generates, and nothing joins it to what was actually bought.
+Match a plan's recommended stops to the fills that followed it; report adherence and the cost of
+deviation as a `kind = 'plan_deviation'` exception.
+
+**Verify:** unit tests on the stop→fill match (a stop skipped, a stop taken late, a stop taken at a
+different site); `expectOrgScoped`.
+**Done when:** the planner can be evaluated — "plans followed ran $0.11/gal under plans ignored" — and
+the two halves of the product are connected.
+
+---
+
+### F13 · Buy-quantity discipline · F14 · The weekly digest · F15 · The EFS invoice
+
+Deliberately thin, because F6 will change what they should be. Each carries its argument:
+
+- **F13** (N3, gated on F10) — generalise the California fill-size footnote to every fill: given tank
+  capacity, level and the state's landed-cost rank, how many gallons should have been bought. Usually
+  the largest recoverable number in a carrier's fuel bill, and currently one sentence under one tab.
+- **F14** (N10) — one weekly email: spend and its delta, variance against contract, the top five open
+  exceptions, coverage, one link. Extends `NotificationCategory` **and** adds a `notificationRoute`
+  entry in the same PR. Scheduler in exactly one process fleet-wide — `docs/WORKER-DEPLOYMENT.md`
+  first.
+- **F15** (N5, A1) — extend the reconciliation spine from one vendor's file to the EFS consolidated
+  invoice, the instrument the carrier actually pays. The parse → tie-out → match → persist
+  architecture generalises; what changes is the parser and the product taxonomy, not the spine. This
+  is what makes every off-network dollar auditable.
+
+---
+
+## 6. Prerequisites register
+
+| Id | Question | Owner | Fallback the code takes until answered |
+|---|---|---|---|
+| **Q-FX1** | Does any exact key join the Pilot report to our records, and at what rate? | F0-bis | **BLOCKED 2026-08-25 — unmeasurable: `fuel_statement_lines` is empty in production.** Fallback taken: F4 ships D-FR6 (card last-6) + D-FR7 (product-class matching), both already verified against the five real statements, plus drift-tolerance and determinism. The candidate to test once a statement exists is `efs_transactions.invoice` (10-char, leading zeros, 100% populated) — *not* `transaction_id`, which is the EFS id. |
+| **Q-FX2** | ~~What share of `fuel_transactions` has a null `state`?~~ | — | **ANSWERED 2026-08-25: zero, on both orgs (0 of 11,310).** The UTC fallback never fires in production. L2 downgraded Major → Moderate; D-FX4's ±1-day tolerance still ships, for the vendor's own cutoff. |
+| **Q-FX3** | **The contract.** `fuel_discount_rules` is empty in production and the agreement has never been received (`FUEL-SPEND-RECONCILIATION-PLAN.md` §8.1). The measured `corr(retail, discount) = −0.614`, slope −$0.177/$1.00, is the cost-plus/rack-linked signature. | Miki | "Your Price" from the daily report stays the benchmark, and every surface calls it **the quoted price**, never *the contract price*. A repricing that moves the quote stays invisible and the surface says so. |
+| **Q-FX4** | Are the fleet's lanes and burn states known well enough to net IFTA, or does F10 report purchase-state tax only? | Miki + the odometer/lane data | Purchase-state tax only, stated as such. Better than pump price and honest about what it is not. |
+| **Q-FX5** | **Any off-invoice rebate or volume tier?** (§8.5, still open.) If Pilot pays a quarterly rebate, true captured discount is higher than anything measurable here and every savings baseline is wrong. | Miki | Every "captured" figure is labelled *at the pump* and the surface states that off-invoice settlements are not included. |
+| **Q-FX6** | Is ONE9 emergency-only per policy (an exception report) or tolerated (a cost report)? (§8.4.) | Miki | Exception report, per `route_fuel_settings`' current `avoid_brands`. F3 makes this a config answer rather than a code answer, which mostly retires the question. |
+| **Q-FX9** | **Can the historical Pilot price reports be backfilled?** `fuel_prices` starts 2026-08-02; 72% of the default window's spend has no quote. 0245 made re-upload idempotent and order-independent on purpose. | Miki | None needed — this is an upload, not a change. Until it happens every discount figure states the share of spend it covers (F1). |
+| **Q-FX7** | Retention window for `fuel_exceptions` and its event log — they are deliberately **not** evidence (§1.5). | Miki | No prune rule ships. The tables are prunable by design and nothing prunes them until a window is set. |
+| **Q-FX8** | Who owns an exception operationally — fleet manager, controller, or a new role? Decides the default assignee and whether a read-only controller view is needed. | Miki | `rolesThatManage("fuel")` writes; unassigned by default. No new role invented on a guess. |
+
+---
+
+## 7. What this plan deliberately does not do
+
+- **It does not rewrite `fuelSpend`.** That layer is the reason the page and the PDF cannot disagree.
+  It gains parameters (D-FX6, D-FX9) and one null-handling fix (D-FX7). Nothing moves out of it.
+- **It does not add a second period control.** B1 deletes the dead statement scope selector rather
+  than wiring it, because `useSpendFilters` exists to end exactly that disagreement.
+- **It does not build a new lifecycle where one exists.** `fuel_exceptions` copies `anomalies`'
+  lifecycle columns and vocabulary; only the table is new, and only because
+  `anomalies.transaction_id is not null` forbids reuse (D-FX2).
+- **It does not claim savings before it can price them.** F11 and F13 wait on F10, or ship the
+  observation without the recommendation (D-FX11).
+- **It does not pin migration numbers.** Next-numbered at execution; the training plan's pinned
+  numbers went stale by 145 in a month.

@@ -88,6 +88,22 @@ describe("analyzeContractCapture", () => {
     expect(c.honouredShare).toBe(1);
   });
 
+  // ── how big is the answer? ────────────────────────────────────────────────────────────────────
+  // `honouredShare` says how much of what we MEASURED was billed correctly, which reads as a verdict
+  // on the fleet. `measuredSpendShare` says how much of the BILL we measured at all, which is the
+  // figure that decides whether the verdict means anything. On production they were 100% and 27.8%.
+  it("states the share of spend it measured, not only the share of measured fills it honoured", () => {
+    const c = analyzeContractCapture([atContract(100, 5), fill({ gallons: 80, netAmount: 420 })]);
+    expect(c.paid).toBe(500);
+    expect(c.unmeasuredPaid).toBe(420);
+    expect(c.measuredSpendShare).toBeCloseTo(500 / 920, 6); // 54.3% of the bill, on a perfect score
+    expect(c.honouredShare).toBe(1);
+  });
+
+  it("has no share to report when nothing is in scope, rather than claiming full coverage", () => {
+    expect(analyzeContractCapture([]).measuredSpendShare).toBeNull();
+  });
+
   it("reports nothing measured rather than a perfect score when no fill has a quote", () => {
     const c = analyzeContractCapture([fill({ gallons: 80, netAmount: 420 }), fill({ gallons: 90, netAmount: 460 })]);
     expect(c.measuredLines).toBe(0);

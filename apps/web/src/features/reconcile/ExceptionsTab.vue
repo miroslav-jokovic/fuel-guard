@@ -55,6 +55,35 @@ const rows = computed(() =>
 );
 
 /**
+ * "Discount captured", stated with its scope — or refused when there is no scope to state.
+ *
+ * ── THREE OUTCOMES, AND TWO OF THEM USED TO LOOK IDENTICAL ──────────────────────────────────────
+ * These reports select fills that went off the preferred network, and an off-network site is exactly
+ * the site the Pilot price report does not cover — so "no posted price for any of these fills" is the
+ * ORDINARY case here. Divided by every gallon it resolved to `−netPerGal`, and this tile printed
+ * "-$7.007/gal · none captured at all" in red: a confident accusation assembled entirely out of
+ * missing data. "We captured nothing" and "we cannot tell" are opposite findings.
+ *
+ * When only some fills carry a posted price the figure is real but partial, so the share it covers is
+ * printed beside it rather than left for the reader to assume is 100%.
+ */
+const discountTile = computed(() => {
+  const perGal = props.report.discountPerGal;
+  const share = props.report.discountMeasuredShare;
+  if (perGal == null || share == null || share === 0) {
+    return {
+      value: "—",
+      sub: "no posted price for these fills",
+      tone: undefined as string | undefined,
+    };
+  }
+  const scope = share < 0.995 ? `over ${pct1(share)} of these gallons` : "per gallon";
+  return perGal < 0.005
+    ? { value: `${usd3(perGal)}/gal`, sub: `none captured at all · ${scope}`, tone: "text-danger-700" }
+    : { value: `${usd3(perGal)}/gal`, sub: scope, tone: undefined as string | undefined };
+});
+
+/**
  * Newest first by default. An exception report is read for what happened lately; landing on the oldest
  * fill of a ninety-day window makes the reader sort before they can start.
  */
@@ -114,9 +143,9 @@ function exportRows() {
       <StatCard label="Paid" :value="usd(report.spend)" :sub="`at ${usd3(report.netPerGal)}/gal`" />
       <StatCard
         label="Discount captured"
-        :value="`${usd3(report.discountPerGal)}/gal`"
-        :sub="(report.discountPerGal ?? 0) < 0.005 ? 'none captured at all' : 'per gallon'"
-        :sub-tone="(report.discountPerGal ?? 0) < 0.005 ? 'text-danger-700' : undefined"
+        :value="discountTile.value"
+        :sub="discountTile.sub"
+        :sub-tone="discountTile.tone"
       />
     </div>
 
