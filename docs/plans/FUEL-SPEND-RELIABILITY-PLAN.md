@@ -331,9 +331,16 @@ one-day carry-forward mostly absorbs. So the Discount Capture tab's headline var
 
 0245 made the price ingest idempotent on `(org, source, station, product, observed_at)` with
 `observed_at` taken from the report's own printed effective date — explicitly so that "re-uploading
-three months of reports is safe in ANY order". **Backfilling the price reports the carrier already
-has roughly triples the measurable share of the bill and requires no code at all.** Raised as
-Q-FX9 and as the first item of F1.
+three months of reports is safe in ANY order".
+
+⚠ **CORRECTED 2026-08-25, after checking what is actually on disk.** F0 first recorded that
+backfilling "the reports the carrier already has" would roughly triple the measurable share. That was
+an assumption about which files exist and it is wrong. Every price file on the machine was parsed:
+four are readable Pilot reports (2026-07-15, 08-02, 08-05, 08-12) and **three of those four days are
+already loaded**. Exactly one day — 2026-07-15 — is new, reaching ~$108,853 across 200 fills, **3.5%**
+of the window. The remaining unpriced $2,159,171 (70.4%, 4,055 fills, everything before 2026-08-02) is
+**not backfillable from anything in hand**; those reports would have to come from Pilot. See Q-FX9 and
+F7's C2, which is the fix that does not depend on them.
 
 **Consequences for the steps below** — applied in place:
 1. **B1 is downgraded.** Statements ignoring the page window is real, but with zero statements in
@@ -346,20 +353,64 @@ Q-FX9 and as the first item of F1.
 
 ---
 
-### F0-bis · Prove the statement ingest against production — no code ships
+### F0-bis · Answer Q-FX1 without the upload — DONE 2026-08-25 (no code, no writes)
 
-**Prerequisites:** one real Pilot weekly statement PDF (five are in hand per
-`FUEL-SPEND-RECONCILIATION-PLAN.md` §7) and a user who can sign in as admin or fleet_manager.
+**What was done.** The upload itself needs an authenticated admin session and is still outstanding
+(below). The QUESTION it was blocking did not: the five statement PDFs were parsed **locally with the
+shipped parser** — `parsePilotStatement` driven by a Node mirror of `readPdfWords`, same top-left
+origin, same `splitTextRun` — and the extracted keys joined against production read-only.
 
-**Do.** Upload one statement through **Reconcile a file** on the deployed app. Confirm
-`fuel_statements` and `fuel_statement_lines` receive rows, the tie-out gate passes server-side, the
-source PDF lands in the private bucket, and `unresolvedSites` is empty. Then re-run the Q-FX1 join
-measurement from F0 against the real `auth_no` / `ticket_no` values now stored.
+**All five parse and tie out outside the browser**, reproducing `FUEL-SPEND-RECONCILIATION-PLAN.md`
+§1 exactly: 3,919 lines across invoices 790722856 → 795506105 (2026-07-20 → 2026-08-23),
+`headerFound=true` and `tieOut.ok=true` on every one.
 
-**Done when:** Q-FX1 is answered with numbers, and WP4's re-parse gate has been exercised once
-against the real deployment rather than only in tests.
+**Q-FX1 — there is no exact transaction key, and now we know rather than suspect.** Against the 4,634
+`efs_transactions` rows in the same window:
 
-**Do.** For the five statement PDFs and the monthly exports already in hand, measure the join rate of
+| candidate | result |
+|---|---|
+| statement `ticket` (9 digits) → `efs.invoice`, zero-padded to 10 | **0 of 2,283** |
+| statement `ticket` → `efs.invoice`, leading zeros stripped | **0 of 2,283** |
+| statement `authNo` (6 digits) → `efs.invoice` | **0 of 1,511** |
+| statement `cardRef` (6 digits) → last 6 of `efs.card_num` | **171 of 171 — 100%** |
+
+Pilot's ticket and authorization numbers are Pilot's; `efs.invoice` is EFS's. They identify the same
+physical fill and share no value. **F4 therefore stays a heuristic matcher** — D-FX3's fallback, taken
+on evidence rather than on a missing measurement.
+
+**D-FR6 is settled, and the case for it is stronger than the plan knew.** Among the 171 distinct cards
+in the window, **39 last-4 groups collide, covering 121 of 171 cards (71%)**, and there are **zero**
+last-6 collisions. More directly: **460 of 1,769 `(business day, last-4)` buckets hold more than one
+physical card** — one bucket on 2026-08-19 holds five (`...7974` → 317974, 327974, 347974, 357974,
+367974). Every one of those is a place today's matcher can pair a report line against the wrong truck's
+fill, silently, and call it clean. Last-6 removes all 460.
+
+**Also confirmed:** `authNo` and `ticket` repeat across the lines of one transaction (a 020 diesel line
+and a 140 DEF line share both), so they key a TRANSACTION and not a line — the same fact 0107 records
+for EFS's own id. Any future use of them must key on (id, product), never id alone.
+
+---
+
+### F0-bis-upload · Prove the statement ingest against production — STILL OPEN, needs the user
+
+**Why it is not done.** `POST /api/fueling/statements` requires an authenticated admin or fleet_manager
+session; production writes are the user's (see the standing note that writes go through Miki). Reads
+were sufficient for everything above, and no write was attempted.
+
+**Why it still matters, even with Q-FX1 answered.** `fuel_statements` holds **zero rows**, so WP4's
+server-side re-parse and tie-out gate has never executed against the real deployment — only in tests
+and, as of today, in a local harness. The first time it runs should not be the day someone needs it.
+
+**Do.** Upload `db139445F.pdf` (invoice 795506105, 2026-08-17 → 2026-08-23) through **Reconcile a
+file** on the deployed app. Expect: `fuel_statements` +1, `fuel_statement_lines` +844, the source PDF
+in the private bucket, and `unresolvedSites` empty. All five files are in `~/Downloads`.
+
+---
+
+<!-- The original F0 spike brief, kept for the record: the candidate table it specified is the one
+     measured above, and its answer is recorded there. -->
+
+**The candidates it named.** For the five statement PDFs and the monthly exports already in hand, measure the join rate of
 every candidate key pair against `fuel_transactions` / `efs_transactions` over the same window:
 
 | Report side | System side | Notes |
@@ -688,6 +739,17 @@ re-running March's reconciliation does not erase any of it.
 **Prerequisites:** F1. Independent of F4–F6 and can run in parallel with them.
 
 **Build.** Cheap, and each item removes a way to misread the screen.
+- **C2 (new, raised by Q-FX9's answer)** — the priced range is a fact the page knows and does not use.
+  Quotes exist from 2026-08-02; the window defaults to 90 days; so 70.4% of the default view's spend
+  ($2,159,171 over 4,055 fills) can never be priced, and the reports that would fix it are not in hand
+  and may never be. Waiting on a backfill is not a plan.
+
+  Instead: a `fuel_price_coverage(p_org)` function returning the first and last priced day and the
+  gaps between, and the Discount Capture tab **offering** that range — *"quotes start 2026-08-02;
+  showing 90 days means 70% of this window cannot be priced. Narrow to the priced range?"* — as a
+  one-click filter change, not a silent default override, because the window is the reader's and the
+  page must not move it behind their back. The same function feeds X3's coverage strip and E8's
+  coverage line; build it once.
 - **E8** — one coverage line at the top of the page, from a new set-based function beside
   `fuel_spend_lines`: *"this window covers $312,400 of fuel; 94.1% priced against a contract quote,
   98.5% resolved to a station, 3 of 13 weeks have a statement on file."*
@@ -825,13 +887,13 @@ Deliberately thin, because F6 will change what they should be. Each carries its 
 
 | Id | Question | Owner | Fallback the code takes until answered |
 |---|---|---|---|
-| **Q-FX1** | Does any exact key join the Pilot report to our records, and at what rate? | F0-bis | **BLOCKED 2026-08-25 — unmeasurable: `fuel_statement_lines` is empty in production.** Fallback taken: F4 ships D-FR6 (card last-6) + D-FR7 (product-class matching), both already verified against the five real statements, plus drift-tolerance and determinism. The candidate to test once a statement exists is `efs_transactions.invoice` (10-char, leading zeros, 100% populated) — *not* `transaction_id`, which is the EFS id. |
+| **Q-FX1** | ~~Does any exact key join the Pilot report to our records?~~ | — | **ANSWERED 2026-08-25: NO — measured, not assumed.** The five statements were parsed locally with the shipped parser and joined against production `efs_transactions` over the same window. `ticket` → `invoice` **0 of 2,283**, in both zero-padded and stripped forms; `authNo` → `invoice` **0 of 1,511**. They are different issuers' identifiers for the same physical event and do not correspond. F4 stays a heuristic matcher — but `cardRef` → last-6 of `card_num` matched **171 of 171 (100%)**, which settles D-FR6. |
 | **Q-FX2** | ~~What share of `fuel_transactions` has a null `state`?~~ | — | **ANSWERED 2026-08-25: zero, on both orgs (0 of 11,310).** The UTC fallback never fires in production. L2 downgraded Major → Moderate; D-FX4's ±1-day tolerance still ships, for the vendor's own cutoff. |
 | **Q-FX3** | **The contract.** `fuel_discount_rules` is empty in production and the agreement has never been received (`FUEL-SPEND-RECONCILIATION-PLAN.md` §8.1). The measured `corr(retail, discount) = −0.614`, slope −$0.177/$1.00, is the cost-plus/rack-linked signature. | Miki | "Your Price" from the daily report stays the benchmark, and every surface calls it **the quoted price**, never *the contract price*. A repricing that moves the quote stays invisible and the surface says so. |
 | **Q-FX4** | Are the fleet's lanes and burn states known well enough to net IFTA, or does F10 report purchase-state tax only? | Miki + the odometer/lane data | Purchase-state tax only, stated as such. Better than pump price and honest about what it is not. |
 | **Q-FX5** | **Any off-invoice rebate or volume tier?** (§8.5, still open.) If Pilot pays a quarterly rebate, true captured discount is higher than anything measurable here and every savings baseline is wrong. | Miki | Every "captured" figure is labelled *at the pump* and the surface states that off-invoice settlements are not included. |
 | **Q-FX6** | Is ONE9 emergency-only per policy (an exception report) or tolerated (a cost report)? (§8.4.) | Miki | Exception report, per `route_fuel_settings`' current `avoid_brands`. F3 makes this a config answer rather than a code answer, which mostly retires the question. |
-| **Q-FX9** | **Can the historical Pilot price reports be backfilled?** `fuel_prices` starts 2026-08-02; 72% of the default window's spend has no quote. 0245 made re-upload idempotent and order-independent on purpose. | Miki | None needed — this is an upload, not a change. Until it happens every discount figure states the share of spend it covers (F1). |
+| **Q-FX9** | **Can the historical Pilot price reports be obtained from Pilot?** Measured 2026-08-25: of every price file on disk, only **one day (2026-07-15)** is not already loaded — worth ~3.5% of the window. The other ~70 unpriced days are **not in hand**; they would have to come from Pilot (the report arrives daily by email). | Miki | The window default is the honest fix, not the backfill — see F7's C2. Every discount figure already states the share of spend it covers (F1, shipped). |
 | **Q-FX7** | Retention window for `fuel_exceptions` and its event log — they are deliberately **not** evidence (§1.5). | Miki | No prune rule ships. The tables are prunable by design and nothing prunes them until a window is set. |
 | **Q-FX8** | Who owns an exception operationally — fleet manager, controller, or a new role? Decides the default assignee and whether a read-only controller view is needed. | Miki | `rolesThatManage("fuel")` writes; unassigned by default. No new role invented on a guess. |
 
