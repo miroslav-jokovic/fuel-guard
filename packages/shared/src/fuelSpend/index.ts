@@ -8,4 +8,5 @@ export * from "./ancillary.js";
 export * from "./operatingBridge.js";
 export * from "./rollupDerive.js";
 export * from "./spendPeriods.js";
+export * from "./spendWindow.js";
 export * from "./stationMatch.js";

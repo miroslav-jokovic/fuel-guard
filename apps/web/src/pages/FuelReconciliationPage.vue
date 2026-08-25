@@ -14,7 +14,7 @@ import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
-import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SpendWindowFilter from "@/features/reconcile/SpendWindowFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { usd } from "@/features/reconcile/format";
@@ -127,9 +127,22 @@ const caNote = computed(() => {
     <FilterBar v-if="tab !== 'reconcile'" :count="feedLines.length" count-label="fills">
       <!-- ⚠ These MUST be in the #filters slot. FilterBar has no default slot — only #filters, #more
            and #actions — so controls placed as plain children are silently dropped and the bar renders
-           empty. That is exactly how this whole filter row went missing on a live page. -->
+           empty. That is exactly how this whole filter row went missing on a live page.
+
+           The period control emits BOTH ends together (`@apply`). Binding two separate v-models to the
+           window is what welded it to 90 days: the two writes landed in one tick and the second
+           clobbered the first. See `useSpendFilters`. -->
       <template #filters>
-        <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
+        <SpendWindowFilter
+          :from="f.from.value"
+          :to="f.to.value"
+          :presets="f.presets"
+          :active-preset="f.preset.value"
+          :notice="f.windowNotice.value"
+          @apply="(a, b) => f.setWindow(a, b)"
+          @preset="(k) => f.applyPreset(k)"
+          @clear="f.reset()"
+        />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Trucks" multiple />
         <FilterSelect v-if="tab === 'spend'" v-model="f.grain.value" :options="grainOptions" label="Grain" />
         <BaseButton v-if="f.active.value" variant="ghost" @click="f.reset()">Clear filters</BaseButton>
