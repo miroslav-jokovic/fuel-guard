@@ -11,26 +11,30 @@
  * This page exists to be sent to somebody. State that dies on refresh cannot be linked, and a
  * screenshot of a filtered view is unreproducible by the person receiving it. Everything that changes
  * what the numbers mean — dates, trucks, grain, tab — is a query parameter.
+ *
+ * ── AND THEREFORE: ANYTHING CAN BE IN IT ─────────────────────────────────────────────────────────
+ * A linkable window is one a human can hand-edit, bookmark, and forward months later. This module does
+ * not trust it. Every read goes through `normalizeWindow` (`@fuelguard/shared`) — pure, tested, and it
+ * REPORTS what it corrected rather than correcting silently, so the page can say so (`windowNotice`).
+ * Before that, a range typed backwards parsed fine and produced an empty report, which reads exactly
+ * like a fleet that bought no fuel.
  */
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { SpendGrain } from "@fuelguard/shared";
+import {
+  normalizeWindow, describeFixes, matchPreset, defaultWindow, SPEND_PRESETS,
+  type SpendGrain,
+} from "@fuelguard/shared";
 
-/** Default span: long enough to show a seasonal move and to support a trailing comparison at both ends. */
+/** Kept for existing importers; the span itself is now the `d90` preset, defined once with the rest. */
 export const DEFAULT_DAYS = 90;
 
-const ymd = (d: Date): string => d.toISOString().slice(0, 10);
-const shiftDays = (n: number): string => {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + n);
-  return ymd(d);
-};
+const todayYmd = (): string => new Date().toISOString().slice(0, 10);
 
 const one = (v: unknown): string | undefined => {
   const s = Array.isArray(v) ? v[0] : v;
   return typeof s === "string" && s !== "" ? s : undefined;
 };
-const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface SpendFilters {
   from: string;
@@ -50,15 +54,15 @@ export function useSpendFilters() {
    *
    * ── WHY THIS EXISTS: THE DATE RANGE WAS WELDED TO 90 DAYS ───────────────────────────────────────
    * `router.replace` is ASYNCHRONOUS — `route.query` does not change until the navigation resolves.
-   * `DateRangeFilter` emits `update:from` and `update:to` back-to-back in one tick, so both setters read
-   * the SAME pre-change `route.query`, and the second `replace` overwrote the first. `to` landed, `from`
-   * was dropped, and the getter below fell back to `shiftDays(-DEFAULT_DAYS)`. The visible symptom was a
-   * date picker permanently stuck on the last 90 days: every pick appeared to do nothing, because the
-   * only half that survived was the end date, which was already today.
+   * The date picker emits `update:from` and `update:to` back-to-back in one tick, so both setters read
+   * the SAME pre-change `route.query` and the second `replace` overwrote the first. `to` landed,
+   * `from` was dropped, and the getter fell back to the default. The visible symptom was a date picker
+   * welded to the last 90 days: every pick appeared to do nothing, because the only half that survived
+   * was the end date, which was already today.
    *
-   * It is not specific to dates — any two filters set in one tick collided the same way. So patches
-   * accumulate here and each `replace` is built from `route.query` PLUS everything written since,
-   * rather than from a snapshot the router has not caught up to yet.
+   * `setWindow` now moves both ends in ONE patch, which is the real fix. This buffer stays because the
+   * hazard was never specific to dates — any two filters written in one tick collided the same way,
+   * and a future caller should not have to know that.
    */
   const pending = ref<Record<string, string | undefined>>({});
   /** The query as it will be once the router settles. Getters read this so the UI never lags a tick. */
@@ -71,27 +75,52 @@ export function useSpendFilters() {
     pending.value = merged;
     void router
       .replace({ query: { ...route.query, ...merged } })
-      // Cleared only if nothing else was written while this navigation was in flight; a later patch owns
-      // the buffer and must keep it until ITS navigation lands.
+      // Cleared only if nothing else was written while this navigation was in flight; a later patch
+      // owns the buffer and must keep it until ITS navigation lands.
       .finally(() => {
         if (pending.value === merged) pending.value = {};
       });
   };
 
+  /**
+   * The window, normalised. Every other consumer on this page reads THIS and never the raw query, so a
+   * hand-edited link cannot reach a database query, a chart, or the PDF export.
+   */
+  const normalized = computed(() => normalizeWindow(one(q.value.from), one(q.value.to), todayYmd()));
+
+  /**
+   * Move both ends at once.
+   *
+   * The window is ONE fact with two halves, and writing it as two patches is what broke it. The ends
+   * are normalised on the way IN as well as out, so the URL never carries a range the page would have
+   * to correct when reading it back — a link and the view it produces stay the same thing.
+   */
+  function setWindow(nextFrom: string, nextTo: string): void {
+    const n = normalizeWindow(nextFrom, nextTo, todayYmd());
+    set({ from: n.window.from, to: n.window.to });
+  }
+
   const from = computed<string>({
-    get: () => {
-      const v = one(q.value.from);
-      return v && YMD.test(v) ? v : shiftDays(-DEFAULT_DAYS);
-    },
-    set: (v) => set({ from: v || undefined }),
+    get: () => normalized.value.window.from,
+    set: (v) => setWindow(v, normalized.value.window.to),
   });
   const to = computed<string>({
-    get: () => {
-      const v = one(q.value.to);
-      return v && YMD.test(v) ? v : ymd(new Date());
-    },
-    set: (v) => set({ to: v || undefined }),
+    get: () => normalized.value.window.to,
+    set: (v) => setWindow(normalized.value.window.from, v),
   });
+
+  /** Which named period the window is, or null when the reader built it by hand. */
+  const preset = computed(() => matchPreset(normalized.value.window, todayYmd()));
+  function applyPreset(key: string): void {
+    const p = SPEND_PRESETS.find((x) => x.key === key);
+    if (!p) return;
+    const w = p.resolve(todayYmd());
+    setWindow(w.from, w.to);
+  }
+
+  /** What normalisation corrected, as a sentence for the reader. Null when the link was sound. */
+  const windowNotice = computed(() => describeFixes(normalized.value.fixes));
+
   const vehicleIds = computed<string[]>({
     get: () => (one(q.value.trucks) ?? "").split(",").filter(Boolean),
     set: (v) => set({ trucks: v.length ? v.join(",") : undefined }),
@@ -108,10 +137,19 @@ export function useSpendFilters() {
     set: (v) => set({ tab: v }),
   });
 
-  /** True when the reader has narrowed anything — used to say so on the export and in empty states. */
-  const active = computed(
-    () => one(q.value.from) != null || one(q.value.to) != null || vehicleIds.value.length > 0,
-  );
+  /**
+   * True when the reader has narrowed anything.
+   *
+   * A window EQUAL to the default counts as not narrowed even when the URL spells it out, because
+   * "Clear filters" must not appear to do nothing: arriving via a link that pinned the default 90 days
+   * used to light the button up, and pressing it left the screen identical.
+   */
+  const active = computed(() => {
+    if (vehicleIds.value.length > 0) return true;
+    const d = defaultWindow(todayYmd());
+    const w = normalized.value.window;
+    return w.from !== d.from || w.to !== d.to;
+  });
 
   const range = computed(() => ({ from: from.value, to: to.value }));
   /** Everything the server needs to reproduce this view, as query-string pairs. */
@@ -125,5 +163,8 @@ export function useSpendFilters() {
     set({ from: undefined, to: undefined, trucks: undefined });
   }
 
-  return { from, to, vehicleIds, grain, tab, range, active, asQuery, reset };
+  return {
+    from, to, setWindow, preset, presets: SPEND_PRESETS, applyPreset, windowNotice,
+    vehicleIds, grain, tab, range, active, asQuery, reset,
+  };
 }

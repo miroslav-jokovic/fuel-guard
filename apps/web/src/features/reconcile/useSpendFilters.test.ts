@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { useSpendFilters, DEFAULT_DAYS } from "./useSpendFilters";
+import { useSpendFilters } from "./useSpendFilters";
+import { defaultWindow, windowDays } from "@fuelguard/shared";
 
 /**
  * The regression these exist for shipped to production and looked like a broken control rather than a
@@ -76,9 +77,8 @@ describe("useSpendFilters", () => {
 
   it("falls back to the default window only when the URL really carries no dates", async () => {
     const { f } = await mountFilters();
-    expect(f.from.value).toBe(
-      new Date(Date.now() - DEFAULT_DAYS * 86_400_000).toISOString().slice(0, 10),
-    );
+    const d = defaultWindow(new Date().toISOString().slice(0, 10));
+    expect(f.range.value).toEqual(d);
     expect(f.active.value).toBe(false);
   });
 
@@ -88,6 +88,63 @@ describe("useSpendFilters", () => {
     f.to.value = "2026-08-20";
     await settle();
     expect(f.active.value).toBe(true);
+  });
+
+  // ── the window is one fact, and cannot be left half-set ─────────────────────────────────────
+  it("writes both ends in a single navigation", async () => {
+    const { f, router } = await mountFilters();
+    f.setWindow("2026-08-05", "2026-08-12");
+    await settle();
+    expect(router.currentRoute.value.query.from).toBe("2026-08-05");
+    expect(router.currentRoute.value.query.to).toBe("2026-08-12");
+  });
+
+  it("swaps a backwards range instead of reporting an empty fleet", async () => {
+    const { f } = await mountFilters();
+    f.setWindow("2026-08-12", "2026-08-05");
+    await settle();
+    expect(f.range.value).toEqual({ from: "2026-08-05", to: "2026-08-12" });
+  });
+
+  it("normalises a hand-edited link before anything queries against it", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/fuel-reconciliation", component: { template: "<div/>" } }],
+    });
+    let f!: ReturnType<typeof useSpendFilters>;
+    const C = defineComponent({ setup() { f = useSpendFilters(); return () => h("div"); } });
+    await router.push("/fuel-reconciliation?from=2031-01-01&to=not-a-date");
+    await router.isReady();
+    mount(C, { global: { plugins: [router] } });
+
+    expect(f.range.value.from <= f.range.value.to).toBe(true);
+    expect(f.range.value.to <= new Date().toISOString().slice(0, 10)).toBe(true);
+    // and it SAYS it corrected something, rather than quietly showing a different period
+    expect(f.windowNotice.value).toBeTruthy();
+  });
+
+  it("names the period when it matches a preset, so the bar need not print two dates", async () => {
+    const { f } = await mountFilters();
+    f.applyPreset("d7");
+    await settle();
+    expect(f.preset.value?.key).toBe("d7");
+    expect(windowDays(f.range.value.from, f.range.value.to)).toBe(7);
+  });
+
+  it("reports no preset for a window built by hand", async () => {
+    const { f } = await mountFilters();
+    f.setWindow("2026-08-05", "2026-08-12");
+    await settle();
+    expect(f.preset.value).toBeNull();
+  });
+
+  it("does not light up Clear for a link that merely pins the default window", async () => {
+    // Pressing Clear here used to leave the screen identical, which reads as a broken button.
+    const d = defaultWindow(new Date().toISOString().slice(0, 10));
+    const { f } = await mountFilters();
+    f.setWindow(d.from, d.to);
+    await settle();
+    expect(f.active.value).toBe(false);
   });
 
   it("clears every narrowing filter at once and returns to the default window", async () => {
