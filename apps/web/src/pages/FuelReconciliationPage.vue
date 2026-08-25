@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { AppTabs, AppCard as BaseCard, type TabItem } from "@fuelguard/ui";
+import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@fuelguard/ui";
 import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -14,7 +13,9 @@ import ExceptionsTab from "@/features/reconcile/ExceptionsTab.vue";
 import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
-import { SPEND_WINDOWS } from "@/features/reconcile/useSpendDays";
+import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { usd } from "@/features/reconcile/format";
 
 /**
@@ -44,36 +45,29 @@ import { usd } from "@/features/reconcile/format";
  * somebody. Both live in the query string so a link opens on what the sender was looking at.
  */
 
-const route = useRoute();
-const router = useRouter();
-
 const TAB_VALUES = ["spend", "avoid_brand", "california", "off_network", "discount", "reconcile", "statements"];
+const f = useSpendFilters();
 const tab = computed<string>({
-  get: () => {
-    const q = route.query.tab;
-    const v = Array.isArray(q) ? q[0] : q;
-    return typeof v === "string" && TAB_VALUES.includes(v) ? v : "spend";
-  },
-  // `replace` so flipping between tabs does not fill the back button with them; a reader pressing back
-  // expects to leave the page, not to walk their own tab history.
-  set: (v) => void router.replace({ query: { ...route.query, tab: v } }),
+  get: () => (TAB_VALUES.includes(f.tab.value) ? f.tab.value : "spend"),
+  set: (v) => { f.tab.value = v; },
 });
 
-/** How far back the FEED-fed tabs look. Thirteen weeks shows a seasonal move and still supports a
- *  trailing comparison at both ends. */
-const weeksChoice = computed<string>({
-  get: () => {
-    const q = route.query.window;
-    const v = Array.isArray(q) ? q[0] : q;
-    return typeof v === "string" && SPEND_WINDOWS.some((w) => w.value === v) ? v : "13";
-  },
-  set: (v) => void router.replace({ query: { ...route.query, window: v } }),
-});
-const weeks = computed(() => Number(weeksChoice.value));
-const windowOptions = SPEND_WINDOWS.map((w) => ({ value: w.value, label: w.label }));
+const grainOptions = [
+  { value: "day", label: "By day" },
+  { value: "week", label: "By week" },
+  { value: "month", label: "By month" },
+];
+
+/** The truck list for the filter. Unit numbers, because that is what a dispatcher says out loud. */
+const { data: vehicles } = useVehiclesQuery();
+const truckOptions = computed(() =>
+  (vehicles.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
+);
+
+const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value }));
 
 // ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
-const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(weeks);
+const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(queryFilters);
 const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
 const exceptions = computed(() => analyzePolicyExceptions(feedLines.value));
 
@@ -125,19 +119,31 @@ const caNote = computed(() => {
 
     <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
 
-    <SpendTrendTab v-if="tab === 'spend'" v-model:weeks="weeksChoice" />
+    <!-- ONE filter bar for every view that reads data. Dates, trucks and grain are the page's, so a
+         figure read on one tab is the same period as a figure read on the next, and the export sends
+         exactly these to the server. -->
+    <FilterBar v-if="tab !== 'reconcile'">
+      <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
+      <FilterSelect
+        v-model="f.vehicleIds.value"
+        :options="truckOptions"
+        label="Trucks"
+        multiple
+      />
+      <FilterSelect v-if="tab === 'spend'" v-model="f.grain.value" :options="grainOptions" label="Grain" />
+      <span v-if="f.active.value" class="text-sm text-ink-muted">
+        filtered
+        <BaseButton variant="ghost" class="ml-1" @click="f.reset()">Clear</BaseButton>
+      </span>
+    </FilterBar>
+
+    <SpendTrendTab v-if="tab === 'spend'" :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />
 
     <ReconcileTab v-else-if="tab === 'reconcile'" @saved="refetch()" />
 
     <!-- ── feed-fed policy reports ──────────────────────────────────────────────────────────── -->
     <template v-else-if="isFeedTab">
-      <FilterBar>
-        <FilterSelect v-model="weeksChoice" :options="windowOptions" label="Window" />
-        <span class="text-sm text-ink-muted">
-          <template v-if="feedLoading">Loading…</template>
-          <template v-else>{{ feedLines.length.toLocaleString() }} recorded fills</template>
-        </span>
-      </FilterBar>
+      <p v-if="feedLoading" class="text-sm text-ink-muted">Loading…</p>
 
       <p v-if="feedError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         Couldn't load your fills: {{ feedErr instanceof Error ? feedErr.message : "unknown error" }}
@@ -171,14 +177,11 @@ const caNote = computed(() => {
 
     <!-- ── statement-fed views ──────────────────────────────────────────────────────────────── -->
     <template v-else>
-      <FilterBar>
-        <FilterSelect v-model="scope" :options="scopeOptions" label="Period" />
-        <span class="text-sm text-ink-muted">
-          {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }}
-          <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
-          <template v-if="stmtLinesLoading"> · loading…</template>
-        </span>
-      </FilterBar>
+      <p class="text-sm text-ink-muted">
+        {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }} on file
+        <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
+        <template v-if="stmtLinesLoading"> · loading…</template>
+      </p>
 
       <p v-if="stmtError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         Couldn't load your statements.

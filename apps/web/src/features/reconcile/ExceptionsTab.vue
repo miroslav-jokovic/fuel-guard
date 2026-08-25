@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
 import type { ExceptionReport } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import StatCard from "@/components/ui/StatCard.vue";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
 
@@ -36,18 +38,38 @@ const rows = computed(() =>
     premium: usd3(f.premiumPerGal),
     discount: f.discountPerGal == null ? "—" : usd3(f.discountPerGal),
     excess: usd(f.excess),
+    // Raw values for sorting. The visible cells are formatted — "$1,234" and "123.4" sort as text,
+    // which puts $9 above $1,234 and is the kind of wrong a reader trusts because it looks ordered.
+    sortBy: {
+      date: f.line.tranDate ?? "",
+      site: [f.line.site, f.line.city, f.line.state].filter(Boolean).join(" "),
+      brand: f.line.brand ?? "",
+      unit: f.line.unit ?? "",
+      gallons: f.line.gallons,
+      perGal: f.netPerGal,
+      premium: f.premiumPerGal,
+      discount: f.discountPerGal,
+      excess: f.excess,
+    } as Record<string, unknown>,
   })),
 );
+
+/**
+ * Newest first by default. An exception report is read for what happened lately; landing on the oldest
+ * fill of a ninety-day window makes the reader sort before they can start.
+ */
+const sort = ref<SortState>({ key: "date", dir: "desc" });
+const sortedRows = computed(() => sortRows(rows.value, sort.value, (r, k) => r.sortBy[k]));
 const cols: DataTableColumn[] = [
-  { key: "date", label: "Date", width: "sm", cellClass: "text-ink-secondary" },
-  { key: "site", label: "Site", width: "xl", cellClass: "text-ink-secondary" },
-  { key: "brand", label: "Network", width: "sm", cellClass: "text-ink-secondary" },
-  { key: "unit", label: "Unit", width: "xs", cellClass: "text-ink-secondary" },
-  { key: "gallons", label: "Gallons", numeric: true, width: "sm" },
-  { key: "perGal", label: "Paid / gal", numeric: true, width: "sm" },
-  { key: "premium", label: "vs fleet", numeric: true, width: "sm" },
-  { key: "discount", label: "Discount / gal", numeric: true, width: "sm" },
-  { key: "excess", label: "Excess", numeric: true, width: "sm" },
+  { key: "date", label: "Date", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "site", label: "Site", width: "xl", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "brand", label: "Network", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Unit", width: "xs", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons", numeric: true, width: "sm", sortable: true },
+  { key: "perGal", label: "Paid / gal", numeric: true, width: "sm", sortable: true },
+  { key: "premium", label: "vs fleet", numeric: true, width: "sm", sortable: true },
+  { key: "discount", label: "Discount / gal", numeric: true, width: "sm", sortable: true },
+  { key: "excess", label: "Excess", numeric: true, width: "sm", sortable: true },
 ];
 
 function exportRows() {
@@ -77,13 +99,6 @@ function exportRows() {
         </div>
       </div>
 
-      <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div><dt class="text-xs text-ink-muted">Fills</dt><dd class="text-sm font-medium text-ink">{{ report.lines.toLocaleString() }}</dd></div>
-        <div><dt class="text-xs text-ink-muted">Gallons</dt><dd class="text-sm font-medium text-ink">{{ gal(report.gallons) }} <span class="text-xs font-normal text-ink-tertiary">({{ pct1(report.gallonShare) }} of fuel)</span></dd></div>
-        <div><dt class="text-xs text-ink-muted">Paid</dt><dd class="text-sm font-medium text-ink">{{ usd(report.spend) }} <span class="text-xs font-normal text-ink-tertiary">at {{ usd3(report.netPerGal) }}/gal</span></dd></div>
-        <div><dt class="text-xs text-ink-muted">Discount captured</dt><dd class="text-sm font-medium" :class="(report.discountPerGal ?? 0) < 0.005 ? 'text-danger-700' : 'text-ink'">{{ usd3(report.discountPerGal) }}/gal</dd></div>
-      </dl>
-
       <p class="mt-3 text-xs text-ink-tertiary">
         Compared against {{ usd3(report.baselinePerGal) }} a gallon — what the fleet's other fuel cost over the same
         period, these fills excluded.
@@ -91,13 +106,33 @@ function exportRows() {
       <p v-if="note" class="mt-2 text-sm text-ink-secondary">{{ note }}</p>
     </BaseCard>
 
+    <!-- The same KPI anatomy as the trend tab (D-UI2). These were a hand-rolled <dl>, which is why the
+         tabs did not look like one page. -->
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatCard label="Fills" :value="report.lines.toLocaleString()" />
+      <StatCard label="Gallons" :value="gal(report.gallons)" :sub="`${pct1(report.gallonShare)} of fuel`" />
+      <StatCard label="Paid" :value="usd(report.spend)" :sub="`at ${usd3(report.netPerGal)}/gal`" />
+      <StatCard
+        label="Discount captured"
+        :value="`${usd3(report.discountPerGal)}/gal`"
+        :sub="(report.discountPerGal ?? 0) < 0.005 ? 'none captured at all' : 'per gallon'"
+        :sub-tone="(report.discountPerGal ?? 0) < 0.005 ? 'text-danger-700' : undefined"
+      />
+    </div>
+
     <div>
       <div class="mb-2 flex items-center justify-between">
         <h4 class="text-sm font-semibold text-ink">Every fill</h4>
         <BaseButton v-if="report.fills.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
       </div>
       <BaseCard padding="none">
-        <DataTable :columns="cols" :rows="rows" empty-text="Nothing to report — the policy held for this period." />
+        <DataTable
+          :columns="cols"
+          :rows="sortedRows"
+          :sort="sort"
+          empty-text="Nothing to report — the policy held for this period."
+          @sort="sort = toggleSort(sort, $event)"
+        />
       </BaseCard>
     </div>
   </div>

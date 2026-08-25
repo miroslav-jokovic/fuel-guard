@@ -21,11 +21,11 @@
  * off-network rather than as compliant, which is the honest reading: an unidentified site is certainly
  * not a preferred one.
  */
-import { computed, type Ref } from "vue";
+import type { Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import type { SpendLine } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
-import { windowStart } from "./useSpendDays";
+import type { SpendQueryFilters } from "./useSpendDays";
 
 const PAGE = 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
@@ -35,23 +35,24 @@ const str = (v: unknown): string | null => (v == null ? null : String(v));
 const embed = <T,>(v: unknown): T | null =>
   Array.isArray(v) ? ((v[0] as T) ?? null) : ((v as T) ?? null);
 
-export function useSpendLinesQuery(weeks: Ref<number>) {
-  const from = computed(() => windowStart(weeks.value));
+export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>) {
   return useQuery({
-    queryKey: ["fuel_spend_lines", from],
+    queryKey: ["fuel_spend_lines", filters],
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<SpendLine[]> => {
+      const f = filters.value;
       const out: SpendLine[] = [];
       for (let start = 0; ; start += PAGE) {
-        const { data, error } = await supabase
+        let q = supabase
           .from("fuel_transactions")
           .select(
             "fueled_at, state, gallons, total_cost, tank_type, location_text, fuel_stations(brand, store_number, city), vehicles(unit_number), drivers(full_name)",
           )
-          .gte("fueled_at", `${from.value}T00:00:00.000Z`)
-          .order("fueled_at", { ascending: true })
-          .range(start, start + PAGE - 1);
+          .gte("fueled_at", `${f.from}T00:00:00.000Z`)
+          .lte("fueled_at", `${f.to}T23:59:59.999Z`);
+        if (f.vehicleIds.length) q = q.in("vehicle_id", f.vehicleIds);
+        const { data, error } = await q.order("fueled_at", { ascending: true }).range(start, start + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as Record<string, unknown>[];
         for (const r of batch) {

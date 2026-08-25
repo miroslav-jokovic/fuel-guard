@@ -7,10 +7,8 @@ import StatCard from "@/components/ui/StatCard.vue";
 import { apiDownload } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
 import { useToastStore } from "@/stores/toast";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import FilterSelect from "@/components/ui/FilterSelect.vue";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
-import { SPEND_WINDOWS, useSpendDaysQuery, windowStart } from "./useSpendDays";
+import { useSpendDaysQuery, type SpendQueryFilters } from "./useSpendDays";
 import { usd, usd2, usd3, gal, pct1 } from "./format";
 
 /**
@@ -25,31 +23,22 @@ import { usd, usd2, usd3, gal, pct1 } from "./format";
  * two-day week against a finished one is the easiest way to publish a 60% collapse in spend that never
  * happened.
  */
-const grain = ref<SpendGrain>("week");
 /**
- * The window is owned by the PAGE and lives in the URL, so switching from this tab to a policy report
- * keeps the period the reader chose instead of silently resetting it — two tabs disagreeing about which
- * weeks they are showing is how a figure gets quoted against the wrong period.
- *
- * It models a STRING because that is what `FilterSelect` binds; keeping it numeric and leaning on
- * `.number` puts a number into a string-typed model and only fails at the boundary.
+ * Dates, trucks and grain are the PAGE's, not this tab's — see `useSpendFilters`. Two tabs holding
+ * their own idea of the period is how a figure gets quoted against the wrong weeks.
  */
-const weeksChoice = defineModel<string>("weeks", { default: "13" });
-const weeks = computed(() => Number(weeksChoice.value));
-const grainOptions = [
-  { value: "day", label: "By day" },
-  { value: "week", label: "By week" },
-  { value: "month", label: "By month" },
-];
+const props = defineProps<{ filters: SpendQueryFilters; grain: SpendGrain; query: string }>();
+const grain = computed(() => props.grain);
 const grainLabel = computed(() => (grain.value === "day" ? "day" : grain.value === "month" ? "month" : "week"));
-const windowOptions = SPEND_WINDOWS.map((w) => ({ value: w.value, label: w.label }));
 
-const { data, isLoading, isError, error } = useSpendDaysQuery(weeks);
+const filters = computed(() => props.filters);
+const { data, isLoading, isError, error } = useSpendDaysQuery(filters);
 const days = computed<SpendDay[]>(() => data.value ?? []);
 
-const series = computed(() => spendSeries(days.value, grain.value));
-const today = new Date().toISOString().slice(0, 10);
-const comparison = computed(() => comparablePeriods(series.value, today));
+// The requested window, so an edge bucket is labelled by the days it holds rather than by the
+// calendar week it belongs to.
+const series = computed(() => spendSeries(days.value, grain.value, { from: props.filters.from, to: props.filters.to }));
+const comparison = computed(() => comparablePeriods(series.value));
 /** Everything in the window, for the tiles — the totals a boss opens the page for. */
 const overall = computed(() => periodTotals(days.value, series.value[0]?.from ?? "", series.value[series.value.length - 1]?.to ?? ""));
 
@@ -98,10 +87,18 @@ const tiles = computed(() => {
   }));
 });
 
+/**
+ * Newest period first. A spend table is read for what just happened; opening on the oldest week of a
+ * ninety-day window makes the reader scroll before they can start.
+ */
+/** "2026-08-17 → 2026-08-23", or just the date when a clamped period covers a single day. */
+const periodLabel = (p: SpendPeriod): string =>
+  grain.value === "day" || p.from === p.to ? p.from : `${p.from} → ${p.to}`;
+
 const rows = computed(() =>
   [...series.value].reverse().map((p) => ({
     id: p.from,
-    period: grain.value === "day" ? p.from : `${p.from} → ${p.to}`,
+    period: periodLabel(p) + (p.partial ? " (in progress)" : ""),
     trucks: p.activeTrucks,
     fills: p.fills,
     gallons: gal(p.gallons),
@@ -133,18 +130,17 @@ const hasData = computed(() => days.value.length > 0);
 // figure in a document gets quoted back months later, so page and document must come from one source.
 const toast = useToastStore();
 const exporting = ref(false);
-const range = computed(() => ({
-  from: series.value[0]?.from ?? windowStart(weeks.value),
-  to: series.value[series.value.length - 1]?.to ?? today,
-}));
+const range = computed(() => ({ from: props.filters.from, to: props.filters.to }));
 
 async function exportPdf() {
   if (exporting.value) return;
   exporting.value = true;
   try {
     const { from, to } = range.value;
+    // Every filter goes to the server. A report that quietly covered the whole fleet while the screen
+    // showed three trucks is the kind of document somebody acts on and cannot reconcile later.
     await apiDownload(
-      `/api/fueling/spend-report.pdf?from=${from}&to=${to}&grain=${grain.value}`,
+      `/api/fueling/spend-report.pdf?${props.query}`,
       `fuelguard-fuel-spend-${from}-to-${to}.pdf`,
     );
   } catch (e) {
@@ -170,23 +166,6 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
 
 <template>
   <div class="space-y-6">
-    <FilterBar>
-      <FilterSelect v-model="grain" :options="grainOptions" label="Grain" />
-      <FilterSelect v-model="weeksChoice" :options="windowOptions" label="Window" />
-      <span class="text-sm text-ink-muted">
-        <template v-if="isLoading">Loading…</template>
-        <template v-else-if="hasData">
-          {{ series.length }} {{ grainLabel }}{{ series.length === 1 ? "" : "s" }} · {{ days.length.toLocaleString() }} truck-days
-        </template>
-      </span>
-      <template #actions>
-        <BaseButton variant="ghost" :disabled="!hasData" @click="exportCsv">Export CSV</BaseButton>
-        <BaseButton variant="secondary" :disabled="!hasData || exporting" @click="exportPdf">
-          {{ exporting ? "Building…" : "Export report" }}
-        </BaseButton>
-      </template>
-    </FilterBar>
-
     <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
       Couldn't load the spend rollup: {{ error instanceof Error ? error.message : "unknown error" }}
     </p>
@@ -200,6 +179,19 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
     </BaseCard>
 
     <template v-else>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-ink-muted">
+          {{ series.length }} {{ grainLabel }}{{ series.length === 1 ? "" : "s" }} ·
+          {{ days.length.toLocaleString() }} truck-days
+        </p>
+        <div class="flex items-center gap-2">
+          <BaseButton variant="ghost" :disabled="!hasData" @click="exportCsv">Export CSV</BaseButton>
+          <BaseButton variant="secondary" :disabled="!hasData || exporting" @click="exportPdf">
+            {{ exporting ? "Building…" : "Export report" }}
+          </BaseButton>
+        </div>
+      </div>
+
       <!-- The one KPI tile (D-UI2). These were hand-rolled BaseCards reproducing StatCard's kpi anatomy
            class for class, which is exactly the drift StatCard was extracted to end. -->
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

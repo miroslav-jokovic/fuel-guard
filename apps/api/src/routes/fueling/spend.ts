@@ -23,6 +23,7 @@ import type { SpendGrain } from "@fuelguard/shared";
 /** A rebuild reads every fill and engine day in its window, so the window is bounded rather than trusted. */
 const MAX_WINDOW_DAYS = 400;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const GRAINS = new Set(["day", "week", "month"]);
 
@@ -46,13 +47,19 @@ export function registerSpendRoutes(router: Router): void {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
+      // Same filters the screen was showing. A UUID list is validated rather than passed through: it
+      // reaches `.in()` on a service-role query, where the org filter is the only tenant boundary.
+      const vehicleIds = (typeof req.query.vehicles === "string" ? req.query.vehicles.split(",") : [])
+        .map((v) => v.trim())
+        .filter((v) => UUID.test(v));
+
       const { pdf, periods } = await renderFuelSpendReport(admin, {
-        orgId, from, to, grain, generatedAt: new Date().toISOString(),
+        orgId, from, to, grain, vehicleIds, generatedAt: new Date().toISOString(),
       });
 
       await writeAudit(admin, {
         orgId, actorId: req.auth!.userId, action: "export.generated",
-        entity: "fuel_spend_days", meta: { report: "spend-report.pdf", from, to, grain, periods },
+        entity: "fuel_spend_days", meta: { report: "spend-report.pdf", from, to, grain, periods, vehicles: vehicleIds.length },
       });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="fuelguard-fuel-spend-${from}-to-${to}.pdf"`);

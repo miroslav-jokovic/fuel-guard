@@ -110,6 +110,15 @@ export interface SpendPeriod {
   measuredShare: number | null;
   /** False when MPG is missing, physically impossible, or too thinly measured to scale. */
   mpgUsable: boolean;
+  /**
+   * True when the bucket reaches beyond the data — a week the fleet is still part-way through, or the
+   * clipped first week of a window that starts mid-week.
+   *
+   * `from`/`to` are CLAMPED to the data on a partial period, so a Monday-start week holding one day of
+   * fuel reads as that one day. Left canonical, a report ending 2026-08-24 printed a row labelled
+   * "2026-08-24 - 2026-08-30", six days past the window the report says it covers.
+   */
+  partial: boolean;
 }
 
 // `Math.round(-0.001 * 100) / 100` is -0, which prints as "-0" and fails an === 0 check. A bridge term
@@ -132,7 +141,7 @@ export const BRIDGE_TIE_TOLERANCE = 0.005;
 const ratio = (num: number, den: number): number | null => (den > 0 ? num / den : null);
 
 /** Aggregate truck-days into one period. Empty input yields a zeroed period, never a throw. */
-export function periodTotals(days: readonly SpendDay[], from: string, to: string): SpendPeriod {
+export function periodTotals(days: readonly SpendDay[], from: string, to: string, partial = false): SpendPeriod {
   const trucks = new Set<string>();
   const dates = new Set<string>();
   let fills = 0, gallonsRaw = 0, spendRaw = 0, gReefer = 0, sReeferRaw = 0, gDef = 0, sDefRaw = 0;
@@ -213,6 +222,7 @@ export function periodTotals(days: readonly SpendDay[], from: string, to: string
     idleShare: ratio(idleSec, idleSec + driveSec),
     measuredShare,
     mpgUsable,
+    partial,
   };
 }
 
@@ -403,69 +413,4 @@ function milesSplit(prior: SpendPeriod, current: SpendPeriod): MilesSplit {
     perTruck: r2(perTruckRaw),
     residual: r2(trucksRaw + perTruckRaw - (current.miles - prior.miles)),
   };
-}
-
-// ── periods ─────────────────────────────────────────────────────────────────────────────────────
-export type SpendGrain = "day" | "week" | "month";
-
-const addDays = (ymd: string, n: number): string => {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
-/**
- * The period a business date belongs to, as [start, end] inclusive.
- *
- * Weeks start Monday to match how the fleet's vendors bill and how the carrier already talks about a
- * "week"; a Sunday-start series would silently disagree with every statement on the desk.
- */
-export function periodBounds(ymd: string, grain: SpendGrain): { from: string; to: string } {
-  if (grain === "day") return { from: ymd, to: ymd };
-  if (grain === "month") {
-    const from = `${ymd.slice(0, 7)}-01`;
-    const d = new Date(`${from}T00:00:00Z`);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    return { from, to: addDays(d.toISOString().slice(0, 10), -1) };
-  }
-  const d = new Date(`${ymd}T00:00:00Z`);
-  const from = addDays(ymd, -((d.getUTCDay() + 6) % 7)); // Monday-start
-  return { from, to: addDays(from, 6) };
-}
-
-/**
- * Bucket truck-days into periods, oldest first. Periods with no fuel at all are omitted rather than
- * emitted as zeroes — a gap in the data is not a week the fleet bought nothing, and a zero bar would
- * claim it was.
- */
-export function spendSeries(days: readonly SpendDay[], grain: SpendGrain): SpendPeriod[] {
-  const buckets = new Map<string, { from: string; to: string; rows: SpendDay[] }>();
-  for (const d of days) {
-    if (!d.day) continue;
-    const b = periodBounds(d.day, grain);
-    const existing = buckets.get(b.from);
-    if (existing) existing.rows.push(d);
-    else buckets.set(b.from, { ...b, rows: [d] });
-  }
-  return [...buckets.values()]
-    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
-    .map((b) => periodTotals(b.rows, b.from, b.to));
-}
-
-/**
- * The two periods a "this vs last" comparison should use: the most recent COMPLETE period and the one
- * before it.
- *
- * The newest bucket is normally still filling — comparing a two-day week against a finished one is the
- * single easiest way to publish a fake 60% drop in spend — so it is excluded unless `includePartial`
- * says the caller knows what it is asking for.
- */
-export function comparablePeriods(
-  series: readonly SpendPeriod[],
-  today: string,
-  includePartial = false,
-): { prior: SpendPeriod; current: SpendPeriod } | null {
-  const usable = includePartial ? [...series] : series.filter((p) => p.to < today);
-  if (usable.length < 2) return null;
-  return { prior: usable[usable.length - 2]!, current: usable[usable.length - 1]! };
 }
