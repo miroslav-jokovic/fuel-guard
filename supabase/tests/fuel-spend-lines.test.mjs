@@ -195,7 +195,31 @@ ok("Arizona does not observe DST", (await one(`select fuel_station_tz('AZ') tz`)
 ok("an unknown state falls back to UTC deterministically", (await one(`select fuel_station_tz('ZZ') tz`)).tz === "UTC");
 ok("and so does a null one", (await one(`select fuel_station_tz(null) tz`)).tz === "UTC");
 
-// ── 9. reachability ─────────────────────────────────────────────────────────────────────────────
+// ── 9. the scalars stay INLINABLE (0248) ────────────────────────────────────────────────────────
+// This is a performance property with a correctness-shaped failure, which is why it is pinned rather
+// than left to review. `fuel_business_date` is evaluated several times per row; PostgreSQL will not
+// inline a SQL function carrying a `SET` clause, so adding one turns each evaluation into an SPI call.
+// Measured on production the day it shipped: 5,744 evaluations took 1,580ms through the helpers
+// against 12ms inline, and `fuel_spend_lines` over the default 90-day window went from 149ms to
+// 30,468ms — past the 8s `authenticated` statement timeout, so the spend report stopped generating and
+// every feed-fed tab rendered empty. Nothing failed loudly; the query just never came back.
+for (const fn of ["fuel_station_tz", "fuel_business_date"]) {
+  ok(
+    `${fn} carries no SET clause, so it can be inlined per row`,
+    (await one(`select proconfig from pg_proc where proname = $1`, [fn])).proconfig === null,
+    "adding `set search_path` here is a 128x per-row regression, not a hardening no-op",
+  );
+}
+ok(
+  "and fuel_spend_lines KEEPS its SET clause, because it reads tables and is called once per query",
+  (await one(`select proconfig from pg_proc where proname = 'fuel_spend_lines'`)).proconfig !== null,
+);
+ok(
+  "the inner tz call is schema-qualified, which is what makes dropping the SET safe",
+  (await one(`select prosrc from pg_proc where proname = 'fuel_business_date'`)).prosrc.includes("public.fuel_station_tz"),
+);
+
+// ── 10. reachability ────────────────────────────────────────────────────────────────────────────
 const grants = await rows(
   `select grantee from information_schema.role_routine_grants where routine_name='fuel_spend_lines'`,
 );
