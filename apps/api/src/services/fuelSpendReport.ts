@@ -36,6 +36,8 @@ export interface FuelSpendReportInput {
    * page rather than assumed.
    */
   vehicleIds?: string[];
+  /** The org's configured idle burn rate; the default is used when it has none. */
+  idleGalPerHour?: number;
   /** Stamped on the document; the caller owns the clock so the render stays deterministic in tests. */
   generatedAt: string;
 }
@@ -72,7 +74,9 @@ export async function renderFuelSpendReport(
 
   // The requested window, so an edge bucket is labelled by the days it holds rather than by the
   // calendar week it belongs to — see `spendSeries`.
-  const series = spendSeries(days, input.grain, { from: input.from, to: input.to });
+  const series = spendSeries(days, input.grain, { from: input.from, to: input.to }, {
+    idleGalPerHour: input.idleGalPerHour,
+  });
   const overall = periodTotals(days, input.from, input.to);
   // NOT `includePartial`. The newest bucket is normally still filling, and comparing a one-day week
   // against a finished one made the first render of this report announce spend down 88% and a $271,841
@@ -95,6 +99,7 @@ export async function renderFuelSpendReport(
 
   drawHeadline(doc, overall, comparison);
   drawBridge(doc, comparison);
+  drawIdle(doc, series, input.grain);
   drawSeries(doc, series, input.grain);
   drawExceptions(doc, exceptions, overall);
 
@@ -169,17 +174,73 @@ function drawBridge(doc: PDFKit.PDFDocument, cmp: { prior: SpendPeriod; current:
   doc.moveDown(0.4);
 }
 
+/**
+ * Fuel burned standing still — on the fuel bill, because it is bought with the same gallons as the miles.
+ *
+ * Periods the engine feed did not cover are NAMED and left out rather than averaged in. Idle measured
+ * across a gap reads as a fleet that stopped idling, and a document is exactly where that would be
+ * believed.
+ */
+function drawIdle(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
+  heading(doc, "Fuel burned standing still");
+  const usable = series.filter((p) => p.idleUsable);
+  const withheld = series.filter((p) => !p.idleUsable && p.idleCoverage != null);
+  if (usable.length === 0) {
+    muted(doc, "No period in this range had enough engine-feed coverage to measure idle against.");
+    return;
+  }
+  const idleSec = usable.reduce((a, p) => a + p.idleSec, 0);
+  const driveSec = usable.reduce((a, p) => a + p.driveSec, 0);
+  const gallons = usable.reduce((a, p) => a + (p.idleGallons ?? 0), 0);
+  const cost = usable.reduce((a, p) => a + (p.idleCost ?? 0), 0);
+  const fuel = usable.reduce((a, p) => a + p.spend, 0);
+  const share = idleSec + driveSec > 0 ? (idleSec / (idleSec + driveSec)) * 100 : 0;
+  const perPeriod = cost / usable.length;
+  const annual = perPeriod * (grain === "week" ? 52 : grain === "month" ? 12 : 365);
+
+  doc.fillColor(INK).font("Helvetica").fontSize(9.5).text(
+    winAnsi(
+      `The fleet idled ${num(idleSec / 3600)} hours across the ${usable.length} measured ${grain}(s) — ` +
+        `${share.toFixed(1)}% of every hour an engine was running — burning ${num(gallons)} gallons worth ` +
+        `${usd(cost)} at the prices actually paid, ${fuel > 0 ? ((cost / fuel) * 100).toFixed(1) : "0"}% of the fuel bill. ` +
+        `At this rate that is ${usd(annual)} a year.`,
+    ),
+    { width: CONTENT_WIDTH },
+  );
+  doc.moveDown(0.4);
+  body(
+    doc,
+    "Not all of this is waste — a driver resting in a sleeper through a summer night is idling for a reason. " +
+      "The Idling page separates avoidable from unavoidable idle using each truck's confirmed APU equipment.",
+    MUTED,
+  );
+  if (withheld.length > 0) {
+    doc.moveDown(0.2);
+    body(
+      doc,
+      `${withheld.length} ${grain}(s) are left out: the engine feed covered too little of those days to measure ` +
+        "idle against, and idle measured across a gap in the feed reads as a fleet that stopped idling rather " +
+        "than as a sync that stopped reporting. Their fuel is counted everywhere else in this report.",
+      MUTED,
+    );
+  }
+  doc.moveDown(0.3);
+}
+
 function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: SpendGrain): void {
   heading(doc, grain === "day" ? "Day by day" : grain === "month" ? "Month by month" : "Week by week");
+  // Widths must sum to CONTENT_WIDTH (504pt) or less — `table` does not wrap or shrink them, it draws
+  // past the right margin, which is how the idle column arrived clipped in half on the first render.
   const cols = [
-    { width: 96, header: "Period" },
-    { width: 46, header: "Trucks", align: "right" as const },
-    { width: 60, header: "Gallons", align: "right" as const },
-    { width: 74, header: "Fuel spend", align: "right" as const },
-    { width: 58, header: "Paid / gal", align: "right" as const },
-    { width: 62, header: "Miles", align: "right" as const },
-    { width: 42, header: "MPG", align: "right" as const },
-    { width: 66, header: "Cost / mile", align: "right" as const },
+    { width: 92, header: "Period" },
+    { width: 40, header: "Trucks", align: "right" as const },
+    { width: 56, header: "Gallons", align: "right" as const },
+    { width: 68, header: "Fuel spend", align: "right" as const },
+    { width: 52, header: "Paid / gal", align: "right" as const },
+    { width: 58, header: "Miles", align: "right" as const },
+    { width: 36, header: "MPG", align: "right" as const },
+    { width: 52, header: "$ / mile", align: "right" as const },
+    { width: 50, header: "Idle $", align: "right" as const },
   ];
   // Newest first, and a period still filling is kept but LABELLED. Dropping it hides the most recent
   // days from a reader looking for them; leaving it unmarked invites the comparison the bridge
@@ -193,6 +254,7 @@ function drawSeries(doc: PDFKit.PDFDocument, series: SpendPeriod[], grain: Spend
     { text: num(p.miles) },
     { text: p.mpg?.toFixed(2) ?? "—" },
     { text: usd2(p.costPerMile) },
+    { text: p.idleCost == null ? "-" : usd(p.idleCost) },
   ]);
   table(doc, cols, rows);
 }

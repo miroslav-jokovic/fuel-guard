@@ -53,8 +53,15 @@ export function registerSpendRoutes(router: Router): void {
         .map((v) => v.trim())
         .filter((v) => UUID.test(v));
 
+      // The org's own idle burn rate, so the document and the Idling page cost an idle hour identically.
+      const { data: idleCfg } = await admin
+        .from("idle_settings").select("idle_gal_per_hour").eq("org_id", orgId).maybeSingle();
+      const rate = (idleCfg as { idle_gal_per_hour?: number | string } | null)?.idle_gal_per_hour;
+
       const { pdf, periods } = await renderFuelSpendReport(admin, {
-        orgId, from, to, grain, vehicleIds, generatedAt: new Date().toISOString(),
+        orgId, from, to, grain, vehicleIds,
+        idleGalPerHour: rate == null ? undefined : Number(rate) || undefined,
+        generatedAt: new Date().toISOString(),
       });
 
       await writeAudit(admin, {
