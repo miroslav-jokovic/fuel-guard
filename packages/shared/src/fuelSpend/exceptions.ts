@@ -64,6 +64,25 @@ export const FUEL_EXCEPTION_KIND_LABELS: Record<FuelExceptionKind, string> = {
   avoided_brand_premium: "Fuelled at an avoided brand",
 };
 
+/**
+ * The kinds `reconFindings` is authoritative for — its close scope, not merely its output (0253).
+ *
+ * `sync_fuel_exceptions` closes what a producer no longer finds in the period it just read, and it has
+ * to be TOLD which kinds that producer owns. Deriving the set from the batch cannot work: a week whose
+ * reconciliation produces no `recon_amount` rows is exactly the week that should close last week's, and
+ * a set derived from an empty batch is empty. So the producer declares its territory here, beside the
+ * function that produces it, and the caller passes this constant rather than a literal at the call site.
+ *
+ * A new detector adds a kind and its own constant. It never widens this one — a producer that closes
+ * findings it did not produce retires somebody else's money.
+ */
+export const RECON_EXCEPTION_KINDS: readonly FuelExceptionKind[] = [
+  "recon_missing_in_system",
+  "recon_missing_on_report",
+  "recon_amount",
+  "recon_gallons",
+];
+
 export const FUEL_EXCEPTION_STATUSES = [
   "open",
   "investigating",
@@ -246,6 +265,12 @@ function toFinding(row: ReconRow): FuelExceptionFinding | null {
  *
  * `SpendLine` carries no row id, so the fingerprint is built from what identifies the fill on a
  * statement: its date, site, unit and gallons.
+ *
+ * ⚠ NOT WIRED. Nothing in `apps/api` calls this yet, so no `contract_variance` has ever been filed —
+ * the tab computes the same figures for reading and none of them acquires a lifecycle. When it is
+ * wired it must declare its OWN close-scope kind set the way `RECON_EXCEPTION_KINDS` does (0253); it
+ * may not reuse that one, or a reconciliation with no contract quotes in range would close every
+ * contract finding in its period as though it had looked and found nothing.
  */
 export function contractFindings(capture: ContractCapture): FuelExceptionFinding[] {
   return capture.exceptions

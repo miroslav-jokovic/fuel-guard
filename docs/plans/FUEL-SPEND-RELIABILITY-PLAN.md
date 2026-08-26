@@ -817,10 +817,14 @@ work already has:
   style (exempting `auth_role() is null`) so retention can still prune the pair — an undeletable child
   would pin its mutable parent and quietly move the whole table across the evidence line.
 
-  *D-FX10, proven.* The matrix sets a finding to `disputed`, assigns it, writes a note, then re-runs
-  the same period with changed evidence: the evidence updates and the status, owner and note do not.
-  A finding a run no longer produces is closed as `resolved_by_reingest` with an event saying so; if
-  it comes back it reopens, but a `dismissed` or `credited` decision survives being produced again.
+  *D-FX10, half proven — and the other half was corrected in F16 (see below).* The matrix sets a
+  finding to `disputed`, assigns it, writes a note, then re-runs the same period with changed
+  evidence: the evidence updates and the status, owner and note do not. That half is real. The
+  closing half — "a finding a run no longer produces is closed as `resolved_by_reingest`" — was
+  **claimed here and could never have happened**: the close was scoped by `run_id`, which the upsert
+  had already rewritten to the run doing the closing. The matrix agreed only because its fixture
+  reused one run id across every call, which production never does. Fixed in **F16 (0253)**, with the
+  fixture re-pointed at the production shape.
 
   *Two deviations, stated.* (1) The policy premiums are in the vocabulary and **no producer emits
   them** — 201 off-network fills in a 90-day window is not 201 actions, and choosing a threshold or a
@@ -1197,12 +1201,56 @@ recommendation has a basis.
 
 ---
 
-### F11 · Missed savings at the pump
+### F11 · Missed savings at the pump — ⚠ BLOCKED ON DATA, measured 2026-08-26. Do not build as written.
 
-**Prerequisites:** F6 (the ledger to hold the findings), ~~F10 (or ship observation-only)~~ — F10
-shipped 2026-08-26, so the recommendation is available rather than suppressed. Price the alternative
-on landed cost via `landedCostPerGal`, and remember Oregon: `basis: "weight_mile"` means the missing
-per-gallon tax is a different bill, not a cheaper station.
+**Prerequisites:** F6 (the ledger), F10 (shipped). **A third was never written down and is the one
+that blocks it: the route the truck actually drove.**
+
+**⚠ THE SPIKE THAT STOPPED IT (read-only, no PR).** Two measurements; the second is decisive.
+
+*1. The network-wide posted layer is not a time series.* `fuel_prices_posted` — which this step's
+design leans on for "the cheapest qualifying station on that business date" — holds **3,003 rows
+across three captures ever**: a Love's export and a Pilot public export both dated 2026-07-17, plus 54
+Road Ranger rows from 2026-08-26. Off-network alternatives cannot be priced on the day of a fill at
+all. Our own `fuel_prices` is dense but narrow — 683 Pilot/Flying J stations on each of **20 days**,
+2026-08-02 → 2026-08-25 — so the only scoreable question is *"was there a cheaper PILOT or FLYING J
+that same day"*, over 1,201 of the window's fills.
+
+*2. Constrain the candidate to the road actually driven and 96% of the answer disappears.* Scored over
+those 20 days against each fill's own quoted net price:
+
+| candidate rule | fills with a cheaper alternative | saving |
+|---|---|---|
+| within 25 mi (straight line) | 214 | $1,699 |
+| within 50 mi | 627 | $6,695 |
+| within 100 mi | 948 | $16,197 |
+| within 100 mi **and on the segment between this fill and the truck's next one** | 58 | **$581** |
+| within 200 mi and within 5 mi of that segment | 241 | $4,348 |
+
+The corridor test is `pointToSegmentMiles` from `smartFueling/geo.ts` — the primitive the planner
+already uses — requiring the alternative to sit BETWEEN the two fills rather than behind or beyond it.
+**It removes 96% of the claimed saving at the same radius.** That 96% is stations the truck was not
+driving past, and a dispatcher refutes each one in a sentence: *"that Pilot is forty miles the wrong
+way."* Shipping it spends the credibility of every other figure on the page to buy perhaps $10k a year.
+
+The surviving 4% is itself weak. A straight line between two fuel stops is not a road, and Q-FX4
+already measured that consecutive fills sit ~1,500 miles and several states apart; a corridor drawn on
+that line is a guess wearing geometry.
+
+**One thing from the pre-spike draft survives and binds every detector that prices an alternative,
+F13 included:** price it with `landedCostPerGal`, and remember Oregon — `basis: "weight_mile"` means
+the missing per-gallon tax is a different bill, not a cheaper station.
+
+**What F11 actually needs** is the same dependency F10 named for burn states: the route the truck
+drove, from Samsara GPS. With a real trail, `stationsAlongRoute` (`smartFueling/corridor.ts`) already
+answers this properly — detour miles, the correct side of a divided highway, whether the station was
+ahead of the truck. Nothing else in F11 changes.
+
+**Until then F11 is not built, not even observation-only.** "There was a cheaper station somewhere
+within a hundred miles" is not something a fleet manager can act on, and filing 948 of them would bury
+the findings that are real. This measurement is the deliverable.
+
+<!-- The original brief, right about everything except its candidate rule: -->
 
 **Build.** For each fill: the cheapest qualifying station within N road-miles on that business date,
 from `fuel_stations` (lat/lng), `fuel_prices` (our net) and `fuel_prices_posted` (the network-wide
@@ -1221,11 +1269,18 @@ $0.34/gal cheaper that morning", with a dollar figure and a lifecycle.
 
 ---
 
-### F12 · Plan versus actual
+### F12 · Plan versus actual — ⚠ NOTHING TO JOIN, measured 2026-08-26
 
-**Prerequisites:** F6.
+**`fuel_plans` holds ONE row in production, for one org, ever.** The dispatcher-facing planner has
+essentially never been used, so "match a plan's recommended stops to the fills that followed it" has
+one plan to match: no adherence to measure, no deviation to price.
 
-**Build.** `fuel_plans` (0074) stores `total_gallons`, `total_cost`, `arrival_fuel_pct` and the full
+Not a reason to delete the step — a reason to reverse its order. Why the planner is unused is a
+product question, not a reconciliation one, and it has to be answered before this step means anything.
+
+**Prerequisites:** F6, **and a fleet that generates plans.**
+
+**Build (when there is something to join).** `fuel_plans` (0074) stores `total_gallons`, `total_cost`, `arrival_fuel_pct` and the full
 plan JSON for every plan a dispatcher generates, and nothing joins it to what was actually bought.
 Match a plan's recommended stops to the fills that followed it; report adherence and the cost of
 deviation as a `kind = 'plan_deviation'` exception.
@@ -1252,6 +1307,70 @@ Deliberately thin, because F6 will change what they should be. Each carries its 
   invoice, the instrument the carrier actually pays. The parse → tie-out → match → persist
   architecture generalises; what changes is the parser and the product taxonomy, not the spine. This
   is what makes every off-network dollar auditable.
+
+---
+
+### F16 · The ledger could never close a finding — DONE 2026-08-26 (migration 0253)
+
+**Found while scoping F11.** Not a step anybody planned; a defect in F6a that the F6a matrix asserted
+the opposite of. It jumps the queue because every detector after it files into the same ledger, and a
+ledger that cannot close is a queue people stop opening.
+
+**The defect.** D-FX10 has two halves. The first — a re-run refreshes evidence and never touches a
+person's status, owner or note — works, and is proven. The second — *"a finding a run no longer
+produces is closed as `resolved_by_reingest` rather than deleted"* — **had never fired in production
+and structurally could not.** 0250 scoped the close to `where e.run_id = p_run`, and the upsert
+immediately above it had already set `run_id = excluded.run_id` on every finding in the batch. The
+rows carrying `p_run` were therefore exactly the rows in `v_seen`, so
+`not (fingerprint = any (v_seen))` selected none of them. `closed` was always 0.
+
+**Why the matrix said otherwise, which is the more useful half of this.** `fuel-exceptions.test.mjs`
+created ONE `fuel_recon_runs` row and its `sync()` helper defaulted every call to it. That is the
+single shape in which the broken clause works: with a fixed run id, the second call's `p_run` still
+matches rows the first call wrote. Production never does that — `runFuelReconciliation` inserts a new
+run per upload and passes that fresh id. **Re-pointing the fixture at a new run per sync, which is
+what the deployed code does, turns three assertions red against 0250.** A fixture that is not the
+production shape is a fixture that certifies the wrong system.
+
+**What it cost.** Nothing was ever closed. A discrepancy that next week's corrected statement resolves
+stays `open` for good, so the queue can only grow, and `resolved_by_reingest` — a status with a token,
+a label ("No longer found") and its own event kind — has never been written.
+
+**The fix: scope by KIND and PERIOD, never by run id.** "This producer no longer finds it" is a claim
+about a window and a set of kinds; two runs over the same week are two readings of one period and the
+later one supersedes, which is the same argument `fuel_recon_runs.superseded_by` already encodes.
+- The **kinds** arrive as `p_kinds`, declared by the caller from `RECON_EXCEPTION_KINDS` in shared,
+  because "which findings am I authoritative for" is the producer's knowledge. Deriving them from the
+  batch cannot work: the week that produces no `recon_amount` rows is exactly the week that should
+  close last week's, and a set derived from an empty batch is empty.
+- The **period** is read from the run row, which already records it under an append-only trigger.
+- **Fails closed everywhere**: null kinds, no run, or an unreadable run row → close nothing. A finding
+  with a null `occurred_on` is never closed by period. Leaving a resolved finding open costs a second
+  look; closing an open one silently retires money the carrier is owed.
+- `disputed` stays out of the closable statuses: somebody is mid-conversation with the vendor.
+
+**Deployment order, which is why `p_kinds` has a default.** `migrate.yml` applies on merge and the API
+deploys separately, so the running code briefly calls the four-argument form. `create or replace`
+cannot add a parameter — it leaves both signatures live and makes every four-argument call ambiguous —
+so the old one is dropped and the new one takes `p_kinds text[] default null`. A four-argument call
+still resolves, closes nothing, and behaves exactly as production does today. Expand, then contract;
+no window in which anything is worse than it is now.
+
+**Also recorded, not fixed here:** `contractFindings` has **no production caller**. No
+`contract_variance` has ever been filed. When it is wired it must declare its own close-scope kind
+set — reusing the recon set would let a reconciliation with no quotes in range close every contract
+finding in its period as though it had looked.
+
+**Verified by:** the `fuel-exceptions` matrix, **37 passed** (was 31), with the fixture on the
+production shape. Restoring only the `run_id` clause and leaving everything else in place turns
+**4 red** — the three that were green on the wrong fixture, plus the new empty-batch case. Six new
+assertions cover the scoping that makes the fix safe rather than merely working: a run over one period
+does not close another's findings; a producer only closes the kinds it declares; a null kind set closes
+nothing; a `disputed` finding survives; an empty batch closes what is genuinely gone; and the audit row
+carries the window and the kinds so "why did this go away" stays answerable. Plus an `apps/api` test
+pinning that the caller passes the shared constant — regressed and watched fail. `pnpm test`,
+`pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:upserts`, `lint:filesize`,
+`lint:funcsize`, `lint:comment-claims`, `lint:boundaries`.
 
 ---
 
