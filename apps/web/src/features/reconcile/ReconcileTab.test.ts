@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { computed, ref, type Ref } from "vue";
-import type { PilotReportFill, SystemFill } from "@fuelguard/shared";
+import { computed, ref } from "vue";
+import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@fuelguard/shared";
 
 /**
  * The reconciliation tab — the one the page is named after, and the one nothing mounted.
@@ -18,10 +18,6 @@ import type { PilotReportFill, SystemFill } from "@fuelguard/shared";
  * against the tab's CONTRACT with the matcher — buckets exist, tiles filter, statuses are words — so
  * they should survive that rewrite and fail if it breaks the surface rather than the arithmetic.
  */
-
-const asQuery = <T,>(data: T) => ({
-  data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null),
-});
 
 /** The org's recorded fills, as `useSystemFillsQuery` projects them. */
 const SYSTEM: SystemFill[] = [
@@ -58,12 +54,37 @@ vi.mock("@/features/reconcile/loadFuelReport", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/loadFuelReport")>();
   return { ...actual, loadFuelReport: (...a: unknown[]) => loadFuelReport(...(a as [])) };
 });
-vi.mock("@/features/reconcile/useFuelReconcile", () => ({
-  useSystemFillsQuery: (_w: Ref<unknown>) => asQuery(SYSTEM),
+/**
+ * The server's answer, built with the REAL matcher so the fixture cannot drift from what the API would
+ * actually return. The tab's job is now to post and render, and that is what is asserted below.
+ */
+const serverResult = reconcileFuelReport(REPORT, SYSTEM, {
+  window: { from: "2026-08-17", to: "2026-08-19" },
+});
+
+const runMutation = vi.fn(async (_input?: unknown) => ({
+  ok: true, runId: "run-1", periodStart: "2026-08-17", periodEnd: "2026-08-19",
+  invoiceNo: null, tieOutGated: true, tieOutNotes: [] as string[], result: serverResult,
 }));
+
+vi.mock("@/features/reconcile/useReconRuns", async (orig) => {
+  const actual = await orig<typeof import("@/features/reconcile/useReconRuns")>();
+  return {
+    ...actual,
+    useRunReconciliation: () => ({
+      mutateAsync: (...a: unknown[]) => runMutation(...(a as [])),
+      isPending: ref(false), isError: ref(false), error: ref(null),
+    }),
+    useReconRunsQuery: () => ({ data: computed(() => []), isLoading: ref(false), isError: ref(false) }),
+  };
+});
 vi.mock("@/features/reconcile/useSaveStatement", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/useSaveStatement")>();
   return { ...actual, useSaveStatement: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }) };
+});
+vi.mock("@/lib/reportGrid", async (orig) => {
+  const actual = await orig<typeof import("@/lib/reportGrid")>();
+  return { ...actual, readReportGrid: vi.fn(async () => [[]]), readPivotSheet: vi.fn(async () => null) };
 });
 
 import ReconcileTab from "./ReconcileTab.vue";
@@ -72,6 +93,13 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 beforeEach(() => {
   setActivePinia(createPinia());
   loadFuelReport.mockResolvedValue(loaded);
+  // Vue Test Utils does not unmount between tests, so a mock that is not reset counts calls from
+  // every earlier `it` as well as this one.
+  runMutation.mockReset();
+  runMutation.mockResolvedValue({
+    ok: true, runId: "run-1", periodStart: "2026-08-17", periodEnd: "2026-08-19",
+    invoiceNo: null, tieOutGated: true, tieOutNotes: [], result: serverResult,
+  });
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
     value: (query: string) => ({
@@ -138,6 +166,42 @@ describe("ReconcileTab", () => {
     await flushPromises();
     expect(w.text()).not.toBe(before);
     expect(w.text()).not.toContain("NaN");
+  });
+
+  // ── F5: the browser sends bytes and the server concludes ────────────────────────────────────
+  it("posts the decoded report rather than reconciling it here", async () => {
+    // `fuel_recon_runs` has no client write policy, so a reconciliation the browser computed could
+    // never be recorded. The tab decodes and posts; what it renders is what the server wrote.
+    await withReport();
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    const sent = (runMutation.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(sent.filename).toBe("aug.xlsx");
+    expect("grid" in sent || "words" in sent).toBe(true);
+  });
+
+  it("says the reconciliation is kept, and offers it as a file", async () => {
+    // Before F5 this tab was the only one on the page with no export, and its answer died with the
+    // tab — so a discrepancy found on Tuesday was re-found from scratch on Thursday.
+    const w = await withReport();
+    expect(w.text()).toContain("Recorded");
+    expect(w.findAll("button").some((b) => b.text().includes("Download every row"))).toBe(true);
+  });
+
+  it("shows the gate's own reasons when the server refuses the file", async () => {
+    const { ReconRejected } = await import("@/features/reconcile/useReconRuns");
+    runMutation.mockRejectedValueOnce(
+      new ReconRejected("That report didn't add up", [
+        "Diesel gallons read 418,530 against the 418,537.23 the export's own PivotTable prints.",
+      ]),
+    );
+    const w = await withReport();
+    // The parse still renders — the reader keeps what they are looking at — but nothing is CLAIMED:
+    // no verdict, nothing recorded, and nothing to download. ("Needs a look" is not a useful marker
+    // here: it is also a filter option, present whenever a report is loaded.)
+    expect(w.text()).toContain("aug.xlsx");
+    expect(w.text()).not.toContain("Recorded — this reconciliation is kept");
+    expect(w.text()).not.toContain("What does not reconcile");
+    expect(w.findAll("button").some((b) => b.text().includes("Download every row"))).toBe(false);
   });
 
   it("survives a report that matches nothing at all", async () => {

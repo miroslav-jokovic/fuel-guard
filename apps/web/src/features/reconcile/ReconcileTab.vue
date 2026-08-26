@@ -4,10 +4,11 @@ import {
   ArrowUpTrayIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
-import { reconcileFuelReport, RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconStatus } from "@fuelguard/shared";
+import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconResult, type ReconStatus } from "@fuelguard/shared";
+import { useRunReconciliation, ReconRejected } from "@/features/reconcile/useReconRuns";
+import { readPivotSheet, readReportGrid } from "@/lib/reportGrid";
 import { loadFuelReport, ReportLoadError, type LoadedReport } from "@/features/reconcile/loadFuelReport";
 import { useSaveStatement, StatementRejected } from "@/features/reconcile/useSaveStatement";
-import { useSystemFillsQuery, type ReconWindow } from "@/features/reconcile/useFuelReconcile";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { AppCard as BaseCard } from "@fuelguard/ui";
@@ -16,6 +17,7 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import { downloadCsv } from "@/lib/csv";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /**
@@ -33,16 +35,16 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const toast = useToastStore();
 const saveStatement = useSaveStatement();
+const runRecon = useRunReconciliation();
 const emit = defineEmits<{ saved: [] }>();
 const report = ref<LoadedReport | null>(null);
 const parsing = ref(false);
 const fileName = computed(() => report.value?.fileName ?? null);
 const saved = ref(false);
 
-const window = computed<ReconWindow | null>(() =>
-  report.value?.startDate && report.value?.endDate ? { from: report.value.startDate, to: report.value.endDate } : null,
-);
-const { data: systemFills, isLoading: fillsLoading, isError, error } = useSystemFillsQuery(window);
+// The org's fills are read SERVER-side now: the reconciliation is computed where the service role is,
+// so the browser no longer pages `fuel_transactions` at all. `useFuelReconcile` stays for callers that
+// still want the projection; this tab is not one of them.
 
 /** What the discount actually saved against posted retail — the statement carries both sides per line. */
 const savings = computed(() => {
@@ -52,23 +54,17 @@ const savings = computed(() => {
 });
 
 /**
- * Every fuel line the report carries — tractor AND reefer — matched against every fill we recorded.
+ * The reconciliation, as the SERVER computed and recorded it.
  *
- * The reefer lines used to be held back and the system side filtered to tractor, so dyed off-road
- * diesel the vendor billed had nothing to match against. The matcher keeps the two classes apart
- * itself and will not pair across them, so passing both is what lets a reefer line be reconciled at
- * all. DEF and in-store lines go too: `reconcileFuelReport` sets them aside as `unmatchable` rather
- * than scoring them as fuel we failed to record, which is the only honest answer for a product
- * `fuel_transactions` does not carry.
+ * This tab used to run the matcher itself and lose the answer when the tab changed. Now it decodes the
+ * file — only a browser has `pdfjs` and ExcelJS — and posts the words or the grid; the server
+ * re-parses, gates, reads our fills with the service role, matches and writes a `fuel_recon_runs` row.
+ * What comes back is what was recorded, so what is on screen and what is in the database cannot differ.
  */
-const result = computed(() => {
-  const r = report.value;
-  if (!r) return null;
-  return reconcileFuelReport([...r.fills, ...r.reeferLines, ...r.defLines], systemFills.value ?? [], {
-    // The report's DECLARED window decides whether one of our fills should have appeared on it.
-    window: r.startDate && r.endDate ? { from: r.startDate, to: r.endDate } : null,
-  });
-});
+const runResult = ref<ReconResult | null>(null);
+const runId = ref<string | null>(null);
+const tieOutNotes = ref<string[]>([]);
+const result = computed(() => runResult.value);
 
 async function onFiles(files: File[]) {
   const file = files[0];
@@ -84,7 +80,12 @@ async function onFiles(files: File[]) {
     );
     // Keeping the statement is what makes week-over-week possible; the reconciliation below renders
     // either way, so a save failure never costs the user the parse they are already looking at.
-    if (loaded.statementSource) await persist(loaded);
+    let statementId: string | null = null;
+    if (loaded.statementSource) statementId = await persist(loaded);
+    // An export's PivotTable is a SECOND sheet, and it holds the printed total the server's tie-out
+    // gate checks the parse against — the check the export never had (L8).
+    const pivotGrid = loaded.statementSource ? null : await readPivotSheet(file);
+    await reconcile(loaded, file, statementId, pivotGrid);
   } catch (e) {
     if (e instanceof ReportLoadError) toast.error(e.message, e.detail);
     else toast.error("Could not read the report", e instanceof Error ? e.message : undefined);
@@ -93,8 +94,9 @@ async function onFiles(files: File[]) {
   }
 }
 /** Record the statement server-side. The server re-parses, so this can still be refused. */
-async function persist(loaded: LoadedReport) {
-  if (!loaded.statementSource) return;
+async function persist(loaded: LoadedReport): Promise<string | null> {
+  if (!loaded.statementSource) return null;
+  let statementId: string | null = null;
   try {
     const r = await saveStatement.mutateAsync({
       words: loaded.statementSource.words,
@@ -102,6 +104,7 @@ async function persist(loaded: LoadedReport) {
       filename: loaded.fileName,
     });
     saved.value = true;
+    statementId = r.statementId ?? null;
     emit("saved");
     const replaced = r.supersededStatementId ? " · replaced the earlier version of this invoice" : "";
     toast.success("Statement saved", `${r.lines?.toLocaleString()} lines kept for week-over-week${replaced}`);
@@ -115,10 +118,43 @@ async function persist(loaded: LoadedReport) {
     if (e instanceof StatementRejected) toast.error("Statement not saved", [e.message, ...e.reasons].join(" "));
     else toast.error("Statement not saved", e instanceof Error ? e.message : undefined);
   }
+  return statementId;
+}
+
+/**
+ * Post the decoded report and render the run the server recorded.
+ *
+ * A refusal here is not a transport failure — it means the file did not reproduce its own printed
+ * totals — so the gate's reasons are shown verbatim. That refusal now applies to the monthly export
+ * as well as the weekly statement, which is the asymmetry L8 named: the format producing the LARGER
+ * reconciliation was the one with no check at all.
+ */
+async function reconcile(loaded: LoadedReport, file: File, statementId: string | null, pivotGrid: unknown[][] | null) {
+  try {
+    const r = await runRecon.mutateAsync({
+      words: loaded.statementSource?.words ?? null,
+      grid: loaded.statementSource ? null : ((await readReportGrid(file)) as unknown[][]),
+      pivotGrid,
+      filename: loaded.fileName,
+      statementId,
+    });
+    runResult.value = r.result ?? null;
+    runId.value = r.runId ?? null;
+    tieOutNotes.value = r.tieOutNotes ?? [];
+    for (const n of tieOutNotes.value) toast.info("Report note", n);
+    toast.success("Reconciliation recorded", `${r.periodStart} → ${r.periodEnd} · kept for good`);
+  } catch (e) {
+    runResult.value = null;
+    if (e instanceof ReconRejected) toast.error("That report didn't add up", [e.message, ...e.reasons].join(" "));
+    else toast.error("Could not reconcile the report", e instanceof Error ? e.message : undefined);
+  }
 }
 
 function reset() {
   report.value = null;
+  runResult.value = null;
+  runId.value = null;
+  tieOutNotes.value = [];
   saved.value = false;
   statusFilter.value = "discrepancies";
 }
@@ -161,6 +197,34 @@ const exposure = computed(() => {
     { label: "Recorded, never billed", value: e.unbilled, lines: e.unbilledLines, tone: "text-ink", hint: "not yet invoiced" },
   ].filter((x) => x.lines > 0);
 });
+
+/**
+ * The run's rows as CSV — the only tab on this page that never had one.
+ *
+ * A reconciliation exists to be taken to somebody: accounting, or the vendor. Until F5 it could not
+ * leave the screen at all, which is why a discrepancy found on a Tuesday was re-found from scratch on
+ * the Thursday. Every row goes, not only the discrepancies, because the clean ones are the evidence
+ * that the rest were looked for.
+ */
+function exportRun() {
+  const r = result.value;
+  if (!r) return;
+  downloadCsv(
+    `fuel-reconciliation-${report.value?.startDate ?? ""}-to-${report.value?.endDate ?? ""}`,
+    ["Status", "Matched on", "Date (report)", "Date (ours)", "Days apart", "Unit", "Site", "Card",
+     "Gallons (report)", "Gallons (ours)", "Amount (report)", "Amount (ours)", "Amount difference", "Tank", "Detail"],
+    r.rows.map((x) => [
+      RECON_STATUS_LABELS[x.status], x.basis ?? "",
+      x.report?.tranDate ?? "", x.system?.tranDate ?? "", x.dayDelta ?? "",
+      x.report?.unit ?? x.system?.unit ?? "",
+      x.report ? [x.report.site, x.report.city, x.report.state].filter(Boolean).join(" ") : "",
+      (x.report?.cardRef ?? x.system?.cardRef ?? "").slice(-6),
+      x.report?.gallons ?? "", x.system?.gallons ?? "",
+      x.report?.netAmount ?? "", x.system?.totalCost ?? "", x.amountDelta ?? "",
+      x.tank, x.note ?? "",
+    ]),
+  );
+}
 
 /** How each match was placed. A claim's strength is part of the claim. */
 const matchBasis = computed(() => {
@@ -219,7 +283,9 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <div v-if="report" class="flex justify-end">
+    <div v-if="report" class="flex flex-wrap items-center justify-end gap-2">
+      <span v-if="runId" class="text-xs text-ink-tertiary">Recorded — this reconciliation is kept.</span>
+      <BaseButton v-if="result" variant="ghost" @click="exportRun">Download every row (CSV)</BaseButton>
       <BaseButton variant="ghost" @click="reset">Upload another</BaseButton>
     </div>
 
@@ -266,12 +332,12 @@ const columns: DataTableColumn[] = [
           <span v-if="report.tieOut" class="text-success-700">Ties to the statement's own totals</span>
           <span v-if="saveStatement.isPending.value" class="text-ink-tertiary">· saving…</span>
           <span v-else-if="saved" class="text-ink-muted">· saved</span>
-          <span v-if="fillsLoading" class="text-ink-tertiary">· matching your fills…</span>
+          <span v-if="runRecon.isPending.value" class="text-ink-tertiary">· reconciling…</span>
         </div>
       </BaseCard>
 
-      <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-        Couldn't load your recorded fills: {{ error instanceof Error ? error.message : "unknown error" }}
+      <p v-if="runRecon.isError.value && !result" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+        {{ runRecon.error.value instanceof Error ? runRecon.error.value.message : "Could not reconcile that report." }}
       </p>
 
       <!-- Summary tiles -->
@@ -319,7 +385,7 @@ const columns: DataTableColumn[] = [
         :columns="columns"
         :rows="rows"
         row-key="id"
-        :loading="fillsLoading"
+        :loading="runRecon.isPending.value"
         empty-text="No rows in this bucket."
       >
         <template #cell-status="{ row }">

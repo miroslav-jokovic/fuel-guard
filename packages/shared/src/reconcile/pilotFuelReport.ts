@@ -56,6 +56,8 @@ export interface PilotReportParse {
   defLines: PilotReportFill[]; // DEF add-ons (shown, not matched as fills)
   /** Non-fuel lines, plus any product code the catalogue did not recognise. */
   other: PilotReportFill[];
+  /** Codes the catalogue could not place, with their line counts — surfaced by the tie-out gate. */
+  unknownProducts: Record<string, number>;
   totalDieselGallons: number;
   totalDieselNet: number;
   totalDieselRetail: number;
@@ -105,7 +107,7 @@ function dateYMD(v: ReconCell): string | null {
 export function parsePilotFuelReport(grid: ReconGrid): PilotReportParse {
   const empty: PilotReportParse = {
     headerFound: false, account: null, startDate: null, endDate: null,
-    fills: [], reeferLines: [], defLines: [], other: [], totalDieselGallons: 0, totalDieselNet: 0, totalDieselRetail: 0, skipped: 0,
+    fills: [], reeferLines: [], defLines: [], other: [], unknownProducts: {}, totalDieselGallons: 0, totalDieselNet: 0, totalDieselRetail: 0, skipped: 0,
   };
   if (!Array.isArray(grid) || grid.length === 0) return empty;
 
@@ -144,6 +146,7 @@ export function parsePilotFuelReport(grid: ReconGrid): PilotReportParse {
   const reeferLines: PilotReportFill[] = [];
   const defLines: PilotReportFill[] = [];
   const other: PilotReportFill[] = [];
+  const unknownProducts: Record<string, number> = {};
   let skipped = 0;
 
   for (let r = headerIdx + 1; r < grid.length; r++) {
@@ -177,6 +180,7 @@ export function parsePilotFuelReport(grid: ReconGrid): PilotReportParse {
     };
     // One taxonomy for both documents (`fuelProducts.ts`), keyed on Pilot's code with the description
     // as fallback. The description-only rule this replaces did not recognise "Reefer" at all.
+    if (!klass.known) unknownProducts[fill.productCode ?? ""] = (unknownProducts[fill.productCode ?? ""] ?? 0) + 1;
     if (klass.tank === "tractor") fills.push(fill);
     else if (klass.tank === "reefer") reeferLines.push(fill);
     else if (klass.kind === "def") defLines.push(fill);
@@ -188,7 +192,7 @@ export function parsePilotFuelReport(grid: ReconGrid): PilotReportParse {
 
   return {
     headerFound: true, account, startDate, endDate,
-    fills, reeferLines, defLines, other,
+    fills, reeferLines, defLines, other, unknownProducts,
     totalDieselGallons: sum(fills, "gallons"),
     totalDieselNet: sum(fills, "netAmount"),
     totalDieselRetail: sum(fills, "retailAmount"),

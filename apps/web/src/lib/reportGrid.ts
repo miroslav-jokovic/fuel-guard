@@ -33,18 +33,46 @@ function cellToScalar(v: ExcelJS.CellValue | undefined): Cell {
 }
 
 /** True modern spreadsheet (.xlsx/.xlsm are zip archives). ExcelJS is lazy-loaded. */
-async function readXlsxGrid(buf: ArrayBuffer): Promise<Grid> {
-  const ExcelJSMod = await import("exceljs");
-  const wb = new ExcelJSMod.Workbook();
-  await wb.xlsx.load(buf);
-  const ws = wb.worksheets[0];
-  if (!ws) throw new Error("The workbook has no sheets.");
+function sheetToGrid(ws: ExcelJS.Worksheet): Grid {
   const grid: Grid = [];
   ws.eachRow({ includeEmpty: true }, (row) => {
     const raw = (row.values as (ExcelJS.CellValue | undefined)[]).slice(1);
     grid.push(raw.map(cellToScalar));
   });
   return grid;
+}
+
+async function readXlsxGrid(buf: ArrayBuffer): Promise<Grid> {
+  const ExcelJSMod = await import("exceljs");
+  const wb = new ExcelJSMod.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error("The workbook has no sheets.");
+  return sheetToGrid(ws);
+}
+
+/**
+ * The workbook's PivotTable sheet, if it has one.
+ *
+ * ── WHY A SECOND SHEET IS READ AT ALL ────────────────────────────────────────────────────────────
+ * The monthly "All Transactions" export is three sheets, and only the first was ever read. The third
+ * is a PivotTable whose Grand Total row prints `Sum of Quantity` — the export's own arithmetic, and
+ * the only thing a parse of it can be checked against. Verified on the real 2026-06/07 export: parsed
+ * 418,537.23 against printed 418,537.23. Without it the export is reconciled ungated while the weekly
+ * statement has been refused-unless-it-ties since WP2, which is the asymmetry L8 names.
+ *
+ * Returns null rather than throwing: an older export may carry no pivot, and the tie-out reports that
+ * as ungated instead of failing the upload.
+ */
+export async function readPivotSheet(input: File | ArrayBuffer): Promise<Grid | null> {
+  const buf = input instanceof ArrayBuffer ? input : await input.arrayBuffer();
+  const head = new Uint8Array(buf.slice(0, 2));
+  if (!(head[0] === 0x50 && head[1] === 0x4b)) return null; // pivots only exist in real .xlsx
+  const ExcelJSMod = await import("exceljs");
+  const wb = new ExcelJSMod.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets.find((w) => /pivot/i.test(w.name));
+  return ws ? sheetToGrid(ws) : null;
 }
 
 

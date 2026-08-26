@@ -1,9 +1,11 @@
 import type { Router } from "express";
 import { requireRole, requireOrg } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
+import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { ingestPilotPrices } from "../../services/pilotPriceIngest.js";
+import { runFuelReconciliation } from "../../services/fuelReconRun.js";
+import { writeAudit } from "../../lib/audit.js";
 import { ingestPilotLocations } from "../../services/pilotLocationsIngest.js";
 import { ingestPostedPrices } from "../../services/postedPriceIngest.js";
 import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../../services/postedPriceFetch.js";
@@ -83,6 +85,85 @@ export function registerNetworkRoutes(router: Router): void {
         return;
       }
       res.json(result);
+    }),
+  );
+
+  /**
+   * Reconcile a vendor report against our own fills, and RECORD the finding (F5, migration 0249).
+   *
+   * The browser decodes the container and sends words (PDF) or the cell grid (export); the server
+   * re-parses, gates, matches and writes. `fuel_recon_runs` has no client write policy, so this is the
+   * only way a reconciliation can exist — a browser cannot assert one (D-FX1).
+   */
+  router.post(
+    "/recon-runs",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const body = req.body as {
+        words?: unknown; grid?: unknown; pivotGrid?: unknown; filename?: unknown; statementId?: unknown;
+      };
+      const result = await runFuelReconciliation(admin, req.auth!.orgId!, req.auth!.userId, {
+        words: Array.isArray(body?.words) ? (body.words as StatementWord[]) : null,
+        grid: Array.isArray(body?.grid) ? (body.grid as unknown[][]) : null,
+        pivotGrid: Array.isArray(body?.pivotGrid) ? (body.pivotGrid as unknown[][]) : null,
+        filename: typeof body?.filename === "string" ? body.filename : null,
+        statementId: typeof body?.statementId === "string" ? body.statementId : null,
+      });
+      if (!result.ok) {
+        // The gate's reasons travel with the refusal, for the same reason the statement route does it:
+        // "the export didn't add up" is useless to the person holding the file; "diesel gallons read
+        // 418,530 against the 418,537 its own PivotTable prints" is actionable.
+        res.status(422).json({
+          ...apiError("recon_rejected", result.error ?? "Could not reconcile that report"),
+          tieOutFailures: result.tieOutFailures ?? [],
+        });
+        return;
+      }
+      const s = result.result!.summary;
+      await writeAudit(admin, {
+        orgId: req.auth!.orgId!,
+        actorId: req.auth!.userId,
+        action: "fuel.recon_run",
+        entity: "fuel_recon_runs",
+        entityId: result.runId,
+        // The data-quality counts ride along: they are what somebody will want to explain a moved
+        // figure with, and the run row itself is append-only so this is the only place they can grow.
+        meta: {
+          kind: result.invoiceNo ? "weekly_statement" : "monthly_export",
+          invoice: result.invoiceNo, from: result.periodStart, to: result.periodEnd,
+          gated: result.tieOutGated,
+          clean: s.clean, dateDrift: s.dateDrift,
+          missingInSystem: s.missingInSystem, missingOnReport: s.missingOnReport,
+          exposure: s.exposure,
+        },
+      });
+      res.json(result);
+    }),
+  );
+
+  /** The runs we hold, newest period first. Superseded ones are history, not a finding to act on. */
+  router.get(
+    "/recon-runs",
+    requireOrg,
+    requireRole("admin", "fleet_manager", "dispatcher"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const { data, error } = await admin
+        .from("fuel_recon_runs")
+        .select("id, source_kind, source_filename, invoice_no, period_start, period_end, tie_out_gated, tie_out_notes, matcher_version, summary, unmatchable_lines, created_at")
+        .eq("org_id", req.auth!.orgId!)
+        .is("superseded_by", null)
+        .order("period_start", { ascending: false })
+        .limit(100);
+      if (error) {
+        dbErrorResponse(res, "fuel_recon_runs read", error, "Could not load your reconciliations");
+        return;
+      }
+      res.json({ ok: true, runs: data ?? [] });
     }),
   );
 

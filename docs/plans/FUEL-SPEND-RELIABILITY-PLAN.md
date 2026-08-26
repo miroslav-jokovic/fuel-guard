@@ -711,7 +711,43 @@ recoverable dollars to owed dollars.
 
 ---
 
-### F5 · A reconciliation run is persisted, and the export gains its tie-out
+### F5 · A reconciliation run is persisted, and the export gains its tie-out — DONE 2026-08-25 (migration 0249)
+
+**What shipped.**
+- **`fuel_recon_runs` (0249)** — evidence. Append-only by trigger in 0243's style, **undeletable even
+  by the service role** (SQLSTATE `FR010`/`FR011`), no client write policy at all, pinned in
+  `RETENTION_FORBIDDEN`. The verdict is stored as `summary jsonb` — `ReconSummary` verbatim — because
+  it is a snapshot of a typed result and thirty numeric columns would drift from the type the day a
+  status is added. Period, source, tolerances and who ran it are real columns. There is deliberately
+  no `dollars_at_stake`.
+- **The tolerances are snapshotted (D-FX9)**, so a run reconciled at a cent a gallon still reads that
+  way after the setting widens, alongside a `matcher_version` so two runs are only compared when the
+  matcher matches.
+- **`POST /api/fueling/recon-runs`** — the browser decodes (only it has `pdfjs` and ExcelJS) and sends
+  words or the grid; the server re-parses, gates, reads the org's fills with the service role, matches
+  and writes. Plus `GET` for the history. Audited as `fuel.recon_run` with the data-quality counts,
+  because the run row itself is immutable and this is the only place they can accumulate.
+- **L8 — the export is gated now, and the total was there all along.** The workbook is three sheets;
+  only the first was ever read. The third is a `PivotTable` whose Grand Total prints `Sum of Quantity`.
+  Verified on the real 2026-06/07 export: **parsed 418,537.23, printed 418,537.23**. A file with no
+  pivot is *not* refused — older exports may lack one — but the run records `tie_out_gated = false`,
+  because "we checked and it agreed" and "there was nothing to check" must never look the same.
+- **Web** — `ReconcileTab` posts instead of computing, renders what the server recorded, says the run
+  is kept, and gained **the CSV export it was the only tab on the page never to have**. It no longer
+  pages `fuel_transactions` from the browser at all.
+
+**Verified by:** `pnpm test` — including the new PGlite matrix `fuel-recon-runs` (**18 passed**),
+covering append-only for the service role, undeletable in single and bulk form, no client insert for
+admin/fleet_manager/dispatcher, org scope on read, and the supersede chain. Plus 9 service tests with
+`expectOrgScoped`, and 3 new tab tests pinning that the browser posts rather than concludes.
+`pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:filesize`, `lint:funcsize`,
+`lint:comment-claims`, `lint:boundaries`, `lint:upserts`, `lint:ui-adoption`, `lint:tokens-parity`,
+`pnpm --filter web lint:tokens`.
+
+**One deviation from the plan, stated:** the run stores the summary, not every row. Row-level
+persistence is F6's `fuel_exceptions`, which is where a row acquires a lifecycle; storing them twice
+would leave two records of the same finding with nothing to say which was authoritative. The POST
+returns the full result so the tab renders immediately.
 
 **Prerequisites:** F4.
 
