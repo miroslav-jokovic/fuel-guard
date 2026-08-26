@@ -21,6 +21,7 @@
  * Diesel moved 32% across the window these reports cover; against a fixed baseline every CA fill in a
  * rising market looks like an incident.
  */
+import { dieselTaxSplit, type DieselTaxSplit } from "../fuelTax/taxPremium.js";
 import { isTractorFuel, totalsOf, type SpendLine } from "./types.js";
 
 export interface ExceptionFill {
@@ -65,6 +66,16 @@ export interface ExceptionReport {
   excess: number;
   /** Share of all tractor gallons in the input. */
   gallonShare: number | null;
+  /**
+   * How much of `excess` is the jurisdictions' tax rates rather than the price of the fuel (F10).
+   *
+   * The premium these reports have always shown is a pump-price premium, and for an avoided-state
+   * report a large part of it is the state's own tax rate — which the carrier owes on the miles it
+   * drives there whether it buys the fuel there or not. Measured on production, 41% of the California
+   * premium is exactly that. Null when no gallon in either population could be priced; a consumer
+   * must state `measuredShare` beside any figure taken from here.
+   */
+  taxSplit: DieselTaxSplit | null;
   fills: ExceptionFill[];
   byUnit: ExceptionGroup[];
   bySite: ExceptionGroup[];
@@ -127,6 +138,9 @@ export function exceptionReport(lines: readonly SpendLine[], selects: (l: SpendL
     discountMeasuredShare: hitT.retailShare,
     excess: r2(fills.reduce((a, f) => a + f.excess, 0)),
     gallonShare: allGallons > 0 ? hitT.gallons / allGallons : null,
+    // The SAME two populations the excess above is measured between — the selected fills against the
+    // ones that broke no rule — so the tax half and the pump half describe one comparison and not two.
+    taxSplit: dieselTaxSplit(hit, rest),
     fills: [...fills].sort((a, b) => b.excess - a.excess),
     byUnit: group(fills, (l) => l.unit),
     bySite: group(fills, (l) => (l.site ? `${l.site} ${l.city ?? ""} ${l.state ?? ""}`.trim() : (l.city ?? null))),

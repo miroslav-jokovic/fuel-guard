@@ -84,6 +84,49 @@ const discountTile = computed(() => {
 });
 
 /**
+ * How much of the excess above is a jurisdiction's tax rate rather than a purchasing decision (F10).
+ *
+ * ── WHY THIS SENTENCE EXISTS ────────────────────────────────────────────────────────────────────
+ * The premium on this tab is a PUMP-price premium, and on the avoided-state report a large part of it
+ * is the state's own fuel tax: California levies $0.979/gal against a $0.334 fleet-wide average.
+ * Under IFTA that tax follows the miles BURNED in a state, not the gallons bought there, so a truck
+ * that crossed California on fuel from Nevada would still owe most of it. Measured on production over
+ * the default window, 41% of the $19,858 California premium is exactly that. Reporting the whole
+ * figure as though a dispatcher could have avoided it is the same error as the verdict band that
+ * added three overlapping reports together — arithmetically right, pointed at the wrong person.
+ *
+ * The three figures come from `analyzePolicyExceptions` and are measured over ONE set of gallons, so
+ * they add up; the share that set covers is stated because it is never all of them (Oregon taxes by
+ * the mile, and the table stops where the quarterly capture stopped).
+ */
+const taxLine = computed(() => {
+  const s = props.report.taxSplit;
+  if (!s || s.taxPremiumPerGal == null || s.preTaxPremiumPerGal == null || s.measuredGallons === 0) return null;
+  const scope =
+    `Purchase-state tax at the pump — not net of IFTA — from the ${s.versions.join(" and ")} IFTA matrix, ` +
+    `measured over ${pct1(s.measuredShare)} of these gallons.` +
+    (s.provisional ? " The current quarter's matrix is not final until IFTA publishes it." : "");
+  // A NEGATIVE tax premium is the ordinary case for the off-network report — those fills are wherever
+  // the truck happened to be, which averages out lower than a report selecting one expensive state.
+  // Printed as "none of it" rather than as a negative dollar figure under the word "tax", which is
+  // the shape of defect B3 was.
+  if (s.taxPremiumPerGal <= 0) {
+    return {
+      lead: `State fuel tax accounts for none of this premium — these fills carry ${usd3(s.taxPerGal)} a gallon of tax against ${usd3(s.baselineTaxPerGal)} on the rest of the fleet's fuel, so all of the gap is the price of the fuel itself.`,
+      scope,
+    };
+  }
+  return {
+    lead:
+      `${usd(s.taxExcess)} of that excess is state fuel tax — ${usd3(s.taxPerGal)} a gallon here against ` +
+      `${usd3(s.baselineTaxPerGal)} elsewhere — which is owed on the miles driven there whichever state the fuel ` +
+      `was bought in. The other ${usd3(s.preTaxPremiumPerGal)} a gallon is the price of the fuel itself, and is ` +
+      `the only part a different stop could have changed.`,
+    scope,
+  };
+});
+
+/**
  * Newest first by default. An exception report is read for what happened lately; landing on the oldest
  * fill of a ninety-day window makes the reader sort before they can start.
  */
@@ -172,6 +215,14 @@ function exportRows() {
         This figure overlaps the other exception tabs — one fill can break more than one rule and is
         counted on each — so they must not be added together.
       </p>
+      <!-- F10. The premium above is a pump-price premium and part of it is the jurisdiction's own tax
+           rate, which follows the miles burned there rather than the gallons bought there. Splitting
+           it is the difference between "somebody fuelled badly" and "that state charges more", and
+           only the second half of the split is something a different stop could have changed. -->
+      <div v-if="taxLine" class="mt-3 rounded-surface bg-surface-subtle px-3 py-2.5">
+        <p class="text-sm text-ink-secondary">{{ taxLine.lead }}</p>
+        <p class="mt-1 text-xs text-ink-tertiary">{{ taxLine.scope }}</p>
+      </div>
       <p v-if="note" class="mt-2 text-sm text-ink-secondary">{{ note }}</p>
     </BaseCard>
 
