@@ -165,12 +165,6 @@ body {
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand-accent-strong) 30%, transparent);
   }
 
-  .sidebar-avatar {
-    color: var(--ink);
-    background: var(--surface-muted);
-    box-shadow: inset 0 0 0 1px var(--edge);
-  }
-
   .sidebar-account-item {
     color: var(--ink);
     @apply block w-full rounded-control px-3 py-2 text-left text-sm font-medium transition-colors;
