@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { computed, ref, type Ref } from "vue";
-import type { SpendDay } from "@fuelguard/shared";
+import { spendSeries, periodTotals, type SpendDay } from "@fuelguard/shared";
 
 /**
  * The trend tab — the page's default view, and the one a boss opens it for.
@@ -18,10 +18,17 @@ import type { SpendDay } from "@fuelguard/shared";
  *   • An edge bucket labelled past the window — a report ending on the 24th printing a row reading
  *     "2026-08-24 → 2026-08-30" (commit 37ec5f6).
  *
- * The third is open (L13): the headline tiles show the last COMPLETE period, and never say which one.
- * On the default 90-day week-grain view that is the week ending about ten days ago, sitting above a
- * table of every week and beside a fill count spanning all ninety days. F7 fixes it; the assertion
- * below records today's behaviour so the fix is visible when it lands rather than silent.
+ * The third was open when this file was written and F7 closed it (L13): the headline tiles describe
+ * the last COMPLETE period, which on a 90-day week-grain view is the week ending about ten days ago,
+ * and they now say so. The assertion below was a negative one recording the old behaviour; it stayed
+ * green through F7 by accident, because the fix put the period in its own line above the tiles rather
+ * than inline with "Fuel spend". It is the positive assertion now.
+ *
+ * ── AND THE SUMS MOVED (F9) ──────────────────────────────────────────────────────────────────────
+ * The tab no longer pages truck-days: `fuel_spend_by_period` sums them and `periodTotalsFromSums`
+ * derives. The fixture below is therefore built by running the REAL fold over real day rows and
+ * handing the result to the mock, so what these tests see is what the RPC would actually return —
+ * a hand-written sums object would drift from the shape without anything noticing.
  */
 
 const day = (d: string, o: Partial<SpendDay> = {}): SpendDay => ({
@@ -50,14 +57,25 @@ function threeWeeksAndABit(): SpendDay[] {
 const DAYS = threeWeeksAndABit();
 const seen = { daysFilters: null as Ref<{ from: string; to: string; vehicleIds: string[] }> | null };
 
-const asQuery = <T,>(data: T) => ({
-  data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null),
+const asQuery = <T,>(get: () => T) => ({
+  data: computed(get), isLoading: ref(false), isError: ref(false), error: ref(null),
 });
 
-vi.mock("./useSpendDays", () => ({
-  useSpendDaysQuery: (filters: Ref<{ from: string; to: string; vehicleIds: string[] }>) => {
-    seen.daysFilters = filters;
-    return asQuery(DAYS);
+vi.mock("./useSpendPeriods", () => ({
+  useSpendPeriodsQuery: (f: Ref<{ from: string; to: string; vehicleIds: string[] }>, g: Ref<string>) => {
+    seen.daysFilters = f;
+    return asQuery(() => {
+      const grain = g.value as "day" | "week" | "month";
+      const win = { from: f.value.from, to: f.value.to };
+      // The real bucketing and the real derivation — only the transport is mocked.
+      const periods = spendSeries(DAYS, grain, win);
+      return {
+        periods,
+        overall: periodTotals(DAYS, win.from, win.to),
+        rejected: DAYS.reduce((a, d) => a + d.milesRejected, 0),
+        truckDays: DAYS.length,
+      };
+    });
   },
 }));
 vi.mock("@/composables/useIdleCostBasis", () => ({
@@ -135,13 +153,13 @@ describe("SpendTrendTab", () => {
     expect(render({ grain: "month" }).text()).toContain("Month by month");
   });
 
-  // ── L13, open ─────────────────────────────────────────────────────────────────────────────────
-  // Records today's behaviour so F7's fix is visible rather than silent: the headline tiles describe
-  // the last COMPLETE period and name no period at all, while the table below spans every week.
-  it("shows a headline for the last complete period, and does not yet name which one (L13)", () => {
+  // ── L13, closed by F7 ─────────────────────────────────────────────────────────────────────────
+  it("names the period its headline describes", () => {
     const t = render().text();
     expect(t).toContain("vs prior week");
-    // When this starts failing, F7 has landed and the assertion should become the positive one.
-    expect(t).not.toMatch(/Fuel spend[^]{0,40}week of 2026-08-17/);
+    // The tiles are the last COMPLETE week — 2026-08-17, not the two-day stub after it — and the
+    // page says which, because it sits above a table of every week and a count spanning the window.
+    expect(t).toContain("week of 2026-08-17");
+    expect(t).toContain("The week in progress is excluded");
   });
 });

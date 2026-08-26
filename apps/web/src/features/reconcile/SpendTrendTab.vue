@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
-import { spendSeries, comparablePeriods, periodTotals, type SpendDay, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
+import { comparablePeriods, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { downloadCsv } from "@/lib/csv";
@@ -11,7 +11,8 @@ import { useQueryClient } from "@tanstack/vue-query";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
 import IdleCostCard from "./IdleCostCard.vue";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
-import { useSpendDaysQuery, type SpendQueryFilters } from "./useSpendDays";
+import { type SpendQueryFilters } from "./useSpendDays";
+import { useSpendPeriodsQuery } from "./useSpendPeriods";
 import { usd, usd2, usd3, gal, pct1 } from "./format";
 
 /**
@@ -35,21 +36,23 @@ const grain = computed(() => props.grain);
 const grainLabel = computed(() => (grain.value === "day" ? "day" : grain.value === "month" ? "month" : "week"));
 
 const filters = computed(() => props.filters);
-const { data, isLoading, isError, error } = useSpendDaysQuery(filters);
-const days = computed<SpendDay[]>(() => data.value ?? []);
-
-// The requested window, so an edge bucket is labelled by the days it holds rather than by the
-// calendar week it belongs to.
-// The org's configured idle burn rate, so this page and the Idling page cost an idle hour identically.
+/** The org's configured idle burn rate, so this page and the Idling page cost an idle hour identically. */
 const idleBasis = useIdleCostBasis();
-const series = computed(() =>
-  spendSeries(days.value, grain.value, { from: props.filters.from, to: props.filters.to }, {
-    idleGalPerHour: idleBasis.value.idleGalPerHour,
-  }),
-);
+const periodOpts = computed(() => ({ idleGalPerHour: idleBasis.value.idleGalPerHour }));
+
+/*
+ * Summed in the database (0252), derived here — see `useSpendPeriods`.
+ *
+ * This used to page every truck-day in the window into the browser and fold them: 13,095 rows over
+ * fourteen sequential round trips, to display thirteen weekly figures, none of which is a truck-day.
+ * Only the SUMMATION moved; every judgement `periodTotalsFromSums` makes is the same code it always
+ * was, and a parity test runs both implementations over the same rows.
+ */
+const { data, isLoading, isError, error } = useSpendPeriodsQuery(filters, grain, periodOpts);
+const series = computed<SpendPeriod[]>(() => data.value?.periods ?? []);
 const comparison = computed(() => comparablePeriods(series.value));
 /** Everything in the window, for the tiles — the totals a boss opens the page for. */
-const overall = computed(() => periodTotals(days.value, series.value[0]?.from ?? "", series.value[series.value.length - 1]?.to ?? ""));
+const overall = computed<SpendPeriod | null>(() => data.value?.overall ?? null);
 
 /** Signed change against the prior period, as a percentage — null when there is nothing to compare. */
 const delta = (pick: (p: (typeof series.value)[number]) => number | null): string | null => {
@@ -95,13 +98,13 @@ const tiles = computed(() => {
   return [
     // `upIsBad` is the whole reason the tone is per-tile: spend rising is bad, MPG rising is good, and a
     // tile that coloured every increase red would call the one genuine saving on this page a problem.
-    { label: "Fuel spend", value: usd(c?.spend ?? overall.value.spend), pick: (p: SpendPeriod) => p.spend, upIsBad: true, note: "tractor fuel only" },
-    { label: "Gallons", value: gal(c?.gallons ?? overall.value.gallons), pick: (p: SpendPeriod) => p.gallons, upIsBad: true },
-    { label: "Paid per gallon", value: usd3(c?.pricePerGal ?? overall.value.pricePerGal), pick: (p: SpendPeriod) => p.pricePerGal, upIsBad: true },
+    { label: "Fuel spend", value: usd(c?.spend ?? overall.value?.spend ?? 0), pick: (p: SpendPeriod) => p.spend, upIsBad: true, note: "tractor fuel only" },
+    { label: "Gallons", value: gal(c?.gallons ?? overall.value?.gallons ?? 0), pick: (p: SpendPeriod) => p.gallons, upIsBad: true },
+    { label: "Paid per gallon", value: usd3(c?.pricePerGal ?? overall.value?.pricePerGal ?? null), pick: (p: SpendPeriod) => p.pricePerGal, upIsBad: true },
     // Cost per mile is the figure that survives both a market move and a busier fleet, which is why it
     // sits beside them rather than being left for the reader to divide out.
-    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true, note: "includes reefer and DEF" },
-    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
+    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value?.costPerMile ?? null), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true, note: "includes reefer and DEF" },
+    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value?.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
     // Idle is NOT a headline tile. Total idle cost is a fact about running trucks, not an accusation,
     // and a tile that reddens when it rises says the opposite. The idle card below carries the number
     // that IS actionable — avoidable idle, on trucks that had an alternative.
@@ -153,7 +156,7 @@ const columns: DataTableColumn[] = [
   { key: "idle", label: "Idle", numeric: true, width: "xs" },
 ];
 
-const hasData = computed(() => days.value.length > 0);
+const hasData = computed(() => series.value.length > 0);
 
 const toast = useToastStore();
 const qc = useQueryClient();
@@ -196,7 +199,7 @@ function exportCsv() {
     ]),
   );
 }
-const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected, 0));
+const rejected = computed(() => data.value?.rejected ?? 0);
 </script>
 
 <template>
@@ -225,7 +228,7 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
       <div class="flex flex-wrap items-center justify-between gap-3">
         <p class="text-sm text-ink-muted">
           {{ series.length }} {{ grainLabel }}{{ series.length === 1 ? "" : "s" }} ·
-          {{ days.length.toLocaleString() }} truck-days
+          {{ (data?.truckDays ?? 0).toLocaleString() }} truck-days
         </p>
         <div class="flex items-center gap-2">
           <!-- The PDF is a PAGE-level action now (it covers every tab), so only this tab's own series
