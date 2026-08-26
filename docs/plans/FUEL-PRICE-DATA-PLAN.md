@@ -1,5 +1,7 @@
 # All-Network Truckstop Locations + Near-Real-Time Prices — Analysis & Data Plan
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — production `fuel_plans` has 1 row ever; re-validate demand before building; see `FUEL-SPEND-RELIABILITY-PLAN.md` F12.
+
 **Goal:** expand Smart Fueling from the current single-company, Pilot-only setup to a **centralized station + price database covering all US/Canada truckstops**, usable by **many carrier tenants** of the app, with reliable, fresh (near-real-time) pump prices.
 
 **Scope of this document:** (1) precise audit of the current situation in the repo, (2) verified research (2026-07) of every realistic data source for locations and prices, (3) the target multi-tenant architecture and a phased build plan. All external claims were re-verified against providers' current sites in July 2026; source URLs inline.

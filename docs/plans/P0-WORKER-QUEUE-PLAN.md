@@ -1,6 +1,10 @@
 # P0 — Durable Queue & Worker Extraction Plan
 
-> Status: **AUTHORING → BUILDING** · Created 2026-08-01 · Resolves audit finding **P0** (`docs/ARCHITECTURE-AUDIT-2026-08-01.md`) — "the entire API is pinned to a single instance because all heavy background work runs in-process."
+> Status *(corrected 2026-08-26 truth pass)*: **WQ0–WQ3 + WQ1c CODE-COMPLETE; WQ4 (the live cutover)
+> is an operator runbook, not code — see `docs/WQ4-CUTOVER-RUNBOOK.md` (2026-08-02)**, which records
+> that every background kind runs through `dispatchJob` in both modes, schedulers enqueue in queue
+> mode, and leases + the role split make multi-replica safe. The "AUTHORING → BUILDING" that stood
+> here dated from the day the plan was created and was never advanced. · Created 2026-08-01 · Resolves audit finding **P0** (`docs/ARCHITECTURE-AUDIT-2026-08-01.md`) — "the entire API is pinned to a single instance because all heavy background work runs in-process."
 >
 > This **evolves the existing infrastructure** (the `jobs` ledger from `0027`, the `worker.ts` service, and the `RUN_SCHEDULERS_IN_PROCESS` split in `docs/WORKER-DEPLOYMENT.md` / `docs/plans/AUTOMATION-BUILD-PLAN.md`). It does **not** introduce a new queue system or new infrastructure. Build **one phase per working session**; clear §8 before commit. Every decision is LOCKED (Q1–Q8) unless a row says otherwise.
 

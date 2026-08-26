@@ -1,5 +1,7 @@
 # Re-sync Hardening — Enterprise-Grade, Non-Interrupting, Precise
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Goal:** make telematics re-sync fast, resumable, observable, and safe to run in the background of a paid multi-tenant service — without ever silently producing wrong/blind results. Grounded in the actual code (file:line refs), no assumptions.
 
 ## A. Why the last re-sync took ~3 h and why it interrupts service

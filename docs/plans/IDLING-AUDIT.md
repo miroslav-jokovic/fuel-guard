@@ -1,5 +1,7 @@
 # Idling Logic & Report — Audit
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Prepared for:** Miki
 **Date:** July 13, 2026
 **Scope:** FuelGuard idle tracking — data pipeline, scoring logic, vehicle capability flags, and the on-screen Idling report.

@@ -1,5 +1,7 @@
 # Planned Fueling — Implementation Plan
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — production `fuel_plans` has 1 row ever; re-validate demand before building; see `FUEL-SPEND-RELIABILITY-PLAN.md` F12.
+
 **Feature:** A daily, per-truck fuel plan. FuelGuard reconstructs each truck's route, finds the Pilot/Flying J stations along it, and suggests exactly where to fuel and how many gallons — optimized for lowest net cost within the truck's range, reserve, and driver-hours limits. Output is a **read-only report/page** (no write-back to Samsara). Suggestions **auto-recalculate** when a truck deviates from the assumed route.
 
 **Status:** Research verified against live official docs (July 2026). **Reviewed adversarially — see `PLANNED-FUELING-RISK-ANALYSIS.md` for the full assumption/blocker/gap register.** Critical safety fixes from that review are folded in below (emergency sizing subordinate to safety, INFEASIBLE state, HOS min-of-clocks, detour/idle burn, CA edge cases, measurement loop as launch gate). Remaining open items and business decisions are in §12. Supersedes the earlier `planned-fueling-on-route-plan.md` and `PLANNED-FUELING-PILOT-FJ-SPEC.md`.

@@ -1,5 +1,7 @@
 # WP4 — Odometer Rules Hardening: Decisions + Implementation Record
 
+> **⚠ DORMANT (2026-08-26 truth pass):** EFS/anomaly-era spec, superseded in practice by the fuel-spend plans (2026-08).
+
 **Status:** implemented · **Date:** 2026-07-24 · **Predecessors:** WP1–WP3
 
 ## 1. Regression: tolerance + OBD arbitration

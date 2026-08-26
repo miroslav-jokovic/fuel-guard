@@ -1,5 +1,7 @@
 # WP5 — Volume/Capacity Hardening: Decisions + Implementation Record
 
+> **⚠ DORMANT (2026-08-26 truth pass):** EFS/anomaly-era spec, superseded in practice by the fuel-spend plans (2026-08).
+
 **Status:** implemented · **Date:** 2026-07-24 · **Predecessors:** WP1–WP4
 
 ## 1. A dead capacity rule is now visible (tank_capacity_gal unset/0)

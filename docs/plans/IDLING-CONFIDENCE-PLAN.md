@@ -1,5 +1,7 @@
 # Idling Data — Plan to Reach >95% Confidence
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Prepared for:** Miki
 **Date:** July 13, 2026
 **Goal:** raise every dimension of the idling system to >95% confidence in *reliable and precise* data — and, just as important, make that confidence **measured by the system**, not asserted by a person.

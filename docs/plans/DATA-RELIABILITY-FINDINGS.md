@@ -1,5 +1,7 @@
 # FuelGuard Data Reliability — Analysis & Findings
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Date:** 2026-07-02 · **Scope:** EFS import, Dashboard fuel spend graph, location mismatch alerts, odometer mismatches. Analysis only — no code changed.
 
 ---

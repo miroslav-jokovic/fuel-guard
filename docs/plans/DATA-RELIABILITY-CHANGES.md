@@ -1,5 +1,7 @@
 # Data Reliability Fixes — Implemented
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Date:** 2026-07-02 · Companion to `DATA-RELIABILITY-FINDINGS.md`. All 10 report items implemented. Nothing committed — review and commit when ready.
 
 **Verification:** shared 214/214, api 24/24 (incl. new pagination regression tests), web 9/9 · `tsc`/`vue-tsc` clean on all three packages · eslint clean on every touched file.

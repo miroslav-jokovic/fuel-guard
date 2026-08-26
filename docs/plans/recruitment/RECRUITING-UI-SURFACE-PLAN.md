@@ -830,6 +830,16 @@ next time either file is opened.
 tests prove the citations are gone and prove the reasons stayed, but only an eye can say whether a
 rewritten sentence still reads well at the width it renders at. **Worth reading aloud in U7.**
 
+### U9 · The §391 panel on /compliance — NOT STARTED *(stub added by the 2026-08-26 truth pass)*
+
+This step appeared in the header and in §5's sequencing block without a section body — the 2026-08-26
+truth pass flags that gap and adds this stub rather than leaving a step that exists only as a line in
+a table. What is known: U9's content is defined by **U2's reverted work** — the §391 recruiting-status
+panel, relocated to `/compliance`, which the U2 revert note above identifies as its correct address.
+What is NOT known is everything else: **U9 needs a full spec before build** (what the panel shows on
+/compliance, how it composes with the qualification surfaces already there, and what of U2's reverted
+code is salvageable versus a trap). Do not build from this stub.
+
 ---
 
 ## 5. Sequencing, and what this costs

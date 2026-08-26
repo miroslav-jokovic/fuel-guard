@@ -434,7 +434,13 @@ drift the sync would fix on day one is already visible.
 
 ---
 
-## 7b. ⚠ NOTHING HAS EVER RUN — and that is the next milestone
+## 7b. ⚠ CODE SHIPPED, NOTHING HAS EVER RUN — the first supervised run is the next milestone
+
+> *(corrected 2026-08-26 truth pass: the heading previously read "NOTHING HAS EVER RUN" alone, which
+> undersold the state — M2–M6 are code-complete and deployed, recorded step by step in
+> `MCLEOD-FIELD-GAP-PLAN.md` and now marked in §8 below. What has never happened is a production
+> RUN: the tables below were still all-zero when last measured. Both facts are true at once, and
+> the second one is why M-R exists.)*
 
 Measured against production on 2026-08-24, after M2–M6 shipped and 0239–0241 deployed:
 
@@ -546,13 +552,13 @@ Send their DBA the §6 Q5/Q6 spec. **This is the critical path** — everything 
 sandbox, but nothing can *ship* without a login on `lme`.
 **Done when:** a `fuelguard_ro` login on `lme` authenticates and returns the TMS driver count.
 
-### M2 — Schema
+### M2 — Schema — **DONE 2026-08-24 (migrations 0239–0241; recorded in `MCLEOD-FIELD-GAP-PLAN.md`, marked here 2026-08-26 truth pass)**
 Migration per §5.1, `merge_driver` per §5.2, PGlite matrix pinning the merge case, the unique indexes, and
 the `identity_source` constraint.
 **Done when:** `pnpm test` green with the new matrix printing `RESULT`; `lint:migrations`, `check-rls.mjs`,
 `lint:comment-claims` green.
 
-### M3 — Agent + contracts + link-only ingest
+### M3 — Agent + contracts + link-only ingest — **CODE DONE 2026-08-24 (per `MCLEOD-FIELD-GAP-PLAN.md`; marked 2026-08-26 truth pass — the Done-when demonstration has never run, see §7b)**
 `SOURCE=sqlserver` with `queries.mjs` (three column-explicit, `company_id`-bound SELECTs), `hash.mjs`;
 `tmsDriverInput`/`tmsVehicleInput`/`tmsTrailerInput` in `packages/shared/src/tms.ts`; generic
 `apps/api/src/tms/rosterIngest.ts` + three entity configs; routes under `/api/tms/roster/*`. Link-only.
@@ -561,12 +567,12 @@ Tests fixture-driven with an injectable row-lister (`listerOverride` pattern), s
 **Done when:** link-only run reproduces §7's numbers (162 / 175 / 201) against the sandbox. *§7 replaces this
 step's original discovery purpose — it is now a regression check, which is a better use of it.*
 
-### M4 — Identity writes
+### M4 — Identity writes — **CODE DONE 2026-08-24 (per `MCLEOD-FIELD-GAP-PLAN.md`; marked 2026-08-26 truth pass — never demonstrated against a live sandbox, see §7b)**
 Field writes for matched `identity_source='mcleod'` rows per §4 and D-MR6. No creation, no deactivation.
 **Done when:** a sandbox change appears within one sweep, and an office-edited field claims to `manual` and
 stops being overwritten — both pinned by tests.
 
-### M5 — Creation + Samsara demotion
+### M5 — Creation + Samsara demotion — **CODE DONE 2026-08-24, in two parts (per `MCLEOD-FIELD-GAP-PLAN.md`; marked 2026-08-26 truth pass — never demonstrated live, see §7b)**
 McLeod creates rows (starting with tractors 789–803). Samsara syncs drop to link-only per D-MR5, **still
 writing `phone`**. Unmatched Samsara records reported, not created.
 
@@ -577,12 +583,12 @@ writing `phone`**. Unmatched Samsara records reported, not created.
 **Done when:** a McLeod-created driver later acquires its `samsara_driver_id` and phone from the next Samsara
 tick — the sequence that proves §3's split works.
 
-### M6 — Deactivation
+### M6 — Deactivation — **CODE DONE 2026-08-24 (per `MCLEOD-FIELD-GAP-PLAN.md`; marked 2026-08-26 truth pass — the dry-run acceptance case has never run, see §7b)**
 D-MR7, with the mass-deactivation guard. The 10 stale vehicles from §7 are the acceptance case.
 **Done when:** the guard is pinned by a test feeding a thin result and asserting nothing is deactivated; the
 10 vehicles retire in a dry run.
 
-### M7 — Continuous operation
+### M7 — Continuous operation — **NOT STARTED (noted 2026-08-26 truth pass: blocked behind M-R's first supervised run, §7b)**
 2-minute interval; `last_synced_at` surfaced as "as of HH:MM" with a staleness warning; the exception report
 (§7's 7 unknown drivers, 34 unmatched trailers) surfaced where an admin will see it.
 **Done when:** the freshness indicator is live and a stopped agent raises the staleness state.

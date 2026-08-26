@@ -1,5 +1,7 @@
 # Avoidable idling — HOS-framed, evidence-based model (PLAN)
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+
 **Status:** proposal for review. No code changes beyond the APU source-of-truth fix already applied.
 **Goal:** a per-truck avoidable-idle number that is duty-aware, temperature-aware and equipment-aware — no
 systematic over-count, and every excluded minute explainable.
