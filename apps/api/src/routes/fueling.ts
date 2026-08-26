@@ -5,6 +5,7 @@ import { registerMapRoutes } from "./fueling/mapProxies.js";
 import { registerNetworkRoutes } from "./fueling/networks.js";
 import { registerStationRoutes } from "./fueling/stations.js";
 import { registerSpendRoutes } from "./fueling/spend.js";
+import { registerExceptionRoutes } from "./fueling/exceptions.js";
 
 /**
  * Fueling / route-planning routes, assembled from cohesive modules (P2 split — was one 546-line file):
@@ -23,5 +24,6 @@ export function fuelingRouter(): Router {
   registerNetworkRoutes(router);
   registerStationRoutes(router);
   registerSpendRoutes(router);
+  registerExceptionRoutes(router);
   return router;
 }
