@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { RECON_EXCEPTION_KINDS } from "@fuelguard/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { runFuelReconciliation } from "./fuelReconRun.js";
 
@@ -146,5 +147,27 @@ describe("runFuelReconciliation", () => {
     const rec = seed();
     const r = await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
     expect(r.result?.rows[0]?.system?.unit).toBe("701");
+  });
+
+  /**
+   * ── THE CLOSE SCOPE, WHICH THE PGlite MATRIX CANNOT SEE FROM HERE (0253) ──────────────────────
+   * `sync_fuel_exceptions` closes what a producer no longer finds, and it can only do that if it is
+   * TOLD which kinds this producer owns. Omit `p_kinds` and the RPC — by the deliberate default that
+   * keeps the pre-deploy four-argument call safe — closes nothing at all, silently, forever. That is
+   * the exact failure 0250 shipped with, in a different disguise, so it is pinned on the argument
+   * rather than left to the migration's own matrix.
+   *
+   * It is asserted against the shared constant, not a literal list: a producer that closes kinds it
+   * does not own retires somebody else's money, and copying the list here is how the two drift.
+   */
+  it("tells the ledger which kinds this run is authoritative for, or nothing could ever close", async () => {
+    const rec = seed();
+    await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
+    const sync = rec.rpcs().find((c) => c.fn === "sync_fuel_exceptions");
+    expect(sync, "the run never filed its findings").toBeTruthy();
+    const args = (sync?.args ?? {}) as Record<string, unknown>;
+    expect(args.p_kinds).toEqual(RECON_EXCEPTION_KINDS);
+    expect(args.p_org).toBe(ORG);
+    expect(args.p_run).toBe("run-1");
   });
 });

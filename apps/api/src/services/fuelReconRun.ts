@@ -31,6 +31,7 @@ import {
   readPivotGrandTotalGallons,
   reconcileFuelReport,
   reconFindings,
+  RECON_EXCEPTION_KINDS,
   stateTimeZone,
   type PilotReportFill,
   type ReconResult,
@@ -273,7 +274,17 @@ export async function runFuelReconciliation(
    */
   const findings = reconFindings(result);
   const { error: syncErr } = await admin.rpc("sync_fuel_exceptions", {
-    p_org: orgId, p_run: runId, p_findings: findings, p_actor: actorId,
+    p_org: orgId,
+    p_run: runId,
+    p_findings: findings,
+    p_actor: actorId,
+    // The kinds THIS producer is authoritative for, so the RPC can close what it no longer finds in
+    // the period this run read (0253). Before that migration the close was scoped by `run_id`, which
+    // the upsert had just rewritten to this very run — so nothing could ever close, and a discrepancy
+    // a corrected statement resolved sat open on the queue for good. Declared in shared beside
+    // `reconFindings` rather than written out here: a literal at a call site is how a producer ends up
+    // closing findings it does not own.
+    p_kinds: RECON_EXCEPTION_KINDS,
   });
 
   return {
