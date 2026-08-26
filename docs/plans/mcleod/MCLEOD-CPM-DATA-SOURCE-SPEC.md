@@ -158,17 +158,76 @@ settled in 2026:
 | `manifest_loaded_distance` | 0 | No — never populated |
 | `manifest_empty_distance` | 0 | No — never populated |
 
-Two consequences:
+**Resolved 2026-08-26 — see §4.1 and §4.2.** `move_distance` is the denominator; `movement`
+records loaded miles only; empty miles are not stored anywhere and must be inferred.
 
-1. **`move_distance` is the denominator**, with `fuel_distance` as a cross-check. The 0.38%
-   spread is small enough to treat as a data-quality alarm threshold rather than a modelling
-   choice.
-2. **Loaded-vs-empty CPM cannot be computed from `movement`.** Both manifest columns are empty.
-   The loaded/empty split must come from `in_state_distance` (597,956 rows) or be derived from
-   stop sequences. This is unresolved and is the largest open question in §7.
+### 4.1 What `move_distance` actually measures
 
-`in_state_distance` additionally gives per-state miles, which serves both CPM and an IFTA
-cross-check against the existing `fuelTax` logic.
+Stop-level distances reconstruct it almost exactly. Over 20,239 movements settled in 2026:
+
+| Measure | Value |
+|---|---:|
+| `SUM(movement.move_distance)` | 10,801,438 |
+| `SUM(stop.move_dist_from_previous)` | 10,609,285 (98.2%) |
+| Movements matching within 1 mile | **19,303 of 20,239 (95.4%)** |
+| Average stops per movement | 2.08 |
+
+Distance accumulates almost entirely on `SO` (delivery) stops — 10,713,860 miles across 23,373
+`SO` stops, versus 14,112 across 22,404 `PU` stops. The carrier runs overwhelmingly simple trips:
+20,735 movements have exactly two stops.
+
+That pattern means every recorded mile is a **pickup-to-delivery mile**. `move_distance` is
+**loaded miles**. The truck's trip from a delivery to its next pickup is not recorded on any row.
+
+> **D-MC15:** `movement.move_distance` (unit `MI`, confirmed on 21,542 of 21,547 rows) is the
+> loaded-mile denominator. `fuel_distance` runs 0.36% higher and is retained as a data-quality
+> cross-check, not as an alternative basis. A per-movement divergence beyond 2% is an alarm.
+
+### 4.2 Empty miles are absent but inferable — and worth about 4%
+
+Deadhead can be reconstructed because stop endpoints are complete: **46,384 of 46,384** stops in
+2026 carry both latitude/longitude and `city_id`, and 3,308 of 3,334 movements in a June sample
+have both a first-`PU` and a last-`SO` endpoint across 159 tractors.
+
+Chaining consecutive movements per tractor and measuring previous-delivery → next-pickup:
+
+| June 2026 | Value |
+|---|---:|
+| Chained legs | 3,149 |
+| Loaded miles | 1,656,596 |
+| Deadhead (great-circle floor) | 65,463 |
+| **Deadhead as % of loaded** | **3.95%** |
+
+Great-circle understates road distance by roughly 20%, so true deadhead is near **4.7%**.
+
+> **D-MC16:** Total miles = loaded (`move_distance`) + inferred deadhead. The inference belongs
+> in the FuelGuard harness, not the extraction layer — the extraction ships stop coordinates and
+> timestamps, and the harness chains them. Ignoring deadhead would overstate CPM by ~4–5%, which
+> is too large to discard and too uncertain to treat as exact. Report it as a separate,
+> clearly-labelled estimated component, never merged silently into the loaded figure.
+
+### 4.3 `billed_distance` is not a denominator
+
+`drs_settle_hist.billed_distance` sums to 18,569,803 against 10,508,703 loaded miles for the same
+movements — 77% higher, at 1.02 settlement lines per movement, so this is not line duplication.
+The ratio is bimodal rather than constant, which rules out a unit conversion:
+
+| `billed_distance` ÷ `move_distance` | Movements |
+|---|---:|
+| below 0.95× | 219 |
+| **0.95–1.05× (equal)** | **10,103** |
+| 1.05–1.75× | 486 |
+| 1.75–1.85× (km would sit here) | 58 |
+| **above 1.85×** | **8,389** |
+
+Two clean clusters at ~1× and ~2× indicate `billed_distance` is the **order-level** distance
+repeated on each movement of a multi-movement order. `pay_distance` (10,884,021, +3.6% over
+loaded) is the driver-pay basis and tracks movement distance closely.
+
+> **D-MC17:** Never use `billed_distance` as a mileage denominator — on roughly 40% of movements
+> it counts the whole order. Note that `pay_distance_um` and `billed_distance_um` are **NULL on
+> all 20,833 rows**, so settlement distances carry no unit declaration and must be assumed `MI`
+> by convention rather than by evidence.
 
 ---
 
@@ -184,8 +243,8 @@ All queries are company-scoped (`company_id = @companyId`), parameterised, colum
 | `movement` | 296,242 | The trip. Distances, status, dates, `equipment_group_id`. |
 | `orders` | 150,990 | The customer order. Revenue, customer, commodity. |
 | `movement_order` | 294,871 | Movement ↔ order join (many-to-many). |
-| `stop` | 610,081 | Stop sequence, locations, actual times. |
-| `in_state_distance` | 597,956 | Per-state miles per movement. |
+| `stop` | 610,081 | Stop sequence, locations, actual times, **lat/lon (100% populated)**, `move_dist_from_previous`. |
+| `in_state_distance` | 597,956 | **Not per-movement** — see note below. |
 | `billing_history` | 154,693 | Invoiced revenue as billed. |
 | `freight_group` / `billing_freight_group` | 107,577 | Freight grouping for revenue splits. |
 
@@ -200,7 +259,14 @@ movement.equipment_group_id
 ```
 
 `equipment_item` has 748,419 rows. Extraction must resolve this join rather than assuming a
-tractor column exists.
+tractor column exists. `equipment_type_id = 'T'` selects the tractor row.
+
+**Correction on `in_state_distance`.** An earlier draft of this document described it as per-state
+miles per movement. It is not: it has **no `movement_id`**. Its key is
+`(origin_city_id, dest_city_id, state, distance_profile)` with `distance_profile = 'FUEL'` — it is
+McLeod's cached city-pair mileage lookup used to apportion a trip across states for fuel tax. It
+is still valuable, both as the IFTA state-apportionment source and as the road-mileage lookup for
+the deadhead inference in §4.2, but it is joined on city pairs, never on a movement key.
 
 ### 5.2 Accounting
 
@@ -233,6 +299,45 @@ Settlement is new scope:
 > load-bearing: settlement, payroll, checks, and GL are **four lifecycle views of one payment**.
 > They must never be summed together. FuelGuard imports each as its own fact table with its
 > lifecycle stage recorded, and the harness picks exactly one stage per cost question.
+
+#### Settlement lifecycle — resolved 2026-08-26
+
+`drs_settle_hist` carries 21 date columns. Because it is the *history* table, every row has
+already completed the full lifecycle, so stage population does not discriminate. Over 20,833
+rows paid in 2026:
+
+| Stage column | Populated |
+|---|---:|
+| `accrual_date` | 20,826 |
+| `ok2pay_date` | 20,833 |
+| `pay_date` | 20,833 |
+| `transfer_date` | 20,833 |
+| `check_number` | 20,833 |
+| `void_date` | **925** |
+
+The discriminator is not the date — it is `is_void`:
+
+| `is_void` | `payee_type` | `pay_method` | Rows | `total_pay` |
+|---|---|---|---:|---:|
+| N | C | M | 19,192 | $7,251,264 |
+| **Y** | C | M | **925** | **$339,985** |
+| N | O | P | 541 | $1,586,057 |
+| N | C | F | 99 | $39,343 |
+| N | C | S | 71 | $0 |
+| N | O | F | 5 | $1,033 |
+
+> **D-MC18:** Settlement extraction filters `is_void = 'N'`. The 925 voided rows carry $339,985
+> of `total_pay` that was never actually paid — 4.4% of rows and 3.7% of company-driver cost.
+> Including them silently inflates driver cost per mile.
+>
+> **D-MC19:** `accrual_date` is the economic date and the one CPM uses — it places cost in the
+> period the work happened. `pay_date` is cash timing and belongs to cash-flow questions only.
+> Import both; never let the harness choose implicitly.
+>
+> **D-MC20:** `payee_type` separates company drivers (`C`) from owner-operators (`O`), and the
+> economics differ by an order of magnitude per row — $378 average for `C` against $2,932 for
+> `O`. Owner-operator settlements bundle costs that are the carrier's own expense on a company
+> truck, so the two must never be pooled into one cost-per-mile figure.
 
 ### 5.4 Other expenses
 
@@ -276,15 +381,25 @@ row again.
 
 ## 7. Open questions
 
-**Blocking correctness (must answer before the harness is trusted):**
+**Resolved 2026-08-26 by measurement — no longer blocking:**
 
-1. **Loaded vs empty miles.** Both manifest columns are zero. Can the split be derived from
-   `in_state_distance`, or from `stop` sequence + `movement_order`? Without this, CPM cannot
-   separate loaded and deadhead cost.
-2. **`move_distance` vs `fuel_distance`.** Which does the carrier's finance team consider
-   authoritative? They differ by 0.38%.
-3. **Which settlement lifecycle stage is "cost"?** Per D-MC13 — accrual, ok2pay, paid, or
-   transferred? `drs_settle_hist` carries 21 distinct date columns.
+1. ~~Loaded vs empty miles.~~ **Answered (§4.1, §4.2).** `move_distance` is loaded miles; empty
+   miles are recorded nowhere but are inferable from stop coordinates, which are 100% populated.
+   Deadhead is ~4–5% of loaded miles. D-MC15, D-MC16.
+2. ~~`move_distance` vs `fuel_distance`.~~ **Answered (D-MC15).** `move_distance`, declared `MI`,
+   is the basis; `fuel_distance` is a 0.36% cross-check. Separately, `billed_distance` is
+   disqualified as a denominator — D-MC17.
+3. ~~Which settlement lifecycle stage is "cost".~~ **Answered (D-MC18, D-MC19, D-MC20).**
+   Filter `is_void='N'`, use `accrual_date` as the economic date, and keep `payee_type` `C` and
+   `O` in separate pools.
+
+**Remaining, and worth confirming with the carrier's finance team — but these refine the harness
+rather than block extraction:**
+
+1. Should deadhead use the great-circle estimate, or the `in_state_distance` city-pair road
+   mileage where the pair is cached? The latter is more accurate and less complete.
+2. Do owner-operator settlements (`payee_type='O'`) belong in fleet CPM at all, or only in a
+   separate contractor-cost view?
 
 **Blocking production (carrier/DBA, not engineering):**
 
@@ -315,7 +430,8 @@ Each step is one PR, gated on `pnpm test` green.
   imported for reconciliation only. *Done when:* a recon report shows subledger-vs-GL drift
   per module.
 - **C5.** **CPM harness** in `packages/shared` — pure functions over the imported facts, with
-  allocation rules as explicit configuration. Depends on §7 questions 1–3 being answered.
+  allocation rules as explicit configuration. Includes the deadhead chaining of §4.2. No longer
+  blocked — the three correctness questions were resolved by measurement on 2026-08-26.
 
 Explicitly **not** in scope: maintenance (FleetPal), any write to McLeod, and any allocation
 rule baked into the extraction layer.
