@@ -30,6 +30,7 @@ import {
   pilotExportTieOut,
   readPivotGrandTotalGallons,
   reconcileFuelReport,
+  reconFindings,
   stateTimeZone,
   type PilotReportFill,
   type ReconResult,
@@ -72,6 +73,9 @@ export interface ReconRunResult {
   invoiceNo?: string | null;
   tieOutGated?: boolean;
   tieOutNotes?: string[];
+  /** How many findings were filed to the ledger. Zero when the sync failed — see `exceptionError`. */
+  filedExceptions?: number;
+  exceptionError?: string | null;
   /** The full result, so the tab can render what was just recorded without a second round trip. */
   result?: ReconResult;
 }
@@ -255,9 +259,28 @@ export async function runFuelReconciliation(
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? "Could not record the reconciliation." };
 
+  const runId = String((data as { id: string }).id);
+
+  /*
+   * File the findings (F6a). Set-based, through `sync_fuel_exceptions`, which refreshes evidence and
+   * NEVER touches `status`, `assigned_to` or `resolution_note` — re-reconciling a period must not
+   * reset what somebody decided about it last week (D-FX10). A finding this run no longer produces is
+   * closed as `resolved_by_reingest` rather than deleted, because "nobody decided anything, it stopped
+   * appearing" is a different fact from "somebody dismissed it".
+   *
+   * Best-effort on purpose: the run is already recorded and the reader is already looking at it, so a
+   * failure here costs the ledger an entry rather than costing them the reconciliation.
+   */
+  const findings = reconFindings(result);
+  const { error: syncErr } = await admin.rpc("sync_fuel_exceptions", {
+    p_org: orgId, p_run: runId, p_findings: findings, p_actor: actorId,
+  });
+
   return {
     ok: true,
-    runId: String((data as { id: string }).id),
+    runId,
+    filedExceptions: syncErr ? 0 : findings.length,
+    exceptionError: syncErr?.message ?? null,
     periodStart: parsed.startDate,
     periodEnd: parsed.endDate,
     invoiceNo: parsed.invoiceNo,

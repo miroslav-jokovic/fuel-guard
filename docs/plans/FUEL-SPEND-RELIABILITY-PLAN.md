@@ -780,6 +780,49 @@ does not add up is refused with the same rigour a PDF already is.
 
 ### F6 · The exception ledger
 
+**⚠ SPLIT IN TWO, 2026-08-26.** As written this is three tables, an RPC, a shared module, an API, a
+routed page with a slide-over, a rendered PDF and a recovery model — roughly four times F5 and past
+the size at which a PR can be reviewed rather than waved through. The split is along the seam the
+work already has:
+
+- **F6a — the spine. DONE 2026-08-26 (migration 0250).** The tables, the RPC, the shared vocabulary and
+  fingerprint, the producers, and the API. Findings are recorded and preserved across re-runs.
+  No new screen — deliberately: the ledger has to be correct before it has a window.
+
+  *What shipped.* `fuel_exceptions` + `fuel_exception_events` + `sync_fuel_exceptions`; shared
+  `exceptions.ts` (kind/status/amount-kind vocabularies with label maps, the pure fingerprint, and the
+  `reconFindings` / `contractFindings` producers); `routes/fueling/exceptions.ts` + a service split
+  from day one; and `runFuelReconciliation` now files what it found.
+
+  *The distinction that took the most care.* `fuel_recon_runs` is evidence — append-only, undeletable,
+  `RETENTION_FORBIDDEN`. `fuel_exceptions` is deliberately **not**: status, owner and note are a
+  person's working state, and an append-only queue would mean a typo in a note could never be fixed
+  and the ledger could never be pruned when a carrier leaves. Its act log IS append-only, in 0213's
+  style (exempting `auth_role() is null`) so retention can still prune the pair — an undeletable child
+  would pin its mutable parent and quietly move the whole table across the evidence line.
+
+  *D-FX10, proven.* The matrix sets a finding to `disputed`, assigns it, writes a note, then re-runs
+  the same period with changed evidence: the evidence updates and the status, owner and note do not.
+  A finding a run no longer produces is closed as `resolved_by_reingest` with an event saying so; if
+  it comes back it reopens, but a `dismissed` or `credited` decision survives being produced again.
+
+  *Two deviations, stated.* (1) The policy premiums are in the vocabulary and **no producer emits
+  them** — 201 off-network fills in a 90-day window is not 201 actions, and choosing a threshold or a
+  grouping is a product decision that belongs with the surface. (2) `contractFindings` files only the
+  OVER side; a fill billed below contract is money in the carrier's favour and queueing it asks
+  somebody to hand it back.
+
+  *Verified by:* PGlite matrix `fuel-exceptions` (**31 passed**), 10 service tests with
+  `expectOrgScoped`, 13 shared tests on the vocabulary, fingerprint stability and the producers.
+  `pnpm test`, `pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:upserts`,
+  `lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`, `lint:ui-adoption`,
+  `lint:tokens-parity`.
+- **F6b — the surface.** The `/fuel-spend/exceptions` page, the slide-over and event log, the dispute
+  packet, and the identified/claimed/recovered figures.
+
+F6a is useless to a reader on its own and that is fine: the ledger has to be correct before it has a
+window. F6b is the half a buyer evaluates and it goes in its own PR.
+
 **Prerequisites:** F5. This is the step that makes the feature enterprise-grade; everything before it
 is repair.
 
