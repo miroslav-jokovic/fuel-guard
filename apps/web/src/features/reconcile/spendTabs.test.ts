@@ -221,6 +221,62 @@ describe("ExceptionsTab", () => {
     expect(t).toContain("of these gallons");  // and it says so
     expect(t).not.toContain("NaN");
   });
+
+  // ── F10: the premium that is a tax rate rather than a purchasing decision ─────────────────────
+  // This tab has always reported one number — these fills cost more per gallon than the rest of the
+  // fleet's. On an avoided-state report a large share of that is the state's own fuel tax, which
+  // under IFTA is owed on the miles driven there whichever state the fuel was bought in. Measured on
+  // production, 41% of the California premium is exactly that.
+  it("splits an avoided state's premium into the tax rate and the price of the fuel", () => {
+    const t = mount(ExceptionsTab, {
+      props: { title: "California", blurb: "…", report: ex().avoidedStates, slug: "ca" },
+    }).text();
+    expect(t).toContain("is state fuel tax");
+    expect(t).toContain("owed on the miles driven there whichever state the fuel was bought in");
+    expect(t).toContain("the price of the fuel itself");
+    expect(t).not.toContain("NaN");
+  });
+
+  it("says the figure is purchase-state tax at the pump and names the matrix it came from", () => {
+    // The scope line is not optional: a reader who takes this for an IFTA-net number will conclude
+    // the carrier can recover it, and it is not recoverable — it is a liability that moved states.
+    const t = mount(ExceptionsTab, {
+      props: { title: "California", blurb: "…", report: ex().avoidedStates, slug: "ca" },
+    }).text();
+    expect(t).toContain("Purchase-state tax at the pump — not net of IFTA");
+    expect(t).toContain("IFTA matrix");
+    expect(t).toMatch(/measured over \d+\.\d% of these gallons/);
+  });
+
+  it("says tax accounts for none of it rather than printing a negative dollar figure under the word tax", () => {
+    // The off-network report selects fills wherever the truck happened to be, which averages BELOW a
+    // report that selects one expensive state — so a negative tax premium is the ordinary case here.
+    // Rendered as a number it would read "-$412 of it is state fuel tax", which is B3's defect again.
+    const lowTax = [
+      fill({ tranDate: "2026-07-13", gallons: 100, netAmount: 620, retailAmount: null, brand: null, state: "TX", site: "x1" }),
+      fill({ tranDate: "2026-07-13", gallons: 100, netAmount: 500, retailAmount: null, brand: "pilot", state: "CA", site: "p1" }),
+    ];
+    const t = mount(ExceptionsTab, {
+      props: { title: "Off the preferred network", blurb: "…", report: analyzePolicyExceptions(lowTax).offNetwork, slug: "off" },
+    }).text();
+    expect(t).toContain("State fuel tax accounts for none of this premium");
+    expect(t).not.toMatch(/-\$[\d,]+ of that excess is state fuel tax/);
+    expect(t).not.toContain("NaN");
+  });
+
+  it("renders no tax sentence at all when no fill in the window can be priced", () => {
+    // The table stops where the quarterly capture stopped and does not extrapolate. A window before
+    // it starts gets silence rather than a split measured over nothing.
+    const older = [
+      fill({ tranDate: "2024-03-01", gallons: 100, netAmount: 620, retailAmount: null, brand: null, state: "TX", site: "x1" }),
+      fill({ tranDate: "2024-03-01", gallons: 100, netAmount: 500, retailAmount: null, brand: "pilot", state: "AZ", site: "p1" }),
+    ];
+    const t = mount(ExceptionsTab, {
+      props: { title: "Off the preferred network", blurb: "…", report: analyzePolicyExceptions(older).offNetwork, slug: "off" },
+    }).text();
+    expect(t).not.toContain("state fuel tax");
+    expect(t).not.toContain("IFTA");
+  });
 });
 
 // ── F7: say what is measured ──────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@
  * `packages/shared` and all tested there, so a figure in this document and the same figure on the page
  * cannot come out different.
  */
-import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, FleetIdleVerdict, FuelPolicy, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
+import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, ExceptionReport, FleetIdleVerdict, FuelPolicy, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { proportionBar, proportionBarHeight, rankedBars, rankedBarsHeight, type Rank, type Segment } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, type Column, type Row } from "./fuelSpendReportTable.js";
@@ -206,6 +206,7 @@ export function drawExceptions(
         ? "The rows OVERLAP and must not be added: a fill can be off-brand, in an avoided state and off the preferred network at once, and is counted in each."
         : ""),
   );
+  drawTaxShare(doc, reports);
 
   // The summary above says how much; this says WHERE, which is the only part anybody can act on. The
   // page lists every fill — a document cannot, so it ranks the sites and the trucks the money is at.
@@ -315,6 +316,41 @@ export function drawIdle(
         "little of those days to measure against. Their fuel is counted everywhere else in this report.",
     );
   }
+}
+
+/**
+ * How much of the excess above is a jurisdiction's tax rate rather than a purchasing decision (F10).
+ *
+ * A document is forwarded, filed and quoted back, and "California cost us $19,858" quoted back
+ * without the rest of the sentence is a claim about somebody's dispatching. $8,210 of that figure —
+ * 41%, measured on production — is California's own fuel tax, which under IFTA is owed on the miles
+ * driven there whichever state the fuel was bought in. The page says this beside the same figure
+ * (`ExceptionsTab.vue`); the two read from one `analyzePolicyExceptions` result, so they cannot
+ * disagree.
+ *
+ * Only rows where tax is actually part of the gap are named. An off-network report usually has a
+ * NEGATIVE tax premium — those fills are wherever the truck happened to be — and a sentence
+ * announcing that tax accounts for minus four hundred dollars is noise in a paragraph a reader is
+ * being asked to trust.
+ */
+export function taxSharePhrase(reports: readonly { name: string; r: ExceptionReport }[]): string | null {
+  const withTax = reports.filter((x) => (x.r.taxSplit?.taxExcess ?? 0) > 0 && x.r.excess > 0);
+  if (withTax.length === 0) return null;
+  const first = withTax[0]!.r.taxSplit!;
+  const parts = withTax.map((x) => `${usd(x.r.taxSplit!.taxExcess)} of ${x.name}`);
+  return (
+    `Of that excess, state fuel tax accounts for ${parts.join(" and ")} - the rate the jurisdiction levies, ` +
+    "owed on the miles driven there whichever state the fuel was bought in, and not something a different stop " +
+    `would have avoided. Purchase-state tax at the pump from the ${first.versions.join(" and ")} IFTA matrix, ` +
+    `measured over ${((first.measuredShare ?? 0) * 100).toFixed(1)}% of those gallons; it is NOT net of IFTA.`
+  );
+}
+
+function drawTaxShare(doc: PDFKit.PDFDocument, reports: readonly { name: string; r: ExceptionReport }[]): void {
+  // Split from the drawing because pdfkit compresses its content streams, so a rendered sentence
+  // cannot be asserted from the bytes — `fuelSpendReport.taxShare.test.ts` reads the phrase instead.
+  const phrase = taxSharePhrase(reports);
+  if (phrase) note(doc, phrase);
 }
 
 /** The top five by excess, or nothing at all when there are too few to put in an order. */

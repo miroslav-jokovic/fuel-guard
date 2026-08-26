@@ -176,11 +176,27 @@ already has exceptions must not reset a human's work. Exceptions carry a determi
 `status = 'resolved_by_reingest'` and an event row saying so. Never `.upsert()` with a partial payload
 (`lint:upserts`) — this is an UPDATE or a set-based RPC, on 0174/0175's model.
 
+**D-FX12 — The tax table is minted from IFTA's own matrix, never typed, and never extrapolated.**
+`scripts/fetch-ifta-rates.mjs` writes `packages/shared/src/fuelTax/rates2026.ts` and nothing else may.
+Its gate is free and real: each quarter's matrix states the previous quarter's rate beside every
+changed one, so consecutive quarters cross-check each other, and the script refuses to write on any
+disagreement. Two consequences that outlive F10. **(a)** A date outside the captured quarters returns
+`null`, not the nearest quarter — a tax rate that has expired has not gone missing, it has changed,
+and carrying one forward would put a legislated number where an estimate belongs (this is the opposite
+of `fuel_prices`' one-day quote carry-forward, which absorbs an operational gap in a daily report).
+**(b)** Every figure derived from the table records which quarter priced it and whether IFTA has
+finalised that quarter, because the current quarter is provisional for about ten weeks of every
+thirteen. Cutting a new quarter is a person running the script and reading the diff, quarterly — never
+CI, which cannot reach `iftach.org` and should not be silently re-cutting a table nobody has read.
+
 **D-FX11 — Savings claims wait for fuel tax.** N1 (missed-station) and N3 (buy-quantity) both
 recommend *where to buy*. Nothing in the repo models state fuel tax or IFTA; `ifta` appears once, as a
 compliance licence label. Pump price is not landed cost, so a "buy here instead" recommendation can be
 actively wrong and the California premium is overstated. F10 lands before F11/F13, or those steps ship
-with the recommendation suppressed and only the observation shown.
+with the recommendation suppressed and only the observation shown. **SATISFIED 2026-08-26 by F10**,
+which measured how overstated: 41% of the California premium is California's tax rate. F11 and F13
+score candidates on `preTaxPremiumPerGal` — the price of the fuel, which is the only part a different
+stop changes — and never on the pump price.
 
 ---
 
@@ -1064,7 +1080,91 @@ same fixture — the page and the database must not become a second place arithm
 
 ---
 
-### F10 · Landed cost — state fuel tax (purchase-state only, for now)
+### F10 · Landed cost — state fuel tax (purchase-state only, for now) — DONE 2026-08-26 (no migrations)
+
+**What shipped.** A minted per-jurisdiction diesel tax table, `landedCostPerGal` with the
+apportionment seam, and the split on both surfaces.
+
+- **`packages/shared/src/fuelTax/`** — `rates2026.ts` (1Q/2Q/3Q 2026, 48 U.S. jurisdictions, cut from
+  the IFTA, Inc. Tax Rate Matrix's Special Diesel column), `taxTable.ts` (types + the date→quarter→rate
+  lookup), `landedCost.ts`, `taxPremium.ts`.
+- **The table is MINTED, not typed.** `scripts/fetch-ifta-rates.mjs` fetches N quarters, parses them,
+  and refuses to write unless consecutive quarters agree — every quarter's matrix marks each CHANGED
+  rate with a tooltip naming the previous quarter's rate, so N quarters buy N−1 quarters of
+  second-source verification for nothing. 240 hand-typed digits is where a wrong dollar figure on a
+  forwarded compliance report comes from, and no gate can catch a plausible-looking tax rate (D-FX12).
+- **The gate earned its keep on the first run.** It flagged all ten Canadian jurisdictions as changing
+  between every pair of quarters while IFTA marked none of them as a change. They are not changes: a
+  Canadian jurisdiction legislates in CAD per LITRE and the matrix's U.S. column is that rate converted
+  at the quarter's Federal Reserve rate — Alberta's $0.13/L has not moved since 2024-04-01, and
+  0.13 × 3.785411784 × 0.7151 = 0.3519, the 3Q2026 U.S. figure to four decimals. A number that drifts
+  with FX between captures is a different kind of fact from a legislated rate and must not share a
+  column with one, so the ten are **excluded** and a Canadian fill answers "unknown". Costs nothing
+  measurable: 11,373 production fills across 46 jurisdictions, not one Canadian.
+- **Three quarters cover 100% of the feed** (2026Q1 3,741 fills · Q2 3,896 · Q3 3,738), and a date
+  outside them returns **null, never a nearest-quarter guess** — a rate is legislated, not
+  interpolated. 3Q2026 carries `final: false`: IFTA does not finalise it until 2026-09-04, and a figure
+  from a provisional matrix is a weaker claim that says so.
+- **`landedCostPerGal(fill, apportionment)`** — pump price, purchase-state tax, pre-tax price, burn
+  liability, landed. The apportionment defaults to `PURCHASE_STATE_APPORTIONMENT` ("burned where it was
+  bought"), named so that grep finds every site that changes when Samsara mileage lands.
+- **The measured finding, and it is worth more than the code.** Over the default 90-day window
+  (674,333 of 681,494 tractor gallons priced, 98.95%): **California cost $1.554/gal above the rest of
+  the fleet's fuel — $0.643 of it California's tax rate and $0.912 the price of the fuel itself. Of
+  the $19,858 California premium this tab has always reported, $8,210 (41%) is a tax rate**, owed on
+  the miles driven there whichever state the fuel was bought in. The tab reported it as though a
+  dispatcher could have avoided it. This is the L11 class of error — arithmetically right, pointed at
+  the wrong person — and it is the reason D-FX11 held F11 and F13 back.
+- **Three things the table refuses to conflate.** A `null` rate (unknown, never zero — D-FX7).
+  **Oregon**, which taxes heavy trucks by the mile and whose retailers may sell them untaxed diesel,
+  so its zero is real but not comparable: stored as `basis: "weight_mile"` and excluded from both
+  populations of the premium split rather than counted as untaxed fuel (1.05% of the window's gallons).
+  And a **surcharge** — Kentucky and Virginia bill theirs on the quarterly return over gallons BURNED
+  there, not at the pump, so it is kept out of every pump figure and added only to a burn liability.
+  A gallon bought and burned in Kentucky lands 10.5¢ above the price on the sign; no surface in this
+  product had ever said so.
+- **Both surfaces, one arithmetic.** `ExceptionsTab.vue` prints the split beneath the excess, and
+  `taxSharePhrase` puts the same sentence in the PDF; both read one `analyzePolicyExceptions` result,
+  so they cannot disagree. Each states the scope in the required words — on the California tab today,
+  *"Purchase-state tax at the pump — not net of IFTA — from the 2Q2026 and 3Q2026 IFTA matrix,
+  measured over 100.0% of these gallons. The current quarter's matrix is not final until IFTA
+  publishes it."* `measuredShare` is the share of the SELECTED fills, which is all of them here; the
+  98.95% above is the whole window, where the shortfall is Oregon sitting in the baseline.
+- **A negative tax premium is the off-network report's ordinary case** (those fills are wherever the
+  truck happened to be, which averages below a report selecting one expensive state), so it reads
+  "State fuel tax accounts for none of this premium" rather than printing a negative dollar figure
+  under the word "tax" — B3's defect, in a new place.
+
+**Three deviations from the step as written, all stated:**
+1. **The dataset is not a package.** It takes `packages/hazmat-data`'s *shape* — minted rather than
+   hand-edited, versioned, dated, source cited, with a finality flag — without its packaging.
+   `packages/shared` compiles for the React Native driver app, and a new workspace dependency under
+   that build buys nothing for ~60 rows of data that only `packages/shared` consumes.
+2. **The second `Build.` paragraph contradicted the step's own decided scope and is deleted.** It said
+   `landedCostPerGal` "nets the purchase-state tax against the burn-state liability" and that the tab
+   reports "pump premium and landed premium apart" — but the scope box above it decided
+   purchase-state-only, under which landed premium IS pump premium. What ships is the first
+   paragraph's version: the netting exists and is reachable through the apportionment parameter, and
+   is a no-op under the default by construction (pinned by a test that says so).
+3. **What the tab shows is the pump/tax/pre-tax split, not a "landed premium".** Under the default
+   apportionment a landed premium would be the pump premium relabelled — a number that looks new and
+   is not. The split is the honest form of the same intent and is what a buying decision can act on.
+
+**Verified by:** `pnpm test` (all suites, 31 PGlite matrices), `pnpm typecheck`, `pnpm lint` (only
+real-source findings are the same 2 pre-existing `vue/one-component-per-file` warnings in a file this
+branch does not touch), `lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`,
+`lint:upserts`, `lint:ui-adoption`, `lint:tokens-parity`, `lint:migrations`, `lint:rls`, `lint:tests`,
+`lint:codegen`, `lint:secrets`, `pnpm --filter web lint:tokens`, and `pnpm --filter @fuelguard/shared
+build:rn`. ⚠ `pnpm build` cannot complete the web half on this machine — `vite.config.ts` refuses to
+load without `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, which is environmental and happens before
+any code is read; `vue-tsc --noEmit` passes and CI has the variables.
+
+**36 new tests, and every one was made to fail before it was kept.** 26 shared (the table's date
+boundaries and null-not-zero contract, landed cost's decomposition and apportionment, the split's
+denominators), 5 tab, 5 PDF phrase. The regressions run: deleting the weight-mile guard so an unknown
+state reads as zero (3 red), counting Oregon into the tax populations (1 red), dropping the surcharge
+from the burn liability (1 red), hiding the tab's block (3 red), and widening the PDF's filter so a
+negative tax premium prints (1 red).
 
 **Prerequisites:** ~~Q-FX4~~ — answered 2026-08-26. **Gates F11 and F13** (D-FX11).
 
@@ -1089,10 +1189,10 @@ apportionment as a PARAMETER that currently defaults to "same as purchase state"
 miles in later is a new argument at a call site rather than a rewrite. The California tab reports pump
 premium and purchase-state-tax premium apart, neither claiming to be IFTA-net.
 
-**Build.** A versioned per-state diesel tax rate table (the same shape as `packages/hazmat-data`:
-pure, versioned, dated, with its source cited), and a `landedCostPerGal` in shared that nets the
-purchase-state tax against the burn-state liability. The California tab reports pump premium **and**
-landed premium, apart. Nothing else changes yet — this step exists to make F11 and F13 defensible.
+<!-- A second `Build.` paragraph stood here and contradicted the scope box above it — it asked for a
+     "landed premium" that, under purchase-state-only apportionment, is the pump premium relabelled.
+     Deleted when F10 shipped rather than left to be executed by a future reader; the reasoning is in
+     "Three deviations" above. -->
 
 **Verify:** unit tests per state with the rate's effective date; a test that a purchase in a
 high-tax state burned elsewhere nets down.
@@ -1136,6 +1236,10 @@ way."* Shipping it spends the credibility of every other figure on the page to b
 The surviving 4% is itself weak. A straight line between two fuel stops is not a road, and Q-FX4
 already measured that consecutive fills sit ~1,500 miles and several states apart; a corridor drawn on
 that line is a guess wearing geometry.
+
+**One thing from the pre-spike draft survives and binds every detector that prices an alternative,
+F13 included:** price it with `landedCostPerGal`, and remember Oregon — `basis: "weight_mile"` means
+the missing per-gallon tax is a different bill, not a cheaper station.
 
 **What F11 actually needs** is the same dependency F10 named for burn states: the route the truck
 drove, from Samsara GPS. With a real trail, `stationsAlongRoute` (`smartFueling/corridor.ts`) already
