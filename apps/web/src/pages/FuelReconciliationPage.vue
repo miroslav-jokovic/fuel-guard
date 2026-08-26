@@ -10,9 +10,11 @@ import StatementsCard from "@/features/reconcile/StatementsCard.vue";
 import DiscountCaptureTab from "@/features/reconcile/DiscountCaptureTab.vue";
 import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
 import ExceptionsTab from "@/features/reconcile/ExceptionsTab.vue";
+import BuyDisciplineTab from "@/features/reconcile/BuyDisciplineTab.vue";
 import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
+import { useBuyFillsQuery } from "@/features/reconcile/useBuyFills";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
@@ -80,6 +82,15 @@ const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
 const policy = useFuelPolicy();
 const exceptions = computed(() => analyzePolicyExceptions(feedLines.value, policy.value));
 
+// ── the buy-discipline source ───────────────────────────────────────────────────────────────────
+// A SECOND read of the same fills, and it has to be: `fuel_spend_lines` returns a business date (two
+// fills on one date either side of a state line is exactly this tab's case), no vehicle id, and
+// nothing about the tank. `fuel_buy_fills` (0254) returns the sequence with a 14-day lookback so the
+// leg that crossed INTO the window keeps its predecessor. Only fetched when the tab is open — it is
+// a different question from the rest of the page and nobody should pay for it to answer another.
+const { data: buyFillData, isLoading: buyLoading, isError: buyError } = useBuyFillsQuery(f.range);
+const buyFills = computed(() => buyFillData.value ?? []);
+
 // ── the statement source ────────────────────────────────────────────────────────────────────────
 // Scoped by the PAGE's window, like everything else here. There was a `scope` selector for this and it
 // was never rendered — pinned to "all" forever, with two unreachable branches behind it — so the
@@ -113,6 +124,7 @@ const tabs = computed<TabItem[]>(() => [
     ? [{ value: "california", label: stateLabel.value, badge: exceptions.value.avoidedStates.lines || undefined }]
     : []),
   { value: "off_network", label: "Off-network", badge: exceptions.value.offNetwork.lines || undefined },
+  { value: "buy_discipline", label: "Buy discipline" },
   { value: "discount", label: "Discount capture" },
   { value: "reconcile", label: "Reconcile a file" },
   { value: "statements", label: "Statements", badge: (statements.value ?? []).length || undefined },
@@ -137,6 +149,9 @@ const barCount = computed<{ n: number; label: string }>(() => {
     case "avoid_brand": return { n: exceptions.value.avoidedBrands.lines, label: "fills off-brand" };
     case "california": return { n: exceptions.value.avoidedStates.lines, label: "fills in state" };
     case "off_network": return { n: exceptions.value.offNetwork.lines, label: "fills off-network" };
+    // The legs the truck drove, not the fills — this tab counts pairs, and a fill count beside it
+    // would be the X8 defect again (a number in a filter bar reads as "this is what you are seeing").
+    case "buy_discipline": return { n: buyFills.value.filter((x) => x.inWindow !== false).length, label: "fills in sequence" };
     case "discount": return { n: feedLines.value.length, label: "fills" };
     case "statements": return { n: scopedStatements.value.length, label: "statements" };
     default: return { n: feedLines.value.length, label: "fills" };
@@ -248,6 +263,18 @@ const stateNote = computed(() => {
     <SpendTrendTab v-if="tab === 'spend'" :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />
 
     <ReconcileTab v-else-if="tab === 'reconcile'" @saved="refetch()" />
+
+    <!-- Fuel carried out of a dearer state. Its own source (`fuel_buy_fills`), because the sequence
+         needs an instant, a vehicle id and the tank — none of which `fuel_spend_lines` carries. -->
+    <template v-else-if="tab === 'buy_discipline'">
+      <p
+        v-if="buyError"
+        class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100"
+      >
+        Couldn't load the fill sequence for this window.
+      </p>
+      <BuyDisciplineTab v-else :fills="buyFills" :policy="policy" :loading="buyLoading" />
+    </template>
 
     <!-- ── feed-fed policy reports ──────────────────────────────────────────────────────────── -->
     <template v-else-if="isFeedTab">

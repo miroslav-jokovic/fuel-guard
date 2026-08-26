@@ -1296,9 +1296,8 @@ the two halves of the product are connected.
 
 Deliberately thin, because F6 will change what they should be. Each carries its argument:
 
-- **F13** (N3, gated on F10) — generalise the California fill-size footnote to every fill: given tank
-  capacity, level and the state's landed-cost rank, how many gallons should have been bought. Usually
-  the largest recoverable number in a carrier's fuel bill, and currently one sentence under one tab.
+- **F13** — SPLIT AND RESHAPED 2026-08-26. **F13a DONE (migration 0254)** and **F13b DONE (no
+  migrations)**. See the full entries below.
 - **F14** (N10) — one weekly email: spend and its delta, variance against contract, the top five open
   exceptions, coverage, one link. Extends `NotificationCategory` **and** adds a `notificationRoute`
   entry in the same PR. Scheduler in exactly one process fleet-wide — `docs/WORKER-DEPLOYMENT.md`
@@ -1371,6 +1370,140 @@ carries the window and the kinds so "why did this go away" stays answerable. Plu
 pinning that the caller passes the shared constant — regressed and watched fail. `pnpm test`,
 `pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:upserts`, `lint:filesize`,
 `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`.
+
+---
+
+### F13a · Fuel carried out of a dearer state — the analyzer — DONE 2026-08-26 (migration 0254)
+
+**The step as written was the wrong question, and the settings table said so.** F13 asked for a
+compliance report: given tank capacity, level and the state's landed-cost rank, how many gallons
+*should* have been bought. Reading `route_fuel_settings` before writing any of it turned up something
+better and something that would have been a defect:
+
+- **`fill_cap_pct = 75` is not unwired — it is DORMANT.** `fillPolicy.ts:78` applies it only inside the
+  `!alwaysFillFull` branch, and Silvicom has `always_fill_full = true`. Reporting the 84.5% of fills
+  that end above that cap would have been a compliance report contradicting the planner reading the
+  same table: B4 exactly, in a new place. `min_purchase_gal` IS live (`solver.ts:295`, a stop-skipping
+  guard) and `fuel_before_states = {MA}` IS live (`fuelPlanning.ts:330`, the border top-off).
+- **So the planner ALREADY implements buy-quantity discipline** — rule 4 of `fillPolicy.ts`,
+  min-drawdown: buy just enough to reach the next cheaper station, floored at the minimum purchase,
+  capped at `fill_cap_pct`, never so little it strands the route. It is switched off for this carrier.
+
+F13 therefore stops being a report on a rule nobody turned on and becomes a measurement of what that
+switch costs — which is policy-independent, provable, and actionable in one click.
+
+**What shipped.**
+- **`fuel_buy_fills` (0254)** — the fill sequence, per truck, in time order. `fuel_spend_lines` cannot
+  serve it: it returns a `tran_date` (a DAY — and two fills on one business date either side of a
+  state line is precisely this feature's case), no `vehicle_id`, and nothing about the tank. Same
+  D-FC1 contract as its neighbour, and a **14-day lookback flagged `in_window = false`** so the leg
+  that crossed INTO the window keeps its predecessor — worth about one pair per truck, and invisible
+  if dropped. Measured: 6,109 rows, 95.4 ms, index scan, `fuel_business_date` inlined (D-FI1 holds).
+- **`carriedFuel.ts`** — pure. Scores each consecutive pair: fuel bought in a dearer state that was
+  still in the tank on arrival in a cheaper one, priced **pre-tax** through F10's rule.
+
+**⚠ THE COVERAGE BUG IN MY OWN FIRST MEASUREMENT, which is the most useful thing here.** The first
+version required a Samsara tank level and scored **9.8%** of fill pairs, which I reported as a data
+gap. It was not: `fueling_time_basis = 'tank_confirmed'` is a claim about a fill's TIMING and sits on
+24% of rows, and the question is how much fuel was on board. Two facts closed it:
+- `miles_since_last` is on **99.3%** of fills and `vehicles.baseline_mpg` on 91% of trucks, so
+  `gallonsBought − miles / baselineMpg` bounds the carried fuel from below with **no starting level**,
+  because the level it does not know is non-negative and that is all the bound needs.
+- `computed_mpg` cannot do it: it equals `miles_since_last / gallons` on **95.7%** of production rows,
+  so feeding it back reduces the burn to "this fill's gallons" — the fill-to-full assumption this
+  fleet violates (it arrives at 33% and buys 78% of the empty space). The estimator must be
+  independent of the fill, which `baseline_mpg` is (validated across 169 trucks: 6.92 against 7.08
+  observed, mean absolute error 0.52 mpg, and the understatement pushes the bound DOWN, safely).
+
+**The bound was validated before it was trusted.** On the 1,262 production pairs carrying both
+estimators it exceeded the tank measurement on **1.4%**, and averaged 13.0 gallons against 68.5 — so
+it is a floor in practice as well as in algebra, and a conservative one.
+
+**Measured end to end, by the shipped analyzer over production rows in the function's own shape**
+(90-day window, org Silvicom):
+
+    pairs 5,518 · same state 544 · toward dearer 2,565 · unpriceable 0 · NO BASIS AT ALL 9 (0.16%)
+    findings 1,377 (25.0% of pairs) · 60,230 gal carried out of the dearer state
+    by tank level   535 pairs   $8,248   (measured)
+    by miles burnt  842 pairs   $5,381   (a floor)
+    TOTAL pre-tax           $13,629      ← a FLOOR, not a measurement
+    on pump price           $15,650      +15%, and that gap is a tax rate
+
+**"25% of pairs produce a finding" is not 75% missing data.** 544 pairs stayed in one state and 2,565
+travelled from cheaper fuel to dearer — the direction the policy wants — so they are not findings by
+construction. **Nine pairs of 5,518 could not be evaluated at all.**
+
+**Verified by:** the new `fuel-buy-fills` matrix (**17 passed**) and 20 shared tests. Every one was
+made to fail: removing the lookback (2 red), trusting an unconfirmed tank level (1 red), ordering by
+the business date instead of the instant (1 red — and it returns the pair reversed, silently),
+dropping the previous-purchase cap (1 red), estimating burn from the arriving fill à la `computed_mpg`
+(3 red), and folding the pump figure into the pre-tax total (2 red). Full suite, `pnpm typecheck`,
+`pnpm lint`, `lint:migrations`, `lint:rls`, `lint:filesize`, `lint:funcsize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:upserts`, `lint:tests`.
+
+**Also for Miki:** `always_fill_full = true` and `fill_cap_pct = 75` are both set and cannot both be
+honoured. The settings form permits it and should not.
+
+---
+
+### F13b · The Buy discipline tab — DONE 2026-08-26 (no migrations)
+
+**What shipped.** `BuyDisciplineTab.vue` on the Fuel Spend page, fed by `useBuyFills` → the F13a
+analyzer, plus a derived state ranking in shared.
+
+- **The headline is the pre-tax floor and reads as one.** The pump-price version of the same legs sits
+  beside it as a comparison with the reason it is not a saving — the gap is a jurisdiction's tax rate,
+  owed on the miles driven there whichever state the diesel was bought in.
+- **The one action on the page is a planner setting.** *"Your fuel planner can already buy just enough
+  to reach the next cheaper station — it is switched off, because **Always fill full** is on. Over this
+  window that setting is worth at least $13,629."* It renders only while `alwaysFillFull` is true;
+  judging a carrier against a discipline they have already enabled is noise. `FuelPolicy` gained
+  `alwaysFillFull` for exactly this, defaulted to match `DEFAULT_ROUTE_FUEL_SETTINGS` so the two halves
+  of the product start from one assumption rather than two.
+- **Every non-finding is accounted for, by name and by count.** 544 legs inside one state, 2,565 run
+  from cheaper fuel toward dearer, nine unjudgeable. Without that sentence a 25% hit rate reads as
+  three quarters of the fleet unmeasured.
+
+**`stateFuelCost.ts` — the answer to "why hand-written rules at all?", which Miki asked on 2026-08-26.**
+States ranked by what the fleet PAID with each jurisdiction's tax stripped out. Measured over 671,617
+gallons: **`avoid_states = {CA}` is right** (rank 1 of 39, +$0.901/gal); **`fuel_before_states = {MA}`
+governs nothing** (15 fills, ~1,600 gallons — below any threshold at which a rule means anything); and
+**NM, AZ and NV rank 2–4 across 86,000 gallons and are in no list at all.** Pre-tax is what reorders
+it: New Jersey pumps at $4.844, near the top on the sign, and sits at $4.283 underneath because $0.561
+is tax — a pump-price ranking would have a dispatcher routing around a tax rate.
+
+**It ranks, shows and flags the divergence. It does not apply it.** A carrier avoids a state for
+reasons a price cannot see — CARB, tolls, a customer who will not take the truck — so the configured
+list stays authoritative, and silently overriding it would be B4's shape again. States under 2,000
+gallons are excluded from the action list: a rule over a handful of stops is a rule about noise. And
+the surface says the ranking is what the fleet PAID rather than what fuel costs there, because a state
+where we only ever stop at expensive sites looks dear for a reason of our own making.
+
+**The three rules, resolved (Miki's question, answered in the code):**
+1. **Replaceable by data** — the state lists, and `fill_cap_pct` as a proxy for "reach the next cheaper
+   stop", which `fillPolicy.ts` already computes properly.
+2. **Genuine policy, only priceable** — `always_fill_full`, `min_purchase_gal`, `preferred_brands`. No
+   dataset settles a range-versus-cost trade-off; a number beside the switch does.
+3. **Needs no rule at all** — the carried-fuel finding itself, which is why F13a never touched
+   `fill_cap_pct`. This is the category to prefer whenever it is available.
+
+**Verified by:** 12 tab tests, 3 page-wiring tests and 12 shared tests on the ranking — every one
+regressed and watched fail. Two of the first three regressions did NOT bite and the tests were
+rewritten because of it: the headline check looked for the words "at least" anywhere on the page and
+passed happily with the pump figure in the headline, which is the exact defect the tab exists to
+avoid. It reads the headline NODE now and compares against the analyzer's own two totals. Full suite,
+`pnpm typecheck`, `pnpm lint`, `lint:filesize`, `lint:funcsize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:upserts`, `lint:ui-adoption`, `lint:tokens-parity`, `lint:migrations`,
+`lint:rls`, `lint:tests`, `pnpm --filter web lint:tokens` — all checked by **exit code**, after a
+grep-based check let a typecheck failure through to CI on F13a.
+
+**Deliberately not done: the ledger.** 1,377 legs are not 1,377 actions, and the same judgement was
+already made about 201 off-network fills (`policyFindingsNote`). Filing them needs a materiality
+threshold or a grouping — per truck, per lane, per month — and that is a product decision that should
+be taken with a reader in front of the tab rather than guessed at now.
+
+**Also not done: the PDF.** The action here is a settings change made in the app, and the report is
+already long. It follows if the tab proves itself.
 
 ---
 

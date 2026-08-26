@@ -151,6 +151,15 @@ export interface FuelPolicy {
   avoidStates: readonly string[];
   avoidBrands: readonly string[];
   preferredBrands: readonly string[];
+  /**
+   * Whether the planner tops the tank off at every stop — `route_fuel_settings.always_fill_full`.
+   *
+   * Read by the compliance side for one reason: when it is TRUE, `fillPolicy.ts`'s min-drawdown rule
+   * never runs, so `fill_cap_pct` and the minimum purchase are DORMANT and judging fills against them
+   * would be a report contradicting the planner reading the same table (B4's shape). What the surface
+   * does instead is price the setting — F13's carried-fuel figure is what leaving it on costs.
+   */
+  alwaysFillFull: boolean;
 }
 
 /**
@@ -165,13 +174,18 @@ export const DEFAULT_FUEL_POLICY: FuelPolicy = {
   avoidStates: ["CA"],
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
+  // Matches `DEFAULT_ROUTE_FUEL_SETTINGS.alwaysFillFull` — min-drawdown is opt-in per org, not the
+  // default — so the two halves of the product start from the same assumption about an unconfigured
+  // carrier rather than from two.
+  alwaysFillFull: true,
 };
 
-/** The three policy columns of `route_fuel_settings`, as PostgREST returns them. */
+/** The `route_fuel_settings` columns the compliance side reads, as PostgREST returns them. */
 export interface FuelPolicyRow {
   avoid_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
+  always_fill_full?: boolean | null;
 }
 
 /**
@@ -198,6 +212,9 @@ export function fuelPolicyFromSettings(row: FuelPolicyRow | null | undefined): F
     avoidStates: list(row?.avoid_states, DEFAULT_FUEL_POLICY.avoidStates, (s) => s.toUpperCase()),
     avoidBrands: list(row?.avoid_brands, DEFAULT_FUEL_POLICY.avoidBrands, (s) => s.toLowerCase()),
     preferredBrands: list(row?.preferred_brands, DEFAULT_FUEL_POLICY.preferredBrands, (s) => s.toLowerCase()),
+    // A boolean has no empty-versus-null distinction to preserve: absent means unconfigured, and an
+    // unconfigured carrier gets the planner's own default rather than a second opinion.
+    alwaysFillFull: row?.always_fill_full ?? DEFAULT_FUEL_POLICY.alwaysFillFull,
   };
 }
 

@@ -6,6 +6,8 @@ export * from "./contractCapture.js";
 export * from "./policyExceptions.js";
 export * from "./policyLabels.js";
 export * from "./exceptions.js";
+export * from "./carriedFuel.js";
+export * from "./stateFuelCost.js";
 export * from "./ancillary.js";
 export * from "./spendPeriodTotals.js";
 export * from "./operatingBridge.js";
