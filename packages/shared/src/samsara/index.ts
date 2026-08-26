@@ -52,6 +52,19 @@ export {
   parseSamsaraVehicles,
   locationDistanceMiles,
 } from "./entities.js";
+export {
+  parseIftaVehicleReport,
+  mergeIftaPages,
+  iftaMonthNumber,
+  IFTA_MONTHS,
+} from "./ifta.js";
+export type {
+  IftaJurisdictionRow,
+  IftaTroubleshooting,
+  IftaVehicleReport,
+  IftaMonth,
+  RawIftaResponse,
+} from "./ifta.js";
 export type {
   SamsaraVehicle,
   VehicleFuelLevel,

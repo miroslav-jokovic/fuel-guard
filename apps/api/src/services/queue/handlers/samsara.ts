@@ -14,6 +14,7 @@ import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";
 import { runNightlyReconcile } from "../../nightlyReconcile.js";
 import { writeAudit } from "../../../lib/audit.js";
 import type { JobHandler } from "../types.js";
+import { monthsToSync, syncIftaMilesForMonth } from "../../samsaraIftaSync.js";
 
 /**
  * Samsara / telematics sync + nightly-reconcile handlers (WQ1c). Each reconstructs entirely from
@@ -197,6 +198,35 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;
   }
+};
+
+/**
+ * Samsara IFTA jurisdiction miles — the current month and the two before it (S1).
+ *
+ * Three months rather than one because a carrier files a QUARTER, and the month a quarter opens is
+ * still being restated while the next one runs. Each month is its own fetch and its own row in
+ * `samsara_ifta_fetches`, so a partial run leaves the months it did complete intact and says which.
+ */
+export const syncIftaHandler: JobHandler = async (ctx, job) => {
+  const { admin, env } = ctx;
+  const orgId = job.org_id;
+  const actorId = asStr(job.payload.actorId);
+  const months = monthsToSync(new Date());
+  const done: Record<string, number> = {};
+  let rows = 0;
+  let unmapped = 0;
+  for (const { year, month } of months) {
+    const r = await syncIftaMilesForMonth(admin, env, orgId, year, month, { actorId });
+    done[`${month} ${year}`] = r.rows;
+    rows += r.rows;
+    unmapped = Math.max(unmapped, r.unmappedVehicles);
+    if (r.unmappedVehicles > 0) {
+      // Samsara reporting trucks we do not hold means the fleet and the telematics account disagree
+      // about what exists. Loud, because it silently shrinks every jurisdiction total.
+      console.warn(`[samsara] ifta ${month} ${year}: ${r.unmappedVehicles} vehicle(s) could not be mapped`);
+    }
+  }
+  return { months: done, rows, unmappedVehicles: unmapped };
 };
 
 /** Idling events + complete per-truck idle-capability foundation refresh. */

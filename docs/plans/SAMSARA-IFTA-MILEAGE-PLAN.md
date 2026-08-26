@@ -316,7 +316,45 @@ shape recorded here. **Deliverable:** Q-IF1 and Q-IF2 answered in place. **No PR
 
 ---
 
-### S1 · Pull the miles and store them verbatim
+### S1 · Pull the miles and store them verbatim — DONE 2026-08-26 (migration 0255)
+
+**What shipped.**
+- **`samsara_ifta_jurisdiction_miles` + `samsara_ifta_fetches` (0255)** — metres and litres under those
+  names, one row per (truck, month, jurisdiction), unique on that key so a re-fetch refreshes rather
+  than doubles a tax liability. The fetch row holds Samsara's `troubleshooting` block, the period it
+  *said* it answered, the unmapped-vehicle count and the provisional flag. Operational and prunable by
+  design (§1.4); a filed quarter's snapshot is S3's.
+- **`packages/shared/src/samsara/ifta.ts`** — pure parser. Converts nothing.
+- **`apps/api/src/lib/samsaraIfta.ts`** — the fetcher, through `samsaraFetch` so it inherits per-token
+  pacing, retry and the deadline. It does NOT use `listAllPages`: that helper merges `json.data` as an
+  ARRAY and this endpoint returns `data` as an OBJECT, so it would push one useless element per page.
+- **`services/samsaraIftaSync.ts`** + job kind `sync_ifta` + a daily scheduler tier gated on
+  `SAMSARA_IFTA_SYNC_HOURS` (0 disables). Three months per run, because a carrier files a QUARTER and
+  the month a quarter opens is still being restated when the next one starts.
+
+**D-IF10 — the period is a MONTH, and it was measured rather than assumed.** April + May + June returns
+**4,611,351** taxable miles; Q2 returns **4,611,351**. A difference of **0.0 miles**. So monthly
+reconstructs the quarter exactly *and* gives F10 a month-level apportionment; the quarter is derived
+and never stored, because two rows that can disagree about one fact is worse than an extra sum.
+
+**The RLS matrix had to be taught to seed these tables**, which is the gate working: `rls.test.mjs`
+discovers every RLS table from the live catalogue and **fails** on one it cannot seed rather than
+skipping it, and 0255's `period_year between 2015 and 2100` check refuses the generic seeder's
+placeholder. A real year in `handSeed` was cheaper than loosening a constraint that exists to stop a
+month landing in year zero. Coverage went 100 → 102 tables, 0 unseedable.
+
+**Verified by:** the new `samsara-ifta-miles` matrix (**20 passed**), 14 shared parser tests, 13
+service tests with `expectOrgScoped`, and `rls.test.mjs` at **421 passed**. Every test was made to
+fail first: dropping an unrecognised jurisdiction (1 red), converting metres to miles at parse time
+(1 red), silently skipping an unmapped vehicle (1 red), never marking a month provisional (2 red).
+Removing the unique constraint takes the matrix down entirely — `on conflict` has nothing to match, so
+it dies without a `RESULT` line, which the runner treats as a build failure. Full suite,
+`pnpm typecheck`, `lint:migrations`, `lint:rls`, `lint:upserts`, `lint:filesize`, `lint:funcsize`,
+`lint:comment-claims`, `lint:boundaries`, `lint:tests`, `lint:secrets` — all by exit code.
+
+**Not done here, on purpose:** the backfill of 2026 Q1–Q3 is a one-command run against production once
+this is deployed, not a migration. And nothing yet *reads* these rows — that is S2, and it is where
+every conversion and every rate lives.
 
 **Prerequisites:** S0.
 

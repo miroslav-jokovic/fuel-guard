@@ -22,6 +22,7 @@ import {
   syncDriversHandler,
   syncHosHandler,
   syncIdleHandler,
+  syncIftaHandler,
   syncStatsHandler,
   syncTrailersHandler,
   syncVehiclesHandler,
@@ -53,6 +54,7 @@ export function registerAllHandlers(): void {
   registerHandler("sync_stats", syncStatsHandler);
   registerHandler("sync_trailers", syncTrailersHandler);
   registerHandler("sync_idle", syncIdleHandler);
+  registerHandler("sync_ifta", syncIftaHandler);
   registerHandler("sync_hos", syncHosHandler);
   registerHandler("sync_drivers", syncDriversHandler);
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
