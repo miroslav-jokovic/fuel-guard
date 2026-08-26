@@ -11,6 +11,7 @@ import { AppButton as BaseButton } from "@fuelguard/ui";
 import { ref, onMounted } from "vue";
 import { formatRuleId } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
+import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
 
 const props = defineProps<{ anomalyId: string }>();
 
@@ -148,6 +149,18 @@ const declineRetries = (rep: PatternReport) =>
             Top station: {{ report.report[axis]!.topStations[0]!.station }}
             ({{ report.report[axis]!.topStations[0]!.share }}% of fills)
           </div>
+          <!--
+            G3 — the near-miss timeline. The data has been in this payload since the Phase-2 report
+            shipped and nothing rendered it. `nearThresholdScore` comes from the risk context rather
+            than a constant here, so the copy cannot drift from the score the API actually applied.
+          -->
+          <CaseTimeline
+            v-if="risk"
+            class="mt-2"
+            :entries="report.report[axis]!.nearThresholdTimeline"
+            :total="report.report[axis]!.nearThresholdTotal"
+            :threshold="risk.windows.nearThresholdScore"
+          />
         </div>
       </template>
       <div v-if="report.report.cardDeclines && report.report.cardDeclines.total > 0" class="rounded-control bg-surface-subtle px-3 py-2">

@@ -5,6 +5,7 @@ import { AppButton } from "@fuelguard/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
+import CaseTimeline, { type NearMiss } from "@/features/anomalies/CaseTimeline.vue";
 import type { Crumb } from "@/lib/breadcrumbs";
 import { useSidebarSections } from "@/composables/useSidebarSections";
 import type { NavGroup } from "@/lib/nav";
@@ -35,6 +36,21 @@ const labTrailTwo: Crumb[] = [
   { label: "Audit Log", to: "/settings/audit" },
 ];
 const labTrailOne: Crumb[] = [{ label: "Dashboard", to: "/" }];
+
+/**
+ * Near-miss timeline specimen (G3). The real `CaseTimeline` with hand-written entries, for the same
+ * reason the breadcrumb specimen exists: the only surface that renders this in production is an
+ * anomaly's Entity-history panel, which needs a live case behind the auth wall (D-DS13, and Q-UI2 —
+ * no seeded case is guaranteed to carry a non-empty window).
+ *
+ * The scores straddle CORRELATION_THRESHOLDS.review deliberately, so both marker tones are visible:
+ * a clear fill whose signals SUM past the lone-review weight reads warning, one below it neutral.
+ */
+const labNearMisses: NearMiss[] = [
+  { fueledAt: "2026-08-21T04:12:00Z", score: 72, signals: ["odometer_regression", "odometer_stale"] },
+  { fueledAt: "2026-08-17T22:48:00Z", score: 58, signals: ["odometer_daily_cap"] },
+  { fueledAt: "2026-08-11T06:30:00Z", score: 44, signals: ["odometer_missing"] },
+];
 
 const actionMode = ref<ActionMode>("graphite");
 const sidebarMode = ref<SidebarMode>("light");
@@ -346,6 +362,17 @@ const rows = [
         <BreadcrumbTrail :trail="labTrailTwo" />
         <!-- Renders nothing: one crumb is the current page, which the h1 beneath already says. -->
         <BreadcrumbTrail :trail="labTrailOne" />
+      </div>
+
+      <h3>Near-miss timeline</h3>
+      <p class="lab-shipped-note">
+        Fills whose case stayed <em>clear</em> while scoring above the near-miss floor — the history
+        a reviewer holding a live case wants, and the one shape a filterable table serves badly. The
+        marker turns warning at the weight a single signal would have needed to raise a review on its
+        own, so a row of identical dots never pretends every near miss is the same.
+      </p>
+      <div class="lab-shipped-row" style="flex-direction: column; align-items: stretch">
+        <CaseTimeline :entries="labNearMisses" :total="labNearMisses.length" :threshold="40" />
       </div>
 
       <h3>Sidebar sections</h3>
