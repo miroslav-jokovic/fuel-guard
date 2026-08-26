@@ -1296,8 +1296,8 @@ the two halves of the product are connected.
 
 Deliberately thin, because F6 will change what they should be. Each carries its argument:
 
-- **F13** — SPLIT AND RESHAPED 2026-08-26. **F13a DONE (migration 0254)**; F13b is the surface.
-  See the full entry below.
+- **F13** — SPLIT AND RESHAPED 2026-08-26. **F13a DONE (migration 0254)** and **F13b DONE (no
+  migrations)**. See the full entries below.
 - **F14** (N10) — one weekly email: spend and its delta, variance against contract, the top five open
   exceptions, coverage, one link. Extends `NotificationCategory` **and** adds a `notificationRoute`
   entry in the same PR. Scheduler in exactly one process fleet-wide — `docs/WORKER-DEPLOYMENT.md`
@@ -1441,14 +1441,69 @@ dropping the previous-purchase cap (1 red), estimating burn from the arriving fi
 `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:filesize`, `lint:funcsize`, `lint:comment-claims`,
 `lint:boundaries`, `lint:upserts`, `lint:tests`.
 
-**F13b — the surface — is next**, and it is deliberately a separate PR on F6a/F6b's precedent: the
-arithmetic has to be correct before it has a window. It carries the sentence this is all for:
-*"Min-drawdown is available in your fuel planner and switched off. Over the last 90 days, hauling fuel
-out of dearer states cost at least $13,629."* It will NOT file 1,377 rows into the exception ledger —
-201 off-network fills was already judged not to be 201 actions, and 1,377 is not 1,377 either.
-
 **Also for Miki:** `always_fill_full = true` and `fill_cap_pct = 75` are both set and cannot both be
 honoured. The settings form permits it and should not.
+
+---
+
+### F13b · The Buy discipline tab — DONE 2026-08-26 (no migrations)
+
+**What shipped.** `BuyDisciplineTab.vue` on the Fuel Spend page, fed by `useBuyFills` → the F13a
+analyzer, plus a derived state ranking in shared.
+
+- **The headline is the pre-tax floor and reads as one.** The pump-price version of the same legs sits
+  beside it as a comparison with the reason it is not a saving — the gap is a jurisdiction's tax rate,
+  owed on the miles driven there whichever state the diesel was bought in.
+- **The one action on the page is a planner setting.** *"Your fuel planner can already buy just enough
+  to reach the next cheaper station — it is switched off, because **Always fill full** is on. Over this
+  window that setting is worth at least $13,629."* It renders only while `alwaysFillFull` is true;
+  judging a carrier against a discipline they have already enabled is noise. `FuelPolicy` gained
+  `alwaysFillFull` for exactly this, defaulted to match `DEFAULT_ROUTE_FUEL_SETTINGS` so the two halves
+  of the product start from one assumption rather than two.
+- **Every non-finding is accounted for, by name and by count.** 544 legs inside one state, 2,565 run
+  from cheaper fuel toward dearer, nine unjudgeable. Without that sentence a 25% hit rate reads as
+  three quarters of the fleet unmeasured.
+
+**`stateFuelCost.ts` — the answer to "why hand-written rules at all?", which Miki asked on 2026-08-26.**
+States ranked by what the fleet PAID with each jurisdiction's tax stripped out. Measured over 671,617
+gallons: **`avoid_states = {CA}` is right** (rank 1 of 39, +$0.901/gal); **`fuel_before_states = {MA}`
+governs nothing** (15 fills, ~1,600 gallons — below any threshold at which a rule means anything); and
+**NM, AZ and NV rank 2–4 across 86,000 gallons and are in no list at all.** Pre-tax is what reorders
+it: New Jersey pumps at $4.844, near the top on the sign, and sits at $4.283 underneath because $0.561
+is tax — a pump-price ranking would have a dispatcher routing around a tax rate.
+
+**It ranks, shows and flags the divergence. It does not apply it.** A carrier avoids a state for
+reasons a price cannot see — CARB, tolls, a customer who will not take the truck — so the configured
+list stays authoritative, and silently overriding it would be B4's shape again. States under 2,000
+gallons are excluded from the action list: a rule over a handful of stops is a rule about noise. And
+the surface says the ranking is what the fleet PAID rather than what fuel costs there, because a state
+where we only ever stop at expensive sites looks dear for a reason of our own making.
+
+**The three rules, resolved (Miki's question, answered in the code):**
+1. **Replaceable by data** — the state lists, and `fill_cap_pct` as a proxy for "reach the next cheaper
+   stop", which `fillPolicy.ts` already computes properly.
+2. **Genuine policy, only priceable** — `always_fill_full`, `min_purchase_gal`, `preferred_brands`. No
+   dataset settles a range-versus-cost trade-off; a number beside the switch does.
+3. **Needs no rule at all** — the carried-fuel finding itself, which is why F13a never touched
+   `fill_cap_pct`. This is the category to prefer whenever it is available.
+
+**Verified by:** 12 tab tests, 3 page-wiring tests and 12 shared tests on the ranking — every one
+regressed and watched fail. Two of the first three regressions did NOT bite and the tests were
+rewritten because of it: the headline check looked for the words "at least" anywhere on the page and
+passed happily with the pump figure in the headline, which is the exact defect the tab exists to
+avoid. It reads the headline NODE now and compares against the analyzer's own two totals. Full suite,
+`pnpm typecheck`, `pnpm lint`, `lint:filesize`, `lint:funcsize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:upserts`, `lint:ui-adoption`, `lint:tokens-parity`, `lint:migrations`,
+`lint:rls`, `lint:tests`, `pnpm --filter web lint:tokens` — all checked by **exit code**, after a
+grep-based check let a typecheck failure through to CI on F13a.
+
+**Deliberately not done: the ledger.** 1,377 legs are not 1,377 actions, and the same judgement was
+already made about 201 off-network fills (`policyFindingsNote`). Filing them needs a materiality
+threshold or a grouping — per truck, per lane, per month — and that is a product decision that should
+be taken with a reader in front of the tab rather than guessed at now.
+
+**Also not done: the PDF.** The action here is a settings change made in the app, and the report is
+already long. It follows if the tab proves itself.
 
 ---
 
