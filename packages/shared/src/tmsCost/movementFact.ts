@@ -146,29 +146,53 @@ export interface DeadheadLeg {
 }
 
 /**
- * Chain a tractor's settled movements into the empty legs between them.
+ * When the truck actually finished this trip — the departure from its last delivery.
+ *
+ * NOT `settled_at`. That is `xfer2settle_date`, the moment the movement was transferred into the
+ * settlement run, and settlement runs in BATCHES: measured 2026-08-26, 2,226 of 3,165 consecutive
+ * movement pairs on the same tractor (70.3%) share an identical `settled_at` to the second. Within a
+ * batch the order is arbitrary, so chaining on it pairs a delivery in Georgia with a pickup in
+ * Tennessee that happened a week earlier.
+ *
+ * That is not a theoretical concern. The first version of this function sorted by `settled_at` and
+ * produced 2,257,083 deadhead miles against 1,694,429 loaded — 133%, where the same fleet measured
+ * 3.95% when ordered by actual delivery time. Unit tests did not catch it because a fixture with
+ * distinct timestamps sorts correctly either way; only real data has the ties.
+ */
+function tripEndAt(m: TmsMovementFact): string | null {
+  const last = lastStopOfKind(m, "dropoff");
+  return last?.departed_at ?? last?.arrived_at ?? null;
+}
+
+/**
+ * Chain a tractor's movements into the empty legs between them.
  *
  * This is the ONLY source of empty miles that exists. Both of McLeod's manifest distance columns
  * (`manifest_loaded_distance`, `manifest_empty_distance`) sum to exactly zero across all 21,547
  * movements settled in 2026, and `pay_distance` on the movement is zero too, so there is no column to
  * read and no vendor number to reconcile against — the inference IS the measurement (D-MC16).
  *
- * Movements are ordered by `settled_at`. A movement missing a settle date, a tractor, a final dropoff
- * or an initial pickup cannot be chained and is skipped rather than guessed at; skipping shortens the
- * chain, which understates deadhead, which is the safe direction for a number we present as a floor.
+ * Movements are ordered by when the truck actually finished them (`tripEndAt`), never by settle date.
+ * A movement with no tractor, no trip-end time, no final dropoff or no initial pickup cannot be
+ * chained and is skipped rather than guessed at; skipping shortens the chain, which understates
+ * deadhead, which is the safe direction for a number presented as a floor.
  */
 export function inferDeadheadLegs(movements: TmsMovementFact[]): DeadheadLeg[] {
-  const byTractor = new Map<string, TmsMovementFact[]>();
+  const byTractor = new Map<string, Array<{ m: TmsMovementFact; at: string }>>();
   for (const m of movements) {
-    if (!m.tractor_unit || !m.settled_at) continue;
+    if (!m.tractor_unit) continue;
+    const at = tripEndAt(m);
+    if (!at) continue;
+    const entry = { m, at };
     const list = byTractor.get(m.tractor_unit);
-    if (list) list.push(m);
-    else byTractor.set(m.tractor_unit, [m]);
+    if (list) list.push(entry);
+    else byTractor.set(m.tractor_unit, [entry]);
   }
 
   const legs: DeadheadLeg[] = [];
-  for (const [tractor_unit, list] of byTractor) {
-    list.sort((a, b) => (a.settled_at! < b.settled_at! ? -1 : a.settled_at! > b.settled_at! ? 1 : 0));
+  for (const [tractor_unit, entries] of byTractor) {
+    entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    const list = entries.map((e) => e.m);
     for (let i = 1; i < list.length; i++) {
       const from = list[i - 1];
       const to = list[i];

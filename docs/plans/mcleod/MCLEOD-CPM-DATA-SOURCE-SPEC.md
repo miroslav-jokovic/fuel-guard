@@ -482,6 +482,59 @@ note is `gl_comments` live and `comments` in history; neither is selected. Live 
 working/completed split that moves a fuel row the moment it posts. A 2026 window touches only the
 live table; the union exists so a historical window still works.
 
+### 5.8 What the CPM harness is, and what it refuses to do (C5)
+
+C1–C4 extract: McLeod decides the answer and the ledger proves whether we read it correctly, which
+is why each of those can say "$0.00 difference" and mean it. **C5 allocates, and allocation has no
+ground truth in the source.** No query reveals what share of an insurance premium belongs to truck
+1234.
+
+So the harness optimises for auditability rather than accuracy. Direct cost is measured; allocated
+cost is a policy; the two are never merged into one number, and every run emits a caveat list
+generated from what actually happened in it.
+
+> **D-MC26 — the default rules are deliberately understated and known to be.** `overheadBasis`
+> defaults to `none`: until finance signs an allocation rule, no overhead is assigned to any truck
+> and the whole pool is reported as excluded. A figure that is too low, with the shortfall stated, is
+> safe to price against in a way that an invented allocation is not.
+>
+> **D-MC27 — which figure each cost uses is a decision, not a detail.** Fuel uses `settled_amount`
+> (D-MC21), not `total_amount`, which would overstate it by the card discount. Settlement uses
+> `total_pay`, not `posted_pay`, which is the accrual the ledger recorded and a reconciliation
+> figure rather than a cost (D-MC24). Both are pinned by tests that fail if the other column is read.
+>
+> **D-MC28 — cost McLeod could not place on a truck is excluded and counted, never spread.**
+> Silently distributing it across trucks that happen to carry an id would inflate every one of them
+> with money the source never attributed.
+
+The rules are `deadhead` (`estimate` | `exclude`), `overheadBasis` (`total_miles` | `loaded_miles` |
+`equal_per_truck` | `none`), `includeOwnerOperators`, and `overheadAccounts`. Changing the basis
+moves the fleet figure from 116.4¢ to 198.7¢ without touching a single extracted fact — which is
+precisely why the rule belongs in configuration and in the report's own output.
+
+### 5.9 The deadhead bug that only live data could catch (C5)
+
+The first end-to-end run produced **2,257,083 deadhead miles against 1,694,429 loaded — 133%**,
+where §4.2's independent SQL measurement said 3.95%. Every unit test passed.
+
+`inferDeadheadLegs` sorted a tractor's movements by `settled_at`. But `xfer2settle_date` is a
+**batch** timestamp: measured 2026-08-26, **2,226 of 3,165 consecutive movement pairs on the same
+tractor — 70.3% — share it to the second.** Within a batch the order is arbitrary, so the chain
+paired a delivery in Georgia with a pickup a week earlier in Tennessee and called the gap deadhead.
+
+Fixtures could not catch it. A test fixture with distinct timestamps sorts correctly under the bug
+and under the fix; only real data has the ties.
+
+> **D-MC29:** Chain movements by when the truck actually finished them — the last delivery's
+> `departed_at`, falling back to its `arrived_at` — never by settle date. A movement with no
+> delivery time (12 of June's 3,337) is skipped rather than placed arbitrarily; skipping shortens
+> the chain and understates deadhead, which is the safe direction for a floor.
+
+After the fix: **59,731 miles, 3.52% of loaded**, against the 3.95% the C1 SQL probe measured by a
+different method. Two independent routes to the same answer is the check that matters here; a
+regression test now pins the batch-timestamp case with identical settle dates and reversed trip
+order.
+
 ---
 
 ## 6. Change detection
@@ -603,9 +656,15 @@ Each step is one PR, gated on `pnpm test` green.
   a coverage claim cannot outlive the sweep that produced it.
 
   See §5.7.
-- **C5.** **CPM harness** in `packages/shared` — pure functions over the imported facts, with
-  allocation rules as explicit configuration. Includes the deadhead chaining of §4.2. No longer
-  blocked — the three correctness questions were resolved by measurement on 2026-08-26.
+- **C5. — SHIPPED 2026-08-26.** `computeCpm` in `packages/shared/src/tmsCost/cpmHarness.ts`: pure,
+  no clock, no I/O, allocation rules passed in rather than baked in.
+
+  June 2026 under the default rules: 159 trucks, 1,694,429 loaded miles plus 59,731 estimated
+  deadhead, $1,017,601.81 fuel and $1,024,286.08 company-driver settlement — **116.4¢/mi direct**.
+  A further $1,443,207.52 of overhead is deliberately left unallocated (about 82.3¢/mi if spread by
+  miles), and the report says so in its own caveat list.
+
+  See §5.8 for what the harness is and is not, and §5.9 for the bug the live run caught.
 
 Explicitly **not** in scope: maintenance (FleetPal), any write to McLeod, and any allocation
 rule baked into the extraction layer.
