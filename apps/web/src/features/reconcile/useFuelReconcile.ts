@@ -56,13 +56,17 @@ export function useSystemFillsQuery(window: Ref<ReconWindow | null>) {
           .select("id, card_ref, vehicle_id, fueled_at, gallons, total_cost, state, tank_type")
           .gte("fueled_at", fromIso)
           .lte("fueled_at", toIso)
-          .eq("tank_type", "tractor") // reconcile against the tractor diesel fills (report DEF is separate)
+          // BOTH tanks (D-FR7). This filtered to `tractor`, so a reefer line the vendor billed had
+          // nothing on our side to match, and the reefer fills we DID record were never offered up as
+          // unbilled. The matcher keeps the classes apart itself — it will not pair a reefer line with
+          // a tractor fill — so the filter belonged there, not here.
           .order("fueled_at", { ascending: true })
           .range(start, start + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as Array<{
           id: string; card_ref: string | null; vehicle_id: string | null;
-          fueled_at: string | null; gallons: number | string | null; total_cost: number | string | null; state: string | null;
+          fueled_at: string | null; gallons: number | string | null; total_cost: number | string | null;
+          state: string | null; tank_type: string | null;
         }>;
         for (const r of batch) {
           out.push({
@@ -72,6 +76,7 @@ export function useSystemFillsQuery(window: Ref<ReconWindow | null>) {
             unit: unitOf(r.vehicle_id),
             fueledAt: r.fueled_at,
             tranDate: localBusinessDate(r.fueled_at, r.state),
+            tank: r.tank_type === "reefer" ? "reefer" : "tractor",
             gallons: r.gallons == null ? 0 : Number(r.gallons),
             totalCost: r.total_cost == null ? null : Number(r.total_cost),
           });

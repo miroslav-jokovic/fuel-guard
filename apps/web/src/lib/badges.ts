@@ -1,4 +1,4 @@
-import { CORRELATION_THRESHOLDS } from "@fuelguard/shared";
+import { CORRELATION_THRESHOLDS, RECON_STATUS_LABELS } from "@fuelguard/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
 const SOFT = {
@@ -73,6 +73,7 @@ export function nearMissMarker(score: number): string {
 }
 
 /** Declined-attempt suspicion: alert | review | clear. */
+
 export function suspicionTone(level: string | null | undefined): string {
   return toneClass(level === "alert" ? "danger" : level === "review" ? "warning" : "neutral");
 }
@@ -274,6 +275,37 @@ export function employmentInquiryBadge(status: string): DqBadge {
       return { label: "Responded", tone: "success" };
     case "no_response":
       return { label: "No response", tone: "success" };
+    default:
+      return { label: status, tone: "neutral" };
+  }
+}
+
+/**
+ * A reconciliation row's status.
+ *
+ * The words come from `RECON_STATUS_LABELS` in `@fuelguard/shared` — the machine token and the label
+ * ship as a pair, so no `.vue` file carries a status literal — and only the TONE is decided here.
+ *
+ * The three tones say what a reader should do, not how bad the row sounds. A fill the vendor billed and
+ * we never recorded is the fuel-theft surface and is the only red; a drifted or card-drifted match
+ * AGREES about the money and is merely qualified, so it is neutral rather than a warning.
+ */
+export function reconStatusBadge(status: string): DqBadge {
+  switch (status) {
+    case "clean":
+      return { label: RECON_STATUS_LABELS.clean, tone: "success" };
+    case "missing_in_system":
+      return { label: RECON_STATUS_LABELS.missing_in_system, tone: "danger" };
+    case "missing_on_report":
+      return { label: RECON_STATUS_LABELS.missing_on_report, tone: "caution" };
+    case "amount_mismatch":
+    case "gallon_mismatch":
+    case "other":
+      return { label: RECON_STATUS_LABELS[status], tone: "warning" };
+    case "date_drift":
+    case "card_drift":
+    case "amount_unknown":
+      return { label: RECON_STATUS_LABELS[status], tone: "neutral" };
     default:
       return { label: status, tone: "neutral" };
   }

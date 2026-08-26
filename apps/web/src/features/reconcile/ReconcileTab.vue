@@ -4,12 +4,12 @@ import {
   ArrowUpTrayIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
-import { reconcilePilotFuel, DEFAULT_TOLERANCES, type ReconStatus } from "@fuelguard/shared";
+import { reconcileFuelReport, RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconStatus } from "@fuelguard/shared";
 import { loadFuelReport, ReportLoadError, type LoadedReport } from "@/features/reconcile/loadFuelReport";
 import { useSaveStatement, StatementRejected } from "@/features/reconcile/useSaveStatement";
 import { useSystemFillsQuery, type ReconWindow } from "@/features/reconcile/useFuelReconcile";
 import { useToastStore } from "@/stores/toast";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
@@ -51,9 +51,24 @@ const savings = computed(() => {
   return r.totalRetail - r.totalNet;
 });
 
-const result = computed(() =>
-  report.value ? reconcilePilotFuel(report.value.fills, systemFills.value ?? [], DEFAULT_TOLERANCES) : null,
-);
+/**
+ * Every fuel line the report carries — tractor AND reefer — matched against every fill we recorded.
+ *
+ * The reefer lines used to be held back and the system side filtered to tractor, so dyed off-road
+ * diesel the vendor billed had nothing to match against. The matcher keeps the two classes apart
+ * itself and will not pair across them, so passing both is what lets a reefer line be reconciled at
+ * all. DEF and in-store lines go too: `reconcileFuelReport` sets them aside as `unmatchable` rather
+ * than scoring them as fuel we failed to record, which is the only honest answer for a product
+ * `fuel_transactions` does not carry.
+ */
+const result = computed(() => {
+  const r = report.value;
+  if (!r) return null;
+  return reconcileFuelReport([...r.fills, ...r.reeferLines, ...r.defLines], systemFills.value ?? [], {
+    // The report's DECLARED window decides whether one of our fills should have appeared on it.
+    window: r.startDate && r.endDate ? { from: r.startDate, to: r.endDate } : null,
+  });
+});
 
 async function onFiles(files: File[]) {
   const file = files[0];
@@ -119,42 +134,58 @@ const buckets = computed<Bucket[]>(() => {
   if (!s) return [];
   const disc = s.missingInSystem + s.missingOnReport + s.amountMismatch + s.gallonMismatch + s.other;
   return [
-    { key: "discrepancies", label: "Discrepancies", value: disc, tone: disc ? "text-danger-700 bg-danger-50 ring-danger-100" : "text-ink-muted bg-surface-muted ring-edge", hint: `${fmtUsd(s.dollarsAtStake)} at stake` },
-    { key: "missing_in_system", label: "Missing in our system", value: s.missingInSystem, tone: "text-danger-700 bg-danger-50 ring-danger-100", hint: "on report, no fill" },
-    { key: "missing_on_report", label: "Missing on report", value: s.missingOnReport, tone: "text-caution-800 bg-caution-50 ring-caution-100", hint: "fill, no report line" },
-    { key: "amount_mismatch", label: "Amount mismatch", value: s.amountMismatch, tone: "text-warning-800 bg-warning-50 ring-warning-100", hint: "$ differs" },
-    { key: "gallon_mismatch", label: "Gallon mismatch", value: s.gallonMismatch, tone: "text-warning-800 bg-warning-50 ring-warning-100", hint: "gallons differ" },
-    { key: "clean", label: "Matched clean", value: s.clean, tone: "text-success-700 bg-success-50 ring-success-100", hint: "reconciled" },
+    { key: "discrepancies", label: "Needs a look", value: disc, tone: disc ? "text-danger-700 bg-danger-50 ring-danger-100" : "text-ink-muted bg-surface-muted ring-edge", hint: disc ? "rows below" : "nothing to explain" },
+    { key: "missing_in_system", label: RECON_STATUS_LABELS.missing_in_system, value: s.missingInSystem, tone: "text-danger-700 bg-danger-50 ring-danger-100", hint: fmtUsd(s.exposure.unrecorded) },
+    { key: "missing_on_report", label: RECON_STATUS_LABELS.missing_on_report, value: s.missingOnReport, tone: "text-caution-800 bg-caution-50 ring-caution-100", hint: fmtUsd(s.exposure.unbilled) },
+    { key: "amount_mismatch", label: RECON_STATUS_LABELS.amount_mismatch, value: s.amountMismatch, tone: "text-warning-800 bg-warning-50 ring-warning-100", hint: `${fmtUsd(s.exposure.overbilled)} over · ${fmtUsd(s.exposure.underbilled)} under` },
+    { key: "date_drift", label: RECON_STATUS_LABELS.date_drift, value: s.dateDrift, tone: "text-ink-secondary bg-surface-muted ring-edge", hint: "one fill, not two findings" },
+    { key: "clean", label: RECON_STATUS_LABELS.clean, value: s.clean, tone: "text-success-700 bg-success-50 ring-success-100", hint: "reconciled" },
   ];
+});
+
+/**
+ * The four kinds of money, apart — and never their sum.
+ *
+ * This was one figure called "dollars at stake" that added the amount deltas, the full value of lines
+ * we never recorded, and the full value of fills the vendor never billed. Those are money we can
+ * recover, money we may owe, and money nobody has explained; adding them produces a number that is
+ * always too big and means nothing. A $50 overbill and a $50 underbill are not $100 of exposure.
+ */
+const exposure = computed(() => {
+  const e = result.value?.summary.exposure;
+  if (!e) return [];
+  return [
+    { label: "Billed above what we recorded", value: e.overbilled, lines: e.overbilledLines, tone: "text-danger-700", hint: "recoverable" },
+    { label: "Billed below what we recorded", value: e.underbilled, lines: e.underbilledLines, tone: "text-ink", hint: "may still be owed" },
+    { label: "Billed, never recorded", value: e.unrecorded, lines: e.unrecordedLines, tone: "text-danger-700", hint: "fuel we cannot account for" },
+    { label: "Recorded, never billed", value: e.unbilled, lines: e.unbilledLines, tone: "text-ink", hint: "not yet invoiced" },
+  ].filter((x) => x.lines > 0);
+});
+
+/** How each match was placed. A claim's strength is part of the claim. */
+const matchBasis = computed(() => {
+  const s = result.value?.summary;
+  if (!s) return null;
+  const total = s.matchedOnCard6 + s.matchedOnCard4 + s.matchedOnDateGallons;
+  if (total === 0) return null;
+  const parts: string[] = [];
+  if (s.matchedOnCard6) parts.push(`${s.matchedOnCard6.toLocaleString()} on the card's last six digits`);
+  if (s.matchedOnCard4) parts.push(`${s.matchedOnCard4} on the last four only — a weaker match`);
+  if (s.matchedOnDateGallons) parts.push(`${s.matchedOnDateGallons} on date and gallons, with no card agreement`);
+  return parts.join(", ");
 });
 
 const statusFilter = ref<ReconStatus | "discrepancies" | "">("discrepancies");
 const statusOptions = [
-  { value: "discrepancies", label: "Discrepancies only" },
+  { value: "discrepancies", label: "Needs a look" },
   { value: "", label: "All rows" },
-  { value: "missing_in_system", label: "Missing in our system" },
-  { value: "missing_on_report", label: "Missing on report" },
-  { value: "amount_mismatch", label: "Amount mismatch" },
-  { value: "gallon_mismatch", label: "Gallon mismatch" },
-  { value: "other", label: "Other" },
-  { value: "clean", label: "Matched clean" },
+  ...(Object.keys(RECON_STATUS_LABELS) as ReconStatus[]).map((k) => ({ value: k, label: RECON_STATUS_LABELS[k] })),
 ];
-const STATUS_LABEL: Record<ReconStatus, string> = {
-  clean: "Clean", amount_mismatch: "Amount", gallon_mismatch: "Gallons",
-  missing_in_system: "Missing (system)", missing_on_report: "Missing (report)", other: "Other",
-};
-const statusTone = (s: ReconStatus): string => {
-  if (s === "clean") return "bg-success-50 text-success-700";
-  if (s === "missing_in_system") return "bg-danger-50 text-danger-700";
-  if (s === "missing_on_report") return "bg-caution-50 text-caution-800";
-  return "bg-warning-50 text-warning-800";
-};
 
-const DISCREPANCY: ReconStatus[] = ["missing_in_system", "missing_on_report", "amount_mismatch", "gallon_mismatch", "other"];
 const rows = computed(() => {
   const all = result.value?.rows ?? [];
   const f = statusFilter.value;
-  const kept = !f ? all : f === "discrepancies" ? all.filter((r) => DISCREPANCY.includes(r.status)) : all.filter((r) => r.status === f);
+  const kept = !f ? all : f === "discrepancies" ? all.filter((r) => RECON_DISCREPANCIES.includes(r.status)) : all.filter((r) => r.status === f);
   return kept.map((r, i) => {
     const rep = r.report;
     const sys = r.system;
@@ -259,6 +290,25 @@ const columns: DataTableColumn[] = [
         </BaseButton>
       </dl>
 
+      <!-- The four kinds of money, apart. One figure that added them was always too big and meant
+           nothing; a $50 overbill and a $50 underbill are not $100 of exposure. -->
+      <BaseCard v-if="exposure.length" padding="sm">
+        <h4 class="text-sm font-semibold text-ink">What does not reconcile</h4>
+        <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div v-for="x in exposure" :key="x.label">
+            <dt class="text-xs text-ink-muted">{{ x.label }}</dt>
+            <dd class="text-lg font-semibold" :class="x.tone">{{ fmtUsd(x.value) }}</dd>
+            <dd class="text-2xs text-ink-tertiary">{{ x.lines }} row{{ x.lines === 1 ? "" : "s" }} · {{ x.hint }}</dd>
+          </div>
+        </dl>
+        <p class="mt-3 text-2xs text-ink-tertiary">
+          Reported apart on purpose: money we can recover, money we may owe, and money nobody has
+          explained are different findings and must not be added.
+        </p>
+      </BaseCard>
+
+      <p v-if="matchBasis" class="text-xs text-ink-tertiary">Matched {{ matchBasis }}.</p>
+
       <FilterBar :count="rows.length" count-label="rows">
         <template #filters>
           <FilterSelect v-model="statusFilter" label="Show" :options="statusOptions" />
@@ -273,8 +323,8 @@ const columns: DataTableColumn[] = [
         empty-text="No rows in this bucket."
       >
         <template #cell-status="{ row }">
-          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusTone(row.status as ReconStatus)">
-            {{ STATUS_LABEL[row.status as ReconStatus] }}
+          <span :class="[BADGE_BASE, toneClass(reconStatusBadge(String(row.status)).tone)]">
+            {{ reconStatusBadge(String(row.status)).label }}
           </span>
         </template>
         <template #cell-gallons="{ row }">

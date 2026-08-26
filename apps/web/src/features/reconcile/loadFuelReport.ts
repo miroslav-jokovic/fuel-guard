@@ -110,7 +110,10 @@ async function loadExportGrid(buf: ArrayBuffer, fileName: string): Promise<Loade
     startDate: parsed.startDate,
     endDate: parsed.endDate,
     fills: parsed.fills,
-    reeferLines: [],
+    // The export separates reefer since F4. It used to arrive here as `[]` because the parser's
+    // description rule could not recognise the word "Reefer", so 120 real fills in the 2026-06/07
+    // export were dropped into `other` and the screen then reported "0 reefer".
+    reeferLines: parsed.reeferLines,
     defLines: parsed.defLines,
     merchandise: [],
     totalGallons: parsed.totalDieselGallons,
