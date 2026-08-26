@@ -112,7 +112,10 @@ export async function runSchemaCheck(env: Env): Promise<void> {
     console.warn(
       `[schema] ⚠ ${missing.length} pending migration(s) — related features will misbehave until applied:\n  - ` +
         missing.join("\n  - ") +
-        `\n  Apply supabase/_deploy/reconcile_schema.sql in Supabase.`,
+        // Used to point at supabase/_deploy/reconcile_schema.sql, which froze at 0032 while the
+        // ledger moved past 0250 — advice that would have wrecked a modern database. The numbered
+        // migrations are the only apply path (2026-08-26 sweep; docs/MIGRATION-DISCIPLINE.md).
+        `\n  Apply the pending files from supabase/migrations/ in Supabase.`,
     );
   } else {
     console.log("[schema] all expected columns present ✓");

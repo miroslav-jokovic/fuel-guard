@@ -1,0 +1,36 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c7cf85e..5ad0dad 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -69,6 +69,19 @@ jobs:
+       - name: Token parity (web ↔ @fuelguard/ui)
+         run: pnpm lint:tokens-parity
+ 
++      # Regenerates the rule catalogue AND packages/ui/src/tokens.generated.css from their DTCG
++      # sources, then fails if either differs from what was committed. It had existed since the
++      # codegen work but was never wired in here, so for its whole life it enforced nothing —
++      # including for the *.generated.ts files it was written for (found 2026-08-23, D-DS3).
++      - name: Generated output matches its sources
++        run: pnpm lint:codegen
++
++      # The 14 role names apps/web and apps/driver genuinely share. Of 61 web roles and 33 driver
++      # roles only those overlap; the gate pins the shared neutral ground rather than pretending the
++      # two schemas match (D-DS3b).
++      - name: Shared token vocabulary
++        run: pnpm lint:token-schema
++
+       - name: UI semantic contrast
+         run: pnpm lint:ui-contrast
+ 
+@@ -95,3 +108,11 @@ jobs:
+ 
+       - name: Build
+         run: pnpm build
++
++      # Deliberately AFTER the build. Lightning CSS transpiles light-dark() into a
++      # prefers-color-scheme polyfill by default, which follows the OS and cannot be reached by the
++      # in-app scheme toggle — so light mode silently did nothing. Every other gate reads SOURCE css,
++      # where light-dark() is present and correct; only the built output shows the defect, which is
++      # why this step needs dist to exist (2026-08-23, D-DS2).
++      - name: light-dark() survives minification
++        run: pnpm lint:light-dark
