@@ -24,6 +24,7 @@ export { default as AppDateRangePicker } from "./components/AppDateRangePicker.v
 export { default as AppFormField } from "./components/AppFormField.vue";
 export { default as AppCombobox } from "./components/AppCombobox.vue";
 export { default as AppBadge } from "./components/AppBadge.vue";
+export { default as AppAvatar } from "./components/AppAvatar.vue";
 export { default as AppTabs } from "./components/AppTabs.vue";
 export { default as AppCallout } from "./components/AppCallout.vue";
 export type { SelectOption, SelectValue } from "./components/AppSelect.vue";

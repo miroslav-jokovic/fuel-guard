@@ -90,7 +90,6 @@ const navLinkClassCollapsed = (to: string) => [
   "sidebar-nav-item flex min-h-9 items-center justify-center rounded-control p-2",
 ];
 
-// Avatar initials from email (first char, uppercased).
 // Mobile sidebar drawer state; auto-close on navigation.
 const mobileOpen = ref(false);
 watch(() => route.path, () => (mobileOpen.value = false));

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton } from "@fuelguard/ui";
+import { AppButton, AppAvatar } from "@fuelguard/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
@@ -349,6 +349,21 @@ const rows = [
           </span>
         </template>
       </DataTable>
+
+      <h3>Avatar</h3>
+      <p class="lab-shipped-note">
+        An initial in a circle, standing in for a person where a name is already on screen. One
+        letter from an email, two from a name, by the same rule and with no special-casing of the
+        <code>@</code>. Deliberately decorative — it carries no accessible name, because its only
+        caller sits inside a control that already announces the address, and naming it there would
+        make a screen reader say it twice.
+      </p>
+      <div class="lab-shipped-row">
+        <AppAvatar label="miroslav@fuelguard.io" size="sm" />
+        <AppAvatar label="miroslav@fuelguard.io" />
+        <AppAvatar label="Marcus Reyes" />
+        <AppAvatar :label="null" />
+      </div>
 
       <h3>Breadcrumbs</h3>
       <p class="lab-shipped-note">

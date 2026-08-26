@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon, AppAvatar } from "@fuelguard/ui";
 import {
   ChevronUpDownIcon,
   SchemeDarkIcon,
@@ -33,7 +33,6 @@ const SCHEME_OPTIONS: { value: ColorScheme; label: string; icon: typeof SchemeSy
   { value: "dark", label: "Dark", icon: SchemeDarkIcon },
 ];
 
-const avatarLetter = computed(() => (props.email ?? "?")[0]?.toUpperCase() ?? "?");
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
 </script>
 
@@ -50,23 +49,13 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
         class="flex size-9 items-center justify-center rounded-surface transition-colors hover:bg-surface-muted"
         :title="email ?? undefined"
       >
-        <span
-          class="sidebar-avatar flex size-7 items-center justify-center rounded-full text-xs font-semibold"
-          aria-hidden="true"
-        >
-          {{ avatarLetter }}
-        </span>
+        <AppAvatar :label="email" size="sm" />
       </div>
       <div
         v-else
         class="group flex w-full items-center gap-2.5 rounded-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-muted"
       >
-        <span
-          class="sidebar-avatar flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-          aria-hidden="true"
-        >
-          {{ avatarLetter }}
-        </span>
+        <AppAvatar :label="email" />
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-semibold text-ink">{{ email }}</span>
           <span class="sidebar-muted mt-0.5 block truncate text-xs">{{ roleLabel }}</span>
