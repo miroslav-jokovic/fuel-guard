@@ -2241,6 +2241,16 @@ async function main() {
         `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version') returning id) ` +
         `insert into efs_card_mutations (org_id, efs_card_id, intent, reason) ` +
         `select '${org}', id, 'lock', 'rls test' from card`,
+      // 0255's period columns are range-checked (`period_year between 2015 and 2100`), which the
+      // generic seeder's placeholder integer cannot satisfy — a real year is cheaper than loosening a
+      // constraint that exists to stop a month landing in year zero.
+      samsara_ifta_fetches: (org) =>
+        `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
+      samsara_ifta_jurisdiction_miles: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
+        `insert into samsara_ifta_jurisdiction_miles ` +
+        `  (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction) ` +
+        `select '${org}', id, 'rls-ifta', 2026, 4, 'TX' from v`,
     },
   });
   console.log(

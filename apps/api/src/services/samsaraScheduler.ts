@@ -16,6 +16,7 @@ import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 import { runDataRetention } from "./dataRetention.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
+import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
  *  the OLDEST org only (2026-08 incident: the fallback used to include EVERY org row, so a stray org
@@ -261,6 +262,30 @@ export function startSamsaraScheduler(env: Env): void {
       });
     }
   });
+
+  // Tier 3b — IFTA jurisdiction miles (0255). Daily, and deliberately its own tier rather than a line
+  // in tier 3: it is the only Samsara feed whose grain is a MONTH, nothing it reads moves faster than
+  // Samsara's 72-hour restatement window, and a tax figure has no business sharing a ledger slot with a
+  // driver-score refresh that runs every six hours. `SAMSARA_IFTA_SYNC_HOURS=0` disables it outright.
+  if (env.SAMSARA_IFTA_SYNC_HOURS > 0) {
+    startTier(env, "ifta", 180_000, env.SAMSARA_IFTA_SYNC_HOURS * 3_600_000, async (admin) => {
+      for (const orgId of await orgsToSync(admin, env)) {
+        await runOrgTier(admin, env, orgId, "sync_ifta", async () => {
+          const months = monthsToSync(new Date());
+          const per: Record<string, number> = {};
+          let rows = 0;
+          let unmapped = 0;
+          for (const { year, month } of months) {
+            const r = await syncIftaMilesForMonth(admin, env, orgId, year, month);
+            per[`${month} ${year}`] = r.rows;
+            rows += r.rows;
+            unmapped = Math.max(unmapped, r.unmappedVehicles);
+          }
+          return { months: per, rows, unmappedVehicles: unmapped };
+        });
+      }
+    });
+  }
 
   // Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
   // (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
