@@ -72,6 +72,7 @@ export * from "./hos.js";
 export * from "./hosVehicleTimeline.js";
 export * from "./driverPerformance/index.js";
 export * from "./tms.js";
+export * from "./tmsCost/index.js";
 export * from "./driverContract.js";
 export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";
