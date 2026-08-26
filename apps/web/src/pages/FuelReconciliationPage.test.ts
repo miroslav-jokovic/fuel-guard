@@ -50,7 +50,22 @@ const seen = {
   spendLineFilters: null as Ref<{ from: string; to: string; vehicleIds: string[] }> | null,
   statementWindow: null as Ref<{ from: string; to: string }> | null,
   policyArgs: [] as unknown[][],
+  buyWindow: null as Ref<{ from: string; to: string }> | null,
 };
+
+/** One California→Arizona leg: enough for the tab to render a finding. */
+const BUY_FILLS = [
+  {
+    vehicleId: "v1", unit: "701", fueledAt: "2026-08-17T12:00:00Z", tranDate: "2026-08-17", inWindow: true,
+    state: "CA", gallons: 150, netAmount: 150 * 6.6, milesSinceLast: null, baselineMpg: 7,
+    levelBeforePct: 50, tankCapacityGal: 240,
+  },
+  {
+    vehicleId: "v1", unit: "701", fueledAt: "2026-08-18T12:00:00Z", tranDate: "2026-08-18", inWindow: true,
+    state: "AZ", gallons: 100, netAmount: 100 * 5.2, milesSinceLast: 350, baselineMpg: 7,
+    levelBeforePct: 50, tankCapacityGal: 240,
+  },
+];
 
 const asQuery = <T,>(data: T) => ({
   data: computed(() => data), isLoading: ref(false), isError: ref(false),
@@ -73,8 +88,8 @@ vi.mock("@/features/reconcile/useStatements", () => ({
 }));
 // The org's policy, swappable per test — F3 made the two compliance tabs read `route_fuel_settings`
 // instead of a constant, so what the page is even ABLE to show now depends on this.
-const policy = ref<{ avoidStates: string[]; avoidBrands: string[]; preferredBrands: string[] }>({
-  avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"],
+const policy = ref<{ avoidStates: string[]; avoidBrands: string[]; preferredBrands: string[]; alwaysFillFull: boolean }>({
+  avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true,
 });
 vi.mock("@/composables/useRouteFuelSettings", () => ({
   useFuelPolicy: () => computed(() => policy.value),
@@ -92,6 +107,16 @@ vi.mock("@/features/reconcile/usePriceCoverage", async (orig) => {
     }),
   };
 });
+// Buy discipline reads its own function (`fuel_buy_fills`, 0254) rather than the spend lines, because
+// the sequence needs an instant, a vehicle id and the tank. Captured so a test can assert the page
+// hands it the SAME window as everything else — the B1/X8 family, in a new tab.
+vi.mock("@/features/reconcile/useBuyFills", () => ({
+  useBuyFillsQuery: (window: Ref<{ from: string; to: string }>) => {
+    seen.buyWindow = window;
+    return asQuery(BUY_FILLS);
+  },
+  inWindowOnly: (r: Ref<unknown[]>) => computed(() => r.value ?? []),
+}));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => asQuery([{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]),
 }));
@@ -125,7 +150,8 @@ beforeEach(() => {
   seen.spendLineFilters = null;
   seen.statementWindow = null;
   seen.policyArgs = [];
-  policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"] };
+  seen.buyWindow = null;
+  policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true };
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -156,7 +182,7 @@ async function mountPage(query = "") {
   return { w, router };
 }
 
-const TABS = ["spend", "avoid_brand", "california", "off_network", "discount", "reconcile", "statements"];
+const TABS = ["spend", "avoid_brand", "california", "off_network", "buy_discipline", "discount", "reconcile", "statements"];
 
 describe("FuelReconciliationPage", () => {
   it("renders every tab without throwing or printing NaN", async () => {
@@ -201,7 +227,7 @@ describe("FuelReconciliationPage", () => {
     // The report and the route planner read the same three `route_fuel_settings` columns; until F3
     // only the planner did, so a carrier who added a state got a planner that avoided it and a
     // compliance report that said the policy held.
-    policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"] };
+    policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"], alwaysFillFull: true };
     await mountPage();
     expect(seen.policyArgs.length).toBeGreaterThan(0);
     expect(seen.policyArgs[0]![1]).toMatchObject({ avoidStates: ["OR", "WA"], avoidBrands: ["pride"] });
@@ -268,5 +294,31 @@ describe("FuelReconciliationPage", () => {
     // "Clear filters" only appears once a filter is active, so the count label is the stable marker.
     expect((await mountPage("?tab=off_network")).w.text()).toContain("fills");
     expect((await mountPage("?tab=reconcile")).w.text()).not.toContain("Export report");
+  });
+});
+
+// ── F13b: buy discipline ────────────────────────────────────────────────────────────────────────
+// The tab has its own source and its own test file. What is only testable HERE is the wiring: that it
+// is reachable, and that it is handed the page's own window rather than a second one. A tab with its
+// own query is exactly where the B1 defect came from — one page, two disagreeing period controls.
+describe("buy discipline", () => {
+  it("is reachable and renders its finding", async () => {
+    const t = (await mountPage("?tab=buy_discipline")).w.text();
+    expect(t).toContain("Fuel carried out of dearer states");
+    expect(t).toContain("CA → AZ");
+    expect(t).not.toContain("NaN");
+  });
+
+  it("is handed the page's window, not a window of its own", async () => {
+    await mountPage("?tab=buy_discipline&from=2026-06-01&to=2026-06-30");
+    expect(seen.buyWindow?.value).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+  });
+
+  it("counts what THIS tab is showing in the filter bar, not the feed's fills", async () => {
+    // X8's rule: a number in a filter bar reads as "this is what you are looking at". The feed has
+    // three fills and the sequence has two, so a bar reading three here would be describing the
+    // wrong tab.
+    const t = (await mountPage("?tab=buy_discipline")).w.text();
+    expect(t).toContain("fills in sequence");
   });
 });
