@@ -1,5 +1,7 @@
 # WP1 — Declines Pipeline Hardening: Audit & Spec
 
+> **⚠ DORMANT (2026-08-26 truth pass):** EFS/anomaly-era spec, superseded in practice by the fuel-spend plans (2026-08).
+
 **Status:** awaiting approval · **Date:** 2026-07-24
 **Goal:** every EFS decline is classified correctly, attributed to a vehicle/driver, cross-checked against telematics, and scored so that a proximity-validation failure can never again score "Clear." No assumptions; every claim below was verified against code or real EFS files.
 

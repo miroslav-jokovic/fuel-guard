@@ -1,7 +1,13 @@
 # FuelGuard Driver App — Master Plan (single source of truth)
 
 > Native mobile app (React Native + Expo) for the people who fuel the trucks.
-> Owner: Silvicom Inc. · Status: **BUILDING — Phases 0–1 built (foundation + identity/auth); scope pivoted to loads/assignments + planned navigation (D41); Phases 2–7 authored/roadmapped; every decision LOCKED (D1–D58)** · Last updated: 2026-07-27
+> Owner: Silvicom Inc. · Status *(corrected 2026-08-26 truth pass)*: **this header is no longer the
+> live status — `DRIVER-APP-BUILD-STATUS.md` is.** That document (rewritten every session) records
+> all nine hardening phases BUILT as of 2026-08-07; this plan remains the decision record (D1–D58,
+> all LOCKED) and spec, not the tracker. The line below is preserved as it stood, for history:
+> ~~BUILDING — Phases 0–1 built (foundation + identity/auth); scope pivoted to loads/assignments +
+> planned navigation (D41); Phases 2–7 authored/roadmapped~~ · Last updated: 2026-07-27 (status
+> pointer corrected 2026-08-26)
 >
 > ✅ **Solutions-only.** Every architecture/design/security/UX/compliance choice is a **LOCKED decision
 > (D1–D58)** with a rationale and a documented fallback. **There are no "decide during build" items left**

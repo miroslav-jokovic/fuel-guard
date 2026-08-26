@@ -503,7 +503,7 @@ sends it (`hazmatReview.ts:8`).
 that the text stored is the server's and not the caller's, and that a revoked authorization stops
 satisfying the gate.
 
-### P2 · `packages/shared/src/psp/` — the pure module
+### P2 · `packages/shared/src/psp/` — the pure module — **DONE (marked 2026-08-26 truth pass: the directory holds 14 files — `validate.ts`, `parse.ts`, `status.ts`, plus `identity`, `employment`, `import`, `order`, `provenance`, `readiness` and their tests)**
 `validate.ts` (§4a's pre-flight, one rule per §8.5 error code, each citing it), `parse.ts` (the
 response projection of D-PSP2), `status.ts` (the §8.5 table as data, including which statuses bill).
 Zero I/O. Unit-tested.
@@ -518,7 +518,7 @@ the table already has no client policies (G17's reasoning, unchanged).
 **Done when:** a scratch script reads and writes the row through the admin client only, and
 `gitleaks` is clean.
 
-### P4 · `apps/api/src/psp/client.ts` — the vendor edge and nothing else
+### P4 · `apps/api/src/psp/client.ts` — the vendor edge and nothing else — **DONE (marked 2026-08-26 truth pass: the file exists, including the `GET /DayMonitored45` method P8 will need)**
 `POST /Records`, `POST /Record`, `GET /Token`, `GET /DayMonitored45`. Response body persisted verbatim
 before parsing. **No retry on `/Records`** (§4c) — that is a structural property of this client, not a
 policy a caller passes in. Opts arrive built, following `ReadCtx`/`DispatchCtx`.
@@ -532,7 +532,7 @@ statusDetail: 17` surfaces as a typed `consent_missing` failure and not as data;
 unrecognised `status` (3, or anything the §8.5 table does not name) settles the row for a human
 rather than defaulting in either direction — §2.6(3).
 
-### P5 · `psp_requests` — the ledger (migration 0209)
+### P5 · `psp_requests` — the ledger — **DONE (marked 2026-08-26 truth pass: landed as migration `0216_psp_requests.sql`, extended by `0219_psp_price_and_provenance.sql`; the "(migration 0209)" this heading carried was a pre-assigned number that went stale exactly as the sibling plan's G23 predicted — 0209 is `recruitment_section_reads`)**
 ```
 id, org_id, driver_id, idempotency_key, internal_ref_id, request_body jsonb (redacted),
 status, psp_status, psp_status_detail, auth_code, monitor, billed boolean,
@@ -549,7 +549,7 @@ per `redactCardXml`.
 **Done when:** a migration matrix proves the one-in-flight index holds, and that a replayed
 idempotency key returns the first outcome rather than issuing a second **billed** vendor call.
 
-### P6 · The order path — governance is the feature
+### P6 · The order path — governance is the feature — **DONE (marked 2026-08-26 truth pass: shipped as `apps/api/src/services/pspOrder.ts` (`orderPspRecord` + `pspOrderPreflight`) behind `routes/recruitment/pspOrders.ts`, a deviation from the queue-handler shape written below — the gates are the feature and they are there; consent lives in migration `0215_driver_authorizations.sql`)**
 A queue job (`services/queue/handlers/psp.ts`), enqueued by an operator action, never by a sweep.
 Gates, in order, each refusing **before** any vendor call:
 1. **A live `driver_authorizations` row** for `purpose='psp'`. Without it the request is not made —
@@ -565,7 +565,7 @@ Then: ledger row → `POST /Records` → `POST /Record` for the PDF in the **sam
 refused with **zero** vendor calls and a named error each; and a `Failure` response still settles the
 row `failed` with `billed = true`.
 
-### P7 · Ingest → the tables we already have (migration 0208 extends the CHECKs)
+### P7 · Ingest → the tables we already have — **DONE (marked 2026-08-26 truth pass: the kind CHECKs landed as `0217_psp_report_kind.sql`, DOB capture as `0221_apply_driver_dob.sql`; the "(migration 0208 extends the CHECKs)" this heading carried was another stale pre-assigned number — 0208 is `driver_employment_history`)**
 Add `psp_report` to `qualification_records.kind` (0129), to `documents.kind` (0146), to
 `RESTRICTED_QUALIFICATION_KINDS` and to `0205`'s two RESTRICTIVE policies — the four lists that must
 move together, with `packages/shared/src/auth.ts` as the source of truth its own comment declares it
@@ -578,7 +578,7 @@ writes audited. Then the catalogue entry, `advisory: true`, per **D-PSP1**.
 the same `authCode` produces neither; and a `dispatcher` role reading the driver's file sees no PSP
 row at all.
 
-### P8 · 45-day monitoring — poll, notify, and stop there
+### P8 · 45-day monitoring — poll, notify, and stop there — **PARTLY DONE (marked 2026-08-26 truth pass: the client's `GET /DayMonitored45` call exists in P4's `client.ts`, but there is NO running scheduler poll, no `dq_psp_change` category, and no notification path — the caveat matters because a `monitor=true` order without this step buys monitoring nobody reads)**
 A scheduler polling `GET /DayMonitored45`, joining `internalRefId → drivers.id`, raising a
 `dq_psp_change` notification through `notify()` on a `changeDetected` transition. Extend `0207`'s
 category CHECK.

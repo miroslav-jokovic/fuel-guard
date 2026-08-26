@@ -1,4 +1,6 @@
 # Fueling-Time Precision + Odometer/Location Audit — Build Plan
+
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
 **Date:** 2026-07-06 · Analysis + plan only, no code changed. Follows the drawer-audit report.
 **How we work this:** one chunk per response; each self-contained, verified (typecheck + tests + lint), left **uncommitted**. No new infra.
 

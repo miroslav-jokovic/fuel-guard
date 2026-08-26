@@ -1,5 +1,7 @@
 # McLeod TMS Integration — design & research
 
+> **⚠ DORMANT (2026-08-26 truth pass):** superseded by the verified plans in `docs/plans/mcleod/`.
+
 **Goal.** Two related problems on the Alerts page trace back to the same missing context — *what the truck was
 actually doing*:
 

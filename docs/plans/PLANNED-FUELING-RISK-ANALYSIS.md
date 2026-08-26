@@ -1,5 +1,7 @@
 # Planned Fueling — Risk, Assumption & Gap Analysis
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — production `fuel_plans` has 1 row ever; re-validate demand before building; see `FUEL-SPEND-RELIABILITY-PLAN.md` F12.
+
 **Companion to** `PLANNED-FUELING-PLAN.md`. Method: two independent adversarial reviews (an internal-logic red-team of the spec + an external-facts verification against Samsara/FMCSA/HERE docs, July 2026). Every regulatory/API claim below is cited in the source plan's §13 or noted UNVERIFIED.
 
 ## Verdict

@@ -397,8 +397,12 @@ odometer vs our odometer.
 WP0 and WP1 are independent and can run in parallel. WP2 gates WP3–WP5. WP6 gates on WP5.
 
 **Status 2026-08-24: WP0–WP5 shipped.** Statements persist and every question in §4 is now a pure
-function over them. What remains is WP6/WP7 — the tabs that render this and the trend that reads back
-from the stored statements rather than a single upload.
+function over them. ~~What remains is WP6/WP7 — the tabs that render this and the trend that reads back
+from the stored statements rather than a single upload.~~ *(corrected 2026-08-26 truth pass: this
+sentence outlived the header. WP6 also shipped — `FUEL-SPEND-RELIABILITY-PLAN.md` records "WP6
+shipped without either" of D-FR6/D-FR7, which is how we know it ran — and WP7 was withdrawn by the
+2026-08-25 audit, exactly as this document's own header banner already says. Nothing "remains" under
+this plan; everything after WP6 belongs to F0–F15.)*
 
 **WP5 verified against the real five statements** (3,919 lines), reproducing the Python prototype:
 

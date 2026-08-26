@@ -1,6 +1,10 @@
 # The previous-employer safety-performance inquiry — 49 CFR §391.23
 
-**Date:** 2026-08-20 · **Status:** scope, not yet built · **Owner decisions needed:** §6
+**Date:** 2026-08-20 · **Status (corrected 2026-08-26 truth pass):** E1–E5 shipped 2026-08-20
+(migrations 0222–0224; `apps/api/src/routes/recruitment/inquiries.ts` and `employment.ts`); E6
+(the driver's §391.23(i)–(k) rights) and E7 (hire-time integration) remain — see §5. The header
+had said "scope, not yet built" since the day the doc was written and was never updated as §5's
+DONE markers landed. · **Owner decisions needed:** §6
 **Regulatory text verified against Cornell LII on 2026-08-20**, not recalled. Every day count and
 subsection number below was read from the regulation on that date.
 

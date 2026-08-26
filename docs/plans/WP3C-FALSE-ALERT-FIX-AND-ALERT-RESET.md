@@ -1,5 +1,7 @@
 # WP3c — masked card numbers, false alerts, and the alert reset
 
+> **⚠ DORMANT (2026-08-26 truth pass):** EFS/anomaly-era spec, superseded in practice by the fuel-spend plans (2026-08).
+
 **Status:** code changes are in the working tree, uncommitted.
 **Scope:** why the control-number layer wasn't working, what changed, and the exact sequence to wipe
 every existing alert and rebuild from scratch.

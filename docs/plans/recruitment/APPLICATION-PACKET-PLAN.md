@@ -4,10 +4,16 @@
 `APPLICATION-SYSTEM-PLAN.md`, whose A6 built the PDF this plan replaces. Executes under
 `RECRUITING-SYSTEM-PLAN.md` §4 without exception — this document adds steps, never a second protocol.
 
-> **STATUS: PLANNING ONLY. No code has been written for any step below.** The fork was put to the
-> owner on 2026-08-22 and they chose **(b)** — reproduce the fillable pages, attach the policy and
-> agreement pages as static documents. That decision is recorded as **D-PKT1** and the inventory in
-> §2 is what it now has to be executed against.
+> **STATUS (corrected 2026-08-26 truth pass): BUILDING — P3, P4, P7, P8, P9 shipped; P1 packaged
+> awaiting counsel; P5 blocked on P1; P6 unstarted.** The "PLANNING ONLY" line that stood here was
+> written on 2026-08-22 and was never updated as steps landed: P3 and P4 went DONE on 2026-08-23
+> (`apps/api/src/services/applicationPdf/packet/packetStatic.ts`, `packetText.ts`, and
+> `packages/shared/src/packetPlacements.ts` exist), P7 shipped with migration 0236, P8 with no
+> migration, and P9 with migration 0237 — each is marked DONE in its own section below. The
+> original decision record stands unchanged: the fork was put to the owner on 2026-08-22 and they
+> chose **(b)** — reproduce the fillable pages, attach the policy and agreement pages as static
+> documents. That decision is recorded as **D-PKT1** and the inventory in §2 is what it is being
+> executed against.
 
 ---
 

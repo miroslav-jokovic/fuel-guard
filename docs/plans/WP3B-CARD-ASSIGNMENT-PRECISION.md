@@ -1,5 +1,7 @@
 # WP3b — Card-Assignment Precision Hotfix (169 false alarms)
 
+> **⚠ DORMANT (2026-08-26 truth pass):** EFS/anomaly-era spec, superseded in practice by the fuel-spend plans (2026-08).
+
 **Status:** implemented · **Date:** 2026-07-24 · **Trigger:** 169 false "card assigned to a different
 truck" reviews after the WP1–WP6 deploy + Rebuild.
 

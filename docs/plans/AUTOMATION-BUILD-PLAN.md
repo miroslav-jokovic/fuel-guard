@@ -1,4 +1,6 @@
 # Automation & Freshness — Build Plan (execution)
+
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
 **Date:** 2026-07-06 · Companion to *Automation & Freshness Plan* and *DATA-RELIABILITY-CHANGES.md*.
 **How we work this:** one chunk per response. Each chunk is self-contained, verified (typecheck + tests + lint), and left **uncommitted** for you to deploy. Nothing here changes infrastructure — everything runs in-process on the single Railway instance, as today.
 

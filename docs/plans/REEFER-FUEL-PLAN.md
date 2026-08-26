@@ -1,5 +1,7 @@
 # Reefer Fuel Integrity — Research, Analysis & Plan
 
+> **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — production `fuel_plans` has 1 row ever; re-validate demand before building; see `FUEL-SPEND-RELIABILITY-PLAN.md` F12.
+
 **Date:** 2026-07-06 · Analysis only, no code changed.
 **Goal:** detect whether drivers are actually fueling reefer (trailer refrigeration) tanks — or switching the gun to the tractor tank / a container while billing it as reefer fuel — and whether reefers are being fueled at all.
 

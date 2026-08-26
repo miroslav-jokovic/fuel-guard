@@ -466,7 +466,7 @@ the storage path would make an object name a foreign key, which is how the next 
 matching bucket listings. **Migration 0204 adds `documents.derived_from uuid references documents(id)`**,
 at step B2 where the writer lives.
 
-### B2 · `apps/api/src/services/documentDerivatives.ts` — generate and register
+### B2 · `apps/api/src/services/documentDerivatives.ts` — generate and register — **DONE (marked 2026-08-26 truth pass; the file exists and the plan was never updated)**
 Given a `documents` row id: download the original, run `sharp` per B1, compute a fresh SHA-256 (G4), upload
 to `${orgId}/${subjectType}/${subjectId}/${docId}.thumb.webp`, insert a **new** `documents` row with
 `variant='thumb'` and the same `kind`/`subject_*` (G3 — never an UPDATE). Idempotent on
@@ -475,7 +475,7 @@ to `${orgId}/${subjectType}/${subjectId}/${docId}.thumb.webp`, insert a **new** 
 **Done when:** unit test with a stubbed Supabase client proves: derivative row inserted, original untouched,
 second call is a no-op, and a `sharp` failure returns an error rather than throwing.
 
-### B3 · Wire derivation into the queue, not the request
+### B3 · Wire derivation into the queue, not the request — **DONE (marked 2026-08-26 truth pass: `services/queue/handlers/documentDerive.ts`, registered as `document_derive` in `handlers/index.ts` and prioritised in `worker.ts`, enqueued from `routes/compliance.ts`)**
 Add job kind `document_derive` to `services/queue/handlers/` (sibling of `dqBinder.ts`), enqueued from
 `POST /api/compliance/documents` **after** the row is registered. The upload path must not wait on `sharp`;
 the register call already returns before bytes exist.
@@ -483,7 +483,7 @@ the register call already returns before bytes exist.
 **Done when:** enqueue is asserted in the route test, and the handler is registered in the index (a handler
 that is not registered cannot exist — the `run-tests` philosophy applied to the queue).
 
-### B4 · `listDocuments` returns variants grouped
+### B4 · `listDocuments` returns variants grouped — **DONE (marked 2026-08-26 truth pass: `thumbUrl`/`normalizedUrl` fold into `documentRowSchema` in `packages/shared/src/complianceContract.ts`, ~line 303)**
 Change `services/compliance.ts:149` to sign every variant in the same batch call and return
 `{ id, kind, original: {url,bytes}, thumb?: {url}, normalized?: {url} }`. One round trip, unchanged
 five-minute TTL.
@@ -492,7 +492,7 @@ five-minute TTL.
 **Done when:** the contract type in `packages/shared/src/complianceContract.ts` is updated, `vue-tsc` passes,
 and the existing document tests still pass unmodified where behaviour did not change.
 
-### B5 · `BaseModal.vue` — a second dialog primitive, added deliberately
+### B5 · `BaseModal.vue` — a second dialog primitive, added deliberately — **DONE (marked 2026-08-26 truth pass: `apps/web/src/components/ui/BaseModal.vue` exists)**
 
 **Verified gap:** the app has **exactly one** Headless UI `Dialog` — `components/SlideOver.vue`. There is
 no centred modal, no lightbox, and `features/roster/DriverAccessModal.vue` is a `SlideOver` despite its
@@ -510,7 +510,7 @@ anatomy as `SlideOver` §6.1 — only the panel geometry differs: centred, `max-
 **Props:** `open`, `title`, `description?`, `size?: "md"|"lg"|"xl"` (`xl` = `max-w-4xl`, the document case).
 **Done when:** the contract §1.1 lists it, and a test asserts Escape and scrim-click both emit `close`.
 
-### B6 · `DocumentPreview.vue` — the viewer, with download and print that actually work
+### B6 · `DocumentPreview.vue` — the viewer, with download and print that actually work — **DONE (marked 2026-08-26 truth pass: `apps/web/src/features/compliance/DocumentPreview.vue` + its test exist)**
 New `apps/web/src/features/compliance/DocumentPreview.vue`, mounted in `BaseModal size="xl"`.
 
 - **Trigger:** the thumbnail already rendering in the requirement drawer's file table (commit `9ea8040`).
@@ -600,7 +600,7 @@ add env vars, register a weekly scheduler entry for buckets `compliance-docs` + 
 > `notify()` rows doubling as the dedupe ledger and the pre-populated history for C6's inbox.
 > Per D-DQ13 there are **no driver-facing alerts** in this phase or any other.
 
-### C1 · Categories
+### C1 · Categories — **DONE (marked 2026-08-26 truth pass: `dq_expiring`/`dq_expired` live in `packages/shared/src/notificationsContract.ts` with labels)**
 Add to `NOTIFICATION_CATEGORIES` (G13): `dq_expiring`, `dq_expired`, `dq_missing`, plus the two
 externally-sourced ones Phase E emits — `dq_license_status` (a licence was suspended, downgraded or
 reinstated) and `dq_mvr_received` (monitoring produced a new MVR, with its `reason`). Add labels in
@@ -609,7 +609,7 @@ user who triages by email may silence the in-app copy once C6 gives them one. `t
 stays untouched: it is driver-facing vocabulary, dormant under D-DQ13.
 **Done when:** `notificationsContract.test.ts` (which iterates every category, `:127`) passes unchanged.
 
-### C2 · Widen the overview's horizon — for the scheduler, without forking the UI's
+### C2 · Widen the overview's horizon — for the scheduler, without forking the UI's — **DONE (marked 2026-08-26 truth pass: `dqAlertScheduler.ts` passes `expiringWithinDays: 91` and only it does, exactly as specified)**
 `getComplianceOverview(admin, orgId, today)` gains an options argument `{ expiringWithinDays?: number }`
 threaded straight into `buildDqFile` (the parameter exists and is dead today — G30). **No UI caller
 changes**: the route handler, the driver page and the binder keep the 30-day default, so the queue and
@@ -617,7 +617,7 @@ the file keep agreeing (`complianceOverview.ts:20-23` stays true). Only C3 passe
 **Done when:** an overview test proves an item 60 days out is absent at the default horizon and present
 in `attention` at 91 — the assertion that would have caught this plan's own original defect.
 
-### C3 · `packages/shared/src/dqAlerts.ts` + `apps/api/src/services/dqAlertScheduler.ts`
+### C3 · `packages/shared/src/dqAlerts.ts` + `apps/api/src/services/dqAlertScheduler.ts` — **DONE (marked 2026-08-26 truth pass: both files exist and `startDqAlertScheduler` is wired in `apps/api/src/schedulers.ts`)**
 The pure schedule: `planDqAlerts(rows: DriverOverviewRow[], today, alreadySentKeys: Set<string>): DqAlert[]`.
 Thresholds **90 / 60 / 30 / 14 / 0 / overdue-weekly**. Each alert carries a `dedupeKey` of
 `dq:${driverId}:${itemKey}:${threshold}` so crossing 60 days emits once, ever, and a restart emits nothing.
@@ -648,7 +648,7 @@ days, count expired, count files not started, and the five most urgent driver+it
 **Done when:** `renderDigestEmail`'s snapshot test covers the new block, and `pnpm lint:filesize` shows
 `digest.ts` still under 450.
 
-### C5 · The fleet-level attention strip
+### C5 · The fleet-level attention strip — **DONE (marked 2026-08-26 truth pass: `apps/web/src/features/compliance/attentionStrip.ts` + test exist, driven from `QualificationFleetTable.vue`)**
 `CompliancePage.vue` (177 ln — ample headroom) gains, above the table, a single row of at most five
 `BaseCard padding="sm"` tiles: *Expired · Due in 14 days · Due in 30 · Not started · Files complete*. Each is
 a click-to-filter that sets the existing `stateFilter` on `QualificationFleetTable` — it does **not** introduce
