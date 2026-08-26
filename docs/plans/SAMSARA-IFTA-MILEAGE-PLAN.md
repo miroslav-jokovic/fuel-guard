@@ -138,6 +138,15 @@ Samsara's own fuel figure.** Not "read Samsara's answer": we hold the fuel purch
 brand, station and price, which is what makes the position actionable rather than merely filable. The
 tie-out is what stops a silent disagreement (§1.3).
 
+**D-IF9 — The tie-out is on MILES, not on fuel — and it has already paid for itself.** D-IF4 assumed
+Samsara's `taxPaidLiters` was a second reading of our purchases; S0 measured it at 668 gallons a
+quarter against our 439,153, because 187 vehicles carry no fuel type in Samsara. So the two readings
+that actually exist are **Samsara's jurisdiction miles and our odometer-derived miles**, and their
+ratio implies an MPG that either is or is not physically possible. That check, run once by hand before
+any of this was built, found a missing month of fuel worth about a million dollars. It ships as a
+first-class part of the ingest rather than as a diagnostic somebody might run: **any period whose
+implied fleet MPG falls outside a plausible band is flagged, loudly, on the surface.**
+
 **D-IF5 — Fleet MPG for the liability calculation is derived from the same two sources, per quarter,
 and is never a constant.** Gallons consumed in J = taxable miles in J ÷ MPG, and MPG = total miles ÷
 total gallons over the quarter, both of which we will hold. `vehicles.baseline_mpg` is a per-truck
@@ -220,7 +229,71 @@ this plan:
 
 ## 5. Steps
 
-### S0 · Confirm the token scope and see one real response — a spike, no PR
+### S0 · Confirm the token scope and see one real response — DONE 2026-08-26 (spike, no PR)
+
+**It worked, and it found a hole in production worth about a million dollars.**
+
+`GET /fleet/reports/ifta/vehicle?year=2026&quarter=Q2` → **HTTP 200**. Q-IF1 answered: the token
+carries `Read IFTA (US)`. One page, `hasNextPage: false`, **172 vehicleReports**, a mean of 30.6
+jurisdictions per vehicle across 50 distinct jurisdictions, **4,611,351 taxable miles** for the
+quarter. Every one of the 172 matched a `samsara_vehicle_id` in `vehicles` — **the mapping is
+complete and needs no work**.
+
+**Q-IF2 answered: Samsara sees essentially none of this carrier's fuel.** `troubleshooting` came back
+`{ noPurchasesFound: false, unassignedFuelTypeVehicles: 187, unassignedFuelTypePurchases: 0,
+unassignedVehiclePurchases: 0 }` and `taxPaidLiters` totalled **2,530 litres — about 668 gallons —
+for the whole quarter** against the 439,153 gallons we hold. 187 vehicles have no fuel type set in
+Samsara, so nothing can be attributed to them. This confirms Miki's 2026-08-26 statement that
+purchases are pulled from the EFS API directly: **the credit side of the return is ours, and only
+ours.** D-IF4's fuel tie-out has nothing to tie against and is replaced by D-IF9 below.
+
+**⚠ THE MILES DID NOT TIE OUT, AND CHASING THAT IS THE MOST VALUABLE THING IN THIS DOCUMENT.**
+
+    2026 Q2, 172 trucks        our vetted odometer miles   2,754,740
+                               Samsara taxable miles       4,611,351      ×1.66
+
+Not a unit error and not a definition difference: the ratio is **per vehicle and scattered** — min
+1.00, median 1.63, p75 1.85, **max 7.93**. Six trucks agree almost exactly (unit 770: 2,492 against
+2,504). Two are off by nearly eightfold (unit 719: 4,180 against 33,060).
+
+The discriminator is fuel, not miles. Implied MPG by ratio band:
+
+    ratio band   trucks   mpg if Samsara's miles are right   mpg if ours are
+    1.00–1.15         6                              7.26                6.68
+    1.15–1.50        37                              9.14                6.55
+    1.50–2.00        87                             10.73                6.42
+    2.00+            27                             11.94                4.71
+
+Where the two sources AGREE, the implied MPG is **7.26** — a plausible Class-8 figure. Where Samsara
+runs higher, it climbs to 11.94, which no tractor achieves. So the excess miles are real miles with
+**no fuel behind them**, and the question became: where is the fuel?
+
+**It is a 31-day hole in our own data: `efs_transactions` holds ZERO rows for 2026-04-18 →
+2026-05-18.** Confirmed day by day; both `efs_transactions` and `fuel_transactions` are empty across
+exactly that span and dense on either side. At the rate of the 31 days that follow it (62.8 fills,
+7,304 gallons, $33,288 a day) the hole is worth roughly:
+
+    ~1,947 fills   ~226,424 gallons   ~$1,031,928
+
+**And that closes the arithmetic exactly.** 439,153 recorded gallons plus the ~226,424 missing is
+~665,577, against Samsara's 4,576,334 miles for the same trucks — **6.88 mpg**, against
+`baseline_mpg`'s 6.92 and the 7.08 observed in F13's validation. **Samsara's miles are right and our
+fuel data has a month missing.**
+
+**Not a second hole:** the run from 2026-01-01 to 2026-02-03 is the data's START (first fill
+2026-02-04; every row was written on 2026-08-03 by one backfill), not a gap.
+
+**What this does and does not touch.** The Fuel Spend page's default 90-day window is
+2026-05-28 → 2026-08-26 and does **not** overlap the hole, so F10's $19,858 California premium and
+F13's $13,629 carried-fuel floor are computed on clean data and stand. Any window reaching into
+April or May is understated by up to a third.
+
+**Do (Miki):** re-run the EFS fetch for 2026-04-18 → 2026-05-18. The data is at EFS, not lost —
+nothing here suggests otherwise, and the surrounding days prove the pipeline works.
+
+<!-- The original brief for this step, kept because its questions are what produced the above: -->
+
+### S0 (original brief) · Confirm the token scope and see one real response
 
 **Blocking, and cheap.** Everything below assumes `Read IFTA (US)` is enabled on this carrier's token,
 and nobody has checked. One authenticated call to
@@ -346,8 +419,9 @@ the seam.
 
 | Id | Question | Owner | Fallback until answered |
 |---|---|---|---|
-| **Q-IF1** | **Is `Read IFTA (US)` enabled on this carrier's Samsara API token?** Both summary endpoints require it; the detail CSV also needs `Write IFTA (US)`. Nothing in this plan can start without it. | Miki | None. S0 is blocked, and so is everything after it. |
-| **Q-IF2** | **Does Samsara see this carrier's fuel purchases at all?** If `troubleshooting.noPurchasesFound` is true then `taxPaidLiters` is zero everywhere and D-IF4's tie-out has nothing to tie against. | S0's response | Build the position from our own fuel only and report the tie-out as unavailable — which is honest, and not a defect. |
+| **Q-IF1** | ~~Is `Read IFTA (US)` enabled on this carrier's token?~~ | — | **ANSWERED 2026-08-26: YES.** Miki confirmed full access and S0's call returned HTTP 200. |
+| **Q-IF2** | ~~Does Samsara see this carrier's fuel purchases?~~ | — | **ANSWERED 2026-08-26: effectively no.** 187 vehicles have no fuel type set, and `taxPaidLiters` totals 668 gallons a quarter against our 439,153. Purchases come from the EFS API directly (Miki, 2026-08-26). The credit side is ours alone; the tie-out moves to MILES (D-IF9). |
+| **Q-IF6** | **The 31-day hole: 2026-04-18 → 2026-05-18 has zero `efs_transactions` rows**, worth ~1,947 fills / ~226,424 gallons / ~$1,031,928. Re-running the EFS fetch for that window is the fix; whether EFS still serves it is not known. | Miki | Every figure over a window touching April–May is understated by up to a third and no surface says so. The default 90-day window does not reach it. |
 | **Q-IF3** | **Which quarters has the carrier already filed, and with what numbers?** The first useful test of S2 is whether our computed position matches a return that has been filed and accepted. | Miki | S2 ships with the position computed and unverified against any filing, and says so. |
 | **Q-IF4** | **Retention for segment data (S4).** A month of per-segment rows for 195 trucks is a different order of volume from the monthly summary. | Miki | S4 is not started. |
 | **Q-IF5** | **Does the carrier want to FILE from this, or only to manage it?** Filing makes the snapshot (D-IF6) load-bearing and raises the bar on the tie-out; managing does not. | Miki | S3 ships the ledger and the snapshot; the filing workflow is not built. |
