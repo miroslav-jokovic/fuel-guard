@@ -6,6 +6,7 @@ import AuthLayout from "@/layouts/AuthLayout.vue";
 import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
+import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
 import { useSessionStore } from "@/stores/session";
@@ -45,7 +46,15 @@ const isApplyLayout = computed(() => layout.value === "apply");
     <RouterView @carrier="applyCarrier = $event" />
   </ApplyLayout>
   <AppShell v-else>
-    <RouterView />
+    <!--
+      Q-UI5 — only the app shell is wrapped. The auth, apply and public layouts are small static
+      pages with no data behind them, and `/__design-system` is a dev surface where an error should
+      be loud rather than caught. Wrapping the shell puts the boundary exactly where the 61
+      data-driven pages live.
+    -->
+    <ErrorBoundary>
+      <RouterView />
+    </ErrorBoundary>
   </AppShell>
   <ToastContainer />
 </template>
