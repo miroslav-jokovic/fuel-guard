@@ -96,9 +96,9 @@ const fill = async (state, gallons, at, o = {}) =>
     [o.org ?? ORG, o.vehicle ?? V1, at, state, gallons, o.cost ?? gallons * 4.5, o.tank ?? "tractor"]);
 
 const jur = async (year = 2026, quarter = 2, org = ORG) =>
-  await all(`select * from ifta_period_jurisdictions($1,$2,$3)`, [org, year, quarter]);
+  await all(`select * from ifta_period_jurisdictions($2,$3,$1)`, [org, year, quarter]);
 const sum = async (year = 2026, quarter = 2, org = ORG) =>
-  (await all(`select * from ifta_period_summary($1,$2,$3)`, [org, year, quarter]))[0];
+  (await all(`select * from ifta_period_summary($2,$3,$1)`, [org, year, quarter]))[0];
 
 // Q2 2026: miles in TX (April) and CA (May); fuel bought in TX and in NM — where nothing was driven.
 await miles(V1, "TX", 20000, { month: 4 });
@@ -200,11 +200,32 @@ async function asClient(org, role, sql, params = []) {
     return { rows: [], error: e.code ?? String(e.message) };
   }
 }
-const mine = await asClient(ORG, "admin", `select count(*)::int n from ifta_period_jurisdictions(null, 2026, 2)`);
+const mine = await asClient(ORG, "admin", `select count(*)::int n from ifta_period_jurisdictions(2026, 2, null)`);
 ok("a browser passing no org is scoped by its JWT", (mine.rows[0]?.n ?? 0) > 0, JSON.stringify(mine));
-const crossed = await asClient(ORG, "admin", `select count(*)::int n from ifta_period_jurisdictions($1, 2026, 2)`, [OTHER]);
+const crossed = await asClient(ORG, "admin", `select count(*)::int n from ifta_period_jurisdictions(2026, 2, $1)`, [OTHER]);
 ok("and naming another carrier's org returns nothing, because RLS still applies underneath",
   crossed.rows[0]?.n === 0, JSON.stringify(crossed));
+
+
+// ── THE CALL THE BROWSER ACTUALLY MAKES (0257) ──────────────────────────────────────────────────
+// Every assertion above passes `p_org` explicitly, which is the API's call — and it is exactly why
+// this file was green while `ifta_period_jurisdictions` was unreachable from the only surface that uses it. PostgREST
+// resolves an RPC on the set of NAMED arguments supplied, so a parameter with no DEFAULT means there
+// is no form that omits it, and the browser gets "could not find the function ... in the schema
+// cache". D-FC1 says `coalesce(p_org, auth_org_id())`; the coalesce was there and the default was not.
+// Named arguments with p_org OMITTED — not passed as null, OMITTED. That distinction is the whole
+// defect: a positional `(…, null)` resolves fine without a default, which is why every assertion
+// above passed while `/ifta` could not call either function at all.
+const jurCall = await asClient(ORG, "admin",
+  `select count(*)::int n from ifta_period_jurisdictions(p_year => 2026, p_quarter => 2)`);
+ok("the browser's call — named arguments, p_org omitted entirely — resolves",
+  jurCall.error === null, String(jurCall.error));
+ok("and returns this org's rows, so the default really does fall through to auth_org_id()",
+  (jurCall.rows[0]?.n ?? 0) > 0, JSON.stringify(jurCall.rows[0]));
+const sumCall = await asClient(ORG, "admin",
+  `select count(*)::int n from ifta_period_summary(p_year => 2026, p_quarter => 2)`);
+ok("and the summary's browser call too — both were broken, and one being fixed proves nothing",
+  sumCall.error === null, String(sumCall.error));
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
