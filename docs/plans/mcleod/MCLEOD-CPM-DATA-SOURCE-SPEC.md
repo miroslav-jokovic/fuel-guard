@@ -416,11 +416,28 @@ rather than block extraction:**
 
 Each step is one PR, gated on `pnpm test` green.
 
-- **C1.** Extraction queries for **loads** (`movement`, `orders`, `movement_order`, `stop`,
-  `in_state_distance`, `equipment_item` bridge) in `tools/mcleod-agent/queries.mjs`, plus a
-  neutral loads contract in `packages/shared`. *Done when:* a dry run reports movement counts
-  and total `move_distance` for a bounded window, and the `equipment_group_id` bridge resolves
-  a movement to a tractor unit number.
+- **C1. — SHIPPED 2026-08-26.** `MOVEMENT_FACTS` / `MOVEMENT_STOPS` / `MOVEMENT_FACT_COUNTS` in
+  `tools/mcleod-agent/queries.mjs`, the sweep and dry run in `tools/mcleod-agent/movements.mjs`
+  (`npm run movements -- <start> <end>`), and the neutral contract plus the deadhead estimator in
+  `packages/shared/src/tmsCost/movementFact.ts`.
+
+  Dry run over June 2026, client-side summary matching the server-side aggregate exactly:
+
+  | Measure | Value |
+  |---|---:|
+  | Movements | 3,337 |
+  | Duplicated movement rows | **0** |
+  | Tractors resolved via `equipment_group_id` | 159 |
+  | Movements with no tractor | 13 |
+  | Team-driven movements | 58 |
+  | Loaded miles | 1,694,429 |
+  | Fuel miles | 1,700,597 (+0.36%, matching the fleet-wide figure) |
+  | Stops | 6,966, **0** missing coordinates |
+
+  Two traps surfaced during implementation and are pinned by the query comments: drivers are not
+  1:1 with a movement (58 team trips in June alone, which a naive join would emit twice and
+  double-count), and `movement.status = 'V'` marks 41 voided trips in 2026 whose miles were never
+  run.
 - **C2.** **Fuel and other expenses** — `fuel_detail_hist`, `fuel_ticket_hist`, `other_charge`,
   `voucher_hist`, live `UNION ALL` `_hist` per D-MC11. *Done when:* extracted fuel reconciles to
   the `FUEL` GL module total for the same window.

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node --env-file=.env agent.mjs",
-    "roster": "node --env-file=.env agent.mjs --roster"
+    "roster": "node --env-file=.env agent.mjs --roster",
+    "movements": "node --env-file=.env movements.mjs"
   },
   "dependencies": {
     "mssql": "^11.0.1"

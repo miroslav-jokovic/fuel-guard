@@ -267,8 +267,14 @@ export async function fetchRoster({
   );
 }
 
-/** Open a read-only pool, run `fn`, always close. */
-async function withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, fn) {
+/**
+ * Open a read-only pool, run `fn`, always close.
+ *
+ * Exported since 2026-08-26 so `movements.mjs` can reuse it. The TLS refusal below is the reason this
+ * is shared rather than copied: a second connection helper would be a second place for someone to
+ * "fix" an IP-address certificate error by quietly turning encryption off.
+ */
+export async function withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, fn) {
   const mssql = (await import("mssql")).default;
   const wantEncrypt = encrypt !== false;
 

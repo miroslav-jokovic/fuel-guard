@@ -185,6 +185,130 @@ export function retirementQueries() {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Settled movements — the cost-per-mile fact (C1, docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A settled movement, with the equipment attribution CPM divides cost by.
+ *
+ * Five things here are not obvious from the schema, and every one of them was measured against the
+ * carrier's sandbox on 2026-08-26. Each would produce a wrong number rather than an error:
+ *
+ *  · **`movement` has no tractor column.** `carrier_tractor` looks like one and is not — it names a
+ *    purchased-transportation carrier's unit. The company truck is reached through
+ *    `equipment_group_id` → `equipment_item` where `equipment_type_id = 'T'`. Reading the wrong one
+ *    attributes a brokered load's cost to a truck the carrier does not own.
+ *  · **Drivers are not 1:1 with a movement.** 'T' (tractor, 196 units) and 'L' (trailer, 217) appear
+ *    exactly once per movement, but 'D' (driver, 260) appears TWICE on 176 movements because the
+ *    carrier runs teams. Joining drivers the same way as tractors emits those movements twice and
+ *    double-counts their miles, so drivers are aggregated to a delimited list instead of joined.
+ *  · **`status = 'V'` is a VOID movement** — 41 of 21,547 in 2026. They are excluded here for the
+ *    same reason `is_void` is excluded from settlement (D-MC18): a voided trip's miles were never run.
+ *  · **`move_distance` is LOADED miles only** (D-MC15). McLeod stores no empty miles anywhere; both
+ *    manifest distance columns and `pay_distance` sum to exactly zero across the whole year. The name
+ *    the agent sends is `loaded_miles`, never `total_miles`, so nothing downstream can assume the
+ *    ~4-5% of deadhead is already in there.
+ *  · **The window is bounded on `xfer2settle_date` and never derived from a MAX()** (D-MC14).
+ *    `stop.actual_departure` reaches 2215-03-12 — McLeod writes far-future sentinels for unset dates,
+ *    so a high-watermark taken from the data walks past every real row and the sync goes quiet forever.
+ */
+export const MOVEMENT_FACTS = `
+    SELECT
+      LTRIM(RTRIM(m.id))                            AS external_id,
+      LTRIM(RTRIM(m.company_id))                    AS company_id,
+      NULLIF(LTRIM(RTRIM(tr.equipment_id)), '')     AS tractor_unit,
+      NULLIF(LTRIM(RTRIM(tl.equipment_id)), '')     AS trailer_unit,
+      -- Comma-joined rather than a second row: see the team-driver note above.
+      STUFF((
+        SELECT ',' + LTRIM(RTRIM(d.equipment_id))
+          FROM dbo.equipment_item AS d
+         WHERE d.equipment_group_id = m.equipment_group_id
+           AND d.equipment_type_id = 'D'
+         ORDER BY d.type_sequence
+         FOR XML PATH('')), 1, 1, '')               AS driver_external_ids,
+      STUFF((
+        SELECT ',' + LTRIM(RTRIM(mo.order_id))
+          FROM dbo.movement_order AS mo
+         WHERE mo.movement_id = m.id
+         ORDER BY mo.sequence
+         FOR XML PATH('')), 1, 1, '')               AS order_ids,
+      m.move_distance                               AS loaded_miles,
+      m.fuel_distance                               AS fuel_miles,
+      NULLIF(LTRIM(RTRIM(m.move_distance_um)), '')  AS distance_unit,
+      NULLIF(LTRIM(RTRIM(m.status)), '')            AS external_status,
+      NULLIF(LTRIM(RTRIM(m.movement_type)), '')     AS movement_type,
+      CONVERT(varchar(19), m.xfer2settle_date, 126) AS settled_at
+      FROM dbo.movement AS m
+      LEFT JOIN dbo.equipment_item AS tr
+        ON tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
+      LEFT JOIN dbo.equipment_item AS tl
+        ON tl.equipment_group_id = m.equipment_group_id AND tl.equipment_type_id = 'L'
+     WHERE m.company_id = @companyId
+       AND m.status <> 'V'
+       AND m.xfer2settle_date >= @windowStart
+       AND m.xfer2settle_date <  @windowEnd
+     ORDER BY m.xfer2settle_date, m.id`;
+
+/**
+ * The stops of the movements in the same window.
+ *
+ * Fetched as a second flat query rather than a join, so a ten-stop movement does not repeat its
+ * mileage ten times on the wire and invite exactly the double-count the driver aggregation above
+ * avoids. The agent stitches them back together by `movement_id`.
+ *
+ * Coordinates are selected without a NULL guard on purpose: all 46,384 stops in 2026 carry them, the
+ * neutral contract requires them, and deadhead inference is impossible without them (D-MC16). A stop
+ * that arrives without one should fail validation loudly rather than silently shorten a chain.
+ *
+ * `stop_type` is McLeod's: 'PU' pickup, 'SO' delivery, and a small tail of 'VA'/'SD'/'SP'/'VP' the
+ * agent maps to 'other'. Distance books almost entirely on the delivery — 10,713,860 miles across
+ * 23,373 'SO' stops against 14,112 across 22,404 'PU' — which is what makes summing these reproduce
+ * movement.move_distance to within a mile on 95.4% of movements.
+ */
+export const MOVEMENT_STOPS = `
+    SELECT
+      LTRIM(RTRIM(s.movement_id))                   AS movement_id,
+      s.movement_sequence                           AS seq,
+      LTRIM(RTRIM(s.stop_type))                     AS stop_type,
+      NULLIF(LTRIM(RTRIM(s.city_name)), '')         AS city,
+      NULLIF(LTRIM(RTRIM(s.state)), '')             AS state,
+      s.latitude                                    AS lat,
+      s.longitude                                   AS lon,
+      CONVERT(varchar(19), s.actual_arrival, 126)   AS arrived_at,
+      CONVERT(varchar(19), s.actual_departure, 126) AS departed_at,
+      s.move_dist_from_previous                     AS distance_from_previous
+      FROM dbo.stop AS s
+      JOIN dbo.movement AS m ON m.id = s.movement_id
+     WHERE s.company_id = @companyId
+       AND m.company_id = @companyId
+       AND m.status <> 'V'
+       AND m.xfer2settle_date >= @windowStart
+       AND m.xfer2settle_date <  @windowEnd
+     ORDER BY s.movement_id, s.movement_sequence`;
+
+/**
+ * The dry-run summary: what a window contains, before any of it is sent anywhere.
+ *
+ * `loaded_miles` here is the number a human should recognise. If it does not match what the carrier's
+ * own operations report says for the same window, the extraction is wrong and nothing downstream of it
+ * is worth debugging.
+ */
+export const MOVEMENT_FACT_COUNTS = `
+    SELECT
+      COUNT(*)                                        AS movements,
+      COUNT(DISTINCT tr.equipment_id)                 AS tractors,
+      SUM(CASE WHEN tr.equipment_id IS NULL THEN 1 ELSE 0 END) AS without_tractor,
+      CAST(SUM(ISNULL(m.move_distance, 0)) AS decimal(18,1)) AS loaded_miles,
+      CAST(SUM(ISNULL(m.fuel_distance, 0)) AS decimal(18,1)) AS fuel_miles
+      FROM dbo.movement AS m
+      LEFT JOIN dbo.equipment_item AS tr
+        ON tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
+     WHERE m.company_id = @companyId
+       AND m.status <> 'V'
+       AND m.xfer2settle_date >= @windowStart
+       AND m.xfer2settle_date <  @windowEnd`;
+
 /** A cheap liveness + scoping check: the row counts the three predicates select. */
 export const ROSTER_COUNTS = `
     SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'
