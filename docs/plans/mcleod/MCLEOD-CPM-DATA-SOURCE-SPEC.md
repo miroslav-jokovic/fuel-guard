@@ -394,6 +394,35 @@ rows) or `funded_amount` (the other 355), exactly one of which is non-zero per r
 > module. The module is double-entry and nets to zero by construction, so a reconciliation against
 > it would always pass and prove nothing. The payable leg has exactly one line per fuel transaction.
 
+### 5.6 What made settlement reconcile (C3)
+
+**One payment, two GL modules.** Every settlement row carries `accrual_module = 'SET'` and
+`post_module = 'DRS'`. The work accrues under one and the cash leaves under the other — D-MC13's
+"four lifecycle views" made concrete in two columns.
+
+> **D-MC23:** Reconcile settlement on the **accrual** side: window on `accrual_date` and join
+> `accrual_key` into `post_module = 'SET'`. The accrual posts exactly one payable line per settlement
+> — 2,751 keys to 2,751 lines in June 2026. The payment side fans out across cash and clearing
+> accounts and cannot be matched one to one. Windowing on `pay_date` while reconciling against the
+> accrual ledger compares two different months.
+>
+> **D-MC24:** `orig_posted_pay` is the figure that ties to the ledger; `total_pay` is the figure cost
+> per mile uses. They are not the same and both must be imported. June 2026: $1,262,893.74 posted
+> against $1,268,565.31 paid. The $5,671.57 gap is real money reaching owner-operators after the
+> accrual posted — report it, never reconcile it away.
+
+Two smaller traps, both of which fail a reconciliation that is actually exact:
+
+- **14 of June's 2,765 rows are zero-value** and post no ledger line at all. Counting them as
+  unmatched breaks an otherwise perfect tie.
+- **The ledger query needs its own date bound, wider than the settlement window.** A settlement
+  accrued on the last day of the window can post a day or two later, so an equal bound drops real
+  lines; with no bound at all the optimiser abandons the `transaction_date` index and scans 733k
+  rows — the first version of that query timed out after four minutes. Fourteen days either side.
+
+**No live/`_hist` union here.** `drs_settle` does not exist; this domain has a history table only.
+D-MC11 does not apply and its absence is not a defect to be fixed.
+
 ---
 
 ## 6. Change detection
@@ -492,8 +521,17 @@ Each step is one PR, gated on `pnpm test` green.
 
   Four findings, each of which would have produced a wrong number rather than an error — see
   §5.5 below.
-- **C3.** **Settlement** — `drs_settle_hist` and siblings, each as its own lifecycle-tagged fact
-  table per D-MC13. *Done when:* settlement reconciles to the `SET` + `DRS` GL modules.
+- **C3. — SHIPPED 2026-08-26.** `SETTLEMENTS` / `SETTLEMENT_LEDGER_LINES` / `SETTLEMENT_DEDUCTIONS`
+  in `queries.mjs`, the sweep and reconciling dry run in `tools/mcleod-agent/settlements.mjs`
+  (`npm run settlements -- <start> <end>`), contract and reconciler in
+  `packages/shared/src/tmsCost/settlementFact.ts`.
+
+  June 2026 accrual window: 2,765 settlements across 149 tractors — 2,690 company-driver rows at
+  $1,024,286.08 and 75 owner-operator rows at $244,279.23. **Posted pay $1,262,893.74 against a
+  ledger payable of $1,262,893.74 — difference $0.00**, nothing unmatched. Deductions: 1,342 rows,
+  $378,247.90, of which 548 carry a tractor.
+
+  See §5.6 for the four decisions that made it reconcile.
 - **C4.** **GL control totals** — `gl_ledger` + `gl_ledger_hist` by `post_module` and `glid`,
   imported for reconciliation only. *Done when:* a recon report shows subledger-vs-GL drift
   per module.

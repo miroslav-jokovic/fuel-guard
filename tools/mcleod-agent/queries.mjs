@@ -500,6 +500,115 @@ export const AP_VOUCHERS = `
        AND v.invoice_date >= @windowStart
        AND v.invoice_date <  @windowEnd`;
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Settlement — C3 (docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md §5.3)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Driver and owner-operator settlement, windowed on the ACCRUAL date.
+ *
+ * Five decisions here, every one of which changes the number rather than raising an error:
+ *
+ *  · **`is_void = 'N'`.** 909 of June 2026's 3,363 rows are voided and carry $335,846.70 of pay that
+ *    never happened. The 21 date columns on this table do NOT discriminate — it is a history table, so
+ *    every row has completed its whole lifecycle and every stage is populated. `is_void` is the only
+ *    thing that separates money paid from money reversed (D-MC18).
+ *  · **Windowed on `accrual_date`, not `pay_date`.** The accrual is when the work happened and the
+ *    cost was incurred; the payment is cash timing (D-MC19). Windowing on pay date and reconciling
+ *    against the accrual ledger compares two different months and misses by roughly $135,000.
+ *  · **Both `total_pay` and `orig_posted_pay` are sent.** They are not the same figure. `total_pay` is
+ *    what the payee received and what cost per mile should use; `orig_posted_pay` is what the ledger
+ *    recorded at accrual and the only thing that reconciles. June 2026: $1,268,565.31 against
+ *    $1,262,893.74, the gap being post-accrual adjustments on owner-operator rows.
+ *  · **`accrual_key` AND `post_key`.** `accrual_module` is 'SET' and `post_module` is 'DRS' on every
+ *    row — one payment, two GL modules. The reconciliation joins the accrual side, which posts
+ *    exactly one payable line per settlement; the payment side fans out across cash and clearing
+ *    accounts and cannot be matched one to one.
+ *  · **No live/`_hist` union.** `drs_settle` does not exist — unlike fuel and vouchers, this domain has
+ *    a history table only. D-MC11 does not apply here and its absence is not a bug to be fixed.
+ */
+export const SETTLEMENTS = `
+    SELECT
+      LTRIM(RTRIM(s.id))                            AS external_id,
+      LTRIM(RTRIM(s.company_id))                    AS company_id,
+      NULLIF(LTRIM(RTRIM(s.tractor_id)), '')        AS tractor_unit,
+      NULLIF(LTRIM(RTRIM(s.trailer_id)), '')        AS trailer_unit,
+      NULLIF(LTRIM(RTRIM(s.driver_id)), '')         AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(s.movement_id)), '')       AS movement_external_id,
+      NULLIF(LTRIM(RTRIM(s.order_id)), '')          AS order_external_id,
+      NULLIF(LTRIM(RTRIM(s.payee_id)), '')          AS payee_id,
+      LTRIM(RTRIM(s.payee_type))                    AS payee_type,
+      NULLIF(LTRIM(RTRIM(s.pay_method)), '')        AS pay_method,
+      CONVERT(varchar(19), s.accrual_date, 126)     AS accrued_at,
+      CONVERT(varchar(19), s.pay_date, 126)         AS paid_at,
+      CONVERT(varchar(19), s.transfer_date, 126)    AS transferred_at,
+      s.total_pay                                   AS total_pay,
+      s.orig_posted_pay                             AS posted_pay,
+      s.pay_distance                                AS pay_distance,
+      LTRIM(RTRIM(s.accrual_key))                   AS accrual_key,
+      LTRIM(RTRIM(s.post_key))                      AS post_key
+      FROM dbo.drs_settle_hist AS s
+     WHERE s.company_id = @companyId
+       AND s.is_void = 'N'
+       AND s.accrual_date >= @windowStart
+       AND s.accrual_date <  @windowEnd`;
+
+/**
+ * The accrual-side ledger lines for `reconcileSettlementToLedger`.
+ *
+ * The GL side carries its OWN date bound, deliberately wider than the settlement window. Two reasons:
+ * a settlement accrued on the last day of the window can post a day or two later, so a bound equal to
+ * the window would drop real lines and fail an exact reconciliation; and without any date bound at
+ * all the optimiser abandons the `transaction_date` index and scans 733k rows — the first version of
+ * this query timed out at four minutes. The padding is a fortnight either side, which comfortably
+ * covers observed posting lag while keeping the scan bounded.
+ */
+export const SETTLEMENT_LEDGER_LINES = `
+    SELECT
+      LTRIM(RTRIM(g.post_key))  AS post_key,
+      LTRIM(RTRIM(g.glid))      AS glid,
+      g.amount                  AS amount
+      FROM dbo.gl_ledger AS g
+     WHERE g.company_id = @companyId
+       AND g.post_module = 'SET'
+       AND g.transaction_date >= DATEADD(day, -14, CONVERT(datetime, @windowStart))
+       AND g.transaction_date <  DATEADD(day,  14, CONVERT(datetime, @windowEnd))
+       AND g.post_key IN (
+         SELECT LTRIM(RTRIM(s.accrual_key)) FROM dbo.drs_settle_hist AS s
+          WHERE s.company_id = @companyId
+            AND s.is_void = 'N'
+            AND s.accrual_date >= @windowStart
+            AND s.accrual_date <  @windowEnd)`;
+
+/**
+ * Deductions taken out of settlements — escrow, insurance, advances, equipment rent.
+ *
+ * A separate sweep rather than a column on the settlement, because a deduction is money moving the
+ * other way and carries its OWN void state: a settlement can stand while one of its deductions is
+ * reversed. June 2026 has 344 voided deduction rows against 1,342 live ones, and folding the two
+ * together would net a reversal against an unrelated charge.
+ *
+ * Attribution is partial and stays that way. 317 of June's 699 live type-'D' rows carry a tractor;
+ * the rest are payee-level and belong to the harness's allocation, not to a guess made here.
+ */
+export const SETTLEMENT_DEDUCTIONS = `
+    SELECT
+      LTRIM(RTRIM(d.id))                            AS external_id,
+      LTRIM(RTRIM(d.company_id))                    AS company_id,
+      NULLIF(LTRIM(RTRIM(d.payee_id)), '')          AS payee_id,
+      LTRIM(RTRIM(d.payee_type))                    AS payee_type,
+      NULLIF(LTRIM(RTRIM(d.tractor_id)), '')        AS tractor_unit,
+      NULLIF(LTRIM(RTRIM(d.deduct_code_id)), '')    AS deduct_code,
+      NULLIF(LTRIM(RTRIM(d.deduction_type)), '')    AS deduction_type,
+      CONVERT(varchar(19), d.transaction_date, 126) AS transacted_at,
+      d.amount                                      AS amount,
+      LTRIM(RTRIM(d.accrual_key))                   AS accrual_key
+      FROM dbo.drs_deduct_hist AS d
+     WHERE d.company_id = @companyId
+       AND d.is_void = 'N'
+       AND d.transaction_date >= @windowStart
+       AND d.transaction_date <  @windowEnd`;
+
 /** A cheap liveness + scoping check: the row counts the three predicates select. */
 export const ROSTER_COUNTS = `
     SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'
