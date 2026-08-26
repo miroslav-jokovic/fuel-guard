@@ -78,7 +78,12 @@ export function drawDiscount(doc: PDFKit.PDFDocument, capture: ContractCapture, 
     `Across ${num(capture.measuredGallons)} measurable gallons the contract quoted ` +
       `${usd3(capture.contractPerGal)} a gallon and we were billed ${usd3(capture.paidPerGal)} - ` +
       `${capture.netVariance >= 0 ? "over" : "under"} contract by ${usd(Math.abs(capture.netVariance))}. ` +
-      `Against the posted retail those fills captured ${usd(capture.captured)}, ${usd3(capture.capturedPerGal)} a gallon.` +
+      // "Those fills" is not the same population: `captured` is measured over the narrower set that
+      // also had a POSTED price, and borrowing the sentence's earlier denominator overstated its
+      // reach. Same defect as the page's fourth tile (L14), and worse here — a document is quoted
+      // back without the screen beside it.
+      `Against the posted retail, the ${capture.capturedLines.toLocaleString()} of those with a posted ` +
+      `price captured ${usd(capture.captured)}, ${usd3(capture.capturedPerGal)} a gallon.` +
       // The scope belongs in the sentence a reader quotes, not only in the coverage bar under it. A
       // figure in a PDF outlives the session that made it and gets read back months later without the
       // page beside it; measured on production the same headline covered 27.8% of the window's fuel.

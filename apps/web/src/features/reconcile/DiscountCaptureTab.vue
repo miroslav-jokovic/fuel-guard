@@ -5,6 +5,7 @@ import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
+import PriceCoverageStrip from "./PriceCoverageStrip.vue";
 
 /**
  * Was every fill billed at the price Pilot contracted for it?
@@ -26,7 +27,8 @@ import { usd, usd3, gal, pct1 } from "./format";
  * A fill with no quote in range is UNMEASURED, never scored as billed correctly. Zero variance and no
  * measurement look identical in a total and mean opposite things, so they are reported apart.
  */
-const props = defineProps<{ lines: SpendLine[] }>();
+const props = defineProps<{ lines: SpendLine[]; from: string; to: string }>();
+const emit = defineEmits<{ narrow: [from: string, to: string] }>();
 
 const capture = computed(() => analyzeContractCapture(props.lines));
 const weekly = computed(() => weeklyContractCapture(props.lines));
@@ -36,8 +38,16 @@ const inScope = computed(
   () => props.lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0).length,
 );
 
+/**
+ * The tables are capped, and they SAY they are capped.
+ *
+ * A list of fifty rows that is silently the first fifty of two hundred reads as "there were fifty",
+ * and the reader stops looking. The CSV carries everything, which is only useful if they know to ask.
+ */
+const EXCEPTION_CAP = 50;
+const SITE_CAP = 25;
 const exceptionRows = computed(() =>
-  capture.value.exceptions.slice(0, 50).map((c, i) => ({
+  capture.value.exceptions.slice(0, EXCEPTION_CAP).map((c, i) => ({
     id: `${i}-${c.line.site ?? "?"}-${c.line.tranDate ?? ""}`,
     date: c.line.tranDate ?? "—",
     site: `${c.line.site ?? "?"} ${c.line.city ?? ""} ${c.line.state ?? ""}`.trim(),
@@ -58,8 +68,9 @@ const exceptionCols: DataTableColumn[] = [
   { key: "variance", label: "Over contract", numeric: true, width: "md" },
 ];
 
+const worstSites = computed(() => capture.value.bySite.filter((r) => r.variance > 0));
 const siteRows = computed(() =>
-  capture.value.bySite.filter((r) => r.variance > 0).slice(0, 25).map((r, i) => ({
+  worstSites.value.slice(0, SITE_CAP).map((r, i) => ({
     id: `${i}-${r.key}`, site: r.key, lines: r.lines, gallons: gal(r.gallons),
     perGal: usd3(r.variancePerGal), variance: usd(r.variance),
   })),
@@ -98,6 +109,8 @@ function exportLines() {
     </BaseCard>
 
     <template v-else>
+      <PriceCoverageStrip :from="from" :to="to" @narrow="(f, t) => emit('narrow', f, t)" />
+
       <!-- The two rates side by side, because the claim is that they should be the SAME rate. -->
       <BaseCard>
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -150,6 +163,13 @@ function exportLines() {
           <div>
             <dt class="text-xs text-ink-muted">Captured vs retail</dt>
             <dd class="text-lg font-semibold text-ink">{{ usd(capture.captured) }}</dd>
+            <!-- The other three figures in this row are measured over the QUOTED fills; this one is
+                 measured over the narrower set that also had a POSTED price. Three denominators in one
+                 <dl> with only one of them stated is how a reader ends up dividing the wrong pair. -->
+            <dd class="text-2xs text-ink-tertiary">
+              over {{ capture.capturedLines.toLocaleString() }} of
+              {{ capture.measuredLines.toLocaleString() }} priced fills
+            </dd>
           </div>
         </dl>
 
@@ -187,7 +207,12 @@ function exportLines() {
       <div v-if="exceptionRows.length">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-semibold text-ink">Fills billed off contract</h4>
-          <BaseButton variant="ghost" @click="exportLines">Download every exception (CSV)</BaseButton>
+          <div class="flex items-center gap-3">
+            <span v-if="capture.exceptions.length > EXCEPTION_CAP" class="text-2xs text-ink-tertiary">
+              showing {{ EXCEPTION_CAP }} of {{ capture.exceptions.length.toLocaleString() }}
+            </span>
+            <BaseButton variant="ghost" @click="exportLines">Download every exception (CSV)</BaseButton>
+          </div>
         </div>
         <BaseCard padding="none">
           <DataTable :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
@@ -195,7 +220,12 @@ function exportLines() {
       </div>
 
       <div v-if="siteRows.length">
-        <h4 class="mb-2 text-sm font-semibold text-ink">Worst sites</h4>
+        <div class="mb-2 flex items-center justify-between">
+          <h4 class="text-sm font-semibold text-ink">Worst sites</h4>
+          <span v-if="worstSites.length > SITE_CAP" class="text-2xs text-ink-tertiary">
+            showing {{ SITE_CAP }} of {{ worstSites.length.toLocaleString() }}
+          </span>
+        </div>
         <BaseCard padding="none">
           <DataTable :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
         </BaseCard>

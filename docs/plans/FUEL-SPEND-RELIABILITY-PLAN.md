@@ -895,7 +895,35 @@ re-running March's reconciliation does not erase any of it.
 
 ---
 
-### F7 · Say what is measured
+### F7 · Say what is measured — DONE 2026-08-26 (migration 0251)
+
+**What shipped.** Every item, plus the PDF half of two of them.
+- **C2** — `fuel_price_coverage` (0251) returns one row per day INCLUDING the empty ones, with how
+  stale the nearest quote is. `PriceCoverageStrip.vue` draws it as a day-per-cell strip in three
+  states (quoted / carried forward / unreachable) and **offers** the priced range as a one-click
+  filter change. Offered, never imposed: the window is in the URL so it can be sent to somebody, and a
+  page that silently narrows it produces a figure the recipient cannot reproduce from their link.
+- **E8** — one line above the tabs: what the window covers, what share is priced, what share resolved
+  to a station, how many statements are on file.
+- **X3** — the strip, which is C2's other half; built once, used for both.
+- **L13** — the trend tiles say which period they describe. On the default view that is the week
+  ending about ten days ago, above a table of every week, beside a fill count spanning ninety days.
+- **L12** — "Fuel spend · tractor fuel only" and "Cost per mile · includes reefer and DEF". The two
+  were never reconcilable and now say why.
+- **L14** — the captured figure names its own denominator, on the page AND in the PDF, where "those
+  fills" had been borrowing the sentence's earlier and wider population.
+- **L11** — the exception tabs state that they overlap and must not be added. (The PDF's half of this
+  shipped with F3, when `offPolicy` fixed the verdict band that was adding them.)
+- **X6** — "showing 50 of 214" on both truncated tables.
+- **X8** — the filter bar's count is the current tab's, not the unfiltered feed count it showed on
+  four of six tabs.
+- **N7** — `byUnit` and `bySite` render. They had always been computed and nothing displayed them,
+  while the plan's own §2.3 records unit 754 hitting ONE9 three times in two days.
+
+**Verified by:** PGlite matrix `fuel-price-coverage` (**11 passed** — a day with nothing still
+appears, staleness looks back past the window's edge, org scope fails closed), 4 new tab tests, and
+the full gate list. `pnpm --filter web lint:tokens` refused `rounded-[1px]` on the coverage cells;
+they use `rounded-detail`.
 
 **Prerequisites:** F1. Independent of F4–F6 and can run in parallel with them.
 

@@ -18,7 +18,7 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useFuelPolicy } from "@/composables/useRouteFuelSettings";
-import { usd3 } from "@/features/reconcile/format";
+import { usd, usd3, pct1 } from "@/features/reconcile/format";
 
 /**
  * Fuel spend — what the fuel bill is, why it moved, and where the policy is not being followed.
@@ -125,6 +125,48 @@ const visibleTabs = computed(() => new Set(tabs.value.map((t) => t.value)));
 const isFeedTab = computed(() => ["avoid_brand", "california", "off_network", "discount"].includes(tab.value));
 
 /**
+ * X8 — the count is the count of what THIS tab is showing.
+ *
+ * It was `feedLines.length` on every tab: the unfiltered fill count sitting beside statement data on
+ * one tab, beside a deliberately smaller measured-fills figure on another, and beside three exception
+ * reports each of which selects a fraction of it. A number in a filter bar is read as "this is what
+ * you are looking at", and on four of the six tabs it was not.
+ */
+const barCount = computed<{ n: number; label: string }>(() => {
+  switch (tab.value) {
+    case "avoid_brand": return { n: exceptions.value.avoidedBrands.lines, label: "fills off-brand" };
+    case "california": return { n: exceptions.value.avoidedStates.lines, label: "fills in state" };
+    case "off_network": return { n: exceptions.value.offNetwork.lines, label: "fills off-network" };
+    case "discount": return { n: feedLines.value.length, label: "fills" };
+    case "statements": return { n: scopedStatements.value.length, label: "statements" };
+    default: return { n: feedLines.value.length, label: "fills" };
+  }
+});
+
+/**
+ * E8 — one line saying how much of this window the page can actually speak about.
+ *
+ * The ingredients existed and were scattered: measured-versus-unmeasured on the discount tab,
+ * unresolved stations counted nowhere the reader looks, rejected odometer intervals in a footnote
+ * under the trend table. A controller wants one sentence, and without it every figure on the page
+ * reads as though it covered everything.
+ */
+const coverageLine = computed(() => {
+  const lines = feedLines.value.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0);
+  if (lines.length === 0) return null;
+  const spend = lines.reduce((a, l) => a + (l.netAmount ?? 0), 0);
+  const priced = lines.filter((l) => l.contractAmount != null);
+  const pricedSpend = priced.reduce((a, l) => a + (l.netAmount ?? 0), 0);
+  const resolved = lines.filter((l) => l.brand != null).length;
+  return {
+    spend,
+    pricedShare: spend > 0 ? pricedSpend / spend : null,
+    resolvedShare: lines.length > 0 ? resolved / lines.length : null,
+    statements: (statements.value ?? []).length,
+  };
+});
+
+/**
  * The avoided-state blurb, written from the policy rather than about California.
  *
  * The CARB-and-fuel-tax sentence was true and specific to one state, on a tab that measures whichever
@@ -151,10 +193,21 @@ const stateNote = computed(() => {
 
     <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
 
+    <!-- How much of this window the page can speak about, in one line. Every figure below is a claim
+         about some subset of it, and without this they all read as claims about the whole. -->
+    <p v-if="coverageLine && tab !== 'reconcile'" class="text-xs text-ink-tertiary">
+      This window covers <strong class="text-ink-secondary">{{ usd(coverageLine.spend) }}</strong> of tractor fuel —
+      <strong :class="(coverageLine.pricedShare ?? 0) < 0.75 ? 'text-caution-800' : 'text-ink-secondary'">{{
+        pct1(coverageLine.pricedShare)
+      }}</strong>
+      priced against a contract quote, {{ pct1(coverageLine.resolvedShare) }} resolved to a station,
+      {{ coverageLine.statements }} statement{{ coverageLine.statements === 1 ? "" : "s" }} on file.
+    </p>
+
     <!-- ONE filter bar for every view that reads data. Dates, trucks and grain are the page's, so a
          figure read on one tab is the same period as a figure read on the next, and the export sends
          exactly these to the server. -->
-    <FilterBar v-if="tab !== 'reconcile'" :count="feedLines.length" count-label="fills">
+    <FilterBar v-if="tab !== 'reconcile'" :count="barCount.n" :count-label="barCount.label">
       <!-- ⚠ These MUST be in the #filters slot. FilterBar has no default slot — only #filters, #more
            and #actions — so controls placed as plain children are silently dropped and the bar renders
            empty. That is exactly how this whole filter row went missing on a live page.
@@ -208,7 +261,13 @@ const stateNote = computed(() => {
           slug="avoided-states"
           :note="stateNote"
         />
-        <DiscountCaptureTab v-else-if="tab === 'discount'" :lines="feedLines" />
+        <DiscountCaptureTab
+          v-else-if="tab === 'discount'"
+          :lines="feedLines"
+          :from="f.from.value"
+          :to="f.to.value"
+          @narrow="(from, to) => f.setWindow(from, to)"
+        />
         <ExceptionsTab
           v-else
           title="Off the preferred network"

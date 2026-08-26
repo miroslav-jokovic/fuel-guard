@@ -1,6 +1,21 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
+import { computed, ref } from "vue";
+
+// The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
+// the strip has its own; stubbed to "fully covered" so it renders without asserting anything here.
+vi.mock("./usePriceCoverage", async (orig) => {
+  const actual = await orig<typeof import("./usePriceCoverage")>();
+  return {
+    ...actual,
+    usePriceCoverageQuery: () => ({
+      data: computed(() => ({ days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null })),
+      isLoading: ref(false), isError: ref(false), error: ref(null),
+    }),
+  };
+});
+
 import SpendBridgeCard from "./SpendBridgeCard.vue";
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import ExceptionsTab from "./ExceptionsTab.vue";
@@ -90,7 +105,7 @@ describe("DiscountCaptureTab", () => {
     }));
 
   it("compares what was billed against what was quoted, and names the gap", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: quoted() } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("Billed against contract");
     expect(t).toContain("Quoted / gal");
     expect(t).toContain("Billed / gal");
@@ -101,7 +116,7 @@ describe("DiscountCaptureTab", () => {
 
   it("reports fills with no quote as unmeasured rather than as billed correctly", () => {
     // eightWeeks() carries no contractAmount at all, so nothing is measurable.
-    const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks() } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("Billed against contract");
     expect(t).not.toContain("NaN");
@@ -109,13 +124,13 @@ describe("DiscountCaptureTab", () => {
 
   it("says so when a quote had to be carried forward from the day before", () => {
     const lines = quoted().map((l) => ({ ...l, quoteStaleDays: 1 }));
-    const t = mount(DiscountCaptureTab, { props: { lines } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("previous day's quote");
     expect(t).not.toContain("NaN");
   });
 
   it("renders with nothing to report rather than throwing", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: [] } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: [], from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("NaN");
   });
@@ -127,14 +142,14 @@ describe("DiscountCaptureTab", () => {
   it("states the share of spend the headline variance was measured over", () => {
     // Half the fills quoted, half with no quote in range.
     const lines = quoted().map((l, i) => (i % 2 === 0 ? l : { ...l, contractAmount: null, retailAmount: null }));
-    const t = mount(DiscountCaptureTab, { props: { lines } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("of this window's fuel");
     expect(t).toMatch(/measured over \$[\d,]+/);
     expect(t).not.toContain("NaN");
   });
 
   it("does not claim partial coverage when every fill was priced", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: quoted() } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" } }).text();
     expect(t).toContain("100.0% of this window's fuel");
     expect(t).not.toContain("had no quote in range");
   });
@@ -194,6 +209,48 @@ describe("ExceptionsTab", () => {
     expect(t).toContain("$0.600/gal");        // $60 over the 100 priced gallons, not over 200
     expect(t).toContain("of these gallons");  // and it says so
     expect(t).not.toContain("NaN");
+  });
+});
+
+// ── F7: say what is measured ──────────────────────────────────────────────────────────────────
+describe("saying what is measured", () => {
+  it("states its truncation rather than letting fifty rows read as fifty findings", () => {
+    // 60 fills all billed over contract; the table shows 50. Silently, that reads as "there were 50"
+    // and the reader stops looking — the CSV holds the rest, which only helps if they know to ask.
+    const many = Array.from({ length: 60 }, (_, i) =>
+      fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560, site: `s${i}` }),
+    ).map((l) => ({ ...l, contractAmount: 500, quoteStaleDays: 0 }));
+    const t = mount(DiscountCaptureTab, { props: { lines: many, from: "2026-08-01", to: "2026-08-31" } }).text();
+    expect(t).toContain("showing 50 of 60");
+  });
+
+  it("says which denominator the captured figure uses, when it is not the others'", () => {
+    // "Quoted / gal", "Billed / gal" and "Billed at contract" are over the QUOTED fills; "Captured vs
+    // retail" is over the narrower set that also had a posted price. Three denominators, one row.
+    const mixed = [
+      { ...fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560 }), contractAmount: 500, quoteStaleDays: 0 },
+      { ...fill({ tranDate: "2026-08-18", gallons: 100, netAmount: 520, retailAmount: null }), contractAmount: 500, quoteStaleDays: 0 },
+    ];
+    const t = mount(DiscountCaptureTab, { props: { lines: mixed, from: "2026-08-01", to: "2026-08-31" } }).text();
+    expect(t).toMatch(/over 1 of 2 priced fills/);
+  });
+
+  it("warns that the exception tabs overlap and must not be added", () => {
+    const t = mount(ExceptionsTab, {
+      props: { title: "ONE9", blurb: "…", report: analyzePolicyExceptions(eightWeeks()).avoidedBrands, slug: "one9" },
+    }).text();
+    expect(t).toContain("must not be added together");
+  });
+
+  it("names which trucks and which sites, not only which fills", () => {
+    // `byUnit` and `bySite` have always been computed and nothing rendered them. Fuel behaviour is a
+    // per-driver habit — the plan records unit 754 hitting ONE9 three times in two days — and a flat
+    // list of fills cannot show that.
+    const t = mount(ExceptionsTab, {
+      props: { title: "ONE9", blurb: "…", report: analyzePolicyExceptions(eightWeeks()).avoidedBrands, slug: "one9" },
+    }).text();
+    expect(t).toContain("Which trucks");
+    expect(t).toContain("754");
   });
 });
 
