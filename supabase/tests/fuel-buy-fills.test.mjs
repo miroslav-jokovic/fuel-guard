@@ -35,6 +35,10 @@ const ok = (name, cond, extra = "") => {
 };
 const one = async (q, p = []) => (await db.query(q, p)).rows[0];
 const all = async (q, p = []) => (await db.query(q, p)).rows;
+/** The SQLSTATE a statement raises, or null when it succeeds. */
+const sqlstate = async (q, p = []) => {
+  try { await db.query(q, p); return null; } catch (e) { return e.code ?? String(e.message); }
+};
 
 await db.exec(`
   create schema if not exists auth;
@@ -110,7 +114,7 @@ await fillAt(ORG, V2, "2026-08-19T12:00:00Z", "TX", { gallons: 55, cost: 240, ta
 await fillAt(OTHER, VOTHER, "2026-08-12T12:00:00Z", "TX", { gallons: 100, cost: 430 });
 
 const rows = async (from, to, org = ORG) =>
-  await all(`select * from fuel_buy_fills($1, $2::date, $3::date)`, [org, from, to]);
+  await all(`select * from fuel_buy_fills($2::date, $3::date, $1)`, [org, from, to]);
 
 // ── 1. the lookback ─────────────────────────────────────────────────────────────────────────────
 const win = await rows("2026-08-01", "2026-08-31");
@@ -173,14 +177,31 @@ async function asClient(org, role, sql, params = []) {
   }
 }
 const asOrg = await asClient(ORG, "admin",
-  `select count(*)::int n from fuel_buy_fills(null, '2026-08-01'::date, '2026-08-31'::date)`);
+  `select count(*)::int n from fuel_buy_fills('2026-08-01'::date, '2026-08-31'::date, null)`);
 ok("a browser passing no org is scoped by its JWT", (asOrg.rows[0]?.n ?? 0) > 0, JSON.stringify(asOrg));
 const crossed = await asClient(ORG, "admin",
-  `select count(*)::int n from fuel_buy_fills($1, '2026-08-01'::date, '2026-08-31'::date)`, [OTHER]);
+  `select count(*)::int n from fuel_buy_fills('2026-08-01'::date, '2026-08-31'::date, $1)`, [OTHER]);
 // `security invoker` means RLS still applies to the rows underneath, so naming another org yields
 // nothing rather than that org's fills — the property that makes p_org safe to expose at all.
 ok("and naming another carrier's org returns nothing, because RLS still applies underneath",
   crossed.rows[0]?.n === 0, JSON.stringify(crossed));
+
+
+// ── THE CALL THE BROWSER ACTUALLY MAKES (0257) ──────────────────────────────────────────────────
+// Every assertion above passes `p_org` explicitly, which is the API's call — and it is exactly why
+// this file was green while `fuel_buy_fills` was unreachable from the only surface that uses it. PostgREST
+// resolves an RPC on the set of NAMED arguments supplied, so a parameter with no DEFAULT means there
+// is no form that omits it, and the browser gets "could not find the function ... in the schema
+// cache". D-FC1 says `coalesce(p_org, auth_org_id())`; the coalesce was there and the default was not.
+// Named arguments with p_org OMITTED — not passed as null, OMITTED. That distinction is the whole
+// defect: a positional `(…, null)` resolves fine without a default, which is why every existing
+// assertion here passed while the browser could not call the function at all.
+const browserCall = await asClient(ORG, "admin",
+  `select count(*)::int n from fuel_buy_fills(p_from => '2026-08-01'::date, p_to => '2026-08-31'::date)`);
+ok("the browser's call — named arguments, p_org omitted entirely — resolves",
+  browserCall.error === null, String(browserCall.error));
+ok("and returns this org's rows, so the default really does fall through to auth_org_id()",
+  (browserCall.rows[0]?.n ?? 0) > 0, JSON.stringify(browserCall.rows[0]));
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
