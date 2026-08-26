@@ -75,10 +75,24 @@ const ORG = (await one(`insert into organizations (id,name) values (gen_random_u
 const OTHER = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Other') returning id`)).id;
 const USER = (await one(`insert into auth.users (id,email) values (gen_random_uuid(),'a@b.c') returning id`)).id;
 
-const RUN = (await one(
-  `insert into fuel_recon_runs (org_id, source_kind, period_start, period_end, tol_gallons,
-     tol_amount_abs, tol_amount_pct, max_day_drift, matcher_version, summary)
-   values ($1,'weekly_statement','2026-08-17','2026-08-23',1,1,0.01,1,'f4','{}'::jsonb) returning id`, [ORG])).id;
+/**
+ * A NEW run row per reconciliation, which is what production does — and the reason 0253 exists.
+ *
+ * The first version of this fixture created one `RUN` and reused it for every `sync()` call. That is
+ * the one shape in which 0250's close clause worked: it was scoped `where e.run_id = p_run`, and with
+ * a fixed run id the second call's `p_run` still matched rows the first call had written. The deployed
+ * `runFuelReconciliation` inserts a new row per upload, so in production the upsert had already moved
+ * every seen finding onto the new run id and NOTHING COULD EVER CLOSE. The fixture is the production
+ * shape now; re-run this file against 0250 and three assertions below go red.
+ */
+const newRun = async (from = "2026-08-17", to = "2026-08-23", org = ORG) =>
+  (await one(
+    `insert into fuel_recon_runs (org_id, source_kind, period_start, period_end, tol_gallons,
+       tol_amount_abs, tol_amount_pct, max_day_drift, matcher_version, summary)
+     values ($1,'weekly_statement',$2,$3,1,1,0.01,1,'f4','{}'::jsonb) returning id`, [org, from, to])).id;
+const RUN = await newRun();
+/** The kinds a reconciliation is authoritative for — `RECON_EXCEPTION_KINDS` in shared. */
+const RECON_KINDS = ["recon_missing_in_system", "recon_missing_on_report", "recon_amount", "recon_gallons"];
 
 /** What `reconFindings` produces, in the shape the RPC consumes. */
 const finding = (fp, o = {}) => ({
@@ -87,8 +101,14 @@ const finding = (fp, o = {}) => ({
   unit: "701", site: "436", city: "Amarillo", state: "TX", brand: null,
   evidence: { billedGallons: 48.2, authNo: "373364" }, ...o,
 });
-const sync = async (findings, run = RUN, actor = USER) =>
-  await one(`select * from sync_fuel_exceptions($1, $2, $3::jsonb, $4)`, [ORG, run, JSON.stringify(findings), actor]);
+const sync = async (findings, opts = {}) =>
+  await one(`select * from sync_fuel_exceptions($1, $2, $3::jsonb, $4, $5)`, [
+    ORG,
+    opts.run !== undefined ? opts.run : await newRun(opts.from, opts.to),
+    JSON.stringify(findings),
+    "actor" in opts ? opts.actor : USER,
+    opts.kinds === undefined ? RECON_KINDS : opts.kinds,
+  ]);
 
 // ── 1. the first run files the findings ─────────────────────────────────────────────────────────
 const r1 = await sync([finding("fp-a"), finding("fp-b", { amount: 55.12 })]);
@@ -139,6 +159,60 @@ await sync([finding("fp-a"), finding("fp-b")]);
 const credited = await one(`select status, credited_amount from fuel_exceptions where org_id=$1 and fingerprint='fp-b'`, [ORG]);
 ok("and so does a credit, with the amount actually recovered",
   credited.status === "credited" && Number(credited.credited_amount) === 200);
+
+// ── 3b. the close is scoped to a KIND and a PERIOD, never to a run id (0253) ────────────────────
+// Everything above proves a finding closes. These four prove it closes only what this producer, over
+// this window, is entitled to close — which is the half that turns a safe fix into an unsafe one if
+// it is got wrong. Closing too much silently retires money the carrier is owed.
+
+const other = (fp, o = {}) => finding(fp, { occurredOn: "2026-07-06", ...o });
+await sync([other("fp-july")], { from: "2026-07-06", to: "2026-07-12" });
+
+// A run over August must not close a July finding, even though it produces the same kinds.
+const rAug = await sync([finding("fp-a")]);
+ok("a run over one period does not close findings from another",
+  Number(rAug.closed) === 0 &&
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='fp-july'`, [ORG])).status === "open",
+  JSON.stringify(rAug));
+
+// A producer that owns a different kind must not close a reconciliation finding it never looked for.
+const rKind = await sync([], { from: "2026-07-06", to: "2026-07-12", kinds: ["contract_variance"] });
+ok("a producer only closes the kinds it declares it owns",
+  Number(rKind.closed) === 0 &&
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='fp-july'`, [ORG])).status === "open",
+  JSON.stringify(rKind));
+
+// The deployment-order default: the four-argument call the currently-deployed API still makes arrives
+// with `p_kinds` null and must behave exactly as it does today, which is to close nothing.
+const rNoKinds = await sync([], { from: "2026-07-06", to: "2026-07-12", kinds: null });
+ok("a caller that declares no kinds closes nothing, so the old four-argument call stays safe",
+  Number(rNoKinds.closed) === 0 &&
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='fp-july'`, [ORG])).status === "open");
+
+// Somebody mid-conversation with the vendor keeps their row. A re-ingest is not entitled to end that.
+await db.query(`update fuel_exceptions set status='disputed' where org_id=$1 and fingerprint='fp-july'`, [ORG]);
+const rDisputed = await sync([], { from: "2026-07-06", to: "2026-07-12" });
+ok("a disputed finding is never closed by a re-ingest",
+  Number(rDisputed.closed) === 0 &&
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='fp-july'`, [ORG])).status === "disputed",
+  JSON.stringify(rDisputed));
+
+// And an EMPTY batch over the right window closes what is genuinely no longer there — the case a kind
+// set derived from the batch could never express, because that set would be empty too.
+await db.query(`update fuel_exceptions set status='open' where org_id=$1 and fingerprint='fp-july'`, [ORG]);
+const rEmpty = await sync([], { from: "2026-07-06", to: "2026-07-12" });
+ok("a run that finds nothing closes what it no longer finds",
+  Number(rEmpty.closed) === 1 &&
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='fp-july'`, [ORG])).status === "resolved_by_reingest",
+  JSON.stringify(rEmpty));
+
+// The audit row carries the window and the kinds, so "why did this go away" is answerable later.
+const audit = await one(`select meta from audit_logs where org_id=$1 and action='fuel.exceptions_synced'
+                          order by created_at desc limit 1`, [ORG]);
+ok("the sync audits the window and the kinds it closed against",
+  audit.meta.periodStart === "2026-07-06" && audit.meta.periodEnd === "2026-07-12" &&
+  Array.isArray(audit.meta.kinds) && audit.meta.kinds.includes("recon_amount"),
+  JSON.stringify(audit.meta));
 
 // ── 4. what may be recorded ─────────────────────────────────────────────────────────────────────
 ok("only a credited exception may carry a credited amount",
@@ -193,15 +267,17 @@ for (const role of ["admin", "fleet_manager"]) {
   ok(`nor close one directly — RLS matches no rows, so nothing moves`, upd.error === null && upd.rows[0]?.n === 0,
     JSON.stringify(upd));
 }
-const rpc = await asClient(ORG, "admin", `select * from sync_fuel_exceptions($1,$2,'[]'::jsonb,null)`, [ORG, RUN]);
+const rpc = await asClient(ORG, "admin", `select * from sync_fuel_exceptions($1,$2,'[]'::jsonb,null,null)`, [ORG, RUN]);
 ok("and cannot call the sync RPC either — it is the service role's", rpc.error === "42501");
 
-await sync([finding("fp-other")], RUN, USER);
+await sync([finding("fp-other")], { run: RUN });
 await db.query(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint)
                 values ($1,'recon_amount','overbilled','fp-theirs')`, [OTHER]);
 const mine = await asClient(ORG, "admin", `select count(*)::int n from fuel_exceptions`);
 const theirs = await asClient(OTHER, "admin", `select count(*)::int n from fuel_exceptions`);
-ok("a member reads only their own carrier's findings", mine.rows[0]?.n === 3, JSON.stringify(mine));
+// fp-a, fp-b, fp-july and fp-other — fp-y was pruned by the retention check above, and fp-client was
+// rolled back with the transaction that failed to insert it.
+ok("a member reads only their own carrier's findings", mine.rows[0]?.n === 4, JSON.stringify(mine));
 ok("and the other carrier reads only theirs", theirs.rows[0]?.n === 1, JSON.stringify(theirs));
 
 // ── 7. the fingerprint is the identity ──────────────────────────────────────────────────────────
