@@ -25,7 +25,16 @@ export const fuelRoutes: RouteRecordRaw[] = [
     name: "fuel-reconciliation",
     component: () => import("@/pages/FuelReconciliationPage.vue"),
     meta: { requiresAuth: true, requiresManage: true, title: "Fuel Reconciliation" },
+  },  {
+    path: "/fuel-exceptions",
+    name: "fuel-exceptions",
+    component: () => import("@/pages/FuelExceptionsPage.vue"),
+    // `requiresAuth` only, deliberately NOT `requiresManage`: the ledger is a read surface, and a
+    // controller checking what was recovered should not need permission to upload a statement. Moving
+    // a finding is gated on the API route, which is where the decision actually happens.
+    meta: { requiresAuth: true, title: "Fuel Exceptions" },
   },
+
   {
     path: "/import",
     name: "import",

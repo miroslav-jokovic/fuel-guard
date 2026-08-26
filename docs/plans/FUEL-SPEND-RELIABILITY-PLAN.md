@@ -817,8 +817,34 @@ work already has:
   `pnpm test`, `pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:upserts`,
   `lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`, `lint:ui-adoption`,
   `lint:tokens-parity`.
-- **F6b — the surface.** The `/fuel-spend/exceptions` page, the slide-over and event log, the dispute
-  packet, and the identified/claimed/recovered figures.
+- **F6b — the surface. DONE 2026-08-26 (no migrations).** The `/fuel-exceptions` page, the slide-over
+  and event log, the dispute packet, and the identified/claimed/recovered figures.
+
+  *What shipped.* `FuelExceptionsPage.vue` (`FilterBar` → `DataTable` + `TablePagination` → row-click
+  `SlideOver`), `ExceptionSlideOver.vue` (evidence, act log, status/note/credit form),
+  `useExceptions.ts`, `fuelExceptionStatusBadge` + `fuelExceptionAmountTone` in `lib/badges.ts`, the
+  route + nav entry in the same commit, and `GET /api/fueling/exceptions/packet.pdf`.
+
+  *Three numbers, never one.* The header is **identified / claimed / recovered**. "We found $14,200" is
+  a claim about the software; "we recovered $14,200" is a claim about the business, and only the second
+  renews a contract. Beneath them the four kinds of money stay apart (D-FX5).
+
+  *The packet is grouped by kind and the totals are not added.* A line billed above the quoted price is
+  an arithmetic disagreement; a line billed for a fill we have no record of is a question about whether
+  it happened. Presented as one list they invite one answer.
+
+  *Path note:* the page is `/fuel-exceptions`, not the plan's `/fuel-spend/exceptions` — there is no
+  `/fuel-spend` parent route to hang it under (the spend page is still `/fuel-reconciliation`; D-FX8's
+  rename is F8's). It is a sibling for now and moves with that rename.
+
+  *Two gates caught real things.* The route table is snapshotted so a new path cannot slip in unpinned —
+  updating it is how you acknowledge one. And `lint:ui-adoption` refused two raw `<input>` elements in
+  the slide-over; they are `AppInput` now. The nav gate additionally requires a unique glyph per item,
+  so `ExceptionLedgerIcon` (`BalanceScaleIcon`) was added to `packages/ui/src/icons.ts` first, per the
+  barrel's own instructions.
+
+  *Verified by:* 7 page tests, 5 packet tests (org-scoped, empty case, unfamiliar evidence blob, page
+  count), plus the full gate list including `lint:ui-adoption` and the nav and route-table gates.
 
 F6a is useless to a reader on its own and that is fine: the ledger has to be correct before it has a
 window. F6b is the half a buyer evaluates and it goes in its own PR.
