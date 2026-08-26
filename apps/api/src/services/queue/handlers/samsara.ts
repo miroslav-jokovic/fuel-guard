@@ -215,8 +215,19 @@ export const syncIftaHandler: JobHandler = async (ctx, job) => {
   const done: Record<string, number> = {};
   let rows = 0;
   let unmapped = 0;
+  const failed: string[] = [];
   for (const { year, month } of months) {
-    const r = await syncIftaMilesForMonth(admin, env, orgId, year, month, { actorId });
+    // Each month is its own request and its own fetch row, so one refusal must not cost the others.
+    // Before this guard the loop threw on the first month and the rest were never attempted — which
+    // mattered, because Samsara 400s an in-progress month outright (see `monthsToSync`).
+    let r;
+    try {
+      r = await syncIftaMilesForMonth(admin, env, orgId, year, month, { actorId });
+    } catch (e) {
+      failed.push(`${month} ${year}: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`[samsara] ifta ${month} ${year} failed: ${e instanceof Error ? e.message : e}`);
+      continue;
+    }
     done[`${month} ${year}`] = r.rows;
     rows += r.rows;
     unmapped = Math.max(unmapped, r.unmappedVehicles);
@@ -226,7 +237,10 @@ export const syncIftaHandler: JobHandler = async (ctx, job) => {
       console.warn(`[samsara] ifta ${month} ${year}: ${r.unmappedVehicles} vehicle(s) could not be mapped`);
     }
   }
-  return { months: done, rows, unmappedVehicles: unmapped };
+  // A run where EVERY month failed is a failed run: returning a tidy zero would leave the ledger empty
+  // and the job green, which is the pair of facts that hides an outage.
+  if (failed.length === months.length) throw new Error(`Every IFTA month failed — ${failed.join("; ")}`);
+  return { months: done, rows, unmappedVehicles: unmapped, failed };
 };
 
 /** Idling events + complete per-truck idle-capability foundation refresh. */

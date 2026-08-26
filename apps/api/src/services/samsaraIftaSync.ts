@@ -156,15 +156,28 @@ export async function syncIftaMilesForMonth(
 }
 
 /**
- * The months a sync should cover, newest first: the current month and the `back` months before it.
+ * The months a sync should cover, newest first — and the CURRENT month is never one of them.
  *
- * Two months would be enough to keep a filing current; the default reaches three because a carrier
- * files a quarter and the month a quarter opens is still being restated when the next one starts.
- * `now` is a parameter — this is called from a scheduler and must be testable without a fake clock.
+ * ── MEASURED 2026-08-26, AND IT IS STRONGER THAN THE DOCUMENTATION SAYS ──────────────────────────
+ * Samsara's own guidance is that "the most recent 72 hours of data may still be processing", which
+ * reads as a caution. It is not. Asking for the month in progress returns **HTTP 400**:
+ *
+ *     {"message":"IFTA data may still be processing. Please request data prior to 2026-08-01"}
+ *
+ * The first version of this function returned the current month first, and `syncIftaHandler` iterates
+ * without catching — so the very first request of every run would have thrown, and the two COMPLETED
+ * months behind it would never have been fetched. A daily scheduler that fails every day and writes
+ * nothing is the worst shape a sync can take, because the ledger simply stays empty and nothing says
+ * why. Found by running the backfill; seven months landed and August 400'd.
+ *
+ * So a sync covers completed months only. Three of them, because a carrier files a QUARTER and the
+ * month a quarter opens is still being restated when the next one starts. `now` is a parameter —
+ * this is called from a scheduler and must be testable without a fake clock.
  */
-export function monthsToSync(now: Date, back = 2): { year: number; month: string }[] {
+export function monthsToSync(now: Date, back = 3): { year: number; month: string }[] {
   const out: { year: number; month: string }[] = [];
-  for (let i = 0; i <= back; i += 1) {
+  // `i` starts at 1: month 0 is the one in progress, which Samsara refuses outright.
+  for (let i = 1; i <= back; i += 1) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
     out.push({ year: d.getUTCFullYear(), month: IFTA_MONTHS[d.getUTCMonth()]! });
   }
