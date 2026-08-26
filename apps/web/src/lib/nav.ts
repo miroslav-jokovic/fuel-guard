@@ -8,6 +8,7 @@ import {
   ClockIcon,
   Cog6ToothIcon,
   ExceptionLedgerIcon,
+  IftaLedgerIcon,
   ExclamationTriangleIcon,
   HomeIcon,
   LoadsIcon,
@@ -103,6 +104,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // recovered does not need the permission to upload a statement. Moving a finding is gated
         // at the route, not here.
         { name: "Exceptions", to: "/fuel-spend/exceptions", icon: ExceptionLedgerIcon, show: canViewSection(role, "fuel") },
+        { name: "IFTA", to: "/ifta", icon: IftaLedgerIcon, show: canViewSection(role, "fuel") },
       ],
     },
     {

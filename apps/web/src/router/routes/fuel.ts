@@ -43,6 +43,14 @@ export const fuelRoutes: RouteRecordRaw[] = [
     // a finding is gated on the API route, which is where the decision actually happens.
     meta: { requiresAuth: true, title: "Fuel Exceptions", parent: "/fuel-spend" },
   },
+  {
+    path: "/ifta",
+    name: "ifta",
+    component: () => import("@/pages/IftaLedgerPage.vue"),
+    // `requiresAuth` only, like the exception ledger: this is a read surface for a controller, who
+    // should not need permission to upload a statement in order to see what the fleet owes Texas.
+    meta: { requiresAuth: true, title: "IFTA" },
+  },
   // The old paths are kept forever, not for a deprecation window. This page exists to be sent to
   // somebody: links to it are in emails, in tickets, and in the `?tab=&from=&to=` form the filters
   // produce. `redirect` preserves the query string, so a link sent in June still opens on what its

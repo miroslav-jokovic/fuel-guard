@@ -448,7 +448,58 @@ Samsara has no purchases at all and the module says so rather than reporting a 1
 
 ---
 
-### S3 · The jurisdiction ledger — a surface, and a filing snapshot
+### S3 · The jurisdiction ledger — DONE 2026-08-26 (migration 0256)
+
+**What shipped.** `/ifta` — a page, not a ninth Fuel Spend tab (§1.5). Per quarter, every jurisdiction
+with its taxable miles, gallons burned, rate, liability, gallons bought, credit, net and surcharge;
+the quarter in the URL so a filing can be sent to somebody.
+
+- **`ifta_period_jurisdictions` + `ifta_period_summary` (0256)** — two functions because two questions.
+  The first **FULL joins** miles against fuel: a jurisdiction with miles and no purchases owes tax, one
+  with purchases and no miles holds a credit, and an inner join loses half a return while the total
+  still looks like a total. The second returns the odometer miles for the tie-out plus the fetch
+  metadata. Both `security invoker` + `coalesce(p_org, auth_org_id())` (D-FC1).
+- **The health line renders ABOVE the money.** Every liability derives from one fleet MPG, so a period
+  whose MPG is impossible produces a full table of confident wrong dollars that look exactly like right
+  ones — which is what 2026 Q2 does at 10.5. A test asserts the warning's position in the document,
+  not merely its presence.
+- **Samsara's `troubleshooting` block is rendered in words.** *"187 vehicles have no fuel type set in
+  Samsara, so it cannot attribute purchases to them — which is why its own fuel figure is not used
+  here. The credit side below is ours."*
+
+**⚠ THE FILING SNAPSHOT IS NOT BUILT, and this is a deviation from the step as written.** S3's brief
+included "mark this quarter filed" and the append-only snapshot D-IF6 requires. **Q-IF5 — does the
+carrier want to FILE from this, or only manage it? — is unanswered**, and this plan's own register says
+the fallback is to ship the ledger without the filing workflow. A snapshot table with no writer is
+speculative schema. The page says so in its own words rather than showing a disabled button that
+implies it is coming.
+
+**Two gates caught real things.** The route-table snapshot refused a new path until it was probed and
+acknowledged — which is how a route is meant to be added. And `lint:ui-adoption` refused a raw
+`<button>` hiding the "why can't I file from this?" caveat behind a disclosure; the honest fix was to
+stop making a reader click for a caveat, not to wrap it in a shared control. The nav gate additionally
+requires a glyph unique across the whole menu, so `IftaLedgerIcon` (`TaxesIcon`) was added to
+`packages/ui/src/icons.ts` first, per the barrel's own instructions.
+
+**Two defects the matrix found while being written**, both real:
+1. `ifta_period_summary` picked "the most recent fetch" by `fetched_at` alone, and the scheduler
+   fetches three months in one run — two can share a timestamp, after which which month won was
+   whatever the planner returned first. `period_month desc` is now the tie-break.
+2. The fixture tried to insert miles with no gallons into `fuel_spend_days` and hit
+   `fuel_spend_days_miles_pair` (0244), which refuses exactly that pairing — the same instinct as
+   `assessMpg`, enforced a migration earlier. The fixture was corrected, not the constraint.
+
+**Verified by:** the new `ifta-period-reads` matrix (**21 passed**) and 14 page tests, every one
+regressed and watched fail — moving the health line below the table (1 red), hiding the fleet MPG
+(1 red), dropping the unpriced jurisdiction names (1 red). Full suite, `pnpm typecheck`, `pnpm lint`,
+`lint:migrations`, `lint:rls`, `lint:filesize`, `lint:funcsize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:upserts`, `lint:tests`, `lint:ui-adoption`, `lint:tokens-parity`,
+`pnpm --filter web lint:tokens` — all by exit code.
+
+**What a reader sees today.** 2026 Q2 opens on a red line saying the fuel and the miles imply 10.5 mpg
+and that the fuel is missing — which is correct, and stays correct until the EFS refetch for
+2026-04-18 → 2026-05-18 closes the hole (Q-IF6). The page refusing to let a wrong liability read as a
+right one is the feature working, not a blocker.
 
 **Prerequisites:** S2.
 
