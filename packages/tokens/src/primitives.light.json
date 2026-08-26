@@ -76,7 +76,7 @@
     },
     "ramp-brand-50": {
       "$type": "color",
-      "$value": "oklch(98.7% 0.014 258)",
+      "$value": "oklch(98.7% 0.0061 258)",
       "$extensions": {
         "fuelguard.section": [
           "brand = warm gold identity. Interactive actions use their own graphite role."
@@ -86,28 +86,28 @@
     },
     "ramp-brand-100": {
       "$type": "color",
-      "$value": "oklch(95.7% 0.033 258)",
+      "$value": "oklch(95.7% 0.0205 258)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-brand-200": {
       "$type": "color",
-      "$value": "oklch(90.4% 0.06 259)",
+      "$value": "oklch(90.4% 0.0466 259)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-brand-300": {
       "$type": "color",
-      "$value": "oklch(80.5% 0.105 260)",
+      "$value": "oklch(80.5% 0.098 260)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-brand-400": {
       "$type": "color",
-      "$value": "oklch(71.2% 0.155 262)",
+      "$value": "oklch(71.2% 0.1496 262)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -142,7 +142,7 @@
     },
     "ramp-accent-50": {
       "$type": "color",
-      "$value": "oklch(98.8% 0.012 322)",
+      "$value": "oklch(98.8% 0.0095 322)",
       "$extensions": {
         "fuelguard.section": [
           "accent = warm soft purple. Secondary identity, and the brand series in charts, so it never collides with the blue that is now both identity and action."
@@ -208,7 +208,7 @@
     },
     "ramp-danger-50": {
       "$type": "color",
-      "$value": "oklch(99.2% 0.013 17.38)",
+      "$value": "oklch(99.2% 0.0038 17.38)",
       "$extensions": {
         "fuelguard.section": [
           "danger = red"
@@ -218,63 +218,63 @@
     },
     "ramp-danger-100": {
       "$type": "color",
-      "$value": "oklch(96.6% 0.032 17.717)",
+      "$value": "oklch(96.6% 0.0167 17.717)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-200": {
       "$type": "color",
-      "$value": "oklch(91.9% 0.062 18.334)",
+      "$value": "oklch(91.9% 0.0414 18.334)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-300": {
       "$type": "color",
-      "$value": "oklch(82.5% 0.114 19.571)",
+      "$value": "oklch(82.5% 0.0976 19.571)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-400": {
       "$type": "color",
-      "$value": "oklch(75.7% 0.191 22.216)",
+      "$value": "oklch(75.7% 0.1451 22.216)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-500": {
       "$type": "color",
-      "$value": "oklch(67.3% 0.237 25.331)",
+      "$value": "oklch(67.3% 0.2141 25.331)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-600": {
       "$type": "color",
-      "$value": "oklch(58.9% 0.245 27.325)",
+      "$value": "oklch(58.9% 0.2399 27.325)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-700": {
       "$type": "color",
-      "$value": "oklch(49.6% 0.213 27.518)",
+      "$value": "oklch(49.6% 0.2022 27.518)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-danger-800": {
       "$type": "color",
-      "$value": "oklch(41.6% 0.177 26.899)",
+      "$value": "oklch(41.6% 0.1693 26.899)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-caution-50": {
       "$type": "color",
-      "$value": "oklch(99.2% 0.015 45)",
+      "$value": "oklch(99.2% 0.0041 45)",
       "$extensions": {
         "fuelguard.section": [
           "caution = red-orange severity-high, separated from the gold identity ramp"
@@ -284,28 +284,28 @@
     },
     "ramp-caution-100": {
       "$type": "color",
-      "$value": "oklch(96.8% 0.04 45)",
+      "$value": "oklch(96.8% 0.0169 45)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-caution-200": {
       "$type": "color",
-      "$value": "oklch(92.7% 0.08 45)",
+      "$value": "oklch(92.7% 0.0399 45)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-caution-300": {
       "$type": "color",
-      "$value": "oklch(83.1% 0.13 42)",
+      "$value": "oklch(83.1% 0.0984 42)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-caution-400": {
       "$type": "color",
-      "$value": "oklch(73.1% 0.18 40)",
+      "$value": "oklch(73.1% 0.1708 40)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -340,7 +340,7 @@
     },
     "ramp-warning-50": {
       "$type": "color",
-      "$value": "oklch(98.6% 0.018 90)",
+      "$value": "oklch(98.6% 0.0177 90)",
       "$extensions": {
         "fuelguard.section": [
           "warning = muted golden amber \u2014 same hue family as before but far lower chroma, so badges read as calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from caution-orange."
@@ -378,28 +378,28 @@
     },
     "ramp-warning-500": {
       "$type": "color",
-      "$value": "oklch(63.7% 0.155 70)",
+      "$value": "oklch(63.7% 0.1378 70)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-warning-600": {
       "$type": "color",
-      "$value": "oklch(57.3% 0.15 60)",
+      "$value": "oklch(57.3% 0.1342 60)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-warning-700": {
       "$type": "color",
-      "$value": "oklch(48.9% 0.135 52)",
+      "$value": "oklch(48.9% 0.1257 52)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-warning-800": {
       "$type": "color",
-      "$value": "oklch(41.1% 0.115 48)",
+      "$value": "oklch(41.1% 0.1119 48)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
@@ -437,42 +437,42 @@
     },
     "ramp-success-400": {
       "$type": "color",
-      "$value": "oklch(67.8% 0.209 151.711)",
+      "$value": "oklch(67.8% 0.1792 151.711)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-success-500": {
       "$type": "color",
-      "$value": "oklch(59.6% 0.219 149.579)",
+      "$value": "oklch(59.6% 0.1656 149.579)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-success-600": {
       "$type": "color",
-      "$value": "oklch(53.3% 0.194 149.214)",
+      "$value": "oklch(53.3% 0.1494 149.214)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-success-700": {
       "$type": "color",
-      "$value": "oklch(45.5% 0.154 150.069)",
+      "$value": "oklch(45.5% 0.125 150.069)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-success-800": {
       "$type": "color",
-      "$value": "oklch(38.4% 0.119 151.328)",
+      "$value": "oklch(38.4% 0.1025 151.328)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-info-50": {
       "$type": "color",
-      "$value": "oklch(98.5% 0.015 215)",
+      "$value": "oklch(98.5% 0.0115 215)",
       "$extensions": {
         "fuelguard.section": [
           "info = blue"
@@ -503,35 +503,35 @@
     },
     "ramp-info-400": {
       "$type": "color",
-      "$value": "oklch(69.2% 0.128 210)",
+      "$value": "oklch(69.2% 0.1195 210)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-info-500": {
       "$type": "color",
-      "$value": "oklch(60.5% 0.138 209)",
+      "$value": "oklch(60.5% 0.1041 209)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-info-600": {
       "$type": "color",
-      "$value": "oklch(53.6% 0.132 208)",
+      "$value": "oklch(53.6% 0.092 208)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-info-700": {
       "$type": "color",
-      "$value": "oklch(45.4% 0.115 208)",
+      "$value": "oklch(45.4% 0.078 208)",
       "$extensions": {
         "fuelguard.expose": "color"
       }
     },
     "ramp-info-800": {
       "$type": "color",
-      "$value": "oklch(38.0% 0.098 208)",
+      "$value": "oklch(38.0% 0.0653 208)",
       "$extensions": {
         "fuelguard.expose": "color"
       }

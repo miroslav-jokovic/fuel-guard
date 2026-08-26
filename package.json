@@ -79,6 +79,8 @@
     "//lint:light-dark": "Lightning CSS transpiles light-dark() into a prefers-color-scheme polyfill by default, which follows the OS and cannot be overridden by the in-app scheme toggle. Both vite configs must exclude Features.LightDark. The toggle shipped broken because every other gate reads source CSS and the rewrite happens at minification (2026-08-23).",
     "lint:light-dark": "node scripts/check-light-dark.mjs",
     "lint:chart-colors": "node scripts/check-chart-colors.mjs",
+    "//lint:token-gamut": "Every colour token must name a colour an sRGB display can actually produce. 64 of 264 did not (2026-08-25) \u2014 ramp-caution-200 was 0.212 of linear overshoot, outside Display-P3 too. Chrome keeps oklch() all the way to PAINT rather than resolving it to rgb(), so an out-of-gamut token is mapped against the display profile: macOS colour-manages and can paint into P3, Windows does not, and the same dashboard came out visibly different on two machines driving the same monitor.",
+    "lint:token-gamut": "node scripts/check-token-gamut.mjs",
     "postinstall": "node scripts/apply-patches.mjs"
   },
   "pnpm": {
