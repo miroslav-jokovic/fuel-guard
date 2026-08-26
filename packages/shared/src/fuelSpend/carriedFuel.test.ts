@@ -16,10 +16,16 @@ const fill = (o: Partial<CarriedFuelFill> & { fueledAt: string; state: string; g
   ...o,
 });
 
-/** California at $6.60 then Arizona at $5.20, with the tank half full on arrival. */
+/**
+ * California at $6.60 then Arizona at $5.20, with the tank half full on arrival.
+ *
+ * The override is spread over the FINISHED fill rather than into `fill`'s argument: `state` and
+ * `netAmount` are nullable on `CarriedFuelFill` and non-null on `fill`'s parameter, so spreading a
+ * `Partial<CarriedFuelFill>` into the argument widens them back to null and stops compiling.
+ */
 const caToAz = (over: Partial<CarriedFuelFill> = {}): CarriedFuelFill[] => [
   fill({ fueledAt: "2026-08-10T12:00:00Z", state: "CA", gallons: 150, netAmount: 150 * 6.6 }),
-  fill({ fueledAt: "2026-08-11T12:00:00Z", state: "AZ", gallons: 100, netAmount: 100 * 5.2, levelBeforePct: 50, ...over }),
+  { ...fill({ fueledAt: "2026-08-11T12:00:00Z", state: "AZ", gallons: 100, netAmount: 100 * 5.2, levelBeforePct: 50 }), ...over },
 ];
 
 describe("analyzeCarriedFuel", () => {
