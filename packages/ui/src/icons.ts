@@ -142,6 +142,9 @@ export {
   WalletDone02Icon            as ReconciliationIcon,
   // The exception ledger: a claim weighed against a bill, which is what the surface is for.
   BalanceScaleIcon            as ExceptionLedgerIcon,
+  // The IFTA ledger: a tax owed to a jurisdiction for miles driven inside it. The nav gate requires a
+  // glyph unique across the whole menu, so this cannot borrow the scales the exception ledger has.
+  TaxesIcon                   as IftaLedgerIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,
   ShippingTruck01Icon         as VehicleIcon,

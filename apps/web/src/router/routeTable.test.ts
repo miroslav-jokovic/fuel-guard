@@ -47,7 +47,7 @@ const PROBES = [
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",
   "/recruitment", "/recruitment/screening", "/recruitment/inquiries",
-  "/driver-performance", "/fuel-log", "/fuel-spend", "/fuel-spend/exceptions",
+  "/driver-performance", "/fuel-log", "/fuel-spend", "/fuel-spend/exceptions", "/ifta",
   "/fuel-reconciliation", "/fuel-exceptions", "/import",
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",

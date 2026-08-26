@@ -227,6 +227,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-spend/exceptions",
   },
   {
+    "name": "ifta",
+    "params": {},
+    "url": "/ifta",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -672,6 +677,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "idling",
     "path": "/idling",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "IFTA",
+    },
+    "name": "ifta",
+    "path": "/ifta",
     "redirect": null,
   },
   {
