@@ -1060,9 +1060,30 @@ same fixture — the page and the database must not become a second place arithm
 
 ---
 
-### F10 · Landed cost — state fuel tax and IFTA
+### F10 · Landed cost — state fuel tax (purchase-state only, for now)
 
-**Prerequisites:** Q-FX4 (§6). **Gates F11 and F13** (D-FX11).
+**Prerequisites:** ~~Q-FX4~~ — answered 2026-08-26. **Gates F11 and F13** (D-FX11).
+
+**⚠ SCOPE, DECIDED AND NARROWER THAN THE TITLE SUGGESTS.** This reports the tax actually PAID AT THE
+PUMP, per purchase state. It is **not** net of IFTA, and every surface that shows it must say so in
+those words. Three options were on the table and the middle one was rejected on measurement:
+
+- *Purchase-state tax only* — **chosen.** Purchase state is on 100% of fills (0 nulls in 11,310). It
+  is strictly better than pump price and honest about what it is not.
+- *Infer burn states by interpolating between consecutive fills* — **rejected.** Trucks fuel every
+  57.8 hours and cross a state line on 90.1% of consecutive-fill pairs, so each segment spans ~1,500
+  miles and several jurisdictions. A savings recommendation built on that guess is worse than one that
+  admits it does not know.
+- *Real miles by jurisdiction* — **later, and the intended end state.** The carrier has stopped using
+  McLeod's IFTA miles and moved to **Samsara-derived mileage**, which is not yet wired into this
+  product. When it is, it replaces the denominator here and nothing else changes — which is what the
+  seam below is for.
+
+**Build.** A versioned per-state diesel tax rate table (the same shape as `packages/hazmat-data`:
+pure, versioned, dated, source cited), and `landedCostPerGal` in shared. **Take the burn-state
+apportionment as a PARAMETER that currently defaults to "same as purchase state"**, so wiring Samsara
+miles in later is a new argument at a call site rather than a rewrite. The California tab reports pump
+premium and purchase-state-tax premium apart, neither claiming to be IFTA-net.
 
 **Build.** A versioned per-state diesel tax rate table (the same shape as `packages/hazmat-data`:
 pure, versioned, dated, with its source cited), and a `landedCostPerGal` in shared that nets the
@@ -1138,7 +1159,7 @@ Deliberately thin, because F6 will change what they should be. Each carries its 
 | **Q-FX1** | ~~Does any exact key join the Pilot report to our records?~~ | — | **ANSWERED 2026-08-25: NO — measured, not assumed.** The five statements were parsed locally with the shipped parser and joined against production `efs_transactions` over the same window. `ticket` → `invoice` **0 of 2,283**, in both zero-padded and stripped forms; `authNo` → `invoice` **0 of 1,511**. They are different issuers' identifiers for the same physical event and do not correspond. F4 stays a heuristic matcher — but `cardRef` → last-6 of `card_num` matched **171 of 171 (100%)**, which settles D-FR6. |
 | **Q-FX2** | ~~What share of `fuel_transactions` has a null `state`?~~ | — | **ANSWERED 2026-08-25: zero, on both orgs (0 of 11,310).** The UTC fallback never fires in production. L2 downgraded Major → Moderate; D-FX4's ±1-day tolerance still ships, for the vendor's own cutoff. |
 | **Q-FX3** | **The contract.** `fuel_discount_rules` is empty in production and the agreement has never been received (`FUEL-SPEND-RECONCILIATION-PLAN.md` §8.1). The measured `corr(retail, discount) = −0.614`, slope −$0.177/$1.00, is the cost-plus/rack-linked signature. | Miki | "Your Price" from the daily report stays the benchmark, and every surface calls it **the quoted price**, never *the contract price*. A repricing that moves the quote stays invisible and the surface says so. |
-| **Q-FX4** | Are the fleet's lanes and burn states known well enough to net IFTA, or does F10 report purchase-state tax only? | Miki + the odometer/lane data | Purchase-state tax only, stated as such. Better than pump price and honest about what it is not. |
+| **Q-FX4** | ~~Are the fleet's lanes and burn states known well enough to net IFTA?~~ | — | **ANSWERED 2026-08-26: no — F10 reports PURCHASE-STATE tax only.** Measured: no table pairs miles with a jurisdiction; the lat/lng tables are stationary points, not a drive trail; and trucks fuel every 57.8 hours crossing a state line on **4,870 of 5,405 (90.1%)** consecutive-fill pairs, so interpolating burn states between fuel stops would manufacture precision across ~1,500 miles and several jurisdictions per segment. The carrier has also **stopped taking IFTA miles from McLeod and moved to Samsara-derived mileage**, which is not yet wired up. F10 ships purchase-state tax labelled as such, behind a seam real jurisdiction miles can replace. |
 | **Q-FX5** | **Any off-invoice rebate or volume tier?** (§8.5, still open.) If Pilot pays a quarterly rebate, true captured discount is higher than anything measurable here and every savings baseline is wrong. | Miki | Every "captured" figure is labelled *at the pump* and the surface states that off-invoice settlements are not included. |
 | **Q-FX6** | Is ONE9 emergency-only per policy (an exception report) or tolerated (a cost report)? (§8.4.) | Miki | Exception report, per `route_fuel_settings`' current `avoid_brands`. F3 makes this a config answer rather than a code answer, which mostly retires the question. |
 | **Q-FX9** | **Can the historical Pilot price reports be obtained from Pilot?** Measured 2026-08-25: of every price file on disk, only **one day (2026-07-15)** is not already loaded — worth ~3.5% of the window. The other ~70 unpriced days are **not in hand**; they would have to come from Pilot (the report arrives daily by email). | Miki | The window default is the honest fix, not the backfill — see F7's C2. Every discount figure already states the share of spend it covers (F1, shipped). |
