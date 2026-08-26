@@ -344,13 +344,55 @@ The discriminator is not the date — it is `is_void`:
 | Table | Rows | Role |
 |---|---:|---|
 | `voucher_hist` | 88,736 | AP vouchers — the main non-fuel expense body. |
-| `other_charge` | 13,906 | Accessorials, with `order_id`, `driver_id`, and loaded/empty units. |
+| ~~`other_charge`~~ | 13,906 | **Moved to §5.1 — it is REVENUE.** See §5.5 finding 1. |
 | `fuel_detail_hist` | 65,847 | Fuel with `reefer_cost` / `def_cost` splits. |
 | `fuel_ticket_hist` | 78,213 | Fuel tickets. |
 
-`voucher_hist` carries only `purchase_order_no` — **no tractor, no movement.** AP expense is
-therefore unattributed at source and is exactly the category the FuelGuard harness will
-allocate.
+`voucher_hist` carries only `purchase_order_no` — **no tractor, no movement.** `voucher_dist` has
+`tractor` and `trailer` columns and populates them on **0 of 397 rows**, so that is not a way round
+it either. AP expense is unattributed at source and is exactly the category the harness allocates.
+
+### 5.5 Four C2 findings
+
+**1. `other_charge` is revenue, not expense — correcting §5.4 above.** Its rows are `FSC` fuel
+surcharge (3,359), `DET` detention (3,329), `LUM` lumper (3,075), `TON` (2,109), `STO` stop-off and
+similar, each carrying a `customer_id`, a `bill_type` and `is_taxable`. It is accessorial revenue
+billed on an order. Importing it as cost would subtract the carrier's own earnings from its margin
+twice. It belongs in §5.1 with loads, and is **not** part of C2.
+
+**2. `voucher_hist` stores offsetting pairs, so a naive sum is exactly $0.00.** Each voucher has a
+`D` or `R` row carrying the expense and a `P` row carrying the payment that cancels it. The first
+C2 dry run reported `total: 0` across 366 June rows — a number that reads as an empty result rather
+than a bug. `voucher_type <> 'P'` leaves the expense, and keeps negative `R` rows so a credit memo
+still reduces cost.
+
+**3. Accounts payable CONTAINS the fuel, at the same value.** The fuel-card vendor invoices the
+carrier for the purchases `fuel_detail` already records. Three independent paths agree to the cent
+on June 2026:
+
+| Path | Amount |
+|---|---:|
+| `fuel_detail` `direct_amount` + `funded_amount` | $1,017,601.81 |
+| GL account `20550000` (`post_module='FUEL'`) | $1,017,601.81 |
+| AP vouchers described "Fuel Transactions" | $1,017,601.81 |
+
+That is 70% of June's $1,453,255.46 of positive payables. Summing fuel and AP would count it twice.
+`expenses.mjs` splits on vendor id (configurable via `MCLEOD_FUEL_VENDOR_IDS`) and the CPM figure
+excludes it. **The split is approximate at the window edge** — vendor-matching gives $1,010,966.35
+against fuel's $1,017,601.81, because `voucher_hist` is windowed on `invoice_date` while
+`fuel_detail` is windowed on `trans_date_time`. Fine for an inventory; do not present the difference
+as a reconciliation.
+
+**4. `total_amount` is not what reconciles.** McLeod records fuel gross, then the negotiated card
+discount (14.6% of gross in June — $173,972.28), then the net under `direct_amount` (1,904 of 2,259
+rows) or `funded_amount` (the other 355), exactly one of which is non-zero per row.
+
+> **D-MC21:** `settled_amount = direct_amount || funded_amount` is the only fuel figure that ties to
+> the ledger. `total_amount` overstates by the discount — $173,528 in June 2026 alone.
+>
+> **D-MC22:** Reconcile against the **payable leg only** (`glid` `20550000`), never the whole `FUEL`
+> module. The module is double-entry and nets to zero by construction, so a reconciliation against
+> it would always pass and prove nothing. The payable leg has exactly one line per fuel transaction.
 
 ---
 
@@ -438,9 +480,18 @@ Each step is one PR, gated on `pnpm test` green.
   1:1 with a movement (58 team trips in June alone, which a naive join would emit twice and
   double-count), and `movement.status = 'V'` marks 41 voided trips in 2026 whose miles were never
   run.
-- **C2.** **Fuel and other expenses** — `fuel_detail_hist`, `fuel_ticket_hist`, `other_charge`,
-  `voucher_hist`, live `UNION ALL` `_hist` per D-MC11. *Done when:* extracted fuel reconciles to
-  the `FUEL` GL module total for the same window.
+- **C2. — SHIPPED 2026-08-26.** `FUEL_PURCHASES` / `FUEL_LEDGER_LINES` / `AP_VOUCHERS` in
+  `queries.mjs`, the sweep and reconciling dry run in `tools/mcleod-agent/expenses.mjs`
+  (`npm run expenses -- <start> <end>`), contracts and the reconciler in
+  `packages/shared/src/tmsCost/fuelFact.ts` and `expenseFact.ts`.
+
+  **Fuel reconciles exactly.** June 2026: 2,259 purchases, 153 tractors, 44 states, 226,351 tractor
+  gallons plus 1,419 reefer and 9,774 DEF. Gross $1,191,130.34, discount $173,972.28,
+  **settled $1,017,601.81 against a ledger payable of $1,017,601.81 — difference $0.00**, nothing
+  unmatched in either direction. Payables: 183 vouchers, $432,241.17 of genuine other expense.
+
+  Four findings, each of which would have produced a wrong number rather than an error — see
+  §5.5 below.
 - **C3.** **Settlement** — `drs_settle_hist` and siblings, each as its own lifecycle-tagged fact
   table per D-MC13. *Done when:* settlement reconciles to the `SET` + `DRS` GL modules.
 - **C4.** **GL control totals** — `gl_ledger` + `gl_ledger_hist` by `post_module` and `glid`,

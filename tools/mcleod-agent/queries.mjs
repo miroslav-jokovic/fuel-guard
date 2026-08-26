@@ -309,6 +309,197 @@ export const MOVEMENT_FACT_COUNTS = `
        AND m.xfer2settle_date >= @windowStart
        AND m.xfer2settle_date <  @windowEnd`;
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Fuel and payables — C2 (docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md §5.2, §5.4)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The live/history union, and why every query below is written twice.
+ *
+ * McLeod moves a completed record out of its working table into a `_hist` twin. The working tables are
+ * therefore nearly empty at rest — `fuel_detail` holds 3 rows against `fuel_detail_hist`'s 65,847, and
+ * `voucher` holds 11 against `voucher_hist`'s 88,736. A 2026-08-24 audit read only the live tables and
+ * concluded this carrier does not use McLeod for fuel at all; the conclusion was wrong and is struck
+ * through in `docs/plans/MCLEOD-SQL-SOURCE-OF-TRUTH.md` (D-MC11).
+ *
+ * ⚠ The two halves are NOT the same shape. Verified 2026-08-26: `fuel_detail_hist` has 212 columns to
+ * `fuel_detail`'s 209, `voucher_hist` 43 to `voucher`'s 36. The extra columns are exactly the posting
+ * fields — `post_key`, `post_module`, `posted_payee_id` — because a row acquires them at the moment it
+ * posts, which is the moment it moves to history. So `SELECT *` would fail outright, and selecting
+ * `post_key` from the live half is impossible: the union below supplies NULL for it instead, and a
+ * live row simply does not reconcile yet, which is the truth.
+ */
+
+/**
+ * Fuel purchases, with the equipment attribution the general ledger does not carry.
+ *
+ * `settled_amount` is the only figure here that reconciles, and it is not `total_amount`. McLeod
+ * records gross, then the negotiated card discount (14.6% of gross in June 2026 — not a rounding
+ * error), then the net under one of two columns depending on how the purchase was funded:
+ * `direct_amount` on 1,904 of June's 2,259 rows and `funded_amount` on the other 355. Exactly one is
+ * non-zero per row. Summed, they reproduce the GL payable to the cent: $1,011,039.24 + $6,562.57 =
+ * $1,017,601.81, against account 20550000's $1,017,601.81. `total_amount` would overstate by $173,528
+ * in that month alone.
+ *
+ * Gallons and costs come across split — tractor, reefer, DEF, oil, misc — and are never pre-summed.
+ * Reefer gallons burn in a trailer and DEF is an emissions consumable; only the tractor figure belongs
+ * in a truck's miles per gallon.
+ */
+export const FUEL_PURCHASES = `
+    SELECT
+      LTRIM(RTRIM(f.id))                            AS external_id,
+      LTRIM(RTRIM(f.company_id))                    AS company_id,
+      NULLIF(LTRIM(RTRIM(f.tractor_id)), '')        AS tractor_unit,
+      NULLIF(LTRIM(RTRIM(f.driver_id)), '')         AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(f.movement_id)), '')       AS movement_external_id,
+      NULLIF(LTRIM(RTRIM(f.order_id)), '')          AS order_external_id,
+      CONVERT(varchar(19), f.trans_date_time, 126)  AS purchased_at,
+      NULLIF(LTRIM(RTRIM(f.truck_stop_state)), '')  AS state,
+      NULLIF(LTRIM(RTRIM(f.truck_stop_name)), '')   AS truck_stop_name,
+      NULLIF(LTRIM(RTRIM(f.truck_stop_city)), '')   AS truck_stop_city,
+      NULLIF(LTRIM(RTRIM(f.fuel_card_id)), '')      AS card_id,
+      f.tractor_gals                                AS gal_tractor,
+      f.reefer_gals                                 AS gal_reefer,
+      f.def_gals                                    AS gal_def,
+      f.other_gals                                  AS gal_other,
+      f.tractor_cost                                AS cost_tractor,
+      f.reefer_cost                                 AS cost_reefer,
+      f.def_cost                                    AS cost_def,
+      f.oil_cost                                    AS cost_oil,
+      f.misc_cost                                   AS cost_misc,
+      f.sales_tax                                   AS cost_sales_tax,
+      f.transaction_fee                             AS cost_transaction_fee,
+      f.total_amount                                AS total_amount,
+      f.fuel_discount                               AS fuel_discount,
+      f.direct_amount                               AS direct_amount,
+      f.funded_amount                               AS funded_amount,
+      LTRIM(RTRIM(f.post_key))                      AS post_key,
+      LTRIM(RTRIM(f.post_module))                   AS post_module
+      FROM dbo.fuel_detail_hist AS f
+     WHERE f.company_id = @companyId
+       AND f.trans_date_time >= @windowStart
+       AND f.trans_date_time <  @windowEnd
+    UNION ALL
+    SELECT
+      LTRIM(RTRIM(f.id)), LTRIM(RTRIM(f.company_id)),
+      NULLIF(LTRIM(RTRIM(f.tractor_id)), ''), NULLIF(LTRIM(RTRIM(f.driver_id)), ''),
+      NULLIF(LTRIM(RTRIM(f.movement_id)), ''), NULLIF(LTRIM(RTRIM(f.order_id)), ''),
+      CONVERT(varchar(19), f.trans_date_time, 126),
+      NULLIF(LTRIM(RTRIM(f.truck_stop_state)), ''), NULLIF(LTRIM(RTRIM(f.truck_stop_name)), ''),
+      NULLIF(LTRIM(RTRIM(f.truck_stop_city)), ''), NULLIF(LTRIM(RTRIM(f.fuel_card_id)), ''),
+      f.tractor_gals, f.reefer_gals, f.def_gals, f.other_gals,
+      f.tractor_cost, f.reefer_cost, f.def_cost, f.oil_cost, f.misc_cost,
+      f.sales_tax, f.transaction_fee, f.total_amount, f.fuel_discount,
+      f.direct_amount, f.funded_amount,
+      -- Not yet posted, so it has no ledger key and cannot reconcile. NULL says that honestly;
+      -- the live table does not have these columns at all.
+      NULL, NULL
+      FROM dbo.fuel_detail AS f
+     WHERE f.company_id = @companyId
+       AND f.trans_date_time >= @windowStart
+       AND f.trans_date_time <  @windowEnd`;
+
+/**
+ * The ledger lines those purchases posted to, for `reconcileFuelToLedger`.
+ *
+ * Restricted to `post_module = 'FUEL'` and the window's own keys. Deliberately NOT filtered to the
+ * payable account here — the shared reconciler applies that, so a caller can see the whole
+ * double-entry picture and a second carrier can point at a different chart of accounts without a
+ * change to this SQL.
+ */
+export const FUEL_LEDGER_LINES = `
+    SELECT
+      LTRIM(RTRIM(g.post_key))  AS post_key,
+      LTRIM(RTRIM(g.glid))      AS glid,
+      g.amount                  AS amount
+      FROM dbo.gl_ledger AS g
+     WHERE g.company_id = @companyId
+       AND g.post_module = 'FUEL'
+       AND g.post_key IN (
+         SELECT LTRIM(RTRIM(f.post_key)) FROM dbo.fuel_detail_hist AS f
+          WHERE f.company_id = @companyId
+            AND f.trans_date_time >= @windowStart
+            AND f.trans_date_time <  @windowEnd)`;
+
+/**
+ * Accounts-payable vouchers — the carrier's unattributed spend.
+ *
+ * No tractor and no movement exist on this table; `purchase_order_no` is its only operational link.
+ * `voucher_dist` has `tractor` and `trailer` columns and populates them on 0 of 397 rows, so that is
+ * not a way round it either. This is the honest state of the source and the reason the CPM harness
+ * owns allocation (D-MC12).
+ *
+ * ⚠ **`voucher_type <> 'P'` is load-bearing, not tidying.** This table stores each voucher as an
+ * offsetting PAIR — a 'D' or 'R' row carrying the expense and a 'P' row carrying the payment that
+ * cancels it. Summing the table naively returns exactly $0.00, which looks like an empty result rather
+ * than a bug, and an earlier draft of this query reported precisely that for 366 June rows. Excluding
+ * the payment leg leaves the expense, and keeps credit memos (the negative 'R' rows) so a refund still
+ * reduces cost.
+ *
+ * ⚠ **These rows INCLUDE fuel, and fuel is extracted separately.** The fuel-card vendor invoices the
+ * carrier for the same purchases `FUEL_PURCHASES` already returns: 59 of June 2026's 183 expense rows,
+ * totalling $1,017,601.81 — the identical figure `fuel_detail`'s direct+funded amounts and GL account
+ * 20550000 both produce, to the cent. Adding payables to fuel would count 70% of the month's payables
+ * twice. `expenses.mjs` splits them on vendor and the CPM figure excludes the fuel vendor; the vendor
+ * id is configuration, because a carrier that changes fuel-card provider must not silently start
+ * double-counting.
+ *
+ * `void_date IS NULL` for the same reason settlement excludes `is_void` and movements exclude status
+ * 'V': a voided voucher is money that was never paid, and counting it inflates cost.
+ */
+export const AP_VOUCHERS = `
+    SELECT
+      LTRIM(RTRIM(v.id))                            AS external_id,
+      LTRIM(RTRIM(v.company_id))                    AS company_id,
+      v.voucher_no                                  AS voucher_no,
+      NULLIF(LTRIM(RTRIM(v.voucher_type)), '')      AS voucher_type,
+      NULLIF(LTRIM(RTRIM(v.vendor_id)), '')         AS vendor_id,
+      NULLIF(LTRIM(RTRIM(v.invoice_number)), '')    AS invoice_number,
+      NULLIF(LTRIM(RTRIM(v.purchase_order_no)), '') AS purchase_order_no,
+      NULLIF(LTRIM(RTRIM(v.descr1)), '')            AS description,
+      CONVERT(varchar(19), v.invoice_date, 126)     AS invoice_date,
+      CONVERT(varchar(19), v.due_date, 126)         AS due_date,
+      CONVERT(varchar(19), v.distribution_date, 126) AS distribution_date,
+      v.amount                                      AS amount,
+      v.discount_amount                             AS discount_amount,
+      NULLIF(LTRIM(RTRIM(v.ap_glid)), '')           AS ap_glid,
+      v.is_paid                                     AS is_paid,
+      NULLIF(LTRIM(RTRIM(v.check_number)), '')      AS check_number,
+      LTRIM(RTRIM(v.post_key))                      AS post_key,
+      LTRIM(RTRIM(v.post_module))                   AS post_module
+      FROM dbo.voucher_hist AS v
+     WHERE v.company_id = @companyId
+       AND v.void_date IS NULL
+       AND v.voucher_type <> 'P'
+       AND v.invoice_date >= @windowStart
+       AND v.invoice_date <  @windowEnd
+    UNION ALL
+    -- The live half is thinner than the history half by EIGHT columns, not the three that
+    -- fuel_detail differs by: is_paid, payment_method, post_key, post_module, posted_payment_no,
+    -- recur_voucher_id, void_date and voucher_no all arrive only when the voucher posts. An earlier
+    -- draft of this query filtered the live half on void_date IS NULL and selected is_paid and
+    -- voucher_no, and SQL Server rejected all three outright — which is the good outcome. The bad
+    -- outcome was available too: had these been merely NULL rather than absent, the live rows would
+    -- have been silently dropped by the void filter and nobody would have seen it.
+    --
+    -- There is no void filter here because an unposted voucher cannot have been voided yet, and
+    -- is_paid is asserted 'N' rather than guessed: a voucher still in the working table has not paid.
+    SELECT
+      LTRIM(RTRIM(v.id)), LTRIM(RTRIM(v.company_id)), NULL,
+      NULLIF(LTRIM(RTRIM(v.voucher_type)), ''), NULLIF(LTRIM(RTRIM(v.vendor_id)), ''),
+      NULLIF(LTRIM(RTRIM(v.invoice_number)), ''), NULLIF(LTRIM(RTRIM(v.purchase_order_no)), ''),
+      NULLIF(LTRIM(RTRIM(v.descr1)), ''),
+      CONVERT(varchar(19), v.invoice_date, 126), CONVERT(varchar(19), v.due_date, 126),
+      CONVERT(varchar(19), v.distribution_date, 126),
+      v.amount, v.discount_amount, NULLIF(LTRIM(RTRIM(v.ap_glid)), ''),
+      'N', NULLIF(LTRIM(RTRIM(v.check_number)), ''),
+      NULL, NULL
+      FROM dbo.voucher AS v
+     WHERE v.company_id = @companyId
+       AND v.voucher_type <> 'P'
+       AND v.invoice_date >= @windowStart
+       AND v.invoice_date <  @windowEnd`;
+
 /** A cheap liveness + scoping check: the row counts the three predicates select. */
 export const ROSTER_COUNTS = `
     SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'
