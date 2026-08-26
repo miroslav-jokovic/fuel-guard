@@ -230,6 +230,14 @@ export const RETENTION_FORBIDDEN = [
    */
   "fuel_statements",
   "fuel_statement_lines",
+  /**
+   * The reconciliation runs (0249). What we CONCLUDED about a vendor's bill on a date, with the
+   * tolerances and the inputs that produced it — the claim that Pilot billed for a fill we never
+   * recorded, which is the fuel-theft surface this product exists to watch. Already append-only by
+   * trigger and undeletable even by the service role; pinning it here is what stops someone adding a
+   * 12-month prune in six months and erasing the record that a finding was ever made.
+   */
+  "fuel_recon_runs",
   "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",
