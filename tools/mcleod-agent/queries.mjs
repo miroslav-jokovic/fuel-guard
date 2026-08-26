@@ -609,6 +609,84 @@ export const SETTLEMENT_DEDUCTIONS = `
        AND d.transaction_date >= @windowStart
        AND d.transaction_date <  @windowEnd`;
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// General-ledger control totals — C4 (docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md §3, D-MC12)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every ledger line in a window, summarised by posting module and account.
+ *
+ * This is the ONLY thing FuelGuard reads the general ledger for. Under D-MC12 the GL is a control
+ * total, never an input to attribution — the carrier populates `gl_ledger.tractor` on 0 of 188,179
+ * lines, so there is no cost-per-truck to be had here. What it can do is prove the subledger
+ * extractions are complete: if `FUEL` says the carrier spent more than `FUEL_PURCHASES` returned,
+ * rows are missing, and that is a question only the books can answer.
+ *
+ * Two things about the live/`_hist` split here differ from fuel and vouchers:
+ *
+ *  · **The date ranges are disjoint, not overlapping.** `gl_ledger` runs 2024-01-01 to 2026-08-14 and
+ *    `gl_ledger_hist` runs 2016-01-01 to 2023-12-31 — this is a year-end archive, not the
+ *    working/completed split that moves a fuel row the moment it posts. A 2026 window touches only
+ *    the live table, and the union exists so that a historical window still works.
+ *  · **The two tables differ by a RENAME**, not by added columns: the free-text note is `gl_comments`
+ *    live and `comments` in history. Neither is selected — a ledger summary has no business carrying
+ *    an operator's free text — but a future reader adding it must alias both sides.
+ *
+ * `SUM(ABS(amount))/2` is the one-sided value of a module. Double-entry means every posting appears
+ * twice, once as a debit and once as a credit, so the signed sum of any complete module is zero and
+ * the absolute sum is exactly twice the money that moved. Reporting the signed sum would show $0.00
+ * for a month in which the carrier spent millions.
+ */
+export const GL_CONTROL_TOTALS = `
+    SELECT
+      LTRIM(RTRIM(post_module))                          AS post_module,
+      LTRIM(RTRIM(glid))                                 AS glid,
+      COUNT(*)                                           AS lines,
+      SUM(amount)                                        AS net_amount,
+      SUM(ABS(amount))                                   AS abs_amount
+      FROM (
+        SELECT g.post_module, g.glid, g.amount
+          FROM dbo.gl_ledger AS g
+         WHERE g.company_id = @companyId
+           AND g.transaction_date >= @windowStart
+           AND g.transaction_date <  @windowEnd
+        UNION ALL
+        SELECT g.post_module, g.glid, g.amount
+          FROM dbo.gl_ledger_hist AS g
+         WHERE g.company_id = @companyId
+           AND g.transaction_date >= @windowStart
+           AND g.transaction_date <  @windowEnd
+      ) AS combined
+     GROUP BY LTRIM(RTRIM(post_module)), LTRIM(RTRIM(glid))`;
+
+/**
+ * The office-settlement module, which has no subledger at all.
+ *
+ * `OFF` is $3.2M a year and was named in the original scope as "office settlements". It turns out to
+ * be office payroll, bonuses and staff reimbursements posted STRAIGHT TO THE LEDGER — there is no
+ * `drs_`-style detail table behind it, and the only description of any line is `descr`, a 40-character
+ * free-text field reading like "ARKADZIO, Office Payroll" or "BIGRIG, Towing (truck # 506) reimbur".
+ *
+ * So this query returns the description. It is the exception to the rule above, and it is deliberate:
+ * for every other module the subledger carries the meaning and the GL carries only the total, but here
+ * the GL line IS the record. Note the truck numbers embedded in that free text — the same pattern that
+ * puts repair vouchers in accounts payable. Parsing them is not attempted here; a unit number scraped
+ * out of an abbreviated, 40-character-truncated note is a guess, and D-MC12 forbids the extraction
+ * layer from inventing an attribution McLeod does not assert itself.
+ */
+export const OFFICE_SETTLEMENT_LINES = `
+    SELECT
+      LTRIM(RTRIM(g.glid))                          AS glid,
+      LTRIM(RTRIM(g.descr))                         AS descr,
+      NULLIF(LTRIM(RTRIM(g.payee_id)), '')          AS payee_id,
+      CONVERT(varchar(19), g.transaction_date, 126) AS transacted_at,
+      g.amount                                      AS amount
+      FROM dbo.gl_ledger AS g
+     WHERE g.company_id = @companyId
+       AND g.post_module = 'OFF'
+       AND g.transaction_date >= @windowStart
+       AND g.transaction_date <  @windowEnd`;
+
 /** A cheap liveness + scoping check: the row counts the three predicates select. */
 export const ROSTER_COUNTS = `
     SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'

@@ -423,6 +423,65 @@ Two smaller traps, both of which fail a reconciliation that is actually exact:
 **No live/`_hist` union here.** `drs_settle` does not exist; this domain has a history table only.
 D-MC11 does not apply and its absence is not a defect to be fixed.
 
+### 5.7 The coverage report, and the number in it that must not be misread (C4)
+
+June 2026, every posting module in the window:
+
+| Module | Lines | One-sided value | Sweep | Drift |
+|---|---:|---:|---|---:|
+| `GJ` | 202 | $5,432,913 | — | — |
+| `BILL` | 3,420 | $5,216,146 | — | — |
+| `CASH` | 2,100 | $4,096,957 | — | — |
+| `AP` | 893 | $2,770,827 | — | — |
+| `DRS` | 7,187 | $2,067,340 | — | — |
+| `SET` | 5,788 | $1,390,599 | `settlements.mjs` | −$127,706 |
+| `FUEL` | 8,196 | $1,191,574 | `expenses.mjs` | −$173,972 |
+| `RJ` | 77 | $766,435 | — | — |
+| `OFF` | 318 | $222,050 | — | — |
+| `SETV` | 270 | $118,642 | — | — |
+| `WIRE` | 718 | $89,056 | — | — |
+| `DED` | 240 | $9,100 | — | — |
+| `MISC` | 12 | $4,200 | — | — |
+| `DEDV` | 6 | $115 | — | — |
+
+**One-sided value is half the absolute sum.** Double-entry books every posting twice, so the signed
+sum of a complete module is exactly zero — reporting that would show $0.00 for a month in which the
+carrier spent millions.
+
+> **D-MC25 — `throughputCoveragePct` is a breadth signal, never a cost ratio.** June's figure is
+> 11.05%, and reading it as "FuelGuard sees 11% of the carrier's costs" would be badly wrong. The
+> denominator counts the same dollars several times over, because **the modules are lifecycle views
+> of one payment — D-MC13 at module scale**. Demonstrated within this dataset: `SET` is the accrual
+> of the settlements that `DRS` then pays; `AP` contains the fuel-card invoices `FUEL` already booked,
+> agreeing to the cent at $1,017,601.81; `CASH` is the bank side of most of the rest. A genuine cost
+> total counts each dollar once, which means choosing one lifecycle stage per dollar — a finance
+> exercise for the harness with sign-off, not an extraction output.
+
+**Drift is reported, not asserted away.** A module's one-sided value is not the same quantity as a
+subledger's reconciling figure and is not expected to match. `FUEL` moved $1,191,574 while the fuel
+payable — the leg with one line per purchase — was $1,017,602; the $173,972 gap is the card discount
+posting through its own accounts, which C2 already measured. `SET`'s −$127,706 is accrual timing:
+the module contains postings for settlements accrued outside the extraction window.
+`reconcileFuelToLedger` and `reconcileSettlementToLedger` remain the authorities on whether a domain
+actually ties, because they compare per key. This report is about breadth.
+
+**`OFF` — office settlements — has no subledger at all.** $222,050 in June, 318 lines, posted
+straight to the ledger. It is office payroll, bonuses and staff reimbursements, and the only
+description is a 40-character free-text `descr`: "ARKADZIO, Office Payroll", "AVACELIL, Zelle Koni's
+salary (2wk) re", "BIGRIG, Towing (truck # 506) reimbur". The ledger line IS the record, so
+`OFFICE_SETTLEMENT_LINES` imports it as one and carries `descr` verbatim.
+
+Note the truck numbers inside that free text — the same pattern that puts repair vouchers into
+accounts payable (§5.5). They are **not parsed**. A unit number scraped from an abbreviated,
+40-character-truncated note is a guess, and D-MC12 forbids the extraction layer from asserting an
+attribution McLeod does not make itself.
+
+**`gl_ledger` and `gl_ledger_hist` differ by a rename, and their ranges are disjoint.** The free-text
+note is `gl_comments` live and `comments` in history; neither is selected. Live covers 2024-01-01 to
+2026-08-14 and history 2016-01-01 to 2023-12-31 — a year-end archive rather than the
+working/completed split that moves a fuel row the moment it posts. A 2026 window touches only the
+live table; the union exists so a historical window still works.
+
 ---
 
 ## 6. Change detection
@@ -532,9 +591,18 @@ Each step is one PR, gated on `pnpm test` green.
   $378,247.90, of which 548 carry a tractor.
 
   See §5.6 for the four decisions that made it reconcile.
-- **C4.** **GL control totals** — `gl_ledger` + `gl_ledger_hist` by `post_module` and `glid`,
-  imported for reconciliation only. *Done when:* a recon report shows subledger-vs-GL drift
-  per module.
+- **C4. — SHIPPED 2026-08-26.** `GL_CONTROL_TOTALS` and `OFFICE_SETTLEMENT_LINES` in `queries.mjs`,
+  the coverage report in `tools/mcleod-agent/ledger.mjs` (`npm run ledger -- <start> <end>`), and
+  `buildLedgerCoverageReport` in `packages/shared/src/tmsCost/ledgerControl.ts`.
+
+  June 2026: 14 posting modules, $23,375,954.60 of ledger throughput, of which two modules
+  ($2,582,173.47) have a sweep behind them. Drift is reported per module rather than asserted to
+  balance — `FUEL` shows −$173,972.30 and `SET` −$127,705.62, both explained below.
+
+  The report runs the fuel and settlement sweeps live rather than trusting a stored expectation, so
+  a coverage claim cannot outlive the sweep that produced it.
+
+  See §5.7.
 - **C5.** **CPM harness** in `packages/shared` — pure functions over the imported facts, with
   allocation rules as explicit configuration. Includes the deadhead chaining of §4.2. No longer
   blocked — the three correctness questions were resolved by measurement on 2026-08-26.
