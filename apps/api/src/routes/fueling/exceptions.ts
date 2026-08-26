@@ -17,6 +17,7 @@ import {
   type FuelExceptionStatus,
 } from "@fuelguard/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../../services/fuelExceptions.js";
+import { renderDisputePacket } from "../../services/fuelDisputePacket.js";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -61,6 +62,47 @@ export function registerExceptionRoutes(router: Router): void {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const totals = await exceptionTotals(admin, req.auth!.orgId!, { from: ymd(req.query.from), to: ymd(req.query.to) });
       res.json({ ok: true, totals });
+    }),
+  );
+
+  /**
+   * The document you send the vendor (E2). Rendered from `fuel_exceptions` rather than from whatever
+   * the browser was showing: a figure in a dispute packet is quoted back months later, so it comes
+   * from the records the finding was written to.
+   *
+   * Declared BEFORE `/exceptions/:id` — Express matches in order, and `packet.pdf` would otherwise be
+   * read as an id and answer 404.
+   */
+  router.get(
+    "/exceptions/packet.pdf",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const ids = (typeof req.query.ids === "string" ? req.query.ids.split(",") : [])
+        .map((s) => s.trim())
+        .filter((s) => UUID.test(s))
+        .slice(0, 500);
+      if (ids.length === 0) {
+        res.status(400).json(apiError("bad_request", "Name the findings to claim, as a comma-separated list of ids."));
+        return;
+      }
+      const { pdf, lines, total } = await renderDisputePacket(admin, {
+        orgId: req.auth!.orgId!,
+        ids,
+        generatedBy: req.auth!.userId,
+        generatedAt: new Date().toISOString(),
+      });
+      await writeAudit(admin, {
+        orgId: req.auth!.orgId!,
+        actorId: req.auth!.userId,
+        action: "export.generated",
+        entity: "fuel_exceptions",
+        meta: { report: "dispute-packet.pdf", lines, total },
+      });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="fuel-dispute-packet.pdf"`);
+      res.send(pdf);
     }),
   );
 

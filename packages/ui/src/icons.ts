@@ -140,6 +140,8 @@ export {
   CreditCardNotAcceptIcon     as RejectionIcon,
   CreditCardIcon              as FuelCardIcon,
   WalletDone02Icon            as ReconciliationIcon,
+  // The exception ledger: a claim weighed against a bill, which is what the surface is for.
+  BalanceScaleIcon            as ExceptionLedgerIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,
   ShippingTruck01Icon         as VehicleIcon,

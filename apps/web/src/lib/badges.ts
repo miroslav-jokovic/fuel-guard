@@ -1,4 +1,7 @@
-import { CORRELATION_THRESHOLDS, RECON_STATUS_LABELS } from "@fuelguard/shared";
+import {
+  CORRELATION_THRESHOLDS, RECON_STATUS_LABELS,
+  FUEL_EXCEPTION_STATUS_LABELS, type FuelExceptionStatus,
+} from "@fuelguard/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
 const SOFT = {
@@ -309,4 +312,48 @@ export function reconStatusBadge(status: string): DqBadge {
     default:
       return { label: status, tone: "neutral" };
   }
+}
+
+/**
+ * An exception's status, in the ledger and its slide-over.
+ *
+ * The words come from `FUEL_EXCEPTION_STATUS_LABELS` in `@fuelguard/shared`; only the TONE is decided
+ * here. What the tones say is *what a reader should do*, not how bad the row sounds:
+ *
+ *   open / investigating  — somebody's work, and warning is the colour of work outstanding
+ *   disputed              — with the vendor now; ours to chase, not ours to decide
+ *   credited              — settled in our favour, and the only success on this surface
+ *   dismissed             — a decision, deliberately neutral rather than red: choosing not to pursue
+ *                           $40 is good judgement, and colouring it as a loss would discourage it
+ *   no longer found       — nobody decided anything; it stopped appearing. Neutral for that reason.
+ */
+export function fuelExceptionStatusBadge(status: string): DqBadge {
+  const label = FUEL_EXCEPTION_STATUS_LABELS[status as FuelExceptionStatus] ?? status;
+  switch (status) {
+    case "open":
+      return { label, tone: "warning" };
+    case "investigating":
+      return { label, tone: "info" };
+    case "disputed":
+      return { label, tone: "caution" };
+    case "credited":
+      return { label, tone: "success" };
+    case "dismissed":
+    case "resolved_by_reingest":
+      return { label, tone: "neutral" };
+    default:
+      return { label, tone: "neutral" };
+  }
+}
+
+/**
+ * What KIND of money a finding is. Only the two recoverable-or-unexplained kinds carry weight:
+ * `unrecorded` is fuel we cannot account for and is the fuel-theft surface, `overbilled` is money to
+ * go and get back. `unbilled` is neither — the vendor may simply not have invoiced yet — so colouring
+ * it as a problem would put a red row in front of somebody with nothing to do about it.
+ */
+export function fuelExceptionAmountTone(amountKind: string): string {
+  if (amountKind === "unrecorded") return "text-danger-700";
+  if (amountKind === "overbilled" || amountKind === "premium") return "text-caution-800";
+  return "text-ink";
 }

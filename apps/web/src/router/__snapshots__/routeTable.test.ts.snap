@@ -222,6 +222,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-reconciliation",
   },
   {
+    "name": "fuel-exceptions",
+    "params": {},
+    "url": "/fuel-exceptions",
+  },
+  {
     "name": "import",
     "params": {},
     "url": "/import",
@@ -533,6 +538,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "",
     "path": "/fuel-events",
     "redirect": "/fuel-log",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel Exceptions",
+    },
+    "name": "fuel-exceptions",
+    "path": "/fuel-exceptions",
+    "redirect": null,
   },
   {
     "meta": {
