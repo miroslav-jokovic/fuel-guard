@@ -7,6 +7,7 @@ export * from "./policyExceptions.js";
 export * from "./policyLabels.js";
 export * from "./exceptions.js";
 export * from "./ancillary.js";
+export * from "./spendPeriodTotals.js";
 export * from "./operatingBridge.js";
 export * from "./rollupDerive.js";
 export * from "./spendPeriods.js";

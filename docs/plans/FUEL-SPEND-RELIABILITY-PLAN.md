@@ -1010,7 +1010,40 @@ about its own scope is true.
 
 ---
 
-### F9 · Aggregation moves to where the rows are
+### F9 · Aggregation moves to where the rows are — DONE 2026-08-26 (migration 0252)
+
+**What shipped.** `fuel_spend_by_period` (0252) plus the split in shared that made it safe.
+
+**Only the summation moved, and the seam was already in the code.** `periodTotals` folded truck-days
+and then derived from the fold; those are separable and the split is exactly there. `sumSpendDays`
+adds. `periodTotalsFromSums` — unchanged — still applies the MPG plausibility band, the implied-miles
+identity, the idle coverage gate, and values an idle hour at what the period actually paid. Each of
+those has been got wrong once and fixed; a second copy in SQL would sit where no unit test reaches.
+
+**The parity test is what makes a second implementation safe.**
+`apps/api/src/services/fuelSpendByPeriodParity.test.ts` runs both over the same rows across five
+windows and three grains and compares them field for field, and separately checks the bucketing
+matches `spendSeries` label for label. Verified it bites: replacing the `active_trucks` filter with a
+naive `count(distinct vehicle_id)` — the exact mistake D-AG2 warns about — turns it red with
+`sql=4 shared=3`. It lives in `apps/api` rather than beside the fold because `packages/shared`
+compiles for the React Native driver app and its tsconfig carries no node types; reading migrations
+from there would loosen a boundary that exists for a reason.
+
+**⚠ The measurement corrected the claim, which is the whole reason the plan demanded one.** The first
+draft of the migration header said "roughly 13× on query time alone". Measured on production:
+
+    the aggregation as SQL:         14 rows out ·  23 ms
+    one page of the browser's read: 1,000 rows  · 0.7 ms  → ~10 ms across all 14 pages
+
+The server does **more** work, not less — grouping 13,095 rows costs more CPU than slicing them. The
+win is elsewhere and is real: **14 sequential round trips → 2**, and **1,991 kB → 14 rows**. Fourteen
+round trips is ~1s of network latency before the first tile renders, and that is what a reader waits
+through. The header says so now, including that its earlier claim was wrong.
+
+**`lint:filesize` and `lint:comment-claims` both caught real things**: the split pushed
+`operatingBridge.ts` to 549 lines (now 261, with `spendPeriodTotals.ts` at 318 — the same
+one-question-per-file pattern `spendPeriods.ts` established), and a comment still named the parity
+test at the path it had before the move.
 
 **Prerequisites:** F7 (which defines the aggregates worth moving).
 
