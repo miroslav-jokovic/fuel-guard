@@ -11,6 +11,23 @@ question is not re-opened every time somebody finds a free template. But the com
 wasted: mapping Hope UI's 126 SCSS partials against our 21 primitives surfaced **four things it has
 that we genuinely do not.** This plan is those four, and nothing else.
 
+**✅ COMPLETE 2026-08-25.** All four steps shipped the same day this was written, across eight PRs:
+#250 + #251 (G1, which needed the route table split first), #253, #255 + #256 (G2), #258 + #259
+(G3), #260 (G4). The step records in §5 carry what each one corrected, and those corrections are the
+reason to keep reading this document rather than the diff. The short version, for anyone starting
+something adjacent:
+
+- **`router.resolve()` matches everything now** (G1's catch-all), so `matched.length` no longer
+  proves a route exists — check the resolved name. This nearly produced a G2 test that passed on a
+  deleted route.
+- **`toneClass` is for pills, not for dots.** Pale `bg-*-50` plus an inset ring is invisible at 8px.
+  G3 shipped that way first because §5 said to.
+- **Every surface worth looking at is behind the auth wall.** G2, G3 and G4 all answered this the
+  same way: keep the component prop-driven and router-free, then give `/__design-system` a specimen.
+- **Check what the enclosing control already announces** before naming a decorative primitive (G4).
+- **§5 was written before its consumers were read**, and said so three times over. A plan is a
+  decision record, not a specification to follow past the point where the code disagrees.
+
 **This plan is deliberately small.** It is additive component work. It is *not* part of
 `DESIGN-SYSTEM-2026.md`'s D-DS1–15 sequence and does not renumber, reorder or block any phase of
 it. It appends decisions **D-DS16–D-DS19** to that document's series so there is one decision
@@ -124,7 +141,7 @@ buys:
 | 1 | **G1 — error pages** ✅ DONE 2026-08-25 | The only one fixing a live defect. Cost two PRs, not one — the 500-line budget bit here rather than at G2. | shipped as #250 + #251 |
 | 2 | **G2 — breadcrumbs** ✅ DONE 2026-08-25 | Highest orientation gain; 24 routes benefit with no per-route work. | shipped as #255 |
 | 3 | **G3 — timeline** ✅ DONE 2026-08-25 | One consumer, whose data already shipped unrendered. | shipped as #258 |
-| 4 | **G4 — avatar** | Smallest. Skippable — see §7. | ~an hour |
+| 4 | **G4 — avatar** ✅ DONE 2026-08-25 | Smallest, and §7 was right that it fixes nothing. | shipped as #260 |
 
 G1 and G2 both touch `apps/web/src/router/index.ts` and will conflict textually if run in parallel.
 Ship G1 first; rebase G2 on it.
@@ -434,7 +451,7 @@ fallback was taken: unit tests over fixtures plus a design-lab specimen, and no 
 
 ---
 
-### G4 — `AppAvatar`, extracted · not started · **skippable, see §7**
+### G4 — `AppAvatar`, extracted — DONE 2026-08-25 (PR #260) · *was* skippable, see §7
 
 **Prerequisites:** none.
 
@@ -460,6 +477,30 @@ expanded, in both colour schemes.
 
 **Done when:** one implementation exists, the sidebar uses it twice, `lint:ui-adoption` is green,
 and both stale comments are gone.
+
+**What shipped.** `packages/ui/src/components/AppAvatar.vue` + an 8-case test, the barrel export,
+both `SidebarProfileMenu.vue` instances replaced, `.sidebar-avatar` deleted from `style.css`, the
+stale `AppShell.vue` comment removed, and a lab specimen. No avatars added to any product surface.
+
+**Verified by:** `AppAvatar.test.ts` (8); typecheck; `lint:ui-adoption` (the gate that would have
+failed on a caller-less barrel export), `lint:tokens`, `lint:filesize`, `lint:comment-claims`,
+`lint:boundaries`, `lint:ui-contrast`, `lint:codegen`, eslint; CI `build` green. Browser at
+`/__design-system` in both colour schemes.
+
+**Three corrections — all of them §5 describing a consumer it had not read:**
+
+1. ⚠ **It contributes NO accessible name**, against §5's instruction. Both call sites are inside a
+   `KebabMenu` whose trigger already announces "Account menu for <email>"; naming the avatar too
+   makes a screen reader read the address **twice**. An avatar is decoration for a label that is
+   already present. **This generalises**: before giving any decorative primitive a name, check what
+   the enclosing control already announces.
+2. **The initials rule is one rule, not two.** §5 asked for "one word and two words"; the only data
+   the product has is an *email*, where two initials are meaningless. Split on whitespace, take the
+   first and last word's first letter — `M` for an address, `MR` for a name, no `@` special-casing.
+3. **The lab's `.prototype-avatar` stays**, against §5. It belongs to the A/B mock that deliberately
+   uses the `--prototype-*` vocabulary rather than real components; converting it would break the
+   comparison that section exists for. ⚠ Nothing in the `prototype-*` block should be migrated to a
+   shipped primitive for the same reason.
 
 ---
 
@@ -499,7 +540,16 @@ and both stale comments are gone.
 
 ---
 
-## 7. When to skip G4
+## 7. When to skip G4 — *retained; it was right*
+
+**Executed anyway on 2026-08-25 (#260) after G1–G3 landed and the cost was an hour.** The judgement
+below stands unaltered and was accurate: G4 fixed no defect and added no capability. It is kept as
+written because the reasoning is the reusable part — a primitive whose whole effect is that one
+letter is rendered by a component instead of a `<span>` is tidying, and tidying is what gets cut
+when a plan meets a deadline. What it *did* buy, unforeseen here, was the removal of the last
+`.sidebar-avatar` stylesheet rule (D-DS9) and a third specimen in the design lab.
+
+### The original argument
 
 If the four steps are being executed under time pressure, **G4 is the one to drop.** It fixes no
 defect, adds no capability, and its entire user-visible effect is that one letter in the sidebar is
