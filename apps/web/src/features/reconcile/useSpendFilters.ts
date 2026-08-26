@@ -26,6 +26,9 @@ import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "
 /** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@fuelguard/shared`. */
 export const DEFAULT_DAYS = 90;
 
+/** The grain a page opens on, and the one "Clear filters" returns to. */
+export const DEFAULT_GRAIN: SpendGrain = "week";
+
 const todayYmd = (): string => new Date().toISOString().slice(0, 10);
 
 const one = (v: unknown): string | undefined => {
@@ -116,7 +119,7 @@ export function useSpendFilters() {
   const grain = computed<SpendGrain>({
     get: () => {
       const v = one(q.value.grain);
-      return v === "day" || v === "month" ? v : "week";
+      return v === "day" || v === "month" ? v : DEFAULT_GRAIN;
     },
     set: (v) => set({ grain: v }),
   });
@@ -134,6 +137,9 @@ export function useSpendFilters() {
    */
   const active = computed(() => {
     if (vehicleIds.value.length > 0) return true;
+    // Grain sits in the same bar behind the same "Clear filters" button, so a reader who changed it
+    // and pressed clear expected it to go back. It did not, and the button did not light up either.
+    if (grain.value !== DEFAULT_GRAIN) return true;
     const d = defaultWindow(todayYmd());
     const w = normalized.value.window;
     return w.from !== d.from || w.to !== d.to;
@@ -148,7 +154,7 @@ export function useSpendFilters() {
   });
 
   function reset(): void {
-    set({ from: undefined, to: undefined, trucks: undefined });
+    set({ from: undefined, to: undefined, trucks: undefined, grain: undefined });
   }
 
   return { from, to, setWindow, windowNotice, vehicleIds, grain, tab, range, active, asQuery, reset };

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
 import { spendSeries, comparablePeriods, periodTotals, type SpendDay, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { downloadCsv } from "@/lib/csv";
+import { apiFetch } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
+import { useQueryClient } from "@tanstack/vue-query";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
 import IdleCostCard from "./IdleCostCard.vue";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
@@ -152,6 +155,28 @@ const columns: DataTableColumn[] = [
 
 const hasData = computed(() => days.value.length > 0);
 
+const toast = useToastStore();
+const qc = useQueryClient();
+const rebuilding = ref(false);
+/** Re-derive the rollup for exactly the window on screen — the endpoint bounds it at 400 days. */
+async function rebuild() {
+  if (rebuilding.value) return;
+  rebuilding.value = true;
+  try {
+    const res = await apiFetch<{ ok: boolean; written: number }>("/api/fueling/spend-rollup", {
+      method: "POST",
+      body: { from: props.filters.from, to: props.filters.to },
+    });
+    if (!res.ok) throw new Error(res.error?.message ?? "The rebuild was refused.");
+    toast.success("Rebuilt", `${res.data?.written?.toLocaleString() ?? 0} truck-days re-derived`);
+    void qc.invalidateQueries({ queryKey: ["fuel_spend_days"] });
+  } catch (e) {
+    toast.error("Could not rebuild that window", e instanceof Error ? e.message : undefined);
+  } finally {
+    rebuilding.value = false;
+  }
+}
+
 // The PDF is a PAGE-level action (see ReportExportButton) because it covers every tab. What stays here
 // is this tab's own series as CSV.
 const range = computed(() => ({ from: props.filters.from, to: props.filters.to }));
@@ -182,10 +207,18 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
 
     <BaseCard v-else-if="!hasData && !isLoading">
       <h3 class="text-sm font-semibold text-ink">No spend days yet</h3>
-      <p class="mt-1 text-sm text-ink-muted">
+      <p class="mt-1 max-w-2xl text-sm text-ink-muted">
         This view reads a nightly rollup of your recorded fuel, odometer intervals and engine time. It fills in on the
-        first nightly run, or immediately if an admin rebuilds a window.
+        first nightly run — or now, if you rebuild this window.
       </p>
+      <!-- X10. The copy has always said "or immediately if an admin rebuilds a window",
+           `POST /api/fueling/spend-rollup` has always existed, and nothing anywhere in the app could
+           ask for one. An empty state naming an action nobody can take is worse than one naming none. -->
+      <div class="mt-3">
+        <BaseButton variant="secondary" :disabled="rebuilding" @click="rebuild">
+          {{ rebuilding ? "Rebuilding…" : `Rebuild ${props.filters.from} → ${props.filters.to}` }}
+        </BaseButton>
+      </div>
     </BaseCard>
 
     <template v-else>

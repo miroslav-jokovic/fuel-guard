@@ -19,7 +19,7 @@ import { defaultWindow } from "@fuelguard/shared";
 async function mountFilters(): Promise<{ f: ReturnType<typeof useSpendFilters>; router: Router }> {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/fuel-reconciliation", component: { template: "<div/>" } }],
+    routes: [{ path: "/fuel-spend", component: { template: "<div/>" } }],
   });
   let f!: ReturnType<typeof useSpendFilters>;
   const C = defineComponent({
@@ -28,7 +28,7 @@ async function mountFilters(): Promise<{ f: ReturnType<typeof useSpendFilters>; 
       return () => h("div");
     },
   });
-  await router.push("/fuel-reconciliation");
+  await router.push("/fuel-spend");
   await router.isReady();
   mount(C, { global: { plugins: [router] } });
   return { f, router };
@@ -109,11 +109,11 @@ describe("useSpendFilters", () => {
   it("normalises a hand-edited link before anything queries against it", async () => {
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: "/fuel-reconciliation", component: { template: "<div/>" } }],
+      routes: [{ path: "/fuel-spend", component: { template: "<div/>" } }],
     });
     let f!: ReturnType<typeof useSpendFilters>;
     const C = defineComponent({ setup() { f = useSpendFilters(); return () => h("div"); } });
-    await router.push("/fuel-reconciliation?from=2031-01-01&to=not-a-date");
+    await router.push("/fuel-spend?from=2031-01-01&to=not-a-date");
     await router.isReady();
     mount(C, { global: { plugins: [router] } });
 

@@ -193,6 +193,18 @@ const stateNote = computed(() => {
 
     <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
 
+    <!-- X4. `normalizeWindow` REPORTS what it corrected rather than correcting silently, and its own
+         header says the page can therefore say so — and then nothing rendered it, so a link with a
+         backwards or future-dated range was quietly fixed and the reader was shown a period they had
+         not asked for. This page exists to be sent to somebody; a correction it does not mention is a
+         correction the recipient cannot know about. -->
+    <p
+      v-if="f.windowNotice.value"
+      class="rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100"
+    >
+      {{ f.windowNotice.value }}
+    </p>
+
     <!-- How much of this window the page can speak about, in one line. Every figure below is a claim
          about some subset of it, and without this they all read as claims about the whole. -->
     <p v-if="coverageLine && tab !== 'reconcile'" class="text-xs text-ink-tertiary">

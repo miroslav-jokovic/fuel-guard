@@ -5,8 +5,8 @@ const AT = "2026-08-25T23:04:20.921Z";
 
 describe("errorReference (Q-UI1)", () => {
   it("quotes when and where, which are the two facts always available", () => {
-    expect(errorReference({ at: AT, path: "/fuel-reconciliation", eventId: null })).toBe(
-      "2026-08-25T23:04:20.921Z  ·  /fuel-reconciliation",
+    expect(errorReference({ at: AT, path: "/fuel-spend", eventId: null })).toBe(
+      "2026-08-25T23:04:20.921Z  ·  /fuel-spend",
     );
   });
 

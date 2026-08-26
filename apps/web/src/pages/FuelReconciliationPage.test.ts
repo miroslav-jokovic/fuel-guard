@@ -140,9 +140,9 @@ beforeEach(() => {
 async function mountPage(query = "") {
   const router: Router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/fuel-reconciliation", name: "fuel-reconciliation", component: { template: "<div/>" }, meta: { title: "Fuel Reconciliation" } }],
+    routes: [{ path: "/fuel-spend", name: "fuel-reconciliation", component: { template: "<div/>" }, meta: { title: "Fuel Reconciliation" } }],
   });
-  await router.push(`/fuel-reconciliation${query}`);
+  await router.push(`/fuel-spend${query}`);
   await router.isReady();
   // Vue Test Utils does not unmount between tests, so a component from an earlier `it` is still alive
   // and still reactive: changing `policy` re-runs ITS computeds too, and those calls land in `seen`
@@ -254,6 +254,14 @@ describe("FuelReconciliationPage", () => {
     // introducing the tab refuting the tab, because `usd()` sets maximumFractionDigits to 0.
     const t = (await mountPage("?tab=avoid_brand")).w.text();
     expect(t).toMatch(/\$\d+\.\d{3} a gallon against \$\d+\.\d{3}/);
+  });
+
+  it("says so when it corrected the window in a link it was sent", async () => {
+    // `normalizeWindow` reports what it fixed rather than fixing silently, and its own header says the
+    // page can therefore say so — and nothing rendered it, so a forwarded link with a backwards range
+    // opened on a period the recipient had not asked for and was not told about.
+    const t = (await mountPage("?from=2026-09-30&to=2026-09-01")).w.text();
+    expect(t).toMatch(/round|order|swap|corrected|adjust/i);
   });
 
   it("shows the filter bar on every tab that reads data, and not on the upload tab", async () => {

@@ -963,7 +963,33 @@ row without sharing one.
 
 ---
 
-### F8 · The remaining UX debt
+### F8 · The remaining UX debt — DONE 2026-08-26 (no migrations)
+
+**What shipped.** Every item.
+- **D-FX8** — the page is **Fuel Spend** at `/fuel-spend`, and the ledger moved under it at
+  `/fuel-spend/exceptions` with `parent` set. Both old paths **redirect permanently, not for a
+  deprecation window**: this page exists to be sent to somebody, links to it sit in emails and tickets
+  in their full `?tab=&from=&to=` form, and `redirect` preserves the query string so a link sent in
+  June still opens on what its sender was looking at.
+- **X4** — `windowNotice` renders. It was computed, explained at length in its own header ("so the
+  page can say so"), and displayed nowhere, so a forwarded link with a backwards range opened on a
+  period the recipient had not asked for and was not told about.
+- **X5** — `reset()` clears `grain` and `active` counts it. It sat in the same bar behind the same
+  button and the button neither lit up for it nor cleared it.
+- **X7** — the Idling card says it is fleet-wide when the tiles above it are narrowed. Disclosed
+  rather than scoped: `useIdleBreakdown` belongs to the Idling page too, and the server report already
+  states the same thing and explains why.
+- **X9** — the reconcile filters are a `role="group"` of toggles with `aria-pressed`, not buttons
+  inside a `dl`.
+- **X10** — the empty state has the rebuild button for the endpoint it has always named.
+- **X12** — `TablePagination` on the reconcile table. A monthly export runs to thousands of rows and
+  "All rows" was one click away.
+- **X2** — the Discount Capture empty state links to Import by name.
+
+**Verified by:** 656 web tests, the full gate list, and two new pins (the filters render valid markup
+and say which is pressed; a corrected window is mentioned). `lint:ui-adoption` flagged a raw button —
+inside the HTML comment explaining why the raw buttons were removed. The comment was reworded rather
+than the gate loosened, which is the right way round.
 
 **Prerequisites:** F2.
 

@@ -204,6 +204,29 @@ describe("ReconcileTab", () => {
     expect(w.findAll("button").some((b) => b.text().includes("Download every row"))).toBe(false);
   });
 
+  // ── F8 ────────────────────────────────────────────────────────────────────────────────────────
+  it("renders its filters as a toggle group, not as a broken description list", () => {
+    // They were `<button>` elements as direct children of a `<dl>` with `<dt>`/`<dd>` inside each —
+    // markup a `<dl>` does not admit, so a screen reader got a broken list where the page meant a row
+    // of toggles.
+    return withReport().then((w) => {
+      const dls = w.findAll("dl");
+      for (const dl of dls) {
+        expect(dl.findAll("button"), "a <dl> may not contain buttons").toHaveLength(0);
+      }
+      const group = w.find('[role="group"]');
+      expect(group.exists()).toBe(true);
+      expect(group.findAll("button").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("says which filter is pressed, rather than relying on a ring nobody can hear", async () => {
+    const w = await withReport();
+    const pressed = w.findAll('[aria-pressed="true"]');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]!.text()).toContain("Needs a look");
+  });
+
   it("survives a report that matches nothing at all", async () => {
     loadFuelReport.mockResolvedValue({ ...loaded, fills: [], totalGallons: 0, totalNet: 0, totalRetail: 0 });
     const t = (await withReport()).text();
