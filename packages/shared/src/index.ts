@@ -44,6 +44,7 @@ export * from "./reconcile/pilotStatement.js";
 export * from "./reconcile/pilotStatementTieOut.js";
 export * from "./fuelSpend/index.js";
 export * from "./fuelTax/index.js";
+export * from "./ifta/index.js";
 export * from "./reeferCoverage.js";
 export * from "./detectionMetrics.js";
 export * from "./detectionCoverage.js";

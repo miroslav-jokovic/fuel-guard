@@ -384,7 +384,51 @@ calculated.
 
 ---
 
-### S2 · The IFTA position — a separate module over the stored rows
+### S2 · The IFTA position — a separate module over the stored rows — DONE 2026-08-26 (no migrations)
+
+**What shipped.** `packages/shared/src/ifta/` — pure, no clock, no I/O.
+- **`position.ts`** — per jurisdiction: taxable miles, gallons consumed at the period's MEASURED fleet
+  MPG, liability, gallons purchased, credit, and net. Plus the MPG it used, the share of miles the tax
+  table could price, and the jurisdictions it could not — named, so the gap is nameable.
+- **`tieOut.ts`** — the miles check that found the missing month, made repeatable.
+
+**⚠ THE UNITS MODULE WAS WRITTEN AND THEN DELETED, WHICH IS THE MOST USEFUL THING HERE.** S2's brief
+called for `ifta/units.ts` with `metersToMiles` and `litersToGallons`. It was written, and the shared
+barrel refused to compile because **`smartFueling/units.ts` already holds `milesFromMeters` and
+`gallonsFromLiters`** — unrounded, round-trip tested, with a header that already explains that
+`samsara`'s `metersToMiles` is the DISPLAY helper that rounds to a tenth and these are the physics
+ones. A third copy of a conversion this repository had already been careful about twice was one export
+collision away from shipping. The plan's own D-IF1 asked for "one tested function"; the answer was that
+it already existed. `ifta/` imports it.
+
+**`IFTA_MPG_BAND` is a second MPG band and is deliberately not the existing one.**
+`spendPeriodTotals.ts` has `PLAUSIBLE_FLEET_MPG = { low: 3, high: 12 }`, which judges a single
+truck-period where genuine oddities are common. This judges a whole fleet over a whole month, where
+that noise has averaged out, so it is tighter: `{ min: 4, max: 9.5 }`. Reusing the wider band would
+have been the obvious economy and **it would have missed the defect that motivated the module** — the
+2026 Q2 implied MPG was **10.5**, comfortably inside 3–12. A test asserts exactly that, so the reason
+the two exist separately cannot be forgotten and quietly consolidated.
+
+**What the position deliberately does not do.** It never folds Kentucky's and Virginia's SURCHARGES
+into `net`: they are levied on the return over gallons burned there with no credit for tax-paid
+gallons, and a figure mixing a creditable tax with a non-creditable one cannot be reconciled against a
+filed return. It never zeroes a jurisdiction the tax table cannot price (D-IF7). And it never uses a
+constant MPG — liability scales linearly with it, so it is measured from both sources and reported
+beside every figure it produced (D-IF5).
+
+**`tieOut.ts`'s whole value is a distinction.** Samsara reporting more miles than our odometer chain is
+EXPECTED — that chain only sees distance between recorded fills. The same gap means two opposite
+things and only the fuel separates them: at an identical 1.66 ratio, 439,153 gallons gives
+`fuel_missing` and 665,577 gives `odometer_short`. A test pins that identical ratio, opposite verdict.
+Collapsing them into one "they disagree" would make the check unactionable, which is how it would rot.
+
+**Verified by:** 24 shared tests, every one regressed and watched fail — widening the band to
+`fuelSpend`'s (4 red), zeroing an unpriced jurisdiction (1 red), folding the surcharge into net
+(1 red), collapsing the two tie-out verdicts (2 red). Full suite, `pnpm typecheck`, `pnpm lint`,
+`lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:boundaries`, `lint:tests`,
+`lint:migrations`, `lint:rls` — all by exit code.
+
+**Nothing renders this yet.** That is S3, and it is also where "mark this quarter filed" lands.
 
 **Prerequisites:** S1.
 
