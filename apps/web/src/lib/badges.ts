@@ -1,3 +1,4 @@
+import { CORRELATION_THRESHOLDS } from "@fuelguard/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
 const SOFT = {
@@ -44,6 +45,31 @@ export function txnStatusTone(status: string): string {
 
 export function inviteTone(status: string): string {
   return toneClass(status === "pending" ? "warning" : status === "accepted" ? "success" : "neutral");
+}
+
+/**
+ * A near-miss fill's timeline marker (G3) — a fill whose case stayed CLEAR but whose combined score
+ * reached `entityRisk.ts`'s NEAR_THRESHOLD_SCORE.
+ *
+ * The breakpoint is `CORRELATION_THRESHOLDS.review` (60) and is not a design choice: a case is
+ * levelled `review` when a SINGLE signal weighs >= 60, so a fill whose signals SUM past 60 while no
+ * one of them reaches it is a fill the engine deliberately let through. That is the near miss worth
+ * a warning marker. Below it the score is elevated but nothing individually came close, so it stays
+ * neutral - colouring every near miss alike would make the list say nothing.
+ *
+ * WARNING: deliberately NOT `toneClass`. Those are pill classes - a pale `bg-*-50` fill plus `ring-1
+ * ring-inset` - which are right behind 11px of text and invisible as an 8px dot; the first cut
+ * shipped that way and the markers could not be seen against the card. A marker needs a solid fill.
+ * The neutral case uses the `edge-strong` ROLE rather than a `neutral-*` ramp, per the token
+ * contract: roles for neutrals, ramps only for status and brand tints.
+ */
+const MARKER = {
+  warning: "bg-warning-600",
+  neutral: "bg-edge-strong",
+} as const;
+
+export function nearMissMarker(score: number): string {
+  return score >= CORRELATION_THRESHOLDS.review ? MARKER.warning : MARKER.neutral;
 }
 
 /** Declined-attempt suspicion: alert | review | clear. */
