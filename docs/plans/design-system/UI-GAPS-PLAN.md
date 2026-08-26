@@ -123,7 +123,7 @@ buys:
 |---|---|---|---|
 | 1 | **G1 — error pages** ✅ DONE 2026-08-25 | The only one fixing a live defect. Cost two PRs, not one — the 500-line budget bit here rather than at G2. | shipped as #250 + #251 |
 | 2 | **G2 — breadcrumbs** ✅ DONE 2026-08-25 | Highest orientation gain; 24 routes benefit with no per-route work. | shipped as #255 |
-| 3 | **G3 — timeline** | One consumer, whose data already ships unrendered. | ~half a day |
+| 3 | **G3 — timeline** ✅ DONE 2026-08-25 | One consumer, whose data already shipped unrendered. | shipped as #258 |
 | 4 | **G4 — avatar** | Smallest. Skippable — see §7. | ~an hour |
 
 G1 and G2 both touch `apps/web/src/router/index.ts` and will conflict textually if run in parallel.
@@ -373,7 +373,7 @@ typecheck; `lint:ui-adoption`, `lint:tokens`, `lint:filesize`, `lint:comment-cla
 
 ---
 
-### G3 — A timeline, where there is one · not started
+### G3 — A timeline, where there is one — DONE 2026-08-25 (PR #258)
 
 **Prerequisites:** none. ⚠ Read §0's timeline note first — the six filterable history tables are
 **out of scope** and must not be converted.
@@ -404,6 +404,33 @@ timeline serves well — and shipping it costs no backend work at all.
 
 **Done when:** `nearThresholdTimeline` is visible on a real case; nothing under `features/` outside
 `anomalies/` changed; no barrel export was added.
+
+**What shipped.** `features/anomalies/CaseTimeline.vue` + its 10-case test, wired into
+`EntityHistory.vue`'s Phase-2 block, `nearMissMarker()` in `lib/badges.ts`, and a specimen in the
+design lab. No barrel export; nothing under `features/` outside `anomalies/` touched.
+
+**Verified by:** `CaseTimeline.test.ts` (10); typecheck; `lint:ui-adoption`, `lint:tokens`,
+`lint:filesize`, `lint:comment-claims`, `lint:boundaries`, eslint; CI `build` green. Browser at
+`/__design-system`.
+
+**Four corrections:**
+
+1. ⚠ **§5's `toneClass` instruction was wrong and the browser proved it in one look.** Those are
+   pill classes — pale `bg-*-50` plus `ring-1 ring-inset` — right behind 11px of text and
+   **invisible as an 8px dot**. Markers need a solid fill; they take one from a small map in
+   `badges.ts`, so the mapping still lives in one place. Neutral uses the `edge-strong` ROLE, not a
+   `neutral-*` ramp. **Any future dot, rail marker or status pip has this trap.**
+2. **The payload is truncated and the plan did not say so.** `entityRisk.ts` sends
+   `nearThreshold.slice(-20)` while `nearThresholdTotal` counts the whole window, so
+   `entries.length` is not the total. The component says "most recent 20 of 35" when they differ.
+3. **Ordering was under-specified.** "In `fueledAt` order" fixes no direction. Shipped newest-first
+   and sorted in the component, so an upstream change to `analyzeFills` cannot silently reverse it.
+4. The marker breakpoint is `CORRELATION_THRESHOLDS.review`, exported from `@fuelguard/shared` —
+   not a number chosen for the UI. A `clear` fill whose signals SUM past the lone-review weight is
+   one the engine deliberately let through.
+
+**Q-UI2 stays open.** No seeded case was confirmed to carry a non-empty window, so the plan's
+fallback was taken: unit tests over fixtures plus a design-lab specimen, and no fabricated case.
 
 ---
 
