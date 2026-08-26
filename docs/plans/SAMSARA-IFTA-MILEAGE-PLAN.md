@@ -352,9 +352,26 @@ it dies without a `RESULT` line, which the runner treats as a build failure. Ful
 `pnpm typecheck`, `lint:migrations`, `lint:rls`, `lint:upserts`, `lint:filesize`, `lint:funcsize`,
 `lint:comment-claims`, `lint:boundaries`, `lint:tests`, `lint:secrets` — all by exit code.
 
-**Not done here, on purpose:** the backfill of 2026 Q1–Q3 is a one-command run against production once
-this is deployed, not a migration. And nothing yet *reads* these rows — that is S2, and it is where
-every conversion and every rate lives.
+**BACKFILL RUN 2026-08-26 — and it found a defect in this very step.** Seven months landed for
+Silvicom: **21,143 rows, 9,930,450 taxable miles, ZERO unmapped vehicles** across all of them, which
+settles any doubt about the vehicle mapping. April + May + June sums to 4,611,352 against the
+4,611,351 measured independently in S0 — one mile of rounding.
+
+**August returned HTTP 400**, and the message is the finding:
+
+    {"message":"IFTA data may still be processing. Please request data prior to 2026-08-01"}
+
+Samsara does not merely *caution* about the recent 72 hours as its documentation says — it **refuses
+the month in progress outright**. `monthsToSync` returned the current month first and `syncIftaHandler`
+iterated without catching, so **every scheduled run would have thrown on request one and the two
+completed months behind it would never have been fetched**. A daily sync that fails daily and writes
+nothing is the worst shape this could take: the ledger simply stays empty and nothing says why.
+
+Fixed in the same day (`claude/ifta-completed-months`): `monthsToSync` returns completed months only,
+the handler catches per month so one refusal cannot cost the others, and a run where EVERY month fails
+throws rather than returning a tidy zero. Four tests pin it; reverting the loop bound turns three red.
+
+**Nothing yet *reads* these rows — that is S2**, and it is where every conversion and every rate lives.
 
 **Prerequisites:** S0.
 

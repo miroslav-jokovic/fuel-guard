@@ -152,19 +152,36 @@ describe("isProvisionalMonth", () => {
 });
 
 describe("monthsToSync", () => {
-  it("returns the current month and the two before it, newest first", () => {
+  /**
+   * ── THE CURRENT MONTH IS NEVER SYNCED, AND THIS IS THE TEST THAT WOULD HAVE CAUGHT IT ───────────
+   * Samsara returns HTTP 400 for a month in progress — "IFTA data may still be processing. Please
+   * request data prior to 2026-08-01" — not a warning, a refusal. The first version of this function
+   * put the current month first and the handler iterated without catching, so every scheduled run
+   * would have thrown on request one and the completed months behind it would never have been
+   * fetched. Measured while running the backfill: seven months landed, August 400'd.
+   */
+  it("returns only COMPLETED months, newest first — never the one in progress", () => {
     expect(monthsToSync(new Date("2026-08-26T12:00:00Z"))).toEqual([
-      { year: 2026, month: "August" },
       { year: 2026, month: "July" },
       { year: 2026, month: "June" },
+      { year: 2026, month: "May" },
     ]);
+  });
+
+  it("still excludes the current month on its very last day", () => {
+    // 23:00 on the 31st is still inside August, and Samsara still refuses it.
+    expect(monthsToSync(new Date("2026-08-31T23:00:00Z"))[0]).toEqual({ year: 2026, month: "July" });
+  });
+
+  it("reaches back three completed months, because a carrier files a quarter", () => {
+    expect(monthsToSync(new Date("2026-08-26T12:00:00Z"))).toHaveLength(3);
   });
 
   it("crosses a year boundary without inventing month zero", () => {
     expect(monthsToSync(new Date("2026-01-15T12:00:00Z"))).toEqual([
-      { year: 2026, month: "January" },
       { year: 2025, month: "December" },
       { year: 2025, month: "November" },
+      { year: 2025, month: "October" },
     ]);
   });
 });
