@@ -11,7 +11,10 @@ question is not re-opened every time somebody finds a free template. But the com
 wasted: mapping Hope UI's 126 SCSS partials against our 21 primitives surfaced **four things it has
 that we genuinely do not.** This plan is those four, and nothing else.
 
-**✅ COMPLETE 2026-08-25.** All four steps shipped the same day this was written, across eight PRs:
+**✅ COMPLETE 2026-08-25.** All four steps shipped, plus #263 answering the two questions G1 left
+open. Three of the five §6 questions are now closed; Q-UI3 (should `apps/admin` get any of this?)
+and Q-UI4 (does anything show the maintenance page automatically?) remain open with their fallbacks
+standing. Eight PRs for the steps themselves:
 #250 + #251 (G1, which needed the route table split first), #253, #255 + #256 (G2), #258 + #259
 (G3), #260 (G4). The step records in §5 carry what each one corrected, and those corrections are the
 reason to keep reading this document rather than the diff. The short version, for anyone starting
@@ -446,8 +449,11 @@ design lab. No barrel export; nothing under `features/` outside `anomalies/` tou
    not a number chosen for the UI. A `clear` fill whose signals SUM past the lone-review weight is
    one the engine deliberately let through.
 
-**Q-UI2 stays open.** No seeded case was confirmed to carry a non-empty window, so the plan's
-fallback was taken: unit tests over fixtures plus a design-lab specimen, and no fabricated case.
+**Q-UI2 was open at ship time and is now answered** (2026-08-25, §6): no seeded case had been
+confirmed, so the fallback was taken — fixtures plus a design-lab specimen, no fabricated case.
+Production has since confirmed it decisively: **36 of 36** pattern reports carry a non-empty vehicle
+timeline, 281 entries in all, and the truncation notice and collapse threshold both fire on real
+data (4 and 8 reports respectively).
 
 ---
 
@@ -506,33 +512,36 @@ failed on a caller-less barrel export), `lint:tokens`, `lint:filesize`, `lint:co
 
 ## 6. Open questions — with the fallback the code takes until answered
 
-- **Q-UI1 — what correlation handle does `ServerErrorPage` show?** Sentry is wired
-  (`@sentry/vue` 10.69), so a Sentry event ID is the obvious candidate, but whether it is available
-  to a Vue `errorCaptured` boundary at render time has **not** been verified — do not assume it.
-  *Fallback until answered:* show the ISO timestamp and the path, and say "quote this when you
-  report it." Both are certainly available and both are useful to whoever reads the logs.
-  *Owner:* whoever executes G1.
-  ⚠ **Still open after G1 (2026-08-25).** G1 shipped the fallback and did not answer the question,
-  deliberately: no error boundary is wired, so there was no render-time context in which to test
-  whether an event id is reachable. Established while looking: `Sentry.init` lives in `main.ts` and
-  is a no-op without `VITE_SENTRY_DSN`, and **`lastEventId` and `captureException` are called
-  nowhere in the codebase**. Answering this means wiring the boundary first, which is its own
-  decision — see the note on `/error` below.
-- **Q-UI2 — does any non-production-seeded anomaly carry a non-empty `nearThresholdTimeline`?**
-  Unknown. *Fallback:* verify G3 with a unit test over a fixture and check the empty state in the
-  browser; ship it, and confirm against production data afterwards rather than blocking on a
-  fixture. Do **not** hand-insert a fake case to make a screenshot.
-  *Owner:* whoever executes G3.
+- ~~**Q-UI1 — what correlation handle does `ServerErrorPage` show?**~~ **ANSWERED 2026-08-25
+  (PR #263).** A Sentry event id is reachable, but *only* behind a `getClient()` check. Measured on
+  `@sentry/vue` 10.69.0 with no `Sentry.init` — the state of every dev and preview build, since the
+  DSN is optional: `getClient()` returns undefined, `lastEventId()` returns undefined, and
+  **`captureException()` still returns a plausible 32-hex id for an event that went nowhere.** A
+  reference built from that return value would have a carrier quoting an identifier matching nothing
+  in Sentry — worse than none, because it looks authoritative. `lib/errorReference.ts` holds the rule
+  and the measurement; `ServerErrorPage` and `ErrorBoundary` share it so they cannot drift.
+- ~~**Q-UI2 — does any non-production-seeded anomaly carry a non-empty `nearThresholdTimeline`?**~~
+  **ANSWERED 2026-08-25 against production** (`supabase db query --linked`, read-only): **yes,
+  overwhelmingly.** Of 36 `case_pattern_reports`, **36/36** carry a non-empty vehicle timeline and
+  35/36 a driver one — 281 entries in total, scores spanning 40–95.
+  ⚠ Both behaviours G3 added that §5 never asked for fire on real data: **4 of 36 reports exceed the
+  20-entry payload cap** (largest window 29, so 9 near misses would have gone unmentioned without the
+  "most recent 20 of 29" line), and **8 of 36 exceed the 8-entry collapse threshold**. The marker
+  split is not degenerate either: **75 of 281 entries (26.7%) score ≥ 60** and take the warning
+  fill.
 - **Q-UI3 — should `apps/admin` get any of this?** It has 8 `.vue` files, a 90-line `AppShell`, no
   `meta.parent` on any route, and no 404 either. *Fallback:* out of scope. Nothing here is written
   in a way that blocks a later port; `breadcrumbs.ts` is pure and would move as-is. Revisit only if
   the admin console grows past ~15 pages.
-- **Q-UI5 — should a global error boundary route to `/error`?** Raised by G1, not answered by it.
-  The page and its route exist; nothing navigates to them. A boundary is a new app-wide behaviour
-  and G1's scope fence (§4: "no step here touches the database… if a step starts to need one, stop")
-  applied equally to app-wide render behaviour. *Fallback:* `/error` stays a URL an operator sends
-  somebody to. It accepts `?from=<path>`, which is the seam a boundary would use.
-  ⚠ Answering Q-UI5 is the prerequisite for answering Q-UI1, not the other way round.
+- ~~**Q-UI5 — should a global error boundary route to `/error`?**~~ **ANSWERED 2026-08-25
+  (PR #263): yes, but it renders in place rather than routing.** The gap is narrower than it sounds
+  and therefore real — vue-query's `isError` already handles a failed *query* in 61 places, with a
+  retry; a failed *render* had nothing. A redirect would discard the URL, which is the one thing
+  making the failure reproducible, so `components/ErrorBoundary.vue` renders the explanation where
+  the page was, and `/error` stays the route an operator sends somebody to.
+  ⚠ Two findings worth carrying: `onErrorCaptured` **must** return `false`, or the throwing child is
+  re-patched and throws again — the first cut did not, and contained nothing. And only the `AppShell`
+  branch is wrapped, because `/__design-system` is a dev surface where an error should be loud.
 - **Q-UI4 — does the maintenance page ever get shown automatically?** Nothing sets it today, so it
   is a manually-visited URL. *Fallback:* ship it as a reachable route and leave the trigger for
   whoever needs it. ⚠ Do not add a health-check poll to the SPA for this — that is a new background
