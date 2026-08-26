@@ -20,20 +20,35 @@ export const fuelRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/FuelLogPage.vue"),
     meta: { requiresAuth: true, title: "Fuel Log" },
   },
+  /**
+   * D-FX8 — the page is Fuel Spend, and reconciliation is one tab of it.
+   *
+   * It was called Reconciliation because that is what it used to be. Five of its seven tabs are spend
+   * analytics and its own source comments call it "fuel spend" throughout, so a fleet manager asking
+   * "why is fuel up" had no reason to click a nav item called Reconciliation, and a controller wanting
+   * to audit an invoice arrived at a trend chart.
+   */
   {
-    path: "/fuel-reconciliation",
-    name: "fuel-reconciliation",
+    path: "/fuel-spend",
+    name: "fuel-spend",
     component: () => import("@/pages/FuelReconciliationPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Fuel Reconciliation" },
-  },  {
-    path: "/fuel-exceptions",
+    meta: { requiresAuth: true, requiresManage: true, title: "Fuel Spend" },
+  },
+  {
+    path: "/fuel-spend/exceptions",
     name: "fuel-exceptions",
     component: () => import("@/pages/FuelExceptionsPage.vue"),
     // `requiresAuth` only, deliberately NOT `requiresManage`: the ledger is a read surface, and a
     // controller checking what was recovered should not need permission to upload a statement. Moving
     // a finding is gated on the API route, which is where the decision actually happens.
-    meta: { requiresAuth: true, title: "Fuel Exceptions" },
+    meta: { requiresAuth: true, title: "Fuel Exceptions", parent: "/fuel-spend" },
   },
+  // The old paths are kept forever, not for a deprecation window. This page exists to be sent to
+  // somebody: links to it are in emails, in tickets, and in the `?tab=&from=&to=` form the filters
+  // produce. `redirect` preserves the query string, so a link sent in June still opens on what its
+  // sender was looking at.
+  { path: "/fuel-reconciliation", redirect: "/fuel-spend" },
+  { path: "/fuel-exceptions", redirect: "/fuel-spend/exceptions" },
 
   {
     path: "/import",

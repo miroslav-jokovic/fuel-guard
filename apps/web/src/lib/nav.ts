@@ -97,11 +97,12 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // page itself explains that, so the nav entry does not need to know.
         { name: "Cards", to: "/fuel-cards", icon: FuelCardIcon, show: canViewSection(role, "fuel") },
         { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection(role, "fuel") },
-        { name: "Reconciliation", to: "/fuel-reconciliation", icon: ReconciliationIcon, show: canManageSection(role, "fuel") },
+        // D-FX8: five of its seven tabs are spend analytics; reconciliation is one of them.
+        { name: "Fuel Spend", to: "/fuel-spend", icon: ReconciliationIcon, show: canManageSection(role, "fuel") },
         // The ledger is a READ surface for anyone who can see fuel — a controller checking what was
         // recovered does not need the permission to upload a statement. Moving a finding is gated
         // at the route, not here.
-        { name: "Exceptions", to: "/fuel-exceptions", icon: ExceptionLedgerIcon, show: canViewSection(role, "fuel") },
+        { name: "Exceptions", to: "/fuel-spend/exceptions", icon: ExceptionLedgerIcon, show: canViewSection(role, "fuel") },
       ],
     },
     {

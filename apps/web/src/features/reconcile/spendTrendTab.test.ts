@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { VueQueryPlugin } from "@tanstack/vue-query";
 import { computed, ref, type Ref } from "vue";
 import type { SpendDay } from "@fuelguard/shared";
 
@@ -88,7 +89,7 @@ beforeEach(() => {
 const render = (props: Partial<{ filters: typeof FILTERS; grain: string; query: string }> = {}) =>
   mount(SpendTrendTab, {
     props: { filters: FILTERS, grain: "week", query: "from=2026-08-03&to=2026-08-25", ...props } as never,
-    global: { plugins: [createPinia()] },
+    global: { plugins: [createPinia(), VueQueryPlugin] },
   });
 
 describe("SpendTrendTab", () => {
@@ -123,7 +124,7 @@ describe("SpendTrendTab", () => {
   it("says so instead of drawing a bridge when there is nothing to compare", () => {
     const t = mount(SpendTrendTab, {
       props: { filters: { from: "2026-08-03", to: "2026-08-09", vehicleIds: [] }, grain: "month", query: "" } as never,
-      global: { plugins: [createPinia()] },
+      global: { plugins: [createPinia(), VueQueryPlugin] },
     }).text();
     expect(t).toContain("before spend can be explained");
     expect(t).not.toContain("NaN");

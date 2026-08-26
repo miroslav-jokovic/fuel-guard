@@ -61,9 +61,9 @@ beforeEach(() => {
 async function mountPage(query = "") {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/fuel-exceptions", component: { template: "<div/>" }, meta: { title: "Fuel Exceptions" } }],
+    routes: [{ path: "/fuel-spend/exceptions", component: { template: "<div/>" }, meta: { title: "Fuel Exceptions" } }],
   });
-  await router.push(`/fuel-exceptions${query}`);
+  await router.push(`/fuel-spend/exceptions${query}`);
   await router.isReady();
   const pinia = createPinia();
   setActivePinia(pinia);

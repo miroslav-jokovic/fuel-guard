@@ -217,12 +217,22 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-log",
   },
   {
-    "name": "fuel-reconciliation",
+    "name": "fuel-spend",
+    "params": {},
+    "url": "/fuel-spend",
+  },
+  {
+    "name": "fuel-exceptions",
+    "params": {},
+    "url": "/fuel-spend/exceptions",
+  },
+  {
+    "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
   },
   {
-    "name": "fuel-exceptions",
+    "name": "",
     "params": {},
     "url": "/fuel-exceptions",
   },
@@ -540,13 +550,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": "/fuel-log",
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Fuel Exceptions",
-    },
-    "name": "fuel-exceptions",
+    "meta": {},
+    "name": "",
     "path": "/fuel-exceptions",
-    "redirect": null,
+    "redirect": "/fuel-spend/exceptions",
   },
   {
     "meta": {
@@ -567,13 +574,29 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
+    "meta": {},
+    "name": "",
+    "path": "/fuel-reconciliation",
+    "redirect": "/fuel-spend",
+  },
+  {
     "meta": {
       "requiresAuth": true,
       "requiresManage": true,
-      "title": "Fuel Reconciliation",
+      "title": "Fuel Spend",
     },
-    "name": "fuel-reconciliation",
-    "path": "/fuel-reconciliation",
+    "name": "fuel-spend",
+    "path": "/fuel-spend",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/fuel-spend",
+      "requiresAuth": true,
+      "title": "Fuel Exceptions",
+    },
+    "name": "fuel-exceptions",
+    "path": "/fuel-spend/exceptions",
     "redirect": null,
   },
   {

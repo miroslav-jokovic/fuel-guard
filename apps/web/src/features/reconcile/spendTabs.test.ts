@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
+import { createRouter, createMemoryHistory } from "vue-router";
 import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
 import { computed, ref } from "vue";
 
@@ -31,6 +32,16 @@ import SpendOverviewTab from "./SpendOverviewTab.vue";
  * So each tab is mounted against realistic lines and asserted on the figure it exists to show, plus
  * the empty case, which on this surface is the common one until statements accumulate.
  */
+
+/**
+ * The discount tab's empty state links to the price-report upload by name (X2), so its mounts need a
+ * router. Stubbed rather than the real one: which routes exist is `routeTable.test.ts`'s question.
+ */
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: "/", component: { template: "<div/>" } }, { path: "/import", component: { template: "<div/>" } }],
+});
+const withRouter = { global: { plugins: [router] } };
 
 // DataTable branches on `matchMedia`; jsdom has none, so it renders its narrow card view by default.
 beforeEach(() => {
@@ -105,7 +116,7 @@ describe("DiscountCaptureTab", () => {
     }));
 
   it("compares what was billed against what was quoted, and names the gap", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("Billed against contract");
     expect(t).toContain("Quoted / gal");
     expect(t).toContain("Billed / gal");
@@ -116,7 +127,7 @@ describe("DiscountCaptureTab", () => {
 
   it("reports fills with no quote as unmeasured rather than as billed correctly", () => {
     // eightWeeks() carries no contractAmount at all, so nothing is measurable.
-    const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("Billed against contract");
     expect(t).not.toContain("NaN");
@@ -124,13 +135,13 @@ describe("DiscountCaptureTab", () => {
 
   it("says so when a quote had to be carried forward from the day before", () => {
     const lines = quoted().map((l) => ({ ...l, quoteStaleDays: 1 }));
-    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("previous day's quote");
     expect(t).not.toContain("NaN");
   });
 
   it("renders with nothing to report rather than throwing", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: [], from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: [], from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("NaN");
   });
@@ -142,14 +153,14 @@ describe("DiscountCaptureTab", () => {
   it("states the share of spend the headline variance was measured over", () => {
     // Half the fills quoted, half with no quote in range.
     const lines = quoted().map((l, i) => (i % 2 === 0 ? l : { ...l, contractAmount: null, retailAmount: null }));
-    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines, from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("of this window's fuel");
     expect(t).toMatch(/measured over \$[\d,]+/);
     expect(t).not.toContain("NaN");
   });
 
   it("does not claim partial coverage when every fill was priced", () => {
-    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("100.0% of this window's fuel");
     expect(t).not.toContain("had no quote in range");
   });
@@ -220,7 +231,7 @@ describe("saying what is measured", () => {
     const many = Array.from({ length: 60 }, (_, i) =>
       fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560, site: `s${i}` }),
     ).map((l) => ({ ...l, contractAmount: 500, quoteStaleDays: 0 }));
-    const t = mount(DiscountCaptureTab, { props: { lines: many, from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: many, from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("showing 50 of 60");
   });
 
@@ -231,7 +242,7 @@ describe("saying what is measured", () => {
       { ...fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560 }), contractAmount: 500, quoteStaleDays: 0 },
       { ...fill({ tranDate: "2026-08-18", gallons: 100, netAmount: 520, retailAmount: null }), contractAmount: 500, quoteStaleDays: 0 },
     ];
-    const t = mount(DiscountCaptureTab, { props: { lines: mixed, from: "2026-08-01", to: "2026-08-31" } }).text();
+    const t = mount(DiscountCaptureTab, { props: { lines: mixed, from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toMatch(/over 1 of 2 priced fills/);
   });
 

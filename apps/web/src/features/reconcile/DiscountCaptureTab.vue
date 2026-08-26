@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { RouterLink } from "vue-router";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -103,8 +104,9 @@ function exportLines() {
       <h3 class="text-sm font-semibold text-ink">Nothing here can be priced yet</h3>
       <p class="mt-1 max-w-2xl text-sm text-ink-muted">
         No fill in this window matched a Pilot quote, so what these fills should have cost is unknown. Quotes come
-        from the daily price report — upload the days this window covers, or narrow the dates to a period that has
-        them.
+        from the daily Pilot price report, which is uploaded on
+        <RouterLink to="/import" class="font-medium text-brand-700 underline">Import</RouterLink> — or narrow the
+        dates to a period that already has them.
       </p>
     </BaseCard>
 

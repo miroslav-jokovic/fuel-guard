@@ -3,7 +3,7 @@ import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowUpTrayIcon,
 } from "@fuelguard/ui/icons";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconResult, type ReconStatus } from "@fuelguard/shared";
 import { useRunReconciliation, ReconRejected } from "@/features/reconcile/useReconRuns";
 import { readPivotSheet, readReportGrid } from "@/lib/reportGrid";
@@ -17,6 +17,7 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
@@ -269,6 +270,19 @@ const rows = computed(() => {
   });
 });
 
+/**
+ * X12 — the table is paged.
+ *
+ * `DataTable` renders what it is given, and this was given every row: a monthly export covers two
+ * months and runs to thousands, all of them into the DOM in one pass. The buckets above narrow it,
+ * but "All rows" is one click away and was the case nobody had tried.
+ */
+const PAGE_SIZE = 50;
+const page = ref(1);
+// Narrowing while on page nine lands on an empty page that reads as an error rather than a filter.
+watch([statusFilter, result], () => { page.value = 1; });
+const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
 const columns: DataTableColumn[] = [
   { key: "status", label: "Status", width: "lg" },
   { key: "date", label: "Date", width: "sm", cellClass: "text-ink-secondary" },
@@ -341,20 +355,30 @@ const columns: DataTableColumn[] = [
       </p>
 
       <!-- Summary tiles -->
-      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <!-- These are FILTERS, not a description list.
+           They were buttons sitting as direct children of a `dl`, each wrapping a `dt` and two `dd`s —
+           markup a description list does not admit, so a screen reader was handed a broken list where
+           the page meant a row of toggles. And the only signal that one was active was a ring class,
+           which says nothing to anybody not looking at it. A toggle group says what it is and which
+           member is pressed.
+           (The angle brackets are spelled out above on purpose: `lint:ui-adoption` greps for a raw
+           button tag and cannot tell prose from markup, and weakening the gate to fit a comment
+           explaining the gate would be the wrong way round.) -->
+      <div role="group" aria-label="Filter the reconciliation by what it found" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <BaseButton
           v-for="b in buckets"
           :key="b.key"
           type="button"
+          :aria-pressed="statusFilter === b.key"
           class="rounded-dialog px-4 py-3 text-left ring-1 transition"
-          :class="[b.tone, (statusFilter === b.key || (b.key === 'discrepancies' && statusFilter === 'discrepancies')) ? 'ring-2' : '']"
+          :class="[b.tone, statusFilter === b.key ? 'ring-2' : '']"
           @click="statusFilter = b.key"
         >
-          <dt class="text-xs font-medium uppercase tracking-wide opacity-80">{{ b.label }}</dt>
-          <dd class="mt-1 text-2xl font-bold">{{ b.value.toLocaleString() }}</dd>
-          <dd class="mt-0.5 text-xs opacity-80">{{ b.hint }}</dd>
+          <span class="block text-xs font-medium uppercase tracking-wide opacity-80">{{ b.label }}</span>
+          <span class="mt-1 block text-2xl font-bold">{{ b.value.toLocaleString() }}</span>
+          <span class="mt-0.5 block text-xs opacity-80">{{ b.hint }}</span>
         </BaseButton>
-      </dl>
+      </div>
 
       <!-- The four kinds of money, apart. One figure that added them was always too big and meant
            nothing; a $50 overbill and a $50 underbill are not $100 of exposure. -->
@@ -383,7 +407,7 @@ const columns: DataTableColumn[] = [
 
       <DataTable
         :columns="columns"
-        :rows="rows"
+        :rows="pageRows"
         row-key="id"
         :loading="runRecon.isPending.value"
         empty-text="No rows in this bucket."
@@ -402,6 +426,9 @@ const columns: DataTableColumn[] = [
           <span class="text-ink-tertiary"> / {{ fmtUsd2(row.sysAmt) }}</span>
         </template>
         <template #cell-note="{ row }">{{ row.note }}</template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
+        </template>
       </DataTable>
     </template>
   </div>
