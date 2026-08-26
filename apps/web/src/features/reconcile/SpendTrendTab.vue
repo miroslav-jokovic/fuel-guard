@@ -72,23 +72,41 @@ const deltaTone = (pick: (p: (typeof series.value)[number]) => number | null, up
 const trail = (pick: (p: (typeof series.value)[number]) => number | null): (number | null)[] =>
   series.value.slice(-30).map(pick);
 
+/**
+ * L13 — which period the tiles are describing.
+ *
+ * `comparablePeriods` returns the last two COMPLETE periods, which is right: comparing a two-day week
+ * against a finished one is the easiest way to publish a 60% collapse in spend that never happened.
+ * The consequence nobody stated is that on a 90-day, week-grain view the headline is the week ending
+ * about ten days ago — sitting above a table of every week, beside a fill count spanning all ninety
+ * days. Three denominators on one screen, and only the table said which was which.
+ */
+const tilePeriod = computed(() => {
+  const c = comparison.value?.current;
+  if (!c) return null;
+  return grain.value === "day" || c.from === c.to ? c.from : `${grainLabel.value} of ${c.from}`;
+});
+
 const tiles = computed(() => {
   const c = comparison.value?.current;
   return [
     // `upIsBad` is the whole reason the tone is per-tile: spend rising is bad, MPG rising is good, and a
     // tile that coloured every increase red would call the one genuine saving on this page a problem.
-    { label: "Fuel spend", value: usd(c?.spend ?? overall.value.spend), pick: (p: SpendPeriod) => p.spend, upIsBad: true },
+    { label: "Fuel spend", value: usd(c?.spend ?? overall.value.spend), pick: (p: SpendPeriod) => p.spend, upIsBad: true, note: "tractor fuel only" },
     { label: "Gallons", value: gal(c?.gallons ?? overall.value.gallons), pick: (p: SpendPeriod) => p.gallons, upIsBad: true },
     { label: "Paid per gallon", value: usd3(c?.pricePerGal ?? overall.value.pricePerGal), pick: (p: SpendPeriod) => p.pricePerGal, upIsBad: true },
     // Cost per mile is the figure that survives both a market move and a busier fleet, which is why it
     // sits beside them rather than being left for the reader to divide out.
-    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true },
+    { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value.costPerMile), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true, note: "includes reefer and DEF" },
     { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
     // Idle is NOT a headline tile. Total idle cost is a fact about running trucks, not an accusation,
     // and a tile that reddens when it rises says the opposite. The idle card below carries the number
     // that IS actionable — avoidable idle, on trucks that had an alternative.
   ].map((t) => ({
-    label: t.label,
+    // `Fuel spend` is tractor fuel; `Cost per mile` divides tractor + reefer + DEF by implied miles.
+    // Both are deliberate and neither is derivable from the other, so the pair that cannot be
+    // reconciled says which is which rather than leaving a reader to find out by dividing (L12).
+    label: (t as { note?: string }).note ? `${t.label} · ${(t as { note?: string }).note}` : t.label,
     value: t.value,
     sub: delta(t.pick) ?? `no prior ${grainLabel.value}`,
     subTone: deltaTone(t.pick, t.upIsBad),
@@ -185,7 +203,12 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
 
       <!-- The one KPI tile (D-UI2). These were hand-rolled BaseCards reproducing StatCard's kpi anatomy
            class for class, which is exactly the drift StatCard was extracted to end. -->
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div>
+        <p v-if="tilePeriod" class="mb-2 text-xs text-ink-tertiary">
+          These describe the last complete {{ grainLabel }} — <strong class="text-ink-secondary">{{ tilePeriod }}</strong>.
+          The {{ grainLabel }} in progress is excluded, and the table below covers the whole window.
+        </p>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           v-for="t in tiles"
           :key="t.label"
@@ -197,6 +220,7 @@ const rejected = computed(() => days.value.reduce((a, d) => a + d.milesRejected,
           spark-color="currentColor"
           :loading="isLoading"
         />
+        </div>
       </div>
 
       <OperatingBridgeCard

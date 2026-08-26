@@ -81,6 +81,17 @@ vi.mock("@/composables/useRouteFuelSettings", () => ({
   useRouteFuelSettings: () => asQuery(null),
   useSaveRouteFuelSettings: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
+// Discount capture now carries the price-coverage strip, which reads `fuel_price_coverage` from
+// PostgREST. The strip has its own tests; here it only needs to render.
+vi.mock("@/features/reconcile/usePriceCoverage", async (orig) => {
+  const actual = await orig<typeof import("@/features/reconcile/usePriceCoverage")>();
+  return {
+    ...actual,
+    usePriceCoverageQuery: () => asQuery({
+      days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null,
+    }),
+  };
+});
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => asQuery([{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]),
 }));

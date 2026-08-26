@@ -101,6 +101,38 @@ const cols: DataTableColumn[] = [
   { key: "excess", label: "Excess", numeric: true, width: "sm", sortable: true },
 ];
 
+/**
+ * N7 — the rollups `ExceptionReport` has always computed and no surface displayed.
+ *
+ * Fuel behaviour is a per-driver habit rather than a per-fill accident: the plan's §2.3 records unit
+ * 754 hitting ONE9 three times in two days. A flat list of fills cannot show that, and coaching one
+ * driver is the cheapest intervention available on this whole page. `byUnit` and `bySite` were sitting
+ * in the object the tab already receives.
+ */
+const TOP = 8;
+const unitRows = computed(() =>
+  props.report.byUnit.filter((g) => g.excess > 0).slice(0, TOP).map((g) => ({
+    id: g.key, unit: g.key, fills: g.lines, gallons: gal(g.gallons), spend: usd(g.spend),
+    perGal: usd3(g.netPerGal), excess: usd(g.excess),
+  })),
+);
+const siteRows = computed(() =>
+  props.report.bySite.filter((g) => g.excess > 0).slice(0, TOP).map((g) => ({
+    id: g.key, unit: g.key, fills: g.lines, gallons: gal(g.gallons), spend: usd(g.spend),
+    perGal: usd3(g.netPerGal), excess: usd(g.excess),
+  })),
+);
+const groupCols = (first: string): DataTableColumn[] => [
+  { key: "unit", label: first, width: "xl", cellClass: "text-ink-secondary" },
+  { key: "fills", label: "Fills", numeric: true, width: "xs" },
+  { key: "gallons", label: "Gallons", numeric: true, width: "sm" },
+  { key: "spend", label: "Paid", numeric: true, width: "sm" },
+  { key: "perGal", label: "Paid / gal", numeric: true, width: "sm" },
+  { key: "excess", label: "Excess", numeric: true, width: "sm" },
+];
+const unitCols = groupCols("Unit");
+const siteCols = groupCols("Site");
+
 function exportRows() {
   downloadCsv(
     `fuel-${props.slug}`,
@@ -132,6 +164,14 @@ function exportRows() {
         Compared against {{ usd3(report.baselinePerGal) }} a gallon — what the fleet's other fuel cost over the same
         period, these fills excluded.
       </p>
+      <!-- The three exception tabs select OVERLAPPING populations: a ONE9 fill in an avoided state is
+           off-brand, in that state, and off the preferred network, and carries its full excess on all
+           three. Adding the tabs is the first thing a reader does with three dollar figures on three
+           adjacent tabs, and it triples that fill. -->
+      <p class="mt-2 text-xs text-ink-tertiary">
+        This figure overlaps the other exception tabs — one fill can break more than one rule and is
+        counted on each — so they must not be added together.
+      </p>
       <p v-if="note" class="mt-2 text-sm text-ink-secondary">{{ note }}</p>
     </BaseCard>
 
@@ -147,6 +187,21 @@ function exportRows() {
         :sub="discountTile.sub"
         :sub-tone="discountTile.tone"
       />
+    </div>
+
+    <div v-if="unitRows.length" class="grid gap-6 lg:grid-cols-2">
+      <div>
+        <h4 class="mb-2 text-sm font-semibold text-ink">Which trucks</h4>
+        <BaseCard padding="none">
+          <DataTable :columns="unitCols" :rows="unitRows" row-key="id" empty-text="No truck stands out." />
+        </BaseCard>
+      </div>
+      <div v-if="siteRows.length">
+        <h4 class="mb-2 text-sm font-semibold text-ink">Which sites</h4>
+        <BaseCard padding="none">
+          <DataTable :columns="siteCols" :rows="siteRows" row-key="id" empty-text="No site stands out." />
+        </BaseCard>
+      </div>
     </div>
 
     <div>
