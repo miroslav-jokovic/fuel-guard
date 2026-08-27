@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ingestSettlements, ingestApVouchers, ingestBilling } from "./financialIngest.js";
-import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema, tmsBillingPayloadSchema } from "@silvicom/shared";
+import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions } from "./financialIngest.js";
+import {
+  tmsSettlementsPayloadSchema,
+  tmsApVouchersPayloadSchema,
+  tmsBillingPayloadSchema,
+  tmsDeductionsPayloadSchema,
+} from "@silvicom/shared";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
 
@@ -113,6 +118,55 @@ describe("ingestBilling", () => {
       org_id: ORG, external_id: "B-1", tractor_unit: "754",
       total_charges: 3100.0, other_charge: 150.0, excise_tax: 0, post_module: "BILL",
     });
+    expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("ingestDeductions", () => {
+  it("upserts full rows onto (org_id, external_id), keeping the source's own partial attribution", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_deductions: [{ id: "x" }] } });
+    const payload = tmsDeductionsPayloadSchema.parse({
+      deductions: [
+        {
+          external_id: "DD-1",
+          company_id: "TMS",
+          payee_id: "D42",
+          payee_type: "company_driver",
+          tractor_unit: "754",
+          deduct_code: "ESC",
+          deduction_type: "D",
+          transacted_at: "2026-06-18T00:00:00Z",
+          amount: 120.0,
+          accrual_key: "AK-9",
+        },
+        // Payee-level: NO tractor, and that must survive as null — an invented attribution here is
+        // exactly what D-FS5 forbids (escrow and advances follow the person, not the truck).
+        {
+          external_id: "DD-2",
+          company_id: "TMS",
+          payee_id: "D42",
+          payee_type: "company_driver",
+          deduct_code: "ADV",
+          amount: 300.0,
+        },
+      ],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    const r = await ingestDeductions(rec.client, ORG, payload);
+    expect(r.received).toBe(2);
+    const rows = rec.writtenRows("mcleod_deductions");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      org_id: ORG,
+      external_id: "DD-1",
+      tractor_unit: "754",
+      deduct_code: "ESC",
+      amount: 120.0,
+      is_void: false,
+    });
+    expect(rows[1]).toMatchObject({ external_id: "DD-2", tractor_unit: null, amount: 300.0 });
+    expect(Object.keys(rows[0]!).sort()).toEqual(Object.keys(rows[1]!).sort());
     expectOrgScoped(rec, ORG);
   });
 });
