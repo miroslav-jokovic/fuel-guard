@@ -49,6 +49,10 @@
       "module": "fuel",
       "layer": "raw"
     },
+    "declined_txn_scores": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
     "device_push_tokens": {
       "module": "messaging",
       "layer": "infra"
