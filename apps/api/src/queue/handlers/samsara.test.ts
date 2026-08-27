@@ -51,7 +51,7 @@ vi.mock("../../modules/performance/index.js", () => ({
   syncRecentDriverScoreWeeks: scoreSync.syncRecentDriverScoreWeeks,
   snapshotSettledWeeks: vi.fn(),
 }));
-vi.mock("../../services/nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));
+vi.mock("../../orchestration/nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));
 vi.mock("../../lib/audit.js", () => audit);
 
 import {
