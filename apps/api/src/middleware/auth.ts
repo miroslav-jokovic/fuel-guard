@@ -49,7 +49,7 @@ export function requireOrg(req: Request, res: Response, next: NextFunction): voi
 
 /** Require one of the given app roles. */
 export function requireRole(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
     const role = req.auth?.role;
     if (!role || !roles.includes(role)) {
       res.status(403).json(apiError("forbidden", "Insufficient role"));
@@ -57,4 +57,7 @@ export function requireRole(...roles: UserRole[]) {
     }
     next();
   };
+  // Runtime marker for routeGates.test.ts (P4.2, D-SEP10): the role-coverage fitness function
+  // walks the mounted middleware stacks and can only see a gate that declares itself.
+  return Object.assign(handler, { gateKind: "role" as const });
 }

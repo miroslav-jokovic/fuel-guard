@@ -16,7 +16,7 @@ import { getAppLocals } from "../lib/appLocals.js";
  * bypass it by querying the table with RLS off.
  */
 export function requireModule(key: ModuleKey) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
     const orgId = req.auth?.orgId;
     if (!orgId) {
       res.status(403).json(apiError("no_membership", "Account is not linked to an organization yet"));
@@ -41,4 +41,6 @@ export function requireModule(key: ModuleKey) {
       }
     })();
   };
+  // Runtime marker for routeGates.test.ts (P4.2, D-SEP10).
+  return Object.assign(handler, { gateKind: "module" as const });
 }

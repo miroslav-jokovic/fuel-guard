@@ -469,18 +469,32 @@ pinned in advance. Program-specific additions:
 
 ### Phase 4 — Roles, sections, policies (before any finance UI exists)
 
-- **P4.1 — The enum + matrix migration.** `accountant` added to `user_role` (isolated
+- **P4.1 — DONE 2026-08-27 (PR #336, migration 0266) — The enum + matrix migration.**
+  One enum value, isolated per the 0077/0210 convention; matrix 8 roles × 10 sections with the
+  recruiter lesson applied on day one (books access never rides along with ops access, either
+  direction); ZERO RLS changes — deny-all stands. §6 Q1 answered on its fallback in the
+  migration header (JWT claim, like every org role). The snapshot gate collected its first
+  toll: the PR failed CI until 0266 regenerated schema.generated.sql — working as designed. `accountant` added to `user_role` (isolated
   migration, house convention); `APP_SECTIONS` += `accounting`, `billing`, `maintenance`;
   `SECTION_ACCESS` rows per D-SEP7; `USER_ROLE_LABELS`, role schema, invite/member surfaces,
   `SettingsUsersPage` `SECTION_LABELS` updated; ~30 test personas extended. RLS: finance
   tables stay deny-all (no new policies — the point); any *client-readable* maintenance table
   born later carries matrix-derived role lists checked by P0.4's gate. §6 Q1 (revocation
   latency) answered in this PR's header.
-- **P4.2 — Route gates.** All new finance/maintenance routers use
+- **P4.2 — DONE 2026-08-27 (PR #337) — Route gates.**
+  The deferred half of D-SEP10, done truthfully: requireRole/requireModule/requireFreshAuth now
+  tag their handlers, and routeGates.test.ts walks the REAL express middleware stacks — 22 of 27
+  mounts verifiably role-gated, five pinned auth-only with arguments (login, version, public
+  calculator, signed webhooks, agent token). /api/ifta took its promised P4 decision: gated on
+  rolesThatCanView("fuel"), which now includes the accountant. Finance/maintenance routers of
+  P5 are born under this check — an ungated money route cannot ship quietly. All new finance/maintenance routers use
   `requireRole(...rolesThatManage(section))`; financial writes take `requireFreshAuth`;
   `routeAuth.test.ts` extended to assert role-gating presence (not just 401) for the new
   mounts.
-- **P4.3 ∥ — Read-audit.** `financial.statement_viewed` / `export.generated`-style rows on
+- **P4.3 — DECIDED 2026-08-27, implementation lands with P5's surfaces — Read-audit.**
+  §6 Q2 answered on its fallback: audit-write failure is FATAL for financial exports,
+  best-effort for list reads, stated per-endpoint when P5 builds them. requireFreshAuth on
+  financial writes likewise lands with the first financial write route. Original text: `financial.statement_viewed` / `export.generated`-style rows on
   finance list/export endpoints, `entityId` = row UUID where one exists; audit-write failure
   policy for finance decided here (best-effort vs fatal — §6 Q2).
 
