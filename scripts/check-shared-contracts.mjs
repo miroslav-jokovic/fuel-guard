@@ -149,10 +149,10 @@ if (process.argv.includes("--self-test")) {
   if (parserNames.size < 5) fails.push(`parser surface parse looks broken (${parserNames.size} names)`);
   const anyShared = [...sharedNames.keys()].find((n) => CONTRACT_NAME_RE.test(n));
   if (!anyShared) fails.push("no contract-shaped shared export found — name check cannot work");
-  // synthetic duplicate must fire
-  const fake = new Map(sharedNames);
-  const errs = duplicateContracts(fake, APP_ROOTS);
-  // (baseline may be non-empty only if the tree is dirty — the real run below decides that)
+  // the duplicate detector must run end-to-end and return a violation list (it may legitimately
+  // be empty on a clean tree — the real run below is what judges the tree itself)
+  const errs = duplicateContracts(sharedNames, APP_ROOTS);
+  if (!Array.isArray(errs)) fails.push("duplicate detector did not return a violation list");
   const anyParser = [...parserNames][0];
   const fakeSrcHit = `import { ${anyParser} } from "@silvicom/shared"`.match(/import\s+\{([^}]+)\}\s+from\s+"@silvicom\/shared"/);
   if (!fakeSrcHit) fails.push("browser-parser import regex cannot match its own shape");
