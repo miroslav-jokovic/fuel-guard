@@ -114,7 +114,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
 | `hazmat` | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |
 | `dispatch` | (reads `loads`) | dispatch |
-| `messaging` | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |
+| `messaging` (carved 2026-08-27, `apps/api/src/modules/messaging/` — took `device_push_tokens` from driver-app parking, its writers live here) | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |
 | `driver-app` (server side) | `device_push_tokens`, `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
 | `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `fuel_plans`† — `weather_cache` moved to `idle` 2026-08-26 (its only writer is idle's session-weather resolver); revisit here if routing ever carves out and grows its own writer | fueling |
 

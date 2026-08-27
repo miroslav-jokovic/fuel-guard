@@ -13,7 +13,7 @@ import { testEnv } from "../../testing/testEnv.js";
 const ORG = "org1";
 
 const notifyCalls: Array<Record<string, unknown>> = [];
-vi.mock("../../services/notify.js", () => ({
+vi.mock("../messaging/index.js", () => ({
   notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
     notifyCalls.push(input);
     return "evt";

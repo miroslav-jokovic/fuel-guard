@@ -124,6 +124,14 @@ const API_ALLOW = new Set([
   "psp -> recruiting",
   // The recruitment surface mounts the PSP ordering/import routers — screening is part of hiring.
   "recruiting -> psp",
+  // Nearly every module tells somebody something. notify() is the fabric — entitlement, mutes,
+  // quiet hours, dedupe — and these five call it through messaging's index rather than each
+  // growing a private notification path.
+  "efs -> messaging",
+  "evidence -> messaging",
+  "fuel -> messaging",
+  "recruiting -> messaging",
+  "roster -> messaging",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

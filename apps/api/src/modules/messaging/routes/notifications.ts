@@ -4,12 +4,12 @@ import {
   registerPushTokenRequestSchema,
   updatePreferencesRequestSchema,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg } from "../middleware/auth.js";
-import { requireModule } from "../middleware/requireModule.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { revokePushTokens } from "../services/notify.js";
+import { requireAuth, requireOrg } from "../../../middleware/auth.js";
+import { requireModule } from "../../../middleware/requireModule.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { revokePushTokens } from "../notify.js";
 
 /**
  * The notification centre (Phase 5N, D53). Mounted under `/api/me/notifications`.

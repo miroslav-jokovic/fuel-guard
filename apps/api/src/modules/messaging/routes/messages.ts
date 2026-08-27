@@ -4,14 +4,14 @@ import {
   reportMessageRequestSchema,
   sendMessageRequestSchema,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg } from "../middleware/auth.js";
-import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
-import { requireModule } from "../middleware/requireModule.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { createThread, getThread, listThreads, markThreadRead, sendMessage } from "../services/messages.js";
+import { requireAuth, requireOrg } from "../../../middleware/auth.js";
+import { driverWriteLimit } from "../../../middleware/driverWriteLimit.js";
+import { requireModule } from "../../../middleware/requireModule.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { createThread, getThread, listThreads, markThreadRead, sendMessage } from "../messages.js";
 
 /**
  * Messages (Phase 5M, D54). ONE router for both sides — a driver and a dispatcher are participants

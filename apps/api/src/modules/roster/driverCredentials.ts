@@ -6,7 +6,7 @@ import {
   toSyntheticDriverEmail,
   usernameFromName,
 } from "@silvicom/shared";
-import { revokePushTokens } from "../../services/notify.js";
+import { revokePushTokens } from "../messaging/index.js";
 
 /**
  * Company-issued driver credentials (DRIVER-CREDENTIALS-PLAN.md). Each login is a normal Supabase
