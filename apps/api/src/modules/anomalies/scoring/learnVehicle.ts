@@ -1,7 +1,7 @@
 /** Per-vehicle learned values that GATE the rules (split from scoreTransaction.ts — file-size budget). */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { learnOdometerOffset, learnTankSensorReliability, learnObservedMaxFill, learnSensorCapacity, decideCapacityAutoFix } from "@silvicom/shared";
-import { writeAudit } from "../../lib/audit.js";
+import { writeAudit } from "../../../lib/audit.js";
 import { n } from "./loaders.js";
 
 /**

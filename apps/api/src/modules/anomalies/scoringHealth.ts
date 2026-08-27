@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { queueMetrics, type QueueMetrics } from "./queue/metrics.js";
+import { queueMetrics, type QueueMetrics } from "../../services/queue/metrics.js";
 
 export interface ScoringHealth {
   windowDays: number;

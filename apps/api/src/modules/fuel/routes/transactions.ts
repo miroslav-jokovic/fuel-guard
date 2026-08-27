@@ -5,7 +5,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { scoreWithCascade } from "../../../services/scoring/index.js";
+import { scoreWithCascade } from "../../anomalies/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
 import { notifyForTransaction } from "../../../services/notifications.js";
 import { dispatchJob } from "../../../services/queue/dispatch.js";

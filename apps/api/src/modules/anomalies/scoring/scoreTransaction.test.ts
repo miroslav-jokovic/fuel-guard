@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scoreTransaction } from "./scoreTransaction.js";
-import { testEnv } from "../../testing/testEnv.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 /**
  * Characterization tests for scoreTransaction — the previously-untested core scoring pass.

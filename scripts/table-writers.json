@@ -1,6 +1,6 @@
 {
   "anomalies": [
-    "apps/api/src/services/scoring/cardMultiReconcile.ts"
+    "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"
   ],
   "anomaly_thresholds": [
     "apps/web/src/features/settings/useThresholds.ts"
@@ -16,12 +16,12 @@
     "apps/api/src/lib/audit.ts"
   ],
   "case_pattern_reports": [
-    "apps/api/src/services/entityRisk.ts"
+    "apps/api/src/modules/anomalies/entityRisk.ts"
   ],
   "declined_transactions": [
+    "apps/api/src/modules/anomalies/declinedScoring.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
-    "apps/api/src/modules/fuel/declineDriverResolution.ts",
-    "apps/api/src/services/declinedScoring.ts"
+    "apps/api/src/modules/fuel/declineDriverResolution.ts"
   ],
   "device_push_tokens": [
     "apps/api/src/routes/notifications.ts",
@@ -172,6 +172,9 @@
     "apps/api/src/modules/fuel/roadRangerIngest.ts"
   ],
   "fuel_transactions": [
+    "apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
+    "apps/api/src/modules/anomalies/scoring/context.ts",
+    "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts",
@@ -179,9 +182,6 @@
     "apps/api/src/modules/fuel/fillWeather.ts",
     "apps/api/src/modules/fuel/fuelStationResolve.ts",
     "apps/api/src/routes/audit.ts",
-    "apps/api/src/services/anomalyFlagReconcile.ts",
-    "apps/api/src/services/scoring/context.ts",
-    "apps/api/src/services/scoring/scoreTransaction.ts",
     "apps/web/src/features/fuel/useFuelLog.ts"
   ],
   "geocode_cache": [
@@ -288,9 +288,9 @@
     "apps/web/src/composables/useOrgSettings.ts"
   ],
   "pattern_sweep_requests": [
-    "apps/api/src/services/patternSweepScheduler.ts",
-    "apps/api/src/services/queue/handlers/scoring.ts",
-    "apps/api/src/services/scoring/scoreTransaction.ts"
+    "apps/api/src/modules/anomalies/patternSweepScheduler.ts",
+    "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
+    "apps/api/src/services/queue/handlers/scoring.ts"
   ],
   "platform_admins": [
     "apps/admin-api/src/lib/platformAdmins.ts"
@@ -320,7 +320,7 @@
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
   "scoring_attempts": [
-    "apps/api/src/services/scoring/persist.ts"
+    "apps/api/src/modules/anomalies/scoring/persist.ts"
   ],
   "seven_day_statements": [
     "apps/api/src/modules/roster/routes/sevenDay.ts"
@@ -349,10 +349,10 @@
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
   "vehicles": [
+    "apps/api/src/modules/anomalies/scoring/learnVehicle.ts",
+    "apps/api/src/modules/anomalies/scoring/persist.ts",
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
-    "apps/api/src/services/scoring/learnVehicle.ts",
-    "apps/api/src/services/scoring/persist.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",
     "apps/web/src/features/fleet/useVehicleSetupImport.ts"

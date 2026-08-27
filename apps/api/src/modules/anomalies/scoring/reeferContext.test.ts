@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { loadReeferContext } from "./context.js";
 import type { TxnView } from "@silvicom/shared";
 

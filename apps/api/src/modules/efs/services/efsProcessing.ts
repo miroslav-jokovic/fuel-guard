@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CASE_RULE_ID } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
-import { scoreDeclinedImport } from "../../../services/declinedScoring.js";
-import { scoreImportWithCascade } from "../../../services/scoring/index.js";
+import { scoreDeclinedImport } from "../../anomalies/index.js";
+import { scoreImportWithCascade } from "../../anomalies/index.js";
 import { notify } from "../../../services/notify.js";
 
 export type EfsProcessingFeed = "posted" | "rejected";

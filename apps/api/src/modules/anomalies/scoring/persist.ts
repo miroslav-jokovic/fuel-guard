@@ -15,7 +15,7 @@ import {
   type TxnView,
   type VehicleView,
 } from "@silvicom/shared";
-import { getBuildInfo } from "../../lib/buildInfo.js";
+import { getBuildInfo } from "../../../lib/buildInfo.js";
 import type { ReconResult } from "./reconcile.js";
 import { learnVehicleValues } from "./learnVehicle.js";
 import type { ScoreOpts } from "./loaders.js";

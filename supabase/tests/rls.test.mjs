@@ -286,19 +286,9 @@ async function main() {
     JSON.stringify(drvDeclinedRead),
   );
 
-  // ── AI verifications (migration 0008): members read; no client writes ──────
-  const aiRead = await asUser(mgrA, "select count(*)::int n from ai_verifications");
-  ok("member can read ai_verifications", !aiRead.error, JSON.stringify(aiRead));
-  const aiWrite = await asUser(
-    mgrA,
-    "insert into ai_verifications (org_id, transaction_id, model, risk_score, risk_level, summary, recommended_action, input_hash) values ($1, gen_random_uuid(), 'm', 1, 'low', 's', 'monitor', 'h')",
-    [ORG_A],
-  );
-  ok(
-    "client INSERT ai_verifications denied (service-role only)",
-    !!aiWrite.error,
-    JSON.stringify(aiWrite),
-  );
+  // ── AI verifications: the 0008 table was dropped at 0260 (dead since creation — the anomalies
+  // carve-out's build-or-drop call). Its two hand-written assertions left with it; the discovery
+  // loop above covers every table that actually exists. ──
 
   // ── Audit triggers (migration 0009) ────────────────────────────────────────
   await db.exec(

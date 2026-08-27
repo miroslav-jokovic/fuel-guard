@@ -1,6 +1,6 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { RECENT_REBUILD_DAYS } from "./scoring/index.js";
+import { RECENT_REBUILD_DAYS } from "../modules/anomalies/index.js";
 import { dispatchJob } from "./queue/dispatch.js";
 
 /**

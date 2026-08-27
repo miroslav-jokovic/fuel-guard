@@ -7,8 +7,11 @@ const mocks = vi.hoisted(() => ({
   notify: vi.fn(),
 }));
 
-vi.mock("../../../services/scoring/index.js", () => ({ scoreImportWithCascade: mocks.scoreImport }));
-vi.mock("../../../services/declinedScoring.js", () => ({ scoreDeclinedImport: mocks.scoreDeclined }));
+// efsProcessing invokes scoring through the anomalies module index (2026-08-27 carve-out).
+vi.mock("../../anomalies/index.js", () => ({
+  scoreImportWithCascade: mocks.scoreImport,
+  scoreDeclinedImport: mocks.scoreDeclined,
+}));
 vi.mock("../../../services/notify.js", () => ({ notify: mocks.notify }));
 
 import { processEfsProcessingRun } from "./efsProcessing.js";
