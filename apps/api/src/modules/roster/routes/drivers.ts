@@ -17,13 +17,13 @@ import {
   type DriverUpdateContext,
   type DriverUpdateRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
-import { deliverInvite } from "../invites.js";
-import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcile.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { deliverInvite } from "../../../routes/invites.js";
+import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
 
 /**
  * Driver ROSTER — the admin-owned master-data surface for people (Master Data plan §6, M2 slice).
@@ -54,12 +54,12 @@ import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcil
  * type level, and a concatenation widens to `string`, which collapses the row type to an error union.
  */
 const DRIVER_LIST_COLS =
-  "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, home_terminal_id, hire_date, created_at, archived_at";
+  "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, hire_date, created_at, archived_at";
 
 /** The full profile — every column 0098 added, minus the ones another surface owns (app credentials,
  *  telematics HOS snapshots, the EFS card link). Same one-literal rule as above. */
 const DRIVER_DETAIL_COLS =
-  "id, full_name, first_name, middle_name, last_name, status, driver_type, employee_id, email, phone, phone_alt, date_of_birth, hire_date, termination_date, home_terminal_id, address_line1, address_line2, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, cdl_number, cdl_state, cdl_class, cdl_issued_at, cdl_expires_at, cdl_restrictions, medical_card_expires_at, medical_examiner_name, medical_registry_number, pay_type, pay_rate, per_diem, settlement_company, eld_id, identity_source, app_access_enabled, user_id, samsara_driver_id, return_to_duty_required, created_at, updated_at";
+  "id, full_name, first_name, middle_name, last_name, status, driver_type, employee_id, email, phone, phone_alt, date_of_birth, hire_date, termination_date, address_line1, address_line2, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, cdl_number, cdl_state, cdl_class, cdl_issued_at, cdl_expires_at, cdl_restrictions, medical_card_expires_at, medical_examiner_name, medical_registry_number, pay_type, pay_rate, per_diem, settlement_company, eld_id, identity_source, app_access_enabled, user_id, samsara_driver_id, return_to_duty_required, created_at, updated_at";
 
 /** The compliance-relevant fields, whose BEFORE and AFTER values go into the audit row rather than
  *  just the field name. A DOT auditor asks when a medical card expiry changed and to what; they do

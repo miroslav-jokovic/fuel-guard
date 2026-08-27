@@ -68,14 +68,14 @@
   ],
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
+    "apps/api/src/modules/roster/driverCredentials.ts",
+    "apps/api/src/modules/roster/routes/archive.ts",
+    "apps/api/src/modules/roster/routes/drivers.ts",
     "apps/api/src/modules/samsara/samsaraDriverSync.ts",
     "apps/api/src/routes/invites.ts",
     "apps/api/src/routes/members.ts",
-    "apps/api/src/routes/roster/archive.ts",
-    "apps/api/src/routes/roster/drivers.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts",
     "apps/api/src/services/driverAttribution.ts",
-    "apps/api/src/services/driverCredentials.ts",
     "apps/api/src/services/hosSync.ts",
     "apps/web/src/composables/useDrivers.ts"
   ],
@@ -231,8 +231,8 @@
     "apps/api/src/services/queue/handlers/samsara.ts"
   ],
   "invites": [
-    "apps/api/src/routes/invites.ts",
-    "apps/api/src/routes/roster/drivers.ts"
+    "apps/api/src/modules/roster/routes/drivers.ts",
+    "apps/api/src/routes/invites.ts"
   ],
   "jobs": [
     "apps/api/src/services/jobs.ts"
@@ -253,9 +253,9 @@
     "apps/api/src/services/dispatchLoads/mutations.ts"
   ],
   "memberships": [
+    "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/routes/invites.ts",
-    "apps/api/src/routes/members.ts",
-    "apps/api/src/services/driverCredentials.ts"
+    "apps/api/src/routes/members.ts"
   ],
   "message_reports": [
     "apps/api/src/routes/messages.ts"
@@ -323,7 +323,7 @@
     "apps/api/src/services/scoring/persist.ts"
   ],
   "seven_day_statements": [
-    "apps/api/src/routes/roster/sevenDay.ts"
+    "apps/api/src/modules/roster/routes/sevenDay.ts"
   ],
   "sms_consents": [
     "apps/api/src/services/applicationSms.ts"

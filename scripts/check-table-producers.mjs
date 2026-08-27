@@ -35,7 +35,6 @@ const WAIVERS = new Map([
   ["mcleod_settlements", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
   ["mcleod_ap_vouchers", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
   ["mcleod_billing", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
-  ["terminals", "dead since 0097 while three roster FKs point at it — resolved (build or drop) in the roster carve-out, D-ARC3"],
   ["ai_verifications", "dead since 0008 — drop or build decided in the anomalies carve-out"],
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
 ]);

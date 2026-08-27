@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { AuthContext } from "@silvicom/shared";
-import { createApp } from "../../app.js";
-import { loadEnv } from "../../env.js";
-import { closeTestServer } from "../../testing/httpServer.js";
+import { createApp } from "../../../app.js";
+import { loadEnv } from "../../../env.js";
+import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
  * Archiving a driver or an applicant (migration 0235) — the DOOR gate.
