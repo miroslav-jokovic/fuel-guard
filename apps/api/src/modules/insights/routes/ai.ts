@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { askData } from "../services/askData.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { askData } from "../askData.js";
 
 export function aiRouter(): Router {
   const router = Router();

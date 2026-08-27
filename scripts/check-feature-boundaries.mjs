@@ -112,6 +112,11 @@ const API_ALLOW = new Set([
   // trailers write goes through roster's recordInferredTrailerPairing — the owner holds the
   // never-overwrite-manual invariant, the collector holds the vendor fetch (P1.2, D-SEP1).
   "samsara -> roster",
+  // The reports surface triggers the weekly digest through org's index and reads detection
+  // health through anomalies' index — insights is a reader of owners' interfaces by charter
+  // (P1.6); it owns no tables and writes none.
+  "insights -> org",
+  "insights -> anomalies",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).

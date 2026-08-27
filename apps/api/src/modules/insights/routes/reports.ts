@@ -1,14 +1,14 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type DashboardTransaction, type DashboardAnomaly, type OdoRow, type DispositionCaseInput } from "@silvicom/shared";
-import { generateAndSendDigest } from "../modules/org/index.js";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { generateAndSendDigest } from "../../org/index.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { scoringHealth } from "../modules/anomalies/index.js";
+import { scoringHealth } from "../../anomalies/index.js";
 
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const REPORT_PAGE = 1000;

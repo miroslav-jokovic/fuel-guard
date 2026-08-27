@@ -1,8 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_MODELS, CASE_RULE_ID, MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX, odometerAccuracy, type OdoRow } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { anthropicClient } from "../lib/anthropic.js";
+import type { Env } from "../../env.js";
+import { anthropicClient } from "../../lib/anthropic.js";
 
 // ── Safe, org-scoped query tools. The AI can ONLY call these (never raw SQL), and every query is
 // pinned to the caller's org on the server — so it can't reach another tenant's data. Grouped:
