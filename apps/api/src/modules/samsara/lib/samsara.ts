@@ -1,4 +1,4 @@
-import type { Env } from "../env.js";
+import type { Env } from "../../../env.js";
 import { samsaraFetch } from "./samsaraHttp.js";
 import { listAllPages } from "./samsaraPaging.js";
 import { MAX_STATS_PAGES, STATS_HISTORY_MAX_RPS } from "./samsaraStats.js";

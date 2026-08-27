@@ -1,4 +1,4 @@
-import type { Env } from "../env.js";
+import type { Env } from "../../../env.js";
 import { samsaraFetch } from "./samsaraHttp.js";
 
 /** Fetches one vehicle's GPS+odometer history for a time range. Injectable for tests. */

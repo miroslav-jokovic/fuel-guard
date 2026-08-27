@@ -1,4 +1,4 @@
-import type { Env } from "../env.js";
+import type { Env } from "../../../env.js";
 import { samsaraFetch } from "./samsaraHttp.js";
 
 /** Follows the `after` cursor through every page of a Samsara list endpoint, merging `data`. */

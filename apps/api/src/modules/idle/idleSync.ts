@@ -11,8 +11,8 @@ import {
   type AssignmentInterval,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
-import { makeSamsaraIdlingEventFetcher } from "../../lib/samsara.js";
+import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
+import { makeSamsaraIdlingEventFetcher } from "../samsara/lib/samsara.js";
 import { makeOpenMeteoFetcher } from "../../lib/openMeteo.js";
 import { backfillTemperatures } from "./weatherBackfill.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";

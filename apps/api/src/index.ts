@@ -5,7 +5,7 @@ import { loadEnv } from "./env.js";
 import { runSchemaCheck } from "./modules/org/index.js";
 import { startAllSchedulers } from "./schedulers.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
-import { sealPlaintextSamsaraTokens } from "./lib/samsaraToken.js";
+import { sealPlaintextSamsaraTokens } from "./modules/samsara/lib/samsaraToken.js";
 
 const env = loadEnv();
 const app = createApp(env);

@@ -226,7 +226,7 @@
     "apps/api/src/modules/efs/services/efsSync.ts"
   ],
   "integration_credentials": [
-    "apps/api/src/lib/samsaraToken.ts",
+    "apps/api/src/modules/samsara/lib/samsaraToken.ts",
     "apps/api/src/modules/samsara/samsaraScheduler.ts",
     "apps/api/src/services/queue/handlers/samsara.ts"
   ],

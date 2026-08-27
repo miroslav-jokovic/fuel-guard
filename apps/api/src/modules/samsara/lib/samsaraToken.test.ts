@@ -6,9 +6,9 @@ import {
   sealPlaintextSamsaraTokens,
   SAMSARA_TOKEN_PURPOSE,
 } from "./samsaraToken.js";
-import { seal, secretAad, SecretBoxError } from "./secretBox.js";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { testEnv } from "../testing/testEnv.js";
+import { seal, secretAad, SecretBoxError } from "../../../lib/secretBox.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5): its fallthrough discarded

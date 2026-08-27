@@ -8,9 +8,10 @@
  * diagnostics probe, and the scheduler that paces them. Owns `samsara_ifta_fetches` and
  * `samsara_ifta_jurisdiction_miles`.
  *
- * Two debts, named so the next carve-outs inherit them knowingly:
- *  - the low-level vendor client stays in `lib/samsara*` — eight importers across un-carved
- *    domains (fuel planning, HOS, idle, reefer) still share it; it moves here when they carve;
+ * One debt paid, one named so the next carve-outs inherit it knowingly:
+ *  - the low-level vendor client lives at `./lib/samsara*` since 2026-08-27 (program step P1.3)
+ *    — module consumers (idle, anomalies, performance) import it under their existing API_ALLOW
+ *    pairs; flat callers (fuelPlanning, mapProxies, integrations) point here until they carve;
  *  - `samsaraScheduler` still orchestrates the idle/HOS/score syncs in `services/` — it is the
  *    Samsara-cadence clock for domains that have not moved yet, so those imports point outward
  *    until the `idle` module exists. The doc's matrix parks `hos_duty_segments`,

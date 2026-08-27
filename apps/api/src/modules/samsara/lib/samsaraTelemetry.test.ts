@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../env.js";
+import type { Env } from "../../../env.js";
 
 const env = testEnv({ SAMSARA_API_URL: "https://api.samsara.test" });
 type SamsaraFetchMock = (
@@ -13,7 +13,7 @@ const http = vi.hoisted(() => ({ samsaraFetch: vi.fn<SamsaraFetchMock>() }));
 vi.mock("./samsaraHttp.js", () => http);
 
 import { makeSamsaraVehicleTelemetryFetcher } from "./samsara.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 function jsonResponse(body: object): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });

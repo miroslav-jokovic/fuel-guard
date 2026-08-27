@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { VehicleTelemetryFetcher } from "../../lib/samsara.js";
+import type { VehicleTelemetryFetcher } from "../samsara/lib/samsara.js";
 import { syncIdleTelemetry } from "./idleTelemetrySync.js";
 import { testEnv } from "../../testing/testEnv.js";
 
 const tokenLoader = vi.hoisted(() => ({ loadSamsaraToken: vi.fn() }));
-vi.mock("../../lib/samsaraToken.js", () => tokenLoader);
+vi.mock("../samsara/lib/samsaraToken.js", () => tokenLoader);
 
 type Scalar = string | number | null;
 type VehicleRow = { id: string; samsara_vehicle_id: string };

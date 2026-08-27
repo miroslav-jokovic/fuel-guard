@@ -13,8 +13,8 @@ import {
   type VehicleView,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { makeSamsaraFetcher, type SamsaraFetcher } from "../../lib/samsara.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { makeSamsaraFetcher, type SamsaraFetcher } from "./lib/samsara.js";
+import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import { geocodeStation, type Coords } from "../../services/geocode.js";
 
 /** Injectable geocoder so tests can run without a network provider. */

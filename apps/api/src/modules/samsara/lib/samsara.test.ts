@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { makeSamsaraFetcher } from "./samsara.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 // SAMSARA_MAX_RETRIES pinned to 0 (Step 5.9). The old `as Env` cast left it undefined, which
 // disabled retries by accident; a real env restores them, and then a 429 goes down the backoff path

@@ -6,7 +6,7 @@ import {
   laneRps,
   __resetSamsaraPacing,
 } from "./samsaraHttp.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 describe("laneRps — two-tier rate split (F5)", () => {
   const e = testEnv({ SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 0.6 });

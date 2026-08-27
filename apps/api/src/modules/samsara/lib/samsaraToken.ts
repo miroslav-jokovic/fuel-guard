@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { isSecretBoxConfigured, open, seal, secretAad, SecretBoxError } from "./secretBox.js";
+import type { Env } from "../../../env.js";
+import { isSecretBoxConfigured, open, seal, secretAad, SecretBoxError } from "../../../lib/secretBox.js";
 
 /**
  * Samsara API token storage — sealed at rest. The per-org token in

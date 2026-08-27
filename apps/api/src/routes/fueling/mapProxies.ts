@@ -4,8 +4,8 @@ import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { geocodeSuggest } from "../../services/geocode.js";
-import { fetchVehicleCurrentGps } from "../../lib/samsara.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { fetchVehicleCurrentGps } from "../../modules/samsara/lib/samsara.js";
+import { loadSamsaraToken } from "../../modules/samsara/lib/samsaraToken.js";
 import { hereReverseGeocode } from "../../lib/hereGeocode.js";
 
 /** Map + geocoding proxies: keep the HERE key / vendor rate server-side, never in the browser. */

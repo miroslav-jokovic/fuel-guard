@@ -6,7 +6,7 @@
  */
 import { buildTruckRouteUrl, parseHereRoute, type HereRouteRequest, type ParsedHereRoute } from "@silvicom/shared";
 import type { Env } from "../env.js";
-import { backoffMs } from "./samsaraHttp.js";
+import { backoffMs } from "../modules/samsara/lib/samsaraHttp.js";
 
 export class NoHereKeyError extends Error {
   constructor() {

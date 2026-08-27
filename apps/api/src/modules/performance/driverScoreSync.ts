@@ -8,13 +8,13 @@ import {
   type EfficiencyScoreRow,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import {
   makeSamsaraSafetyScoreFetcher,
   makeSamsaraDriverEfficiencyFetcher,
   type SamsaraSafetyScoreFetcher,
   type SamsaraDriverEfficiencyFetcher,
-} from "../../lib/samsara.js";
+} from "../samsara/lib/samsara.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";
 
 export interface DriverScoreSyncResult {

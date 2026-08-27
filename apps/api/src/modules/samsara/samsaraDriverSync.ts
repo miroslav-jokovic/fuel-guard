@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseSamsaraDrivers, driverMatchKey } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
-import { makeSamsaraDriverLister, type SamsaraDriverLister } from "../../lib/samsara.js";
+import { loadSamsaraToken } from "./lib/samsaraToken.js";
+import { makeSamsaraDriverLister, type SamsaraDriverLister } from "./lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { isTmsRosterMaster } from "../mcleod/index.js";
 

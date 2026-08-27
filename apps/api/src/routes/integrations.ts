@@ -33,7 +33,7 @@ import {
 } from "../modules/efs/services/efsSoapClientCerts.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import type { RunJobResult } from "../modules/org/index.js";
-import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
+import { saveSamsaraToken, clearSamsaraToken } from "../modules/samsara/lib/samsaraToken.js";
 import { SecretBoxError } from "../lib/secretBox.js";
 import { z } from "zod";
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running.

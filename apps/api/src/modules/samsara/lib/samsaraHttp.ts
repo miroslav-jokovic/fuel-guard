@@ -1,4 +1,4 @@
-import type { Env } from "../env.js";
+import type { Env } from "../../../env.js";
 
 /**
  * Central Samsara HTTP client. EVERY Samsara call (sync, recon, diagnostics) goes through here so a

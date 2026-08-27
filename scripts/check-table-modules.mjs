@@ -80,7 +80,7 @@ const GRANDFATHERED_WRITERS = new Set([
   "geocode_cache <- apps/api/src/modules/fuel/roadRangerIngest.ts",
   "geocode_cache <- apps/api/src/services/geocode.ts",
   "idle_settings <- apps/web/src/features/fleet/useIdleSettings.ts",
-  "integration_credentials <- apps/api/src/lib/samsaraToken.ts",
+  "integration_credentials <- apps/api/src/modules/samsara/lib/samsaraToken.ts",
   "integration_credentials <- apps/api/src/modules/samsara/samsaraScheduler.ts",
   "integration_credentials <- apps/api/src/services/queue/handlers/samsara.ts",
   "invites <- apps/api/src/modules/roster/routes/drivers.ts",
