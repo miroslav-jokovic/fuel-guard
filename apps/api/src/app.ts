@@ -146,6 +146,7 @@ function mountBodyParsers(app: Express): void {
   // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
   // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
   app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
+  app.use("/api/transactions/import-preview", express.json({ limit: "25mb" }));
   // A weekly Pilot statement is ~30k positioned words plus the source PDF (~370 KB → ~500 KB base64),
   // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
   app.use("/api/fueling/statements", express.json({ limit: "25mb" }));

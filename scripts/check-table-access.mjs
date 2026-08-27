@@ -45,6 +45,7 @@ const GRANDFATHERED_ACCESS = new Set([
   "declined_transactions <- apps/api/src/modules/anomalies/entityRisk.ts",
   "declined_transactions <- apps/api/src/modules/efs/services/efsIngestReject.ts",
   "declined_transactions <- apps/api/src/modules/efs/services/efsProcessing.ts",
+  "declined_transactions <- apps/api/src/modules/efs/services/efsPreview.ts",
   "declined_transactions <- apps/api/src/modules/org/digest.ts",
   "declined_transactions <- apps/api/src/modules/insights/askData.ts",
   "declined_transactions <- apps/web/src/features/dashboard/useDashboard.ts",
@@ -76,7 +77,6 @@ const GRANDFATHERED_ACCESS = new Set([
   "hos_duty_segments <- apps/api/src/modules/loads/dispatchLoads/queries.ts",
   "imports <- apps/api/src/modules/fuel/routes/transactions.ts",
   "imports <- apps/api/src/modules/insights/askData.ts",
-  "imports <- apps/web/src/features/import/useImport.ts",
   "load_external_payloads <- apps/api/src/modules/loads/dispatchLoads/duty.ts",
   "tms_movements <- apps/api/src/modules/anomalies/scoring/context.ts",
 ]);
@@ -84,7 +84,6 @@ const GRANDFATHERED_ACCESS = new Set([
 // Files allowed to call .from(<non-literal>). Each entry is a repo-relative path with a reason.
 // Every pin is a hole in the string-literal guarantee — prefer a literal at the site's next touch.
 const DYNAMIC_FROM_ALLOWED = new Map([
-  ["apps/web/src/features/import/useImport.ts", "existingRefs(table,...) duplicate probe — dies at program step P1.9 when EFS parsing moves server-side"],
   ["apps/api/src/modules/driver-app/dutySessions.ts", "unit-number lookup dispatching over vehicles|trailers by asset kind"],
   ["apps/api/src/modules/efs/services/efsIngestShared.ts", "duplicate-ref probe over fuel_transactions|declined_transactions during ingest"],
   ["apps/api/src/modules/loads/dispatchLoads/history.ts", "label hydration dispatching over drivers|vehicles by event kind"],
