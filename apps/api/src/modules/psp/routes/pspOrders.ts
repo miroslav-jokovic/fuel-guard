@@ -13,8 +13,8 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { hasFreshAuth, stepUpRequired } from "../../../middleware/requireFreshAuth.js";
 import { orderPspRecord, pspOrderPreflight } from "../pspOrder.js";
-import { loadScreeningReadiness } from "../../../services/screeningReadiness.js";
-import { dobCsvTemplate, importDriverDob } from "../../../services/dobImport.js";
+import { loadScreeningReadiness } from "../../recruiting/index.js";
+import { dobCsvTemplate, importDriverDob } from "../../recruiting/index.js";
 import { fetchRecordPdf, requestRecord } from "../client.js";
 
 /**

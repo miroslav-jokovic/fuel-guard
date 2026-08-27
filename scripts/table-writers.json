@@ -6,10 +6,10 @@
     "apps/web/src/features/settings/useThresholds.ts"
   ],
   "applicant_dispositions": [
-    "apps/api/src/routes/recruitment/dispositions.ts"
+    "apps/api/src/modules/recruiting/routes/dispositions.ts"
   ],
   "application_invitations": [
-    "apps/api/src/routes/recruitment/applicationInvites.ts"
+    "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
   ],
   "audit_logs": [
     "apps/admin-api/src/lib/impersonation.ts",
@@ -31,7 +31,7 @@
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
-    "apps/api/src/services/applicationPdf/file.ts"
+    "apps/api/src/modules/recruiting/applicationPdf/file.ts"
   ],
   "dq_exports": [
     "apps/api/src/modules/evidence/dqExports.ts"
@@ -43,12 +43,12 @@
     "apps/api/src/services/driverAppSettings.ts"
   ],
   "driver_authorizations": [
-    "apps/api/src/routes/recruitment/authorizations.ts",
+    "apps/api/src/modules/recruiting/routes/authorizations.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts"
   ],
   "driver_employment_history": [
-    "apps/api/src/routes/recruitment/employment.ts",
-    "apps/api/src/services/employerInquiry.ts"
+    "apps/api/src/modules/recruiting/employerInquiry.ts",
+    "apps/api/src/modules/recruiting/routes/employment.ts"
   ],
   "driver_performance_settings": [
     "apps/web/src/features/drivers/useDriverPerformanceSettings.ts"
@@ -120,7 +120,7 @@
     "apps/api/src/modules/efs/services/efsIngest.ts"
   ],
   "employer_inquiries": [
-    "apps/api/src/services/employerInquiry.ts"
+    "apps/api/src/modules/recruiting/employerInquiry.ts"
   ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
@@ -326,7 +326,7 @@
     "apps/api/src/modules/roster/routes/sevenDay.ts"
   ],
   "sms_consents": [
-    "apps/api/src/services/applicationSms.ts"
+    "apps/api/src/modules/recruiting/applicationSms.ts"
   ],
   "station_geocode_learned": [
     "apps/api/src/modules/fuel/stationGeocodeLearning.ts"

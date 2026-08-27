@@ -111,7 +111,7 @@ export const PROMPT_REMOVAL_STEP_UP = "Confirm your password to remove a prompt.
  * a behaviour's gate with a view's warning; instead each side derives its own set from its own
  * registry and asserts equality with this one.
  *
- * Both halves: `apps/api/src/efs/registry.test.ts` derives from the behaviours' governance hooks,
+ * Both halves: `apps/api/src/modules/efs/registry.test.ts` derives from the behaviours' governance hooks,
  * and `apps/web/src/features/fuelCards/capabilities/registry.test.ts` from the view registry. Adding
  * a gate to a behaviour without teaching the view to warn turns the web's red; teaching the view
  * without the gate turns the API's red. Either way somebody has to come here and say what they meant.
@@ -134,7 +134,7 @@ export const CAPABILITIES_WITH_STEP_UP_GATE: readonly string[] = [
  * only ever raise the first — an armed override makes EFS silently ignore a status change, so the lock
  * is refused rather than swallowed.
  *
- * Before this split, `apps/api/src/efs/registry.test.ts` derived "has a gate" from the presence of a
+ * Before this split, `apps/api/src/modules/efs/registry.test.ts` derived "has a gate" from the presence of a
  * `precondition` and
  * compared it against the step-up pin, so adding lock's refusal demanded adding `card_lock` to that
  * list. That would have asserted something FALSE and load-bearing: the list's own comment says lock is

@@ -115,6 +115,15 @@ const API_ALLOW = new Set([
   // Ingest finishing means scoring starts: the collectors invoke the harness entrypoints.
   "efs -> anomalies",
   "fuel -> anomalies",
+  // Filed reports and inquiry answers land in the DQ record through evidence's interface —
+  // the writes the evidence carve-out pinned, now flowing as drawn.
+  "recruiting -> evidence",
+  // The DQ alert sweep and the application-nudge sweep share one clock; evidence hosts it.
+  "evidence -> recruiting",
+  // Ordering a PSP report checks the applicant's screening readiness and DOB coverage first.
+  "psp -> recruiting",
+  // The recruitment surface mounts the PSP ordering/import routers — screening is part of hiring.
+  "recruiting -> psp",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

@@ -118,7 +118,7 @@ export const deleteOverrideBehaviour = defineBehaviour(deleteOverrideContract, {
    * NOT optional for a direct mutation. This op moves the three override header fields and produces
    * no edits naming them, so without this the drift classifier reports a perfectly successful clear
    * as unexplained drift on every single run — which is what Step 3.4's first two-step sequence did
-   * before anyone had thought about it. apps/api/src/efs/registry.test.ts proves every direct
+   * before anyone had thought about it. apps/api/src/modules/efs/registry.test.ts proves every direct
    * capability declares one, in "declares vendorMovesFields whenever it dispatches a direct op".
    */
   vendorMovesFields: OVERRIDE_FIELDS,

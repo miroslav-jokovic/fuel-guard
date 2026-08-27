@@ -111,7 +111,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
 | `performance` | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
 | `compliance` (DQF, binders) | (reads `evidence`; binder rendering in `services/dqBinder/`) | compliance |
-| `recruiting` | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
+| `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
 | `hazmat` | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |
 | `dispatch` | (reads `loads`) | dispatch |
 | `messaging` | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |

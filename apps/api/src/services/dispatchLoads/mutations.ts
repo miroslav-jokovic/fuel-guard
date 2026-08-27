@@ -10,7 +10,7 @@ import {
   RETURN_TO_DUTY_BLOCK,
 } from "@silvicom/shared";
 import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "./shared.js";
-import { returnToDutyBlocked } from "../returnToDuty.js";
+import { returnToDutyBlocked } from "../../modules/recruiting/index.js";
 
 /**
  * Dispatch-side writes + lifecycle transitions (P2 split). Each transition names its action, stamps its
