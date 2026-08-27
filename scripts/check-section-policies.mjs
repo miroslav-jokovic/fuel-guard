@@ -57,7 +57,7 @@ const MODULE_SECTIONS = {
   performance: "fleet",
   evidence: "safety",
   loads: "dispatch",
-  financial: null, // becomes "accounting" at program phase P4
+  financial: "accounting", // mapped at P4.1 — the finance sections are born checked
   messaging: null,
   "driver-app": null,
   recruiting: "recruitment",

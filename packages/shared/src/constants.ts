@@ -12,6 +12,7 @@ export const USER_ROLES = [
   "dispatcher",
   "safety_manager",
   "recruiter",
+  "accountant",
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
@@ -24,6 +25,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   dispatcher: "Dispatcher",
   safety_manager: "Safety manager",
   recruiter: "Recruiter",
+  accountant: "Accountant",
 };
 
 /** Fuel types (mirrors the `fuel_type` Postgres enum). */

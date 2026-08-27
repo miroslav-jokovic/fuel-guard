@@ -15,13 +15,14 @@ describe("shared constants", () => {
     expect(APP_NAME).toBe("Silvicom 360");
   });
 
-  it("defines the seven user roles (incl. the department roles and the recruiter)", () => {
+  it("defines the eight user roles (incl. the department roles, the recruiter and the accountant)", () => {
     // The count is asserted on purpose: every role is a Postgres enum value that CANNOT be dropped
     // (no ALTER TYPE ... DROP VALUE), so adding one is a one-way door and should not pass unnoticed.
-    expect(USER_ROLES).toHaveLength(7);
+    expect(USER_ROLES).toHaveLength(8); // accountant added 2026-08-27 (0266, D-SEP7) — deliberately, one-way door and all
     expect(USER_ROLES).toContain("admin");
     expect(USER_ROLES).toContain("dispatcher");
     expect(USER_ROLES).toContain("safety_manager");
+    expect(USER_ROLES).toContain("accountant");
     expect(USER_ROLES).toContain("recruiter");
   });
 

@@ -1,0 +1,25 @@
+-- 0266 — the `accountant` user_role enum value, and NOTHING ELSE.
+--
+-- Isolated per the 0077/0210 convention: Postgres will not let a newly-added enum value be USED
+-- in the transaction that adds it, and every policy in this repo compares auth_role() as TEXT
+-- anyway — so this file is the value, and what an accountant may DO lives entirely in the
+-- section-capability matrix (packages/shared/src/auth.ts), which ships in the same PR:
+-- `accounting: manage`, `billing: manage`, `maintenance: view`, `fuel: view`, everything else
+-- none (D-SEP7, docs/plans/architecture/SEPARATION-PROGRAM-PLAN.md; the owner's 2026-08-27
+-- ruling — one role, minimal irreversible surface).
+--
+-- The finance tables themselves gain NO client policies here or ever under D-SEP7: they stay
+-- deny-all, and the accounting/billing surfaces of phase P5 read through the API with
+-- requireRole(...rolesThatManage(section)) — the RLS wall is not how finance is served.
+--
+-- §6 Q1 ANSWERED HERE (revocation latency): the accountant's authority rides the JWT claim like
+-- every org role — a demotion takes effect on token refresh, consistent with the whole role
+-- system. The platform_admins fresh-lookup pattern (0070) stays reserved for cross-tenant
+-- god-mode; revisit only if a finance incident demands instant revocation (the fallback the
+-- program plan recorded, now taken).
+--
+-- ONE-WAY DOOR: Postgres has no ALTER TYPE ... DROP VALUE. This value cannot be removed without
+-- recreating the type and rewriting every column that uses it. The ACCESS it carries stays
+-- adjustable in the matrix; the value itself does not.
+
+alter type user_role add value if not exists 'accountant';
