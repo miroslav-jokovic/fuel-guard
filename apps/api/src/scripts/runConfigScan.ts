@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
-import { scanConfig } from "../efs/harness/configScan.js";
+import { scanConfig } from "../modules/efs/harness/configScan.js";
 
 const ROOT = new URL("../../../../", import.meta.url).pathname;
 const env = Object.fromEntries(

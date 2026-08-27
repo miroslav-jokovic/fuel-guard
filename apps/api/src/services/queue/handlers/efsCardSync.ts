@@ -1,6 +1,6 @@
-import { getEfsSoapCredentials } from "../../efsSoapCredentials.js";
-import { syncEfsCards } from "../../efsCardMirror.js";
-import { resolveUnresolvedMutations } from "../../efsCardUnresolved.js";
+import { getEfsSoapCredentials } from "../../../modules/efs/services/efsSoapCredentials.js";
+import { syncEfsCards } from "../../../modules/efs/services/efsCardMirror.js";
+import { resolveUnresolvedMutations } from "../../../modules/efs/services/efsCardUnresolved.js";
 import type { JobHandler } from "../types.js";
 
 /**

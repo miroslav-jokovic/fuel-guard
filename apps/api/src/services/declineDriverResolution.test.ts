@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../testing/supabaseRecorder.js";
-import { cardRefHmac } from "./efsCardMirror.js";
+import { cardRefHmac } from "../modules/efs/index.js";
 import { resolveDeclineDrivers } from "./declineDriverResolution.js";
 import { testEnv } from "../testing/testEnv.js";
 
