@@ -12,10 +12,10 @@ import {
   type OdometerHygieneCluster,
   type CapacityVehicleRow,
 } from "@silvicom/shared";
-import { getComplianceOverview } from "../modules/evidence/index.js";
-import type { Env } from "../env.js";
-import { callClaudeText } from "../lib/anthropic.js";
-import { makeSender } from "../lib/mailer.js";
+import { getComplianceOverview } from "../evidence/index.js";
+import type { Env } from "../../env.js";
+import { callClaudeText } from "../../lib/anthropic.js";
+import { makeSender } from "../../lib/mailer.js";
 
 const WINDOW_DAYS = 7;
 

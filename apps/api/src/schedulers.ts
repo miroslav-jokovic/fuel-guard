@@ -1,9 +1,9 @@
 import type { Env } from "./env.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
-import { reclaimInterruptedJobs } from "./services/jobs.js";
+import { reclaimInterruptedJobs } from "./modules/org/index.js";
 import { startSamsaraScheduler } from "./modules/samsara/index.js";
 import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
-import { startDigestScheduler } from "./services/digestScheduler.js";
+import { startDigestScheduler } from "./modules/org/index.js";
 import { startDqAlertScheduler } from "./modules/evidence/index.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./modules/efs/services/efsIngestScheduler.js";
@@ -13,7 +13,7 @@ import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessin
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./modules/fuel/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
-import { startStorageReconcileScheduler } from "./services/storageReconcileScheduler.js";
+import { startStorageReconcileScheduler } from "./modules/org/index.js";
 import { startNotificationPushScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";

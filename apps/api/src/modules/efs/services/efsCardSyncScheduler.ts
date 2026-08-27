@@ -2,7 +2,7 @@ import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../services/queue/dispatch.js";
 import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
-import { lastDoneJob } from "../../../services/jobs.js";
+import { lastDoneJob } from "../../org/index.js";
 
 /**
  * Keep the EFS card mirror fresh.

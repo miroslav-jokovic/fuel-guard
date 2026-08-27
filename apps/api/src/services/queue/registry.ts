@@ -1,4 +1,4 @@
-import type { JobKind } from "../jobs.js";
+import type { JobKind } from "../../modules/org/index.js";
 import type { JobHandler } from "./types.js";
 
 /**

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import type { Env } from "../../env.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { generateAndSendDigest } from "./digest.js";
 
 const WEEK_MS = 7 * 86400_000;

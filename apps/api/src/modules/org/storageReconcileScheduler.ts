@@ -1,5 +1,5 @@
-import type { Env } from "../env.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import type { Env } from "../../env.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import {
   reconcileApplicationCaptureOrphans,
   reconcileComplianceDocOrphans,

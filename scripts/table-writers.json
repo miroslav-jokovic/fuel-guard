@@ -69,14 +69,14 @@
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/fuel/driverAttribution.ts",
+    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
     "apps/api/src/modules/roster/routes/drivers.ts",
+    "apps/api/src/modules/samsara/hosSync.ts",
     "apps/api/src/modules/samsara/samsaraDriverSync.ts",
-    "apps/api/src/routes/invites.ts",
-    "apps/api/src/routes/members.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts",
-    "apps/api/src/services/hosSync.ts",
     "apps/web/src/composables/useDrivers.ts"
   ],
   "efs_capability_promotions": [
@@ -181,7 +181,7 @@
     "apps/api/src/modules/fuel/driverAttribution.ts",
     "apps/api/src/modules/fuel/fillWeather.ts",
     "apps/api/src/modules/fuel/fuelStationResolve.ts",
-    "apps/api/src/routes/audit.ts",
+    "apps/api/src/modules/org/routes/audit.ts",
     "apps/web/src/features/fuel/useFuelLog.ts"
   ],
   "geocode_cache": [
@@ -202,7 +202,7 @@
     "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
   "hos_duty_segments": [
-    "apps/api/src/services/hosSync.ts"
+    "apps/api/src/modules/samsara/hosSync.ts"
   ],
   "idle_events": [
     "apps/api/src/modules/idle/idleSync.ts"
@@ -231,11 +231,11 @@
     "apps/api/src/services/queue/handlers/samsara.ts"
   ],
   "invites": [
-    "apps/api/src/modules/roster/routes/drivers.ts",
-    "apps/api/src/routes/invites.ts"
+    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/roster/routes/drivers.ts"
   ],
   "jobs": [
-    "apps/api/src/services/jobs.ts"
+    "apps/api/src/modules/org/jobs.ts"
   ],
   "load_events": [
     "apps/api/src/modules/loads/dispatchLoads/shared.ts",
@@ -253,9 +253,9 @@
     "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "memberships": [
-    "apps/api/src/modules/roster/driverCredentials.ts",
-    "apps/api/src/routes/invites.ts",
-    "apps/api/src/routes/members.ts"
+    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/routes/members.ts",
+    "apps/api/src/modules/roster/driverCredentials.ts"
   ],
   "message_reports": [
     "apps/api/src/modules/messaging/routes/messages.ts"
@@ -284,7 +284,7 @@
     "apps/admin-api/src/lib/orgs.ts"
   ],
   "organizations": [
-    "apps/api/src/services/digestScheduler.ts",
+    "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
   ],
   "pattern_sweep_requests": [

@@ -1,5 +1,5 @@
-import type { Env } from "../env.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import type { Env } from "../../env.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 
 // Columns/tables that recent features depend on. If a deploy ships ahead of its migration, these
 // selects fail — which is exactly how the AI verifier silently broke. Checking on boot turns that into

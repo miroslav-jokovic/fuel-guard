@@ -151,6 +151,16 @@ const API_ALLOW = new Set([
   "driver-app -> messaging",
   // The hazmat me-surface resolves the calling driver the same way the main one does.
   "hazmat -> driver-app",
+  // Every scheduler leans on org's job bookkeeping (start/finish/heartbeat — the SKIP LOCKED
+  // contract): the platform module is the one everything may depend on, and nothing in it
+  // depends back except through the fabric below.
+  "efs -> org",
+  "fuel -> org",
+  "roster -> org",
+  "samsara -> org",
+  // The daily digest reports compliance posture; a member change notifies through the fabric.
+  "org -> evidence",
+  "org -> messaging",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

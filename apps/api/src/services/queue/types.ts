@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
-import type { JobKind } from "../jobs.js";
+import type { JobKind } from "../../modules/org/index.js";
 
 /**
  * Durable job queue (WQ0). The `QueueDriver` seam (plan Q10) hides the queue mechanism from handlers so

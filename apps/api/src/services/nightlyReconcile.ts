@@ -7,7 +7,7 @@ import { syncCardAssignments } from "../modules/fuel/index.js";
 import { reconcileAnomalyFlags } from "../modules/anomalies/index.js";
 import { backfillFillWeather } from "../modules/fuel/index.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
-import { startJob, finishJob, latestJob, startJobHeartbeat, scoringDedupKey, JobConflictError } from "./jobs.js";
+import { startJob, finishJob, latestJob, startJobHeartbeat, scoringDedupKey, JobConflictError } from "../modules/org/index.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
