@@ -1,0 +1,364 @@
+{
+  "anomalies": [
+    "apps/api/src/services/scoring/cardMultiReconcile.ts"
+  ],
+  "anomaly_thresholds": [
+    "apps/web/src/features/settings/useThresholds.ts"
+  ],
+  "applicant_dispositions": [
+    "apps/api/src/routes/recruitment/dispositions.ts"
+  ],
+  "application_invitations": [
+    "apps/api/src/routes/recruitment/applicationInvites.ts"
+  ],
+  "audit_logs": [
+    "apps/admin-api/src/lib/impersonation.ts",
+    "apps/api/src/lib/audit.ts"
+  ],
+  "case_pattern_reports": [
+    "apps/api/src/services/entityRisk.ts"
+  ],
+  "declined_transactions": [
+    "apps/api/src/services/declineDriverResolution.ts",
+    "apps/api/src/services/declinedScoring.ts",
+    "apps/api/src/services/efsIngestReject.ts"
+  ],
+  "device_push_tokens": [
+    "apps/api/src/routes/notifications.ts",
+    "apps/api/src/services/notify.ts"
+  ],
+  "documents": [
+    "apps/api/src/services/applicationPdf/file.ts",
+    "apps/api/src/services/compliance.ts",
+    "apps/api/src/services/documentDerivatives.ts",
+    "apps/api/src/services/pspOrder.ts"
+  ],
+  "dq_exports": [
+    "apps/api/src/services/dqExports.ts"
+  ],
+  "driver_app_feature_overrides": [
+    "apps/api/src/services/driverAppSettings.ts"
+  ],
+  "driver_app_features": [
+    "apps/api/src/services/driverAppSettings.ts"
+  ],
+  "driver_authorizations": [
+    "apps/api/src/routes/recruitment/authorizations.ts",
+    "apps/api/src/scripts/seedPspQaDrivers.ts"
+  ],
+  "driver_employment_history": [
+    "apps/api/src/routes/recruitment/employment.ts",
+    "apps/api/src/services/employerInquiry.ts"
+  ],
+  "driver_performance_settings": [
+    "apps/web/src/features/drivers/useDriverPerformanceSettings.ts"
+  ],
+  "driver_performance_weeks": [
+    "apps/api/src/services/driverPerformanceSnapshot.ts"
+  ],
+  "driver_scores": [
+    "apps/api/src/services/driverScoreSync.ts"
+  ],
+  "driver_time_off": [
+    "apps/api/src/services/tmsIngest.ts"
+  ],
+  "driver_vehicle_assignments": [
+    "apps/api/src/services/idleSync.ts",
+    "apps/api/src/services/samsaraVehicleSync.ts"
+  ],
+  "drivers": [
+    "apps/api/src/routes/invites.ts",
+    "apps/api/src/routes/members.ts",
+    "apps/api/src/routes/roster/archive.ts",
+    "apps/api/src/routes/roster/drivers.ts",
+    "apps/api/src/scripts/seedPspQaDrivers.ts",
+    "apps/api/src/services/driverAttribution.ts",
+    "apps/api/src/services/driverCredentials.ts",
+    "apps/api/src/services/efsIngest.ts",
+    "apps/api/src/services/hosSync.ts",
+    "apps/api/src/services/samsaraDriverSync.ts",
+    "apps/web/src/composables/useDrivers.ts"
+  ],
+  "efs_capability_promotions": [
+    "apps/api/src/routes/fuelCards/promote.ts",
+    "apps/api/src/routes/fuelCards/prove.ts"
+  ],
+  "efs_capability_proofs": [
+    "apps/api/src/routes/fuelCards/prove.ts"
+  ],
+  "efs_card_control_approvers": [
+    "apps/api/src/routes/fuelCards/settings.ts"
+  ],
+  "efs_card_control_settings": [
+    "apps/api/src/routes/fuelCards/inventory.ts",
+    "apps/api/src/routes/fuelCards/scan.ts",
+    "apps/api/src/routes/fuelCards/settings.ts",
+    "apps/api/src/routes/fuelCards/writeProbe.ts",
+    "apps/api/src/services/efsSoapCredentials.ts"
+  ],
+  "efs_card_mutations": [
+    "apps/api/src/efs/orchestrator/ledger.ts",
+    "apps/api/src/services/efsCardUnresolved.ts"
+  ],
+  "efs_cards": [
+    "apps/api/src/services/efsCardLinking.ts",
+    "apps/api/src/services/efsCardMirror.ts",
+    "apps/api/src/services/efsCardTombstone.ts"
+  ],
+  "efs_processing_runs": [
+    "apps/api/src/services/efsProcessing.ts"
+  ],
+  "efs_soap_client_certs": [
+    "apps/api/src/services/efsSoapClientCerts.ts"
+  ],
+  "efs_soap_credentials": [
+    "apps/api/src/scripts/backfillEfsSoapPasswords.ts",
+    "apps/api/src/services/efsSoapCertExpiry.ts",
+    "apps/api/src/services/efsSoapCredentials.ts"
+  ],
+  "efs_transactions": [
+    "apps/api/src/services/efsIngest.ts"
+  ],
+  "employer_inquiries": [
+    "apps/api/src/services/employerInquiry.ts"
+  ],
+  "fuel_cards": [
+    "apps/api/src/services/cardAssignments.ts"
+  ],
+  "fuel_discount_rules": [
+    "apps/web/src/features/fueling/useDiscountRules.ts"
+  ],
+  "fuel_events": [
+    "apps/api/src/services/fuelEvents.ts"
+  ],
+  "fuel_exception_events": [
+    "apps/api/src/services/fuelExceptions.ts"
+  ],
+  "fuel_exceptions": [
+    "apps/api/src/services/fuelExceptions.ts"
+  ],
+  "fuel_plans": [
+    "apps/api/src/routes/fueling/plans.ts",
+    "apps/api/src/services/fuelPlanHistory.ts"
+  ],
+  "fuel_price_days": [
+    "apps/api/src/services/fuelPriceDaySync.ts"
+  ],
+  "fuel_prices": [
+    "apps/api/src/services/pilotPriceIngest.ts"
+  ],
+  "fuel_prices_posted": [
+    "apps/api/src/services/lovesIngest.ts",
+    "apps/api/src/services/postedPriceIngest.ts",
+    "apps/api/src/services/roadRangerIngest.ts"
+  ],
+  "fuel_recon_runs": [
+    "apps/api/src/services/fuelReconRun.ts"
+  ],
+  "fuel_spend_days": [
+    "apps/api/src/services/fuelSpendRollup.ts"
+  ],
+  "fuel_statement_lines": [
+    "apps/api/src/services/fuelStatementIngest.ts"
+  ],
+  "fuel_statements": [
+    "apps/api/src/services/fuelStatementIngest.ts"
+  ],
+  "fuel_stations": [
+    "apps/api/src/services/kwikTripIngest.ts",
+    "apps/api/src/services/lovesIngest.ts",
+    "apps/api/src/services/pilotLocationsIngest.ts",
+    "apps/api/src/services/pilotPriceIngest.ts",
+    "apps/api/src/services/roadRangerIngest.ts"
+  ],
+  "fuel_transactions": [
+    "apps/api/src/routes/audit.ts",
+    "apps/api/src/services/anomalyFlagReconcile.ts",
+    "apps/api/src/services/driverAttribution.ts",
+    "apps/api/src/services/efsIngest.ts",
+    "apps/api/src/services/efsIngestShared.ts",
+    "apps/api/src/services/efsSync.ts",
+    "apps/api/src/services/fillWeather.ts",
+    "apps/api/src/services/fuelStationResolve.ts",
+    "apps/api/src/services/scoring/context.ts",
+    "apps/api/src/services/scoring/scoreTransaction.ts",
+    "apps/web/src/features/fuel/useFuelLog.ts"
+  ],
+  "geocode_cache": [
+    "apps/api/src/services/geocode.ts",
+    "apps/api/src/services/pilotPriceIngest.ts",
+    "apps/api/src/services/roadRangerIngest.ts"
+  ],
+  "hazmat_documents": [
+    "apps/api/src/services/hazmatLoads.ts"
+  ],
+  "hazmat_loads": [
+    "apps/api/src/services/hazmatLoads.ts"
+  ],
+  "hazmat_policies": [
+    "apps/api/src/services/hazmatLoads.ts"
+  ],
+  "hazmat_reviews": [
+    "apps/api/src/services/hazmatLoads.ts"
+  ],
+  "hos_duty_segments": [
+    "apps/api/src/services/hosSync.ts"
+  ],
+  "idle_events": [
+    "apps/api/src/services/idleSync.ts"
+  ],
+  "idle_park_sessions": [
+    "apps/api/src/services/idleCapabilitySync.ts"
+  ],
+  "idle_rollup_days": [
+    "apps/api/src/services/idleRollupPersistence.ts"
+  ],
+  "idle_settings": [
+    "apps/api/src/services/idleSync.ts",
+    "apps/web/src/features/fleet/useIdleSettings.ts"
+  ],
+  "idle_telemetry_windows": [
+    "apps/api/src/services/idleTelemetrySync.ts"
+  ],
+  "imports": [
+    "apps/api/src/services/efsIngestReject.ts",
+    "apps/api/src/services/efsIngestShared.ts",
+    "apps/api/src/services/efsSync.ts"
+  ],
+  "integration_credentials": [
+    "apps/api/src/lib/samsaraToken.ts",
+    "apps/api/src/services/queue/handlers/samsara.ts",
+    "apps/api/src/services/samsaraScheduler.ts"
+  ],
+  "invites": [
+    "apps/api/src/routes/invites.ts",
+    "apps/api/src/routes/roster/drivers.ts"
+  ],
+  "jobs": [
+    "apps/api/src/services/jobs.ts"
+  ],
+  "load_events": [
+    "apps/api/src/services/dispatchLoads/shared.ts",
+    "apps/api/src/services/tmsLoadIngest.ts"
+  ],
+  "load_external_payloads": [
+    "apps/api/src/services/tmsLoadIngest.ts"
+  ],
+  "load_stops": [
+    "apps/api/src/services/dispatchLoads/shared.ts",
+    "apps/api/src/services/tmsLoadIngest.ts"
+  ],
+  "loads": [
+    "apps/api/src/services/dispatchLoads/mutations.ts",
+    "apps/api/src/services/tmsLoadIngest.ts"
+  ],
+  "memberships": [
+    "apps/api/src/routes/invites.ts",
+    "apps/api/src/routes/members.ts",
+    "apps/api/src/services/driverCredentials.ts"
+  ],
+  "message_reports": [
+    "apps/api/src/routes/messages.ts"
+  ],
+  "message_threads": [
+    "apps/api/src/services/messages.ts"
+  ],
+  "messages": [
+    "apps/api/src/services/messages.ts"
+  ],
+  "notification_events": [
+    "apps/api/src/services/notify.ts"
+  ],
+  "notification_preferences": [
+    "apps/api/src/routes/notifications.ts"
+  ],
+  "notification_reads": [
+    "apps/api/src/routes/notifications.ts"
+  ],
+  "org_integrations": [
+    "apps/admin-api/src/lib/members.ts",
+    "apps/api/src/routes/tmsRosterMaster.ts",
+    "apps/api/src/services/tmsIngest.ts"
+  ],
+  "org_modules": [
+    "apps/admin-api/src/lib/orgs.ts"
+  ],
+  "organizations": [
+    "apps/api/src/services/digestScheduler.ts",
+    "apps/web/src/composables/useOrgSettings.ts"
+  ],
+  "pattern_sweep_requests": [
+    "apps/api/src/services/patternSweepScheduler.ts",
+    "apps/api/src/services/queue/handlers/scoring.ts",
+    "apps/api/src/services/scoring/scoreTransaction.ts"
+  ],
+  "platform_admins": [
+    "apps/admin-api/src/lib/platformAdmins.ts"
+  ],
+  "platform_audit_log": [
+    "apps/admin-api/src/lib/audit.ts"
+  ],
+  "psp_requests": [
+    "apps/api/src/services/pspOrder.ts"
+  ],
+  "qualification_records": [
+    "apps/api/src/services/compliance.ts",
+    "apps/api/src/services/pspImport.ts",
+    "apps/api/src/services/pspOrder.ts"
+  ],
+  "route_fuel_settings": [
+    "apps/api/src/routes/fueling/networks.ts",
+    "apps/web/src/composables/useRouteFuelSettings.ts"
+  ],
+  "route_geometries": [
+    "apps/api/src/services/routeGeometry.ts"
+  ],
+  "samsara_ifta_fetches": [
+    "apps/api/src/services/samsaraIftaSync.ts"
+  ],
+  "samsara_ifta_jurisdiction_miles": [
+    "apps/api/src/services/samsaraIftaSync.ts"
+  ],
+  "scoring_attempts": [
+    "apps/api/src/services/scoring/persist.ts"
+  ],
+  "seven_day_statements": [
+    "apps/api/src/routes/roster/sevenDay.ts"
+  ],
+  "sms_consents": [
+    "apps/api/src/services/applicationSms.ts"
+  ],
+  "station_geocode_learned": [
+    "apps/api/src/services/stationGeocodeLearning.ts"
+  ],
+  "support_impersonation_grants": [
+    "apps/admin-api/src/lib/impersonation.ts"
+  ],
+  "thread_participants": [
+    "apps/api/src/services/messages.ts"
+  ],
+  "tms_movements": [
+    "apps/api/src/services/tmsIngest.ts"
+  ],
+  "trailers": [
+    "apps/api/src/services/reeferPairing.ts",
+    "apps/api/src/services/samsaraTrailerSync.ts",
+    "apps/web/src/composables/useTrailers.ts"
+  ],
+  "vehicle_engine_days": [
+    "apps/api/src/services/idleCapabilitySync.ts"
+  ],
+  "vehicles": [
+    "apps/api/src/services/idleCapabilitySync.ts",
+    "apps/api/src/services/samsaraVehicleSync.ts",
+    "apps/api/src/services/scoring/learnVehicle.ts",
+    "apps/api/src/services/scoring/persist.ts",
+    "apps/web/src/composables/useDrivers.ts",
+    "apps/web/src/composables/useVehicles.ts",
+    "apps/web/src/features/fleet/useVehicleSetupImport.ts"
+  ],
+  "weather_cache": [
+    "apps/api/src/services/idleSessionWeather.ts",
+    "apps/api/src/services/weatherBackfill.ts"
+  ]
+}
