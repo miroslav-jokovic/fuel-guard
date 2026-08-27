@@ -14,12 +14,13 @@ import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
-import { registerAllHandlers } from "./services/queue/handlers/index.js";
+import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
-import { reportsRouter } from "./routes/reports.js";
+import { reportsRouter, aiRouter } from "./modules/insights/index.js";
+import { iftaRouter } from "./modules/ifta/index.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { tmsRosterMasterRouter } from "./modules/mcleod/index.js";
@@ -39,7 +40,6 @@ import { fuelCardsRouter } from "./modules/efs/routes/read.js";
 import { fuelCardVendorRateLimitKey, skipFuelCardVendorRateLimit } from "./modules/efs/routes/vendorRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
-import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./modules/org/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
 import { hazmatRouter } from "./modules/hazmat/index.js";
@@ -146,6 +146,7 @@ function mountBodyParsers(app: Express): void {
   // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
   // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
   app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
+  app.use("/api/transactions/import-preview", express.json({ limit: "25mb" }));
   // A weekly Pilot statement is ~30k positioned words plus the source PDF (~370 KB → ~500 KB base64),
   // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
   app.use("/api/fueling/statements", express.json({ limit: "25mb" }));
@@ -314,6 +315,7 @@ export function createApp(env: Env): Express {
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
+  app.use("/api/ifta", iftaRouter());
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.

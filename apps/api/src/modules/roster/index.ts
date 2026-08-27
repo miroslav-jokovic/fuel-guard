@@ -27,3 +27,4 @@ export { rosterDriversRouter } from "./routes/drivers.js";
 export { rosterArchiveRouter } from "./routes/archive.js";
 export { rosterCredentialsRouter } from "./routes/credentials.js";
 export { rosterSevenDayRouter } from "./routes/sevenDay.js";
+export { recordInferredTrailerPairing } from "./trailerPairing.js";

@@ -18,7 +18,7 @@ import {
 } from "../services/efsCardMirror.js";
 import { loadCardControlAccess } from "../services/efsCardControlAccess.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 
 /**
  * Reading EFS cards. No writes here — see the docblock in efsCardOps.ts for why the write half waits

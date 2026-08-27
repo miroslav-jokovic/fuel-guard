@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EngineStatesFetcher, SamsaraEngineVehicleRecord } from "../../lib/samsara.js";
+import type { EngineStatesFetcher, SamsaraEngineVehicleRecord } from "../samsara/lib/samsara.js";
 import { syncIdleCapabilities } from "./idleCapabilitySync.js";
 import { testEnv } from "../../testing/testEnv.js";
 
 const tokenLoader = vi.hoisted(() => ({ loadSamsaraToken: vi.fn() }));
-vi.mock("../../lib/samsaraToken.js", () => tokenLoader);
+vi.mock("../samsara/lib/samsaraToken.js", () => tokenLoader);
 
 interface VehicleRow {
   id: string;

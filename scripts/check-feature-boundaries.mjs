@@ -108,6 +108,22 @@ const API_ALLOW = new Set([
   "idle -> fuel",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
   "anomalies -> samsara",
+  // GPS co-location pairing: the collector infers which tractor a trailer travels with, but the
+  // trailers write goes through roster's recordInferredTrailerPairing — the owner holds the
+  // never-overwrite-manual invariant, the collector holds the vendor fetch (P1.2, D-SEP1).
+  "samsara -> roster",
+  // The reports surface triggers the weekly digest through org's index and reads detection
+  // health through anomalies' index — insights is a reader of owners' interfaces by charter
+  // (P1.6); it owns no tables and writes none.
+  "insights -> org",
+  "insights -> anomalies",
+  // The planner reads live truck state (fuel level, HOS, location) through the collector's
+  // typed fetchers — routing's stop-selection math needs where the truck IS. The deeper
+  // vendor/math split inside fuelPlanning is the routing module's named debt (P1.7).
+  "routing -> samsara",
+  // Recon resolves a fill's station coordinates through routing's geocoder — a support
+  // service by charter; the pair is deliberately narrow (geocodeStation only).
+  "samsara -> routing",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).

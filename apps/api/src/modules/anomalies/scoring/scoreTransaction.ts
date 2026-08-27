@@ -41,7 +41,7 @@ import {
   scoringResultHash,
   startScoringAttempt,
 } from "./persist.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 
 type RuleInputs = {
   consumption: Awaited<ReturnType<typeof loadConsumptionContext>>;

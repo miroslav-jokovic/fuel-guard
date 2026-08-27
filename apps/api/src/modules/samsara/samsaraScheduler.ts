@@ -15,7 +15,7 @@ import { syncIdleRollup } from "../idle/index.js";
 import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../org/index.js";
-import { enqueueJob } from "../../services/queue/enqueue.js";
+import { enqueueJob } from "../../queue/enqueue.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —

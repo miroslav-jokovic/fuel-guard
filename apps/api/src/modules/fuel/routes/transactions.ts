@@ -6,9 +6,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { scoreWithCascade } from "../../anomalies/index.js";
-import { syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
+import { previewReport, syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
 import { notifyForTransaction } from "../../messaging/index.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 import { buildIngestSource } from "../../efs/index.js";
 import {
   startJob, finishJob, startJobHeartbeat, scoringDedupKey, JobConflictError,
@@ -128,6 +128,33 @@ export function transactionsRouter(): Router {
         orgId, payload: { orgId, actorId }, requestedBy: actorId,
       });
       jobResponse(res, result);
+    }),
+  );
+
+  // P1.9 (D-SEP11, 2026-08-27): the review-preview path. The browser decodes the file and POSTs
+  // the raw rows; the efs collector parses and answers with the dedup verdict — the browser no
+  // longer runs the report parsers or probes duplicates over PostgREST (that probe was the one
+  // dynamic .from() in the codebase). Read-only: nothing is written until /import-report.
+  router.post(
+    "/import-preview",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const parsed = z
+        .object({
+          fileHash: z.string().regex(/^[0-9a-f]{64}$/),
+          headers: z.array(z.string()).min(1).max(300),
+          rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).max(50_000),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Invalid preview payload"));
+        return;
+      }
+      const preview = await previewReport(admin, req.auth!.orgId!, parsed.data);
+      res.json({ ok: true, ...preview });
     }),
   );
 

@@ -13,9 +13,9 @@ import {
   type VehicleView,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { makeSamsaraFetcher, type SamsaraFetcher } from "../../lib/samsara.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
-import { geocodeStation, type Coords } from "../../services/geocode.js";
+import { makeSamsaraFetcher, type SamsaraFetcher } from "./lib/samsara.js";
+import { loadSamsaraToken } from "./lib/samsaraToken.js";
+import { geocodeStation, type Coords } from "../routing/index.js";
 
 /** Injectable geocoder so tests can run without a network provider. */
 export type StationGeocoder = (station: { name: string | null; city: string | null; state: string | null }) => Promise<Coords | null>;

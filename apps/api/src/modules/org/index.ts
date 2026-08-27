@@ -8,7 +8,7 @@
  * the job-queue bookkeeping every scheduler leans on (start/finish/heartbeat/reclaim — the
  * FOR UPDATE SKIP LOCKED contract), data retention (which knows what it may NEVER touch —
  * RETENTION_FORBIDDEN is evidence's law, enforced here), the daily digest, the boot-time schema
- * probe, and storage backup/reconcile. The queue RUNTIME (`services/queue/`) deliberately stays
+ * probe, and storage backup/reconcile. The queue RUNTIME (`queue/`) deliberately stays
  * outside: it is the process fabric every module's handlers register into, not one module's own.
  */
 export { invitesRouter, deliverInvite } from "./routes/invites.js";
@@ -21,3 +21,4 @@ export { generateAndSendDigest } from "./digest.js";
 export { startDigestScheduler } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
+export { stampIntegrationSynced } from "./integrationSync.js";

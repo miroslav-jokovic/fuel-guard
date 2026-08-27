@@ -9,8 +9,8 @@ import {
   parseEngineStates,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
-import { makeSamsaraEngineStatesFetcher, type EngineStatesFetcher } from "../../lib/samsara.js";
+import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
+import { makeSamsaraEngineStatesFetcher, type EngineStatesFetcher } from "../samsara/lib/samsara.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 

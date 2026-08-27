@@ -5,8 +5,6 @@ import {
   XMarkIcon,
 } from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useDriversQuery } from "@/composables/useDrivers";
 import { analyzeImport, useCommitImport, type ImportPreview } from "@/features/import/useImport";
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
@@ -23,8 +21,6 @@ import StationDataCard from "@/features/fueling/StationDataCard.vue";
 
 const activeTab = ref<"efs" | "prices">("efs");
 
-const { data: vehicles } = useVehiclesQuery();
-const { data: drivers } = useDriversQuery();
 const commit = useCommitImport();
 
 const toast = useToastStore();
@@ -39,7 +35,7 @@ async function onFiles(files: File[]) {
   try {
     for (const file of files) {
       try {
-        const p = await analyzeImport(file, vehicles.value ?? [], drivers.value ?? []);
+        const p = await analyzeImport(file);
         if (p.kind === "unknown") {
           toast.warning(
             "Unrecognized file",
@@ -122,11 +118,11 @@ const rejColumns: DataTableColumn[] = [
   { key: "error_description", label: "Description", cellClass: "text-ink-secondary" },
 ];
 const previewRows = (p: ImportPreview) =>
-  (p.kind === "transaction" ? (p.allLines ?? []) : (p.newDeclined ?? []))
+  (p.kind === "transaction" ? (p.previewLines ?? []) : (p.newDeclined ?? []))
     .slice(0, 10)
     .map((l, i) => ({ ...l, _key: String(i) }));
 const previewTotal = (p: ImportPreview) =>
-  p.kind === "transaction" ? p.allLines.length : p.newDeclined.length;
+  p.kind === "transaction" ? p.allLinesCount : p.newDeclined.length;
 
 // ── repair: re-derive fuel events from the stored EFS lines ────────────────────────────────────────
 // The Transactions page reads the faithful EFS store; the dashboard reads derived fuel events. If the

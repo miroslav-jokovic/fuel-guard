@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { loadEntityRiskContext } from "../entityRisk.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 
 
 export function anomaliesRouter(): Router {

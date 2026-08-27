@@ -14,7 +14,7 @@ import {
   type IftaFuelPurchase, type IftaJurisdictionMiles, type IftaPosition, type MilesTieOut,
 } from "@silvicom/shared";
 import { milesFromMeters } from "@silvicom/shared";
-import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 
 export interface IftaQuarter {
   year: number;
@@ -61,17 +61,14 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<IftaPeriodData> => {
-      // `p_org` omitted deliberately: both functions are `security invoker` with
-      // `coalesce(p_org, auth_org_id())`, so a browser is scoped by its own JWT (D-FC1).
-      const args = { p_year: quarter.value.year, p_quarter: quarter.value.quarter };
-      const [jurisdictions, summaryRows] = await Promise.all([
-        supabase.rpc("ifta_period_jurisdictions", args),
-        supabase.rpc("ifta_period_summary", args),
-      ]);
-      if (jurisdictions.error) throw new Error(jurisdictions.error.message);
-      if (summaryRows.error) throw new Error(summaryRows.error.message);
+      // Served by the ifta API module since P1.10 (2026-08-27) — the browser no longer calls
+      // the period RPCs (and so no longer reads the samsara collector's staging) directly.
+      const r = await apiFetch<{ jurisdictions: Record<string, unknown>[]; summary: Record<string, unknown> | null }>(
+        `/api/ifta/period?year=${quarter.value.year}&quarter=${quarter.value.quarter}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the IFTA period");
 
-      const rows = (jurisdictions.data ?? []) as Record<string, unknown>[];
+      const rows = r.data.jurisdictions;
       const miles: IftaJurisdictionMiles[] = rows.map((r) => ({
         jurisdiction: String(r.jurisdiction),
         taxableMeters: num(r.taxable_meters),
@@ -85,7 +82,7 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
         .filter((r) => num(r.purchased_gallons) > 0)
         .map((r) => ({ jurisdiction: String(r.jurisdiction), gallons: num(r.purchased_gallons), tranDate: rateDate }));
 
-      const s = ((summaryRows.data ?? []) as Record<string, unknown>[])[0] ?? {};
+      const s = r.data.summary ?? {};
       const summary: IftaPeriodSummary = {
         odometerMiles: num(s.odometer_miles),
         odometerRejected: num(s.odometer_rejected),

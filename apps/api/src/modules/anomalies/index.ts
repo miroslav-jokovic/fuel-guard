@@ -28,6 +28,8 @@ export {
 export { scoreDeclinedImport, scoreDeclinedOrg } from "./declinedScoring.js";
 export { scoringHealth } from "./scoringHealth.js";
 export { startPatternSweepScheduler } from "./patternSweepScheduler.js";
+export { startRebuildOnBoot } from "./rebuildScheduler.js";
+export { markPatternSweepOutcome } from "./patternSweepRequests.js";
 export { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 export { anomaliesRouter } from "./routes/anomalies.js";
 export { runPatternSweep } from "./entityRisk.js";

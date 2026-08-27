@@ -7,7 +7,7 @@ import {
   type VehicleGpsSnapshot,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import {
   makeSamsaraHosLogsFetcher,
   makeSamsaraHosClocksFetcher,
@@ -15,7 +15,7 @@ import {
   type SamsaraHosLogsFetcher,
   type SamsaraHosClocksFetcher,
   type SamsaraGpsSnapshotFetcher,
-} from "../../lib/samsara.js";
+} from "./lib/samsara.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";
 import { IDLE_SOURCE_WINDOW_DAYS } from "../idle/index.js";
 

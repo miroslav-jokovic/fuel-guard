@@ -24,3 +24,4 @@ export { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 export { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 export { organizationTimezone } from "./idleCapabilitySync.js";
 export { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
+export { backfillTemperatures } from "./weatherBackfill.js";

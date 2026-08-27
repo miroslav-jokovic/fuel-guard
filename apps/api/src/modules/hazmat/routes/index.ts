@@ -34,7 +34,7 @@ import { computeCalc } from "../hazmatCalc.js";
 import { searchProducts } from "../hazmatProducts.js";
 import { notifyDriverOfOutcome } from "../hazmatNotify.js";
 import { gatherPacketData, renderPacketPdf } from "../defensePacket.js";
-import { reproduceRun } from "../../../services/reproduce.js";
+import { reproduceRun } from "../reproduce.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module

@@ -25,7 +25,8 @@ is how cross-tenant reads shipped before.
 - Schedulers: registered in `src/schedulers.ts`, pattern is env-flag → interval → per-org `last_*_at`
   dedupe (copy `digestScheduler.ts`). They run in exactly one process fleet-wide
   (`WORKER_ROLE`, `docs/WORKER-DEPLOYMENT.md`).
-- Queue handlers live in `src/services/queue/handlers/` and MUST be registered in `handlers/index.ts`;
+- The queue is platform infra at `src/queue/` (promoted from `services/queue/` 2026-08-27, program
+  step P1.4); handlers live in `src/queue/handlers/` and MUST be registered in `handlers/index.ts`;
   jobs are claimed with FOR UPDATE SKIP LOCKED, per-kind concurrency caps in `worker.ts`.
 - Notifications go through `notify()` → the `emit_notification` RPC (entitlement, mutes, quiet hours,
   dedupe key) — never insert notification rows by hand. Note: `notify()` reaches the driver app only;
