@@ -234,6 +234,10 @@ Sections: `APP_SECTIONS` grows `accounting`, `billing`, `maintenance`. Roles: `u
 
 ## §4 Execution protocol
 
+**Landing note (2026-08-27):** steps P0.3–P1.10 shipped as a reviewed stacked-PR chain
+(#312–#325) and landed on main in one merge (#326) after the stacked bases failed to retarget
+(see memory `stacked-pr-merge-trap`); each step's own PR holds its review record and CI run.
+
 RECRUITING-SYSTEM-PLAN §4 governs verbatim: resume ritual (read this doc top to bottom, then
 `git log -15`, `pnpm verify:live`, find the first non-DONE step); one step per
 `claude/<topic>` branch, PR to `main`, merge after CI; mark steps
@@ -252,26 +256,39 @@ pinned in advance. Program-specific additions:
 
 ### Phase 0 — Truth and gates (nothing moves until the seam is enforceable)
 
-- **P0.1 — Correct ARCHITECTURE.md and extend its matrices.** Fix the three stale "lives in"
+- **P0.1 — DONE 2026-08-27 (PR #310) — Correct ARCHITECTURE.md and extend its matrices.** Fix the three stale "lives in"
   entries (compliance → `modules/evidence/dqBinder`, dispatch → `modules/loads/dispatchLoads`,
   manual-uploads struck per D-SEP12); re-own `duty_equipment_segments` → `driver-app` and
   `driver_authorizations` → `recruiting` (§3.1–2); add the §1 table rows for `financial`,
   `accounting`, `billing`, `maintenance`, `posted-prices`; add a `layer` column to the
   ownership matrices; record D-SEP1..12 by reference. Done when: doc PR merged; no code.
-- **P0.2 — `scripts/table-modules.json` + `check-table-modules.mjs` (`lint:table-modules`).**
+- **P0.2 — DONE 2026-08-27 (PR #311) — `scripts/table-modules.json` + `check-table-modules.mjs` (`lint:table-modules`).**
+  What shipped: 114 tables owned across 19 modules; layer vocabulary grew a fourth value
+  (`infra` — credentials/caches/queues/counters fit none of the three planned layers); 70
+  measured out-of-owner writer sites grandfathered; bonus fix — the producers gate's DROP regex
+  matched rollback comments and had silently lost `efs_soap_credentials`/`efs_soap_client_certs`.
+  Verified by: gate + `--self-test` in CI (chained onto `lint:table-writers`).
   Every table gets `{module, layer}`; the gate fails (a) any table absent from the manifest,
   (b) any `table-writers.json` write site outside the owner module path that is not in the
   grandfather list (seeded with today's ~60), (c) any NEW migration whose tables span >1 module
   without a `-- cross-module-waiver:` header naming the reason. Done when: gate in CI, its
   self-test proves it can fail, grandfather list committed with counts in the PR body.
-- **P0.3 — Table-access gate.** Extend the boundary script (or sibling `check-table-access.mjs`)
+- **P0.3 — DONE 2026-08-27 (PR #312, landed via #326) — Table-access gate.**
+  What shipped: 21 raw tables sealed to collectors; 36 measured sites grandfathered; dynamic
+  `.from()` an error unless pinned (11 pins at seed, 10 after P1.9); new-migration SQL touching
+  raw tables requires a `raw-access-waiver:` line. Verified by: gate + self-test in CI
+  (chained onto `lint:boundaries`). Extend the boundary script (or sibling `check-table-access.mjs`)
   to scan ALL of `apps/api/src`, `apps/web/src`, `apps/admin-api/src` for `.from("…")` /
   `.rpc("…")` literals AND migration SQL function bodies, resolving each against the manifest:
   `raw`-layer tables readable only inside the owning module; `derived` tables writable only by
   their owner. Dynamic `.from(variable)` is flagged as an error unless allow-listed (§3.12).
   Grandfather = the audited 39+1 sites + SQL offenders (`ifta_period_*`). Done when: gate in
   CI, ratchet documented, `pnpm lint` green.
-- **P0.4 ∥ — Matrix↔SQL sync gate (`lint:section-policies`).** Asserts every RLS policy role
+- **P0.4 — DONE 2026-08-27 (PR #313, landed via #326) — Matrix↔SQL sync gate (`lint:section-policies`).**
+  Deviation, stated in the PR: the route-mount half ("every mounted router carries a
+  requireRole") is NOT in this gate — a static mount scan pinned genuinely verb-gated routers
+  as auth-only, and a ledger that lies is worse than none (0212's lesson). It moves to P4.2 as
+  a runtime routeAuth.test extension. Chained onto `lint:rls`. Asserts every RLS policy role
   list that names roles equals the `rolesThatManage`/`rolesThatCanView` set for the section the
   table's module maps to (mapping lives in the manifest), and that every mounted router carries
   a `requireRole`. Existing deviations grandfathered. This is the gate D-SEP7 depends on;
@@ -280,45 +297,83 @@ pinned in advance. Program-specific additions:
 
 ### Phase 1 — Close the code-layer seam (moves only, no schema)
 
-- **P1.1 ∥ — Warm-ups:** `services/reproduce.ts` → `modules/hazmat`;
+- **P1.1 — DONE 2026-08-27 (PR #314) — Warm-ups:** `services/reproduce.ts` → `modules/hazmat`;
   `services/rebuildScheduler.ts` → `modules/anomalies`; `services/weatherBackfill.ts` →
   `modules/idle` (closes a pinned violation; `fuel -> idle` already allowed). Three PRs or one;
   Done when: `services/` shrinks by three, gates green, grandfather entries removed.
-- **P1.2 — `reeferPairing` → `modules/roster` behind an exported interface**
+- **P1.2 — DONE 2026-08-27 (PR #315) — `reeferPairing` split along the honest seam** — the
+  vendor half became `modules/samsara/trailerPairingSync.ts`; the write became roster's
+  `recordInferredTrailerPairing()` with the never-overwrite-manual invariant in the owner's
+  WHERE clause (NULL-safe, which the caller-side JS filter was only by accident). Original text:
   (`recordInferredPairing()`), `samsaraTrailerSync` calls it; `samsara -> roster` added to
   `API_ALLOW` with the reason string. Closes the sharpest laundered write.
-- **P1.3 — Samsara client + credentials into `modules/samsara`.** The ~1,000 lib lines move;
+- **P1.3 — DONE 2026-08-27 (PR #316, landed via #326) — Samsara client + credentials into `modules/samsara`.**
+  Eleven `lib/samsara*` files moved to `modules/samsara/lib/`; consumers ride their existing
+  API_ALLOW pairs via deep lib imports (deliberate: `samsara/index` exports the scheduler,
+  which imports idle — index re-exports would cycle). One PR sufficed. The ~1,000 lib lines move;
   the 8 non-collector consumers switch to samsara's index interface (typed fetch functions,
   not raw client export); `lib/samsaraToken.ts`'s `integration_credentials` write moves behind
   an `org` interface. Biggest pure-move step; split into 2–3 PRs by consumer group if budget
   demands, lib files first.
-- **P1.4 — Queue split.** `services/queue/{registry,worker,pgDriver,dispatch,enqueue}` promote
+- **P1.4 — DONE 2026-08-27 (PRs #317+#318, landed via #326) — Queue split.**
+  P1.4a promoted `services/queue` → `src/queue` whole; P1.4b split handlers by owner
+  (performance + nightlyReconcile files out of the samsara-named one) and pushed the two direct
+  writes behind owner interfaces (`markPatternSweepOutcome`, `stampIntegrationSynced`).
+  Deviation, stated in the PR: handlers stay in `src/queue/handlers/` (the house rule requires
+  registration there; they are composition glue) — the violation was the writes and the file
+  name, not the location. Original text: `services/queue/{registry,worker,pgDriver,dispatch,enqueue}` promote
   to `src/queue/` (platform infra); handlers redistribute by owner (`scoring.ts` → anomalies;
   score/snapshot handlers out of `handlers/samsara.ts` → performance; its credential write →
   org). `apps/api/CLAUDE.md`'s handler-location rule updates in the same PR. Done when:
   `handlers/index.ts` registry and `KIND_CAPS` verified in sync by existing tests.
-- **P1.5 — Webhook and scraper relocation (D-SEP11/12).** Samsara webhook verification/parsing
+- **P1.5 — DONE 2026-08-27 (PR #319, landed via #326) — Webhook and scraper relocation (D-SEP11/12).**
+  `fuel_events` ownership moved to samsara with its webhook writer; the eight-file scraper
+  family became `modules/posted-prices/` owning `fuel_prices` + `fuel_prices_posted` (raw).
+  The five collector→core `fuel_stations` writes are pinned by name for the P6.1 interface
+  pass, and the re-owning exposed + pinned fuel's `fuelPriceDaySync` read. Original text: Samsara webhook verification/parsing
   → `modules/samsara`, writing `fuel_events` through fuel's interface; the four price scrapers
   + `postedPriceFetch` → `modules/posted-prices` (new collector, tables stay fuel-owned,
   writes through fuel's interface — or table ownership moves with them, decided in the PR per
   the ARCHITECTURE amendment rule).
-- **P1.6 — Flat routes dissolve.** `routes/integrations.ts` splits three ways into
+- **P1.6 — DONE 2026-08-27 (PRs #320+#321+#322, landed via #326) — Flat routes dissolve.**
+  #320: `insights` module (reports + askData + AI route; two cross-module imports caught by the
+  gate the moment they moved under it). #321: `networks.ts` split to posted-prices routes +
+  fuel-spend statement routes (a raw-read grandfather ratcheted out entirely). #322: the
+  830-line `integrations.ts` dissolved four ways along its URL prefixes into samsara/efs/
+  mcleod/performance route files; `jobResponse` joined the queue. CI's file-size gate later
+  forced the SOAP file's cert-lifecycle into its own file — the budget working as designed. `routes/integrations.ts` splits three ways into
   `modules/{samsara,efs,org}/routes/` (830 lines — split PRs); `routes/fueling/networks.ts` →
   posted-prices/fuel routes; `routes/reports.ts` + `services/askData.ts` → new `insights`
   harness module (matrix row added in P0.1) reading owners' interfaces instead of 10 raw
   tables.
-- **P1.7 — `routing` carve-out.** `fuelPlanning` splits vendor calls (→ samsara/HERE clients in
+- **P1.7 — DONE 2026-08-27 (PR #323, landed via #326) — `routing` carve-out.**
+  Measured at execution: `fuel_plans` has exactly 1 production row (2026-08-18) — NOT dropped;
+  deleting a live UI feature is the owner's call (see §6 Q8). The "two writers" were one
+  insert + list-management deletes, both now in the owner (4 grandfathers ratcheted out).
+  Deviation, stated in the PR: the pricing-path collapse is DEFERRED — the planning path has
+  zero tests, and an untested change to a money path inside a move-PR is how regressions ship;
+  recorded as the module's named debt. Original text: `fuelPlanning` splits vendor calls (→ samsara/HERE clients in
   their collectors) from planning math; duplicated pricing path
   (`fuelPlanning.ts:245-294` vs `routes/fueling/stations.ts:21-97`) collapses to one function;
   two `fuel_plans` writers become one; build-or-drop on `fuel_plans` decided in the PR
   (one production row ever).
-- **P1.8 — Orchestration seam.** `nightlyReconcile` moves to a named `orchestration` home
+- **P1.8 — DONE 2026-08-27 (PR #324, landed via #326) — Orchestration seam.**
+  §6 Q6 answered on its fallback: `src/orchestration/` is the one sanctioned home for
+  cross-module chains, composing owners' interfaces like the queue's handler layer.
+  `apps/api/src/services/` — 151 files at the re-founding audit — no longer exists. `nightlyReconcile` moves to a named `orchestration` home
   (decision in the PR: `org` vs `src/orchestration/`), with its 4-module fan-out expressed as
   allow-listed interface calls. §6 Q6 must be answered first.
-- **P1.9 — EFS parsing server-side (D-SEP11).** Upload endpoint in `modules/efs` accepts the
+- **P1.9 — DONE 2026-08-27 (PR #326) — EFS parsing server-side (D-SEP11).**
+  Measured first: the COMMIT path had already moved server-side at P0-1; what remained was the
+  preview. `previewReport()` in the efs collector now parses and answers (every probe explicitly
+  org-scoped); the browser decodes and asks. The codebase's only dynamic web `.from()` died with
+  it; `import_rows` build-or-drop remains open (§6 Q8). Original text: Upload endpoint in `modules/efs` accepts the
   raw file; `useImport.ts` stops importing `efsImport/*`; the dynamic-`.from()` site dies;
   `import_rows` build-or-drop decided here.
-- **P1.10 — `ifta` API module (a build).** Wraps the period reads behind
+- **P1.10 — DONE 2026-08-27 (PR #325, landed via #326) — `ifta` API module (a build).**
+  `readIftaPeriod()` calls the 0256/0258 RPCs server-side with `p_org` explicit; the web hook
+  switched to `apiFetch`. Access deliberately unchanged (any org member — same audience the
+  invoker RPCs granted); tightening is a P4 decision. Original text: Wraps the period reads behind
   `modules/ifta/routes/`; the samsara staging read moves behind a samsara-exported read
   interface (or an owner-blessed view named in the manifest); web feature switches from raw
   RPC to the API. Browser→staging path closes.
@@ -438,13 +493,15 @@ pinned in advance. Program-specific additions:
 5. **Overhead allocation rules** — FINANCIAL-STORE-PLAN §6's finance ruling on `ap_glid` →
    category/allocation. Owner: finance (Miki). Fallback: `DEFAULT_CPM_RULES` stance — direct
    costs only, overhead unallocated and labelled as such (D-MC28).
-6. **Orchestration seam** — where does legitimate cross-module chaining live (nightlyReconcile
-   fans across 4 modules)? Owner: this program, decided in P1.8's PR after P1.1–P1.5 shrink
-   the problem. Fallback: `src/orchestration/` with explicit allow entries.
+6. ~~**Orchestration seam**~~ — ANSWERED 2026-08-27 (P1.8, PR #324): the fallback stands —
+   `src/orchestration/` is the sanctioned home; an orchestrator composes owners' exported
+   interfaces, like the queue's handler layer.
 7. **Nav labels after the split** — does a "Fleet" group survive holding roster+idle, or do
    they regroup? Owner: Miki at P5.4. Fallback: keep "Fleet" label (roster+idle), add
    "Maintenance", "Accounting", "Billing" groups; zero RBAC impact either way (D-SEP9).
-8. **`fuel_plans` and `import_rows`** build-or-drop — decided in P1.7 / P1.9 PRs from
-   production row counts at execution time (one row ever / zero references at audit time).
+8. **`fuel_plans` and `import_rows`** build-or-drop — measured at P1.7/P1.9 (2026-08-27):
+   `fuel_plans` still exactly 1 production row; `import_rows` still zero references. NEITHER
+   dropped in the carve-outs — both deletions remove a live feature or a promised audit trail,
+   which is the owner's product call, not a move-PR side effect. Owner: Miki, whenever ready.
 9. **FleetPal timeline** — collector unbuilt on purpose; its gate is the dedup contract from
    P3.4/P5.3. No fallback needed; it simply does not land before that contract exists.
