@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { backfillTemperatures } from "./weatherBackfill.js";
-import type { OpenMeteoFetcher } from "../lib/openMeteo.js";
+import type { OpenMeteoFetcher } from "../../lib/openMeteo.js";
 
 function makeAdmin(cacheRows: { hour_utc: string; temp_f: number | null }[]) {
   const upserts: Record<string, unknown>[] = [];

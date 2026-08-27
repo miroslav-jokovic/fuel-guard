@@ -113,7 +113,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "vehicles <- apps/web/src/composables/useDrivers.ts",
   "vehicles <- apps/web/src/composables/useVehicles.ts",
   "vehicles <- apps/web/src/features/fleet/useVehicleSetupImport.ts",
-  "weather_cache <- apps/api/src/services/weatherBackfill.ts",
 ]);
 
 const stripSql = (sql) => sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");

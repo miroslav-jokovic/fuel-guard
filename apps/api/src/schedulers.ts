@@ -2,7 +2,7 @@ import type { Env } from "./env.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { reclaimInterruptedJobs } from "./modules/org/index.js";
 import { startSamsaraScheduler } from "./modules/samsara/index.js";
-import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
+import { startRebuildOnBoot } from "./modules/anomalies/index.js";
 import { startDigestScheduler } from "./modules/org/index.js";
 import { startDqAlertScheduler } from "./modules/evidence/index.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";

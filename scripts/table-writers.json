@@ -359,6 +359,6 @@
   ],
   "weather_cache": [
     "apps/api/src/modules/idle/idleSessionWeather.ts",
-    "apps/api/src/services/weatherBackfill.ts"
+    "apps/api/src/modules/idle/weatherBackfill.ts"
   ]
 }

@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadDataset, LATEST_DATASET_VERSION, listDatasetVersions } from "@hazmat/data";
 import { ENGINE_VERSION, evaluateLoad, type Verdict } from "@hazmat/engine";
-import { buildManualLoadInput, type CargoTankProfileRow, type ManualLoadRow } from "../modules/hazmat/index.js";
-import { readEquipmentKind } from "../modules/hazmat/index.js";
+import { buildManualLoadInput, type CargoTankProfileRow, type ManualLoadRow } from "./hazmatAnalysis.js";
+import { readEquipmentKind } from "./hazmatEquipment.js";
 
 /**
  * M12.2 — the reproducible verdict. A recorded run is a deterministic function of
