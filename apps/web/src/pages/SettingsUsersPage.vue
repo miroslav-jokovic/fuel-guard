@@ -146,7 +146,7 @@ async function changeRole(userId: string, newRole: string) {
 // Typed on AppSection, not Record<string, string>: the permissions table renders a column per
 // APP_SECTIONS entry, so a section added without a label here used to render an empty heading. Now
 // it does not compile.
-const SECTION_LABELS: Record<AppSection, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", fleet: "Fleet", recruitment: "Recruitment", admin: "Admin" };
+const SECTION_LABELS: Record<AppSection, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", fleet: "Fleet", recruitment: "Recruitment", admin: "Admin", accounting: "Accounting", billing: "Billing", maintenance: "Maintenance" };
 const showPerms = ref(false);
 const permMatrix = computed(() =>
   USER_ROLES.map((r) => ({

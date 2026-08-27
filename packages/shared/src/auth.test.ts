@@ -186,7 +186,20 @@ describe("section capability matrix", () => {
     // Mirrored by driver_employment_history's write policy (0208) and its restrictive read (0209).
     expect(rolesThatManage("recruitment").sort()).toEqual(["admin", "fleet_manager", "recruiter", "safety_manager"]);
     expect(rolesThatCanView("recruitment").sort()).toEqual(["admin", "auditor", "fleet_manager", "recruiter", "safety_manager"]);
-    expect(rolesThatCanView("fuel").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "safety_manager"]);
+    expect(rolesThatCanView("fuel").sort()).toEqual(["accountant", "admin", "auditor", "dispatcher", "fleet_manager", "safety_manager"]);
+    // ── the finance sections (0266, D-SEP7): the money role and the admin manage the books; the
+    // auditor reads them; ops roles get NOTHING — the recruiter lesson applied on day one ──────────
+    expect(rolesThatManage("accounting").sort()).toEqual(["accountant", "admin"]);
+    expect(rolesThatManage("billing").sort()).toEqual(["accountant", "admin"]);
+    expect(rolesThatCanView("accounting").sort()).toEqual(["accountant", "admin", "auditor"]);
+    expect(rolesThatCanView("billing").sort()).toEqual(["accountant", "admin", "auditor"]);
+    // maintenance: the shop is ops (admin + fleet_manager manage); the bookkeeper and the auditor read
+    expect(rolesThatManage("maintenance").sort()).toEqual(["admin", "fleet_manager"]);
+    expect(rolesThatCanView("maintenance").sort()).toEqual(["accountant", "admin", "auditor", "fleet_manager"]);
+    // and the narrowing that matters: dispatch/fleet access never implies books access
+    expect(sectionAccess("dispatcher", "accounting")).toBe("none");
+    expect(sectionAccess("fleet_manager", "billing")).toBe("none");
+    expect(sectionAccess("accountant", "dispatch")).toBe("none");
   });
 });
 

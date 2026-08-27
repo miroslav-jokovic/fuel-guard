@@ -53,7 +53,7 @@ export function isEmailDomainAllowed(email: string, allowedDomains: readonly str
 
 // ── Section-scoped capabilities ───────────────────────────────────────────────
 // The product areas the sidebar + routes are organized into. `admin` = org settings / user management.
-export const APP_SECTIONS = ["fuel", "dispatch", "safety", "hazmat", "fleet", "recruitment", "admin"] as const;
+export const APP_SECTIONS = ["fuel", "dispatch", "safety", "hazmat", "fleet", "recruitment", "admin", "accounting", "billing", "maintenance"] as const;
 export type AppSection = (typeof APP_SECTIONS)[number];
 export type SectionAccess = "none" | "view" | "manage";
 
@@ -84,19 +84,28 @@ export type SectionAccess = "none" | "view" | "manage";
  * policy needs to move with it.
  */
 const SECTION_ACCESS: Record<UserRole, Record<AppSection, SectionAccess>> = {
-  admin: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "manage" },
-  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none" },
-  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", hazmat: "manage", fleet: "view", recruitment: "none", admin: "none" },
-  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none" },
-  auditor: { fuel: "view", dispatch: "view", safety: "view", hazmat: "view", fleet: "view", recruitment: "view", admin: "none" },
+  admin: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "manage", accounting: "manage", billing: "manage", maintenance: "manage" },
+  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "manage" },
+  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", hazmat: "manage", fleet: "view", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  auditor: { fuel: "view", dispatch: "view", safety: "view", hazmat: "view", fleet: "view", recruitment: "view", admin: "none", accounting: "view", billing: "view", maintenance: "view" },
   // `fleet: "view"` and not "manage" (RECRUITER-ROLE-SCOPE.md Option B). A recruiter needs to read the
   // roster and open a driver's §391.51 file — routes/compliance.ts gates on rolesThatCanView("fleet")
   // — but `fleet: "manage"` would also hand them vehicles, trailers and terminals through 17 existing
   // policies, which is the very leak the `recruitment` section was introduced to close. The one write
   // they genuinely need, creating and editing the applicant's driver row, is granted by NAME on the
   // roster routes and in 0212's policy rather than by widening the section.
-  recruiter: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "view", recruitment: "manage", admin: "none" },
-  driver: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", recruitment: "none", admin: "none" },
+  recruiter: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "view", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  driver: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  // ── `accountant`, added 2026-08-27 (D-SEP7, SEPARATION-PROGRAM-PLAN; the 2026-08-27 owner ruling) ──
+  // The money role, and deliberately ONLY the money role — the recruiter lesson (above) applied on
+  // day one instead of after a leak: books access does not ride along with fleet or dispatch, and
+  // fleet/dispatch access does not ride along with the books. `fuel: view` because fuel spend IS the
+  // largest expense line and the accounting surfaces cite it; `maintenance: view` for the repair-spend
+  // side of the same ledger (managing the shop is fleet_manager's job, not the bookkeeper's).
+  // `fleet_manager` gets NO books access on the same argument in reverse — an org whose ops lead also
+  // does the books expresses that as a second membership decision by the admin, not as a default.
+  accountant: { fuel: "view", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", recruitment: "none", admin: "none", accounting: "manage", billing: "manage", maintenance: "view" },
 };
 
 export const sectionAccess = (role: UserRole | null | undefined, section: AppSection): SectionAccess =>
