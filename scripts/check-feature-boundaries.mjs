@@ -2,11 +2,13 @@
 /**
  * Fitness function — architectural boundaries that must hold as the codebase grows.
  *
- *  1. Feature isolation (web + driver): a feature under `apps/<app>/src/features/<name>` must not import
- *     another feature's internals — via the `@/features/<other>/…` alias OR a relative path that climbs
- *     into a sibling feature. Shared code lives in `@/composables`, `@/components`, `@/lib`, `@/stores`.
- *  2. Hazmat packages stay dependency-free (D3 / G5): `@hazmat/engine` + `@hazmat/data` may not import
- *     `@silvicom/*`, the web `@/` alias, or each other — so they stay extractable to a standalone repo.
+ *  1. Feature isolation (web + driver + api): a feature under `apps/<app>/src/features/<name>` — and,
+ *     since the 2026-08-26 re-founding, an API module under `apps/api/src/modules/<name>` (D-ARC1,
+ *     docs/ARCHITECTURE.md) — must not import a sibling's internals, via alias OR a relative path that
+ *     climbs across. Shared code lives in `@/composables`, `@/components`, `@/lib`, `@/stores`.
+ *  2. Hazmat packages stay dependency-free (D3 / G5): `@hazmat/engine`, `@hazmat/data` and
+ *     `@hazmat/placards` may not import `@silvicom/*` or the web `@/` alias; engine↔data stay apart, and
+ *     placards may lean on the engine only (it renders placards for engine verdicts).
  *  3. Engine determinism: `@hazmat/engine` (the pure decision engine) may not use non-deterministic APIs
  *     (Date.now, argless new Date, Math.random, performance.now) or do I/O (fetch, require, node builtins),
  *     so a verdict is a pure function of its inputs — reproducible and testable.
@@ -60,22 +62,29 @@ function checkFeatureIsolation(featuresDir, allow, label) {
         else if (spec.startsWith(".")) target = featureOf(resolve(dirname(file), spec), featuresDir);
         if (!target || !known.has(target) || target === feat) continue;
         if (allow.has(`${feat} -> ${target}`)) continue;
-        violations.push(`[${label}] ${relative(ROOT, file)}  ->  features/${target}/…  (cross-feature import)`);
+        const kind = label === "api" ? "modules" : "features";
+        violations.push(`[${label}] ${relative(ROOT, file)}  ->  ${kind}/${target}/…  (cross-${kind === "modules" ? "module" : "feature"} import)`);
       }
     }
   }
 }
 
-const WEB_ALLOW = new Set([
-  "anomalies -> ai", // AnomalyDetail uses the AI-verification card + hooks
-]);
-// Kept empty deliberately: the audit (finding E) named `driver/src/features/loads/useLoads.ts` reaching
-// into `@/features/auth/SessionProvider` + `@/features/home/useDriverContext`. When the driver app lands on
-// this branch this check will flag them — the intended fix is to PROMOTE those shared hooks out of
-// `features/` (into the driver's shared layer), not to allow-list the leak.
+// Empty since 2026-08-26: the one entry ("anomalies -> ai") outlived its feature — features/ai was
+// dissolved and nothing imports it. An allow-list entry with no matching import is how the NEXT leak
+// gets waved through, so a dead entry is treated as rot, not as slack.
+const WEB_ALLOW = new Set([]);
+// Kept empty, and the story is worth keeping: an earlier audit predicted `features/loads/useLoads.ts`
+// would be flagged for reaching into `features/auth` + `features/home`. It never was — both hooks were
+// PROMOTED to `apps/driver/src/session/`, which is the intended fix for every entry that tries to land
+// here: promote the shared thing out of `features/`, don't allow-list the leak.
 const DRIVER_ALLOW = new Set([]);
+// apps/api modules (D-ARC1, docs/ARCHITECTURE.md): the carve-outs land under apps/api/src/modules/<name>,
+// and module isolation is enforced from the FIRST module — the dir not existing yet skips silently, the
+// same forward-arming as the driver check below.
+const API_ALLOW = new Set([]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
+checkFeatureIsolation(join(ROOT, "apps/api/src/modules"), API_ALLOW, "api");
 
 // ── real-data guarantee (hardening plan Phase 2): sample/placeholder data may ONLY be imported by
 // the dev-only component gallery. Production surfaces render live API data or nothing — a sample
@@ -94,10 +103,16 @@ for (const file of driverAppFiles) {
   }
 }
 
-// ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5). ──
-for (const rel of ["packages/hazmat-engine", "packages/hazmat-data"]) {
-  const other = rel.endsWith("engine") ? "@hazmat/data" : "@hazmat/engine";
-  const forbidden = new RegExp(`from\\s+["'](@silvicom/|@/|${other.replace("/", "\\/")})`, "g");
+// ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5).
+// `@hazmat/placards` was unscanned until 2026-08-26 — the exact blind spot this scan exists to
+// prevent. It may import @hazmat/engine (it renders placards for engine verdicts, declared as a
+// real dependency), but the app boundary holds for it like its siblings. ──
+for (const [rel, forbiddenSpecs] of [
+  ["packages/hazmat-engine", ["@silvicom/", "@/", "@hazmat/data"]],
+  ["packages/hazmat-data", ["@silvicom/", "@/", "@hazmat/engine"]],
+  ["packages/hazmat-placards", ["@silvicom/", "@/", "@hazmat/data"]],
+]) {
+  const forbidden = new RegExp(`from\\s+["'](${forbiddenSpecs.map((s) => s.replace("/", "\\/")).join("|")})`, "g");
   let pkgFiles;
   try { pkgFiles = walk(join(ROOT, rel)); } catch { continue; }
   for (const file of pkgFiles) {
@@ -137,4 +152,4 @@ if (violations.length) {
   for (const v of violations) console.error("  " + v);
   process.exit(1);
 }
-console.log("✓ boundaries ok — feature isolation (web + driver), hazmat packages dependency-free, engine deterministic.");
+console.log("✓ boundaries ok — feature isolation (web + driver + api modules), hazmat packages dependency-free, engine deterministic.");
