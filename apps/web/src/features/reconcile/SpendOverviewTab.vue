@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { totalsOf, weeklySpendSeries, isTractorFuel, type SpendLine } from "@fuelguard/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { totalsOf, weeklySpendSeries, isTractorFuel, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import SpendBridgeCard from "./SpendBridgeCard.vue";

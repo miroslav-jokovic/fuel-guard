@@ -272,7 +272,7 @@ runs on Miki's Mac and nowhere else. Green CI is therefore necessary, not suffic
 
 ```bash
 export VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=ci-test-anon-key
-pnpm install --frozen-lockfile && pnpm --filter @fuelguard/shared build:rn
+pnpm install --frozen-lockfile && pnpm --filter @silvicom/shared build:rn
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm lint:secrets            # AFTER committing — it scans `git archive HEAD`
 

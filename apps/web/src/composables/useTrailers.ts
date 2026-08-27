@@ -6,7 +6,7 @@
  * feature that needs a trailer list next.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Trailer, TrailerInput } from "@fuelguard/shared";
+import type { Trailer, TrailerInput } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const COLS =

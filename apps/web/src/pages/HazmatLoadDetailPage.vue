@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@fuelguard/shared";
+import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
-import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import LoadStatusBadge from "@/features/hazmat/LoadStatusBadge.vue";

@@ -1,6 +1,6 @@
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../../lib/efsCardEcho.js";
 import { parseCardDocument, type CardDocument } from "../../lib/efsCardXml.js";
-import { resolveEditableInfoIds } from "@fuelguard/shared";
+import { resolveEditableInfoIds } from "@silvicom/shared";
 import { capabilityRegistry } from "../registry.js";
 
 /**

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { USER_ROLES, derivePricePerGal, fillUpInputSchema } from '@fuelguard/shared';
+import { USER_ROLES, derivePricePerGal, fillUpInputSchema } from '@silvicom/shared';
 
 // Proves the reuse contract: the RN app runs the exact same domain logic as web/api.
-describe('@fuelguard/shared reuse', () => {
+describe('@silvicom/shared reuse', () => {
   it('math parity (derivePricePerGal)', () => {
     expect(derivePricePerGal(40, 120)).toBeCloseTo(3);
   });

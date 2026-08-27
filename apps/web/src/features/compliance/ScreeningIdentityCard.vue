@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { dateOfBirthIssue, type DriverDetail } from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppDateField } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { dateOfBirthIssue, type DriverDetail } from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppDateField } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";

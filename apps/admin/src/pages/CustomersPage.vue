@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { AppCard, AppPageHeader, AppTable } from "@fuelguard/ui";
+import { AppCard, AppPageHeader, AppTable } from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, type OrgOverview } from "@/lib/api";
 import { fmtDate } from "@/lib/format";

@@ -11,8 +11,8 @@
  */
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { AppIcon } from "@fuelguard/ui";
-import { ChevronRightIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ChevronRightIcon } from "@silvicom/ui/icons";
 import type { Crumb } from "@/lib/breadcrumbs";
 
 const props = defineProps<{ trail: Crumb[] }>();

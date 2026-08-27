@@ -8,12 +8,12 @@ import {
   pspRecordSource,
   rolesThatManage,
   type QualificationRecordRow,
-} from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppDateField, AppFormField as FormField } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";

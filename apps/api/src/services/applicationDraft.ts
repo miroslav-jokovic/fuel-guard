@@ -5,7 +5,7 @@ import {
   draftDateOfBirth,
   draftIsLocked,
   type ApplicationDraftSave,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,

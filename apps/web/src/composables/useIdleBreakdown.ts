@@ -6,7 +6,7 @@ import {
   type IdleCapability,
   type FleetIdleVerdict,
   type TruckIdleVerdict,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 
@@ -36,7 +36,7 @@ const WINDOW_DAYS = 30;
  * red — the "everything is avoidable" over-count `IDLE-AVOIDABLE-HOS.md` was written to kill,
  * reintroduced on a second page because the verdict lived somewhere it could not be imported from.
  *
- * The verdict has since moved further still, into `@fuelguard/shared`, so the REPORT can reach it
+ * The verdict has since moved further still, into `@silvicom/shared`, so the REPORT can reach it
  * server-side too. What is left here is the I/O: read the rollup rows, read the equipment, hand both
  * to one pure function. The shapes below are that function's, aliased so callers keep their imports.
  */
@@ -166,7 +166,7 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
         .neq("status", "retired");
       if (verr) throw new Error(verr.message);
 
-      // The verdict itself is PURE and lives in @fuelguard/shared, so the fuel-spend report can reach
+      // The verdict itself is PURE and lives in @silvicom/shared, so the fuel-spend report can reach
       // the same answer server-side. It used to be inline here, which is why that report had to invent
       // its own — and invented the every-truck-is-avoidable over-count while doing it.
       const { trucks, fleet } = computeIdleBreakdown(

@@ -5,11 +5,11 @@
  * Supabase per request, this reads it once per org and writes the committed artefact the exit gate
  * asks for. No vendor call, no write.
  *
- * Run: pnpm --filter @fuelguard/api exec tsx src/scripts/runConfigScan.ts
+ * Run: pnpm --filter @silvicom/api exec tsx src/scripts/runConfigScan.ts
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 import { scanConfig } from "../efs/harness/configScan.js";
 
 const ROOT = new URL("../../../../", import.meta.url).pathname;

@@ -1,4 +1,4 @@
-import { efsStatusEquals, matchStatusCasing } from "@fuelguard/shared";
+import { efsStatusEquals, matchStatusCasing } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";

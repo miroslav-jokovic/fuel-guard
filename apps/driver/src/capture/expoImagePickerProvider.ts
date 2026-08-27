@@ -12,7 +12,7 @@ import {
   type ImageRef,
   type ScanResult,
   type SupportResult,
-} from "@fuelguard/capture-engine";
+} from "@silvicom/capture-engine";
 
 /**
  * JS fallback provider (DCE §3) — runs BEFORE the native module is built and on unsupported/de-Googled

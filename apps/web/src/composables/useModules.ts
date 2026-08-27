@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import { toModuleSet, type ModuleSet, type OrgModule } from "@fuelguard/shared";
+import { toModuleSet, type ModuleSet, type OrgModule } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 /**

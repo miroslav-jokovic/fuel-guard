@@ -1,4 +1,4 @@
-import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@fuelguard/shared";
+import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@silvicom/shared";
 
 /**
  * Fueling times must be shown in the STATION's local timezone so they match the printed EFS report. On import,

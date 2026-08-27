@@ -2,7 +2,7 @@ import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Every word the applicant reads, in one place (A3).

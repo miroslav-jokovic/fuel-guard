@@ -9,9 +9,9 @@ import {
   type EmploymentHistory,
   type EmploymentPeriod,
   type EmploymentSource,
-} from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";

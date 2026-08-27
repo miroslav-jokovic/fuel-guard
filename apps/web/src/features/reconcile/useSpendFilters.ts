@@ -14,16 +14,16 @@
  *
  * ── AND THEREFORE: ANYTHING CAN BE IN IT ─────────────────────────────────────────────────────────
  * A linkable window is one a human can hand-edit, bookmark, and forward months later. This module does
- * not trust it. Every read goes through `normalizeWindow` (`@fuelguard/shared`) — pure, tested, and it
+ * not trust it. Every read goes through `normalizeWindow` (`@silvicom/shared`) — pure, tested, and it
  * REPORTS what it corrected rather than correcting silently, so the page can say so (`windowNotice`).
  * Before that, a range typed backwards parsed fine and produced an empty report, which reads exactly
  * like a fleet that bought no fuel.
  */
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "@fuelguard/shared";
+import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "@silvicom/shared";
 
-/** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@fuelguard/shared`. */
+/** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@silvicom/shared`. */
 export const DEFAULT_DAYS = 90;
 
 /** The grain a page opens on, and the one "Clear filters" returns to. */

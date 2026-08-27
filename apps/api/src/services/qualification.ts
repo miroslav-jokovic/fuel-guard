@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   qualifyDriver, qualifyOrg, qualificationEvalDate,
   type QualCertSnapshot, type QualFinding, type QualState,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { loadDataset, evaluateSecurityPlanApplicability, evaluateSafetyPermitApplicability, type SecurityPlanLine } from "@hazmat/data";
 
 /**

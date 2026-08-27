@@ -3,7 +3,7 @@
  *
  * Driver and owner-operator pay, windowed on the accrual date and reconciled against the accrual side
  * of the general ledger. Read-only, same posture as `movements.mjs` and `expenses.mjs`, and no
- * `@fuelguard/shared` import — this ships to the carrier's machine with `mssql` as its only dependency.
+ * `@silvicom/shared` import — this ships to the carrier's machine with `mssql` as its only dependency.
  *
  * The one thing to keep in mind while reading this file: settlement, payroll, checks and the ledger
  * are four views of the SAME payment (D-MC13). This sweep reads the settlement view alone. Nothing

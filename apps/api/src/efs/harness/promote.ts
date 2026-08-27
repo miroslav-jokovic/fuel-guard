@@ -1,4 +1,4 @@
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 
 /**
  * May this capability be promoted to `enabled` on this org? (Step 4.6)

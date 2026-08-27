@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, toRef } from "vue";
-import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@fuelguard/shared";
-import { HAZMAT_TRAINING_TYPES } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@silvicom/shared";
+import { HAZMAT_TRAINING_TYPES } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateField } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateField } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useCertificationsQuery, useCreateCertification } from "@/composables/useCompliance";
 

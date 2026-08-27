@@ -1,4 +1,4 @@
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { documentShape, type CardDocument } from "../../lib/efsCardXml.js";
 import { resolveOrgEditableInfoIds } from "../orchestrator/editableInfoIds.js";

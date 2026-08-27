@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { detectReportKind, type RawRow } from "@fuelguard/shared";
+import { detectReportKind, type RawRow } from "@silvicom/shared";
 
 export interface ParsedFile {
   headers: string[];

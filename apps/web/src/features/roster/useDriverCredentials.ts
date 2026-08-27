@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { DriverCredentialIssued } from "@fuelguard/shared";
+import type { DriverCredentialIssued } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

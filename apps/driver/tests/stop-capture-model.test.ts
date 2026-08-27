@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LoadStop, LoadStopPhoto } from '@fuelguard/shared';
+import type { LoadStop, LoadStopPhoto } from '@silvicom/shared';
 import {
   buildStopPhotos,
   outstandingSlots,

@@ -9,7 +9,7 @@
 Derived from the code. Everything below is measured from real files, not from `docs/DESIGN-SYSTEM.md` (which is partly stale — noted where it diverges).
 
 **Reconciled with the gates 2026-08-20 (recruiting plan R0b).** The primitives had moved into
-`@fuelguard/ui` and the gates had grown rules this document predated — a session reading only this
+`@silvicom/ui` and the gates had grown rules this document predated — a session reading only this
 file wrote code `lint:ui-adoption` and `lint:tokens` rejected. The gates are the law; when this
 document and a gate script disagree, the script has moved again and this file needs another pass.
 The two scripts to read: `scripts/ui-system-inventory.mjs` (structure: PageHeader required, zero
@@ -34,7 +34,7 @@ role not defined in `packages/ui/src/tokens.css`).
 | Page shell | `apps/web/src/layouts/AppShell.vue` |
 | What changed and why | `docs/plans/design-system/DESIGN-SYSTEM-2026.md` (D-DS1…D-DS16) |
 
-There is **no `tailwind.config.js`** for web or admin. This is Tailwind v4; theme extension happens in the `@theme inline` block of `tokens.generated.css`, which is DERIVED from each token's `fuelguard.expose` extension — a role cannot arrive without its utility. (`apps/driver` is the exception: Tailwind v3 + nativewind, its own `tailwind.config.js`, its own values by D-DS3.)
+There is **no `tailwind.config.js`** for web or admin. This is Tailwind v4; theme extension happens in the `@theme inline` block of `tokens.generated.css`, which is DERIVED from each token's `silvicom.expose` extension — a role cannot arrive without its utility. (`apps/driver` is the exception: Tailwind v3 + nativewind, its own `tailwind.config.js`, its own values by D-DS3.)
 
 ⚠ **That last sentence is no longer true, and the change is the point of §0b.** The linter caught colour only when this was written. It now also fails on radius, elevation, text size, stacking tier and column width (D-DS7a, D-DS6, D-DS4a, D-DS5), so deviations that were once invisible are build failures.
 
@@ -42,7 +42,7 @@ There is **no `tailwind.config.js`** for web or admin. This is Tailwind v4; them
 
 ## 1. Component inventory
 
-### 1.1 The primitives live in `@fuelguard/ui` — `packages/ui/src/components/`
+### 1.1 The primitives live in `@silvicom/ui` — `packages/ui/src/components/`
 
 **Moved 2026-08 and enforced by `lint:ui-adoption`:** the form/surface primitives were consolidated
 into the shared package so `apps/web`, `apps/admin` and future apps share one look. A local clone in
@@ -51,7 +51,7 @@ into the shared package so `apps/web`, `apps/admin` and future apps share one lo
 **fails the build**. Import from the barrel; the established idiom keeps the old local names:
 
 ```ts
-import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@silvicom/ui";
 ```
 
 The barrel (`packages/ui/src/index.ts`) exports: `AppButton`, `AppInput` (alias `AppTextField`),
@@ -92,8 +92,8 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`TablePagination.vue`** (80) | `page`, `pageSize?` (20), `total`, `loading?`; emits `update:page` | The table `#footer`. `flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6`. Left: `Showing <b>1</b>–<b>20</b> of <b>1,204</b>` / `No results`. Right: "Page [n] of N" jump input (hidden below `sm`, only when `totalPages > 1`) + Prev/Next `BaseButton size="sm"`. |
 | **`TableSkeleton.vue`** (17) | `rows?` (6), `cols?` (5) | Shimmer rows. Only DataTable calls it; you should not. |
 | **`ErrorState.vue`** (24) | `message?` ("Something went wrong while loading this data."), `retrying?`; emits `retry` | Warning icon + message + Retry button (`Retrying…` while busy). Only DataTable calls it directly; use it standalone for non-table fetch failures. |
-| *(search box)* | — | `AppSearchField` from `@fuelguard/ui` (the local `SearchInput.vue` clone is gate-banned). FilterBar owns it; use directly only outside a table. |
-| *(form select)* | — | `AppSelect` from `@fuelguard/ui`. Non-searchable form select; trigger matches the input metrics, panel matches the KebabMenu recipe. |
+| *(search box)* | — | `AppSearchField` from `@silvicom/ui` (the local `SearchInput.vue` clone is gate-banned). FilterBar owns it; use directly only outside a table. |
+| *(form select)* | — | `AppSelect` from `@silvicom/ui`. Non-searchable form select; trigger matches the input metrics, panel matches the KebabMenu recipe. |
 | **`DateRangeFilter.vue`** (105) | `from?`, `to?`, `presets?` (true), `label?` ("Dates"), `maxDate?` (today) | Toolbar date range on VueDatePicker. Trigger is byte-identical to FilterSelect's trigger classes. Values are `YYYY-MM-DD`; pass `maxDate=null` for future-facing ranges such as DQ deadlines. `partialRange` MUST stay false. |
 | **`VehicleSelect.vue`** (204) | `modelValue`, `vehicles: Vehicle[]`, `placeholder?` ("All vehicles"), `disabled?` | Legacy typeahead for vehicles. New code should use `FilterSelect`/`ComboSelect`. |
 | **`DocumentPreview.vue`** (features/compliance) | `open`, `label`, `doc: DocumentRow \| null`; emits `close` | The **sanctioned document viewer** (DQF plan B6) — the only place a compliance scan renders full-size. In `BaseModal size="xl" printable`. Images show the `normalized` variant (original only via the server-signed Download); PDFs get the browser's viewer in an iframe and **no Print button** (D-DQ9). Do not build a second viewer. |
@@ -104,14 +104,14 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 
 ### 1.3 Icons
 
-`@fuelguard/ui/icons` exports the curated icon set (a barrel over HugeIcons Stroke Rounded).
+`@silvicom/ui/icons` exports the curated icon set (a barrel over HugeIcons Stroke Rounded).
 `AppIcon`: `<AppIcon :icon="XIcon" class="size-4" aria-hidden="true" />`. Size comes from Tailwind
 `size-*` (never the `size` prop), colour from `currentColor` via `text-*`, `strokeWidth` defaults
 1.5. **Never import from `@hugeicons/core-free-icons` directly** — add to `packages/ui/src/icons.ts`
 first.
 
 > **Superseded 2026-08-20:** this section used to say "always import the `Base*` versions from
-> `@/components/ui/`; only `AppIcon` comes from `@fuelguard/ui`". That is now exactly backwards —
+> `@/components/ui/`; only `AppIcon` comes from `@silvicom/ui`". That is now exactly backwards —
 > see §1.1. The gate fails local clones; the barrel is the home.
 
 ---

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../lib/efsCardEcho.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
-import { PROMPT_INPUT_UNSET, type PromptInput } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET, type PromptInput } from "@silvicom/shared";
 import {
   lockEdits, overrideClearEdits, overrideGrantEdits, overrideLimitsBefore,
   promptsEdits as promptsEditsFor, unlockEdits,

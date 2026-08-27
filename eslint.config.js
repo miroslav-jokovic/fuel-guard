@@ -102,8 +102,8 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["@fuelguard/shared/*"],
-              message: "Import from the @fuelguard/shared barrel (its index), not deep internal paths.",
+              group: ["@silvicom/shared/*"],
+              message: "Import from the @silvicom/shared barrel (its index), not deep internal paths.",
             },
           ],
         },

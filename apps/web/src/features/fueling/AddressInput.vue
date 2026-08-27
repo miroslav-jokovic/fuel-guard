@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { fetchAddressSuggestions, type AddressSuggestion } from "./useFuelPlan";
 
 const props = defineProps<{ modelValue: string; id?: string; placeholder?: string }>();

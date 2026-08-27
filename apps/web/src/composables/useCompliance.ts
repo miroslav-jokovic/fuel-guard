@@ -10,12 +10,12 @@ import type {
   QualificationRecordCreateRequest,
   QualificationRecordRow,
   ComplianceOverviewResponse,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   DOCUMENTS_BUCKET,
   DOCUMENT_CONTENT_TYPES,
   type DocumentContentType,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 

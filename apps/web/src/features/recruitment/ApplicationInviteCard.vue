@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
-import { rolesThatManage } from "@fuelguard/shared";
+import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import { rolesThatManage } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";

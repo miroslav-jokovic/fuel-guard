@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ModuleSet } from "@fuelguard/shared";
+import type { ModuleSet } from "@silvicom/shared";
 import {
   BuildingOffice2Icon,
   HazmatPlacardIcon,
   LicenseIcon,
   ShieldExclamationIcon,
   UserListIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { buildNavGroups } from "./nav";
 
 const withHazmat = new Set(["hazmatguard"]) as unknown as ModuleSet;

@@ -6,7 +6,7 @@ import {
   EFS_EDITABLE_INFO_IDS,
   EFS_INFO_LABELS,
   resolveEditableInfoIds,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Step 9.1, applied to the REAL accounts.

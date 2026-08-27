@@ -11,7 +11,7 @@ import {
   type AttributionHealth,
   type OdometerHygieneCluster,
   type CapacityVehicleRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { getComplianceOverview } from "./complianceOverview.js";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";

@@ -4,7 +4,7 @@ import {
   type HazmatCalcRequest,
   hazmatProductsQuerySchema,
   type HazmatProductsResponse,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { loadDataset } from "@hazmat/data";
 import { searchProducts } from "../services/hazmatProducts.js";
 import { computeCalc } from "../services/hazmatCalc.js";

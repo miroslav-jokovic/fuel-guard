@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   type Icon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
   XCircleIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed } from "vue";
 import type { PlanResultStatus } from "./useFuelPlan";
 

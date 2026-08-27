@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton, AppInput, AppCard } from "@fuelguard/ui";
+import { AppButton, AppInput, AppCard } from "@silvicom/ui";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 

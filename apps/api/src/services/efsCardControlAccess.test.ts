@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS } from "@silvicom/shared";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 import { loadCardControlAccess } from "./efsCardControlAccess.js";

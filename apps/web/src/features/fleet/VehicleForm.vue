@@ -12,11 +12,11 @@ import {
   type VehicleInput,
   type Driver,
   type ApuType,
-} from "@fuelguard/shared";
-import { AppSelect } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppSelect } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{
   vehicle?: Vehicle | null;

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type AppSection, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
+import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type AppSection, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { AppSelect, AppTable } from "@fuelguard/ui";
+import { AppSelect, AppTable } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { AppSearchField as SearchInput } from "@fuelguard/ui";
+import { AppSearchField as SearchInput } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";

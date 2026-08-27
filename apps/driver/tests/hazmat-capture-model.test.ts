@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CapturedPage } from "@fuelguard/capture-engine";
+import type { CapturedPage } from "@silvicom/capture-engine";
 import { buildCapturePayload, decideCapture } from "@/features/hazmat/hazmatCaptureModel";
 
 function page(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = []): CapturedPage {

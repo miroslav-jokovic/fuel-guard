@@ -4,7 +4,7 @@ import {
   type MeScoreResponse,
   type MeScoreWeek,
   type PerformanceWeightsView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The signed-in driver's own frozen weekly grades (Driver App Phase 5). Read with the service role and

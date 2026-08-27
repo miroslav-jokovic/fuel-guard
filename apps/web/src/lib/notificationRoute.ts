@@ -1,4 +1,4 @@
-import type { NotificationCategory } from "@fuelguard/shared";
+import type { NotificationCategory } from "@silvicom/shared";
 
 /**
  * Where a notification takes an OFFICE user on click (DQF plan C6).

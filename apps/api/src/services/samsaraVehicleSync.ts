@@ -7,7 +7,7 @@ import {
   parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { isTmsRosterMaster } from "../tms/rosterMastery.js";

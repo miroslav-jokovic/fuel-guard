@@ -6,8 +6,8 @@ import {
   AppDateField,
   AppInput as BaseInput,
   AppSelect as BaseSelect,
-} from "@fuelguard/ui";
-import type { QuestionnaireQuestion } from "@fuelguard/shared";
+} from "@silvicom/ui";
+import type { QuestionnaireQuestion } from "@silvicom/shared";
 import { emptyQuestionRow } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 

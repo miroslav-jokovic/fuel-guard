@@ -5,7 +5,7 @@
  */
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { HereRouteRequest, LatLng, RouteStep } from "@fuelguard/shared";
+import type { HereRouteRequest, LatLng, RouteStep } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { fetchTruckRoute } from "../lib/here.js";
 

@@ -5,7 +5,7 @@ import {
   normalizeDriverUsername,
   toSyntheticDriverEmail,
   usernameFromName,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { revokePushTokens } from "./notify.js";
 
 /**

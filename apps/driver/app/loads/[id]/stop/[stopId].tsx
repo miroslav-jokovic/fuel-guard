@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Image, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { photoSlotLabel } from '@fuelguard/shared';
+import { photoSlotLabel } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

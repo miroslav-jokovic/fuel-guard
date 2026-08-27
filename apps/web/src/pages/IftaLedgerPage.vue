@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { STATE_NAMES } from "@fuelguard/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

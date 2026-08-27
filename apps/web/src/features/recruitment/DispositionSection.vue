@@ -9,7 +9,7 @@ import {
   AppFormField as FormField,
   AppSelect,
   AppTextarea,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 import {
   APPLICANT_DISPOSITIONS,
   APPLICANT_DISPOSITION_LABELS,
@@ -17,7 +17,7 @@ import {
   isCarrierDecision,
   rolesThatManage,
   type ApplicantDispositionOutcome,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

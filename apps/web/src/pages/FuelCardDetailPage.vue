@@ -11,9 +11,9 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { } from "@fuelguard/ui/icons";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { } from "@silvicom/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

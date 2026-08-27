@@ -9,7 +9,7 @@ import {
   stopProgress,
   type DeclineReason,
   type LoadStop,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

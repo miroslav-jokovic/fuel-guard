@@ -5,15 +5,15 @@ import {
   LOAD_STATUS_LABELS,
   type AssignmentRow,
   type LoadStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import { useAssignmentsQuery, useEndShift } from "@/features/dispatch/useAssignments";

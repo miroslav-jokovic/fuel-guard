@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { AppSwitch as BaseSwitch } from "@fuelguard/ui";
+import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 
 describe("BaseSwitch", () => {
   it("exposes switch state and emits the next value", async () => {

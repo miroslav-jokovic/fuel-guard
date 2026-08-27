@@ -7,7 +7,7 @@ import {
   rolesThatCanView,
   rolesThatManage,
   type ApplicationInviteCreate,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
@@ -16,7 +16,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "../../services/applicationIntake.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { ensureApplicationPdf } from "../../services/applicationPdf/file.js";
-import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
+import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 
 /**

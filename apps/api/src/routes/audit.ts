@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { AUDIT_VERDICTS, CASE_RULE_ID, computeRecallMetrics } from "@fuelguard/shared";
+import { AUDIT_VERDICTS, CASE_RULE_ID, computeRecallMetrics } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, dbErrorResponse, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

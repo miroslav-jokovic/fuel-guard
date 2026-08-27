@@ -1,4 +1,4 @@
-@import "@fuelguard/ui/tokens.css";
+@import "@silvicom/ui/tokens.css";
 @source "../../../packages/ui/src/**/*.vue";
 
 html {

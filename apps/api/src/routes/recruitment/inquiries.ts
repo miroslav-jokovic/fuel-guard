@@ -8,7 +8,7 @@ import {
   type EmployerResponseDocument,
   type InquiryAttempt,
   type InquiryOutcomeUpdate,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { loadInquiryQueue } from "../../services/inquiryQueue.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";

@@ -1,5 +1,5 @@
 import type { HmtEntry } from "@hazmat/data";
-import type { HazmatProduct } from "@fuelguard/shared";
+import type { HazmatProduct } from "@silvicom/shared";
 
 /**
  * HMT product lookup for the manual pickers (plan H5). Pure, dataset-driven search — the web app can't

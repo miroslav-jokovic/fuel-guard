@@ -6,7 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
-import { APP_NAME } from "@fuelguard/shared";
+import { APP_NAME } from "@silvicom/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { apiError, asyncHandler } from "./lib/http.js";

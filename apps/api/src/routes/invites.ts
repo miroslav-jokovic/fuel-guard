@@ -6,7 +6,7 @@ import {
   isEmailDomainAllowed,
   renderInviteEmail,
   type InviteCreateRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

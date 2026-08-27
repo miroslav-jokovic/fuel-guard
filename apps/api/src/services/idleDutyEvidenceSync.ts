@@ -15,7 +15,7 @@ import {
   normalizeHosStatus,
   type HosSegment,
   type HosStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 export interface IdleDutyEvidenceSyncResult {
   sessions: number;

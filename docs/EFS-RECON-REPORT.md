@@ -28,8 +28,8 @@ Progress: resolved 0, reused 105, downloaded 0, added 0, done
 ╰──────────────────────────────────────────────────────────────────────────────╯
 Done in 1.3s using pnpm v10.34.4
 
-$ pnpm --filter @fuelguard/shared build:rn
-> @fuelguard/shared@0.0.0 build:rn /Users/miroslavjokovic/Projects/FuelGuard/packages/shared
+$ pnpm --filter @silvicom/shared build:rn
+> @silvicom/shared@0.0.0 build:rn /Users/miroslavjokovic/Projects/FuelGuard/packages/shared
 > tsc -p tsconfig.build.json
 ```
 
@@ -165,7 +165,7 @@ apps/api typecheck:   Property 'value' does not exist on type '{ op: "setFieldNi
 apps/api typecheck: src/services/hazmatExtraction/extract.test.ts(86,11): error TS2741: Property 'otherFreightAboard' is missing in type '{ evaluatedAt: string; vehicle: { kind: "van_or_flatbed"; cargoTankCapacityGal: null; compartments: null; }; tankState: "loaded"; lines: { hmtRef: string; reclassedCombustible: false; isLimitedQuantity: false; ... 7 more ...; packageCount: null; }[]; ... 4 more ...; dataset: LoadInput["dataset"]; }' but required in type '{ evaluatedAt: string; vehicle: { kind: "cargo_tank" | "van_or_flatbed"; cargoTankCapacityGal: number | null; compartments: { index: number; capacityGal: number; }[] | null; }; tankState: "loaded" | ... 1 more ... | "cleaned_and_purged"; ... 6 more ...; dataset: { ...; }; }'.
 apps/api typecheck: Failed
 /Users/miroslavjokovic/Projects/FuelGuard/apps/api:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @fuelguard/api@0.0.1 typecheck: `tsc -p tsconfig.json --noEmit`
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @silvicom/api@0.0.1 typecheck: `tsc -p tsconfig.json --noEmit`
 Exit status 2
  ELIFECYCLE  Command failed with exit code 2.
 ```
@@ -215,7 +215,7 @@ apps/web build:     at async createBuilder (file:///Users/miroslavjokovic/Projec
 apps/web build:     at async CAC.<anonymous> (file:///Users/miroslavjokovic/Projects/FuelGuard/node_modules/vite/dist/node/cli.js:766:19)
 apps/web build: Failed
 /Users/miroslavjokovic/Projects/FuelGuard/apps/web:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @fuelguard/web@0.0.1 build: `vue-tsc -p tsconfig.json --noEmit && vite build`
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @silvicom/web@0.0.1 build: `vue-tsc -p tsconfig.json --noEmit && vite build`
 Exit status 1
 ```
 
@@ -227,7 +227,7 @@ The workflow files were read in full. Ordered triggers and steps/scripts are:
 
 - **`.github/workflows/ci.yml` — `CI`**
   - Trigger: `push` to `main`; all `pull_request` events.
-  - Steps/scripts, in order: checkout; enable Corepack; setup Node 22 with pnpm cache; install pinned gitleaks 8.18.4; `pnpm lint:secrets`; `pnpm install --frozen-lockfile`; `pnpm --filter @fuelguard/shared build:rn`; `pnpm lint`; `pnpm lint:filesize`; `pnpm lint:funcsize`; `pnpm lint:migrations`; `pnpm lint:upserts`; `pnpm lint:tests`; `pnpm --filter @fuelguard/web lint:tokens`; `pnpm lint:tokens-parity`; `pnpm lint:ui-contrast`; `pnpm lint:chart-colors`; `pnpm lint:ui-adoption`; `pnpm lint:boundaries`; `pnpm typecheck`; `pnpm test`; `pnpm build`.
+  - Steps/scripts, in order: checkout; enable Corepack; setup Node 22 with pnpm cache; install pinned gitleaks 8.18.4; `pnpm lint:secrets`; `pnpm install --frozen-lockfile`; `pnpm --filter @silvicom/shared build:rn`; `pnpm lint`; `pnpm lint:filesize`; `pnpm lint:funcsize`; `pnpm lint:migrations`; `pnpm lint:upserts`; `pnpm lint:tests`; `pnpm --filter @silvicom/web lint:tokens`; `pnpm lint:tokens-parity`; `pnpm lint:ui-contrast`; `pnpm lint:chart-colors`; `pnpm lint:ui-adoption`; `pnpm lint:boundaries`; `pnpm typecheck`; `pnpm test`; `pnpm build`.
 - **`.github/workflows/deploy-verify.yml` — `Verify deployment`**
   - Trigger: `push` to `main`; `workflow_dispatch`.
   - Steps/scripts: checkout; require repository variable `API_URL`; poll `${API_URL}/api/version` until the deployed commit and schema are current or timeout.
@@ -245,7 +245,7 @@ The workflow files were read in full. Ordered triggers and steps/scripts are:
   - Steps/scripts: checkout; enable Corepack; setup Node 22; `pnpm install --frozen-lockfile`; shared RN build; `pnpm mutation:check`.
 - **`.github/workflows/smoke.yml` — `Production smoke test`**
   - Trigger: `workflow_dispatch`; `workflow_run` for completed `Verify deployment` runs.
-  - Steps/scripts: checkout; require `API_URL`; setup pnpm 10.34.4; setup Node 22; `pnpm install --frozen-lockfile --prod=false`; install Playwright Chromium with dependencies; `pnpm --filter @fuelguard/web e2e --project=chromium`.
+  - Steps/scripts: checkout; require `API_URL`; setup pnpm 10.34.4; setup Node 22; `pnpm install --frozen-lockfile --prod=false`; install Playwright Chromium with dependencies; `pnpm --filter @silvicom/web e2e --project=chromium`.
 
 ### Workflow edges
 

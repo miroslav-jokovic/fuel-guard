@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { RecallMetrics, AuditVerdict } from "@fuelguard/shared";
+import type { RecallMetrics, AuditVerdict } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface SampledFill {

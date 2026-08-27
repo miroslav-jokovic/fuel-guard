@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { cardLast4 } from "@fuelguard/shared";
+import { cardLast4 } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { assertEchoFidelity, serializeSetCardRequest } from "../../lib/efsCardEcho.js";

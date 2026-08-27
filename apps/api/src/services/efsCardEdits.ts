@@ -5,7 +5,7 @@ import {
   type OverrideLimit,
   type OverrideScope,
   type PromptInput,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { CardEdit } from "../lib/efsCardEcho.js";
 
 /**

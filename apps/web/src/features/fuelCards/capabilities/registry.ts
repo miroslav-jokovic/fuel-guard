@@ -1,4 +1,4 @@
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 import { cardDeactivateView } from "./cardDeactivate.view.js";
 import { cardLockView } from "./cardLock.view.js";
 import { cardUnlockView } from "./cardUnlock.view.js";

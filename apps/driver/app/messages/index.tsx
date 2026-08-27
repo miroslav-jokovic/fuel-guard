@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
-import { messagePreview, sortThreads, threadTitle } from '@fuelguard/shared';
+import { messagePreview, sortThreads, threadTitle } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

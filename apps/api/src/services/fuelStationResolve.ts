@@ -4,7 +4,7 @@
  * `fuel_transactions.station_id` shipped as a column in migration 0243 and stayed 0% populated, so
  * every brand question — how much at ONE9, how much off-network, what did California cost — could only
  * be answered from an uploaded vendor statement covering five weeks. The matching rules and their
- * evidence live in `@fuelguard/shared`'s `stationMatch`; this service is the I/O around them.
+ * evidence live in `@silvicom/shared`'s `stationMatch`; this service is the I/O around them.
  *
  * ── WHY THIS RUNS FOREVER AND NOT ONCE ───────────────────────────────────────────────────────────
  * A backfill alone would have been stale within a day: the EFS feed writes new fills continuously and
@@ -25,7 +25,7 @@
  * RLS, so that filter is the tenant boundary — asserted by `expectOrgScoped` in the tests.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildStationIndex, matchFillStation, type StationMatchReason, type StationRef } from "@fuelguard/shared";
+import { buildStationIndex, matchFillStation, type StationMatchReason, type StationRef } from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 const UPDATE_CHUNK = 500;

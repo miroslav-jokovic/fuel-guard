@@ -13,7 +13,7 @@
  * the enforced row reads normally, the superseded one sits beneath it in muted text.
  */
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
@@ -25,7 +25,7 @@ import {
   sourceSentence,
   timeRows,
 } from "./cardControlModel";
-import type { EfsLimitOption } from "@fuelguard/shared";
+import type { EfsLimitOption } from "@silvicom/shared";
 import type { EfsCardDetailResponse } from "./useEfsCards";
 
 const props = defineProps<{

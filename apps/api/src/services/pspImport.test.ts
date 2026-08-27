@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PSP_IMPORT_SOURCE } from "@fuelguard/shared";
+import { PSP_IMPORT_SOURCE } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { filePspImport, registerPspImportDocument, isPspImportError } from "./pspImport.js";
 

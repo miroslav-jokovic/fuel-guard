@@ -5,7 +5,7 @@ import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDete
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";

@@ -1,4 +1,4 @@
-import type { HazmatCreateLoadRequest } from "@fuelguard/shared";
+import type { HazmatCreateLoadRequest } from "@silvicom/shared";
 import { buildEngineLines, emptyLine, type CalcLineForm } from "./calcModel";
 
 /**

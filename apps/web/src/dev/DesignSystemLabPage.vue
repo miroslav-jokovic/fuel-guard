@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton, AppAvatar } from "@fuelguard/ui";
-import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
+import { AppButton, AppAvatar } from "@silvicom/ui";
+import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
 import CaseTimeline, { type NearMiss } from "@/features/anomalies/CaseTimeline.vue";

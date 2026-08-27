@@ -1,6 +1,6 @@
 import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
-import type { DriverApplication } from "@fuelguard/shared";
+import type { DriverApplication } from "@silvicom/shared";
 import { renderApplicationPdf, sourceDigest, type ApplicationPdfInput } from "./render.js";
 
 /**

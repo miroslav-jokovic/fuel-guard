@@ -1,4 +1,4 @@
-import type { EquipmentOption } from '@fuelguard/shared';
+import type { EquipmentOption } from '@silvicom/shared';
 import type { TaskStep } from '@/components';
 
 /**

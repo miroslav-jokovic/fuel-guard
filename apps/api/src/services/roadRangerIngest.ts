@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hourBucketIso } from "../lib/timeBucket.js";
-import { parseRoadRangerPrices, median } from "@fuelguard/shared";
+import { parseRoadRangerPrices, median } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { hereGeocode, mapPool } from "../lib/hereGeocode.js";
 

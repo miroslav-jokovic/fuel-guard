@@ -1,4 +1,4 @@
-import { EFS_CARD_STATUS_LABELS, cardDeactivateContract, efsStatusEquals } from "@fuelguard/shared";
+import { EFS_CARD_STATUS_LABELS, cardDeactivateContract, efsStatusEquals } from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 
 /**

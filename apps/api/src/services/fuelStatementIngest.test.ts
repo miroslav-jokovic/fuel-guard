@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "./fuelStatementIngest.js";
-import type { StatementWord } from "@fuelguard/shared";
+import type { StatementWord } from "@silvicom/shared";
 
 /**
  * Recording a vendor statement (WP4).

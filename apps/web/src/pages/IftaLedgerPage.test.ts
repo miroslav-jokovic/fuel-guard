@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { computed, ref } from "vue";
-import { computeIftaPosition, tieOutMiles, type IftaFuelPurchase, type IftaJurisdictionMiles } from "@fuelguard/shared";
-import { metersFromMiles } from "@fuelguard/shared";
+import { computeIftaPosition, tieOutMiles, type IftaFuelPurchase, type IftaJurisdictionMiles } from "@silvicom/shared";
+import { metersFromMiles } from "@silvicom/shared";
 import type { IftaPeriodData } from "@/features/ifta/useIftaPeriod";
 
 /**

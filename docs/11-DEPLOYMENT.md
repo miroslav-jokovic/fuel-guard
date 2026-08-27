@@ -137,8 +137,8 @@ app is deployed in Stage 3.)
 
 1. Railway → **New Project → Deploy from GitHub repo** → pick the FuelGuard repo.
 2. Railway reads **`railway.json`** in the repo, so the build and start commands are already set:
-   - build: `pnpm install && pnpm --filter @fuelguard/web build` (builds the SPA)
-   - start: `pnpm --filter @fuelguard/api start` (Node API that also serves the SPA)
+   - build: `pnpm install && pnpm --filter @silvicom/web build` (builds the SPA)
+   - start: `pnpm --filter @silvicom/api start` (Node API that also serves the SPA)
    - health check: `/healthz`
 3. The first build will likely **fail or come up unconfigured** — that's expected, we haven't added
    the environment variables yet. Continue to 3.2.

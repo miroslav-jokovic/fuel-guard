@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planDqAlerts, rolesThatManage, type DqAlert } from "@fuelguard/shared";
+import { planDqAlerts, rolesThatManage, type DqAlert } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { sendEmail } from "../lib/mailer.js";

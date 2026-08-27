@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CapabilityContract, Target } from "@fuelguard/shared";
+import type { CapabilityContract, Target } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { CardOpOptions } from "../lib/efsCardOps.js";
@@ -11,7 +11,7 @@ import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
  * The BEHAVIOUR half of a capability: how the write is produced and how landing is judged.
  *
  * API-side, because everything here touches a card document, an edit list or the vendor. The
- * contract stays browser-safe next door in `@fuelguard/shared`; this is the half the orchestrator
+ * contract stays browser-safe next door in `@silvicom/shared`; this is the half the orchestrator
  * executes (docs/27 §3, §6.2).
  *
  * ── What a capability may NOT do, and why that is a type and not a rule ─────────────────────────

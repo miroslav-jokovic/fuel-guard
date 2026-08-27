@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { crossMatchEmployment, parsePspReport } from "@fuelguard/shared";
+import { crossMatchEmployment, parsePspReport } from "@silvicom/shared";
 
 /**
  * The fourteen real PSP responses, replayed.
@@ -25,7 +25,7 @@ import { crossMatchEmployment, parsePspReport } from "@fuelguard/shared";
  * vendor's own shapes must satisfy, so a parser that quietly stops reading a field fails here even
  * though nobody wrote a case about that field.
  *
- * Re-capture with `pnpm --filter @fuelguard/api psp:uat --driver <name> --order`. UAT does not bill.
+ * Re-capture with `pnpm --filter @silvicom/api psp:uat --driver <name> --order`. UAT does not bill.
  */
 
 interface VendorRecord {

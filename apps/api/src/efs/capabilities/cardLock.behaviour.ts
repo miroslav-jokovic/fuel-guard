@@ -4,7 +4,7 @@ import {
   cardLockContract,
   efsStatusEquals,
   overrideBlocksWrite,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { lockEdits, overrideClearEdits } from "../../services/efsCardEdits.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";

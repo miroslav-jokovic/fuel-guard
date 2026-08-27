@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { moduleUnavailableMessage, type ModuleKey } from "@fuelguard/shared";
+import { moduleUnavailableMessage, type ModuleKey } from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";

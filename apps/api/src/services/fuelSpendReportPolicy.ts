@@ -8,14 +8,14 @@
  * `packages/shared` and all tested there, so a figure in this document and the same figure on the page
  * cannot come out different.
  */
-import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, ExceptionReport, FleetIdleVerdict, FuelPolicy, SpendGrain, SpendLine, SpendPeriod } from "@fuelguard/shared";
+import type { analyzePolicyExceptions, ContractCapture, ExceptionGroup, ExceptionReport, FleetIdleVerdict, FuelPolicy, SpendGrain, SpendLine, SpendPeriod } from "@silvicom/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { proportionBar, proportionBarHeight, rankedBars, rankedBarsHeight, type Rank, type Segment } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, type Column, type Row } from "./fuelSpendReportTable.js";
 import { lead, note, startSection } from "./fuelSpendReportDraw.js";
 import { ensure, gap } from "./fuelSpendReportFlow.js";
 import { num, plural, shortDay, usd, usd3 } from "./fuelSpendReportFormat.js";
-import { avoidedBrandsLabel, avoidedStatesLabel } from "@fuelguard/shared";
+import { avoidedBrandsLabel, avoidedStatesLabel } from "@silvicom/shared";
 import { winAnsi } from "./dqBinder/pdfDraw.js";
 
 const M = GEOM.margin;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
-import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
+import { analyzePolicyExceptions, type SpendLine } from "@silvicom/shared";
 import { computed, ref } from "vue";
 
 // The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
@@ -25,7 +25,7 @@ import SpendOverviewTab from "./SpendOverviewTab.vue";
 
 /**
  * These tabs are the only place the fuel-spend analytics are ever seen. The functions are covered in
- * `@fuelguard/shared`; what is NOT covered by those tests is whether a template reads a field that
+ * `@silvicom/shared`; what is NOT covered by those tests is whether a template reads a field that
  * does not exist, or renders "$NaN" when a period has no gallons — which is exactly the failure a
  * carrier would report as "the page is broken" and which typecheck cannot catch inside a `<template>`.
  *

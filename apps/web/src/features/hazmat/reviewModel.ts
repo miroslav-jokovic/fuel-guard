@@ -1,5 +1,5 @@
 /**
- * Review UI model (plan H7). The CLEARING RULES now live in `@fuelguard/shared` (hazmatReview) so the web
+ * Review UI model (plan H7). The CLEARING RULES now live in `@silvicom/shared` (hazmatReview) so the web
  * and the API `clearLoad` enforce ONE fail-closed definition — the server is the real gate, this only
  * decides what the reviewer sees. This file keeps the UI-only concern: turning run flags into readable,
  * ordered review items. The gate functions are re-exported for the panel under familiar names.
@@ -13,9 +13,9 @@ export {
   checkHazmatClear,
   buildHazmatAttestation,
   type HazmatClearCheck,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
-import type { HazmatLoadRow } from "@fuelguard/shared";
+import type { HazmatLoadRow } from "@silvicom/shared";
 
 export type ReviewTier = "violation" | "conditional" | "warning" | "info";
 export interface ReviewItem {

@@ -1,7 +1,7 @@
 import { type Ref, computed, toValue } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Anomaly, AnomalyTransition, FuelTransaction } from "@fuelguard/shared";
-import { cardIsIdentifiable, isFullCardNumber, sameCardFill } from "@fuelguard/shared";
+import type { Anomaly, AnomalyTransition, FuelTransaction } from "@silvicom/shared";
+import { cardIsIdentifiable, isFullCardNumber, sameCardFill } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 

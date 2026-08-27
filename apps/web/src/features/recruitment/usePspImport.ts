@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
+import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";

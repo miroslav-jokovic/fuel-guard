@@ -5,13 +5,13 @@ import {
   EMPLOYMENT_INQUIRY_LABELS,
   employmentHistoryCreateSchema,
   type EmploymentHistory,
-} from "@fuelguard/shared";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateField } from "@fuelguard/ui";
-import { AppCheckbox } from "@fuelguard/ui";
-import { AppTextarea } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateField } from "@silvicom/ui";
+import { AppCheckbox } from "@silvicom/ui";
+import { AppTextarea } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 
 /**
  * One employer, as the application declares them. Validated against the SHARED create schema before

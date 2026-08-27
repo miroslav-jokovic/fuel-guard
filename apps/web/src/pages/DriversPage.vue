@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { PlusIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver, DriverInput } from "@fuelguard/shared";
+import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver, useArchiveDriver } from "@/composables/useDrivers";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
@@ -19,8 +19,8 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppSelect } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppSelect } from "@silvicom/ui";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -28,7 +28,7 @@ import { formatPhone } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 import { useDriverReconcile } from "@/features/fleet/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
-import { driverAppAccess } from "@fuelguard/shared";
+import { driverAppAccess } from "@silvicom/shared";
 
 // HOS badge lives in lib/badges.ts (D3); the "as of" tooltip stays here with its data.
 function hosAgo(iso: string | null): string {

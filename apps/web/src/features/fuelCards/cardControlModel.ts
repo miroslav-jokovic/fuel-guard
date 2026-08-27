@@ -2,7 +2,7 @@ import {
   EFS_CARD_STATUS_LABELS,
   type EfsCardStatus,
   canonicalEfsStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { CardOperationId } from "./cardOperations";
 
 /**

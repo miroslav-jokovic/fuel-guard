@@ -2,7 +2,7 @@ import {
   type OverrideClearBody,
   deleteOverrideContract,
   overrideClearContract,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { deleteOverrideOp } from "../../lib/efsCardWrite.js";
 import { OVERRIDE_FIELDS, overrideClearEdits, overrideClearedLanded } from "../../services/efsCardEdits.js";

@@ -47,7 +47,7 @@ export interface PacketPdfInput {
   signedName: string;
 }
 
-import type { DriverApplication } from "@fuelguard/shared";
+import type { DriverApplication } from "@silvicom/shared";
 import { newDrawing } from "../../dqBinder/pdfDraw.js";
 import { letterhead, packetFooter, type PacketCarrier } from "./packetDraw.js";
 import { page1, page2, page12, page16, page26 } from "./packetPages.js";

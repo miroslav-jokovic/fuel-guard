@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import type { ApplicationInviteDelivery } from "@/features/recruitment/useApplicationInvites";
 

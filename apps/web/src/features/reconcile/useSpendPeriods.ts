@@ -27,7 +27,7 @@ import {
   type SpendDaySums,
   type SpendGrain,
   type SpendPeriod,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import type { SpendQueryFilters } from "./useSpendDays";
 

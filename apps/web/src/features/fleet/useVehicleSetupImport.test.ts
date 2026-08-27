@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Vehicle } from "@fuelguard/shared";
+import type { Vehicle } from "@silvicom/shared";
 import { rowsToCsvText, analyzeVehicleImport } from "./useVehicleSetupImport";
 
 const HEADERS = ["unit_number", "fuel_type", "make", "tank_capacity_gal", "baseline_mpg"];

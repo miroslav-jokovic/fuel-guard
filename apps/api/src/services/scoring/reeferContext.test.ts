@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { loadReeferContext } from "./context.js";
-import type { TxnView } from "@fuelguard/shared";
+import type { TxnView } from "@silvicom/shared";
 
 /**
  * Regression test for audit 2026-08-09 finding 4.1a.

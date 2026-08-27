@@ -9,8 +9,8 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
-      "@fuelguard/shared": ["../../packages/shared/dist/index.d.ts"],
-      "@fuelguard/capture-engine": ["../../packages/capture-engine/src/index.ts"]
+      "@silvicom/shared": ["../../packages/shared/dist/index.d.ts"],
+      "@silvicom/capture-engine": ["../../packages/capture-engine/src/index.ts"]
     },
     "types": ["nativewind/types"]
   },

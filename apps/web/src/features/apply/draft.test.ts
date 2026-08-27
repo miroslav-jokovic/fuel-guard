@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverApplicationSchema } from "@fuelguard/shared";
+import { driverApplicationSchema } from "@silvicom/shared";
 import {
   emptyDraft,
   fromDraftPayload,

@@ -6,7 +6,7 @@ import type {
   HazmatLoadsListResponse,
   HazmatRunRow,
   HazmatRunsResponse,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

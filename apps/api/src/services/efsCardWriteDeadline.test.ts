@@ -5,7 +5,7 @@ import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { cardLockContract } from "@fuelguard/shared";
+import { cardLockContract } from "@silvicom/shared";
 import { executeCapability, type CardMutationContext } from "./efsCardControl.js";
 import { cardLockBehaviour } from "../efs/capabilities/cardLock.behaviour.js";
 import { resolveCapability } from "../efs/orchestrator/resolve.js";

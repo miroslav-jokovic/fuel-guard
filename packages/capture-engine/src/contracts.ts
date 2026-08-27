@@ -1,5 +1,5 @@
 /**
- * Public API contracts for @fuelguard/capture-engine (DCE §2).
+ * Public API contracts for @silvicom/capture-engine (DCE §2).
  *
  * This is the ONLY surface other modules touch. Pure types + pure functions live in this package;
  * it imports NOTHING platform-specific (no React Native, no Node, no crypto) so it typechecks and

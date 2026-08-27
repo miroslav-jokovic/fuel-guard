@@ -3,7 +3,7 @@ import {
   learnIdleTemperatureEnvelope,
   type IdleEnvelopeObservation,
   type IdleLearnedEnvelopeStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 export interface IdleLearnedEnvelopeSyncResult {
   vehicles: number;

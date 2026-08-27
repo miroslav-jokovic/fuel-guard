@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
-import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@fuelguard/shared";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";

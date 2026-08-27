@@ -46,13 +46,13 @@ apps/
   web/ driver/ admin/ admin-api/
 ```
 
-**Why this and not a split:** the boundary you want already exists and is enforced (`scripts/check-feature-boundaries.mjs` fails the build if `@hazmat/*` imports `@fuelguard/*`). Extend the same fitness function to assert **`platform` may not import any product package** — that's the rule that keeps the spine reusable. One CI check buys you what a repo split claims to buy.
+**Why this and not a split:** the boundary you want already exists and is enforced (`scripts/check-feature-boundaries.mjs` fails the build if `@hazmat/*` imports `@silvicom/*`). Extend the same fitness function to assert **`platform` may not import any product package** — that's the rule that keeps the spine reusable. One CI check buys you what a repo split claims to buy.
 
 **Sequencing:** do this *after* M3, *before* M5. Right now `packages/shared` is 23k LOC of everything; splitting it while you're mid-master-data would be churn on top of churn.
 
 ## S2. Rename the umbrella — and do it now
 
-**Problem:** you diagnosed this yourself. "FuelGuard" as the parent of HazmatGuard is a naming error that will leak into every contract, every repo URL, every `@fuelguard/*` import, and every conversation with a hazmat buyer who does not care about fuel.
+**Problem:** you diagnosed this yourself. "FuelGuard" as the parent of HazmatGuard is a naming error that will leak into every contract, every repo URL, every `@silvicom/*` import, and every conversation with a hazmat buyer who does not care about fuel.
 
 **Solution:** a neutral platform name; products keep theirs.
 
@@ -64,7 +64,7 @@ apps/
   └── Navigation    commercial routing
 ```
 
-**Cost, concretely:** `@fuelguard/*` appears across ~12 workspace packages. It's a scoped-package rename — a codemod plus `pnpm-workspace.yaml`, `package.json` names, and import specifiers. Half a day mechanical, plus a docs pass.
+**Cost, concretely:** `@silvicom/*` appears across ~12 workspace packages. It's a scoped-package rename — a codemod plus `pnpm-workspace.yaml`, `package.json` names, and import specifiers. Half a day mechanical, plus a docs pass.
 
 **Why now:** this cost is monotonically increasing. Every file M3–M6 adds makes it larger, and it never gets easier. Do it before M3.
 

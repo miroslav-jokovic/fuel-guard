@@ -6,7 +6,7 @@ import {
   validatePspImport,
   type PspImport,
   type PspImportUpload,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { registerDocument } from "./compliance.js";
 
 /**

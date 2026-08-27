@@ -5,7 +5,7 @@ import {
   efsStatusEquals,
   overrideGrantBlockedMessage,
   overrideGrantStatusMessage,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { OperationDraft } from "./cardOperations";
 
 /**

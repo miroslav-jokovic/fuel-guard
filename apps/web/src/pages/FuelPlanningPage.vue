@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ArrowPathIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, watch } from "vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
 import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";

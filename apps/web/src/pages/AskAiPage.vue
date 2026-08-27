@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   PaperAirplaneIcon,
   SparklesIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref } from "vue";
 import { apiFetch } from "@/lib/api";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppTextarea } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppTextarea } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const question = ref("");

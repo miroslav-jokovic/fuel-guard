@@ -1,4 +1,4 @@
-import type { CardCapabilities } from "@fuelguard/shared";
+import type { CardCapabilities } from "@silvicom/shared";
 
 // ─── Write availability ────────────────────────────────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
-import { scrubSentryEvent, type ScrubbableEvent } from '@fuelguard/shared';
+import { scrubSentryEvent, type ScrubbableEvent } from '@silvicom/shared';
 import { env } from './env';
 
 /**
  * Crash reporting for the driver app (hardening plan Phase 8.1). An enterprise fleet app without
  * crash telemetry is flying blind — a driver in a cab does not file bug reports.
  *
- * Mirrors the API's posture exactly, via the SAME shared scrubber (`@fuelguard/shared`
+ * Mirrors the API's posture exactly, via the SAME shared scrubber (`@silvicom/shared`
  * sentryScrub): never auto-collect PII, keep only user.id, strip CDL/DOB/address/registry numbers
  * and image bytes before anything leaves the device. Entirely a no-op unless
  * EXPO_PUBLIC_SENTRY_DSN is set — dev and test runs are unaffected.

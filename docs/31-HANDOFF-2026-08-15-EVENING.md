@@ -288,7 +288,7 @@ node scripts/override-ledger-diagnose.mjs
 Regenerate the config-scan artefacts from the mirror, no vendor calls:
 
 ```bash
-pnpm --filter @fuelguard/api exec tsx src/scripts/runConfigScan.ts
+pnpm --filter @silvicom/api exec tsx src/scripts/runConfigScan.ts
 ```
 
 Gates, in the order that matters — **commit first, then run `lint:secrets`**:

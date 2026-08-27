@@ -11,7 +11,7 @@ import {
   type MeEquipmentResponse,
   type MeShiftResponse,
   type StartShiftRequest,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import { apiFetch } from '@/lib/api';
 import { ApiQueryError } from '@/lib/queryClient';
 import { enqueue, newClientId } from '@/data/outbox';

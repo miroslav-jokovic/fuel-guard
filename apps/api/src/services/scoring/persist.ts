@@ -14,7 +14,7 @@ import {
   type RuleResult,
   type TxnView,
   type VehicleView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { getBuildInfo } from "../../lib/buildInfo.js";
 import type { ReconResult } from "./reconcile.js";
 import { learnVehicleValues } from "./learnVehicle.js";

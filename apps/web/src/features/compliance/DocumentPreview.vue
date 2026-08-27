@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { DocumentRow } from "@fuelguard/shared";
-import { AppIcon, AppButton as BaseButton } from "@fuelguard/ui";
-import { ArrowDownTrayIcon, PrinterIcon } from "@fuelguard/ui/icons";
+import type { DocumentRow } from "@silvicom/shared";
+import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { ArrowDownTrayIcon, PrinterIcon } from "@silvicom/ui/icons";
 import BaseModal from "@/components/ui/BaseModal.vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";

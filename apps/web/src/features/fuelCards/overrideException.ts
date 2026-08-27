@@ -1,4 +1,4 @@
-import { overrideBlocksWrite } from "@fuelguard/shared";
+import { overrideBlocksWrite } from "@silvicom/shared";
 import type { OperationCard, OperationDraft } from "./cardOperations";
 
 /**

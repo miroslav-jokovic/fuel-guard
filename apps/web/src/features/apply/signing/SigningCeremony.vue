@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
-import type { AuthorizationPurpose } from "@fuelguard/shared";
+import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import type { AuthorizationPurpose } from "@silvicom/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
 import { useSigningCeremony } from "@/features/apply/signing/useSigningCeremony";
 import SignaturePad from "@/features/apply/signing/SignaturePad.vue";

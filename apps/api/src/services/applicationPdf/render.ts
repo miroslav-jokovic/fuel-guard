@@ -7,7 +7,7 @@ import {
   type ApplicationEmployer,
   type DriverApplication,
   type QuestionnaireQuestion,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   CONTENT_WIDTH,
   MARGIN,

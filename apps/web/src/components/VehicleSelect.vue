@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   CheckIcon,
   ChevronUpDownIcon,
   TruckIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed, watch, nextTick } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, size } from "@floating-ui/vue";
-import type { Vehicle } from "@fuelguard/shared";
+import type { Vehicle } from "@silvicom/shared";
 
 const props = withDefaults(
   defineProps<{

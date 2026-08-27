@@ -1,4 +1,4 @@
-import type { MeScoreResponse, MeScoreWeek, PerformanceWeightsView } from '@fuelguard/shared';
+import type { MeScoreResponse, MeScoreWeek, PerformanceWeightsView } from '@silvicom/shared';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 /**

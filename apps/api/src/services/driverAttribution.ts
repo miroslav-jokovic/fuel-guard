@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deriveFuelEventsFromEfsStore, reconcileFuelLines, driversToProvision, type EfsStoreLine } from "@fuelguard/shared";
+import { deriveFuelEventsFromEfsStore, reconcileFuelLines, driversToProvision, type EfsStoreLine } from "@silvicom/shared";
 import { fetchAllPaged } from "../lib/paging.js";
 
 export interface DriverAttributionResult {

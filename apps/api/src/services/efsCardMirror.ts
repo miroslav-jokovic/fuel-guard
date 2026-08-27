@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardLast4, isFullCardNumber, parseEfsDateTime } from "@fuelguard/shared";
+import { cardLast4, isFullCardNumber, parseEfsDateTime } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";

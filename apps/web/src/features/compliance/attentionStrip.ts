@@ -1,4 +1,4 @@
-import type { DriverOverviewRow } from "@fuelguard/shared";
+import type { DriverOverviewRow } from "@silvicom/shared";
 
 /**
  * The attention strip's five tiles (DQF plan C5) — pure so the counts are testable without

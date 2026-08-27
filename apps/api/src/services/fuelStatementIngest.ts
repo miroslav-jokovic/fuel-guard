@@ -25,7 +25,7 @@ import {
   type StatementLine,
   type StatementWord,
   type PilotStatementParse,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 export const STATEMENT_BUCKET = "fuel-statements";

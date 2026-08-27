@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { cardLast4 } from "@fuelguard/shared";
+import { cardLast4 } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import type { Env } from "../../env.js";
 import { apiError, asyncHandler } from "../../lib/http.js";

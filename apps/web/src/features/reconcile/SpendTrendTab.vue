@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
-import { comparablePeriods, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { comparablePeriods, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { downloadCsv } from "@/lib/csv";
@@ -20,7 +20,7 @@ import { usd, usd2, usd3, gal, pct1 } from "./format";
  *
  * This is the tab that answers the question the carrier actually asks, at the grain they ask it: day,
  * week or month, this period against the one before. Everything on it is computed by the pure functions
- * in `@fuelguard/shared`, so the tiles, the bridge and the table cannot disagree with each other or with
+ * in `@silvicom/shared`, so the tiles, the bridge and the table cannot disagree with each other or with
  * the tests.
  *
  * The comparison deliberately uses the last COMPLETE period. A Tuesday is not a week, and comparing a

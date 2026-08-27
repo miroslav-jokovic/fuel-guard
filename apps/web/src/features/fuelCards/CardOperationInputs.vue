@@ -7,12 +7,12 @@ import {
   type EfsLocation,
   type PromptInput,
   infoLabel,
-} from "@fuelguard/shared";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox } from "@fuelguard/ui";
-import { AppRadioGroup as RadioGroup } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox } from "@silvicom/ui";
+import { AppRadioGroup as RadioGroup } from "@silvicom/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 import OverrideLimitPicker from "./OverrideLimitPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";

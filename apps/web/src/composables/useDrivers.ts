@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import { EMPLOYED_DRIVER_STATUSES } from "@fuelguard/shared";
-import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@fuelguard/shared";
+import { EMPLOYED_DRIVER_STATUSES } from "@silvicom/shared";
+import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 

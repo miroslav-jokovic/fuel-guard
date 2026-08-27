@@ -1,7 +1,7 @@
 # Silvicom 360 (formerly FuelGuard)
 
 Fleet fuel-security and compliance SaaS for trucking carriers. pnpm monorepo, ESM everywhere,
-Node >= 22, TypeScript run via tsx (no compile step except `@fuelguard/shared` for React Native).
+Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` for React Native).
 
 ## Package map
 
@@ -39,7 +39,7 @@ Node >= 22, TypeScript run via tsx (no compile step except `@fuelguard/shared` f
 - The API reads with the service role, which BYPASSES RLS: every service query must org-filter itself,
   and tests assert it via `supabaseRecorder`'s `expectOrgScoped`.
 - Features under `src/features/<name>` may not import another feature's internals; hazmat packages may
-  not import `@fuelguard/*` or use clocks/randomness (`lint:boundaries`).
+  not import `@silvicom/*` or use clocks/randomness (`lint:boundaries`).
 - 500-line file budget (warn 450), 200-line function budget in api services; grandfathered files may
   only shrink (`lint:filesize`, `lint:funcsize`).
 - Evidence tables (`certifications`, `qualification_records`, `documents`, `dq_exports`, audit logs)

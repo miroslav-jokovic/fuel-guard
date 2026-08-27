@@ -9,7 +9,7 @@ import {
   type IdleClassification,
   type IdleRow,
   type WeekLeaderboard,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 /** One row shown on the leaderboard — eligible drivers carry a rank; ineligible ones are listed below. */

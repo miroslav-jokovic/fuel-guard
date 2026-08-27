@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { roleSchema } from "@fuelguard/shared";
+import { roleSchema } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

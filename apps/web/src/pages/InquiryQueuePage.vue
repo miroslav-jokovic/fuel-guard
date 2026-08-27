@@ -4,8 +4,8 @@ import {
   INQUIRY_STATE_LABELS,
   INVESTIGATION_FILE_DAYS,
   type InquiryState,
-} from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

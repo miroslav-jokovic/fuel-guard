@@ -1,4 +1,4 @@
-import { PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@silvicom/shared";
 import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";

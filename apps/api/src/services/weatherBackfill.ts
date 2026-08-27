@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { weatherGridCell, utcDate, pickHourlyTempF } from "@fuelguard/shared";
+import { weatherGridCell, utcDate, pickHourlyTempF } from "@silvicom/shared";
 import type { OpenMeteoFetcher, OpenMeteoDay } from "../lib/openMeteo.js";
 
 export interface BackfillInput {

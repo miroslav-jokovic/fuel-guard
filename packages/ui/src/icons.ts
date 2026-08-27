@@ -1,5 +1,5 @@
 /**
- * @fuelguard/ui/icons — the curated icon inventory.
+ * @silvicom/ui/icons — the curated icon inventory.
  *
  * Every icon used anywhere in a Silvicom 360 app is re-exported from here under a
  * stable local name. Feature code imports from this barrel; the barrel maps to
@@ -17,7 +17,7 @@
  *   1. Find the HugeIcons glyph at https://hugeicons.com (Stroke Rounded, free
  *      tier). Note the export name (e.g. `PackageOpenIcon`).
  *   2. Add a re-export below under a stable local name.
- *   3. Import from `@fuelguard/ui/icons` at the call site.
+ *   3. Import from `@silvicom/ui/icons` at the call site.
  *
  * Naming convention: local names mirror the semantic Heroicons names that
  * predated this migration, so the pattern is familiar to anyone who worked on

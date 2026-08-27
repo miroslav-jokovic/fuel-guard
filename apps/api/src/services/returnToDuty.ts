@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { returnToDutyOutstanding } from "@fuelguard/shared";
+import { returnToDutyOutstanding } from "@silvicom/shared";
 
 /**
  * §40.25(j) — the read behind the gate (0237).

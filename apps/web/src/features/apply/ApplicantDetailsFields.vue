@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppInput as BaseInput, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 

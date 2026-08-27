@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { formatRuleId } from "@fuelguard/shared";
+import { formatRuleId } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
 import { useAnomaliesPage } from "./useAnomaliesPage";
 

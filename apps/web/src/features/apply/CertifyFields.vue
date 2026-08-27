@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppCheckbox as BaseCheckbox, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 

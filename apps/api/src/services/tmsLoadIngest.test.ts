@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsLoadInput } from "@fuelguard/shared";
+import type { TmsLoadInput } from "@silvicom/shared";
 import { ingestLoads } from "./tmsLoadIngest.js";
 
 /**

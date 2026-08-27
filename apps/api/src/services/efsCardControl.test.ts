@@ -5,7 +5,7 @@ import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { cardLockContract, deleteOverrideContract } from "@fuelguard/shared";
+import { cardLockContract, deleteOverrideContract } from "@silvicom/shared";
 import { CardControlError, executeCapability, type CardMutationContext } from "./efsCardControl.js";
 import { cardLockBehaviour } from "../efs/capabilities/cardLock.behaviour.js";
 import { deleteOverrideBehaviour } from "../efs/capabilities/overrideClear.behaviour.js";

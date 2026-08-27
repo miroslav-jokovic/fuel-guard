@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { RULE_IDS, formatRuleId, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
+import { RULE_IDS, formatRuleId, thresholdsFormSchema, type ThresholdsForm } from "@silvicom/shared";
 import { useThresholdsQuery, useSaveThresholds } from "@/features/settings/useThresholds";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useThresholdsQuery();

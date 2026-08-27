@@ -194,7 +194,7 @@ FuelGuard reached **backend parity with every completed HazmatGuard milestone** 
 - **M12 differentiators** ✅ Roadside Defense Packet + reproducible verdict.
 - **D17/N2/D3 run recording** ✅ `record_hazmat_run` RPC (0130) + `org_usage_month` counter; insert fail-closed.
 
-**Verification:** all 11 packages typecheck clean; engine byte-identical to HazmatGuard (its 490 tests validate the rules upstream). The **test suite + web bundle were NOT run in the cloud bridge VM** (macOS `node_modules` in a Linux VM) — run `pnpm test` and `pnpm --filter @fuelguard/web build` on a Mac.
+**Verification:** all 11 packages typecheck clean; engine byte-identical to HazmatGuard (its 490 tests validate the rules upstream). The **test suite + web bundle were NOT run in the cloud bridge VM** (macOS `node_modules` in a Linux VM) — run `pnpm test` and `pnpm --filter @silvicom/web build` on a Mac.
 
 **Remaining (net-new, not started):** M9 conditional org checks (ship provisional/fail-closed until SME-attested), M6 driver capture (native — design in `docs/plans/drivers-app/DOCUMENT-CAPTURE-ENGINE.md`), M7 calculator, M10 exact art (launch blocker), M11 ops readiness.
 
@@ -263,7 +263,7 @@ awaiting Marija's scenarios).
   (barrel-exported); route added to the existing entitlement-gated `hazmatRouter`; `apps/api` now
   depends on `@hazmat/engine` + `@hazmat/data`. Server injects the shipped dataset + clock; the client
   sends `LoadInput` minus `dataset`; the engine validates the body. Logic verified against the real
-  engine + `2026.07.1` dataset; `@fuelguard/shared` typechecks. (Needs one `pnpm install` to link the
+  engine + `2026.07.1` dataset; `@silvicom/shared` typechecks. (Needs one `pnpm install` to link the
   new deps before `apps/api` typechecks.)
 - **Increment 2 (done): `0092_hazmat_core.sql`** — the 6 tables (`hazmat_loads`/`_documents`/`_runs`/
   `_reviews`/`_cargo_tank_profiles`/`_policies`), the enums, the full 6-role **RLS matrix**, immutability
@@ -275,7 +275,7 @@ awaiting Marija's scenarios).
   `supabase db reset` / migration-up. (Migrations were at 0091; 0092 is now taken — the plan's earlier
   "0079" was stale.)
 - **Increment 3 (done): load state machine + CRUD routes + `hazmat` section.** The **locked state machine**
-  is a pure, tested module in `@fuelguard/shared` (`hazmatLifecycle.ts` — 6 tests: every legal transition,
+  is a pure, tested module in `@silvicom/shared` (`hazmatLifecycle.ts` — 6 tests: every legal transition,
   illegal-transition rejection, draft-only edit, terminal states, clearing-event flags for the provisional
   guard). Routes on the entitlement-gated `hazmatRouter`: `POST/GET/PATCH /hazmat/loads`, `/loads/:id/submit`,
   `/loads/:id/cancel`, `/loads/:id/documents` (registers a row + returns a Supabase signed upload URL),
@@ -283,7 +283,7 @@ awaiting Marija's scenarios).
   non-draft, clearing refused on a provisional dataset. Added the **`hazmat` section** to
   `APP_SECTIONS`/`SECTION_ACCESS` (manage: admin/fleet_manager/dispatcher/safety_manager; view: +auditor;
   driver: none) + `SECTION_LABELS`; the HazmatGuard nav item already existed (module-gated). `HAZMAT_REVIEW_ROLES`
-  (admin/fleet_manager/safety_manager) reserves clear/review for H4-4 (separation of duties). `@fuelguard/shared`
+  (admin/fleet_manager/safety_manager) reserves clear/review for H4-4 (separation of duties). `@silvicom/shared`
   typechecks. (`apps/api` typecheck pends the one `pnpm install` from increment 1.)
 - **Increment 4 (done): in-process analysis orchestrator + review/clear.** `services/hazmatAnalysis.ts` —
   `POST /loads/:id/analyze` returns **202 + runId** and runs async in-process under a concurrency semaphore
@@ -444,7 +444,7 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   checkbox(es) + override reason; Attest-&-clear / Override-&-clear / Reject) wired into the load detail
   (review-role users only; RLS is the real gate) + nav item + hub card. UI labels + item ordering in
   `reviewModel.ts` (`deriveReviewItems` — unknown codes never hidden).
-- **The clearing RULES are enforced SERVER-SIDE** (`@fuelguard/shared/hazmatReview.ts` — `checkHazmatClear`,
+- **The clearing RULES are enforced SERVER-SIDE** (`@silvicom/shared/hazmatReview.ts` — `checkHazmatClear`,
   the single source of truth used by BOTH the web and the API `clearLoad`; 10 shared tests). An independent
   audit (2026-08-01) caught that the override-reason + SP-attestation requirements were **UI-only** — a
   direct API call could clear a violation/SP load on the bare attestation, breaking D2/D8. FIXED: `clearLoad`
@@ -522,7 +522,7 @@ and calculator capacity field already capture data for.)
    updatable without touching engine code.
 3. Boundary enforcement in CI: extend `scripts/check-feature-boundaries.mjs` with a package-level
    check — fail if `packages/hazmat-engine/**` or `packages/hazmat-data/**` contains
-   `from "@fuelguard/` or `from "@/` or any workspace import other than `@hazmat/engine` (data may
+   `from "@silvicom/` or `from "@/` or any workspace import other than `@hazmat/engine` (data may
    not even import engine). Add to the same npm script CI already runs.
 4. Org entitlements: migration `0079_org_entitlements.sql` —
    `alter table organizations add column entitlements text[] not null default '{fuelguard}';`
@@ -545,7 +545,7 @@ and calculator capacity field already capture data for.)
 **Decisions.**
 - Engine language: TypeScript (not Rust/WASM) — same stack, testable by the whole team; determinism
   needs no special runtime. Revisit only if the API-licensing door (H12) demands polyglot SDKs.
-- Package names use the `@hazmat/*` npm scope (not `@fuelguard/*`) so extraction to a separate repo
+- Package names use the `@hazmat/*` npm scope (not `@silvicom/*`) so extraction to a separate repo
   is a copy, not a rename.
 - Versioning: `@hazmat/engine` uses semver, starting `0.1.0`; **every verdict-affecting change bumps
   minor and adds a CHANGELOG entry** — the version is stored on every verdict row (H4).

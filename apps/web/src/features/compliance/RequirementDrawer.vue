@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { ClipboardDocumentCheckIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import {
   DQ_ITEMS,
   HAZMAT_TRAINING_TYPES,
@@ -10,14 +10,14 @@ import {
   type DocumentKind,
   type QualificationRecordCreateRequest,
   type QualificationRecordKind,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateField } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateField } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import {

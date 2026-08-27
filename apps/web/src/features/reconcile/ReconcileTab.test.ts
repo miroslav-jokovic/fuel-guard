@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref } from "vue";
-import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@fuelguard/shared";
+import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@silvicom/shared";
 
 /**
  * The reconciliation tab — the one the page is named after, and the one nothing mounted.
  *
  * ── WHAT THIS PINS, AND WHAT IT DELIBERATELY DOES NOT ────────────────────────────────────────────
- * The matching itself is `reconcilePilotFuel`, tested in `@fuelguard/shared`. What has never been
+ * The matching itself is `reconcilePilotFuel`, tested in `@silvicom/shared`. What has never been
  * covered is everything between that function and a reader: whether a bucket tile filters the table
  * beneath it, whether a status renders as a word rather than a token, and whether the tab survives a
  * report it cannot fully match — which, on the real data, is the ordinary case rather than the edge.

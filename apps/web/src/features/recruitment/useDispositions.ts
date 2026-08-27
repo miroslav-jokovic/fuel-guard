@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantDispositionCreate, ApplicantDispositionRow } from "@fuelguard/shared";
+import type { ApplicantDispositionCreate, ApplicantDispositionRow } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { pipelineKey } from "@/features/recruitment/useEmployment";
 

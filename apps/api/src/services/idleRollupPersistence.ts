@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { IdleRollupDay } from "@fuelguard/shared";
+import type { IdleRollupDay } from "@silvicom/shared";
 import { readAll } from "./idleRollupInputs.js";
 
 const UPSERT_CHUNK = 500;

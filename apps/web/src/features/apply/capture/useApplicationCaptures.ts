@@ -3,13 +3,13 @@ import {
   BUNDLED_DEFAULT_CONFIG,
   type CaptureProvider,
   type RejectionReason,
-} from "@fuelguard/capture-engine";
+} from "@silvicom/capture-engine";
 import {
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_CAPTURE_SLOT_LABELS,
   type ApplicationCaptureSlot,
   type ApplicationCaptureView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider } from "./webFileProvider";
 

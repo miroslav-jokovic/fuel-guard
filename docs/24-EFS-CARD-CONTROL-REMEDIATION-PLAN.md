@@ -44,14 +44,14 @@ From `.github/workflows/ci.yml`, mirrored in `docs/plans/DEVIN-HANDOFF-2026-08-0
 ```bash
 corepack enable
 pnpm install --frozen-lockfile
-pnpm --filter @fuelguard/shared build:rn
+pnpm --filter @silvicom/shared build:rn
 pnpm lint
 pnpm lint:filesize        # 500-line cap per file
 pnpm lint:funcsize        # 200-line cap per function
 pnpm lint:migrations
 pnpm lint:boundaries
 pnpm lint:tokens-parity
-pnpm --filter @fuelguard/web lint:tokens
+pnpm --filter @silvicom/web lint:tokens
 pnpm lint:secrets
 pnpm typecheck
 pnpm test                 # unit suites + 4 RLS matrices
@@ -173,7 +173,7 @@ Pulled to the front because Phase 0 needs `EFS_CARD_CONTROL_PROBE_ENABLED=true`,
 - `read_state` keeps working under the org guard; it is Phase 0's workhorse.
 
 **Verify**
-1. `pnpm --filter @fuelguard/api test apps/api/src/routes/fuelCardsProbe.test.ts` — new cases: *"refuses a card number the org does not own"* (404), *"refuses a production-environment credential without the explicit override"* (403).
+1. `pnpm --filter @silvicom/api test apps/api/src/routes/fuelCardsProbe.test.ts` — new cases: *"refuses a card number the org does not own"* (404), *"refuses a production-environment credential without the explicit override"* (403).
 2. Standing gates green.
 3. Deployed, as QA-org admin: production card number → **404**; QA card `…7671` → 200.
 

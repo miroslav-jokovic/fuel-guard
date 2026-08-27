@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET } from "@silvicom/shared";
 import type { CapabilityCardContext } from "./types.js";
 import { cardDeactivateView } from "./cardDeactivate.view.js";
 import { cardLockView } from "./cardLock.view.js";

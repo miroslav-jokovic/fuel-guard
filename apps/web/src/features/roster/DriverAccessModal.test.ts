@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import type { Driver } from "@fuelguard/shared";
+import type { Driver } from "@silvicom/shared";
 import DriverAccessModal from "./DriverAccessModal.vue";
 
 const mutations = vi.hoisted(() => ({

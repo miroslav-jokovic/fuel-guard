@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraTrailers, parseTrailerAssignments } from "@fuelguard/shared";
+import { parseSamsaraTrailers, parseTrailerAssignments } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import {

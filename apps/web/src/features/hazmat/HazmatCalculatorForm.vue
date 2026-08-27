@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { ClipboardDocumentCheckIcon } from "@fuelguard/ui/icons";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
+import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import HazmatProductLines from "@/features/hazmat/HazmatProductLines.vue";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";

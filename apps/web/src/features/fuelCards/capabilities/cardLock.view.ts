@@ -1,5 +1,5 @@
-import { type CardLockBody, cardLockContract } from "@fuelguard/shared";
-import { EFS_CARD_STATUS_LABELS } from "@fuelguard/shared";
+import { type CardLockBody, cardLockContract } from "@silvicom/shared";
+import { EFS_CARD_STATUS_LABELS } from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 import { cardHasArmedException, clearExceptionClause } from "../overrideException.js";
 

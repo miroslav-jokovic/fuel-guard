@@ -8,7 +8,7 @@ import {
   CARD_MUTATION_INTENTS,
   CARD_MUTATION_STATUSES,
   cardWriteBucket,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { loadEnv } from "../env.js";
 import { cardDeactivateBehaviour } from "./capabilities/cardDeactivate.behaviour.js";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
@@ -17,7 +17,7 @@ import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.j
 import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
 import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { ALL_CAPABILITIES, mountedCapabilities } from "./registry.js";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS } from "@silvicom/shared";
 
 /**
  * The cross-registry fitness test (docs/27 §7.2).
@@ -243,7 +243,7 @@ describe("the capability registries agree with each other", () => {
    *
    * `lint:boundaries` keeps `apps/api` from importing `apps/web`, so no single test can pair a
    * behaviour's gate with the drawer's warning. Instead each side derives its own set and compares
-   * it to `CAPABILITIES_WITH_STEP_UP_GATE` in `@fuelguard/shared`; the web's
+   * it to `CAPABILITIES_WITH_STEP_UP_GATE` in `@silvicom/shared`; the web's
    * `capabilities/registry.test.ts` holds the other half. Adding a gate here without teaching the
    * view to warn turns THAT test red, and the operator never meets a password prompt the drawer
    * promised would not come.
@@ -269,7 +269,7 @@ describe("the capability registries agree with each other", () => {
 
   /**
    * The second half of the same split. Adding a `precondition` to any behaviour must be a decision
-   * somebody writes down in `@fuelguard/shared`, because a refusal computed from the fresh document is
+   * somebody writes down in `@silvicom/shared`, because a refusal computed from the fresh document is
    * a refusal the drawer cannot predict from the body and must be ready to render.
    */
   it("declares a precondition on exactly the capabilities the shared pin names", () => {

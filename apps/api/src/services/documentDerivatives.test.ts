@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deriveBytes, deriveDocument } from "./documentDerivatives.js";
-import { DERIVATIVE_SPECS } from "@fuelguard/shared";
+import { DERIVATIVE_SPECS } from "@silvicom/shared";
 
 /**
  * B2 — the derivative generator. The supabaseRecorder has no Storage surface, so this stub carries

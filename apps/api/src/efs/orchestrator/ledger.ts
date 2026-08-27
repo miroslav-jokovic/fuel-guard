@@ -1,4 +1,4 @@
-import { type CardMutationIntent, type Target } from "@fuelguard/shared";
+import { type CardMutationIntent, type Target } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { CardControlError } from "../../services/efsCardControlErrors.js";
 import { mutationLedgerEvidence } from "../../services/efsCardMutationEvidence.js";

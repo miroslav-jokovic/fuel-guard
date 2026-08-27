@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import type { MeHazmatLoadRow } from '@fuelguard/shared';
+import type { MeHazmatLoadRow } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

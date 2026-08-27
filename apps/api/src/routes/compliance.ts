@@ -19,7 +19,7 @@ import {
   canReadRestrictedKind,
   filterRestrictedRows,
   shouldDerive,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { randomUUID } from "node:crypto";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";

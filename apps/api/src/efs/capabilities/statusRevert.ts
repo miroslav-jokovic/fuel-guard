@@ -1,4 +1,4 @@
-import { EFS_LOCK_STATUSES, canonicalEfsStatus, efsStatusEquals } from "@fuelguard/shared";
+import { EFS_LOCK_STATUSES, canonicalEfsStatus, efsStatusEquals } from "@silvicom/shared";
 import type { Snapshot } from "../types.js";
 
 /**

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   PlusIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fuelTxnStatus, explainCaseOutcome, formatRuleId, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@fuelguard/shared";
+import { fuelTxnStatus, explainCaseOutcome, formatRuleId, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -20,8 +20,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { useToastStore } from "@/stores/toast";

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
-import { fuelPolicyFromSettings, type FuelPolicy, type RouteFuelSettingsForm } from "@fuelguard/shared";
+import { fuelPolicyFromSettings, type FuelPolicy, type RouteFuelSettingsForm } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 

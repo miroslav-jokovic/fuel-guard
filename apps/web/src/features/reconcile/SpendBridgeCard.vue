@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { compareTrailing, discountMarketLink, weeklySpendSeries, type SpendLine } from "@fuelguard/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { compareTrailing, discountMarketLink, weeklySpendSeries, type SpendLine } from "@silvicom/shared";
 import { usd, usd2, gal } from "./format";
 
 /**

@@ -16,7 +16,7 @@ import {
   type StatementLine,
   type StatementTieOut,
   type StatementWord,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { readReportGrid } from "@/lib/reportGrid";
 import { looksLikePdf, readPdfWords } from "@/lib/pdfWords";
 

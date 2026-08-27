@@ -1,6 +1,6 @@
 # FuelGuard Driver App
 
-React Native + Expo app for drivers. Part of the FuelGuard monorepo; reuses `@fuelguard/shared`.
+React Native + Expo app for drivers. Part of the FuelGuard monorepo; reuses `@silvicom/shared`.
 
 **UI contract:** read [`DESIGN.md`](./DESIGN.md) before creating or changing any driver UI. It is the
 source of truth for the FuelGuard visual language, Apple-inspired layout rules, component contracts,
@@ -32,7 +32,7 @@ brew install watchman
 
 # 3. Build the shared package to dist. `pnpm start` / `android` / `ios` do this automatically;
 #    this line is just for the very first install.
-pnpm --filter @fuelguard/shared build:rn
+pnpm --filter @silvicom/shared build:rn
 
 # 4. Align every Expo/RN dependency to the exact versions Expo SDK 57 expects.
 cd apps/driver
@@ -117,7 +117,7 @@ pnpm driver:doctor              # 30-sec preflight; run this FIRST when anything
                                 # stale shared build, iCloud-evicted node_modules files,
                                 # cloud-sync conflict copies, missing watchman, dirty xattrs, etc.
 
-pnpm --filter @fuelguard/driver clean    # Nuclear reset: removes ios/build, android/build,
+pnpm --filter @silvicom/driver clean    # Nuclear reset: removes ios/build, android/build,
                                           # android/.gradle, .expo, node_modules/.cache; deletes
                                           # watchman state. Follow with `driver:android`/`ios`.
 
@@ -159,7 +159,7 @@ proactively by `driver-doctor.mjs`.
 
 Every color comes from a **semantic role** (`bg-surface`, `text-ink`, `border-edge`, `bg-brand`…)
 defined in `global.css` + `tailwind.config.js`. Raw hex, raw palette classes (`bg-red-500`), and
-inline color styles are **rejected** by `pnpm --filter @fuelguard/driver lint:tokens`. Only
+inline color styles are **rejected** by `pnpm --filter @silvicom/driver lint:tokens`. Only
 `src/theme/*` may hold raw color values.
 
 ---
@@ -169,5 +169,5 @@ inline color styles are **rejected** by `pnpm --filter @fuelguard/driver lint:to
 - `packages/shared/dist/` is git-ignored; it's a build artifact (rebuild with `build:rn` — the
   driver scripts do this for you).
 - No secrets in `app.config.ts` `extra` — only `EXPO_PUBLIC_*` values (plan §12.5 / §21).
-- The app is **not yet wired into root `eslint .`** — run `pnpm --filter @fuelguard/driver
+- The app is **not yet wired into root `eslint .`** — run `pnpm --filter @silvicom/driver
   typecheck` and `... lint:tokens` for now.

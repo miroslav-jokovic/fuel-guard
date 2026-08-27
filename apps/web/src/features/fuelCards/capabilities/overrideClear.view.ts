@@ -1,4 +1,4 @@
-import { deleteOverrideContract, overrideClearContract } from "@fuelguard/shared";
+import { deleteOverrideContract, overrideClearContract } from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 
 /**

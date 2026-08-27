@@ -1,7 +1,7 @@
 /**
  * The browser half of the web capture provider (A7).
  *
- * Kept behind an interface for the same reason `@fuelguard/capture-engine` has a provider seam at all:
+ * Kept behind an interface for the same reason `@silvicom/capture-engine` has a provider seam at all:
  * the decision — is this photograph good enough to upload? — is pure and must be testable without a
  * camera, a canvas or a GPU. The default implementation is browser-only; a test passes its own.
  */

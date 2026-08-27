@@ -7,12 +7,12 @@ import {
   groupRollupByVehicle,
   idleScore,
   type IdleCapability,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 import { fetchRollupRows, fetchDayPrices } from "@/composables/useIdleBreakdown";
-import { sumRollupByVehicle } from "@fuelguard/shared";
+import { sumRollupByVehicle } from "@silvicom/shared";
 
 const WINDOW_DAYS = 30;
 const DEFAULT_COST_BASIS: IdleCostBasis = {

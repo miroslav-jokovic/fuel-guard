@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DRIVER_STATUSES } from "@fuelguard/shared";
+import { DRIVER_STATUSES } from "@silvicom/shared";
 
 /**
  * Retirement (M6) — the only operation in this module that takes capability away from a person, and

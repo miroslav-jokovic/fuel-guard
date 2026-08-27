@@ -1,4 +1,4 @@
-import type { AuthContext } from "@fuelguard/shared";
+import type { AuthContext } from "@silvicom/shared";
 
 declare global {
   namespace Express {

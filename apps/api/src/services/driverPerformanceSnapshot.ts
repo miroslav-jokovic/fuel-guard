@@ -11,7 +11,7 @@ import {
   type ResolvedPerformanceConfig,
   type WeekLeaderboard,
   type WeekWindow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { notify } from "./notify.js";
 

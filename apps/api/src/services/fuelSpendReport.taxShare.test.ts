@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzePolicyExceptions, type SpendLine } from "@fuelguard/shared";
+import { analyzePolicyExceptions, type SpendLine } from "@silvicom/shared";
 import { taxSharePhrase } from "./fuelSpendReportPolicy.js";
 
 /**

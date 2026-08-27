@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   FunnelIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
-import { AppSearchField as SearchInput } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppSearchField as SearchInput } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:

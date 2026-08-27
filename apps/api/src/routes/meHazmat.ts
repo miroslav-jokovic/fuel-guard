@@ -5,7 +5,7 @@ import {
   hazmatRegisterDocumentRequestSchema,
   type HazmatCreateLoadRequest,
   type HazmatRegisterDocumentRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { requireModule } from "../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";

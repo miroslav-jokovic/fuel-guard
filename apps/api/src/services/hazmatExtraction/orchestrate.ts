@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDatasetIndex, loadDataset } from "@hazmat/data";
 import { evaluateLoad, ENGINE_VERSION, type Verdict } from "@hazmat/engine";
-import { withinBudget } from "@fuelguard/shared";
+import { withinBudget } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { transitionLoad } from "../hazmatLoads.js";
 import { buildManualLoadInput, computeAdvisories, insertHazmatRun, type CargoTankProfileRow, type ManualLoadRow } from "../hazmatAnalysis.js";
@@ -15,7 +15,7 @@ import { notifyReviewersOfFlag } from "../hazmatNotify.js";
 import { enqueueJob } from "../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 import { evaluateQualification } from "../qualification.js";
-import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@fuelguard/shared";
+import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
 import { readEquipmentKind } from "../hazmatEquipment.js";
 
 /**

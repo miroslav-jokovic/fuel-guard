@@ -21,16 +21,16 @@
       "@vendor/*": [
         "./vendor/*"
       ],
-      "@fuelguard/shared": [
+      "@silvicom/shared": [
         "../../packages/shared/src/index.ts"
       ],
-      "@fuelguard/shared/*": [
+      "@silvicom/shared/*": [
         "../../packages/shared/src/*"
       ],
-      "@fuelguard/ui": [
+      "@silvicom/ui": [
         "../../packages/ui/src/index.ts"
       ],
-      "@fuelguard/ui/icons": [
+      "@silvicom/ui/icons": [
         "../../packages/ui/src/icons.ts"
       ]
     }

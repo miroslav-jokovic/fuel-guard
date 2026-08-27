@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from "vue";
-import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@fuelguard/shared";
+import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@silvicom/shared";
 import { signRelease, type ApplyRelease } from "@/features/apply/useApplication";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 

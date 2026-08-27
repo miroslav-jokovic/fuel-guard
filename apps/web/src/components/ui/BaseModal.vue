@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { XMarkIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { XMarkIcon } from "@silvicom/ui/icons";
 import {
   Dialog,
   DialogDescription,
@@ -10,7 +10,7 @@ import {
   TransitionChild,
 } from "@headlessui/vue";
 import { computed, useSlots } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 /**
  * The one CENTRED dialog (DQF execution plan B5) — added deliberately as a second sanctioned

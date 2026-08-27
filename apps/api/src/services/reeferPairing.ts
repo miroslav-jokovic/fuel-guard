@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseAssetGps, inferTrailerPairing, type GpsSample, type TruckTrack } from "@fuelguard/shared";
+import { parseAssetGps, inferTrailerPairing, type GpsSample, type TruckTrack } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraTrailerGpsFetcher, makeSamsaraVehiclesGpsFetcher } from "../lib/samsara.js";

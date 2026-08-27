@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import type { DocumentRow } from "@fuelguard/shared";
+import type { DocumentRow } from "@silvicom/shared";
 import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
 
 /**

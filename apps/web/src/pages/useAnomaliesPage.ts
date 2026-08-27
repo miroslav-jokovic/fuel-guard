@@ -1,6 +1,6 @@
 import { ref, computed, watch } from "vue";
 import { useRoute } from "vue-router";
-import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
+import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";

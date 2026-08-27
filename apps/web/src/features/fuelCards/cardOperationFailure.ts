@@ -1,4 +1,4 @@
-import type { WsCard } from "@fuelguard/shared";
+import type { WsCard } from "@silvicom/shared";
 import { CardControlApiError } from "./useCardControl";
 
 /**

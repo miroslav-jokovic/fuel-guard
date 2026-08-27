@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { dateDiscrepancies, type EmployerResponse } from "@fuelguard/shared";
+import { dateDiscrepancies, type EmployerResponse } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppInput as BaseInput,
   AppDateField,
   AppFormField as FormField,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

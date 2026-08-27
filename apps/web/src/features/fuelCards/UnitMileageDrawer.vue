@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { EFS_MILEAGE_MAX, type EfsMileageCode } from "@fuelguard/shared";
+import { EFS_MILEAGE_MAX, type EfsMileageCode } from "@silvicom/shared";
 // `AppCombobox`, aliased the way every other call site aliases it. There is no
 // `components/ui/ComboSelect.vue` — DESIGN-SYSTEM-CONTRACT.md names one and is stale here, and
 // `vue-tsc` does NOT catch the bad path because `*.vue` resolves through a module shim. Only the
@@ -11,7 +11,7 @@ import {
   AppInput as BaseInput,
   AppFormField as FormField,
   AppRadioGroup,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { landingNotice, useUnitMileage } from "./useUnitMileage";

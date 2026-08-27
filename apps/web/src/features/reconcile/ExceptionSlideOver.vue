@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppButton as BaseButton, AppInput } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppInput } from "@silvicom/ui";
 import {
   FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_STATUS_LABELS,
   type FuelExceptionStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";

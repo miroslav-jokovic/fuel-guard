@@ -133,7 +133,7 @@ VITE_SUPABASE_URL="https://example.supabase.co" VITE_SUPABASE_ANON_KEY="ci-test-
   pnpm --filter web build && git commit …
 ```
 
-The component was `AppCombobox` in `@fuelguard/ui`, aliased as `ComboSelect` at every existing call
+The component was `AppCombobox` in `@silvicom/ui`, aliased as `ComboSelect` at every existing call
 site. **`DESIGN-SYSTEM-CONTRACT.md` names a `components/ui/ComboSelect.vue` that does not exist** —
 its own header warns it is partly stale, and this is one of those places. Grep an existing call site
 before trusting it.
@@ -198,7 +198,7 @@ git log --oneline -8
 pnpm lint && pnpm typecheck && pnpm test
 pnpm lint:filesize && pnpm lint:funcsize && pnpm lint:tests
 pnpm lint:boundaries && pnpm lint:ui-adoption && pnpm lint:tokens-parity
-pnpm --filter @fuelguard/web lint:tokens
+pnpm --filter @silvicom/web lint:tokens
 pnpm lint:comment-claims && pnpm lint:wsdl && pnpm lint:codegen   # NOT in ci.yml
 node scripts/mutation-check.mjs                                    # commit first — refuses a dirty tree
 

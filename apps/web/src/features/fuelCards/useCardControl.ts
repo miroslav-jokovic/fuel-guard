@@ -6,7 +6,7 @@ import type {
   OverrideLimit,
   OverrideScope,
   PromptInput,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

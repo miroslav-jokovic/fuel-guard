@@ -12,7 +12,7 @@ import {
   type UpdateLoadRequest,
   type DispatchException,
   type ResolveExceptionRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

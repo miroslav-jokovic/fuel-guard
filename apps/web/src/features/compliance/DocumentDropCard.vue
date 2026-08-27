@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { ArrowUpTrayIcon } from "@fuelguard/ui/icons";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
+import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import { useUploadDocument } from "@/composables/useCompliance";

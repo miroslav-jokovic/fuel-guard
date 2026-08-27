@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   PlusIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
+import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -18,7 +18,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import VehicleSetupImport from "@/features/fleet/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";

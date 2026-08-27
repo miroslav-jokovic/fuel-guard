@@ -5,7 +5,7 @@ import {
   DOCUMENTS_BUCKET,
   documentStoragePath,
   type DriverApplication,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
 
 /**

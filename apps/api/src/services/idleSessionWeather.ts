@@ -4,7 +4,7 @@ import {
   utcDate,
   hourlyThermalIntervals,
   type IdleThermalInterval,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { OpenMeteoFetcher, OpenMeteoDay } from "../lib/openMeteo.js";
 
 /**

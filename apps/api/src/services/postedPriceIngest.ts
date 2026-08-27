@@ -9,7 +9,7 @@
  * sanity are checked BEFORE this writer runs, so a partial page can never half-replace a good batch.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PILOT_FAMILY_BRANDS, type PostedPriceRow } from "@fuelguard/shared";
+import { PILOT_FAMILY_BRANDS, type PostedPriceRow } from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 export interface PostedIngestResult {

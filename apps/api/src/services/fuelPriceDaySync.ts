@@ -5,7 +5,7 @@ import {
   type FuelFill,
   type FuelPriceDay,
   type PostedPriceDay,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { organizationTimezone } from "./idleCapabilitySync.js";
 
 /**

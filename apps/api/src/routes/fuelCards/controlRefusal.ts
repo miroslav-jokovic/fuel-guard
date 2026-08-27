@@ -1,4 +1,4 @@
-import { PROMPT_REMOVAL_STEP_UP, promptRemovalNeedsStepUp } from "@fuelguard/shared";
+import { PROMPT_REMOVAL_STEP_UP, promptRemovalNeedsStepUp } from "@silvicom/shared";
 import type { CardScope } from "../../services/efsCardControlAccess.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 

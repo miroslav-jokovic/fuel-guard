@@ -16,8 +16,8 @@
  */
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { ExclamationTriangleIcon } from "@fuelguard/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ErrorPanel from "@/components/ErrorPanel.vue";
 import { errorReference } from "@/lib/errorReference";

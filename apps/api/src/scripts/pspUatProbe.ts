@@ -7,7 +7,7 @@ import {
   resolveCarrierIdentity,
   validatePspRequest,
   type PspRequestDraft,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { loadEnv, pspApiKey, pspApiKeyVar, type Env } from "../env.js";
 import { PspError, fetchMonitoringReport, fetchRecordPdf, pspHost, requestRecord } from "../psp/client.js";
 

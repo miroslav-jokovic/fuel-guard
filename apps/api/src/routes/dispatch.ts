@@ -8,10 +8,10 @@ import {
   rolesThatManage,
   resolveExceptionRequestSchema,
   updateLoadRequestSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { requireModule } from "../middleware/requireModule.js";
-import { assignmentHistoryQuerySchema } from "@fuelguard/shared";
+import { assignmentHistoryQuerySchema } from "@silvicom/shared";
 import { listAssignmentHistory } from "../services/dispatchLoads/history.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

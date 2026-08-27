@@ -7,7 +7,7 @@ import {
   summarizeIdleEvidence,
   learnIdleCapability,
   parseEngineStates,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraEngineStatesFetcher, type EngineStatesFetcher } from "../lib/samsara.js";

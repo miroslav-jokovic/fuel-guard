@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { driverInputSchema, DRIVER_STATUSES, type Driver, type DriverInput } from "@fuelguard/shared";
-import { AppSelect } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { driverInputSchema, DRIVER_STATUSES, type Driver, type DriverInput } from "@silvicom/shared";
+import { AppSelect } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{
   driver?: Driver | null;

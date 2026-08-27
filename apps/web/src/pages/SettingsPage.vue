@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   AdjustmentsHorizontalIcon,
   BellIcon,
@@ -15,7 +15,7 @@ import {
   ReeferTruckIcon,
   ReportChartIcon,
   UsersIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import { useSessionStore } from "@/stores/session";

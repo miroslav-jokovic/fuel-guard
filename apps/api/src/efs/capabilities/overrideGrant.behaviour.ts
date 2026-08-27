@@ -6,7 +6,7 @@ import {
   overrideGrantContract,
   overrideGrantStatusMessage,
   overrideGrantStepUp,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { overrideGrantEdits, overrideLimitsBefore } from "../../services/efsCardEdits.js";
 import { unlandedEditNames } from "../../services/efsCardReconcile.js";
 import { unlandedEditNamesFromAfter } from "../../lib/efsCardWrite.js";

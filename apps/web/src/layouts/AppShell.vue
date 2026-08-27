@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   Bars3Icon,
   ChevronLeftIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
-import { canViewSection, moduleEnabled } from "@fuelguard/shared";
+import { canViewSection, moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";

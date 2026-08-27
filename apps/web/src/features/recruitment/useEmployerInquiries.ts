@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { InquiryAttempt, InquiryKind, InquiryOutcomeUpdate } from "@fuelguard/shared";
-import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
+import type { InquiryAttempt, InquiryKind, InquiryOutcomeUpdate } from "@silvicom/shared";
+import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";

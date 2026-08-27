@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
-import type { UserRole } from "@fuelguard/shared";
-import { canManageFleet, canReadAllRestricted, canReadRestrictedKind, isAdmin, isReadOnly } from "@fuelguard/shared";
+import type { UserRole } from "@silvicom/shared";
+import { canManageFleet, canReadAllRestricted, canReadRestrictedKind, isAdmin, isReadOnly } from "@silvicom/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
 import { clearStepUp } from "@/lib/stepUp";

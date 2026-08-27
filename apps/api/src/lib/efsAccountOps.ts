@@ -21,7 +21,7 @@ import {
   wsProductSchema,
   wsSitePolicyDescriptionSchema,
   type WsSitePolicyDescription,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { z } from "zod";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@fuelguard/admin",
+  "name": "@silvicom/admin",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "typecheck": "vue-tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fuelguard/shared": "workspace:*",
-    "@fuelguard/ui": "workspace:*",
+    "@silvicom/shared": "workspace:*",
+    "@silvicom/ui": "workspace:*",
     "@supabase/supabase-js": "2.110.0",
     "pinia": "3.0.4",
     "vue": "3.5.39",

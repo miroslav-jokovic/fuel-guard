@@ -3,7 +3,7 @@ import {
   meNotificationsResponseSchema,
   type MeNotificationsResponse,
   type UpdatePreferencesRequest,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import { apiFetch } from '@/lib/api';
 import { ApiQueryError } from '@/lib/queryClient';
 

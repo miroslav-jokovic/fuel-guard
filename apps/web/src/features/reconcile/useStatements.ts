@@ -11,7 +11,7 @@
  */
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
-import type { SpendLine } from "@fuelguard/shared";
+import type { SpendLine } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 export interface StatementSummary {

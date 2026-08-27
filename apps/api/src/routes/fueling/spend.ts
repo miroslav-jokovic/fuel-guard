@@ -7,7 +7,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { buildFuelSpendRollup } from "../../services/fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../services/fuelStationResolve.js";
 import { renderFuelSpendReport } from "../../services/fuelSpendReport.js";
-import type { SpendGrain } from "@fuelguard/shared";
+import type { SpendGrain } from "@silvicom/shared";
 
 /**
  * The daily fuel-spend rollup (migration 0244) is READ straight from PostgREST by the web app — the

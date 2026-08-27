@@ -16,7 +16,7 @@ import {
   type CarrierIdentity,
   type PspReport,
   type PspRequestDraft,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
 
 /**
@@ -101,7 +101,7 @@ async function billedThisMonth(admin: SupabaseClient, orgId: string, now: Date):
 }
 
 /**
- * Splitting a name for PSP now lives in `@fuelguard/shared` (psp/identity.ts), because the readiness
+ * Splitting a name for PSP now lives in `@silvicom/shared` (psp/identity.ts), because the readiness
  * report has to split it the SAME way — a report that judged a different name from the one the order
  * sends would call a driver ready whom PSP then refuses, and PSP bills on Failure (§8). Kept as a
  * named export here for the callers that already had it.

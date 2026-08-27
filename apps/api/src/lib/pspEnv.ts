@@ -16,7 +16,7 @@ import type { Env } from "../env.js";
  * `production` reads the production variable and can read nothing else.
  *
  * A token cannot be told from its own bytes; only the service can say which account issued it.
- * `pnpm --filter @fuelguard/api psp:uat --verify-key` is that check, and it costs nothing.
+ * `pnpm --filter @silvicom/api psp:uat --verify-key` is that check, and it costs nothing.
  *
  * This lives beside `env.ts` rather than inside it because that file crossed the 500-line budget when
  * the pair arrived. The import is type-only in this direction, so nothing circular exists at runtime.

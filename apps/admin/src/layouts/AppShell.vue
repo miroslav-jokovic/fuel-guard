@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
-import { AppButton } from "@fuelguard/ui";
+import { AppButton } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useImpersonationStore } from "@/stores/impersonation";
 

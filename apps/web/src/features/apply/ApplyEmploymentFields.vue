@@ -6,8 +6,8 @@ import {
   AppDateField,
   AppFormField as FormField,
   AppSelect as BaseSelect,
-} from "@fuelguard/ui";
-import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@fuelguard/shared";
+} from "@silvicom/ui";
+import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@silvicom/shared";
 import { emptyEmployer, emptyEquipment, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 

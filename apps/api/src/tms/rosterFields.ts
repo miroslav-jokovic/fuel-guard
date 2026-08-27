@@ -1,5 +1,5 @@
-import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@fuelguard/shared";
-import { deriveFullName } from "@fuelguard/shared";
+import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
+import { deriveFullName } from "@silvicom/shared";
 
 /**
  * What the McLeod sync is allowed to write to a row it owns, and nothing else (M4).

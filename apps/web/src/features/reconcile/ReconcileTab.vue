@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ArrowUpTrayIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconResult, type ReconStatus } from "@fuelguard/shared";
+import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconResult, type ReconStatus } from "@silvicom/shared";
 import { useRunReconciliation, ReconRejected } from "@/features/reconcile/useReconRuns";
 import { readPivotSheet, readReportGrid } from "@/lib/reportGrid";
 import { loadFuelReport, ReportLoadError, type LoadedReport } from "@/features/reconcile/loadFuelReport";
 import { useSaveStatement, StatementRejected } from "@/features/reconcile/useSaveStatement";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

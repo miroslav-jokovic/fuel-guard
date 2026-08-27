@@ -8,7 +8,7 @@ import {
   type DqFileSummary,
   type DqGroupSummary,
   type DqRecordInput,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Everything a binder renders, read before a single page is drawn (DQ-BINDER-PLAN §3).

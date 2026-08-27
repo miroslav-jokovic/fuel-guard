@@ -1,4 +1,4 @@
-import { stopPhotoPath, type LoadStop } from '@fuelguard/shared';
+import { stopPhotoPath, type LoadStop } from '@silvicom/shared';
 
 /**
  * Stop-capture view logic (Phase 3C). Pure and unit-tested — the screen holds captured photos in

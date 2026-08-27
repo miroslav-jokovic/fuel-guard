@@ -17,7 +17,7 @@ import {
   type RollupAssignment,
   type RollupDutyEvidence,
   type RollupEnvelopeEvidence,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Maintains `idle_rollup_days` — one pre-aggregated row per (vehicle, day) — from the raw foundation

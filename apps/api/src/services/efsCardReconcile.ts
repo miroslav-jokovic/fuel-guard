@@ -3,7 +3,7 @@ import { driftAgainstExpected, editPath, fieldPath, type CardEdit, type EchoDiff
 import { VOLATILE_FIELDS, type CardDocument } from "../lib/efsCardXml.js";
 import type { EfsSoapError } from "../lib/efsSoapSession.js";
 import { upsertCardDetail } from "./efsCardMirror.js";
-import { cardLast4 } from "@fuelguard/shared";
+import { cardLast4 } from "@silvicom/shared";
 import { efsEndpointHost } from "./efsSoapCredentialIdentity.js";
 import type { LedgerAdapter } from "../efs/orchestrator/ledger.js";
 import type { CardMutationContext, CardMutationOutcome, SettleFacts } from "../efs/orchestrator/types.js";

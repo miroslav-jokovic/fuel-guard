@@ -1,7 +1,7 @@
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter @fuelguard/web build",
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter ./apps/web build",
     "watchPatterns": [
       "**",
       "!**/*.md",
@@ -26,7 +26,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @fuelguard/api start",
+    "startCommand": "pnpm --filter ./apps/api start",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

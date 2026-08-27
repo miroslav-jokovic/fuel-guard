@@ -35,8 +35,8 @@ try {
 
   for (const appPath of appPaths) {
     const css = readFileSync(appPath, "utf8");
-    if (!/^@import\s+["']@fuelguard\/ui\/tokens\.css["'];/m.test(css)) {
-      errors.push(`${appPath} does not import @fuelguard/ui/tokens.css`);
+    if (!/^@import\s+["']@silvicom\/ui\/tokens\.css["'];/m.test(css)) {
+      errors.push(`${appPath} does not import @silvicom/ui/tokens.css`);
     }
 
     const appTokens = customProperties(css, appPath);

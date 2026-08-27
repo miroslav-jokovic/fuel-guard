@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraDrivers, driverMatchKey } from "@fuelguard/shared";
+import { parseSamsaraDrivers, driverMatchKey } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraDriverLister, type SamsaraDriverLister } from "../lib/samsara.js";

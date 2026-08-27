@@ -9,7 +9,7 @@ import {
   endShiftRequestSchema,
   startLoadRequestSchema,
   startShiftRequestSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";

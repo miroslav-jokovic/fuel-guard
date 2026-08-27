@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { canArchiveDriver, rolesThatCanView } from "@fuelguard/shared";
+import { canArchiveDriver, rolesThatCanView } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";

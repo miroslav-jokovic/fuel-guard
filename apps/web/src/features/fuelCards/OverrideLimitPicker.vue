@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { EFS_LIMIT_MAX, type EfsLimitOption, type OverrideLimit } from "@fuelguard/shared";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { EFS_LIMIT_MAX, type EfsLimitOption, type OverrideLimit } from "@silvicom/shared";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import {
   DIESEL_PAIR,
   OVERRIDE_LIMIT_AMOUNT_HELP,

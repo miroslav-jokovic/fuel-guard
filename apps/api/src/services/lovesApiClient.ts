@@ -11,7 +11,7 @@
  * run after credentials land is the acceptance test; nothing is written unless the pull looks complete.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LovesLocationRow } from "@fuelguard/shared";
+import type { LovesLocationRow } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { upsertLoves } from "./lovesIngest.js";
 

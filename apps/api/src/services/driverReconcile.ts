@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planDriverMerges, type ReconcileDriver } from "@fuelguard/shared";
+import { planDriverMerges, type ReconcileDriver } from "@silvicom/shared";
 
 /**
  * `merge_driver` refuses a source that carries immutable evidence (migration 0234). Named here rather

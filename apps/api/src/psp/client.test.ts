@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { PspRequestDraft } from "@fuelguard/shared";
+import type { PspRequestDraft } from "@silvicom/shared";
 import { loadEnv } from "../env.js";
 import {
   PspError,

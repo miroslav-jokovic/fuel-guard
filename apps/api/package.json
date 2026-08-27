@@ -1,5 +1,5 @@
 {
-  "name": "@fuelguard/api",
+  "name": "@silvicom/api",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.107.0",
-    "@fuelguard/shared": "workspace:*",
+    "@silvicom/shared": "workspace:*",
     "@hazmat/data": "workspace:*",
     "@hazmat/engine": "workspace:*",
     "@hazmat/placards": "workspace:*",

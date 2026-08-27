@@ -10,7 +10,7 @@ import {
   tmsVehiclesPayloadSchema,
   tmsTrailersPayloadSchema,
   tmsRetirePayloadSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../services/tmsIngest.js";
 import { ingestLoads } from "../services/tmsLoadIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../tms/rosterIngest.js";

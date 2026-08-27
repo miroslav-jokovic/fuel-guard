@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { moduleEnabled, toModuleSet, type ModuleKey, type ModuleSet } from '@fuelguard/shared';
+import { moduleEnabled, toModuleSet, type ModuleKey, type ModuleSet } from '@silvicom/shared';
 import { useDriverContext } from './useDriverContext';
 
 /**

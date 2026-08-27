@@ -1,4 +1,4 @@
-import type { EfsLocation } from "@fuelguard/shared";
+import type { EfsLocation } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { type CardOpOptions, callCardOp, elAlways, resultRecords, text } from "./efsCardOps.js";

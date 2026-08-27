@@ -7,7 +7,7 @@ import {
   rolesThatManage,
   type AuthorizationGrant,
   type AuthorizationRevoke,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";

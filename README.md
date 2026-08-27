@@ -43,8 +43,8 @@ pnpm format         # Prettier write
 Run a single workspace, e.g. the web app:
 
 ```bash
-pnpm --filter @fuelguard/web dev
-pnpm --filter @fuelguard/api dev
+pnpm --filter @silvicom/web dev
+pnpm --filter @silvicom/api dev
 ```
 
 ## Environment

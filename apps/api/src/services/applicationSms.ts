@@ -7,7 +7,7 @@ import {
   isStopMessage,
   normalisePhone,
   type SmsHoldReason,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { redactNumber, sendSms } from "../lib/sms.js";
 

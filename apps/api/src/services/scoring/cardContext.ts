@@ -13,7 +13,7 @@
  * MANUAL assignments (human ground truth), and only for fills recent enough for the record to apply.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardIdentityKey, isFullCardNumber, sameCardFill, dominantVehicle, eventTime, timeReliable, type TxnView } from "@fuelguard/shared";
+import { cardIdentityKey, isFullCardNumber, sameCardFill, dominantVehicle, eventTime, timeReliable, type TxnView } from "@silvicom/shared";
 import { EVENT_TIME_QUERY_SLACK_MS, rowEventTime } from "./loaders.js";
 
 /** As-of learning window (days before the fill) — matches the nightly learner's window. */

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Request, Response } from "express";
-import { maskPan } from "@fuelguard/shared";
+import { maskPan } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { apiError, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";

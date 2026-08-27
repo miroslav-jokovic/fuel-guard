@@ -9,7 +9,7 @@ import {
   DOCUMENTS_BUCKET,
   type DerivativeSpec,
   type DocumentContentType,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Generate and register derivatives for one compliance document (DQF execution plan B2).

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@fuelguard/shared";
-import { deriveFullName } from "@fuelguard/shared";
+import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
+import { deriveFullName } from "@silvicom/shared";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import {
   makeDriverMatcher,

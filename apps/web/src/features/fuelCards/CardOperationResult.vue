@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { outcomeNotice } from "./cardControlModel";
 import type { CardMutationOutcome } from "./useCardControl";
 import type { CardOperationId } from "./cardOperations";

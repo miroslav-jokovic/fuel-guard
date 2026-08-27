@@ -7,7 +7,7 @@ import {
   type TxnView,
   type VehicleView,
   type FuelBalanceEvidence,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   compareTxnRows,
   FTXN_COLS,

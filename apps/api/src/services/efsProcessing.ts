@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CASE_RULE_ID } from "@fuelguard/shared";
+import { CASE_RULE_ID } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
 import { scoreImportWithCascade } from "./scoring/index.js";

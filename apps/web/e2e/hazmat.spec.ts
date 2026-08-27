@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
  * HazmatGuard H5 acceptance e2e — the Placard Calculator trap scenarios (plan H5 exit criteria + Tests).
  * Like smoke.spec.ts, these run against a RUNNING app + a seeded Supabase org that has the `hazmatguard`
  * module enabled — NOT the offline unit gate. Provide credentials to run:
- *   E2E_EMAIL=… E2E_PASSWORD=… BASE_URL=https://<app> pnpm --filter @fuelguard/web e2e hazmat
+ *   E2E_EMAIL=… E2E_PASSWORD=… BASE_URL=https://<app> pnpm --filter @silvicom/web e2e hazmat
  * Without E2E_EMAIL the suite skips cleanly (so CI without a seeded project stays green).
  *
  * These exercise the deterministic engine end-to-end through the UI: same engine as the golden suite, so

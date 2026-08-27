@@ -339,7 +339,7 @@ Add Playwright e2e: login → log a bad fill-up → see the anomaly in the queue
 Deploy per docs/05-SETUP-GUIDE.md.
 
 - Configure the current single Railway service from `railway.json`: its build command installs the
-  frozen workspace dependencies and builds `apps/web`, while `pnpm --filter @fuelguard/api start`
+  frozen workspace dependencies and builds `apps/web`, while `pnpm --filter @silvicom/api start`
   serves the API and the built SPA from one domain. Set the browser build variables
   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, plus the API variables documented in
   `docs/11-DEPLOYMENT.md`. `VITE_*` values are build-time values, so redeploy after changing them.

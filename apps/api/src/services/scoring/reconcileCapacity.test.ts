@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolveCapacity, type TxnView, type VehicleView } from "@fuelguard/shared";
+import { resolveCapacity, type TxnView, type VehicleView } from "@silvicom/shared";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 import { testEnv } from "../../testing/testEnv.js";

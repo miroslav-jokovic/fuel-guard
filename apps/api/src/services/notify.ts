@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deepLinkFor, type NotificationCategory, type NotificationSeverity } from "@fuelguard/shared";
+import { deepLinkFor, type NotificationCategory, type NotificationSeverity } from "@silvicom/shared";
 
 /**
  * Notification emission + Expo Push delivery (Phase 5N, D53).

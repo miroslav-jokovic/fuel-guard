@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
@@ -7,10 +7,10 @@ import {
   ShieldExclamationIcon,
   TrailerIcon,
   type Icon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 const tools: Array<{ name: string; description: string; action: string; to: string; icon: Icon }> = [
   {

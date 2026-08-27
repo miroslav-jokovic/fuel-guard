@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { rolesThatManage } from "@fuelguard/shared";
-import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@fuelguard/ui";
+import { rolesThatManage } from "@silvicom/shared";
+import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

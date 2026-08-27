@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 import { parseXml } from "../../lib/efsXml.js";
 import { judgeField, observeField, scanConfig } from "./configScan.js";
 

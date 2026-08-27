@@ -4,7 +4,7 @@ import {
   parsePspReport,
   type PspReport,
   type PspRequestDraft,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
 
 /**

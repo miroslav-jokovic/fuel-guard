@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
-import { CORRELATION_THRESHOLDS } from "@fuelguard/shared";
+import { CORRELATION_THRESHOLDS } from "@silvicom/shared";
 import CaseTimeline from "./CaseTimeline.vue";
 import { nearMissMarker } from "@/lib/badges";
 import type { NearMiss } from "./CaseTimeline.vue";

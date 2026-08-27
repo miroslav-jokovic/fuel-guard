@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
-import type { ExceptionReport } from "@fuelguard/shared";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import type { ExceptionReport } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";

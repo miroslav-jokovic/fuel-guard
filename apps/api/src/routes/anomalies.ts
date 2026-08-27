@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, isAnomalyTransitionAllowed, type AnomalyTransition, type AnomalyStatus } from "@fuelguard/shared";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

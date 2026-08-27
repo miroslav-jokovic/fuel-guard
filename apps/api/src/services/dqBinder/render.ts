@@ -1,4 +1,4 @@
-import { DQ_KIND_LABELS, type DqFileItem, type DqItemState } from "@fuelguard/shared";
+import { DQ_KIND_LABELS, type DqFileItem, type DqItemState } from "@silvicom/shared";
 import type { BinderCarrier, BinderDocumentRef, DriverBinderData } from "./gather.js";
 import {
   body,

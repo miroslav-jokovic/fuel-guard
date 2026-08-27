@@ -1,4 +1,4 @@
-import { driverMatchKey, trailerUnitMatchKey } from "@fuelguard/shared";
+import { driverMatchKey, trailerUnitMatchKey } from "@silvicom/shared";
 
 /**
  * Matching a TMS roster row to an existing Silvicom 360 record — pure, so the precedence can be tested

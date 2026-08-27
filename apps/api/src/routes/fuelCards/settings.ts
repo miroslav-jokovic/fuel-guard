@@ -8,7 +8,7 @@ import {
   rolesThatManage,
   type CardControlScope,
   type UserRole,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";

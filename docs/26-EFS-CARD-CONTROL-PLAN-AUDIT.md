@@ -232,7 +232,7 @@ The plan says generalising the vendor op is *"~6 lines, and it is the only orche
 
 §2.5 places the registry in `apps/api/src/efs/`. §2.3 then promises it generates the **web hooks** and the **drawer**.
 
-`apps/web/src` contains **zero** imports of `apps/api`. Every cross-app type crosses through `@fuelguard/shared`. And the descriptor cannot move to shared, because `buildEdits(doc: CardDocument)` binds it to a live XML DOM — putting that in `packages/shared` drags a DOM parser and the SOAP transport into the browser bundle.
+`apps/web/src` contains **zero** imports of `apps/api`. Every cross-app type crosses through `@silvicom/shared`. And the descriptor cannot move to shared, because `buildEdits(doc: CardDocument)` binds it to a live XML DOM — putting that in `packages/shared` drags a DOM parser and the SOAP transport into the browser bundle.
 
 §2.5 reassures that *"`lint:boundaries` does not cover `apps/api` at all."* **That is checking the wrong constraint.** The binding constraint is the module graph, not the lint rule.
 

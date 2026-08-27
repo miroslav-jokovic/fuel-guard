@@ -6,7 +6,7 @@ import {
   type CoverageSummary,
   type CapacityHealth,
   type CapacityVehicleRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

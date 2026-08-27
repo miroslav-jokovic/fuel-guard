@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";
 
 const props = defineProps<{

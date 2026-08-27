@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { QualificationSeedRequest } from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateField } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppTable } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import type { QualificationSeedRequest } from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateField } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppTable } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 

@@ -16,7 +16,7 @@ import {
   type DriverInviteRequest,
   type DriverUpdateContext,
   type DriverUpdateRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";

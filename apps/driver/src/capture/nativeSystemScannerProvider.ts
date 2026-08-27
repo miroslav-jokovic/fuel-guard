@@ -10,7 +10,7 @@ import {
   type ScanOptions,
   type ScanResult,
   type SupportResult,
-} from "@fuelguard/capture-engine";
+} from "@silvicom/capture-engine";
 import { getCaptureNativeModule, type NativeOcr, type NativeScannedPage } from "../../modules/capture-native";
 
 /**

@@ -68,7 +68,7 @@ Do not replace the system wholesale. Preserve these parts:
 - The system uses OKLCH, which is a good basis for perceptually controlled ramps.
 - The admin app imports the shared token layer directly.
 - The web app's mirrored token declarations are protected by a parity check, so drift is detectable even though the duplication should be removed.
-- `pnpm --filter @fuelguard/web lint:tokens` passes.
+- `pnpm --filter @silvicom/web lint:tokens` passes.
 - `pnpm lint:tokens-parity` passes with 197 shared declarations matching.
 - The dark graphite sidebar is calmer than a fully saturated brand-colored rail.
 - `DataTable`, `FilterBar`, `FormField`, `BaseInput`, `BaseButton`, and `SlideOver` establish useful patterns.
@@ -417,7 +417,7 @@ Use the existing Headless UI dependency for Listbox/Combobox/Menu behavior, or a
 
 ### 6.3 Target form component set
 
-Move the following into `@fuelguard/ui` and use them in both desktop apps:
+Move the following into `@silvicom/ui` and use them in both desktop apps:
 
 - `Button` and `IconButton`;
 - `TextField` and `NumberField`;
@@ -473,7 +473,7 @@ The shared badge vocabulary is widely used, but exceptions remain in Fuel Reconc
 
 ## 8. Shared system architecture
 
-`@fuelguard/ui` currently exports only `AppButton`, `AppInput`, `AppCard`, and `AppIcon`. The web app keeps separate `BaseButton`, `BaseInput`, and `BaseCard` files that are visually equivalent copies. This is guarded by token parity, but it is still two implementations.
+`@silvicom/ui` currently exports only `AppButton`, `AppInput`, `AppCard`, and `AppIcon`. The web app keeps separate `BaseButton`, `BaseInput`, and `BaseCard` files that are visually equivalent copies. This is guarded by token parity, but it is still two implementations.
 
 The token source has the same structural issue. `packages/ui/src/tokens.css` is the declared canonical file and `apps/admin/src/style.css` imports it, but `apps/web/src/style.css` contains a complete mirrored copy plus the Hanken font declarations and sidebar extensions. `scripts/check-token-parity.mjs` verifies 197 declarations match; it does not eliminate the need to edit both files. Consolidating this safely requires first proving that Tailwind v4 still generates every web utility when the package stylesheet is imported and scanned. Do not delete the mirror before that build proof.
 
@@ -482,7 +482,7 @@ Verified dependency note: the web package already includes `@headlessui/vue`, `@
 Target architecture:
 
 ```text
-@fuelguard/ui
+@silvicom/ui
 ├── foundations: color, type, space, radius, elevation, motion
 ├── primitives: button, fields, select, date, checkbox, surface, icon
 ├── feedback: badge, alert, toast, skeleton, empty state
@@ -564,7 +564,7 @@ The order below is dependency-driven. Later phases must not begin by locally rec
 1. Add `text-tertiary`, `text-disabled`, `border-subtle`, `border-default`, `border-control`, `brand-accent`, `action-primary`, `focus-ring`, and solid/subtle destructive roles to `packages/ui/src/tokens.css` using the approved Phase 0 values.
 2. Keep `ink-*`, `edge-*`, and `brand-*` as documented compatibility aliases during migration. Do not silently repoint `brand-*` until the 208 source lines containing it have been classified by meaning.
 3. Add an automated contrast matrix covering text/surface, control/surface, focus/surface, solid action/text, destructive, status, sidebar, and selected-state pairs in every shipped theme.
-4. Prove a minimal web production build can import `@fuelguard/ui/tokens.css` and still generate package and app Tailwind utilities. Only after that proof, remove the 197 mirrored shared declarations from `apps/web/src/style.css`; keep only fonts, sidebar roles, and web-specific overrides.
+4. Prove a minimal web production build can import `@silvicom/ui/tokens.css` and still generate package and app Tailwind utilities. Only after that proof, remove the 197 mirrored shared declarations from `apps/web/src/style.css`; keep only fonts, sidebar roles, and web-specific overrides.
 5. Define shared font, radius, elevation, control-height, and motion roles. Do not adopt the supplied 10px base radius; use the semantic targets in §2.
 6. Update `chartTheme.ts` fallbacks and fixed cost colors only after chart contrast and color-vision validation. Preserve its three semantic table fallbacks.
 
@@ -572,7 +572,7 @@ The order below is dependency-driven. Later phases must not begin by locally rec
 
 ### Phase 2 — Shared interaction primitives (6–10 days)
 
-1. Implement `Button`, `IconButton`, `Surface`, `TextField`, `NumberField`, `TextArea`, `Checkbox`, `RadioGroup`, `Switch`, `Select`, `Combobox`, `SearchField`, `DateField`, `DateTimeField`, `DateRangePicker`, `InputGroup`, and `FormField` in `@fuelguard/ui`.
+1. Implement `Button`, `IconButton`, `Surface`, `TextField`, `NumberField`, `TextArea`, `Checkbox`, `RadioGroup`, `Switch`, `Select`, `Combobox`, `SearchField`, `DateField`, `DateTimeField`, `DateRangePicker`, `InputGroup`, and `FormField` in `@silvicom/ui`.
 2. Use the already-installed Headless UI/Floating UI dependencies for applicable behavior; keep VueDatePicker only if its keyboard/focus contract passes the same tests.
 3. Fix the nested clear actions in `FilterSelect` and `DateRangeFilter` by making clear a sibling control with its own accessible name and focus order.
 4. Replace the incomplete `AppSelect`, `ComboSelect`, and `FilterSelect` interaction models. Test arrows, Home/End where applicable, typeahead, Enter/Space, Escape, Tab, disabled options, focus return, and screen-reader naming.

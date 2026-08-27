@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { supabase } from "@/lib/supabase";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";
 

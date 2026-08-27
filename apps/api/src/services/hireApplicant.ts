@@ -8,7 +8,7 @@ import {
   type HandoffExistingRecord,
   type HandoffSkip,
   type HireApplicant,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Hiring an applicant — the Recruitment → DQF handoff (H8).

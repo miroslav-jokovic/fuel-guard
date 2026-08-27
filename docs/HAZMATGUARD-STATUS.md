@@ -25,7 +25,7 @@ longer blocks auto-clear). Deferred queue (LQ rules blocked on dataset column 8A
 certifications seeding, BOL package-count extraction) is recorded in the IA plan.
 
 **Owner actions this session adds:** apply migration `0153`; run `pnpm test` +
-`pnpm --filter @fuelguard/web build` on the Mac; delete the five files listed in `_to_delete/`.
+`pnpm --filter @silvicom/web build` on the Mac; delete the five files listed in `_to_delete/`.
 
 **Addendum 6 (H-C1 UI half):** hazmat is now worked FROM the load — board chip shows the linked
 record's state (+ "Hazmat — not cleared" exception filter, one batched query), and the load detail
@@ -78,7 +78,7 @@ Built the driver document-capture vertical + the self-built scanner core. **DCE
 (`docs/plans/drivers-app/DOCUMENT-CAPTURE-ENGINE.md`) is the design of record; PLAN M6/§12.3 is the DoD.**
 Committed to `main` (2df6ded → 142ee48):
 
-- **`@fuelguard/capture-engine`** (new pure-TS package): DCE §2 contracts + rejection taxonomy, §4 versioned
+- **`@silvicom/capture-engine`** (new pure-TS package): DCE §2 contracts + rejection taxonomy, §4 versioned
   config + Ed25519-verify seam + monotonic guard (§8), the §5 geometry-led quality/legibility gate, provider
   interfaces. Gate thresholds **aligned to the server `usabilityGate` (1200/100/0.06)**, not the DCE draft.
 - **Server `/api/me/hazmat/*`** (driver-JWT): create own load · register document · submit(+analyze) · get
@@ -92,7 +92,7 @@ Committed to `main` (2df6ded → 142ee48):
   capture.tsx`, the `HAZMAT_CAPTURE_KIND` outbox handler, `app/hazmat/[loadId].tsx` verdict view (polls runs
   → cleared/rejected/in-review with CFR citations).
 
-**Verified here:** every touched package typechecks clean (`@fuelguard/capture-engine`, `packages/shared`,
+**Verified here:** every touched package typechecks clean (`@silvicom/capture-engine`, `packages/shared`,
 `apps/api`, `apps/driver`). **Not run here** (Mac): vitest, the native build, the app runtime.
 
 ## Done previously (ported from HazmatGuard source of truth)
@@ -159,13 +159,13 @@ Committed to `main` (2df6ded → 142ee48):
 
 ## Required actions before "live" (blockers)
 
-1. **`pnpm install`** — new workspace package `@fuelguard/capture-engine` (added as an `apps/driver` dep);
+1. **`pnpm install`** — new workspace package `@silvicom/capture-engine` (added as an `apps/driver` dep);
    links it so Metro + tsc + vitest resolve it on the Mac.
 2. **Apply migration `0133`** to Supabase — `hazmat_documents` capture-provenance columns (additive,
    insert-only, safe after 0132). Migrations 0127–0132 already applied.
 3. **Build the driver app on a Mac** — `expo prebuild` then `expo run:ios` / `run:android` to compile the
    native `capture-native` module (authored in the cloud VM, never compiled there).
-4. **Run `pnpm test` + `pnpm --filter @fuelguard/web build`** on a Mac (native-binary reason below).
+4. **Run `pnpm test` + `pnpm --filter @silvicom/web build`** on a Mac (native-binary reason below).
 5. **DCE-0 on-hardware checks** (DCE §9/§12): ML Kit no-egress network capture during a scan + OCR (BOLs are
    PII); OCR confidence/latency on a min-spec Android (confidence is SECONDARY in the gate — a tune).
 6. **git cleanup** (cloud bridge can't unlink): `rm -f .git/index.lock .git/tmp_ci*`.
@@ -177,7 +177,7 @@ Committed to `main` (2df6ded → 142ee48):
   logic upstream.
 - **Test suite NOT run here**: `device_bash` runs in a Linux-arm64 VM but `node_modules` hold macOS
   binaries -> vitest/rolldown native bindings are missing. Run `pnpm test` on the Mac.
-- **Web `vite build` NOT run here** (same native-binary reason). Run `pnpm --filter @fuelguard/web build`.
+- **Web `vite build` NOT run here** (same native-binary reason). Run `pnpm --filter @silvicom/web build`.
 
 ## Divergences from HazmatGuard (INTENTIONAL — do not "fix")
 
@@ -185,7 +185,7 @@ Committed to `main` (2df6ded → 142ee48):
   analysis paths + hazmat routes. HazmatGuard removed modules (its decision #3).
 - FuelGuard **keeps the fuel current-value compliance model** (0098/0101); `certifications` is additive,
   hazmat-only. The two models coexist.
-- Package names `@fuelguard/*` vs `@hazmatguard/*`; migration numbering 0127-0131 vs 0001-0007.
+- Package names `@silvicom/*` vs `@hazmatguard/*`; migration numbering 0127-0131 vs 0001-0007.
 - `apps/api/services/hazmatLoads.ts` is byte-identical to source (modulo package name); `hazmatAnalysis.ts`
   differs only by the kept module gate + the qual-call arg form.
 

@@ -1,10 +1,10 @@
 /**
- * Live HERE Routing v8 truck-route fetch. The request build + response parse are pure in @fuelguard/shared
+ * Live HERE Routing v8 truck-route fetch. The request build + response parse are pure in @silvicom/shared
  * (unit-tested); this is the thin I/O layer with retry/backoff (reuses samsaraHttp's backoff). Requires
  * HERE_API_KEY — absent -> NoHereKeyError, so the caller degrades to an explicit "routing unavailable" state
  * rather than a bad plan.
  */
-import { buildTruckRouteUrl, parseHereRoute, type HereRouteRequest, type ParsedHereRoute } from "@fuelguard/shared";
+import { buildTruckRouteUrl, parseHereRoute, type HereRouteRequest, type ParsedHereRoute } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { backoffMs } from "./samsaraHttp.js";
 

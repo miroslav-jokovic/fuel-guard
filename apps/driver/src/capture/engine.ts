@@ -6,7 +6,7 @@ import {
   type CaptureProvider,
   type ScanResult,
   type SignatureVerifier,
-} from "@fuelguard/capture-engine";
+} from "@silvicom/capture-engine";
 import { createNativeSystemScannerProvider } from "./nativeSystemScannerProvider";
 import { createExpoImagePickerProvider } from "./expoImagePickerProvider";
 

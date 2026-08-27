@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { EfsMileageCode } from "@fuelguard/shared";
+import type { EfsMileageCode } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

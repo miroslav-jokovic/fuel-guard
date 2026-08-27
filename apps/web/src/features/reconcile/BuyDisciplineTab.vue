@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
   type CarriedFuelFill, type FuelPolicy,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   BoltIcon,
   CheckCircleIcon,
@@ -9,9 +9,9 @@ import {
   PetrolPumpIcon,
   RoadIcon,
   TruckIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{

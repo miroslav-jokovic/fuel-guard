@@ -6,7 +6,7 @@ import {
   dqExportStoragePath,
   type DqExportKind,
   type DqExportRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The export ledger (migration 0152, D-BD9). Every binder and every single-document release writes a

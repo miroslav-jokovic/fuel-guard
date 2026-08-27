@@ -1,10 +1,10 @@
 {
-  "name": "@fuelguard/driver",
+  "name": "@silvicom/driver",
   "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "shared": "pnpm --filter @fuelguard/shared build:rn",
+    "shared": "pnpm --filter @silvicom/shared build:rn",
     "doctor": "node ../../scripts/driver-doctor.mjs",
     "adb:reverse": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8080 tcp:8080 && (adb reverse tcp:54321 tcp:54321 || true)",
     "adb:devices": "adb devices -l",
@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
-    "@fuelguard/capture-engine": "workspace:*",
-    "@fuelguard/shared": "workspace:*",
+    "@silvicom/capture-engine": "workspace:*",
+    "@silvicom/shared": "workspace:*",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/react-native": "1.0.15",
     "@maplibre/maplibre-react-native": "11.3.6",

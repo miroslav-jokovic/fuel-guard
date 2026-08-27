@@ -4,7 +4,7 @@ import {
   cardUnlockContract,
   cardUnlockNeedsStepUp,
   efsStatusEquals,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { unlockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { assertOverrideDoesNotBlock } from "./overrideFreezeGuard.js";

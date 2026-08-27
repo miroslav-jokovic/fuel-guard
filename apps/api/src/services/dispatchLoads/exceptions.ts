@@ -4,7 +4,7 @@ import {
   type DispatchException,
   type ExceptionAction,
   type ExceptionKind,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The exceptions feed (L2 / D-L2) — the five things that go wrong on a load and need a person.

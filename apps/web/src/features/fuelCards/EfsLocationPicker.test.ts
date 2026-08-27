@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import type { EfsLocation } from "@fuelguard/shared";
+import type { EfsLocation } from "@silvicom/shared";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 
 /**
@@ -25,8 +25,8 @@ vi.mock("./useEfsCards", () => ({
   },
 }));
 
-vi.mock("@fuelguard/ui", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@fuelguard/ui")>()),
+vi.mock("@silvicom/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@silvicom/ui")>()),
   AppSearchField: {
     props: ["modelValue", "placeholder"],
     emits: ["update:modelValue"],

@@ -4,7 +4,7 @@ import {
   stopProgress,
   type Load,
   type LoadStop,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import type { LoadSummary, LoadStatus as CardStatus } from './LoadCard';
 import type { ActiveLoad } from './CurrentLoadCard';
 

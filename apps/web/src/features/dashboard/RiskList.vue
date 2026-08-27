@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ShieldCheckIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
-import type { RiskRow } from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import type { RiskRow } from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 defineProps<{

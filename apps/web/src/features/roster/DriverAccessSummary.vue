@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { DevicePhoneMobileIcon, KeyIcon } from "@fuelguard/ui/icons";
-import type { Driver, DriverAppAccess } from "@fuelguard/shared";
+import { AppIcon } from "@silvicom/ui";
+import { DevicePhoneMobileIcon, KeyIcon } from "@silvicom/ui/icons";
+import type { Driver, DriverAppAccess } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 
 defineProps<{
   driver: Driver;

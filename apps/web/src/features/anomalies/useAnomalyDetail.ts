@@ -1,5 +1,5 @@
 import { ref, computed } from "vue";
-import { ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
+import { ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, type Anomaly, type AnomalyDisposition } from "@silvicom/shared";
 import { useTransaction, useAnomalyTransition, useRelatedCardFills } from "./useAnomalies";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";

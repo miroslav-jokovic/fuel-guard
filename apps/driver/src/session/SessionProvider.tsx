@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import type { UserRole } from "@fuelguard/shared";
+import type { UserRole } from "@silvicom/shared";
 import { decodeClaims } from "@/lib/jwt";
 import { supabase } from "@/lib/supabase";
 import { env } from "@/lib/env";

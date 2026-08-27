@@ -1,4 +1,4 @@
-import type { HazmatCalcRequest, HazmatProduct } from "@fuelguard/shared";
+import type { HazmatCalcRequest, HazmatProduct } from "@silvicom/shared";
 import {
   capacityFromForm,
   derivePackaging,
@@ -8,7 +8,7 @@ import {
   phaseForHazardClass,
   weightToLb,
   type DerivedPackaging,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Verdict } from "@hazmat/engine";
 
 /**

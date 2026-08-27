@@ -4,7 +4,7 @@ import {
   type PromptsSetBody,
   promptRemovalNeedsStepUp,
   promptsSetContract,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 
 /**

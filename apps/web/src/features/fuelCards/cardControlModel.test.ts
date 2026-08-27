@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EFS_EDITABLE_INFO_IDS, resolveLimitVocabulary } from "@fuelguard/shared";
-import type { CardCapabilities } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, resolveLimitVocabulary } from "@silvicom/shared";
+import type { CardCapabilities } from "@silvicom/shared";
 import {
   activeOverrides,
   availability,

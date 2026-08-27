@@ -2,7 +2,7 @@
  * except WP1 D2/D3: declines are attributed to a vehicle/driver at ingest (same tolerant matcher as
  * fuel lines) and optional EFS alert fields are captured when a variant carries them. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeRejectRows, attributeDeclinedRow } from "@fuelguard/shared";
+import { normalizeRejectRows, attributeDeclinedRow } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import {
   emptyResult, existingRefs, countByImport, createImport, DuplicateImportError, dateSpan, countByDay, computeShortfall,

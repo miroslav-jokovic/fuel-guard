@@ -8,7 +8,7 @@ import {
   secondsUntilUtcMidnight,
   type CardWriteBucket,
   type WindowState,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

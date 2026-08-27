@@ -41,7 +41,7 @@ config.resolver.blockList = [
   ...extraBlocks,
 ];
 
-// --- consume @fuelguard/shared from its BUILT dist (plan D7 / blocker B2) ---
+// --- consume @silvicom/shared from its BUILT dist (plan D7 / blocker B2) ---
 // `pnpm start` / `pnpm ios` / `pnpm android` rebuild this first, so it cannot go stale behind your
 // back. The checks below exist for the case where Metro is started some other way.
 const sharedRoot = path.resolve(workspaceRoot, 'packages/shared');
@@ -49,9 +49,9 @@ const sharedEntry = path.join(sharedRoot, 'dist/index.js');
 
 if (!fs.existsSync(sharedEntry)) {
   throw new Error(
-    '@fuelguard/shared has not been built for React Native.\n' +
+    '@silvicom/shared has not been built for React Native.\n' +
       `Expected: ${sharedEntry}\n` +
-      'Run:      pnpm --filter @fuelguard/shared build:rn',
+      'Run:      pnpm --filter @silvicom/shared build:rn',
   );
 }
 
@@ -71,13 +71,13 @@ if (newestSource(path.join(sharedRoot, 'src')) > fs.statSync(sharedEntry).mtimeM
   console.warn(
     '\n\u001b[33m[fuelguard]\u001b[0m packages/shared/dist is OLDER than packages/shared/src.\n' +
       '           The bundle will use the stale contracts. Run:\n' +
-      '           pnpm --filter @fuelguard/shared build:rn\n',
+      '           pnpm --filter @silvicom/shared build:rn\n',
   );
 }
 
 const upstreamResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === '@fuelguard/shared') {
+  if (moduleName === '@silvicom/shared') {
     return { type: 'sourceFile', filePath: sharedEntry };
   }
   return (upstreamResolveRequest ?? context.resolveRequest)(context, moduleName, platform);

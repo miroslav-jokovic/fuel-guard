@@ -69,7 +69,7 @@ for (const [file, group] of GROUPS) {
 }
 const literals = Object.entries(json("theme.json").theme).map(([name, node]) => ({ name, ...node }));
 
-const ext = (t, key) => t.$extensions?.[`fuelguard.${key}`];
+const ext = (t, key) => t.$extensions?.[`silvicom.${key}`];
 
 /** `/* … *\/`, wrapped at the file's 100-column budget so long rationales stay readable. */
 function comment(text, indent = "  ") {
@@ -151,10 +151,10 @@ function emitCss() {
 }
 
 // Style Dictionary loads and shape-checks the same sources; the emitter above formats them.
-StyleDictionary.registerFormat({ name: "fuelguard/css", format: () => emitCss() });
+StyleDictionary.registerFormat({ name: "silvicom/css", format: () => emitCss() });
 const sd = new StyleDictionary({
   source: [src("primitives.light.json"), src("roles.light.json")],
-  platforms: { css: { transformGroup: "css", files: [{ destination: "check.css", format: "fuelguard/css" }] } },
+  platforms: { css: { transformGroup: "css", files: [{ destination: "check.css", format: "silvicom/css" }] } },
   log: { verbosity: "silent", warnings: "disabled" },
 });
 const built = await sd.formatPlatform("css");

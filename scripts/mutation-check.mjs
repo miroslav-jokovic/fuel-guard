@@ -48,9 +48,9 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 const RLS_MATRIX = ["node", ["supabase/tests/rls.test.mjs"]];
 const HAZMAT_MATRIX = ["node", ["supabase/tests/hazmat_rls.test.mjs"]];
 const TRIGGERS_MATRIX = ["node", ["supabase/tests/efs-card-control-triggers.test.mjs"]];
-const apiTest = (f) => ["pnpm", ["--filter", "@fuelguard/api", "exec", "vitest", "run", f]];
-const sharedTest = (f) => ["pnpm", ["--filter", "@fuelguard/shared", "exec", "vitest", "run", f]];
-const webTest = (f) => ["pnpm", ["--filter", "@fuelguard/web", "exec", "vitest", "run", f]];
+const apiTest = (f) => ["pnpm", ["--filter", "@silvicom/api", "exec", "vitest", "run", f]];
+const sharedTest = (f) => ["pnpm", ["--filter", "@silvicom/shared", "exec", "vitest", "run", f]];
+const webTest = (f) => ["pnpm", ["--filter", "@silvicom/web", "exec", "vitest", "run", f]];
 
 const MUTATIONS = [
   // ── tenant isolation in the database ────────────────────────────────────────

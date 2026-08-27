@@ -3,7 +3,7 @@ import {
   computeIdleConfidence,
   computeIdleAgreement,
   type IdleConfidenceResult,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

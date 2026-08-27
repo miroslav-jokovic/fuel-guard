@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@fuelguard/ui/icons";
-import { DQ_EXPORT_MAX_DRIVERS, type DqAttentionItem, type DqItemState } from "@fuelguard/shared";
+import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
+import { DQ_EXPORT_MAX_DRIVERS, type DqAttentionItem, type DqItemState } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

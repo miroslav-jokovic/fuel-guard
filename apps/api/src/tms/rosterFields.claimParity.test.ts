@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { DRIVER_IDENTITY_FIELDS } from "@fuelguard/shared";
+import { DRIVER_IDENTITY_FIELDS } from "@silvicom/shared";
 import { vehiclePatch, trailerPatch } from "./rosterFields.js";
 
 /**

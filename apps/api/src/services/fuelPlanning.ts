@@ -9,10 +9,10 @@ import {
   milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile, stripStepDistance,
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
   type PostedQuote, type DiscountRule,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
-import { breakFuelAdvice } from "@fuelguard/shared";
+import { breakFuelAdvice } from "@silvicom/shared";
 import { NoHereKeyError } from "../lib/here.js";
 import { geocodeAddress } from "./geocode.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";

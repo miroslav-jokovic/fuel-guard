@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { type WsCard, wsCardSchema } from "@fuelguard/shared";
+import { type WsCard, wsCardSchema } from "@silvicom/shared";
 import { EfsSoapError, parseSoap } from "./efsSoapSession.js";
 import { childElements, collectElements, localName, type XmlElement } from "./efsXml.js";
 import { CONTAINER, NIL, XSI_NS, canonicalString, canonicalize, encodeLeaf, isNil } from "./efsCardCanonical.js";
@@ -449,5 +449,5 @@ function maskDigits(value: string): string {
   return digits.length >= 4 ? `••••${digits.slice(-4)}` : "••••";
 }
 
-// Display masking lives in @fuelguard/shared so the API and both front ends share one rule.
-export { maskPan } from "@fuelguard/shared";
+// Display masking lives in @silvicom/shared so the API and both front ends share one rule.
+export { maskPan } from "@silvicom/shared";
