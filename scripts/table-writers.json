@@ -20,7 +20,7 @@
   ],
   "declined_transactions": [
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
-    "apps/api/src/services/declineDriverResolution.ts",
+    "apps/api/src/modules/fuel/declineDriverResolution.ts",
     "apps/api/src/services/declinedScoring.ts"
   ],
   "device_push_tokens": [
@@ -68,6 +68,7 @@
   ],
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
+    "apps/api/src/modules/fuel/driverAttribution.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
     "apps/api/src/modules/roster/routes/drivers.ts",
@@ -75,7 +76,6 @@
     "apps/api/src/routes/invites.ts",
     "apps/api/src/routes/members.ts",
     "apps/api/src/scripts/seedPspQaDrivers.ts",
-    "apps/api/src/services/driverAttribution.ts",
     "apps/api/src/services/hosSync.ts",
     "apps/web/src/composables/useDrivers.ts"
   ],
@@ -123,13 +123,13 @@
     "apps/api/src/services/employerInquiry.ts"
   ],
   "fuel_cards": [
-    "apps/api/src/services/cardAssignments.ts"
+    "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
   "fuel_discount_rules": [
     "apps/web/src/features/fueling/useDiscountRules.ts"
   ],
   "fuel_events": [
-    "apps/api/src/services/fuelEvents.ts"
+    "apps/api/src/modules/fuel/fuelEvents.ts"
   ],
   "fuel_exception_events": [
     "apps/api/src/modules/fuel-spend/fuelExceptions.ts"
@@ -142,15 +142,15 @@
     "apps/api/src/services/fuelPlanHistory.ts"
   ],
   "fuel_price_days": [
-    "apps/api/src/services/fuelPriceDaySync.ts"
+    "apps/api/src/modules/fuel/fuelPriceDaySync.ts"
   ],
   "fuel_prices": [
-    "apps/api/src/services/pilotPriceIngest.ts"
+    "apps/api/src/modules/fuel/pilotPriceIngest.ts"
   ],
   "fuel_prices_posted": [
-    "apps/api/src/services/lovesIngest.ts",
-    "apps/api/src/services/postedPriceIngest.ts",
-    "apps/api/src/services/roadRangerIngest.ts"
+    "apps/api/src/modules/fuel/lovesIngest.ts",
+    "apps/api/src/modules/fuel/postedPriceIngest.ts",
+    "apps/api/src/modules/fuel/roadRangerIngest.ts"
   ],
   "fuel_recon_runs": [
     "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
@@ -165,29 +165,29 @@
     "apps/api/src/modules/fuel-spend/fuelStatementIngest.ts"
   ],
   "fuel_stations": [
-    "apps/api/src/services/kwikTripIngest.ts",
-    "apps/api/src/services/lovesIngest.ts",
-    "apps/api/src/services/pilotLocationsIngest.ts",
-    "apps/api/src/services/pilotPriceIngest.ts",
-    "apps/api/src/services/roadRangerIngest.ts"
+    "apps/api/src/modules/fuel/kwikTripIngest.ts",
+    "apps/api/src/modules/fuel/lovesIngest.ts",
+    "apps/api/src/modules/fuel/pilotLocationsIngest.ts",
+    "apps/api/src/modules/fuel/pilotPriceIngest.ts",
+    "apps/api/src/modules/fuel/roadRangerIngest.ts"
   ],
   "fuel_transactions": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts",
+    "apps/api/src/modules/fuel/driverAttribution.ts",
+    "apps/api/src/modules/fuel/fillWeather.ts",
+    "apps/api/src/modules/fuel/fuelStationResolve.ts",
     "apps/api/src/routes/audit.ts",
     "apps/api/src/services/anomalyFlagReconcile.ts",
-    "apps/api/src/services/driverAttribution.ts",
-    "apps/api/src/services/fillWeather.ts",
-    "apps/api/src/services/fuelStationResolve.ts",
     "apps/api/src/services/scoring/context.ts",
     "apps/api/src/services/scoring/scoreTransaction.ts",
     "apps/web/src/features/fuel/useFuelLog.ts"
   ],
   "geocode_cache": [
-    "apps/api/src/services/geocode.ts",
-    "apps/api/src/services/pilotPriceIngest.ts",
-    "apps/api/src/services/roadRangerIngest.ts"
+    "apps/api/src/modules/fuel/pilotPriceIngest.ts",
+    "apps/api/src/modules/fuel/roadRangerIngest.ts",
+    "apps/api/src/services/geocode.ts"
   ],
   "hazmat_documents": [
     "apps/api/src/services/hazmatLoads.ts"
@@ -329,7 +329,7 @@
     "apps/api/src/services/applicationSms.ts"
   ],
   "station_geocode_learned": [
-    "apps/api/src/services/stationGeocodeLearning.ts"
+    "apps/api/src/modules/fuel/stationGeocodeLearning.ts"
   ],
   "support_impersonation_grants": [
     "apps/admin-api/src/lib/impersonation.ts"

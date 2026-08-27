@@ -9,7 +9,7 @@ import {
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
 import type { IngestDeps } from "./efsIngest.js";
-import { resolveDeclineDrivers } from "../../../services/declineDriverResolution.js";
+import { resolveDeclineDrivers } from "../../fuel/index.js";
 
 export async function ingestReject(
   admin: SupabaseClient,

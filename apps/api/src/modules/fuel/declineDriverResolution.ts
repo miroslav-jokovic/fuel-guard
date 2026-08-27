@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardDigits, driverMatchKey, isFullCardNumber } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { eachPage } from "../lib/paging.js";
-import { cardRefHmac } from "../modules/efs/index.js";
+import type { Env } from "../../env.js";
+import { eachPage } from "../../lib/paging.js";
+import { cardRefHmac } from "../efs/index.js";
 
 /**
  * DERIVE the driver on a declined attempt (migration 0182).

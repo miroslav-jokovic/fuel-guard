@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import crypto from "node:crypto";
 import { verifySamsaraSignature, parseSamsaraFuelEvent } from "./fuelEvents.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 const SECRET_B64 = Buffer.from("super-secret-key").toString("base64");
 const env = testEnv({ SAMSARA_WEBHOOK_SECRET: SECRET_B64 });

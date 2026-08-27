@@ -6,7 +6,7 @@
  * the source's prior prices (no accumulation). Gates before any write: parse, completeness floor (~650 network), diesel-median sanity.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hourBucketIso } from "../lib/timeBucket.js";
+import { hourBucketIso } from "../../lib/timeBucket.js";
 import { parseLovesExport, median, type Cell, type LovesLocationRow } from "@silvicom/shared";
 
 const BRAND = "loves";

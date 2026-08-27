@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStationIdentity, learnStationCoord } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 export interface StationGeocodeLearnResult {
   stations: number; // distinct stations examined

@@ -15,9 +15,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
-import type { Env } from "../env.js";
-import { hereGeocode, mapPool } from "../lib/hereGeocode.js";
+import { eachPage } from "../../lib/paging.js";
+import type { Env } from "../../env.js";
+import { hereGeocode, mapPool } from "../../lib/hereGeocode.js";
 
 const BRAND = "pilot"; // default brand for a site the registry has never seen (locations export refines it)
 const SOURCE = "pilot_email";

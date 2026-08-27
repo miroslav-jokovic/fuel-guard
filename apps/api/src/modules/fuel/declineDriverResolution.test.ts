@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../testing/supabaseRecorder.js";
-import { cardRefHmac } from "../modules/efs/index.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { cardRefHmac } from "../efs/index.js";
 import { resolveDeclineDrivers } from "./declineDriverResolution.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * The reject feed carries no driver (getTranRejects, verified against production 2026-08-12: ten

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
-import { processSamsaraWebhook } from "../services/fuelEvents.js";
+import { processSamsaraWebhook } from "../modules/fuel/index.js";
 import { handleInboundSms } from "../services/applicationSms.js";
 import { verifyTwilioSignature } from "../lib/twilioSignature.js";
 

@@ -17,7 +17,7 @@ import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
-import { transactionsRouter } from "./routes/transactions.js";
+import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";

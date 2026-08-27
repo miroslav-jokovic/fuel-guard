@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { syncFuelPriceDays } from "./fuelPriceDaySync.js";
 
 const ORG = "org-1";

@@ -10,7 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PILOT_FAMILY_BRANDS, type PostedPriceRow } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 export interface PostedIngestResult {
   ok: boolean;

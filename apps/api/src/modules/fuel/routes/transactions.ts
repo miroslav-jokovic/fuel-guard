@@ -1,19 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { scoreWithCascade } from "../services/scoring/index.js";
-import { syncFuelEventsFromEfs, scoreTouched } from "../modules/efs/services/efsSync.js";
-import { notifyForTransaction } from "../services/notifications.js";
-import { dispatchJob } from "../services/queue/dispatch.js";
-import { buildIngestSource } from "../modules/efs/services/efsAutoIngest.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { scoreWithCascade } from "../../../services/scoring/index.js";
+import { syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
+import { notifyForTransaction } from "../../../services/notifications.js";
+import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { buildIngestSource } from "../../efs/index.js";
 import {
   startJob, finishJob, startJobHeartbeat, scoringDedupKey, JobConflictError,
-} from "../services/jobs.js";
-import { ingestReport } from "../modules/efs/services/efsIngest.js";
+} from "../../../services/jobs.js";
+import { ingestReport } from "../../efs/index.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
 function jobResponse(res: import("express").Response, result: { jobId: string } | { conflict: true }): void {

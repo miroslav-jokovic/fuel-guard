@@ -9,7 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseKwikTripStoreList, composeKwikTripStations } from "@silvicom/shared";
-import type { Env } from "../env.js";
+import type { Env } from "../../env.js";
 
 const BRAND = "kwik_trip";
 const SOURCE = "kwiktrip_store_list";
