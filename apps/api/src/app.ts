@@ -21,6 +21,9 @@ import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
+import { accountingRouter } from "./modules/accounting/index.js";
+import { billingRouter } from "./modules/billing/index.js";
+import { maintenanceRouter } from "./modules/maintenance/index.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { tmsRosterMasterRouter } from "./modules/mcleod/index.js";
@@ -316,6 +319,9 @@ export function createApp(env: Env): Express {
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/ifta", iftaRouter());
+  app.use("/api/accounting", accountingRouter());
+  app.use("/api/billing", billingRouter());
+  app.use("/api/maintenance", maintenanceRouter());
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.

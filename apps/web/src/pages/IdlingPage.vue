@@ -9,7 +9,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort } from "@/lib/sort";
-import { useIdlingPage } from "@/features/fleet/useIdlingPage";
+import { useIdlingPage } from "@/features/idle/useIdlingPage";
 
 const {
   isLoading, isError, error, isFetching, refetch,

@@ -58,6 +58,9 @@ const MODULE_SECTIONS = {
   evidence: "safety",
   loads: "dispatch",
   financial: "accounting", // mapped at P4.1 — the finance sections are born checked
+  accounting: "accounting", // P5.1 harness — no tables yet; the first one lands checked
+  billing: "billing",       // P5.2 harness — same
+  maintenance: "maintenance", // P5.3 harness — same
   messaging: null,
   "driver-app": null,
   recruiting: "recruitment",

@@ -232,6 +232,21 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/ifta",
   },
   {
+    "name": "accounting",
+    "params": {},
+    "url": "/accounting",
+  },
+  {
+    "name": "billing",
+    "params": {},
+    "url": "/billing",
+  },
+  {
+    "name": "shop",
+    "params": {},
+    "url": "/shop",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -410,6 +425,15 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
+      "title": "Ledger",
+    },
+    "name": "accounting",
+    "path": "/accounting",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
       "title": "Alerts",
     },
     "name": "anomalies",
@@ -443,6 +467,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "assignments",
     "path": "/assignments",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Billing",
+    },
+    "name": "billing",
+    "path": "/billing",
     "redirect": null,
   },
   {
@@ -981,6 +1014,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "users",
     "path": "/settings/users",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Maintenance",
+    },
+    "name": "shop",
+    "path": "/shop",
     "redirect": null,
   },
   {

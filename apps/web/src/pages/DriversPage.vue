@@ -21,12 +21,12 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppSelect } from "@silvicom/ui";
-import DriverForm from "@/features/fleet/DriverForm.vue";
+import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { formatPhone } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
-import { useDriverReconcile } from "@/features/fleet/useDriverReconcile";
+import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import { driverAppAccess } from "@silvicom/shared";
 

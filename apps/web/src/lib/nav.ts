@@ -3,6 +3,9 @@ import {
   ArrowUpTrayIcon,
   BeakerIcon,
   CheckCircleIcon,
+  CurrencyDollarIcon,
+  DocumentTextIcon,
+  GaugeIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   ClockIcon,
@@ -177,6 +180,23 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         { name: "Trailers", to: "/trailers", icon: TrailerIcon, show: canViewSection(role, "fleet") },
         { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection(role, "fleet") },
         { name: "Odometer", to: "/odometer", icon: OdometerIcon, show: canViewSection(role, "fleet") },
+      ],
+    },
+    {
+      // The money sections (P5, D-SEP7): visible only to the roles the matrix names — the
+      // accountant, the admin, the auditor. Ops roles see nothing here, by ruling.
+      label: "Finance",
+      icon: CurrencyDollarIcon,
+      items: [
+        { name: "Ledger", to: "/accounting", icon: CurrencyDollarIcon, show: canViewSection(role, "accounting") },
+        { name: "Billing", to: "/billing", icon: DocumentTextIcon, show: canViewSection(role, "billing") },
+      ],
+    },
+    {
+      label: "Maintenance",
+      icon: Cog6ToothIcon,
+      items: [
+        { name: "Repair spend", to: "/shop", icon: GaugeIcon, show: canViewSection(role, "maintenance") },
       ],
     },
     {
