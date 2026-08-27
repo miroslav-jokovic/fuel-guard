@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
 import { notify } from "../../services/notify.js";
-import { runApplicationNudgesOnce } from "../../services/applicationNudgeSweep.js";
+import { runApplicationNudgesOnce } from "../recruiting/index.js";
 
 /**
  * DQ expiry alerts (DQF execution plan C3) — the digestScheduler shape, applied to qualifications:

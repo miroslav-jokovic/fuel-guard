@@ -3,7 +3,7 @@ import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/fuel/index.js";
-import { handleInboundSms } from "../services/applicationSms.js";
+import { handleInboundSms } from "../modules/recruiting/index.js";
 import { verifyTwilioSignature } from "../lib/twilioSignature.js";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
