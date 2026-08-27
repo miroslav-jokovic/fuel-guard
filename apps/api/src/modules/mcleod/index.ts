@@ -19,3 +19,4 @@ export { tmsIngestRouter } from "./routes/tmsIngest.js";
 export { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 export { isTmsRosterMaster } from "./rosterMastery.js";
 export { getTmsIntegrationStatus, enableTmsIntegration, disableTmsIntegration } from "./tmsIngest.js";
+export { registerMcleodIntegrationRoutes } from "./routes/integration.js";

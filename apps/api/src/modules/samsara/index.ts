@@ -33,3 +33,4 @@ export { startSamsaraScheduler } from "./samsaraScheduler.js";
 export { runSamsaraDiagnostics } from "./samsaraDiagnostics.js";
 export { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 export { processSamsaraWebhook } from "./fuelEventsWebhook.js";
+export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";

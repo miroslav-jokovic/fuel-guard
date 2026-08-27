@@ -23,3 +23,4 @@ export { syncFuelEventsFromEfs, scoreTouched } from "./services/efsSync.js";
 export { cardRefHmac } from "./services/efsCardMirror.js";
 export { buildIngestSource } from "./services/efsAutoIngest.js";
 export { ingestReport } from "./services/efsIngest.js";
+export { registerEfsSoapIntegrationRoutes } from "./routes/integrationSoap.js";

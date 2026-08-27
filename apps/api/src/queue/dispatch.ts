@@ -77,3 +77,15 @@ export async function dispatchJob(
     { requestedBy: opts.requestedBy, dedupKey },
   );
 }
+
+/** Standard response for a background job endpoint: 202 with the job id, or 409 when one is
+ *  already running. Lived in routes/integrations.ts until the P1.6 split; it is the queue's
+ *  answer-shape, so it lives with the queue. The web watches the (org, kind) ledger row via
+ *  useJob(kind) for progress + the final result stats. */
+export function jobResponse(res: import("express").Response, result: RunJobResult): void {
+  if ("conflict" in result) {
+    res.status(409).json({ ok: false, error: { code: "job_running", message: "That operation is already running — watch its progress." } });
+  } else {
+    res.status(202).json({ ok: true, queued: true, jobId: result.jobId });
+  }
+}

@@ -10,3 +10,4 @@
 export { getDriverScore } from "./driverScore.js";
 export { syncDriverScores, syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 export { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
+export { registerPerformanceIntegrationRoutes } from "./routes/integration.js";
