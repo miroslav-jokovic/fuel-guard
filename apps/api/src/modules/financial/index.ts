@@ -24,3 +24,4 @@ export {
   type VehicleMoney,
   type AccountSpend,
 } from "./reads.js";
+export { getLedgerCoverage } from "./ledgerCoverage.js";

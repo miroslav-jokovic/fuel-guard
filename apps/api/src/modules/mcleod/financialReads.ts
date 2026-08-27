@@ -14,8 +14,18 @@ export interface StagedSettlement {
   accrued_at: string | null;
   paid_at: string | null;
   total_pay: number | string;
+  /** The figure that ties to the ledger's SET module (D-MC24) — coverage claims use it. */
+  posted_pay: number | string;
   is_void: boolean;
   accrual_key: string | null;
+}
+
+export interface StagedGlTotal {
+  post_module: string;
+  glid: string;
+  line_count: number;
+  net_amount: number | string;
+  abs_amount: number | string;
 }
 
 export interface StagedVoucher {
@@ -64,7 +74,7 @@ export async function readSettlementsWindow(admin: SupabaseClient, orgId: string
   return paged<StagedSettlement>((from, to) =>
     admin
       .from("mcleod_settlements")
-      .select("id, external_id, tractor_unit, driver_external_id, payee_type, accrued_at, paid_at, total_pay, is_void, accrual_key")
+      .select("id, external_id, tractor_unit, driver_external_id, payee_type, accrued_at, paid_at, total_pay, posted_pay, is_void, accrual_key")
       .eq("org_id", orgId)
       .gte("accrued_at", fromIso)
       .lt("accrued_at", toIso)
@@ -95,6 +105,23 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)
       .order("bill_date", { ascending: true })
+      .range(from, to),
+  );
+}
+
+/** One month's GL control totals (0269) — the figures every subledger claim is checked against. */
+export async function readLedgerTotals(
+  admin: SupabaseClient,
+  orgId: string,
+  periodStart: string,
+): Promise<StagedGlTotal[]> {
+  return paged<StagedGlTotal>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("post_module, glid, line_count, net_amount, abs_amount")
+      .eq("org_id", orgId)
+      .eq("period_start", periodStart)
+      .order("post_module", { ascending: true })
       .range(from, to),
   );
 }

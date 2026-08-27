@@ -341,6 +341,10 @@
       "module": "mcleod",
       "layer": "raw"
     },
+    "mcleod_gl_totals": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
     "mcleod_deductions": {
       "module": "mcleod",
       "layer": "raw"

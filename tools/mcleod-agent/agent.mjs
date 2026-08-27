@@ -22,6 +22,7 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
+import { fetchLedgerControl } from "./ledger.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -510,6 +511,19 @@ async function runRetire() {
   }
 }
 
+/** Every calendar month [first, first-of-next) that [windowStart, windowEnd) touches. */
+function monthsTouching(windowStart, windowEnd) {
+  const months = [];
+  let [y, m] = windowStart.split("-").map(Number);
+  for (;;) {
+    const periodStart = `${y}-${String(m).padStart(2, "0")}-01`;
+    if (periodStart >= windowEnd) break;
+    m === 12 ? ((y += 1), (m = 1)) : (m += 1);
+    months.push({ periodStart, periodEnd: `${y}-${String(m).padStart(2, "0")}-01` });
+  }
+  return months;
+}
+
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 /** Sweep one rolling accrual window of settlements + AP vouchers into FuelGuard (P3.2). */
 async function runFinancial() {
@@ -543,6 +557,21 @@ async function runFinancial() {
   const mv = await fetchMovementFacts({ ...CFG.sql, windowStart, windowEnd });
   const rm = await sendBatched("/api/tms/movement-facts", "movements", mv.movements, windowExtra, 500);
   log(`financial: movement-facts sent=${mv.movements.length} received=${rm.received} upserted=${rm.upserted}`);
+
+  // GL control totals — month-grained, unlike everything above: totals are aggregates over a
+  // period, so the period must be the stable unit the carrier's own close uses. Every calendar
+  // month the rolling window touches is swept WHOLE (bounded month, not clipped to the window) and
+  // the ingest replaces it — that is how the carrier's ~1-month entry lag flows through instead of
+  // freezing the first partial sweep of a month as its truth.
+  for (const { periodStart, periodEnd } of monthsTouching(windowStart, windowEnd)) {
+    const lc = await fetchLedgerControl({ ...CFG.sql, windowStart: periodStart, windowEnd: periodEnd });
+    const rl = await postToFuelGuard("/api/tms/ledger-totals", {
+      period_start: periodStart,
+      period_end: periodEnd,
+      totals: lc.totals,
+    });
+    log(`financial: ledger-totals ${periodStart} rows=${lc.totals.length} upserted=${rl.upserted ?? 0} staleRemoved=${rl.staleRemoved ?? 0}`);
+  }
 
   // Reconciliation stays where it always ran: the standalone CLIs print the to-the-cent GL
   // tie-outs; this sweep only persists. Fuel purchases are deliberately NOT posted — EFS is
