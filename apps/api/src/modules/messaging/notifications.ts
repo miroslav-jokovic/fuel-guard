@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderAnomalyAlertEmail, type AnomalyEmailItem, type AnomalySeverity } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { makeSender, type Sender } from "../lib/mailer.js";
+import type { Env } from "../../env.js";
+import { makeSender, type Sender } from "../../lib/mailer.js";
 
 /**
  * Email the org's recipients about high/critical anomalies on a transaction (audit Phase 8).

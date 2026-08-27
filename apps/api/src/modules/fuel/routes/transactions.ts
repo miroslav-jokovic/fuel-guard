@@ -7,7 +7,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { scoreWithCascade } from "../../anomalies/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
-import { notifyForTransaction } from "../../../services/notifications.js";
+import { notifyForTransaction } from "../../messaging/index.js";
 import { dispatchJob } from "../../../services/queue/dispatch.js";
 import { buildIngestSource } from "../../efs/index.js";
 import {

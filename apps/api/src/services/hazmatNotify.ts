@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HAZMAT_REVIEW_ROLES } from "@silvicom/shared";
-import { notify, loginForDriver } from "./notify.js";
+import { notify, loginForDriver } from "../modules/messaging/index.js";
 
 /**
  * HazmatGuard notifications (plan H7 deliverable 4). Emits through the shared `notify()` (entitlement +

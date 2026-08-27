@@ -12,7 +12,7 @@ vi.mock("../../anomalies/index.js", () => ({
   scoreImportWithCascade: mocks.scoreImport,
   scoreDeclinedImport: mocks.scoreDeclined,
 }));
-vi.mock("../../../services/notify.js", () => ({ notify: mocks.notify }));
+vi.mock("../../messaging/index.js", () => ({ notify: mocks.notify }));
 
 import { processEfsProcessingRun } from "./efsProcessing.js";
 

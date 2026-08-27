@@ -24,8 +24,8 @@
     "apps/api/src/modules/fuel/declineDriverResolution.ts"
   ],
   "device_push_tokens": [
-    "apps/api/src/routes/notifications.ts",
-    "apps/api/src/services/notify.ts"
+    "apps/api/src/modules/messaging/notify.ts",
+    "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
   "documents": [
     "apps/api/src/modules/evidence/compliance.ts",
@@ -258,22 +258,22 @@
     "apps/api/src/routes/members.ts"
   ],
   "message_reports": [
-    "apps/api/src/routes/messages.ts"
+    "apps/api/src/modules/messaging/routes/messages.ts"
   ],
   "message_threads": [
-    "apps/api/src/services/messages.ts"
+    "apps/api/src/modules/messaging/messages.ts"
   ],
   "messages": [
-    "apps/api/src/services/messages.ts"
+    "apps/api/src/modules/messaging/messages.ts"
   ],
   "notification_events": [
-    "apps/api/src/services/notify.ts"
+    "apps/api/src/modules/messaging/notify.ts"
   ],
   "notification_preferences": [
-    "apps/api/src/routes/notifications.ts"
+    "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
   "notification_reads": [
-    "apps/api/src/routes/notifications.ts"
+    "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
   "org_integrations": [
     "apps/admin-api/src/lib/members.ts",
@@ -335,7 +335,7 @@
     "apps/admin-api/src/lib/impersonation.ts"
   ],
   "thread_participants": [
-    "apps/api/src/services/messages.ts"
+    "apps/api/src/modules/messaging/messages.ts"
   ],
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notify, loginForDriver } from "../notify.js";
+import { notify, loginForDriver } from "../../modules/messaging/index.js";
 import {
   isTerminal,
   type AssignLoadRequest,

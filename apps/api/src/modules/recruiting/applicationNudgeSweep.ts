@@ -8,7 +8,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
-import { notify } from "../../services/notify.js";
+import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { sendApplicationSms } from "./applicationSms.js";
 

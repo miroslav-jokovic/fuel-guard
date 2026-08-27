@@ -4,7 +4,7 @@ import { CASE_RULE_ID } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { scoreDeclinedImport } from "../../anomalies/index.js";
 import { scoreImportWithCascade } from "../../anomalies/index.js";
-import { notify } from "../../../services/notify.js";
+import { notify } from "../../messaging/index.js";
 
 export type EfsProcessingFeed = "posted" | "rejected";
 

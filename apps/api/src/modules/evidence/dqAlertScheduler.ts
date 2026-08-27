@@ -4,7 +4,7 @@ import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
-import { notify } from "../../services/notify.js";
+import { notify } from "../messaging/index.js";
 import { runApplicationNudgesOnce } from "../recruiting/index.js";
 
 /**
