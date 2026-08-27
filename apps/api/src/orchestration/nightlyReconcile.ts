@@ -1,3 +1,8 @@
+// src/orchestration/ — the ONE sanctioned home for cross-module chains (program step P1.8,
+// docs/plans/architecture/SEPARATION-PROGRAM-PLAN.md §6 Q6, decided on its fallback). An
+// orchestrator composes owners' exported interfaces — never their internals, never their
+// tables — exactly as the queue's handler layer does. New cross-module flows land here or in
+// a handler, not inside a module.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
