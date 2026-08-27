@@ -12,6 +12,13 @@ symptoms were missing. Decision IDs are `D-ARC*`; cite them the way `D-DQ6` and 
 fix the file. §6 lists which gates enforce which decision, and which decisions are not yet
 gate-backed (those are the ones a reviewer must hold by hand until the gate lands).
 
+**Amended 2026-08-27** per `docs/plans/architecture/SEPARATION-PROGRAM-PLAN.md` (decisions
+D-SEP1–12): three stale "lives in" paths corrected, two table ownerships transferred to their
+measured writers, `manual-uploads` struck as a phantom, and the finance/maintenance modules
+added to the matrices. Once `scripts/table-modules.json` lands (program step P0.2), that
+manifest — not these tables — is the machine-read source of ownership and layer
+(raw|core|derived); these matrices become its rendering.
+
 ---
 
 ## 1. The shape — D-ARC1
@@ -58,13 +65,14 @@ Nothing outside the collector parses a vendor payload.
 
 | Module | Today lives in | Sources | Staging/owned tables |
 |---|---|---|---|
-| `efs` | `apps/api/src/modules/efs/` (carved 2026-08-26 — registry, services, SOAP lib, card routes) | EFS SOAP + transaction feed | `efs_transactions`, `efs_processing_runs`, `efs_cards`, `efs_card_mutations`, `efs_card_control_settings`, `efs_card_control_approvers`, `efs_capability_promotions`, `efs_capability_proofs`, `efs_soap_credentials`, `efs_soap_client_certs`, `card_write_counters` |
-| `samsara` | `apps/api/src/modules/samsara/` (carved 2026-08-26) | Samsara telematics | `samsara_ifta_fetches`, `samsara_ifta_jurisdiction_miles`, `hos_duty_segments`, `duty_equipment_segments`. (Corrected 2026-08-26 at the `idle` carve-out: `vehicle_engine_days` and `idle_telemetry_windows` went to `idle` — their writers live there, and the manifest is the enforcement.) |
+| `efs` | `apps/api/src/modules/efs/` (carved 2026-08-26 — registry, services, SOAP lib, card routes) | EFS SOAP + transaction feed | `efs_transactions`, `efs_processing_runs`, `efs_cards`, `efs_card_mutations`, `efs_card_control_settings`, `efs_card_control_approvers`, `efs_capability_promotions`, `efs_capability_proofs`, `efs_soap_credentials`, `efs_soap_client_certs`, `card_write_counters`, `imports` (transferred 2026-08-27 at the manual-uploads strike-out — its only writers are efs ingest services) |
+| `samsara` | `apps/api/src/modules/samsara/` (carved 2026-08-26) | Samsara telematics | `samsara_ifta_fetches`, `samsara_ifta_jurisdiction_miles`, `hos_duty_segments`. (Corrected 2026-08-26 at the `idle` carve-out: `vehicle_engine_days` and `idle_telemetry_windows` went to `idle`. Corrected again 2026-08-27: `duty_equipment_segments` went to `driver-app` — its only writers are the duty RPCs of 0143, called exclusively from `modules/driver-app/dutySessions.ts`; nothing in `modules/samsara` touches it.) |
 | `mcleod` | `apps/api/src/modules/mcleod/` (carved 2026-08-26) | McLeod SQL (via carrier VPN) | `tms_movements`, `mcleod_settlements`, `mcleod_ap_vouchers`, `mcleod_billing`, `load_external_payloads` |
-| `psp` | `apps/api/src/modules/psp/` (carved 2026-08-26) | FMCSA PSP via vendor API | `psp_requests`, `driver_authorizations` |
+| `psp` | `apps/api/src/modules/psp/` (carved 2026-08-26) | FMCSA PSP via vendor API | `psp_requests`. (`driver_authorizations` transferred to `recruiting` 2026-08-27 — recruiting is its only writer, `modules/recruiting/routes/authorizations.ts`; psp only reads it, `pspOrder.ts:197`.) |
 | `hazmat-data` | `packages/hazmat-data`, `packages/hazmat-engine` | Versioned regulatory data | (pure packages, no tables — and gate-enforced to stay that way) |
-| `manual-uploads` | `services/import*`, XLS price upload | Toll expenses, Pilot/posted fuel prices, spreadsheets | `imports`, `import_rows` |
-| `fleetpal` | — not built | FleetPal maintenance | none yet — **watch the double-arrival trap**: McLeod AP already carries maintenance dollars (FINANCIAL-STORE-PLAN records this) |
+| ~~`manual-uploads`~~ | — | — | **STRUCK 2026-08-27 (D-SEP12)** — it was a phantom: no `services/import*` ever existed at the carve-outs' end; `imports` is written only by `modules/efs` ingest services (ownership transferred there), and `import_rows` has zero application references (build-or-drop decided in program step P1.9). |
+| `posted-prices` | — not carved; the scrapers sit in `modules/fuel` today (`pilotPriceIngest`, `pilotLocationsIngest`, `lovesApiClient`, `kwikTripIngest`, `roadRangerIngest`, `postedPriceFetch`) | Pilot/Love's/Kwik Trip/Road Ranger posted fuel prices | none yet — carve-out is program step P1.5; whether `fuel_prices_posted` moves with it or stays fuel-owned is decided in that PR |
+| `fleetpal` | — not built | FleetPal maintenance | none yet — **watch the double-arrival trap**: McLeod AP already carries maintenance dollars (FINANCIAL-STORE-PLAN records this). Gated 2026-08-27 (D-SEP8): FleetPal may not land its first row before it adopts the `financial_entries` dedup contract written at program step P3.4. |
 | `fmcsa` | — not built | Clearinghouse §382.701, MCMIS | none yet |
 | ~~`samba`~~ | — | SambaSafety MVR | **DEFERRED 2026-08-26** on cost (see DQF-EXECUTION-PLAN Phase E banner) |
 
@@ -107,16 +115,20 @@ Harness modules read core through owners' interfaces, own their feature-specific
 |---|---|---|
 | `anomalies` (carved 2026-08-27, `apps/api/src/modules/anomalies/`) | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests` | anomalies, dashboard |
 | `fuel-spend` (carved 2026-08-26, `apps/api/src/modules/fuel-spend/`) | `fuel_statements`, `fuel_statement_lines`, `fuel_spend_days`, `fuel_recon_runs`, `fuel_exceptions`, `fuel_exception_events` | reconcile, reports, fuel |
-| `ifta` | (reads `samsara` staging + `fuel`) | ifta |
+| `ifta` | (reads `samsara` staging + `fuel`) — ⚠ no API module exists: the harness is a web hook calling the 0256/0258 RPCs, which read samsara staging directly. The tolerance covers the *read*, not the browser→staging path; program step P1.10 builds the module and closes it. | ifta |
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
 | `performance` (carved 2026-08-27, `apps/api/src/modules/performance/`) | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
-| `compliance` (DQF, binders) | (reads `evidence`; binder rendering in `services/dqBinder/`) | compliance |
-| `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
+| `compliance` (DQF, binders) | (reads `evidence`; folded INTO `evidence` at the carve-out — binder rendering lives at `modules/evidence/dqBinder/`, routes mounted as `complianceRouter`; corrected 2026-08-27, the old `services/dqBinder/` path is dead) | compliance |
+| `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements`, `driver_authorizations` (transferred from `psp` 2026-08-27 — recruiting is its only writer) | recruitment, apply |
 | `hazmat` (carved 2026-08-27, `apps/api/src/modules/hazmat/`) | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |
-| `dispatch` | (reads `loads`) | dispatch |
+| `dispatch` | (reads `loads`; carved UNDER `loads` — code lives at `modules/loads/dispatchLoads/`, mounted as `dispatchRouter`; corrected 2026-08-27) | dispatch |
 | `messaging` (carved 2026-08-27, `apps/api/src/modules/messaging/` — took `device_push_tokens` from driver-app parking, its writers live here) | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |
-| `driver-app` (server side; carved 2026-08-27, `apps/api/src/modules/driver-app/`) | `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
+| `driver-app` (server side; carved 2026-08-27, `apps/api/src/modules/driver-app/`) | `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters`, `duty_equipment_segments` (transferred from `samsara` 2026-08-27 — written only via the 0143 duty RPCs this module calls) | the driver app |
 | `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `fuel_plans`† — `weather_cache` moved to `idle` 2026-08-26 (its only writer is idle's session-weather resolver); revisit here if routing ever carves out and grows its own writer | fueling |
+| `insights` (planned 2026-08-27, program step P1.6) | none — a cross-cutting read-only harness for `askData` + report surfaces, reading owners' interfaces instead of the 10 raw tables those files touch today | reports, dashboard |
+| `accounting` (planned 2026-08-27, D-SEP6/7; program steps P3–P5) | the reporting/config tables it creates (CPM rules, allocation rules) — reads `financial` + `mcleod` through owner interfaces | accounting |
+| `billing` (planned 2026-08-27, D-SEP6/7; program steps P3–P5) | the AR/invoice surfaces it creates — reads `financial` + `mcleod_billing` through owner interfaces; projects revenue onto `loads` | billing |
+| `maintenance` (planned 2026-08-27, D-SEP8; program step P5.3) | its own feature tables when built — first data is McLeod AP repair spend via `financial` (`category='maintenance'`); `fleetpal` collector later, dedup-gated | maintenance |
 
 † Known-dead or near-dead per the 2026-08-26 audit (`ai_verifications` was dropped at 0260;
 `fuel_plans` has one production row ever). Each module's carve-out PR decides build-or-drop;
@@ -153,7 +165,10 @@ rewrite discards the knowledge and keeps the authors. So:
 | **apps/api module isolation** | `check-feature-boundaries.mjs`, armed for `apps/api/src/modules` | live 2026-08-26 — fires on the first carve-out |
 | **Table ownership** (write-site freeze: a new writer is a deliberate manifest edit) | `check-table-writers.mjs` + `scripts/table-writers.json` | live 2026-08-26 (172 write sites pinned; collapses to owner paths as carve-outs land) |
 | **Every table has a producer** (would have caught `financial_entries`, `terminals`) | `check-table-producers.mjs` | live 2026-08-26 (6 waivers after 0259 retired terminals, each naming the plan that owes the producer) |
-| Contracts only in `packages/shared` | review discipline | **not gate-backed; hold by hand** |
+| Contracts only in `packages/shared` | review discipline | **not gate-backed; hold by hand** (becomes a gate at program step P6.2, with D-SEP11's converse: vendor parsers never in shared) |
+| **Table→module→layer manifest** (D-SEP2) | `check-table-modules.mjs` + `scripts/table-modules.json` | planned — program step P0.2 |
+| **Table access respects layers** (D-SEP1: staging readable only by its owner; derived writable only by its owner) | table-access gate over `.from()`/`.rpc()` literals AND migration SQL bodies | planned — program step P0.3 |
+| **SECTION_ACCESS matrix ↔ RLS policy role lists in sync** | `lint:section-policies` | planned — program step P0.4 |
 
 All three re-founding gates run in CI since 2026-08-26 (`.github/workflows/ci.yml`), alongside
 the three design gates (`lint:codegen`, `lint:token-schema`, `lint:light-dark`) that had existed
@@ -167,5 +182,8 @@ the natural next gate.
 - `docs/MIGRATION-DISCIPLINE.md` — schema change rules (unchanged by this document).
 - `docs/DESIGN-SYSTEM-CONTRACT.md` — UI canon (unchanged).
 - `docs/plans/mcleod/FINANCIAL-STORE-PLAN.md` — the `financial` core module's build plan.
+- `docs/plans/architecture/SEPARATION-PROGRAM-PLAN.md` — the active program (D-SEP1–12) finishing
+  the data-layer separation and building `accounting`/`billing`/`maintenance` on it; its §4
+  execution protocol governs every step referenced above.
 - Root `CLAUDE.md` — the enforced-rules digest; its `src/features/<name>` rule becomes true for
   `apps/api` only as carve-outs land.
