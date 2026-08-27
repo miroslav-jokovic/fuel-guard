@@ -32,7 +32,7 @@ import { sumSpendDays, spendSeries, type SpendDay } from "@silvicom/shared";
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(HERE, "../../../../supabase/migrations");
+const MIGRATIONS_DIR = join(HERE, "../../../../../supabase/migrations");
 
 const db = new PGlite({ extensions: { pg_trgm } });
 let ORG = "";

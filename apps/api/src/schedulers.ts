@@ -17,7 +17,7 @@ import { startStorageReconcileScheduler } from "./services/storageReconcileSched
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
 import { startDqExportSweeper } from "./services/dqExportSweeper.js";
 import { startPatternSweepScheduler } from "./services/patternSweepScheduler.js";
-import { startFuelSpendRollupScheduler } from "./services/fuelSpendRollupScheduler.js";
+import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,

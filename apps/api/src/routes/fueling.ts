@@ -4,8 +4,8 @@ import { registerPlanRoutes } from "./fueling/plans.js";
 import { registerMapRoutes } from "./fueling/mapProxies.js";
 import { registerNetworkRoutes } from "./fueling/networks.js";
 import { registerStationRoutes } from "./fueling/stations.js";
-import { registerSpendRoutes } from "./fueling/spend.js";
-import { registerExceptionRoutes } from "./fueling/exceptions.js";
+import { registerSpendRoutes } from "../modules/fuel-spend/index.js";
+import { registerExceptionRoutes } from "../modules/fuel-spend/index.js";
 
 /**
  * Fueling / route-planning routes, assembled from cohesive modules (P2 split — was one 546-line file):

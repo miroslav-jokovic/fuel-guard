@@ -31,15 +31,15 @@ import {
   type SpendGrain,
   type SpendLine,
 } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
-import { newDrawing, winAnsi } from "./dqBinder/pdfDraw.js";
+import { eachPage } from "../../lib/paging.js";
+import { newDrawing, winAnsi } from "../../services/dqBinder/pdfDraw.js";
 import { letterhead, stampPages } from "./fuelSpendReportDraw.js";
 import { setDensity } from "./fuelSpendReportFlow.js";
 import { GEOM } from "./fuelSpendReportTheme.js";
 import { drawBridge, drawHeadline, drawSeries, drawVerdict } from "./fuelSpendReportSections.js";
 import { drawDiscount, drawExceptions, drawIdle } from "./fuelSpendReportPolicy.js";
 import { plural, usd, windowLabel } from "./fuelSpendReportFormat.js";
-import { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
+import { readFleetIdleVerdict } from "../../services/fuelIdleVerdict.js";
 
 export interface FuelSpendReportInput {
   orgId: string;

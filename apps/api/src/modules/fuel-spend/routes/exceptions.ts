@@ -7,17 +7,17 @@
  * $9,000 dispute, and when" a question with an answer.
  */
 import type { Router } from "express";
-import { requireOrg, requireRole } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
+import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
   type FuelExceptionStatus,
 } from "@silvicom/shared";
-import { exceptionTotals, listExceptions, moveException, readException } from "../../services/fuelExceptions.js";
-import { renderDisputePacket } from "../../services/fuelDisputePacket.js";
+import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
+import { renderDisputePacket } from "../fuelDisputePacket.js";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

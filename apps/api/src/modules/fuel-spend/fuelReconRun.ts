@@ -39,7 +39,7 @@ import {
   type SystemFill,
 } from "@silvicom/shared";
 import { createHash } from "node:crypto";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 /**
  * Bumped whenever the matcher's behaviour changes, so two runs are only comparable when it matches.
