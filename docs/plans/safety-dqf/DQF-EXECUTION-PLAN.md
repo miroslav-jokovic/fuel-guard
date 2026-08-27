@@ -762,6 +762,16 @@ gap; a non-CDL driver's file still demands both; an ELDT-less file reports `comp
 
 ## Phase E — SambaSafety, as a capability module
 
+> **⚠ DEFERRED (2026-08-26):** SambaSafety is deprecated before E0 was started — vendor cost,
+> Miroslav's call — possibly revisited later as an in-house MVR path. E0–E9 are not to be built.
+> One correction recorded while closing it: E1's "no new table (G17)" lost the fork with
+> RECRUITING-SYSTEM-PLAN R3 — the repo's precedent for provider secrets is a dedicated table with
+> secretBox envelopes (0091 `efs_soap_credentials`, 0116 `driver_app_credentials`, 0012 Samsara),
+> so a revival stores secrets in `samba_credentials` per R3 and keeps only non-secret config in
+> `org_integrations`. The capability-module architecture below remains the template for any
+> future billing write vendor. `SAMBA-RECON.md` and the committed Postman collection stay as
+> reference; notificationsContract's two reserved Phase-E categories stay reserved.
+
 Built on the EFS architecture per the Architecture section above. Every write to SambaSafety is a
 capability; the webhook receiver is not.
 

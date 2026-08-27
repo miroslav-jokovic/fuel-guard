@@ -648,6 +648,13 @@ no deploy), 10DLC registration, and one production `update organizations set leg
 
 ### R3 · MVR orders — demo environment first
 
+> **⚠ DEFERRED (2026-08-26):** SambaSafety is deprecated before a line of it was built — vendor
+> cost, Miroslav's call. R3 and R4 are not to be started; MVR acquisition stays manual. If this is
+> ever revived (in-house or vendor), two decisions below survive the deferral: the dedicated
+> `samba_credentials` table (0091's one-table-per-provider precedent) — which also resolves, in this
+> plan's favor, the fork with DQF-EXECUTION-PLAN E1's "no new table" — and recon §3's rule that an
+> unverifiable webhook receiver rejects with 401. `SAMBA-RECON.md` is kept as reference.
+
 **Prerequisites:** Samba credentials (Q-REC4 — demo credentials suffice for all of R3);
 **ordering against production additionally needs Q-H3** (a real `fcra_disclosure` signature —
 the gate refuses drafts) and DOBs. Neither blocks building or demo-verifying.
@@ -702,6 +709,8 @@ refuses without the signed instrument and without step-up, and `mvr_preemploymen
 `current` in a demo org's file.
 
 ### R4 · MVR delivery in the worker
+
+> **⚠ DEFERRED (2026-08-26):** with R3 — see the banner there.
 
 **Prerequisites:** R3. The webhook half additionally needs the signature answer (Q-REC4);
 fallback ⚠: the receiver **rejects every request with 401** (recon §3's rule — a receiver that

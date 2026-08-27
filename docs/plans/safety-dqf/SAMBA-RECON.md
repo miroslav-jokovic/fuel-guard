@@ -1,5 +1,11 @@
 # SambaSafety API — recon (step A1)
 
+> **⚠ REFERENCE ONLY (2026-08-26):** the SambaSafety integration was deprecated on cost before any
+> of it was built (DQF-EXECUTION-PLAN Phase E, RECRUITING-SYSTEM-PLAN R3/R4 — banners there). This
+> recon is kept because it records vendor facts that cost real effort to establish — application
+> errors returned with HTTP 200 (§6), the undocumented webhook signature (§3) — and would be the
+> starting point for any future MVR build, vendor or in-house.
+
 **Date:** 2026-08-18 · **Source:** `https://developer.sambasafety.com`, which is a **published Postman
 collection**, not a Redoc/Stoplight site. It is **public — no login required**. The human page renders
 client-side, which is why WebFetch returned an empty document; the machine-readable collection is served
