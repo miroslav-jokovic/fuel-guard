@@ -104,7 +104,7 @@ const GRANDFATHERED_WRITERS = new Set([
   "platform_audit_log <- apps/admin-api/src/lib/audit.ts",
   "qualification_records <- apps/api/src/modules/psp/pspImport.ts",
   "qualification_records <- apps/api/src/modules/psp/pspOrder.ts",
-  "route_fuel_settings <- apps/api/src/routes/fueling/networks.ts",
+  "route_fuel_settings <- apps/api/src/modules/posted-prices/routes/networks.ts",
   "route_fuel_settings <- apps/web/src/composables/useRouteFuelSettings.ts",
   "route_geometries <- apps/api/src/services/routeGeometry.ts",
   "seven_day_statements <- apps/api/src/modules/roster/routes/sevenDay.ts",

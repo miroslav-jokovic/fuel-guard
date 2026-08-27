@@ -24,3 +24,4 @@ export { runKwikTripSync } from "./kwikTripIngest.js";
 export { runRoadRangerFetch } from "./roadRangerIngest.js";
 export { ingestLovesExport, upsertLoves } from "./lovesIngest.js";
 export { runLovesApiSync } from "./lovesApiClient.js";
+export { registerNetworkRoutes } from "./routes/networks.js";

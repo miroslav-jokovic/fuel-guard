@@ -69,7 +69,6 @@ const GRANDFATHERED_ACCESS = new Set([
   "fuel_prices_posted <- apps/api/src/routes/fueling/stations.ts",
   "fuel_prices_posted <- apps/api/src/services/fuelPlanning.ts",
   "fuel_statement_lines <- apps/web/src/features/reconcile/useStatements.ts",
-  "fuel_statements <- apps/api/src/routes/fueling/networks.ts",
   "fuel_statements <- apps/web/src/features/reconcile/useStatements.ts",
   "hos_duty_segments <- apps/api/src/modules/anomalies/scoring/context.ts",
   "hos_duty_segments <- apps/api/src/modules/idle/idleDutyEvidenceSync.ts",

@@ -307,7 +307,7 @@
     "apps/api/src/modules/psp/pspOrder.ts"
   ],
   "route_fuel_settings": [
-    "apps/api/src/routes/fueling/networks.ts",
+    "apps/api/src/modules/posted-prices/routes/networks.ts",
     "apps/web/src/composables/useRouteFuelSettings.ts"
   ],
   "route_geometries": [
