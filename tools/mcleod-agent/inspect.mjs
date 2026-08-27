@@ -179,4 +179,28 @@ export const INSPECTION = [
   select ltrim(rtrim(b.company_id)) as company_id, count(*) as n
     from dbo.billing_history as b
    group by b.company_id` },
+  // F1 (answered 2026-08-27) surfaced `canceled` and `rebilled` flags whose vocabulary nothing has
+  // measured. The sweep's void predicate must come from THIS distribution, not from assuming
+  // 'Y'/'N' — importing a canceled invoice as revenue overstates every report it touches.
+  { id: "F3", blocks: "mcleod_billing sweep (void predicate)", question: "canceled/rebilled vocabulary with June 2026 dollars — which rows are not real revenue?", sql: `
+  select ltrim(rtrim(b.canceled)) as canceled, ltrim(rtrim(b.rebilled)) as rebilled,
+         count(*) as n, sum(b.total_charges) as total_charges
+    from dbo.billing_history as b
+   where b.company_id = @companyId
+     and b.bill_date >= '2026-06-01' and b.bill_date < '2026-07-01'
+   group by b.canceled, b.rebilled` },
+  // The acceptance check for the whole sweep: monthly totals the carrier can recognise from their
+  // own income statement (June 2026 revenue is a known figure). If these don't line up, the
+  // extraction is wrong and nothing downstream of it is worth debugging — the movements sweep's
+  // dry-run doctrine, applied to revenue.
+  { id: "F4", blocks: "mcleod_billing sweep (acceptance)", question: "2026 monthly billing totals — do they match the income statement?", sql: `
+  select convert(varchar(7), b.bill_date, 126) as month,
+         count(*) as n,
+         sum(b.total_charges) as total_charges,
+         sum(b.other_charge) as other_charge,
+         sum(b.excisetax_total) as excise_tax
+    from dbo.billing_history as b
+   where b.company_id = @companyId
+     and b.bill_date >= '2026-01-01'
+   group by convert(varchar(7), b.bill_date, 126)` },
 ];
