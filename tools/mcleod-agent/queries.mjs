@@ -694,3 +694,53 @@ export const ROSTER_COUNTS = `
     SELECT 'vehicles', COUNT(*) FROM dbo.tractor WHERE company_id = @companyId AND service_status = 'A' AND outservice_date IS NULL
     UNION ALL
     SELECT 'trailers', COUNT(*) FROM dbo.trailer WHERE company_id = @companyId AND is_active = 'A' AND outservice_date IS NULL`;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Billing — P3.3, the earnings side (unblocked by recon F1/F2, answered 2026-08-27)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * Invoiced revenue as billed — the only money table in McLeod that names its truck AND its driver
+ * (F1 confirmed tractor_id, trailer_id, driver_id; trailer2_id exists for doubles and is not taken
+ * until a consumer exists for it). One table, no live/_hist split: billing_history IS the history.
+ *
+ * Every column here was ANSWERED by recon F1 on 2026-08-27, never guessed — the trailer-type
+ * near-miss is what guessing costs. `excisetax_total` is McLeod's name; the neutral contract calls
+ * it excise_tax. The `_c/_d/_n/_r` companion columns F1 also surfaced are multi-currency /
+ * rate-audit satellites of their base column and are deliberately not extracted.
+ *
+ * ⚠ NO void filter yet, on purpose: F1 surfaced `canceled` and `rebilled` flags whose vocabulary
+ * recon F3 measures but has not yet answered (the VPN window closed first). Both flags are
+ * therefore EXTRACTED so the dry-run summary can show the cross-tab with dollars, and the posting
+ * step stays OFF until the predicate is chosen from that evidence — a canceled invoice imported as
+ * revenue overstates every report it touches. The sweep windows on bill_date: the economic date,
+ * same posture as vouchers on invoice_date (D-FS6); the backfill covers what a rolling window
+ * misses of late entry.
+ */
+export const BILLING_HISTORY = `
+    SELECT
+      LTRIM(RTRIM(b.id))                             AS external_id,
+      LTRIM(RTRIM(b.company_id))                     AS company_id,
+      b.invoice_no                                   AS invoice_no,
+      NULLIF(LTRIM(RTRIM(b.customer_id)), '')        AS customer_id,
+      NULLIF(LTRIM(RTRIM(b.order_id)), '')           AS order_external_id,
+      NULLIF(LTRIM(RTRIM(b.master_order_id)), '')    AS master_order_id,
+      NULLIF(LTRIM(RTRIM(b.tractor_id)), '')         AS tractor_unit,
+      NULLIF(LTRIM(RTRIM(b.trailer_id)), '')         AS trailer_unit,
+      NULLIF(LTRIM(RTRIM(b.driver_id)), '')          AS driver_external_id,
+      CONVERT(varchar(19), b.bill_date, 126)         AS bill_date,
+      CONVERT(varchar(19), b.ship_date, 126)         AS ship_date,
+      CONVERT(varchar(19), b.delivery_date, 126)     AS delivery_date,
+      CONVERT(varchar(19), b.transfer_date, 126)     AS transfer_date,
+      b.total_charges                                AS total_charges,
+      b.other_charge                                 AS other_charge,
+      b.excisetax_total                              AS excise_tax,
+      b.billing_loaded_distance                      AS billing_loaded_distance,
+      b.billing_empty_distance                       AS billing_empty_distance,
+      NULLIF(LTRIM(RTRIM(b.canceled)), '')           AS canceled,
+      NULLIF(LTRIM(RTRIM(b.rebilled)), '')           AS rebilled,
+      LTRIM(RTRIM(b.post_key))                       AS post_key,
+      LTRIM(RTRIM(b.post_module))                    AS post_module
+      FROM dbo.billing_history AS b
+     WHERE b.company_id = @companyId
+       AND b.bill_date >= @windowStart
+       AND b.bill_date <  @windowEnd`;

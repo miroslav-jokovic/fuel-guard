@@ -440,10 +440,18 @@ pinned in advance. Program-specific additions:
 - **P3.3 — DONE-to-the-honest-boundary 2026-08-27 (PR #334) — Billing extraction (greenfield).**
   Contract + ingestBilling + /api/tms/billing complete (third waiver retired). The McLeod-side
   SELECT is deliberately NOT guessed: recon questions F1/F2 re-take the 0257 measurement;
-  the BILLING_HISTORY sweep is written against their pasted answers (Miki, on-prem). `BILLING_HISTORY` query in the agent
-  (`queries.mjs`), `billing.mjs` sweep with GL-BILL reconciliation proof (the 0257:274 claim
-  becomes runnable), shared contract, `/api/tms/billing` endpoint, upsert into `mcleod_billing`;
-  waiver removed.
+  the BILLING_HISTORY sweep is written against their pasted answers (Miki, on-prem).
+  **ADVANCED 2026-08-27 (evening): F1/F2 ANSWERED on-prem** — billing_history carries
+  tractor_id/trailer_id/driver_id (revenue-per-truck confirmed at source), excisetax_total,
+  billing_loaded/empty_distance, canceled/rebilled flags; 137,649 TMS rows + 16,733 TMS2 + 311
+  TMS3. `BILLING_HISTORY` (queries.mjs) + `billing.mjs` DRY-RUN shipped, written from the answers.
+  **Posting stays OFF behind two evidential gates:** (1) the void predicate — recon F3 measures
+  the canceled/rebilled vocabulary with June dollars; a canceled invoice imported as revenue
+  overstates everything; (2) acceptance — `npm run billing -- 2026-06-01 2026-07-01` monthly
+  totals must match the income statement's June revenue ($5,107,789.04). Both need the next VPN
+  window (it closed mid-recon). When they pass: filter from F3's table, wire mapBilling→
+  /api/tms/billing into --financial, and decide whether billing_loaded/empty_distance join the
+  contract (needs a mcleod_billing migration).
 - **P3.4 — DONE 2026-08-27 (PR #335) — `modules/financial` (core).**
   The projection: payee-split settlements (accrual, total_pay), AP vouchers (fuel-vendor rows
   land category=fuel NON-canonical per D-FS2 — the flag, not the key, holds the $1,017,601.81
