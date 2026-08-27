@@ -45,7 +45,7 @@ import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { publicHazmatRouter } from "./routes/publicHazmat.js";
 import { publicApplicationRouter } from "./routes/publicApplication.js";
-import { complianceRouter } from "./routes/compliance.js";
+import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter } from "./routes/driverAppSettings.js";
 import { meRouter } from "./routes/me.js";
 import { meHazmatRouter } from "./routes/meHazmat.js";

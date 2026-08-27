@@ -85,7 +85,7 @@ bypasses RLS; ownership is the discipline that replaces it.
 | `org` (identity & platform) | `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`, `integration_credentials`, `org_usage_month`, `platform_admins`, `platform_audit_log`, `support_impersonation_grants`, `audit_logs` (append-only), `jobs`, `migration_markers` |
 | `roster` | `drivers`, `vehicles`, `trailers`, `terminals`†, `driver_vehicle_assignments`, `driver_time_off` |
 | `fuel` | `fuel_transactions`, `fuel_events`, `declined_transactions`, `fuel_cards`, `fuel_stations`, `station_geocode_learned`, `fuel_prices`, `fuel_prices_posted`, `fuel_price_days`, `fuel_discount_rules` |
-| `evidence` | `documents`, `certifications`, `qualification_records`, `dq_exports` — the append-only set pinned in `RETENTION_FORBIDDEN` |
+| `evidence` (carved 2026-08-26, `apps/api/src/modules/evidence/` — first core-store module) | `documents`, `certifications`, `qualification_records`, `dq_exports` — the append-only set pinned in `RETENTION_FORBIDDEN` |
 | `loads` | `loads`, `load_stops`, `load_events`, `load_stop_photos` |
 | `financial` | `financial_entries` (staging feeds arrive via the `mcleod` collector) |
 

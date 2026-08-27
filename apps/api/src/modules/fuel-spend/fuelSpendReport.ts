@@ -32,7 +32,7 @@ import {
   type SpendLine,
 } from "@silvicom/shared";
 import { eachPage } from "../../lib/paging.js";
-import { newDrawing, winAnsi } from "../../services/dqBinder/pdfDraw.js";
+import { newDrawing, winAnsi } from "../../lib/pdfDraw.js";
 import { letterhead, stampPages } from "./fuelSpendReportDraw.js";
 import { setDensity } from "./fuelSpendReportFlow.js";
 import { GEOM } from "./fuelSpendReportTheme.js";

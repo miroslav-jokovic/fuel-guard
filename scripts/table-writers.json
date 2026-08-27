@@ -28,13 +28,13 @@
     "apps/api/src/services/notify.ts"
   ],
   "documents": [
+    "apps/api/src/modules/evidence/compliance.ts",
+    "apps/api/src/modules/evidence/documentDerivatives.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
-    "apps/api/src/services/applicationPdf/file.ts",
-    "apps/api/src/services/compliance.ts",
-    "apps/api/src/services/documentDerivatives.ts"
+    "apps/api/src/services/applicationPdf/file.ts"
   ],
   "dq_exports": [
-    "apps/api/src/services/dqExports.ts"
+    "apps/api/src/modules/evidence/dqExports.ts"
   ],
   "driver_app_feature_overrides": [
     "apps/api/src/services/driverAppSettings.ts"
@@ -302,9 +302,9 @@
     "apps/api/src/modules/psp/pspOrder.ts"
   ],
   "qualification_records": [
+    "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/psp/pspImport.ts",
-    "apps/api/src/modules/psp/pspOrder.ts",
-    "apps/api/src/services/compliance.ts"
+    "apps/api/src/modules/psp/pspOrder.ts"
   ],
   "route_fuel_settings": [
     "apps/api/src/routes/fueling/networks.ts",
