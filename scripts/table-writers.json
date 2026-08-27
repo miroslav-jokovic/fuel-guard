@@ -341,8 +341,8 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "trailers": [
+    "apps/api/src/modules/roster/trailerPairing.ts",
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
-    "apps/api/src/services/reeferPairing.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
   "vehicle_engine_days": [

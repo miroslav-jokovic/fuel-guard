@@ -9,7 +9,7 @@ import {
   type SamsaraTrailerAssignmentFetcher,
 } from "../../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
-import { inferTrailerPairings } from "../../services/reeferPairing.js";
+import { inferTrailerPairings } from "./trailerPairingSync.js";
 import { isTmsRosterMaster } from "../mcleod/index.js";
 
 export interface TrailerSyncResult {

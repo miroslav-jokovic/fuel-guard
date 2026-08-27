@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseAssetGps, inferTrailerPairing, type GpsSample, type TruckTrack } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { makeSamsaraTrailerGpsFetcher, makeSamsaraVehiclesGpsFetcher } from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "../modules/samsara/index.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { makeSamsaraTrailerGpsFetcher, makeSamsaraVehiclesGpsFetcher } from "../../lib/samsara.js";
+import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { recordInferredTrailerPairing } from "../roster/index.js";
 
 /** Days of GPS history to match over — enough to establish the current hauler without an unbounded fetch. */
 const WINDOW_DAYS = 5;
@@ -75,14 +76,9 @@ export async function inferTrailerPairings(admin: SupabaseClient, env: Env, orgI
   let paired = 0;
   for (const t of trailers) {
     const match = inferTrailerPairing(trailerGps.get(t.samsara_asset_id) ?? [], tracks);
-    if (match) {
-      await admin
-        .from("trailers")
-        .update({ assigned_vehicle_id: match.vehicleId, pairing_source: "inferred", pairing_confidence: match.confidence })
-        .eq("id", t.id)
-        .eq("org_id", orgId);
-      paired++;
-    }
+    // The write goes through roster's interface — trailers is roster-owned, and the
+    // never-overwrite-manual invariant is enforced there, not here.
+    if (match && (await recordInferredTrailerPairing(admin, orgId, t.id, match))) paired++;
   }
   return { candidates: trailers.length, paired };
 }

@@ -104,7 +104,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "seven_day_statements <- apps/api/src/modules/roster/routes/sevenDay.ts",
   "support_impersonation_grants <- apps/admin-api/src/lib/impersonation.ts",
   "trailers <- apps/api/src/modules/samsara/samsaraTrailerSync.ts",
-  "trailers <- apps/api/src/services/reeferPairing.ts",
   "trailers <- apps/web/src/composables/useTrailers.ts",
   "vehicles <- apps/api/src/modules/anomalies/scoring/learnVehicle.ts",
   "vehicles <- apps/api/src/modules/anomalies/scoring/persist.ts",

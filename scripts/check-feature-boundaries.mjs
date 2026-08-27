@@ -108,6 +108,10 @@ const API_ALLOW = new Set([
   "idle -> fuel",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
   "anomalies -> samsara",
+  // GPS co-location pairing: the collector infers which tractor a trailer travels with, but the
+  // trailers write goes through roster's recordInferredTrailerPairing — the owner holds the
+  // never-overwrite-manual invariant, the collector holds the vendor fetch (P1.2, D-SEP1).
+  "samsara -> roster",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).
