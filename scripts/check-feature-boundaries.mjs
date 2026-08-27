@@ -127,6 +127,11 @@ const API_ALLOW = new Set([
   // The projection reads financial staging through the collector's exported readers — never the
   // raw tables (D-SEP1); the dedup rules live in financial, the vendor shape stays in mcleod.
   "financial -> mcleod",
+  // The three P5 surfaces read the money store through financial's interface — the deny-all RLS
+  // posture (D-SEP7) makes these routers THE read path; none of them owns a table.
+  "accounting -> financial",
+  "billing -> financial",
+  "maintenance -> financial",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).

@@ -84,7 +84,7 @@ const GRANDFATHERED_WRITERS = new Set([
   "fuel_stations <- apps/api/src/modules/posted-prices/pilotLocationsIngest.ts",
   "fuel_stations <- apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
   "fuel_stations <- apps/api/src/modules/posted-prices/roadRangerIngest.ts",
-  "idle_settings <- apps/web/src/features/fleet/useIdleSettings.ts",
+  "idle_settings <- apps/web/src/features/idle/useIdleSettings.ts",
   "integration_credentials <- apps/api/src/modules/samsara/lib/samsaraToken.ts",
   "integration_credentials <- apps/api/src/modules/samsara/samsaraScheduler.ts",
   "invites <- apps/api/src/modules/roster/routes/drivers.ts",
@@ -113,7 +113,7 @@ const GRANDFATHERED_WRITERS = new Set([
   "vehicles <- apps/api/src/modules/samsara/samsaraVehicleSync.ts",
   "vehicles <- apps/web/src/composables/useDrivers.ts",
   "vehicles <- apps/web/src/composables/useVehicles.ts",
-  "vehicles <- apps/web/src/features/fleet/useVehicleSetupImport.ts",
+  "vehicles <- apps/web/src/features/roster/useVehicleSetupImport.ts",
 ]);
 
 const stripSql = (sql) => sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");

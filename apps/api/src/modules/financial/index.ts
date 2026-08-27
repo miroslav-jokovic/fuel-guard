@@ -13,3 +13,14 @@
  */
 export { projectFinancialWindow, type ProjectionResult } from "./projection.js";
 export { startFinancialProjectionScheduler } from "./projectionScheduler.js";
+export {
+  searchEntries,
+  summarizeByCategory,
+  moneyByVehicle,
+  apSpendByAccount,
+  type EntryFilter,
+  type FinancialEntryRow,
+  type CategorySummary,
+  type VehicleMoney,
+  type AccountSpend,
+} from "./reads.js";

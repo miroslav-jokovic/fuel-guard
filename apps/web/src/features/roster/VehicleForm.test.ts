@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
-import VehicleForm from "@/features/fleet/VehicleForm.vue";
+import VehicleForm from "@/features/roster/VehicleForm.vue";
 
 const drivers = [
   {

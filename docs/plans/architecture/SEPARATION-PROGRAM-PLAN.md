@@ -500,20 +500,38 @@ pinned in advance. Program-specific additions:
 
 ### Phase 5 — The product surfaces
 
-- **P5.1 — `modules/accounting` (harness).** AP/settlement/cost surfaces over `financial`'s
+- **P5.1 — DONE 2026-08-27 (PR #338) — `modules/accounting` (harness).**
+  API-only reads over financial's interface (the deny-all posture makes the router THE read
+  path): ledger search (payments individually visible, separated, searchable — the owner's
+  words as one endpoint), category summary, and the AP spend-by-account allocation inventory
+  finance rules on (§6 Q5 stays open; until then overhead unallocated and labelled). Deviation,
+  stated: CPM-over-the-store waits for the P3.5 backfill to run in production — a CPM computed
+  over 50 days of store lies about the year; the allocation config table lands WITH the ruling. AP/settlement/cost surfaces over `financial`'s
   interface: spend by account (`summarizeApSpendByAccount` gets its first consumer), settlement
   cost by truck, CPM (`computeCpm` re-pointed at `financial_entries` per FINANCIAL-STORE-PLAN
   §5.3), allocation-rules config table (owner: accounting; §6 Q5 is its prerequisite). Web
   `features/accounting/` + nav group, API-only reads.
-- **P5.2 — `modules/billing` (harness).** Invoice/AR surfaces, margin-per-truck (billing is
+- **P5.2 — DONE 2026-08-27 (PR #338) — `modules/billing` (harness).**
+  Invoice search + margin per truck (the unattributed bucket shown as its own row, never spread
+  by a guess). Deviation, stated: revenue-onto-loads (§5.4) deferred to the dispatch surface's
+  own step — changing what a load card means to a dispatcher is a product decision. Invoice/AR surfaces, margin-per-truck (billing is
   the only equipment-carrying money table), revenue onto `loads` via `order_external_id`
   (FINANCIAL-STORE-PLAN §5.4). Web `features/billing/` + nav.
-- **P5.3 — `modules/maintenance` (harness skeleton + first data).** Section live per D-SEP8:
+- **P5.3 — DONE 2026-08-27 (PR #338) — `modules/maintenance` (harness skeleton + first data).**
+  Lives at /shop (the Q7 fallback — /maintenance was the downtime page's). Reads
+  category='maintenance', which is EMPTY and says so: the API answers with pendingSources and
+  the page renders that truth instead of a mysterious zero. The FleetPal dedup contract is
+  written in the module header as D-SEP8 requires: a FleetPal ingest PR that cannot state its
+  dedup_key mapping against the McLeod AP side does not merge. Section live per D-SEP8:
   repair-spend view from `financial_entries` `category='maintenance'` (McLeod AP), unit-number
   free-text resolution surfaced honestly (unmatched = unmatched, no guessing); FleetPal
   collector remains a §6-gated future with its dedup contract written here first. Route path
   decided per D-SEP9 (not `/maintenance` — taken).
-- **P5.4 — Fleet feature split (D-SEP9).** Roster forms → `features/roster/`; idle analytics →
+- **P5.4 — DONE 2026-08-27 (PR #338) — Fleet feature split (D-SEP9).**
+  features/fleet no longer exists: seven idle composables → features/idle (matching the idle
+  API module), nine roster files → features/roster. Nav labels unchanged (Q7 fallback: the
+  Fleet group keeps its name, so no sidebar localStorage state is orphaned); writer pins
+  re-pathed. The fleet RBAC section key and fleet_manager role were never renamed — D-SEP9. Roster forms → `features/roster/`; idle analytics →
   `features/idle/`; `table-writers.json` paths updated (2 pins); sidebar-collapse localStorage
   key migration noted in the PR (label-keyed state, orphaning is silent); nav labels final.
 

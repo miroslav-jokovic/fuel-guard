@@ -218,7 +218,7 @@
   ],
   "idle_settings": [
     "apps/api/src/modules/idle/idleSync.ts",
-    "apps/web/src/features/fleet/useIdleSettings.ts"
+    "apps/web/src/features/idle/useIdleSettings.ts"
   ],
   "idle_telemetry_windows": [
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
@@ -367,7 +367,7 @@
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",
-    "apps/web/src/features/fleet/useVehicleSetupImport.ts"
+    "apps/web/src/features/roster/useVehicleSetupImport.ts"
   ],
   "weather_cache": [
     "apps/api/src/modules/idle/idleSessionWeather.ts",
