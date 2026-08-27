@@ -1,13 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { summarizeIdleTelemetry, type IdleTelemetrySeries } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
 import {
   makeSamsaraVehicleTelemetryFetcher,
   type SamsaraNumericStatEvent,
   type VehicleTelemetryFetcher,
-} from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "../modules/samsara/index.js";
+} from "../../lib/samsara.js";
+import { NoSamsaraTokenError } from "../samsara/index.js";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleTelemetrySyncResult {

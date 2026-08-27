@@ -5,7 +5,7 @@ import { buildEvidence } from "./idleDutyEvidenceSync.js";
 import { deriveAssignedVehicleSegments, type AssignmentRow } from "./idleDutyEvidenceSync.js";
 import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 import { organizationTimezone } from "./idleCapabilitySync.js";
-import { syncFuelPriceDays } from "./fuelPriceDaySync.js";
+import { syncFuelPriceDays } from "../../services/fuelPriceDaySync.js";
 import {
   ON_DUTY_GRACE_SEC,
   buildHosVehicleTimelines,

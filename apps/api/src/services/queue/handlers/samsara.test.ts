@@ -37,10 +37,13 @@ vi.mock("../../../modules/samsara/index.js", () => ({
   monthsToSync: vi.fn(() => []),
   syncIftaMilesForMonth: vi.fn(),
 }));
-vi.mock("../../idleFoundationSync.js", () => idleFoundation);
+// The idle syncs now live behind the idle module index (2026-08-26 carve-out) — mock the index.
+vi.mock("../../../modules/idle/index.js", () => ({
+  syncIdleFoundation: idleFoundation.syncIdleFoundation,
+  syncIdleDutyEvidence: idleDutyEvidence.syncIdleDutyEvidence,
+  syncIdleRollup: idleRollup.syncIdleRollup,
+}));
 vi.mock("../../hosSync.js", () => hosSync);
-vi.mock("../../idleDutyEvidenceSync.js", () => idleDutyEvidence);
-vi.mock("../../idleRollup.js", () => idleRollup);
 vi.mock("../../driverScoreSync.js", () => scoreSync);
 vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
 vi.mock("../../nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));

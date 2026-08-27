@@ -17,7 +17,7 @@ import {
   type SamsaraGpsSnapshotFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "../modules/samsara/index.js";
-import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
+import { IDLE_SOURCE_WINDOW_DAYS } from "../modules/idle/index.js";
 
 export interface HosSyncResult {
   fetched: number; // duty-status segments parsed from the window

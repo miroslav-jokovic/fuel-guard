@@ -59,7 +59,7 @@ Nothing outside the collector parses a vendor payload.
 | Module | Today lives in | Sources | Staging/owned tables |
 |---|---|---|---|
 | `efs` | `apps/api/src/efs/` + `services/efs*` (to be pulled in) | EFS SOAP + transaction feed | `efs_transactions`, `efs_processing_runs`, `efs_cards`, `efs_card_mutations`, `efs_card_control_settings`, `efs_card_control_approvers`, `efs_capability_promotions`, `efs_capability_proofs`, `efs_soap_credentials`, `efs_soap_client_certs`, `card_write_counters` |
-| `samsara` | `services/samsara*`, `services/idle*Sync` | Samsara telematics | `samsara_ifta_fetches`, `samsara_ifta_jurisdiction_miles`, `hos_duty_segments`, `vehicle_engine_days`, `duty_equipment_segments`, `idle_telemetry_windows` |
+| `samsara` | `apps/api/src/modules/samsara/` (carved 2026-08-26) | Samsara telematics | `samsara_ifta_fetches`, `samsara_ifta_jurisdiction_miles`, `hos_duty_segments`, `duty_equipment_segments`. (Corrected 2026-08-26 at the `idle` carve-out: `vehicle_engine_days` and `idle_telemetry_windows` went to `idle` — their writers live there, and the manifest is the enforcement.) |
 | `mcleod` | `apps/api/src/tms/` + `services/mcleod*` | McLeod SQL (via carrier VPN) | `tms_movements`, `mcleod_settlements`, `mcleod_ap_vouchers`, `mcleod_billing`, `load_external_payloads` |
 | `psp` | `apps/api/src/psp/` | FMCSA PSP via vendor API | `psp_requests`, `driver_authorizations` |
 | `hazmat-data` | `packages/hazmat-data`, `packages/hazmat-engine` | Versioned regulatory data | (pure packages, no tables — and gate-enforced to stay that way) |
@@ -107,7 +107,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `anomalies` | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests`, `ai_verifications`† | anomalies, dashboard |
 | `fuel-spend` | `fuel_statements`, `fuel_statement_lines`, `fuel_spend_days`, `fuel_recon_runs`, `fuel_exceptions`, `fuel_exception_events` | reconcile, reports, fuel |
 | `ifta` | (reads `samsara` staging + `fuel`) | ifta |
-| `idle` | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings` | fleet, dashboard |
+| `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
 | `performance` | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
 | `compliance` (DQF, binders) | (reads `evidence`; binder rendering in `services/dqBinder/`) | compliance |
 | `recruiting` | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
@@ -115,7 +115,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `dispatch` | (reads `loads`) | dispatch |
 | `messaging` | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |
 | `driver-app` (server side) | `device_push_tokens`, `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
-| `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `weather_cache`, `fuel_plans`† | fueling |
+| `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `fuel_plans`† — `weather_cache` moved to `idle` 2026-08-26 (its only writer is idle's session-weather resolver); revisit here if routing ever carves out and grows its own writer | fueling |
 
 † Known-dead or near-dead per the 2026-08-26 audit (`ai_verifications` has no code;
 `fuel_plans` has one production row ever). Each module's carve-out PR decides build-or-drop;

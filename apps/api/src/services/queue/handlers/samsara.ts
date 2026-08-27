@@ -4,10 +4,10 @@ import {
   NoSamsaraTokenError,
 } from "../../../modules/samsara/index.js";
 import { syncTrailersFromSamsara } from "../../../modules/samsara/index.js";
-import { syncIdleFoundation } from "../../idleFoundationSync.js";
+import { syncIdleFoundation } from "../../../modules/idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "../../hosSync.js";
-import { syncIdleRollup } from "../../idleRollup.js";
-import { syncIdleDutyEvidence } from "../../idleDutyEvidenceSync.js";
+import { syncIdleRollup } from "../../../modules/idle/index.js";
+import { syncIdleDutyEvidence } from "../../../modules/idle/index.js";
 import { syncDriversFromSamsara } from "../../../modules/samsara/index.js";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "../../driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";

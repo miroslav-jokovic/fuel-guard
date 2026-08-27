@@ -9,10 +9,10 @@ import {
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "../../services/driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../services/driverPerformanceSnapshot.js";
-import { syncIdleFoundation } from "../../services/idleFoundationSync.js";
+import { syncIdleFoundation } from "../idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "../../services/hosSync.js";
-import { syncIdleRollup } from "../../services/idleRollup.js";
-import { syncIdleDutyEvidence } from "../../services/idleDutyEvidenceSync.js";
+import { syncIdleRollup } from "../idle/index.js";
+import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../../services/dataRetention.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../../services/jobs.js";
 import { enqueueJob } from "../../services/queue/enqueue.js";
