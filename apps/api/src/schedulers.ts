@@ -12,7 +12,7 @@ import { startEfsSoapPoller } from "./modules/efs/services/efsSoapPoller.js";
 import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessingScheduler.js";
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./modules/fuel/index.js";
-import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
+import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler } from "./services/storageReconcileScheduler.js";
 import { startNotificationPushScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";

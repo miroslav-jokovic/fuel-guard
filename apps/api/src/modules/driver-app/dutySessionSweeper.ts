@@ -1,8 +1,8 @@
-import type { Env } from "../env.js";
+import type { Env } from "../../env.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { closeStaleDutySessions } from "./dutySessions.js";
-import { notify, loginForDriver } from "../modules/messaging/index.js";
+import { notify, loginForDriver } from "../messaging/index.js";
 
 /**
  * Close abandoned driver shifts (Driver App Phase 3A, decision D44.5).

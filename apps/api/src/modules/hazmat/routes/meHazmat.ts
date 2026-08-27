@@ -12,7 +12,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { resolveDriverId } from "../../../services/dutySessions.js";
+import { resolveDriverId } from "../../driver-app/index.js";
 import {
   createLoad,
   registerDocument,

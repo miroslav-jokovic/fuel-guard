@@ -143,6 +143,14 @@ const API_ALLOW = new Set([
   "performance -> messaging",
   // Score sync runs on the vendor client and shares its token-missing error class.
   "performance -> samsara",
+  // The me-surface is a BFF: it serves each domain through its interface — loads' driver verbs,
+  // performance's score, messaging's threads — edges, not reimplementations. And an abandoned
+  // duty session tells its driver through the fabric.
+  "driver-app -> loads",
+  "driver-app -> performance",
+  "driver-app -> messaging",
+  // The hazmat me-surface resolves the calling driver the same way the main one does.
+  "hazmat -> driver-app",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
