@@ -21,3 +21,4 @@ export { generateAndSendDigest } from "./digest.js";
 export { startDigestScheduler } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
+export { stampIntegrationSynced } from "./integrationSync.js";

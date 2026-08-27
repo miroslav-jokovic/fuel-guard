@@ -226,9 +226,9 @@
     "apps/api/src/modules/efs/services/efsSync.ts"
   ],
   "integration_credentials": [
+    "apps/api/src/modules/org/integrationSync.ts",
     "apps/api/src/modules/samsara/lib/samsaraToken.ts",
-    "apps/api/src/modules/samsara/samsaraScheduler.ts",
-    "apps/api/src/queue/handlers/samsara.ts"
+    "apps/api/src/modules/samsara/samsaraScheduler.ts"
   ],
   "invites": [
     "apps/api/src/modules/org/routes/invites.ts",
@@ -288,9 +288,9 @@
     "apps/web/src/composables/useOrgSettings.ts"
   ],
   "pattern_sweep_requests": [
+    "apps/api/src/modules/anomalies/patternSweepRequests.ts",
     "apps/api/src/modules/anomalies/patternSweepScheduler.ts",
-    "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
-    "apps/api/src/queue/handlers/scoring.ts"
+    "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts"
   ],
   "platform_admins": [
     "apps/admin-api/src/lib/platformAdmins.ts"

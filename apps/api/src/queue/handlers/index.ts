@@ -16,9 +16,6 @@ import {
   scoreImportHandler,
 } from "./scoring.js";
 import {
-  nightlyReconcileHandler,
-  snapshotDriverWeekHandler,
-  syncDriverScoresHandler,
   syncDriversHandler,
   syncHosHandler,
   syncIdleHandler,
@@ -27,6 +24,8 @@ import {
   syncTrailersHandler,
   syncVehiclesHandler,
 } from "./samsara.js";
+import { snapshotDriverWeekHandler, syncDriverScoresHandler } from "./performance.js";
+import { nightlyReconcileHandler } from "./nightlyReconcile.js";
 
 /**
  * Register every queue job handler. Called once at process startup — on the worker (queue mode) AND on

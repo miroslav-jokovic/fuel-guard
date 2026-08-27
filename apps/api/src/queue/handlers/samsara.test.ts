@@ -55,12 +55,12 @@ vi.mock("../../services/nightlyReconcile.js", () => ({ runNightlyReconcile: vi.f
 vi.mock("../../lib/audit.js", () => audit);
 
 import {
-  syncDriverScoresHandler,
   syncDriversHandler,
   syncHosHandler,
   syncStatsHandler,
   syncVehiclesHandler,
 } from "./samsara.js";
+import { syncDriverScoresHandler } from "./performance.js";
 import type { JobContext, QueueJob } from "../types.js";
 
 // Fake admin whose only used surface is integration_credentials.update().eq() in the identity branch.

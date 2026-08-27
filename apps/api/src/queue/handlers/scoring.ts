@@ -1,5 +1,5 @@
 import { backfillOrg, scoreImportWithCascade } from "../../modules/anomalies/index.js";
-import { runPatternSweep } from "../../modules/anomalies/index.js";
+import { runPatternSweep, markPatternSweepOutcome } from "../../modules/anomalies/index.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../../modules/anomalies/index.js";
 import { writeAudit } from "../../lib/audit.js";
 import { jobCancelRequested } from "../../modules/org/index.js";
@@ -80,18 +80,15 @@ export const patternSweepHandler: JobHandler = async (ctx, job) => {
   const requestId = asStr(job.payload.requestId);
   try {
     const r = await runPatternSweep(ctx.admin, job.org_id, anomalyId);
-    if (requestId) {
-      await ctx.admin.from("pattern_sweep_requests").update({
-        status: "succeeded", last_error: null, updated_at: new Date().toISOString(),
-      }).eq("id", requestId);
-    }
+    // Outcome bookkeeping goes through the owner — pattern_sweep_requests is anomalies' table.
+    if (requestId) await markPatternSweepOutcome(ctx.admin, requestId, { ok: true });
     return { anomalyId, generated: r.generated, ...(r.reason ? { reason: r.reason } : {}) };
   } catch (error) {
     if (requestId) {
-      await ctx.admin.from("pattern_sweep_requests").update({
-        status: "failed", next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
-        last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString(),
-      }).eq("id", requestId);
+      await markPatternSweepOutcome(ctx.admin, requestId, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
     throw error;
   }
