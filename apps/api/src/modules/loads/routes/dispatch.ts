@@ -9,14 +9,14 @@ import {
   resolveExceptionRequestSchema,
   updateLoadRequestSchema,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
-import { requireModule } from "../middleware/requireModule.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
-import { listAssignmentHistory } from "../services/dispatchLoads/history.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { listAssignmentHistory } from "../dispatchLoads/history.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   assignLoad,
   createLoad,
@@ -31,7 +31,7 @@ import {
   transitionLoad,
   updateLoad,
   type DispatchResult,
-} from "../services/dispatchLoads.js";
+} from "../dispatchLoads.js";
 
 /**
  * Dispatch endpoints (Phase 3D, D49) — the operator side of the approval gate.

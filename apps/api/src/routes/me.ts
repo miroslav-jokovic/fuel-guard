@@ -33,7 +33,7 @@ import {
   getDriverType,
   startLoad,
   type LoadResult,
-} from "../services/driverLoads.js";
+} from "../modules/loads/index.js";
 import { getDriverScore } from "../services/driverScore.js";
 import { getResolvedFeatures } from "../services/driverAppFeatures.js";
 

@@ -41,7 +41,7 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
-import { dispatchRouter } from "./routes/dispatch.js";
+import { dispatchRouter } from "./modules/loads/index.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { publicHazmatRouter } from "./routes/publicHazmat.js";
 import { publicApplicationRouter } from "./modules/recruiting/index.js";

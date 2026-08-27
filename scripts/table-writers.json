@@ -238,19 +238,19 @@
     "apps/api/src/services/jobs.ts"
   ],
   "load_events": [
-    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
-    "apps/api/src/services/dispatchLoads/shared.ts"
+    "apps/api/src/modules/loads/dispatchLoads/shared.ts",
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "load_external_payloads": [
     "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "load_stops": [
-    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
-    "apps/api/src/services/dispatchLoads/shared.ts"
+    "apps/api/src/modules/loads/dispatchLoads/shared.ts",
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "loads": [
-    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
-    "apps/api/src/services/dispatchLoads/mutations.ts"
+    "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "memberships": [
     "apps/api/src/modules/roster/driverCredentials.ts",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { assignLoad, createLoad, updateLoad } from "./mutations.js";
 
 /**
