@@ -15,7 +15,7 @@ import { signalDetailBudgetShort, signalMirrorSweepCompleted } from "../lib/card
 /**
  * Mirror the EFS card inventory into `efs_cards` — vendor truth, refreshed on a schedule.
  *
- * WHY THIS EXISTS. FuelGuard has never known a card's actual configuration. `fuel_cards` rows are
+ * WHY THIS EXISTS. Silvicom 360 has never known a card's actual configuration. `fuel_cards` rows are
  * INFERRED by learnCardAssignments from fill history; `fuel_cards.status` is free text with no
  * relationship to anything EFS says. So "is this card locked?" has had no answer. This service gives
  * it one.

@@ -138,7 +138,7 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
   /**
    * The gap Miki found. Every prompt path this product had EDITED or REMOVED records the card
    * already carried, so a card with an empty `<infos>` could never be given a Driver ID prompt —
-   * which is the whole of FuelGuard's attribution signal for an unassigned card.
+   * which is the whole of Silvicom 360's attribution signal for an unassigned card.
    */
   it("offers Add on a card with no prompts, and Edit on one that has some", () => {
     expect(operationById("promptAdd")!.applies(bare, EFS_EDITABLE_INFO_IDS)).toBe(true);

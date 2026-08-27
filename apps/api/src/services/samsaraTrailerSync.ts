@@ -18,7 +18,7 @@ export interface TrailerSyncResult {
   updated: number;
   paired: number; // trailers whose tractor pairing was set from Samsara
   /**
-   * Link-only mode: Samsara trailers that matched no FuelGuard row. Present ONLY when the carrier's
+   * Link-only mode: Samsara trailers that matched no Silvicom 360 row. Present ONLY when the carrier's
    * TMS masters the roster, where an unmatched asset is a finding rather than a row to invent.
    */
   unlinked?: string[];

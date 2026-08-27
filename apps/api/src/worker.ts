@@ -18,7 +18,7 @@ import { startQueueMetricsLogger } from "./services/queue/metrics.js";
  */
 const env = loadEnv();
 const role = env.WORKER_ROLE;
-console.log(`[FuelGuard worker] role=${role} (${env.NODE_ENV})`);
+console.log(`[Silvicom 360 worker] role=${role} (${env.NODE_ENV})`);
 void runSchemaCheck(env);
 
 const runsSchedulers = role === "scheduler" || role === "both";
@@ -26,11 +26,11 @@ const runsConsumer = role === "consumer" || role === "both";
 
 if (runsSchedulers) {
   startAllSchedulers(env);
-  console.log("[FuelGuard worker] schedulers started");
+  console.log("[Silvicom 360 worker] schedulers started");
   // Passive queue-health log (plan A1) — single-owner on the scheduler process, queue mode only.
   if (env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     startQueueMetricsLogger(env);
-    console.log("[FuelGuard worker] queue metrics logger started");
+    console.log("[Silvicom 360 worker] queue metrics logger started");
   }
 }
 
@@ -71,10 +71,10 @@ if (
 ) {
   registerAllHandlers();
   startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: KIND_CAPS });
-  console.log("[FuelGuard worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
+  console.log("[Silvicom 360 worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
 } else if (runsConsumer && env.JOB_EXECUTION_MODE !== "queue") {
   console.warn(
-    "[FuelGuard worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.",
+    "[Silvicom 360 worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.",
   );
 }
 

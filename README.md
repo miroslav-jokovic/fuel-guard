@@ -1,6 +1,6 @@
-# FuelGuard
+# Silvicom 360
 
-Enterprise fuel-theft-prevention & MPG-monitoring platform for commercial fleets.
+Operational data platform for trucking carriers: collectors over every service the company runs on (McLeod, Samsara, EFS, PSP, hazmat data, manual uploads), a canonically owned core store, and the compliance/spend/hiring harness on top. Formerly FuelGuard (see docs/SILVICOM-360.md).
 Tenant: **Silvicom Inc.**
 
 > Planning & specs live in [`/docs`](./docs/README.md). Build the app phase by phase using the

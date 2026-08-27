@@ -17,7 +17,7 @@ const STORE_LIST_URL = "https://www.kwiktrip.com/maps-downloads/store-list";
 /** The full table is ~900+ stores; materially less means a partial/changed page. */
 const MIN_TABLE_ROWS = 700;
 const FETCH_TIMEOUT_MS = 30_000;
-const USER_AGENT = "FuelGuard/1.0 (fleet fuel planning; station registry sync)";
+const USER_AGENT = "Silvicom 360/1.0 (fleet fuel planning; station registry sync)";
 
 export interface KwikTripSyncResult {
   ok: boolean;

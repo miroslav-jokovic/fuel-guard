@@ -13,7 +13,7 @@ import { z } from "zod";
  * The agent maps McLeod's columns onto this shape; nothing downstream of the agent knows a McLeod column
  * name (the D48 seam, same rule as the roster contract in queries.mjs).
  *
- * ⚠ This contract carries FACTS ONLY, never allocations. FuelGuard's CPM harness assigns unattributed
+ * ⚠ This contract carries FACTS ONLY, never allocations. Silvicom 360's CPM harness assigns unattributed
  * cost to trucks; the extraction layer never guesses an attribution McLeod does not itself assert
  * (D-MC12, `docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md` §3).
  */

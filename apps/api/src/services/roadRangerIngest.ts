@@ -23,7 +23,7 @@ const MIN_ROWS = 40;
 const DIESEL_MEDIAN_BAND = { min: 2.0, max: 9.0 };
 const FETCH_TIMEOUT_MS = 30_000;
 const GEOCODE_CONCURRENCY = 4;
-const USER_AGENT = "FuelGuard/1.0 (fleet fuel planning; posted-price refresh)";
+const USER_AGENT = "Silvicom 360/1.0 (fleet fuel planning; posted-price refresh)";
 const cacheKey = (stationKey: string) => `rrsite:${stationKey}`;
 
 export interface RoadRangerFetchResult {

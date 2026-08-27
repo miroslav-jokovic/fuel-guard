@@ -11,7 +11,7 @@ export interface DriverSyncResult {
   created: number;
   updated: number;
   deactivated: number; // Samsara-sourced drivers marked inactive because they left Samsara's active roster
-  /** LINK-ONLY mode: Samsara drivers matching no FuelGuard row. Reported, never created — somebody is
+  /** LINK-ONLY mode: Samsara drivers matching no Silvicom 360 row. Reported, never created — somebody is
    *  driving who is not on the carrier's HR roster, which is a finding for a human, not a row to invent. */
   unlinked?: string[];
 }
@@ -82,7 +82,7 @@ export async function syncDriversFromSamsara(
   //
   // The second is PHONE, and it is why this mode exists rather than simply switching the sync off.
   // Measured 2026-08-24: McLeod holds no phone number for any of its 1,463 driver rows, while
-  // FuelGuard has one for 164 of 166 active drivers and every one of them came from here. SMS
+  // Silvicom 360 has one for 164 of 166 active drivers and every one of them came from here. SMS
   // consent, driver-app invitations and messaging all depend on them.
   //
   // What it stops doing is inserting and deactivating. McLeod's `termination_date` is better evidence

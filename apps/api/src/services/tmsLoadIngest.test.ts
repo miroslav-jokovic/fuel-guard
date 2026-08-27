@@ -270,7 +270,7 @@ describe("a load from McLeod finds the records it names", () => {
     expect(res.results[0]!.outcome).toBe("created");
   });
 
-  it("resolves a reefer whose McLeod unit number lacks FuelGuard's R prefix", async () => {
+  it("resolves a reefer whose McLeod unit number lacks Silvicom 360's R prefix", async () => {
     const { admin, writes } = stub({ trailers: [{ id: "t-1", unit_number: "R532159" }] });
     await ingestLoads(admin, "org1", "mcleod", [load({ trailer_unit: "532159" })]);
     expect((loadWrites(writes)[0]!.payload as { trailer_id: string }).trailer_id).toBe("t-1");

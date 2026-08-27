@@ -86,7 +86,7 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * `FUEL` ($1,191,574) already booked, to the cent; `CASH` is the bank side of most of the rest.
  *
  * So the coverage percentage is a BREADTH signal — "which modules has anyone looked at" — and must
- * never be presented as "FuelGuard sees N% of the carrier's costs". Doing so would understate reality
+ * never be presented as "Silvicom 360 sees N% of the carrier's costs". Doing so would understate reality
  * badly, because a genuine cost total would count each dollar once. Deriving that total is a finance
  * exercise in choosing one lifecycle stage per dollar, which is exactly the work D-MC13 reserves for
  * the harness with finance's sign-off.

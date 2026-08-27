@@ -1,4 +1,4 @@
-# FuelGuard
+# Silvicom 360 (formerly FuelGuard)
 
 Fleet fuel-security and compliance SaaS for trucking carriers. pnpm monorepo, ESM everywhere,
 Node >= 22, TypeScript run via tsx (no compile step except `@fuelguard/shared` for React Native).

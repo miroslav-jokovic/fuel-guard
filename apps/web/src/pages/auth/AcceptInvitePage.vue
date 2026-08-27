@@ -66,7 +66,7 @@ async function onSubmit() {
 
     <template v-else>
     <h2 class="mb-1 text-lg font-semibold text-ink">Set your password</h2>
-    <p class="mb-6 text-sm text-ink-muted">Finish setting up your FuelGuard account.</p>
+    <p class="mb-6 text-sm text-ink-muted">Finish setting up your Silvicom 360 account.</p>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
       <FormField id="pw" v-slot="{ id }" label="New password">

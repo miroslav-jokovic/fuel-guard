@@ -11,7 +11,7 @@ import { computed } from "vue";
  * as the QA org's user, and the only thing distinguishing the two apps was the hostname.
  *
  * Three things are independent and were being conflated — the PSP account a request reaches
- * (`PSP_ENVIRONMENT`), the FuelGuard org you are signed into, and the deployment serving the page.
+ * (`PSP_ENVIRONMENT`), the Silvicom 360 org you are signed into, and the deployment serving the page.
  * This names the third, which is the one with no other visible signal.
  *
  * ── IT DOES NOT CLOSE, AND IT TAKES UP SPACE ───────────────────────────────────────────────────

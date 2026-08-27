@@ -35,15 +35,15 @@ const marker = (cert: StoredCertSummary): string => `${cert.fingerprintSha256}:$
 
 function subjectFor(cert: StoredCertSummary, orgName: string): string {
   return bandFor(cert) === "expired"
-    ? `[FuelGuard] EFS client certificate EXPIRED — fuel feed is down for ${orgName}`
-    : `[FuelGuard] EFS client certificate expires in ${cert.daysUntilExpiry} days — ${orgName}`;
+    ? `[Silvicom 360] EFS client certificate EXPIRED — fuel feed is down for ${orgName}`
+    : `[Silvicom 360] EFS client certificate expires in ${cert.daysUntilExpiry} days — ${orgName}`;
 }
 
 function bodyFor(cert: StoredCertSummary, orgName: string): { text: string; html: string } {
   const expired = bandFor(cert) === "expired";
   const lead = expired
-    ? `The client certificate FuelGuard presents to EFS for ${orgName} expired on ${cert.notAfter.slice(0, 10)}. EFS is rejecting the TLS handshake, so posted transactions and rejected authorizations are NOT being collected right now.`
-    : `The client certificate FuelGuard presents to EFS for ${orgName} expires in ${cert.daysUntilExpiry} days, on ${cert.notAfter.slice(0, 10)}. When it lapses, EFS will refuse the connection and the fuel feed will stop.`;
+    ? `The client certificate Silvicom 360 presents to EFS for ${orgName} expired on ${cert.notAfter.slice(0, 10)}. EFS is rejecting the TLS handshake, so posted transactions and rejected authorizations are NOT being collected right now.`
+    : `The client certificate Silvicom 360 presents to EFS for ${orgName} expires in ${cert.daysUntilExpiry} days, on ${cert.notAfter.slice(0, 10)}. When it lapses, EFS will refuse the connection and the fuel feed will stop.`;
 
   const lines = [
     lead,

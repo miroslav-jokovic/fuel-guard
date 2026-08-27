@@ -9,11 +9,11 @@ import { unitResolver, driverResolver } from "./entityLookup.js";
  */
 describe("unitResolver", () => {
   const trailers = [
-    { id: "t-reefer", unit_number: "R532159" }, // FuelGuard's prefixed form
+    { id: "t-reefer", unit_number: "R532159" }, // Silvicom 360's prefixed form
     { id: "t-van", unit_number: "480221" },
   ];
 
-  it("matches McLeod's unprefixed reefer number to FuelGuard's prefixed one", () => {
+  it("matches McLeod's unprefixed reefer number to Silvicom 360's prefixed one", () => {
     // The measured gap: normalising lifted roster trailer matching from 157 of 235 to 201.
     expect(unitResolver(trailers, "trailers").get("532159")).toBe("t-reefer");
   });

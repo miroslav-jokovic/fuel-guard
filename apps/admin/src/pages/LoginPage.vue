@@ -33,7 +33,7 @@ async function submit() {
     <AppCard class="w-full max-w-sm">
       <div class="mb-6 text-center">
         <AppBadge tone="brand" class="font-bold tracking-wide">PLATFORM</AppBadge>
-        <h1 class="mt-3 text-lg font-semibold text-ink">FuelGuard Control Plane</h1>
+        <h1 class="mt-3 text-lg font-semibold text-ink">Silvicom 360 Control Plane</h1>
         <p class="mt-1 text-sm text-ink-muted">Authorized operators only.</p>
       </div>
       <form class="space-y-4" @submit.prevent="submit">

@@ -312,7 +312,7 @@ async function removeOverride(featureKey: string) {
       <BaseCard as="section" padding="none">
         <div class="border-b border-edge-subtle px-5 py-4">
           <h3 class="text-sm font-semibold text-ink">Product modules</h3>
-          <p class="mt-1 text-sm text-ink-muted">Turn on capabilities included in your FuelGuard plan.</p>
+          <p class="mt-1 text-sm text-ink-muted">Turn on capabilities included in your Silvicom 360 plan.</p>
         </div>
         <ul class="divide-y divide-edge-subtle">
           <li v-for="def in moduleFeatures" :key="def.key" class="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -335,7 +335,7 @@ async function removeOverride(featureKey: string) {
                 </div>
                 <p class="mt-1 text-sm text-ink-muted">{{ def.description }}</p>
                 <p v-if="!entitled(def)" class="mt-2 text-xs text-ink-muted">
-                  Contact FuelGuard to add {{ MODULE_LABELS[def.module as ModuleKey] }}.
+                  Contact Silvicom 360 to add {{ MODULE_LABELS[def.module as ModuleKey] }}.
                 </p>
               </div>
             </div>
@@ -370,7 +370,7 @@ async function removeOverride(featureKey: string) {
           </span>
           <div>
             <h3 class="text-sm font-semibold text-ink">Minimum supported version</h3>
-            <p class="mt-1 text-sm text-ink-muted">Require an app update before a driver can continue using FuelGuard.</p>
+            <p class="mt-1 text-sm text-ink-muted">Require an app update before a driver can continue using Silvicom 360.</p>
           </div>
         </div>
         <div class="space-y-5 p-5">

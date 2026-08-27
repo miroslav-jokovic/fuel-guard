@@ -37,7 +37,7 @@ import {
 
 /**
  * App-account lifecycle for one driver. Create/reset credentials only live in this component while
- * the drawer is open: the API returns the password once and FuelGuard never stores it.
+ * the drawer is open: the API returns the password once and Silvicom 360 never stores it.
  */
 const props = defineProps<{ open: boolean; driver: Driver | null }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -323,7 +323,7 @@ async function copyCredentials() {
               v-slot="{ id }"
               label="Custom password"
               :error="passwordProblem ?? undefined"
-              hint="Optional. Leave blank and FuelGuard will generate a strong password."
+              hint="Optional. Leave blank and Silvicom 360 will generate a strong password."
             >
               <div class="relative">
                 <BaseInput

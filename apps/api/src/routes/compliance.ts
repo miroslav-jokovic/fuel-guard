@@ -40,7 +40,7 @@ import { getComplianceOverview } from "../services/complianceOverview.js";
 import { complianceExportsRouter } from "./complianceExports.js";
 
 /**
- * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, FuelGuard slice).
+ * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, Silvicom 360 slice).
  *
  * v1 = the CERTIFICATIONS surface, which is exactly what the §5 hazmat qualification gate reads.
  * Managers (the `fleet` section: admin / fleet_manager / safety_manager) write; dispatch + audit

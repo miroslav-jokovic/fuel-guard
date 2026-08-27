@@ -6,10 +6,10 @@ describe("renderApplicationInviteEmail", () => {
     renderApplicationInviteEmail("Silvicom Inc", "https://app.test/apply/tok3n", 7);
 
   it("puts the CARRIER in the subject, not this product", () => {
-    // The applicant applied to a trucking company and has usually never heard of FuelGuard. A subject
+    // The applicant applied to a trucking company and has usually never heard of Silvicom 360. A subject
     // line naming the wrong party is the one that gets deleted unread.
     expect(mail().subject).toBe("Your driver application for Silvicom Inc");
-    expect(`${mail().subject}${mail().html}${mail().text}`).not.toMatch(/FuelGuard/);
+    expect(`${mail().subject}${mail().html}${mail().text}`).not.toMatch(/Silvicom 360/);
   });
 
   it("carries the link in BOTH bodies — a text-only client must still be able to apply", () => {

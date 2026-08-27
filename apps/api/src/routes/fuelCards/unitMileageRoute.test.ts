@@ -360,7 +360,7 @@ describe("showing EFS's reading beside ours", () => {
     // vehicle here, and the refusal never said which list it had consulted.
     const { payload } = await post({ unit: "991", mileage: 258900 }, null);
     const message = (payload.error as { message: string }).message;
-    expect(message).toContain("FuelGuard's own");
+    expect(message).toContain("Silvicom 360's own");
     expect(message).toContain("not against EFS");
   });
 

@@ -155,7 +155,7 @@ export function renderDigestEmail(
         ` — capacity checks now run at full precision there.</p>`
       : "") +
     (stats.dq ? renderDqDigestHtml(stats.dq) : "") +
-    `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
+    `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open Silvicom 360 →</a></p>` +
     `</div>`;
   const text =
     `${orgName} — weekly fuel-theft digest (past 7 days)\n\n` +
@@ -198,9 +198,9 @@ export function renderDigestEmail(
  * The FIRST invitation to fill in a driver application (A11b's unshipped half, D-APP13).
  *
  * ── WHY THIS IS NOT `renderInviteEmail` BELOW ─────────────────────────────────────────────────
- * That template says "Join {org} on FuelGuard … click below to set your password". It is written for
+ * That template says "Join {org} on Silvicom 360 … click below to set your password". It is written for
  * a colleague being given a LOGIN to this product. An applicant is not joining anything, will never
- * have a password, and in most cases has never heard of FuelGuard — the carrier is who they applied
+ * have a password, and in most cases has never heard of Silvicom 360 — the carrier is who they applied
  * to. Sending them the staff invitation would be the product talking about itself to somebody who
  * asked a trucking company for a job.
  *
@@ -211,7 +211,7 @@ export function renderDigestEmail(
  * still here*, and a shared body that had to express both would say neither well.
  *
  * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
- * The carrier's name first and FuelGuard's nowhere — the applicant's relationship is with the
+ * The carrier's name first and Silvicom 360's nowhere — the applicant's relationship is with the
  * carrier. No deadline pressure beyond the fact of the expiry, because the link genuinely does
  * expire and saying so is information rather than a nudge. The "saves as you go" sentence is the one
  * piece of reassurance worth the line: the form is seven screens long and a driver reading this on a
@@ -248,10 +248,10 @@ export function renderApplicationInviteEmail(
 
 /** Branded STAFF invite email — a colleague being given a login (sent via our own mailer). Pure. */
 export function renderInviteEmail(orgName: string, acceptUrl: string): RenderedEmail {
-  const subject = `You're invited to ${orgName} on FuelGuard`;
+  const subject = `You're invited to ${orgName} on Silvicom 360`;
   const html =
     `<div style="font-family:system-ui,sans-serif;color:#111">` +
-    `<h2 style="margin:0 0 8px">Join ${esc(orgName)} on FuelGuard</h2>` +
+    `<h2 style="margin:0 0 8px">Join ${esc(orgName)} on Silvicom 360</h2>` +
     `<p style="color:#555">You've been invited to help manage fuel and prevent theft for ${esc(orgName)}. ` +
     `Click below to set your password and get started.</p>` +
     `<p style="margin:20px 0"><a href="${esc(acceptUrl)}" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Accept invitation →</a></p>` +
@@ -259,7 +259,7 @@ export function renderInviteEmail(orgName: string, acceptUrl: string): RenderedE
     `<p style="color:#aaa;font-size:12px">This invitation expires in 7 days. If you weren't expecting it, you can ignore this email.</p>` +
     `</div>`;
   const text =
-    `Join ${orgName} on FuelGuard\n\nYou've been invited to manage fuel for ${orgName}.\n` +
+    `Join ${orgName} on Silvicom 360\n\nYou've been invited to manage fuel for ${orgName}.\n` +
     `Accept your invitation: ${acceptUrl}\n\nThis link expires in 7 days.`;
   return { subject, html, text };
 }
@@ -275,7 +275,7 @@ export function renderAnomalyAlertEmail(
 ): RenderedEmail {
   const count = items.length;
   const critical = items.filter((i) => i.severity === "critical").length;
-  const subject = `FuelGuard alert: ${count} ${critical ? "critical/" : ""}high-severity fuel anomal${count === 1 ? "y" : "ies"}`;
+  const subject = `Silvicom 360 alert: ${count} ${critical ? "critical/" : ""}high-severity fuel anomal${count === 1 ? "y" : "ies"}`;
 
   const rows = items
     .map(
@@ -293,7 +293,7 @@ export function renderAnomalyAlertEmail(
     `<table style="border-collapse:collapse;font-size:14px"><thead><tr>` +
     `<th align="left" style="padding:6px 10px">Vehicle</th><th align="left" style="padding:6px 10px">Severity</th><th align="left" style="padding:6px 10px">Detail</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>` +
-    `<p style="margin-top:16px"><a href="${esc(appUrl)}/anomalies" style="color:#4f46e5">Review in FuelGuard →</a></p>` +
+    `<p style="margin-top:16px"><a href="${esc(appUrl)}/anomalies" style="color:#4f46e5">Review in Silvicom 360 →</a></p>` +
     `</div>`;
 
   const text =

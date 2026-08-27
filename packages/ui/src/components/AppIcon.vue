@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/vue";
 import type { Icon } from "../icons";
 
 /**
- * AppIcon — the single icon primitive for every FuelGuard surface.
+ * AppIcon — the single icon primitive for every Silvicom 360 surface.
  *
  * Renders a HugeIcons Stroke Rounded glyph and honours the existing
  * Tailwind sizing/colour convention (`class="size-5 text-brand-600"`).

@@ -155,7 +155,7 @@ async function signOut() {
                     <AppLogo class="size-7 shrink-0" />
                     <img
                       src="/logo-wordmark.png"
-                      alt="FuelGuard"
+                      alt="Silvicom 360"
                       class="h-5 object-contain"
                       draggable="false"
                     />
@@ -223,7 +223,7 @@ async function signOut() {
             <img
               v-if="!sidebarCollapsed"
               src="/logo-wordmark.png"
-              alt="FuelGuard"
+              alt="Silvicom 360"
               class="h-5 object-contain"
               draggable="false"
             />

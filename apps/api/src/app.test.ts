@@ -36,7 +36,7 @@ describe("GET /healthz", () => {
     const res = await fetch(`${baseUrl}/healthz`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as HealthBody;
-    expect(body.service).toContain("FuelGuard");
+    expect(body.service).toContain("Silvicom 360");
     expect(body.env).toBe("test");
     expect(["ok", "degraded"]).toContain(body.status);
   });

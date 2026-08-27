@@ -15,7 +15,7 @@ import {
  * TMS roster ingest (MCLEOD-ROSTER-SYNC-PLAN M3/M4).
  *
  * Two modes, and the caller picks:
- *   **link**     — write the external link and NOTHING else. Establishes which FuelGuard row is which
+ *   **link**     — write the external link and NOTHING else. Establishes which Silvicom 360 row is which
  *                  McLeod record and reports everything it could not place. (M3)
  *   **identity** — additionally refresh the fields McLeod owns on rows it has CLAIMED. (M4)
  *
@@ -55,7 +55,7 @@ export type RosterMode = "report" | "link" | "identity" | "create";
  * Does this mode touch the database at all?
  *
  * `report` exists because the first time this pipeline meets real data, that data is **the carrier's
- * production fleet**. There is no second FuelGuard org to rehearse against — the only other one holds
+ * production fleet**. There is no second Silvicom 360 org to rehearse against — the only other one holds
  * seven drivers and no vehicles — so "run it and see" means running it on 264 drivers, 195 vehicles
  * and 211 trailers that people are using today.
  *
@@ -79,7 +79,7 @@ export interface RosterIngestResult {
   alreadyLinked: number;
   /** External ids we could not place. The whole point of the milestone: these are the report. */
   unmatched: string[];
-  /** A match key held by two or more FuelGuard rows. Never guessed at (see rosterMatch). */
+  /** A match key held by two or more Silvicom 360 rows. Never guessed at (see rosterMatch). */
   ambiguous: string[];
   /** McLeod drivers whose licence matches a row the RECRUITING pipeline owns (`status='applicant'`).
    *  Held out of the match pool on purpose and surfaced for a human — see rosterMatch. */
@@ -329,13 +329,13 @@ export async function ingestTrailers(
   out.received = rows.length;
   const candidates = await loadCandidates(admin, orgId, "trailers");
   const sourceOf = provenanceLookup(candidates);
-  // Unit first for trailers, VIN second: FuelGuard holds no trailer VINs at all today, so VIN can only
+  // Unit first for trailers, VIN second: Silvicom 360 holds no trailer VINs at all today, so VIN can only
   // ever be a tiebreak until McLeod has populated them.
   const matcher = makeAssetMatcher(candidates, trailerUnitMatchKey, ["unit", "vin"]);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
     const patch = writesIdentity(mode) ? trailerPatch(r) : null;
-    // New trailers take McLeod's bare unit number. FuelGuard's `R` prefix is a convention applied to
+    // New trailers take McLeod's bare unit number. Silvicom 360's `R` prefix is a convention applied to
     // rows that already exist; inventing it for a new one would be this sync deciding a naming policy.
     const insert =
       mode === "create" ? { ...patch, unit_number: r.unit_number ?? r.external_id, status: "active" } : null;

@@ -34,7 +34,7 @@ export interface RetireResult {
   retired: number;
   /** Already in the right state — the steady state once a roster has settled. */
   unchanged: number;
-  /** Not linked to any FuelGuard row: nothing to retire. */
+  /** Not linked to any Silvicom 360 row: nothing to retire. */
   unknown: string[];
   /** Left alone because the office or the recruiting pipeline owns the row. */
   skippedOwned: string[];

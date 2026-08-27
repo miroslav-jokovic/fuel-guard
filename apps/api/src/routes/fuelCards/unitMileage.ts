@@ -148,7 +148,7 @@ export function fuelCardUnitMileageRouter(): Router {
       if (!vehicle) {
         res.status(404).json(apiError(
           "unknown_unit",
-          `No vehicle in this company has unit number ${unit}. This is checked against FuelGuard's own `
+          `No vehicle in this company has unit number ${unit}. This is checked against Silvicom 360's own `
             + "vehicle list, not against EFS — a unit that exists on an EFS card still needs a matching "
             + "truck here before its mileage can be corrected.",
         ));

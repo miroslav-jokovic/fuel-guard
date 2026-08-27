@@ -25,7 +25,7 @@ import type { SoapPriority } from "./soapClient.js";
  * probe has proved three things on the QA endpoint: that our service account may write at all, that a
  * zero-edit echo round-trips, and that a no-op write leaves `cardVersion` unchanged. Until then, the
  * only way to change a card is the WEX portal, which is exactly where we were before — and Phase A is
- * worth shipping on its own, because a Cards page showing vendor truth is something FuelGuard has
+ * worth shipping on its own, because a Cards page showing vendor truth is something Silvicom 360 has
  * never had. `fuel_cards` rows today are INFERRED by learnCardAssignments, not read from EFS.
  *
  * Everything here goes through `withEfsSession`, so N concurrent page loads cost one login and share

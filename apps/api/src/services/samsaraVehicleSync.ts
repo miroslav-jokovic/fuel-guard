@@ -29,7 +29,7 @@ export interface VehicleSyncResult {
   /** Unit numbers of ACTIVE trucks whose mapped Samsara vehicle no longer exists (likely replaced). */
   samsaraMissing: string[];
   /**
-   * Link-only mode: Samsara vehicles that matched no FuelGuard row. Present ONLY when the carrier's
+   * Link-only mode: Samsara vehicles that matched no Silvicom 360 row. Present ONLY when the carrier's
    * TMS masters the roster, where an unmatched truck is a finding rather than a row to invent — a
    * vehicle reporting telematics that the carrier's own fleet list does not contain.
    */
@@ -305,7 +305,7 @@ export async function syncVehiclesFromSamsara(
   //
   // WHY THE ASSET RULE IS STRICTER THAN THE DRIVER RULE. `syncDriversFromSamsara` keeps writing PHONE
   // in link-only mode, because McLeod holds no phone number for any of its 1,463 driver rows and
-  // FuelGuard's 164 all came from Samsara — dropping it would break SMS consent and driver-app
+  // Silvicom 360's 164 all came from Samsara — dropping it would break SMS consent and driver-app
   // invitations. There is no asset analogue, and that is a measurement rather than a symmetry
   // argument. Production and the carrier's sandbox on 2026-08-24:
   //

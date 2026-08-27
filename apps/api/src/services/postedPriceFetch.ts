@@ -31,7 +31,7 @@ const MIN_STATION_ROWS = 700;
 const DIESEL_MEDIAN_BAND = { min: 2.0, max: 9.0 };
 const FETCH_TIMEOUT_MS = 30_000;
 /** Identify ourselves honestly — a fleet tool refreshing a public price table at a modest cadence. */
-const USER_AGENT = "FuelGuard/1.0 (fleet fuel planning; posted-price refresh)";
+const USER_AGENT = "Silvicom 360/1.0 (fleet fuel planning; posted-price refresh)";
 
 export interface PostedFetchResult extends PostedIngestResult {
   fetchedBytes: number;

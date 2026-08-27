@@ -125,7 +125,7 @@ describe("matching", () => {
     expect(rec.writes()).toEqual([]);
   });
 
-  it("matches a trailer across FuelGuard's R prefix without rewriting the unit number", async () => {
+  it("matches a trailer across Silvicom 360's R prefix without rewriting the unit number", async () => {
     const rec = seed({ trailers: [trailer()] }); // stored as R532159
     const r = await ingestTrailers(rec.client, ORG, [{ external_id: "532159", company_id: "TMS", unit_number: "532159" }]);
     expect(r.linked).toBe(1);
@@ -193,7 +193,7 @@ describe("identity mode (M4)", () => {
   it("writes the email the agent extracted, and stays ignorant of where it lived", async () => {
     // This carrier keeps driver email in McLeod's `name_of_spouse` column. The agent absorbs that and
     // validates it — the column is char(28) and 8 of 164 addresses are truncated past saving — so by
-    // the time it arrives here it is either usable or absent, and FuelGuard never learns the quirk.
+    // the time it arrives here it is either usable or absent, and Silvicom 360 never learns the quirk.
     const rec = seed({ drivers: [driver({ mcleod_driver_id: "D0001" })] });
     await ingestDrivers(rec.client, ORG, [{ ...mcleodDriver, email: "angel.cora@silvicom.com" }], "identity");
     expect(rec.writtenRows("drivers")[0]!.email).toBe("angel.cora@silvicom.com");
@@ -245,7 +245,7 @@ describe("identity mode (M4)", () => {
 
   it("derives an inspection EXPIRY from the date McLeod records it was performed", async () => {
     // McLeod's inspection_date runs backwards from every other date on the row: 175 of 175 in the
-    // past. FuelGuard's column is an expiry, so the §396.17 annual interval is applied here.
+    // past. Silvicom 360's column is an expiry, so the §396.17 annual interval is applied here.
     const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789" })] });
     await ingestVehicles(rec.client, ORG, [
       { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", annual_inspection_performed_at: "2026-08-14" },
@@ -343,7 +343,7 @@ describe("create mode (M5)", () => {
     expect(r.needsCompletion).toEqual([]);
   });
 
-  it("gives a new trailer McLeod's bare unit number, not FuelGuard's R convention", async () => {
+  it("gives a new trailer McLeod's bare unit number, not Silvicom 360's R convention", async () => {
     const rec = seed({ trailers: [] });
     await ingestTrailers(rec.client, ORG, [
       { external_id: "533999", company_id: "TMS", unit_number: "533999", is_reefer: true },
@@ -388,7 +388,7 @@ describe("create mode (M5)", () => {
 /**
  * Report mode — the answer to "what would this do?" against a fleet people are using today.
  *
- * There is no second FuelGuard org to rehearse against: the only other one holds seven drivers and no
+ * There is no second Silvicom 360 org to rehearse against: the only other one holds seven drivers and no
  * vehicles at all. So the first time this pipeline meets real data, that data IS Silvicom's 264
  * drivers, 195 vehicles and 211 trailers. Report mode makes that first contact read-only, and it is
  * how §7's hand-computed match report (162 / 175 / 201) finally gets reproduced BY THE PIPELINE,
@@ -425,7 +425,7 @@ describe("report mode", () => {
   });
 
   it("applies the same ambiguity refusal, so the numbers are the ones a real sweep would produce", async () => {
-    // Two FuelGuard drivers holding the same licence: a real sweep refuses, and so must the rehearsal.
+    // Two Silvicom 360 drivers holding the same licence: a real sweep refuses, and so must the rehearsal.
     const rec = seed({ drivers: [driver(), driver({ id: "d-2" })] });
     const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
     expect(r.ambiguous).toEqual(["D0001"]);
@@ -468,7 +468,7 @@ describe("the fields the recon found", () => {
 
   it("derives a trailer's annual-inspection EXPIRY from the date it was performed", async () => {
     // 228 of 235 trailers carry this and 228 of 228 are in the past, so it records when the annual
-    // happened — while FuelGuard's column is an expiry. Same shape as the tractor's.
+    // happened — while Silvicom 360's column is an expiry. Same shape as the tractor's.
     const rec = seed({ trailers: [trailer()] });
     await ingestTrailers(rec.client, ORG, [
       { external_id: "532159", unit_number: "532159", annual_inspection_performed_at: "2026-02-11" },

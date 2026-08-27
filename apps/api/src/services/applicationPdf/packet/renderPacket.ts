@@ -28,7 +28,7 @@
  *
  * ── THE LETTERHEAD IS THE CARRIER'S, THE FOOTER IS THE PACKET'S ───────────────────────────────
  * D-PKT8. `carrier.name`/`carrier.address` come from `organizations` (`legal_address`, 0229), because
- * FuelGuard is multi-tenant and a second carrier must never be handed a document with the first one's
+ * Silvicom 360 is multi-tenant and a second carrier must never be handed a document with the first one's
  * name on it. The two footer lines are statements about what the document IS, not about who issued
  * it, and are reproduced verbatim.
  *

@@ -31,8 +31,8 @@ export async function createBinderDocument(meta: BinderMeta): Promise<PDFDocumen
   out.setTitle(winAnsi(meta.title));
   out.setAuthor(winAnsi(meta.carrierName));
   out.setSubject(winAnsi(`Driver qualification file — export ${meta.exportId}`));
-  out.setProducer("FuelGuard");
-  out.setCreator("FuelGuard");
+  out.setProducer("Silvicom 360");
+  out.setCreator("Silvicom 360");
   out.setCreationDate(new Date(meta.generatedAt));
   return out;
 }

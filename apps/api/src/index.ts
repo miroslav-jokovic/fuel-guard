@@ -11,7 +11,7 @@ const env = loadEnv();
 const app = createApp(env);
 
 app.listen(env.PORT, () => {
-  console.log(`[FuelGuard API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
+  console.log(`[Silvicom 360 API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
   void runSchemaCheck(env); // warn loudly if a migration hasn't been applied
   if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     // Seal any legacy plaintext Samsara tokens at rest (no-op once sealed; warns if the key is unset).

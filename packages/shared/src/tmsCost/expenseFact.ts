@@ -9,7 +9,7 @@ import { z } from "zod";
  * office rent and everything else arrive as a vendor, an amount and a GL account.
  *
  * That is not a gap to be papered over. Under D-MC12 the extraction never invents an attribution
- * McLeod does not assert, so these rows land in FuelGuard carrying their `ap_glid` and vendor intact
+ * McLeod does not assert, so these rows land in Silvicom 360 carrying their `ap_glid` and vendor intact
  * and the CPM harness applies the carrier's allocation rules to them. An agent that guessed at a truck
  * here would produce a number nobody could trace back to a source document.
  *

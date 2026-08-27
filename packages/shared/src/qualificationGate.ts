@@ -1,4 +1,4 @@
-/** Local date helper — self-contained so FuelGuard need not port the full compliance contract. */
+/** Local date helper — self-contained so Silvicom 360 need not port the full compliance contract. */
 function addYearsIso(iso: string, years: number): string {
   const d = new Date(iso.slice(0, 10) + "T00:00:00.000Z");
   d.setUTCFullYear(d.getUTCFullYear() + years);

@@ -182,7 +182,7 @@ interface ComposeInput {
 
 /** Draw the whole document at one density. Called once, or twice — see above. */
 async function composeDocument(c: ComposeInput): Promise<Composed> {
-  const { doc, done } = newDrawing("FuelGuard — Fuel spend", { bufferPages: true });
+  const { doc, done } = newDrawing("Silvicom 360 — Fuel spend", { bufferPages: true });
   setDensity(doc, c.density);
 
   letterhead(doc, c.carrier, "Fuel spend", "What fuel cost, why it moved, and where the fuel policy was not followed.", c.meta);
@@ -202,7 +202,7 @@ async function composeDocument(c: ComposeInput): Promise<Composed> {
     doc,
     winAnsi(`${c.carrier} · Fuel spend · ${c.window}`),
     winAnsi(
-      `FuelGuard · derived from recorded fills, odometer intervals and engine time · generated ${c.generatedAt.slice(0, 16).replace("T", " ")} UTC` +
+      `Silvicom 360 · derived from recorded fills, odometer intervals and engine time · generated ${c.generatedAt.slice(0, 16).replace("T", " ")} UTC` +
         (c.refused > 0 ? ` · ${c.refused} odometer interval(s) refused as implausible` : ""),
     ),
   );

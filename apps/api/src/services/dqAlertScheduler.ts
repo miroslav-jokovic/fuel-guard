@@ -56,7 +56,7 @@ function alertEmail(alerts: DqAlert[]): { subject: string; text: string; html: s
     "",
     ...lines,
     "",
-    "Open Driver Qualification in FuelGuard to record renewals.",
+    "Open Driver Qualification in Silvicom 360 to record renewals.",
   ].join("\n");
   const html = [
     "<p>The following driver qualification items crossed an alert threshold:</p>",
@@ -65,7 +65,7 @@ function alertEmail(alerts: DqAlert[]): { subject: string; text: string; html: s
       (a) => `<li>${escapeHtml(a.title)}${a.goodUntil ? ` <em>(good until ${a.goodUntil})</em>` : ""}</li>`,
     ),
     "</ul>",
-    "<p>Open Driver Qualification in FuelGuard to record renewals.</p>",
+    "<p>Open Driver Qualification in Silvicom 360 to record renewals.</p>",
   ].join("\n");
   return { subject, text, html };
 }
