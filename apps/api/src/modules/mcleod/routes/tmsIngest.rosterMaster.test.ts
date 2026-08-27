@@ -1,11 +1,11 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createApp } from "../app.js";
-import { loadEnv } from "../env.js";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { closeTestServer } from "../testing/httpServer.js";
-import { hashIngestToken } from "../lib/ingestToken.js";
+import { createApp } from "../../../app.js";
+import { loadEnv } from "../../../env.js";
+import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../../testing/httpServer.js";
+import { hashIngestToken } from "../../../lib/ingestToken.js";
 
 /**
  * WHO IS ALLOWED TO CLAIM THE ROSTER, over the wire.
@@ -20,7 +20,7 @@ import { hashIngestToken } from "../lib/ingestToken.js";
  * and a unit test of the service could not reach the parameter that caused the problem.
  */
 const holder = vi.hoisted(() => ({ client: null as unknown }));
-vi.mock("../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const TOKEN = "fgtms_" + "c".repeat(37);

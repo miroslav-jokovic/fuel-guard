@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "./rosterIngest.js";
 import { makeDriverMatcher, makeAssetMatcher, vehicleUnitKey, trailerUnitMatchKey } from "./rosterMatch.js";
 

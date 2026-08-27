@@ -10,7 +10,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { isTmsRosterMaster } from "../tms/rosterMastery.js";
+import { isTmsRosterMaster } from "../modules/mcleod/index.js";
 import {
   makeSamsaraVehicleLister,
   makeSamsaraOdometerFetcher,

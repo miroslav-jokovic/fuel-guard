@@ -5,9 +5,9 @@ import {
   type KeyResolver,
   type UnitRow,
   type DriverKeyRow,
-} from "../tms/entityLookup.js";
+} from "./entityLookup.js";
 import type { TmsMovementInput, DriverTimeOffInput } from "@silvicom/shared";
-import { generateIngestToken, hashIngestToken } from "../lib/ingestToken.js";
+import { generateIngestToken, hashIngestToken } from "../../lib/ingestToken.js";
 
 /**
  * TMS ingest — receives the NEUTRAL rows the on-prem sync agent POSTs (after it reads McLeod LoadMaster's

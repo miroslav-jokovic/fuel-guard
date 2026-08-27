@@ -5,7 +5,7 @@ import {
   type KeyResolver,
   type UnitRow,
   type DriverKeyRow,
-} from "../tms/entityLookup.js";
+} from "./entityLookup.js";
 import {
   AMENDABLE_LOAD_FIELDS,
   tmsMayOverwrite,

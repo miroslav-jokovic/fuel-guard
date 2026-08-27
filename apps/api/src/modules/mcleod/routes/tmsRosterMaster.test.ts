@@ -1,11 +1,11 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createApp } from "../app.js";
-import { loadEnv } from "../env.js";
+import { createApp } from "../../../app.js";
+import { loadEnv } from "../../../env.js";
 import type { AuthContext } from "@silvicom/shared";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { closeTestServer } from "../testing/httpServer.js";
+import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
  * Declaring the carrier's TMS the master of the roster.
@@ -23,7 +23,7 @@ const CTX: Record<string, AuthContext> = {
 };
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
-vi.mock("../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
 
 let server: Server;
 let baseUrl = "";

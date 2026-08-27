@@ -1,7 +1,7 @@
 import { Router, json } from "express";
-import { apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
 import {
   tmsMovementsPayloadSchema,
   driverTimeOffPayloadSchema,
@@ -11,12 +11,12 @@ import {
   tmsTrailersPayloadSchema,
   tmsRetirePayloadSchema,
 } from "@silvicom/shared";
-import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../services/tmsIngest.js";
-import { ingestLoads } from "../services/tmsLoadIngest.js";
-import { ingestDrivers, ingestVehicles, ingestTrailers } from "../tms/rosterIngest.js";
-import { retireFromTms } from "../tms/rosterRetire.js";
-import { isTmsRosterMaster } from "../tms/rosterMastery.js";
-import type { RosterMode } from "../tms/rosterIngest.js";
+import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
+import { ingestLoads } from "../tmsLoadIngest.js";
+import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
+import { retireFromTms } from "../rosterRetire.js";
+import { isTmsRosterMaster } from "../rosterMastery.js";
+import type { RosterMode } from "../rosterIngest.js";
 
 /** The modes this build understands, safest first. Anything else is refused — see the route below. */
 const ROSTER_MODES = ["report", "link", "identity", "create"] as const;

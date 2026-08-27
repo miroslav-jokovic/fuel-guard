@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ingestMovements, ingestDriverTimeOff, orgForIngestToken, syntheticTimeOffId } from "./tmsIngest.js";
-import { hashIngestToken } from "../lib/ingestToken.js";
+import { hashIngestToken } from "../../lib/ingestToken.js";
 
 interface Write { table: string; op: "upsert" | "insert"; payload: Record<string, unknown>[] }
 type SelectState = { table: string; eq: Record<string, unknown> };

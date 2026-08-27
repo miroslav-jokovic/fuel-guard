@@ -60,7 +60,7 @@
     "apps/api/src/services/driverScoreSync.ts"
   ],
   "driver_time_off": [
-    "apps/api/src/services/tmsIngest.ts"
+    "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "driver_vehicle_assignments": [
     "apps/api/src/services/idleSync.ts",
@@ -238,19 +238,19 @@
     "apps/api/src/services/jobs.ts"
   ],
   "load_events": [
-    "apps/api/src/services/dispatchLoads/shared.ts",
-    "apps/api/src/services/tmsLoadIngest.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
+    "apps/api/src/services/dispatchLoads/shared.ts"
   ],
   "load_external_payloads": [
-    "apps/api/src/services/tmsLoadIngest.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
   "load_stops": [
-    "apps/api/src/services/dispatchLoads/shared.ts",
-    "apps/api/src/services/tmsLoadIngest.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
+    "apps/api/src/services/dispatchLoads/shared.ts"
   ],
   "loads": [
-    "apps/api/src/services/dispatchLoads/mutations.ts",
-    "apps/api/src/services/tmsLoadIngest.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngest.ts",
+    "apps/api/src/services/dispatchLoads/mutations.ts"
   ],
   "memberships": [
     "apps/api/src/routes/invites.ts",
@@ -277,8 +277,8 @@
   ],
   "org_integrations": [
     "apps/admin-api/src/lib/members.ts",
-    "apps/api/src/routes/tmsRosterMaster.ts",
-    "apps/api/src/services/tmsIngest.ts"
+    "apps/api/src/modules/mcleod/routes/tmsRosterMaster.ts",
+    "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
@@ -338,7 +338,7 @@
     "apps/api/src/services/messages.ts"
   ],
   "tms_movements": [
-    "apps/api/src/services/tmsIngest.ts"
+    "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "trailers": [
     "apps/api/src/services/reeferPairing.ts",
