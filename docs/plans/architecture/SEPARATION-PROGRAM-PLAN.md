@@ -380,26 +380,43 @@ pinned in advance. Program-specific additions:
 
 ### Phase 2 — The data-layer split (schema, forward-only)
 
-- **P2.1 — `fuel_transactions` satellites (D-SEP3).** New tables `fuel_txn_recon`,
+- **P2.1 — DONE 2026-08-27 (PR #328, migration 0261) — `fuel_transactions` satellites (D-SEP3).**
+  Trigger-mirror strangler instead of writer-flips-first: all eleven writers stay correct while
+  they migrate one module at a time; 15-assertion matrix pins raw-inserts-touch-nothing and
+  rebuild-cannot-reach-a-verdict. Writer flips + browser-endpoint remain the named follow-ups. New tables `fuel_txn_recon`,
   `fuel_txn_scores`, `fuel_txn_dispositions` keyed on the txn id, org_id + RLS on each,
   backfill migration copies existing values, a view preserves the current read shape, writers
   migrate one module per PR (anomalies, samsara-recon, org-audit, dedupe), old columns get
   deprecation comments. The browser writer (`useFuelLog.ts`) gets an API endpoint and dies.
   PGlite matrix proves: raw row insert never touches satellites; satellite rebuild leaves
   dispositions intact.
-- **P2.2 — `vehicles` learner split.** `vehicle_learned_state` (or per-domain: tank + idle
+- **P2.2 — DONE 2026-08-27 (PR #329, migration 0262) — `vehicles` learner split.**
+  Two per-domain satellites (tank→anomalies, idle→idle); guards fire on meaning, not presence
+  (odometer_offset's 0.0 default caught by the matrix's first run). learned_tank_capacity_gal
+  reserved; the 0119 autofix writer-flip is the named follow-up. `vehicle_learned_state` (or per-domain: tank + idle
   envelope) satellite; `0119`-style autofix writes the satellite and NEVER master data;
   master `tank_capacity_gal` reverts to human/collector truth. Same view+migrate-writers
   pattern.
-- **P2.3 ∥ — `declined_transactions` scoring satellite** (same pattern, smaller).
-- **P2.4 ∥ — Raw payload retention (D-SEP4).** `efs_raw_payloads`, `samsara_raw_payloads` on
+- **P2.3 — DONE 2026-08-27 (PR #330, migration 0263) — `declined_transactions` scoring satellite.**
+  Own raw-access waiver demanded by our own P0.3 gate — the gates now police the program too.
+- **P2.4 — DEFERRED 2026-08-27, deliberately — Raw payload retention (D-SEP4).**
+  EFS feeds carry card PANs: storing them requires a redaction-at-rest design (the redactCardXml
+  precedent) that must not be rushed; Samsara raw responses are a storage-cost decision (§6 Q10).
+  Original text: `efs_raw_payloads`, `samsara_raw_payloads` on
   the 0150 pattern; ingest writes them from day one; retention stance declared per the 0213
   vs EI010 trigger decision in each header.
-- **P2.5 — `merge_driver` → TS (D-SEP5).** `modules/roster` service enumerating
+- **P2.5 — DONE 2026-08-27 (PR #331, migration 0264) — `merge_driver` → TS (D-SEP5).**
+  merge_driver_v2 takes the mechanical move list as an information_schema-validated parameter
+  from roster's DRIVER_REASSIGNMENTS; atomicity preserved (one rpc, one transaction).
+  check-driver-references found FIVE live gaps on its first run — financial_entries' RESTRICT
+  would have aborted merges outright once finance data landed. The cascade trap is now a gate. `modules/roster` service enumerating
   driver-referencing tables from the manifest; the SQL function is superseded (left in place,
   documented as retired — never edited); recruiting-evidence-keeping semantics (0234) carried
   over with the existing matrix tests as the proof.
-- **P2.6 ∥ — Catalog annotations + snapshot.** One migration per module adding
+- **P2.6 — DONE 2026-08-27 (migration 0265 + gen-schema-snapshot.mjs) — Catalog annotations + snapshot.**
+  89 previously-uncommented tables gain module/layer catalog comments (31 curated comments left
+  untouched — clobbering incident prose to add two tags is a bad trade); the applied-state
+  snapshot regenerates + diff-checks on every CI run, the lint:codegen convention. One migration per module adding
   `COMMENT ON TABLE` (`module=…; layer=…; rebuild=…`); CI job dumps the PGlite-applied catalog
   to `supabase/schema.generated.sql` as a reviewable artifact (not a source of truth).
 
@@ -505,3 +522,13 @@ pinned in advance. Program-specific additions:
    which is the owner's product call, not a move-PR side effect. Owner: Miki, whenever ready.
 9. **FleetPal timeline** — collector unbuilt on purpose; its gate is the dedup contract from
    P3.4/P5.3. No fallback needed; it simply does not land before that contract exists.
+10. **Raw-payload retention design (P2.4)** — two questions before it builds: the redaction-at-
+   rest shape for EFS feeds (card PANs; the redactCardXml precedent), and whether Samsara raw
+   responses are worth their storage (telemetry responses are orders of magnitude larger than
+   EFS's). Owner: Miki. Fallback: EFS-only, redacted, behind an env flag default off.
+11. **Settlement/voucher void-after-sweep** — extraction excludes voided rows (D-MC18), so a row
+   voided AFTER being swept keeps its stored copy non-void. A dedicated void-sweep is the fix;
+   until then reports inherit McLeod's void lag. Owner: this program (P3 follow-up).
+12. **Settlement deductions staging** — tmsDeductionFactSchema exists but 0257 shipped no
+   staging table; whether deductions land in a table or straight into financial_entries is
+   P3.4's projection decision.
