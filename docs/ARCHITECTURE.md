@@ -149,14 +149,16 @@ rewrite discards the knowledge and keeps the authors. So:
 | RLS on every table | `check-rls.mjs` | live |
 | Migration numbering | `check-migration-versions.mjs` | live |
 | File/function budgets | `lint:filesize` / `lint:funcsize` | live (gap: no `.vue`/`.tsx`/shared coverage) |
-| **apps/api module isolation** | extend `check-feature-boundaries.mjs` to `apps/api/src/modules` | **to build — first gate of the carve-out** |
-| **Table ownership** (write-site check: only the owner's directory writes its tables) | new script | **to build** |
-| **Every table has a producer** (would have caught `financial_entries`, `terminals`) | new script | **to build** |
+| **apps/api module isolation** | `check-feature-boundaries.mjs`, armed for `apps/api/src/modules` | live 2026-08-26 — fires on the first carve-out |
+| **Table ownership** (write-site freeze: a new writer is a deliberate manifest edit) | `check-table-writers.mjs` + `scripts/table-writers.json` | live 2026-08-26 (172 write sites pinned; collapses to owner paths as carve-outs land) |
+| **Every table has a producer** (would have caught `financial_entries`, `terminals`) | `check-table-producers.mjs` | live 2026-08-26 (7 waivers, each naming the plan that owes the producer) |
 | Contracts only in `packages/shared` | review discipline | **not gate-backed; hold by hand** |
 
-Until the three "to build" gates exist, D-ARC3 is a reviewer's obligation. Build them early in
-the carve-out sequence — this repo's own history (`gates-outrank-the-design-contract`) shows
-un-gated contracts rot.
+All three re-founding gates run in CI since 2026-08-26 (`.github/workflows/ci.yml`), alongside
+the three design gates (`lint:codegen`, `lint:token-schema`, `lint:light-dark`) that had existed
+since 2026-08-23 without ever being wired in. What remains hand-held is the contracts rule — and
+this repo's own history (`gates-outrank-the-design-contract`) says hand-held rules rot, so it is
+the natural next gate.
 
 ## 7. Related canon
 
