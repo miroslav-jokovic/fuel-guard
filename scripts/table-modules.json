@@ -229,6 +229,18 @@
       "module": "fuel",
       "layer": "core"
     },
+    "fuel_txn_dispositions": {
+      "module": "fuel",
+      "layer": "core"
+    },
+    "fuel_txn_recon": {
+      "module": "samsara",
+      "layer": "derived"
+    },
+    "fuel_txn_scores": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
     "geocode_cache": {
       "module": "routing",
       "layer": "infra"
