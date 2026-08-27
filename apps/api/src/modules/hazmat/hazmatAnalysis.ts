@@ -6,8 +6,8 @@ import { equipmentAssumptionAdvisory, readEquipmentKind } from "./hazmatEquipmen
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
 import { notifyReviewersOfFlag } from "./hazmatNotify.js";
-import type { Env } from "../env.js";
-import { enqueueJob } from "./queue/enqueue.js";
+import type { Env } from "../../env.js";
+import { enqueueJob } from "../../services/queue/enqueue.js";
 import { evaluateQualification } from "./qualification.js";
 import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
 
