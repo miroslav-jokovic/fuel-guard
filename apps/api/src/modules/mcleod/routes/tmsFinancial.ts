@@ -1,9 +1,9 @@
 import type { Router } from "express";
-import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema } from "@silvicom/shared";
+import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema, tmsBillingPayloadSchema } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { ingestSettlements, ingestApVouchers } from "../financialIngest.js";
+import { ingestSettlements, ingestApVouchers, ingestBilling } from "../financialIngest.js";
 
 /**
  * Financial staging endpoints for the on-prem agent (P3.2). Registered INSIDE tmsIngestRouter,
@@ -37,6 +37,20 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestApVouchers(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  router.post(
+    "/billing",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsBillingPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid billing payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestBilling(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

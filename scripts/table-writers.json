@@ -255,6 +255,9 @@
   "mcleod_ap_vouchers": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_billing": [
+    "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],

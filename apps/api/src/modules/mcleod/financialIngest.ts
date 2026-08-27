@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsSettlementsPayload, TmsApVouchersPayload } from "@silvicom/shared";
+import type { TmsSettlementsPayload, TmsApVouchersPayload, TmsBillingPayload } from "@silvicom/shared";
 
 /**
  * The financial staging ingest — settlements and AP vouchers land in their 0257 detail tables
@@ -103,4 +103,41 @@ export async function ingestApVouchers(
     upserted += data?.length ?? rows.length;
   }
   return { received: payload.vouchers.length, upserted };
+}
+
+export async function ingestBilling(
+  admin: SupabaseClient,
+  orgId: string,
+  payload: TmsBillingPayload,
+): Promise<FinancialIngestResult> {
+  let upserted = 0;
+  for (let i = 0; i < payload.billing.length; i += CHUNK) {
+    const rows = payload.billing.slice(i, i + CHUNK).map((b) => ({
+      org_id: orgId,
+      external_id: b.external_id,
+      invoice_no: b.invoice_no ?? null,
+      customer_id: b.customer_id ?? null,
+      order_external_id: b.order_external_id ?? null,
+      master_order_id: b.master_order_id ?? null,
+      tractor_unit: b.tractor_unit ?? null,
+      trailer_unit: b.trailer_unit ?? null,
+      driver_external_id: b.driver_external_id ?? null,
+      bill_date: b.bill_date ?? null,
+      ship_date: b.ship_date ?? null,
+      delivery_date: b.delivery_date ?? null,
+      transfer_date: b.transfer_date ?? null,
+      total_charges: b.total_charges,
+      other_charge: b.other_charge,
+      excise_tax: b.excise_tax,
+      post_key: b.post_key ?? null,
+      post_module: b.post_module ?? null,
+    }));
+    const { data, error } = await admin
+      .from("mcleod_billing")
+      .upsert(rows, { onConflict: "org_id,external_id" })
+      .select("id");
+    if (error) throw new Error(`mcleod_billing upsert failed: ${error.message}`);
+    upserted += data?.length ?? rows.length;
+  }
+  return { received: payload.billing.length, upserted };
 }

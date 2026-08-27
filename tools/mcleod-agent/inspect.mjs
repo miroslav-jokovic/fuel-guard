@@ -163,4 +163,20 @@ export const INSPECTION = [
     from dbo.code as c
    where (c.field_name like '%type%' or c.field_name like '%class%' or c.field_name like '%status%')
      and ltrim(rtrim(c.field_table_alias)) in ('TRL', 'tra', 'trl', 'TRA', 'DRV', 'drv', 'PWU')` },
+
+  // ── billing (P3.3 — the earnings side; SEPARATION-PROGRAM-PLAN) ──────────────────────────────────
+  // 0257's mcleod_billing was authored from an ad-hoc measurement session that recorded the FINDINGS
+  // (1,595 GL BILL keys to 1,595 lines; invoiced_flag 'N' on all 1,640 June rows) but not the SELECT.
+  // These two questions re-take that measurement reproducibly so the billing sweep can be written
+  // against ANSWERED column names instead of guessed ones — the trailer-type near-miss (D3 above) is
+  // what guessing costs.
+  { id: "F1", blocks: "mcleod_billing sweep (all columns)", question: "What columns does billing_history actually carry, and with what types?", sql: `
+  select column_name, data_type, is_nullable
+    from information_schema.columns
+   where table_name = 'billing_history'
+   order by ordinal_position` },
+  { id: "F2", blocks: "mcleod_billing sweep (window + volume)", question: "billing_history rows per company — the sizing and company-binding check", sql: `
+  select ltrim(rtrim(b.company_id)) as company_id, count(*) as n
+    from dbo.billing_history as b
+   group by b.company_id` },
 ];

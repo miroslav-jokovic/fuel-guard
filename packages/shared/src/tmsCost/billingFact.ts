@@ -1,0 +1,55 @@
+import { z } from "zod";
+
+/**
+ * An invoiced freight bill — the earnings side, and the only money table that carries equipment
+ * (program step P3.3, docs/plans/architecture/SEPARATION-PROGRAM-PLAN.md; FINANCIAL-STORE-PLAN
+ * §2). `billing_history` reconciles to GL module BILL on the receivable account one line per
+ * invoice — 1,595 keys to 1,595 lines in June 2026 — and unlike every expense table it names
+ * its tractor, trailer and driver, so revenue per truck needs no allocation rule and margin per
+ * truck is answerable on the same terms as cost per mile.
+ *
+ * The three charge figures are held apart because they answer different questions: linehaul is
+ * the lane's worth, accessorials are what went wrong or extra on the day, excise is the
+ * government's. `invoiced_flag` is deliberately absent from this contract — it read 'N' on all
+ * 1,640 June rows, so a filter built on it returns nothing (0257's measurement).
+ *
+ * ⚠ The agent-side sweep for this contract does not exist yet: 0257 recorded the FINDINGS of
+ * the billing measurement but not the SELECT, and McLeod column names are never guessed here
+ * (the trailer-type near-miss is what guessing costs). Recon questions F1/F2 in the agent's
+ * inspect pack re-take the measurement; the sweep is written against their answers.
+ */
+export const tmsBillingFactSchema = z.object({
+  external_id: z.string().min(1).max(32),
+  company_id: z.string().min(1).max(4),
+
+  invoice_no: z.string().trim().min(1).max(32).nullish(),
+  customer_id: z.string().trim().min(1).max(8).nullish(),
+  order_external_id: z.string().trim().min(1).max(32).nullish(),
+  master_order_id: z.string().trim().min(1).max(32).nullish(),
+
+  tractor_unit: z.string().trim().min(1).max(8).nullish(),
+  trailer_unit: z.string().trim().min(1).max(8).nullish(),
+  driver_external_id: z.string().trim().min(1).max(8).nullish(),
+
+  /** The economic date (D-FS6/D-MC19): billing keys off the bill date, never the cash date. */
+  bill_date: z.string().nullish(),
+  ship_date: z.string().nullish(),
+  delivery_date: z.string().nullish(),
+  transfer_date: z.string().nullish(),
+
+  total_charges: z.number().default(0),
+  other_charge: z.number().default(0),
+  excise_tax: z.number().default(0),
+
+  /** The GL BILL key — the reconciliation join, one receivable line per invoice. */
+  post_key: z.string().max(32).nullish(),
+  post_module: z.string().max(4).nullish(),
+});
+export type TmsBillingFact = z.infer<typeof tmsBillingFactSchema>;
+
+export const tmsBillingPayloadSchema = z.object({
+  billing: z.array(tmsBillingFactSchema).max(2000),
+  window_start: z.string(),
+  window_end: z.string(),
+});
+export type TmsBillingPayload = z.infer<typeof tmsBillingPayloadSchema>;
