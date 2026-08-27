@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mergeDriver } from "./mergeDriver.js";
 import { planDriverMerges, type ReconcileDriver } from "@silvicom/shared";
 
 /**
@@ -78,11 +79,7 @@ export async function reconcileDrivers(
   const skipped: DriverMergeSkip[] = [];
   if (opts.apply) {
     for (const p of plans) {
-      const { error: mErr } = await admin.rpc("merge_driver", {
-        p_org: orgId,
-        p_source: p.sourceId,
-        p_canonical: p.canonicalId,
-      });
+      const { error: mErr } = await mergeDriver(admin, orgId, p.sourceId, p.canonicalId);
       if (mErr) {
         // MD010 is a decision, not a fault: the source holds evidence that may never be moved, so the
         // pair is reported and the sweep goes on. Matched on the SQLSTATE rather than the message —
@@ -119,6 +116,6 @@ export async function mergeDriverPair(
     .in("id", [sourceId, canonicalId]);
   if (error) throw new Error(error.message);
   if ((data ?? []).length !== 2) throw new Error("driver not found in this org");
-  const { error: mErr } = await admin.rpc("merge_driver", { p_org: orgId, p_source: sourceId, p_canonical: canonicalId });
+  const { error: mErr } = await mergeDriver(admin, orgId, sourceId, canonicalId);
   if (mErr) throw new Error(mErr.message);
 }

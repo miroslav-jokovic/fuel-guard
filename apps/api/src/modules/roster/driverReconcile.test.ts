@@ -32,13 +32,25 @@ describe("reconcileDrivers", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("apply: calls merge_driver once per pair with the right args", async () => {
+  it("apply: calls merge_driver_v2 once per pair with the org, the pair and the move list", async () => {
     const rec = withDrivers(drivers);
     const r = await reconcileDrivers(rec.client, ORG, { apply: true });
     expect(r.merged).toBe(1);
     expect(r.skipped).toEqual([]);
     expect(rec.rpcs()).toEqual([
-      { fn: "merge_driver", args: { p_org: ORG, p_source: "s1", p_canonical: "c1" } },
+      {
+        fn: "merge_driver_v2",
+        args: expect.objectContaining({
+          p_org: ORG,
+          p_source: "s1",
+          p_canonical: "c1",
+          // the mechanical move list rides along from DRIVER_REASSIGNMENTS (D-SEP5, 0264)
+          p_simple_moves: expect.arrayContaining([
+            expect.objectContaining({ table: "fuel_transactions", column: "driver_id" }),
+            expect.objectContaining({ table: "financial_entries", column: "driver_id", org_scoped: true }),
+          ]),
+        }),
+      },
     ]);
     expectOrgScoped(rec, ORG);
   });
@@ -98,11 +110,14 @@ describe("mergeDriverPair", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("calls merge_driver when both drivers resolve", async () => {
+  it("calls merge_driver_v2 when both drivers resolve", async () => {
     const rec = withDrivers([{ id: "a" }, { id: "b" }]);
     await mergeDriverPair(rec.client, ORG, "a", "b");
     expect(rec.rpcs()).toEqual([
-      { fn: "merge_driver", args: { p_org: ORG, p_source: "a", p_canonical: "b" } },
+      {
+        fn: "merge_driver_v2",
+        args: expect.objectContaining({ p_org: ORG, p_source: "a", p_canonical: "b" }),
+      },
     ]);
     expectOrgScoped(rec, ORG);
   });
