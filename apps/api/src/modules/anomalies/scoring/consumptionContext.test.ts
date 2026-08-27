@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadConsumptionContext, resolveFuelBalance } from "./consumptionContext.js";
 import { computedMpg, type TxnView, type VehicleView } from "@silvicom/shared";
-import { createSupabaseRecorder, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import type { FtxnRow } from "./loaders.js";
 
 const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 240, baselineMpg: 6.5 };

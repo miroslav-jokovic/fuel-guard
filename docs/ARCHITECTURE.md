@@ -105,7 +105,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 
 | Module | Owns | Client feature(s) |
 |---|---|---|
-| `anomalies` | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests`, `ai_verifications`† | anomalies, dashboard |
+| `anomalies` (carved 2026-08-27, `apps/api/src/modules/anomalies/`) | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests` | anomalies, dashboard |
 | `fuel-spend` (carved 2026-08-26, `apps/api/src/modules/fuel-spend/`) | `fuel_statements`, `fuel_statement_lines`, `fuel_spend_days`, `fuel_recon_runs`, `fuel_exceptions`, `fuel_exception_events` | reconcile, reports, fuel |
 | `ifta` | (reads `samsara` staging + `fuel`) | ifta |
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
@@ -118,7 +118,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `driver-app` (server side) | `device_push_tokens`, `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
 | `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `fuel_plans`† — `weather_cache` moved to `idle` 2026-08-26 (its only writer is idle's session-weather resolver); revisit here if routing ever carves out and grows its own writer | fueling |
 
-† Known-dead or near-dead per the 2026-08-26 audit (`ai_verifications` has no code;
+† Known-dead or near-dead per the 2026-08-26 audit (`ai_verifications` was dropped at 0260;
 `fuel_plans` has one production row ever). Each module's carve-out PR decides build-or-drop;
 this matrix records ownership, not endorsement.
 

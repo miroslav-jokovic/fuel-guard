@@ -6,7 +6,7 @@ import {
   type ParsedFuelLine,
 } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
-import { scoreTransaction } from "../../../services/scoring/index.js";
+import { scoreTransaction } from "../../anomalies/index.js";
 import {
   resolveTxnIdentitySplit,
   resolveContentIdentitySplit,

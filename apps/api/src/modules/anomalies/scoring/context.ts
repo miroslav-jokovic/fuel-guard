@@ -7,7 +7,7 @@ import {
   IDLE_BURN_GPH, eventTime,
   type TxnView, type VehicleView, type Thresholds, type AttributionCheck, type LogbookSegment,
 } from "@silvicom/shared";
-import { writeAudit } from "../../lib/audit.js";
+import { writeAudit } from "../../../lib/audit.js";
 import { n, rowEventTime } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
 

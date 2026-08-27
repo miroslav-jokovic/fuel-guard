@@ -8,7 +8,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { scoringHealth } from "../services/scoringHealth.js";
+import { scoringHealth } from "../modules/anomalies/index.js";
 
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const REPORT_PAGE = 1000;

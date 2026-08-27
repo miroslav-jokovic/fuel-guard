@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { loadMarketPricePerGal } from "./marketPrice.js";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 
 /**
  * Regression test for audit 2026-08-09 finding D — the market-price memo cached NULL forever.

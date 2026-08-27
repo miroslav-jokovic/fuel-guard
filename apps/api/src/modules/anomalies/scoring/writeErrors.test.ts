@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { TxnView } from "@silvicom/shared";
 import { healMissingAttribution } from "./context.js";
 import { learnVehicleValues } from "./learnVehicle.js";
-import { createSupabaseRecorder, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 
 /**
  * Regression test for audit 2026-08-09 finding E — SWALLOWED write errors.

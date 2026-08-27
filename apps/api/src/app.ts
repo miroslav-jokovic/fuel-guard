@@ -18,7 +18,7 @@ import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
-import { anomaliesRouter } from "./routes/anomalies.js";
+import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";

@@ -12,8 +12,8 @@ import {
   type RuleResult,
   type RuleId,
 } from "@silvicom/shared";
-import { writeAudit } from "../../lib/audit.js";
-import type { Env } from "../../env.js";
+import { writeAudit } from "../../../lib/audit.js";
+import type { Env } from "../../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
 import { resolveCardContext } from "./cardContext.js";
 import { loadMarketPricePerGal } from "./marketPrice.js";
@@ -41,7 +41,7 @@ import {
   scoringResultHash,
   startScoringAttempt,
 } from "./persist.js";
-import { dispatchJob } from "../queue/dispatch.js";
+import { dispatchJob } from "../../../services/queue/dispatch.js";
 
 type RuleInputs = {
   consumption: Awaited<ReturnType<typeof loadConsumptionContext>>;

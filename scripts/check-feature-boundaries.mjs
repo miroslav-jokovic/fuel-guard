@@ -106,6 +106,15 @@ const API_ALLOW = new Set([
   "fuel-spend -> fuel",
   // The idle rollup finishes by deriving the price days its dollars are priced with.
   "idle -> fuel",
+  // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
+  "anomalies -> samsara",
+  // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
+  // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
+  // pinned exception (the flags live ON the canonical row by design).
+  "anomalies -> fuel",
+  // Ingest finishing means scoring starts: the collectors invoke the harness entrypoints.
+  "efs -> anomalies",
+  "fuel -> anomalies",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

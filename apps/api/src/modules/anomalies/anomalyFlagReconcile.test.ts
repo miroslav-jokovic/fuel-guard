@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 
 /**

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { resolveCapacity, type TxnView, type VehicleView } from "@silvicom/shared";
-import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
-import { testEnv } from "../../testing/testEnv.js";
+import { testEnv } from "../../../testing/testEnv.js";
 
 /**
  * Regression test for audit 2026-08-09 finding A — the capacity SOURCE mismatch.
@@ -24,7 +24,7 @@ import { testEnv } from "../../testing/testEnv.js";
 const mocks = vi.hoisted(() => ({ reconcileWithSamsara: vi.fn() }));
 // reconcile.ts imports these through the samsara module index (2026-08-26 carve-out) — the mock
 // must target that specifier or it silently stops applying.
-vi.mock("../../modules/samsara/index.js", () => ({
+vi.mock("../../samsara/index.js", () => ({
   reconcileWithSamsara: mocks.reconcileWithSamsara,
   SamsaraUnavailableError: class SamsaraUnavailableError extends Error {},
 }));

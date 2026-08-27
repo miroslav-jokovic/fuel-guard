@@ -9,8 +9,8 @@ import {
   learnEfsDriverIds,
 } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
-import { scoreImportWithCascade } from "../../../services/scoring/index.js";
-import { scoreDeclinedImport } from "../../../services/declinedScoring.js";
+import { scoreImportWithCascade } from "../../anomalies/index.js";
+import { scoreDeclinedImport } from "../../anomalies/index.js";
 import { ingestReject } from "./efsIngestReject.js";
 import {
   loc,

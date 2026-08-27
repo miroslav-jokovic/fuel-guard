@@ -1,6 +1,6 @@
-import { backfillOrg, scoreImportWithCascade } from "../../scoring/index.js";
-import { runPatternSweep } from "../../entityRisk.js";
-import { scoreDeclinedImport, scoreDeclinedOrg } from "../../declinedScoring.js";
+import { backfillOrg, scoreImportWithCascade } from "../../../modules/anomalies/index.js";
+import { runPatternSweep } from "../../../modules/anomalies/index.js";
+import { scoreDeclinedImport, scoreDeclinedOrg } from "../../../modules/anomalies/index.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { jobCancelRequested } from "../../jobs.js";
 import type { JobHandler } from "../types.js";
