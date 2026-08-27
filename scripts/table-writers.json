@@ -129,7 +129,7 @@
     "apps/web/src/features/fueling/useDiscountRules.ts"
   ],
   "fuel_events": [
-    "apps/api/src/modules/fuel/fuelEvents.ts"
+    "apps/api/src/modules/samsara/fuelEventsWebhook.ts"
   ],
   "fuel_exception_events": [
     "apps/api/src/modules/fuel-spend/fuelExceptions.ts"
@@ -145,12 +145,12 @@
     "apps/api/src/modules/fuel/fuelPriceDaySync.ts"
   ],
   "fuel_prices": [
-    "apps/api/src/modules/fuel/pilotPriceIngest.ts"
+    "apps/api/src/modules/posted-prices/pilotPriceIngest.ts"
   ],
   "fuel_prices_posted": [
-    "apps/api/src/modules/fuel/lovesIngest.ts",
-    "apps/api/src/modules/fuel/postedPriceIngest.ts",
-    "apps/api/src/modules/fuel/roadRangerIngest.ts"
+    "apps/api/src/modules/posted-prices/lovesIngest.ts",
+    "apps/api/src/modules/posted-prices/postedPriceIngest.ts",
+    "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
   ],
   "fuel_recon_runs": [
     "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
@@ -165,11 +165,11 @@
     "apps/api/src/modules/fuel-spend/fuelStatementIngest.ts"
   ],
   "fuel_stations": [
-    "apps/api/src/modules/fuel/kwikTripIngest.ts",
-    "apps/api/src/modules/fuel/lovesIngest.ts",
-    "apps/api/src/modules/fuel/pilotLocationsIngest.ts",
-    "apps/api/src/modules/fuel/pilotPriceIngest.ts",
-    "apps/api/src/modules/fuel/roadRangerIngest.ts"
+    "apps/api/src/modules/posted-prices/kwikTripIngest.ts",
+    "apps/api/src/modules/posted-prices/lovesIngest.ts",
+    "apps/api/src/modules/posted-prices/pilotLocationsIngest.ts",
+    "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+    "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
   ],
   "fuel_transactions": [
     "apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
@@ -185,8 +185,8 @@
     "apps/web/src/features/fuel/useFuelLog.ts"
   ],
   "geocode_cache": [
-    "apps/api/src/modules/fuel/pilotPriceIngest.ts",
-    "apps/api/src/modules/fuel/roadRangerIngest.ts",
+    "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+    "apps/api/src/modules/posted-prices/roadRangerIngest.ts",
     "apps/api/src/services/geocode.ts"
   ],
   "hazmat_documents": [

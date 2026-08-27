@@ -47,6 +47,7 @@ const MODULE_SECTIONS = {
   "fuel-spend": "fuel",
   anomalies: "fuel",
   routing: "fuel",
+  "posted-prices": "fuel", // carved out of fuel at P1.5; its tables' client policies were authored under the fuel section
   samsara: null,
   mcleod: null,
   psp: "safety",

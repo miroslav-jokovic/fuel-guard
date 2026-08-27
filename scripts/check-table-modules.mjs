@@ -76,8 +76,16 @@ const GRANDFATHERED_WRITERS = new Set([
   "fuel_transactions <- apps/api/src/modules/efs/services/efsSync.ts",
   "fuel_transactions <- apps/api/src/modules/org/routes/audit.ts",
   "fuel_transactions <- apps/web/src/features/fuel/useFuelLog.ts",
-  "geocode_cache <- apps/api/src/modules/fuel/pilotPriceIngest.ts",
-  "geocode_cache <- apps/api/src/modules/fuel/roadRangerIngest.ts",
+  "geocode_cache <- apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+  "geocode_cache <- apps/api/src/modules/posted-prices/roadRangerIngest.ts",
+  // fuel_stations: collector->core direct writes, same posture as mcleod's load ingest today.
+  // Added at the posted-prices carve-out (P1.5) — previously invisible because the scrapers
+  // lived INSIDE fuel. The fuel station-upsert interface is the P6.1 burn-down that removes them.
+  "fuel_stations <- apps/api/src/modules/posted-prices/kwikTripIngest.ts",
+  "fuel_stations <- apps/api/src/modules/posted-prices/lovesIngest.ts",
+  "fuel_stations <- apps/api/src/modules/posted-prices/pilotLocationsIngest.ts",
+  "fuel_stations <- apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+  "fuel_stations <- apps/api/src/modules/posted-prices/roadRangerIngest.ts",
   "geocode_cache <- apps/api/src/services/geocode.ts",
   "idle_settings <- apps/web/src/features/fleet/useIdleSettings.ts",
   "integration_credentials <- apps/api/src/modules/samsara/lib/samsaraToken.ts",

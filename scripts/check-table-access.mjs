@@ -61,6 +61,9 @@ const GRANDFATHERED_ACCESS = new Set([
   "fuel_events <- apps/api/src/services/askData.ts",
   "fuel_events <- apps/web/src/pages/FuelEventsPage.vue",
   "fuel_prices <- apps/api/src/services/fuelPlanning.ts",
+  // exposed by the posted-prices carve-out (P1.5): fuel_price_days is fuel's derivation over the
+  // collected board — the read moves behind a posted-prices interface with the P6.1 burn-down.
+  "fuel_prices <- apps/api/src/modules/fuel/fuelPriceDaySync.ts",
   "fuel_prices <- apps/web/src/composables/useIdleCostBasis.ts",
   "fuel_prices_posted <- apps/api/src/modules/anomalies/scoring/marketPrice.ts",
   "fuel_prices_posted <- apps/api/src/routes/fueling/stations.ts",

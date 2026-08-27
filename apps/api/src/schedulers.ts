@@ -11,7 +11,7 @@ import { startEfsCardSyncScheduler } from "./modules/efs/services/efsCardSyncSch
 import { startEfsSoapPoller } from "./modules/efs/services/efsSoapPoller.js";
 import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessingScheduler.js";
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
-import { startPostedPriceScheduler } from "./modules/fuel/index.js";
+import { startPostedPriceScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler } from "./modules/org/index.js";
 import { startNotificationPushScheduler } from "./modules/messaging/index.js";
