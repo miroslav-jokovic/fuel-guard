@@ -6,8 +6,8 @@
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { HereRouteRequest, LatLng, RouteStep } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { fetchTruckRoute } from "../lib/here.js";
+import type { Env } from "../../env.js";
+import { fetchTruckRoute } from "../../lib/here.js";
 
 /** Bump when the routing request shape/logic changes so old cache rows are bypassed. */
 const ENGINE_VERSION = "here-v8-5"; // request shape unchanged since v8-5. Instruction km/m is stripped on read

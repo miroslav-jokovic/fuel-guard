@@ -1,10 +1,8 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { registerPlanRoutes } from "./fueling/plans.js";
-import { registerMapRoutes } from "./fueling/mapProxies.js";
+import { registerPlanRoutes, registerMapRoutes, registerStationRoutes } from "../modules/routing/index.js";
 import { registerNetworkRoutes } from "../modules/posted-prices/index.js";
 import { registerStatementRoutes } from "../modules/fuel-spend/index.js";
-import { registerStationRoutes } from "./fueling/stations.js";
 import { registerSpendRoutes } from "../modules/fuel-spend/index.js";
 import { registerExceptionRoutes } from "../modules/fuel-spend/index.js";
 

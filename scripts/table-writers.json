@@ -138,8 +138,8 @@
     "apps/api/src/modules/fuel-spend/fuelExceptions.ts"
   ],
   "fuel_plans": [
-    "apps/api/src/routes/fueling/plans.ts",
-    "apps/api/src/services/fuelPlanHistory.ts"
+    "apps/api/src/modules/routing/fuelPlanHistory.ts",
+    "apps/api/src/modules/routing/routes/plans.ts"
   ],
   "fuel_price_days": [
     "apps/api/src/modules/fuel/fuelPriceDaySync.ts"
@@ -187,7 +187,7 @@
   "geocode_cache": [
     "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
     "apps/api/src/modules/posted-prices/roadRangerIngest.ts",
-    "apps/api/src/services/geocode.ts"
+    "apps/api/src/modules/routing/geocode.ts"
   ],
   "hazmat_documents": [
     "apps/api/src/modules/hazmat/hazmatLoads.ts"
@@ -311,7 +311,7 @@
     "apps/web/src/composables/useRouteFuelSettings.ts"
   ],
   "route_geometries": [
-    "apps/api/src/services/routeGeometry.ts"
+    "apps/api/src/modules/routing/routeGeometry.ts"
   ],
   "samsara_ifta_fetches": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"

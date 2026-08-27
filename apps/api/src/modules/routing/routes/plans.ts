@@ -1,12 +1,12 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { requireRole, requireOrg } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
-import { planFuelRoute, type PlanRequest } from "../../services/fuelPlanning.js";
-import { saveFuelPlanHistory } from "../../services/fuelPlanHistory.js";
+import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { planFuelRoute, type PlanRequest } from "../fuelPlanning.js";
+import { saveFuelPlanHistory } from "../fuelPlanHistory.js";
 
 // Validate + bound the plan request (security: reject malformed/oversized input before any Samsara/HERE work).
 const planPointSchema = z.object({ lat: z.number().nullable().optional(), lng: z.number().nullable().optional(), text: z.string().max(300).nullable().optional() });

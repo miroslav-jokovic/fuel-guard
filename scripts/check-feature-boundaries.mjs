@@ -117,6 +117,13 @@ const API_ALLOW = new Set([
   // (P1.6); it owns no tables and writes none.
   "insights -> org",
   "insights -> anomalies",
+  // The planner reads live truck state (fuel level, HOS, location) through the collector's
+  // typed fetchers — routing's stop-selection math needs where the truck IS. The deeper
+  // vendor/math split inside fuelPlanning is the routing module's named debt (P1.7).
+  "routing -> samsara",
+  // Recon resolves a fill's station coordinates through routing's geocoder — a support
+  // service by charter; the pair is deliberately narrow (geocodeStation only).
+  "samsara -> routing",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStationIdentity } from "@silvicom/shared";
-import type { Env } from "../env.js";
+import type { Env } from "../../env.js";
 
 export type GeoPrecision = "site" | "city";
 

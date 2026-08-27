@@ -10,14 +10,14 @@ import {
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
   type PostedQuote, type DiscountRule,
 } from "@silvicom/shared";
-import type { Env } from "../env.js";
+import type { Env } from "../../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
 import { breakFuelAdvice } from "@silvicom/shared";
-import { NoHereKeyError } from "../lib/here.js";
+import { NoHereKeyError } from "../../lib/here.js";
 import { geocodeAddress } from "./geocode.js";
-import { loadSamsaraToken } from "../modules/samsara/lib/samsaraToken.js";
-import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../modules/samsara/lib/samsara.js";
-import { hereReverseGeocodeState } from "../lib/hereGeocode.js";
+import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
+import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../samsara/lib/samsara.js";
+import { hereReverseGeocodeState } from "../../lib/hereGeocode.js";
 
 /** Fuel % at/above which entering an avoided state does NOT require a pre-border top-off (California rule). 80% per policy. */
 const BORDER_TOP_OFF_PCT = 80;

@@ -1,12 +1,12 @@
 import type { Router } from "express";
-import { requireOrg } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { geocodeSuggest } from "../../services/geocode.js";
-import { fetchVehicleCurrentGps } from "../../modules/samsara/lib/samsara.js";
-import { loadSamsaraToken } from "../../modules/samsara/lib/samsaraToken.js";
-import { hereReverseGeocode } from "../../lib/hereGeocode.js";
+import { requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { geocodeSuggest } from "../geocode.js";
+import { fetchVehicleCurrentGps } from "../../samsara/lib/samsara.js";
+import { loadSamsaraToken } from "../../samsara/lib/samsaraToken.js";
+import { hereReverseGeocode } from "../../../lib/hereGeocode.js";
 
 /** Map + geocoding proxies: keep the HERE key / vendor rate server-side, never in the browser. */
 export function registerMapRoutes(router: Router): void {
