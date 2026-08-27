@@ -20,7 +20,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKind } from "@silvicom/shared";
-import { newDrawing } from "./dqBinder/pdfDraw.js";
+import { newDrawing } from "../../services/dqBinder/pdfDraw.js";
 import { letterhead, lead, note, startSection, stampPages } from "./fuelSpendReportDraw.js";
 import { setDensity } from "./fuelSpendReportFlow.js";
 import { figureTable, type Column, type Row } from "./fuelSpendReportTable.js";

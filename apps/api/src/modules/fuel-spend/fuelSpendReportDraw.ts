@@ -12,7 +12,7 @@
  * analytical PDF with no running head is a page of anonymous numbers the moment it leaves the file.
  */
 import { C, CONTENT_W, GEOM, T, TRACK_LABEL } from "./fuelSpendReportTheme.js";
-import { winAnsi } from "./dqBinder/pdfDraw.js";
+import { winAnsi } from "../../services/dqBinder/pdfDraw.js";
 import { label } from "./fuelSpendReportCharts.js";
 import { ensure, gap, withoutAutoBreak } from "./fuelSpendReportFlow.js";
 

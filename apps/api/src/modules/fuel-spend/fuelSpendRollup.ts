@@ -26,7 +26,7 @@ import {
   type SpendEngineDay,
   type SpendRollupRow,
 } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 /**
  * How far back of extra history to read so the first day in the window has a previous fill to measure

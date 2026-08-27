@@ -14,7 +14,7 @@ import { figureTable, tableHeadHeight, totalRow, type Column, type Row } from ".
 import { lead, note, startSection, verdictBand, withheld } from "./fuelSpendReportDraw.js";
 import { ensure } from "./fuelSpendReportFlow.js";
 import { change, num, plural, rangeLabel, usd, usd2, usd3, usdCompact } from "./fuelSpendReportFormat.js";
-import { winAnsi } from "./dqBinder/pdfDraw.js";
+import { winAnsi } from "../../services/dqBinder/pdfDraw.js";
 
 export type Comparison = { prior: SpendPeriod; current: SpendPeriod } | null;
 

@@ -18,7 +18,7 @@
  * tile came out red whether spend rose or fell.
  */
 import { C, CONTENT_W, GEOM, T, TRACK_LABEL } from "./fuelSpendReportTheme.js";
-import { winAnsi } from "./dqBinder/pdfDraw.js";
+import { winAnsi } from "../../services/dqBinder/pdfDraw.js";
 import { gap, withoutAutoBreak } from "./fuelSpendReportFlow.js";
 
 const M = GEOM.margin;
