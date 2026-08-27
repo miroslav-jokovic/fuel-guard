@@ -1,0 +1,461 @@
+{
+  "//": "Table → owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
+  "tables": {
+    "anomalies": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
+    "anomaly_thresholds": {
+      "module": "anomalies",
+      "layer": "core"
+    },
+    "anomaly_transitions": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
+    "applicant_dispositions": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "application_captures": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "application_drafts": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "application_invitations": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "audit_logs": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "card_write_counters": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "case_pattern_reports": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
+    "certifications": {
+      "module": "evidence",
+      "layer": "core"
+    },
+    "declined_transactions": {
+      "module": "fuel",
+      "layer": "raw"
+    },
+    "device_push_tokens": {
+      "module": "messaging",
+      "layer": "infra"
+    },
+    "documents": {
+      "module": "evidence",
+      "layer": "core"
+    },
+    "dq_exports": {
+      "module": "evidence",
+      "layer": "derived"
+    },
+    "driver_app_feature_overrides": {
+      "module": "driver-app",
+      "layer": "core"
+    },
+    "driver_app_features": {
+      "module": "driver-app",
+      "layer": "core"
+    },
+    "driver_applications": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "driver_authorizations": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "driver_duty_sessions": {
+      "module": "driver-app",
+      "layer": "core"
+    },
+    "driver_employment_history": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "driver_performance_settings": {
+      "module": "performance",
+      "layer": "core"
+    },
+    "driver_performance_weeks": {
+      "module": "performance",
+      "layer": "derived"
+    },
+    "driver_scores": {
+      "module": "performance",
+      "layer": "derived"
+    },
+    "driver_time_off": {
+      "module": "roster",
+      "layer": "core"
+    },
+    "driver_vehicle_assignments": {
+      "module": "roster",
+      "layer": "core"
+    },
+    "driver_write_counters": {
+      "module": "driver-app",
+      "layer": "infra"
+    },
+    "drivers": {
+      "module": "roster",
+      "layer": "core"
+    },
+    "duty_equipment_segments": {
+      "module": "driver-app",
+      "layer": "core"
+    },
+    "efs_capability_promotions": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "efs_capability_proofs": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "efs_card_control_approvers": {
+      "module": "efs",
+      "layer": "core"
+    },
+    "efs_card_control_settings": {
+      "module": "efs",
+      "layer": "core"
+    },
+    "efs_card_mutations": {
+      "module": "efs",
+      "layer": "raw"
+    },
+    "efs_cards": {
+      "module": "efs",
+      "layer": "raw"
+    },
+    "efs_processing_runs": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "efs_soap_client_certs": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "efs_soap_credentials": {
+      "module": "efs",
+      "layer": "infra"
+    },
+    "efs_transactions": {
+      "module": "efs",
+      "layer": "raw"
+    },
+    "employer_inquiries": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "esign_consents": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "financial_entries": {
+      "module": "financial",
+      "layer": "core"
+    },
+    "fuel_cards": {
+      "module": "fuel",
+      "layer": "core"
+    },
+    "fuel_discount_rules": {
+      "module": "fuel",
+      "layer": "core"
+    },
+    "fuel_events": {
+      "module": "fuel",
+      "layer": "raw"
+    },
+    "fuel_exception_events": {
+      "module": "fuel-spend",
+      "layer": "derived"
+    },
+    "fuel_exceptions": {
+      "module": "fuel-spend",
+      "layer": "derived"
+    },
+    "fuel_plans": {
+      "module": "routing",
+      "layer": "derived"
+    },
+    "fuel_price_days": {
+      "module": "fuel",
+      "layer": "derived"
+    },
+    "fuel_prices": {
+      "module": "fuel",
+      "layer": "raw"
+    },
+    "fuel_prices_posted": {
+      "module": "fuel",
+      "layer": "raw"
+    },
+    "fuel_recon_runs": {
+      "module": "fuel-spend",
+      "layer": "derived"
+    },
+    "fuel_spend_days": {
+      "module": "fuel-spend",
+      "layer": "derived"
+    },
+    "fuel_statement_lines": {
+      "module": "fuel-spend",
+      "layer": "raw"
+    },
+    "fuel_statements": {
+      "module": "fuel-spend",
+      "layer": "raw"
+    },
+    "fuel_stations": {
+      "module": "fuel",
+      "layer": "core"
+    },
+    "fuel_transactions": {
+      "module": "fuel",
+      "layer": "core"
+    },
+    "geocode_cache": {
+      "module": "routing",
+      "layer": "infra"
+    },
+    "hazmat_documents": {
+      "module": "hazmat",
+      "layer": "core"
+    },
+    "hazmat_loads": {
+      "module": "hazmat",
+      "layer": "core"
+    },
+    "hazmat_policies": {
+      "module": "hazmat",
+      "layer": "core"
+    },
+    "hazmat_reviews": {
+      "module": "hazmat",
+      "layer": "core"
+    },
+    "hazmat_runs": {
+      "module": "hazmat",
+      "layer": "derived"
+    },
+    "hos_duty_segments": {
+      "module": "samsara",
+      "layer": "raw"
+    },
+    "idle_events": {
+      "module": "idle",
+      "layer": "raw"
+    },
+    "idle_park_sessions": {
+      "module": "idle",
+      "layer": "derived"
+    },
+    "idle_rollup_days": {
+      "module": "idle",
+      "layer": "derived"
+    },
+    "idle_settings": {
+      "module": "idle",
+      "layer": "core"
+    },
+    "idle_telemetry_windows": {
+      "module": "idle",
+      "layer": "raw"
+    },
+    "import_rows": {
+      "module": "efs",
+      "layer": "raw"
+    },
+    "imports": {
+      "module": "efs",
+      "layer": "raw"
+    },
+    "integration_credentials": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "invites": {
+      "module": "org",
+      "layer": "core"
+    },
+    "jobs": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "load_events": {
+      "module": "loads",
+      "layer": "core"
+    },
+    "load_external_payloads": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
+    "load_stop_photos": {
+      "module": "loads",
+      "layer": "core"
+    },
+    "load_stops": {
+      "module": "loads",
+      "layer": "core"
+    },
+    "loads": {
+      "module": "loads",
+      "layer": "core"
+    },
+    "mcleod_ap_vouchers": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
+    "mcleod_billing": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
+    "mcleod_settlements": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
+    "memberships": {
+      "module": "org",
+      "layer": "core"
+    },
+    "message_reports": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "message_threads": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "messages": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "migration_markers": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "notification_events": {
+      "module": "messaging",
+      "layer": "derived"
+    },
+    "notification_preferences": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "notification_reads": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "org_integrations": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "org_modules": {
+      "module": "org",
+      "layer": "core"
+    },
+    "org_usage_month": {
+      "module": "org",
+      "layer": "derived"
+    },
+    "organizations": {
+      "module": "org",
+      "layer": "core"
+    },
+    "pattern_sweep_requests": {
+      "module": "anomalies",
+      "layer": "infra"
+    },
+    "platform_admins": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "platform_audit_log": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "psp_requests": {
+      "module": "psp",
+      "layer": "raw"
+    },
+    "qualification_records": {
+      "module": "evidence",
+      "layer": "core"
+    },
+    "route_fuel_settings": {
+      "module": "routing",
+      "layer": "core"
+    },
+    "route_geometries": {
+      "module": "routing",
+      "layer": "infra"
+    },
+    "samsara_ifta_fetches": {
+      "module": "samsara",
+      "layer": "raw"
+    },
+    "samsara_ifta_jurisdiction_miles": {
+      "module": "samsara",
+      "layer": "raw"
+    },
+    "scoring_attempts": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
+    "seven_day_statements": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "sms_consents": {
+      "module": "recruiting",
+      "layer": "core"
+    },
+    "station_geocode_learned": {
+      "module": "fuel",
+      "layer": "derived"
+    },
+    "support_impersonation_grants": {
+      "module": "org",
+      "layer": "infra"
+    },
+    "thread_participants": {
+      "module": "messaging",
+      "layer": "core"
+    },
+    "tms_movements": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
+    "trailers": {
+      "module": "roster",
+      "layer": "core"
+    },
+    "vehicle_engine_days": {
+      "module": "idle",
+      "layer": "derived"
+    },
+    "vehicles": {
+      "module": "roster",
+      "layer": "core"
+    },
+    "weather_cache": {
+      "module": "idle",
+      "layer": "infra"
+    }
+  }
+}
