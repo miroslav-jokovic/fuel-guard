@@ -26,6 +26,7 @@ import {
 } from "./samsara.js";
 import { snapshotDriverWeekHandler, syncDriverScoresHandler } from "./performance.js";
 import { nightlyReconcileHandler } from "./nightlyReconcile.js";
+import { financialProjectionHandler } from "./financial.js";
 
 /**
  * Register every queue job handler. Called once at process startup — on the worker (queue mode) AND on
@@ -60,6 +61,7 @@ export function registerAllHandlers(): void {
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
   registerHandler("data_retention", dataRetentionHandler);
+  registerHandler("financial_projection", financialProjectionHandler);
   registerHandler("dq_binder", dqBinderHandler);
   registerHandler("document_derive", documentDeriveHandler);
 }

@@ -122,6 +122,9 @@
   "employer_inquiries": [
     "apps/api/src/modules/recruiting/employerInquiry.ts"
   ],
+  "financial_entries": [
+    "apps/api/src/modules/financial/projection.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],

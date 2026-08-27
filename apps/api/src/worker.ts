@@ -53,6 +53,7 @@ const KIND_CAPS: Record<string, number> = {
   sync_driver_scores: 1,
   snapshot_driver_week: 1,
   nightly_reconcile: 1,
+  financial_projection: 1,
   efs_soap_posted: 1,
   efs_soap_rejected: 1,
   efs_process_import: 1,

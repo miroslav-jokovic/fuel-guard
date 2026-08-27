@@ -124,6 +124,9 @@ const API_ALLOW = new Set([
   // Recon resolves a fill's station coordinates through routing's geocoder — a support
   // service by charter; the pair is deliberately narrow (geocodeStation only).
   "samsara -> routing",
+  // The projection reads financial staging through the collector's exported readers — never the
+  // raw tables (D-SEP1); the dedup rules live in financial, the vendor shape stays in mcleod.
+  "financial -> mcleod",
   // Detection leans on the canonical record's helpers: attribution, geocodes, card assignments,
   // decline-driver resolution — reads through fuel's index, verdict flags written back per D-ARC3's
   // pinned exception (the flags live ON the canonical row by design).
