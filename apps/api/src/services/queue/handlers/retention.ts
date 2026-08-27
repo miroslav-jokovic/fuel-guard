@@ -1,4 +1,4 @@
-import { runDataRetention } from "../../dataRetention.js";
+import { runDataRetention } from "../../../modules/org/index.js";
 import type { JobHandler } from "../types.js";
 
 /**

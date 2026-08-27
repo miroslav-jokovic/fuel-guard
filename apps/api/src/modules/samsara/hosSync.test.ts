@@ -4,8 +4,8 @@ import {
   createSupabaseRecorder,
   expectOrgScoped,
   type SupabaseRecorder,
-} from "../testing/supabaseRecorder.js";
-import { testEnv } from "../testing/testEnv.js";
+} from "../../testing/supabaseRecorder.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). Two of this file's

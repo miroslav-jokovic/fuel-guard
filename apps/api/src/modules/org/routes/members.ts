@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { roleSchema } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { revokePushTokens } from "../modules/messaging/index.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { revokePushTokens } from "../../messaging/index.js";
 
 const roleUpdateSchema = z.object({ role: roleSchema });
 

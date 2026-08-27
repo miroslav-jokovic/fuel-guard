@@ -32,7 +32,7 @@ import {
   uploadClientCert,
 } from "../modules/efs/services/efsSoapClientCerts.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
-import type { RunJobResult } from "../services/jobs.js";
+import type { RunJobResult } from "../modules/org/index.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { SecretBoxError } from "../lib/secretBox.js";
 import { z } from "zod";

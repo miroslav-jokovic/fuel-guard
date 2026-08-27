@@ -29,6 +29,8 @@ const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }));
 // The handler imports the samsara collector through its module index (2026-08-26 carve-out), so
 // the mock targets the index — per-file mocks of the old services/ paths would silently not apply.
 vi.mock("../../../modules/samsara/index.js", () => ({
+  syncHosDutySegments: hosSync.syncHosDutySegments,
+  syncHosCurrentStatus: hosSync.syncHosCurrentStatus,
   syncVehiclesFromSamsara: vehicleSync.syncVehiclesFromSamsara,
   syncVehicleStatsFromSamsara: vehicleSync.syncVehicleStatsFromSamsara,
   NoSamsaraTokenError,
@@ -43,7 +45,6 @@ vi.mock("../../../modules/idle/index.js", () => ({
   syncIdleDutyEvidence: idleDutyEvidence.syncIdleDutyEvidence,
   syncIdleRollup: idleRollup.syncIdleRollup,
 }));
-vi.mock("../../hosSync.js", () => hosSync);
 // The handler reaches scores through the performance module index (2026-08-27 carve-out).
 vi.mock("../../../modules/performance/index.js", () => ({
   syncDriverScores: scoreSync.syncDriverScores,

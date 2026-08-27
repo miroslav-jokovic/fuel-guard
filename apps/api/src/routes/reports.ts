@@ -1,7 +1,7 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type DashboardTransaction, type DashboardAnomaly, type OdoRow, type DispositionCaseInput } from "@silvicom/shared";
-import { generateAndSendDigest } from "../services/digest.js";
+import { generateAndSendDigest } from "../modules/org/index.js";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

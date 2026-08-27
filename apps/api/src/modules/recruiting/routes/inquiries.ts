@@ -10,7 +10,7 @@ import {
   type InquiryOutcomeUpdate,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
-import { loadInquiryQueue } from "../../../services/inquiryQueue.js";
+import { loadInquiryQueue } from "../inquiryQueue.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";

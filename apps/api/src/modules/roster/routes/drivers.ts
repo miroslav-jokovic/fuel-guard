@@ -22,7 +22,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { deliverInvite } from "../../../routes/invites.js";
+import { deliverInvite } from "../../org/index.js";
 import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
 
 /**

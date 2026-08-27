@@ -211,7 +211,7 @@ ok(
 );
 ok(
   "and fuel_spend_days is NOT pinned as an evidence table",
-  !read("../apps/api/src/services/dataRetention.ts").includes('"fuel_spend_days"'),
+  !read("../apps/api/src/modules/org/dataRetention.ts").includes('"fuel_spend_days"'),
 );
 // A stale `updated_at` is how a rebuild that silently stopped running looks like a rebuild that ran,
 // so the trigger has to actually move it — asserted, not assumed from the trigger's existence.

@@ -82,7 +82,7 @@ bypasses RLS; ownership is the discipline that replaces it.
 
 | Core module | Owns |
 |---|---|
-| `org` (identity & platform) | `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`, `integration_credentials`, `org_usage_month`, `platform_admins`, `platform_audit_log`, `support_impersonation_grants`, `audit_logs` (append-only), `jobs`, `migration_markers` |
+| `org` (identity & platform; carved 2026-08-27, `apps/api/src/modules/org/`) | `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`, `integration_credentials`, `org_usage_month`, `platform_admins`, `platform_audit_log`, `support_impersonation_grants`, `audit_logs` (append-only), `jobs`, `migration_markers` |
 | `roster` (carved 2026-08-27, `apps/api/src/modules/roster/`) | `drivers`, `vehicles`, `trailers`, `driver_vehicle_assignments`, `driver_time_off` |
 | `fuel` (carved 2026-08-27, `apps/api/src/modules/fuel/`) | `fuel_transactions`, `fuel_events`, `declined_transactions`, `fuel_cards`, `fuel_stations`, `station_geocode_learned`, `fuel_prices`, `fuel_prices_posted`, `fuel_price_days`, `fuel_discount_rules` |
 | `evidence` (carved 2026-08-26, `apps/api/src/modules/evidence/` — first core-store module) | `documents`, `certifications`, `qualification_records`, `dq_exports` — the append-only set pinned in `RETENTION_FORBIDDEN` |

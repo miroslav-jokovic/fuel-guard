@@ -12,7 +12,7 @@ import { dispatchJob } from "../../../services/queue/dispatch.js";
 import { buildIngestSource } from "../../efs/index.js";
 import {
   startJob, finishJob, startJobHeartbeat, scoringDedupKey, JobConflictError,
-} from "../../../services/jobs.js";
+} from "../../org/index.js";
 import { ingestReport } from "../../efs/index.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */

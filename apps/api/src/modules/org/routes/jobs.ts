@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
-import { apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { failedJobs, latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../services/jobs.js";
-import { queueMetrics } from "../services/queue/metrics.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { failedJobs, latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../jobs.js";
+import { queueMetrics } from "../../../services/queue/metrics.js";
 
 const KNOWN_KINDS = new Set<JobKind>([
   "rebuild",

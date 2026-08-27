@@ -7,13 +7,13 @@ import {
   renderInviteEmail,
   type InviteCreateRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { validateBody, apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { makeSender, sendEmail } from "../lib/mailer.js";
-import type { Env } from "../env.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { makeSender, sendEmail } from "../../../lib/mailer.js";
+import type { Env } from "../../../env.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
 

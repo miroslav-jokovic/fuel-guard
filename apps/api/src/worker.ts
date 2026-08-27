@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { loadEnv } from "./env.js";
-import { runSchemaCheck } from "./services/schemaCheck.js";
+import { runSchemaCheck } from "./modules/org/index.js";
 import { startAllSchedulers } from "./schedulers.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./services/queue/handlers/index.js";

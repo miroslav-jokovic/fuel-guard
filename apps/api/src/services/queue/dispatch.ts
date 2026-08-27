@@ -7,7 +7,7 @@ import {
   SCORING_JOB_KINDS,
   type JobKind,
   type RunJobResult,
-} from "../jobs.js";
+} from "../../modules/org/index.js";
 import { enqueueJob } from "./enqueue.js";
 import { getHandler } from "./registry.js";
 import type { JobContext } from "./types.js";
