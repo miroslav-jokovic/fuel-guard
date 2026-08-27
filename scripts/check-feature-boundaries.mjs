@@ -132,6 +132,9 @@ const API_ALLOW = new Set([
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",
+  // Releasing a load notifies its driver, and assignment refuses a driver blocked on return-to-duty.
+  "loads -> messaging",
+  "loads -> recruiting",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
