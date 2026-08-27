@@ -115,7 +115,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `hazmat` (carved 2026-08-27, `apps/api/src/modules/hazmat/`) | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |
 | `dispatch` | (reads `loads`) | dispatch |
 | `messaging` (carved 2026-08-27, `apps/api/src/modules/messaging/` — took `device_push_tokens` from driver-app parking, its writers live here) | `message_threads`, `messages`, `message_reports`, `thread_participants`, `notification_events`, `notification_preferences`, `notification_reads` | messages; driver-app messages |
-| `driver-app` (server side) | `device_push_tokens`, `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
+| `driver-app` (server side; carved 2026-08-27, `apps/api/src/modules/driver-app/`) | `driver_app_features`, `driver_app_feature_overrides`, `driver_duty_sessions`, `driver_write_counters` | the driver app |
 | `routing` (support) | `geocode_cache`, `route_geometries`, `route_fuel_settings`, `fuel_plans`† — `weather_cache` moved to `idle` 2026-08-26 (its only writer is idle's session-weather resolver); revisit here if routing ever carves out and grows its own writer | fueling |
 
 † Known-dead or near-dead per the 2026-08-26 audit (`ai_verifications` was dropped at 0260;

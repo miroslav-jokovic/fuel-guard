@@ -7,11 +7,11 @@ import {
   type SetDriverAppFeatureRequest,
   type SetDriverAppOverrideRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   deleteOverride,
   isSettingsError,
@@ -19,7 +19,7 @@ import {
   listOverrides,
   upsertOrgFeature,
   upsertOverride,
-} from "../services/driverAppSettings.js";
+} from "../driverAppSettings.js";
 
 const httpFor = (code: string): number =>
   code === "not_found" ? 404 :

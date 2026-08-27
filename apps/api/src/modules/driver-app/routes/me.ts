@@ -10,12 +10,12 @@ import {
   startLoadRequestSchema,
   startShiftRequestSchema,
 } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { driverWriteLimit } from "../../../middleware/driverWriteLimit.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   changeEquipment,
   endShift,
@@ -24,7 +24,7 @@ import {
   resolveDriverId,
   startShift,
   type DutyResult,
-} from "../services/dutySessions.js";
+} from "../dutySessions.js";
 import {
   acceptLoad,
   completeStop,
@@ -33,9 +33,9 @@ import {
   getDriverType,
   startLoad,
   type LoadResult,
-} from "../modules/loads/index.js";
-import { getDriverScore } from "../modules/performance/index.js";
-import { getResolvedFeatures } from "../services/driverAppFeatures.js";
+} from "../../loads/index.js";
+import { getDriverScore } from "../../performance/index.js";
+import { getResolvedFeatures } from "../driverAppFeatures.js";
 
 /**
  * Driver self-service endpoints (Driver App, Phases 1 + 3A). Identity is ALWAYS resolved server-side

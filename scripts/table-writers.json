@@ -37,10 +37,10 @@
     "apps/api/src/modules/evidence/dqExports.ts"
   ],
   "driver_app_feature_overrides": [
-    "apps/api/src/services/driverAppSettings.ts"
+    "apps/api/src/modules/driver-app/driverAppSettings.ts"
   ],
   "driver_app_features": [
-    "apps/api/src/services/driverAppSettings.ts"
+    "apps/api/src/modules/driver-app/driverAppSettings.ts"
   ],
   "driver_authorizations": [
     "apps/api/src/modules/recruiting/routes/authorizations.ts",
