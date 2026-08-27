@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { PerformanceSettingsForm } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
 const COLS =
@@ -31,10 +32,9 @@ export function useSaveDriverPerformanceSettings() {
   return useMutation({
     mutationFn: async (form: PerformanceSettingsForm): Promise<void> => {
       if (!session.orgId) throw new Error("No active organization.");
-      const { error } = await supabase
-        .from("driver_performance_settings")
-        .upsert({ org_id: session.orgId, ...form, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
-      if (error) throw new Error(error.message);
+      // P6.1: the write goes through the owner (validated, admin-gated, audited).
+      const r = await apiFetch("/api/integrations/driver-performance/settings", { method: "POST", body: form });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save settings");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["driver_performance_settings"] });

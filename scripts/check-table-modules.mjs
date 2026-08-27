@@ -44,7 +44,6 @@ const GRANDFATHERED_WRITERS = new Set([
   // cross-module writes with a named tolerance (anomalies->fuel is D-ARC3's pinned
   // exception) or a program step, admin-api's platform writes (own carve-out decision),
   // and one-shot scripts (delete candidates).
-  "anomaly_thresholds <- apps/web/src/features/settings/useThresholds.ts",
   "audit_logs <- apps/admin-api/src/lib/impersonation.ts",
   "audit_logs <- apps/api/src/lib/audit.ts",
   "declined_transactions <- apps/api/src/modules/anomalies/declinedScoring.ts",
@@ -52,7 +51,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "documents <- apps/api/src/modules/psp/pspOrder.ts",
   "documents <- apps/api/src/modules/recruiting/applicationPdf/file.ts",
   "driver_authorizations <- apps/api/src/scripts/seedPspQaDrivers.ts",
-  "driver_performance_settings <- apps/web/src/features/drivers/useDriverPerformanceSettings.ts",
   "driver_time_off <- apps/api/src/modules/mcleod/tmsIngest.ts",
   "driver_vehicle_assignments <- apps/api/src/modules/idle/idleSync.ts",
   "driver_vehicle_assignments <- apps/api/src/modules/samsara/samsaraVehicleSync.ts",
@@ -64,8 +62,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "drivers <- apps/api/src/modules/samsara/samsaraDriverSync.ts",
   "drivers <- apps/api/src/scripts/seedPspQaDrivers.ts",
   "drivers <- apps/web/src/composables/useDrivers.ts",
-  "efs_soap_credentials <- apps/api/src/scripts/backfillEfsSoapPasswords.ts",
-  "fuel_discount_rules <- apps/web/src/features/fueling/useDiscountRules.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/scoring/context.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",

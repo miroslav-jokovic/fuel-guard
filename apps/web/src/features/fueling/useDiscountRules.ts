@@ -1,15 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
-export const DISCOUNT_TYPES = ["flat", "retail_minus", "cost_plus", "per_site", "none"] as const;
-export type DiscountType = (typeof DISCOUNT_TYPES)[number];
-
-export interface DiscountRule {
-  brand: string;
-  type: DiscountType;
-  cents_off: number;
-}
+// The contract lives in shared since P6.1 (the row shape the API validates writes with).
+export { DISCOUNT_TYPES } from "@silvicom/shared";
+export type { DiscountType, DiscountRuleRow as DiscountRule } from "@silvicom/shared";
+import type { DiscountRuleRow as DiscountRule } from "@silvicom/shared";
 
 /** All per-brand discount rules for the org (for chains that quote posted price + a contract discount). */
 export function useDiscountRules() {
@@ -30,22 +27,11 @@ export function useSaveDiscountRules() {
   const session = useSessionStore();
   return useMutation({
     mutationFn: async (rules: DiscountRule[]): Promise<void> => {
-      const orgId = session.orgId;
-      if (!orgId) throw new Error("No active organization.");
-      const clean = rules
-        .map((r) => ({ ...r, brand: r.brand.trim().toLowerCase() }))
-        .filter((r) => r.brand);
-      const rows = clean.map((r) => ({ org_id: orgId, brand: r.brand, type: r.type, cents_off: r.cents_off, updated_at: new Date().toISOString() }));
-      if (rows.length) {
-        const { error } = await supabase.from("fuel_discount_rules").upsert(rows, { onConflict: "org_id,brand" });
-        if (error) throw new Error(error.message);
-      }
-      // Remove any brand the admin deleted from the list.
-      const keep = clean.map((r) => r.brand);
-      let del = supabase.from("fuel_discount_rules").delete().eq("org_id", orgId);
-      if (keep.length) del = del.not("brand", "in", `(${keep.join(",")})`);
-      const { error: delErr } = await del;
-      if (delErr) throw new Error(delErr.message);
+      if (!session.orgId) throw new Error("No active organization.");
+      // P6.1: replace-set semantics run server-side now (validated, admin-gated, audited).
+      const clean = rules.map((r) => ({ ...r, brand: r.brand.trim().toLowerCase() })).filter((r) => r.brand);
+      const r = await apiFetch("/api/fueling/discount-rules", { method: "POST", body: { rules: clean } });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save discount rules");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fuel_discount_rules"] }),
   });
