@@ -252,6 +252,12 @@
     "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
+  "mcleod_ap_vouchers": [
+    "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
+  "mcleod_settlements": [
+    "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
   "memberships": [
     "apps/api/src/modules/org/routes/invites.ts",
     "apps/api/src/modules/org/routes/members.ts",

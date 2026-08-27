@@ -1,4 +1,5 @@
 import { Router, json } from "express";
+import { registerTmsFinancialRoutes } from "./tmsFinancial.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -84,6 +85,9 @@ export function tmsIngestRouter(): Router {
       next();
     }),
   );
+
+  // ── financial staging (P3.2): settlements + AP vouchers ──────────────────────────────────────
+  registerTmsFinancialRoutes(router);
 
   // ── roster (M3, link-only) ────────────────────────────────────────────────────────────────────
   //

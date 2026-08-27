@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
 import { INSPECTION } from "./inspect.mjs";
+import { fetchSettlements } from "./settlements.mjs";
+import { fetchExpenses } from "./expenses.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -46,6 +48,13 @@ const CFG = {
   // Send every row regardless of whether it changed. What the link-only match report needs: it is
   // measuring a whole roster against FuelGuard's, not a delta.
   rosterFull: process.argv.includes("--full"),
+  // --financial sweeps settlements + AP vouchers into FuelGuard's 0257 staging tables (program
+  // step P3.2). Reads the SAME SQL the standalone reconciliation CLIs (settlements.mjs,
+  // expenses.mjs) have already proven to the cent — this flag turns those proofs into a
+  // pipeline. Rolling accrual window; the ingest is idempotent on the McLeod row id, so overlap
+  // is the normal case, not a hazard.
+  financial: process.argv.includes("--financial"),
+  financialWindowDays: Number(process.env.FINANCIAL_WINDOW_DAYS ?? 45),
   // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
   //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
@@ -116,7 +125,7 @@ if (!CFG.inspect && !CFG.dryRun && (!CFG.ingestUrl || !CFG.ingestToken)) {
   fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -493,6 +502,26 @@ async function runRetire() {
 }
 
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
+/** Sweep one rolling accrual window of settlements + AP vouchers into FuelGuard (P3.2). */
+async function runFinancial() {
+  const end = new Date(Date.now() + 86_400_000); // tomorrow, so today's accruals are inside the window
+  const start = new Date(end.getTime() - CFG.financialWindowDays * 86_400_000);
+  const windowStart = start.toISOString().slice(0, 10);
+  const windowEnd = end.toISOString().slice(0, 10);
+  log(`financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+
+  const st = await fetchSettlements({ ...CFG.sql, windowStart, windowEnd });
+  const rs = await sendBatched("/api/tms/settlements", "settlements", st.settlements);
+  log(`financial: settlements sent=${st.settlements.length} received=${rs.received} upserted=${rs.upserted}`);
+
+  const ex = await fetchExpenses({ ...CFG.sql, windowStart, windowEnd });
+  const rv = await sendBatched("/api/tms/vouchers", "vouchers", ex.vouchers);
+  log(`financial: vouchers sent=${ex.vouchers.length} received=${rv.received} upserted=${rv.upserted}`);
+  // Reconciliation stays where it always ran: the standalone CLIs print the to-the-cent GL
+  // tie-outs; this sweep only persists. Fuel purchases are deliberately NOT posted — EFS is
+  // authoritative for fuel (D-FS2) and the McLeod copy lands via P3.4's projection decision.
+}
+
 async function main() {
   if (CFG.dryRun) {
     log(`DRY RUN — reading ${CFG.sql.database} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}); nothing will be posted`);
@@ -512,6 +541,21 @@ async function main() {
   }
   if (CFG.retire) {
     await runRetire();
+    return;
+  }
+  if (CFG.financial) {
+    await runFinancial();
+    if (CFG.intervalMinutes > 0) {
+      log(`financial: looping every ${CFG.intervalMinutes} min (Ctrl-C to stop)`);
+      while (true) {
+        await sleep(CFG.intervalMinutes * 60_000);
+        try {
+          await runFinancial();
+        } catch (e) {
+          log(`financial cycle error (will retry next interval): ${e.message}`);
+        }
+      }
+    }
     return;
   }
   if (CFG.roster) {
