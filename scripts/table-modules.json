@@ -461,6 +461,14 @@
       "module": "idle",
       "layer": "derived"
     },
+    "vehicle_idle_learned": {
+      "module": "idle",
+      "layer": "derived"
+    },
+    "vehicle_tank_learned": {
+      "module": "anomalies",
+      "layer": "derived"
+    },
     "vehicles": {
       "module": "roster",
       "layer": "core"
