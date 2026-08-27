@@ -7,7 +7,7 @@ import {
   type PspImport,
   type PspImportUpload,
 } from "@silvicom/shared";
-import { registerDocument } from "./compliance.js";
+import { registerDocument } from "../../services/compliance.js";
 
 /**
  * Importing a PSP record bought on the FMCSA portal — P14, the half of PSP that spends nothing.

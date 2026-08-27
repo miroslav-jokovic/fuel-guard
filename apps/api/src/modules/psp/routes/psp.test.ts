@@ -3,10 +3,10 @@ import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { PSP_IMPORT_CONSENT_ATTESTATION } from "@silvicom/shared";
-import { createApp } from "../../app.js";
-import { loadEnv } from "../../env.js";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
-import { closeTestServer } from "../../testing/httpServer.js";
+import { createApp } from "../../../app.js";
+import { loadEnv } from "../../../env.js";
+import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
  * The PSP import routes (P14) — one thing is pinned here and it is the ROLE BOUNDARY.
@@ -20,7 +20,7 @@ import { closeTestServer } from "../../testing/httpServer.js";
  */
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
-vi.mock("../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";

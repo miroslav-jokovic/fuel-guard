@@ -61,7 +61,7 @@ Nothing outside the collector parses a vendor payload.
 | `efs` | `apps/api/src/efs/` + `services/efs*` (to be pulled in) | EFS SOAP + transaction feed | `efs_transactions`, `efs_processing_runs`, `efs_cards`, `efs_card_mutations`, `efs_card_control_settings`, `efs_card_control_approvers`, `efs_capability_promotions`, `efs_capability_proofs`, `efs_soap_credentials`, `efs_soap_client_certs`, `card_write_counters` |
 | `samsara` | `apps/api/src/modules/samsara/` (carved 2026-08-26) | Samsara telematics | `samsara_ifta_fetches`, `samsara_ifta_jurisdiction_miles`, `hos_duty_segments`, `duty_equipment_segments`. (Corrected 2026-08-26 at the `idle` carve-out: `vehicle_engine_days` and `idle_telemetry_windows` went to `idle` — their writers live there, and the manifest is the enforcement.) |
 | `mcleod` | `apps/api/src/tms/` + `services/mcleod*` | McLeod SQL (via carrier VPN) | `tms_movements`, `mcleod_settlements`, `mcleod_ap_vouchers`, `mcleod_billing`, `load_external_payloads` |
-| `psp` | `apps/api/src/psp/` | FMCSA PSP via vendor API | `psp_requests`, `driver_authorizations` |
+| `psp` | `apps/api/src/modules/psp/` (carved 2026-08-26) | FMCSA PSP via vendor API | `psp_requests`, `driver_authorizations` |
 | `hazmat-data` | `packages/hazmat-data`, `packages/hazmat-engine` | Versioned regulatory data | (pure packages, no tables — and gate-enforced to stay that way) |
 | `manual-uploads` | `services/import*`, XLS price upload | Toll expenses, Pilot/posted fuel prices, spreadsheets | `imports`, `import_rows` |
 | `fleetpal` | — not built | FleetPal maintenance | none yet — **watch the double-arrival trap**: McLeod AP already carries maintenance dollars (FINANCIAL-STORE-PLAN records this) |

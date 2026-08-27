@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { PspRequestDraft } from "@silvicom/shared";
-import { loadEnv } from "../env.js";
+import { loadEnv } from "../../env.js";
 import {
   PspError,
   PspNotConfiguredError,

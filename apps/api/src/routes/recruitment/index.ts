@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { recruitmentEmploymentRouter } from "./employment.js";
 import { recruitmentAuthorizationsRouter } from "./authorizations.js";
-import { recruitmentPspRouter } from "./psp.js";
-import { recruitmentPspOrdersRouter } from "./pspOrders.js";
+import { recruitmentPspRouter } from "../../modules/psp/index.js";
+import { recruitmentPspOrdersRouter } from "../../modules/psp/index.js";
 import { recruitmentHireRouter } from "./hire.js";
 import { recruitmentInquiriesRouter } from "./inquiries.js";
 import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";

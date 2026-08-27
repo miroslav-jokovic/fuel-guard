@@ -28,10 +28,10 @@
     "apps/api/src/services/notify.ts"
   ],
   "documents": [
+    "apps/api/src/modules/psp/pspOrder.ts",
     "apps/api/src/services/applicationPdf/file.ts",
     "apps/api/src/services/compliance.ts",
-    "apps/api/src/services/documentDerivatives.ts",
-    "apps/api/src/services/pspOrder.ts"
+    "apps/api/src/services/documentDerivatives.ts"
   ],
   "dq_exports": [
     "apps/api/src/services/dqExports.ts"
@@ -299,12 +299,12 @@
     "apps/admin-api/src/lib/audit.ts"
   ],
   "psp_requests": [
-    "apps/api/src/services/pspOrder.ts"
+    "apps/api/src/modules/psp/pspOrder.ts"
   ],
   "qualification_records": [
-    "apps/api/src/services/compliance.ts",
-    "apps/api/src/services/pspImport.ts",
-    "apps/api/src/services/pspOrder.ts"
+    "apps/api/src/modules/psp/pspImport.ts",
+    "apps/api/src/modules/psp/pspOrder.ts",
+    "apps/api/src/services/compliance.ts"
   ],
   "route_fuel_settings": [
     "apps/api/src/routes/fueling/networks.ts",

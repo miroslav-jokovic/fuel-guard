@@ -5,7 +5,7 @@ import {
   type PspReport,
   type PspRequestDraft,
 } from "@silvicom/shared";
-import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
+import { pspApiKey, pspApiKeyVar, type Env } from "../../env.js";
 
 /**
  * The FMCSA PSP vendor edge, and nothing else (HIRING-PLAN H7 / PSP-PLAN P4).
