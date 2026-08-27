@@ -1,4 +1,4 @@
-import { runEfsSoapIngest } from "../../efsSoapIngest.js";
+import { runEfsSoapIngest } from "../../../modules/efs/services/efsSoapIngest.js";
 import { writeAudit } from "../../../lib/audit.js";
 import type { JobHandler } from "../types.js";
 

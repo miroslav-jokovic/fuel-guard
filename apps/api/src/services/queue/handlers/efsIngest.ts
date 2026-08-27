@@ -1,4 +1,4 @@
-import { buildIngestSource, runEfsIngest } from "../../efsAutoIngest.js";
+import { buildIngestSource, runEfsIngest } from "../../../modules/efs/services/efsAutoIngest.js";
 import { writeAudit } from "../../../lib/audit.js";
 import type { JobHandler } from "../types.js";
 

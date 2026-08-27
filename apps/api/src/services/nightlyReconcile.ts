@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
+import { syncFuelEventsFromEfs, scoreTouched } from "../modules/efs/index.js";
 import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
 import { syncCardAssignments } from "./cardAssignments.js";
 import { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";

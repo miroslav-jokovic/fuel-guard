@@ -7,8 +7,8 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { seal, secretAad } from "../lib/secretBox.js";
-import { credentialIdentityHash } from "../services/efsSoapCredentialIdentity.js";
-import { parseCardDocument } from "../lib/efsCardXml.js";
+import { credentialIdentityHash } from "../modules/efs/services/efsSoapCredentialIdentity.js";
+import { parseCardDocument } from "../modules/efs/lib/efsCardXml.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { promotedCapabilitiesTable } from "../testing/promotionFixture.js";
 import { closeTestServer } from "../testing/httpServer.js";
@@ -73,7 +73,7 @@ const env = loadEnv({
 const ADMIN: AuthContext = { userId: "u-admin", email: "a@x.test", orgId: ORG, role: "admin" };
 
 const fixture = (name: string): string =>
-  readFileSync(fileURLToPath(new URL(`../lib/__fixtures__/efs/${name}`, import.meta.url)), "utf8");
+  readFileSync(fileURLToPath(new URL(`../modules/efs/lib/__fixtures__/efs/${name}`, import.meta.url)), "utf8");
 
 const soap = (body: string): string =>
   `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;

@@ -16,10 +16,10 @@ import {
   getEfsSoapCredentials,
   getEfsSoapStatus,
   upsertEfsSoapCredentials,
-} from "../services/efsSoapCredentials.js";
-import { pingEfsSoap } from "../lib/efsSoap.js";
-import { describeTlsMaterial } from "../lib/soapClient.js";
-import { invalidateOrgSoapIdentity } from "../lib/soapCaches.js";
+} from "../modules/efs/services/efsSoapCredentials.js";
+import { pingEfsSoap } from "../modules/efs/lib/efsSoap.js";
+import { describeTlsMaterial } from "../modules/efs/lib/soapClient.js";
+import { invalidateOrgSoapIdentity } from "../modules/efs/lib/soapCaches.js";
 import { allowPrivateEndpoints, checkOutboundUrl } from "../lib/ssrfGuard.js";
 import {
   ClientCertServiceError,
@@ -30,7 +30,7 @@ import {
   retireAllCerts,
   rollbackToPreviousCert,
   uploadClientCert,
-} from "../services/efsSoapClientCerts.js";
+} from "../modules/efs/services/efsSoapClientCerts.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import type { RunJobResult } from "../services/jobs.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";

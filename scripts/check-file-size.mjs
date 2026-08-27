@@ -109,7 +109,7 @@ const GRANDFATHERED = {
   // `clearException`, and the one combination H16 never tested. It appends `overrideClearEdits()`
   // itself rather than a hand-written trio, because a second definition of "clear an override" would
   // make a green result say nothing about the path that ships.
-  "apps/api/src/routes/fuelCards/experiments.ts": 517,
+  "apps/api/src/modules/efs/routes/experiments.ts": 517,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this
@@ -118,7 +118,7 @@ const GRANDFATHERED = {
 
 const COMPRESSION_BUDGETS = {
   "apps/api/src/routes/integrations.ts": 2,
-  "apps/api/src/routes/fuelCards/experiments.ts": 12,
+  "apps/api/src/modules/efs/routes/experiments.ts": 12,
 };
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".vue"]);

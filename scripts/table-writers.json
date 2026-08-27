@@ -19,9 +19,9 @@
     "apps/api/src/services/entityRisk.ts"
   ],
   "declined_transactions": [
+    "apps/api/src/modules/efs/services/efsIngestReject.ts",
     "apps/api/src/services/declineDriverResolution.ts",
-    "apps/api/src/services/declinedScoring.ts",
-    "apps/api/src/services/efsIngestReject.ts"
+    "apps/api/src/services/declinedScoring.ts"
   ],
   "device_push_tokens": [
     "apps/api/src/routes/notifications.ts",
@@ -67,6 +67,7 @@
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts"
   ],
   "drivers": [
+    "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/samsara/samsaraDriverSync.ts",
     "apps/api/src/routes/invites.ts",
     "apps/api/src/routes/members.ts",
@@ -75,49 +76,48 @@
     "apps/api/src/scripts/seedPspQaDrivers.ts",
     "apps/api/src/services/driverAttribution.ts",
     "apps/api/src/services/driverCredentials.ts",
-    "apps/api/src/services/efsIngest.ts",
     "apps/api/src/services/hosSync.ts",
     "apps/web/src/composables/useDrivers.ts"
   ],
   "efs_capability_promotions": [
-    "apps/api/src/routes/fuelCards/promote.ts",
-    "apps/api/src/routes/fuelCards/prove.ts"
+    "apps/api/src/modules/efs/routes/promote.ts",
+    "apps/api/src/modules/efs/routes/prove.ts"
   ],
   "efs_capability_proofs": [
-    "apps/api/src/routes/fuelCards/prove.ts"
+    "apps/api/src/modules/efs/routes/prove.ts"
   ],
   "efs_card_control_approvers": [
-    "apps/api/src/routes/fuelCards/settings.ts"
+    "apps/api/src/modules/efs/routes/settings.ts"
   ],
   "efs_card_control_settings": [
-    "apps/api/src/routes/fuelCards/inventory.ts",
-    "apps/api/src/routes/fuelCards/scan.ts",
-    "apps/api/src/routes/fuelCards/settings.ts",
-    "apps/api/src/routes/fuelCards/writeProbe.ts",
-    "apps/api/src/services/efsSoapCredentials.ts"
+    "apps/api/src/modules/efs/routes/inventory.ts",
+    "apps/api/src/modules/efs/routes/scan.ts",
+    "apps/api/src/modules/efs/routes/settings.ts",
+    "apps/api/src/modules/efs/routes/writeProbe.ts",
+    "apps/api/src/modules/efs/services/efsSoapCredentials.ts"
   ],
   "efs_card_mutations": [
-    "apps/api/src/efs/orchestrator/ledger.ts",
-    "apps/api/src/services/efsCardUnresolved.ts"
+    "apps/api/src/modules/efs/orchestrator/ledger.ts",
+    "apps/api/src/modules/efs/services/efsCardUnresolved.ts"
   ],
   "efs_cards": [
-    "apps/api/src/services/efsCardLinking.ts",
-    "apps/api/src/services/efsCardMirror.ts",
-    "apps/api/src/services/efsCardTombstone.ts"
+    "apps/api/src/modules/efs/services/efsCardLinking.ts",
+    "apps/api/src/modules/efs/services/efsCardMirror.ts",
+    "apps/api/src/modules/efs/services/efsCardTombstone.ts"
   ],
   "efs_processing_runs": [
-    "apps/api/src/services/efsProcessing.ts"
+    "apps/api/src/modules/efs/services/efsProcessing.ts"
   ],
   "efs_soap_client_certs": [
-    "apps/api/src/services/efsSoapClientCerts.ts"
+    "apps/api/src/modules/efs/services/efsSoapClientCerts.ts"
   ],
   "efs_soap_credentials": [
-    "apps/api/src/scripts/backfillEfsSoapPasswords.ts",
-    "apps/api/src/services/efsSoapCertExpiry.ts",
-    "apps/api/src/services/efsSoapCredentials.ts"
+    "apps/api/src/modules/efs/services/efsSoapCertExpiry.ts",
+    "apps/api/src/modules/efs/services/efsSoapCredentials.ts",
+    "apps/api/src/scripts/backfillEfsSoapPasswords.ts"
   ],
   "efs_transactions": [
-    "apps/api/src/services/efsIngest.ts"
+    "apps/api/src/modules/efs/services/efsIngest.ts"
   ],
   "employer_inquiries": [
     "apps/api/src/services/employerInquiry.ts"
@@ -172,12 +172,12 @@
     "apps/api/src/services/roadRangerIngest.ts"
   ],
   "fuel_transactions": [
+    "apps/api/src/modules/efs/services/efsIngest.ts",
+    "apps/api/src/modules/efs/services/efsIngestShared.ts",
+    "apps/api/src/modules/efs/services/efsSync.ts",
     "apps/api/src/routes/audit.ts",
     "apps/api/src/services/anomalyFlagReconcile.ts",
     "apps/api/src/services/driverAttribution.ts",
-    "apps/api/src/services/efsIngest.ts",
-    "apps/api/src/services/efsIngestShared.ts",
-    "apps/api/src/services/efsSync.ts",
     "apps/api/src/services/fillWeather.ts",
     "apps/api/src/services/fuelStationResolve.ts",
     "apps/api/src/services/scoring/context.ts",
@@ -221,9 +221,9 @@
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
   "imports": [
-    "apps/api/src/services/efsIngestReject.ts",
-    "apps/api/src/services/efsIngestShared.ts",
-    "apps/api/src/services/efsSync.ts"
+    "apps/api/src/modules/efs/services/efsIngestReject.ts",
+    "apps/api/src/modules/efs/services/efsIngestShared.ts",
+    "apps/api/src/modules/efs/services/efsSync.ts"
   ],
   "integration_credentials": [
     "apps/api/src/lib/samsaraToken.ts",
