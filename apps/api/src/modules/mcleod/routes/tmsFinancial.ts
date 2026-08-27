@@ -4,11 +4,12 @@ import {
   tmsApVouchersPayloadSchema,
   tmsBillingPayloadSchema,
   tmsMovementFactsPayloadSchema,
+  tmsDeductionsPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { ingestSettlements, ingestApVouchers, ingestBilling } from "../financialIngest.js";
+import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions } from "../financialIngest.js";
 import { ingestMovementFacts } from "../movementFactIngest.js";
 
 /**
@@ -43,6 +44,20 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestApVouchers(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  router.post(
+    "/deductions",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsDeductionsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid deductions payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestDeductions(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

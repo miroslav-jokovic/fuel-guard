@@ -525,6 +525,12 @@ async function runFinancial() {
   const rs = await sendBatched("/api/tms/settlements", "settlements", st.settlements, windowExtra, 2000);
   log(`financial: settlements sent=${st.settlements.length} received=${rs.received} upserted=${rs.upserted}`);
 
+  // Deductions ride the same fetch — fetchSettlements already reads them (they reconcile the same
+  // accrual window) — and land in their own staging (0268): money moving the other way, with its
+  // own void state, never a column on the settlement.
+  const rd = await sendBatched("/api/tms/deductions", "deductions", st.deductions, windowExtra, 2000);
+  log(`financial: deductions sent=${st.deductions.length} received=${rd.received} upserted=${rd.upserted}`);
+
   const ex = await fetchExpenses({ ...CFG.sql, windowStart, windowEnd });
   const rv = await sendBatched("/api/tms/vouchers", "vouchers", ex.vouchers, windowExtra, 1000);
   log(`financial: vouchers sent=${ex.vouchers.length} received=${rv.received} upserted=${rv.upserted}`);

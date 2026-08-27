@@ -597,6 +597,9 @@ pinned in advance. Program-specific additions:
 11. **Settlement/voucher void-after-sweep** — extraction excludes voided rows (D-MC18), so a row
    voided AFTER being swept keeps its stored copy non-void. A dedicated void-sweep is the fix;
    until then reports inherit McLeod's void lag. Owner: this program (P3 follow-up).
-12. **Settlement deductions staging** — tmsDeductionFactSchema exists but 0257 shipped no
-   staging table; whether deductions land in a table or straight into financial_entries is
-   P3.4's projection decision.
+12. **CLOSED 2026-08-27** — Settlement deductions staging landed as `mcleod_deductions` (0268):
+   a staging table, not a straight projection into financial_entries, so the raw copy survives
+   for reconciliation and the projection decision stays separately revisable. The agent's
+   financial sweep posts them alongside settlements (same accrual window, own void state).
+   Remaining tail: the `deduct_code` vocabulary is stored verbatim but not yet enumerated
+   against dbo.code — a recon question for a later sweep.

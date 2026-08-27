@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsSettlementsPayload, TmsApVouchersPayload, TmsBillingPayload } from "@silvicom/shared";
+import type {
+  TmsSettlementsPayload,
+  TmsApVouchersPayload,
+  TmsBillingPayload,
+  TmsDeductionsPayload,
+} from "@silvicom/shared";
 
 /**
  * The financial staging ingest — settlements and AP vouchers land in their 0257 detail tables
@@ -18,9 +23,8 @@ import type { TmsSettlementsPayload, TmsApVouchersPayload, TmsBillingPayload } f
  * stays `is_void = false`. The dedicated void-sweep is named follow-up work in the program
  * plan; until it lands, reports built on these tables inherit McLeod's own void lag.
  *
- * Deductions (tmsDeductionFactSchema) have NO staging table yet — 0257 shipped without one —
- * so they are deliberately not accepted here; landing them straight into financial_entries is
- * P3.4's projection decision, not a staging shortcut.
+ * Deductions gained their staging table in 0268 (they shipped without one in 0257, and this
+ * header said so honestly until the table existed) — `ingestDeductions` below is the landing.
  */
 
 const CHUNK = 500;
@@ -103,6 +107,38 @@ export async function ingestApVouchers(
     upserted += data?.length ?? rows.length;
   }
   return { received: payload.vouchers.length, upserted };
+}
+
+export async function ingestDeductions(
+  admin: SupabaseClient,
+  orgId: string,
+  payload: TmsDeductionsPayload,
+): Promise<FinancialIngestResult> {
+  let upserted = 0;
+  for (let i = 0; i < payload.deductions.length; i += CHUNK) {
+    const rows = payload.deductions.slice(i, i + CHUNK).map((d) => ({
+      org_id: orgId,
+      external_id: d.external_id,
+      payee_id: d.payee_id ?? null,
+      payee_type: d.payee_type,
+      // NULL is the source's own statement — 317 of June's 699 type-'D' rows carry a tractor and
+      // the rest follow the person; the harness's allocation rules interpret that, never the ingest.
+      tractor_unit: d.tractor_unit ?? null,
+      deduct_code: d.deduct_code ?? null,
+      deduction_type: d.deduction_type ?? null,
+      transacted_at: d.transacted_at ?? null,
+      amount: d.amount,
+      is_void: false,
+      accrual_key: d.accrual_key ?? null,
+    }));
+    const { data, error } = await admin
+      .from("mcleod_deductions")
+      .upsert(rows, { onConflict: "org_id,external_id" })
+      .select("id");
+    if (error) throw new Error(`mcleod_deductions upsert failed: ${error.message}`);
+    upserted += data?.length ?? rows.length;
+  }
+  return { received: payload.deductions.length, upserted };
 }
 
 export async function ingestBilling(

@@ -109,6 +109,14 @@ export const tmsDeductionFactSchema = z.object({
 });
 export type TmsDeductionFact = z.infer<typeof tmsDeductionFactSchema>;
 
+/** The wire envelope for a deductions sweep — same window convention as the settlements payload. */
+export const tmsDeductionsPayloadSchema = z.object({
+  deductions: z.array(tmsDeductionFactSchema).max(2000),
+  window_start: z.string(),
+  window_end: z.string(),
+});
+export type TmsDeductionsPayload = z.infer<typeof tmsDeductionsPayloadSchema>;
+
 export interface SettlementReconciliation {
   /** `posted_pay` summed over the extracted settlements. */
   extracted: number;
