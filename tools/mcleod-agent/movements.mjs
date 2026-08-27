@@ -187,11 +187,11 @@ export function summarizeMovementFacts({ movements, window_start, window_end, co
 /**
  * `npm run movements -- 2026-06-01 2026-07-01`
  *
- * A DRY RUN and nothing else: it reads, it reports, it sends nothing. There is no ingest call in this
- * file yet on purpose — C1's job is to prove the extraction produces numbers the carrier recognises,
- * and a sweep that posts before anyone has checked the mileage is how a wrong denominator reaches a
- * cost report. Posting arrives with C2, once the fuel reconciliation gives the totals something to be
- * checked against.
+ * A DRY RUN and nothing else: it reads, it reports, it sends nothing. C1's job is to prove the
+ * extraction produces numbers the carrier recognises, and a sweep that posts before anyone has
+ * checked the mileage is how a wrong denominator reaches a cost report. The POSTING path (C2) lives
+ * in `agent.mjs --financial`, which calls `fetchMovementFacts` and sends to /api/tms/movement-facts;
+ * this CLI stays a pure dry run so the mileage check remains runnable without an ingest token.
  */
 async function main() {
   const [windowStart, windowEnd] = process.argv.slice(2);

@@ -86,6 +86,18 @@ be proved against the carrier's books.
 > silently compares different months — the mistake that made the first settlement reconciliation miss
 > by roughly $135,000.
 
+> **D-FS7 — movement facts stage with their stops as one JSONB row (0267, 2026-08-27).** The
+> cents-per-mile denominator lands in `mcleod_movements`: miles, equipment attribution, and the
+> ordered stop array in a single row keyed `(org_id, external_id)`. Stops are JSONB rather than a
+> child table because their only consumer — `inferDeadheadLegs` — reads a movement's stops whole to
+> chain deliveries to next pickups; no query wants a stop without its movement, and a child table
+> would add a second writer surface and a landed-movement/missing-stops partial-failure mode for no
+> reader. The same decision records the mileage-basis rule: the raw layer stores McLeod's
+> `move_distance` verbatim because settlements and the carrier's operations reports are built on it,
+> while the owner's 2026-08-27 ruling makes Samsara the fleet's mileage source of truth — so WHICH
+> basis a report divides by is a per-report harness decision, stated on the report, never a silent
+> substitution at ingest (the D-FS2 posture, applied to miles).
+
 ## 4. What the matrix proves
 
 `supabase/tests/financial-entries.test.mjs`, 29 assertions:

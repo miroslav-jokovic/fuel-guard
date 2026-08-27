@@ -260,6 +260,9 @@
   "mcleod_billing": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_movements": [
+    "apps/api/src/modules/mcleod/movementFactIngest.ts"
+  ],
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
