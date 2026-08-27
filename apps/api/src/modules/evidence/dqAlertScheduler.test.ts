@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { runDqAlertsOnce } from "./dqAlertScheduler.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * C3's done-when: two consecutive runs produce one notify() per alert per recipient and at most one
@@ -13,14 +13,14 @@ import { testEnv } from "../testing/testEnv.js";
 const ORG = "org1";
 
 const notifyCalls: Array<Record<string, unknown>> = [];
-vi.mock("./notify.js", () => ({
+vi.mock("../../services/notify.js", () => ({
   notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
     notifyCalls.push(input);
     return "evt";
   }),
 }));
 const emails: Array<{ to: string[]; subject: string }> = [];
-vi.mock("../lib/mailer.js", () => ({
+vi.mock("../../lib/mailer.js", () => ({
   sendEmail: vi.fn(async (_env: unknown, email: { to: string[]; subject: string }) => {
     emails.push(email);
     return { sent: true };

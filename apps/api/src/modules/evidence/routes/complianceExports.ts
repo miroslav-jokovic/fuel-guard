@@ -11,12 +11,12 @@ import {
   canReadRestrictedKind,
   DQ_ITEMS,
 } from "@silvicom/shared";
-import { requireOrg, requireRole } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { buildDocumentExport } from "../services/dqBinder/index.js";
+import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { buildDocumentExport } from "../dqBinder/index.js";
 import {
   attachJob,
   createExport,
@@ -24,8 +24,8 @@ import {
   markDone,
   markFailed,
   signExport,
-} from "../services/dqExports.js";
-import { dispatchJob } from "../services/queue/dispatch.js";
+} from "../dqExports.js";
+import { dispatchJob } from "../../../services/queue/dispatch.js";
 
 /**
  * DQ exports — the /api/compliance/exports/* surface (DQ-BINDER-PLAN), split out of

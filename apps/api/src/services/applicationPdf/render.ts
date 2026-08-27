@@ -21,7 +21,7 @@ import {
   rule,
   title,
   winAnsi,
-} from "../dqBinder/pdfDraw.js";
+} from "../../lib/pdfDraw.js";
 
 /**
  * The §391.21 application, as the document the regulation describes (A6, D-APP9).

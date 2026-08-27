@@ -9,7 +9,7 @@ import {
   table,
   type Cell,
   type Column,
-} from "../../dqBinder/pdfDraw.js";
+} from "../../../lib/pdfDraw.js";
 import { CONTINUED, FOOTER } from "./packetText.js";
 import type { EquipmentClass } from "@silvicom/shared";
 

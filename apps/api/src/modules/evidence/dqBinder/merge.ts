@@ -1,7 +1,7 @@
 import { degrees, PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import sharp from "sharp";
 import { footerPosition, visibleSize } from "./footer.js";
-import { MARGIN, PAGE_HEIGHT, PAGE_WIDTH, winAnsi } from "./pdfDraw.js";
+import { MARGIN, PAGE_HEIGHT, PAGE_WIDTH, winAnsi } from "../../../lib/pdfDraw.js";
 
 /**
  * Assembly (DQ-BINDER-PLAN D-BD1). pdfkit draws; pdf-lib COPIES.

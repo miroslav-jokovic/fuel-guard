@@ -21,12 +21,12 @@ import {
   shouldDerive,
 } from "@silvicom/shared";
 import { randomUUID } from "node:crypto";
-import { dispatchJob } from "../services/queue/dispatch.js";
-import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   insertCertification,
   listCertifications,
@@ -35,8 +35,8 @@ import {
   registerDocument,
   listDocuments,
   signDocumentDownload,
-} from "../services/compliance.js";
-import { getComplianceOverview } from "../services/complianceOverview.js";
+} from "../compliance.js";
+import { getComplianceOverview } from "../complianceOverview.js";
 import { complianceExportsRouter } from "./complianceExports.js";
 
 /**

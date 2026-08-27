@@ -1,5 +1,5 @@
 import type { JobHandler } from "../types.js";
-import { deriveDocument, DERIVER_VERSION } from "../../documentDerivatives.js";
+import { deriveDocument, DERIVER_VERSION } from "../../../modules/evidence/index.js";
 
 /**
  * `document_derive` — thumb + normalized WebP for one compliance document (DQF plan B3).

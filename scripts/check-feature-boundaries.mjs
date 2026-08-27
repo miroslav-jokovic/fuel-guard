@@ -92,6 +92,9 @@ const API_ALLOW = new Set([
   "samsara -> idle",
   // The spend report prints the fleet idle verdict next to the money it explains.
   "fuel-spend -> idle",
+  // A fetched PSP report is filed into the DQ record through evidence's registerDocument —
+  // the collector→core write, made through the owner's interface exactly as D-ARC3 asks.
+  "psp -> evidence",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

@@ -17,7 +17,7 @@ import {
   title,
   WARN,
   type Cell,
-} from "./pdfDraw.js";
+} from "../../../lib/pdfDraw.js";
 
 /**
  * The pages the binder AUTHORS (DQ-BINDER-PLAN §3). The scans are copied in by `merge.ts`.

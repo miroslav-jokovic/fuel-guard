@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { registerDocument } from "./compliance.js";
+import { registerDocument } from "../modules/evidence/index.js";
 import {
   EMPLOYER_INQUIRIES,
   composeInquiry,

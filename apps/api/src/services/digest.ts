@@ -12,7 +12,7 @@ import {
   type OdometerHygieneCluster,
   type CapacityVehicleRow,
 } from "@silvicom/shared";
-import { getComplianceOverview } from "./complianceOverview.js";
+import { getComplianceOverview } from "../modules/evidence/index.js";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";

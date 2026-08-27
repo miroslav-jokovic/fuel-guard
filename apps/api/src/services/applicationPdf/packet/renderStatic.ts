@@ -1,4 +1,4 @@
-import { CONTENT_WIDTH, INK, MARGIN, newDrawing, winAnsi } from "../../dqBinder/pdfDraw.js";
+import { CONTENT_WIDTH, INK, MARGIN, newDrawing, winAnsi } from "../../../lib/pdfDraw.js";
 import { letterhead, packetFooter, sectionHeading, type PacketCarrier } from "./packetDraw.js";
 import { STATIC_PAGES } from "./packetStatic.js";
 import { correct } from "./packetText.js";

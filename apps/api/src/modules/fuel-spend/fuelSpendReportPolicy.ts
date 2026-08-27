@@ -16,7 +16,7 @@ import { lead, note, startSection } from "./fuelSpendReportDraw.js";
 import { ensure, gap } from "./fuelSpendReportFlow.js";
 import { num, plural, shortDay, usd, usd3 } from "./fuelSpendReportFormat.js";
 import { avoidedBrandsLabel, avoidedStatesLabel } from "@silvicom/shared";
-import { winAnsi } from "../../services/dqBinder/pdfDraw.js";
+import { winAnsi } from "../../lib/pdfDraw.js";
 
 const M = GEOM.margin;
 

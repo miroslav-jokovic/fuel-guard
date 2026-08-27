@@ -4,7 +4,7 @@ import { reclaimInterruptedJobs } from "./services/jobs.js";
 import { startSamsaraScheduler } from "./modules/samsara/index.js";
 import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
-import { startDqAlertScheduler } from "./services/dqAlertScheduler.js";
+import { startDqAlertScheduler } from "./modules/evidence/index.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./modules/efs/services/efsIngestScheduler.js";
 import { startEfsCardSyncScheduler } from "./modules/efs/services/efsCardSyncScheduler.js";
@@ -15,7 +15,7 @@ import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
 import { startStorageReconcileScheduler } from "./services/storageReconcileScheduler.js";
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
-import { startDqExportSweeper } from "./services/dqExportSweeper.js";
+import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./services/patternSweepScheduler.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
 

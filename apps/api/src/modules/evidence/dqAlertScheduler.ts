@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { planDqAlerts, rolesThatManage, type DqAlert } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { sendEmail } from "../lib/mailer.js";
+import type { Env } from "../../env.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
+import { sendEmail } from "../../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
-import { notify } from "./notify.js";
-import { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
+import { notify } from "../../services/notify.js";
+import { runApplicationNudgesOnce } from "../../services/applicationNudgeSweep.js";
 
 /**
  * DQ expiry alerts (DQF execution plan C3) — the digestScheduler shape, applied to qualifications:
