@@ -58,7 +58,7 @@ function hasStepUpToken(req: Request): boolean {
 }
 
 export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
     if (!hasStepUpToken(req)) {
       res.status(403).json({
         ...apiError(
@@ -71,6 +71,8 @@ export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC
     }
     next();
   };
+  // Runtime marker for routeGates.test.ts (P4.2, D-SEP10).
+  return Object.assign(handler, { gateKind: "freshAuth" as const });
 }
 
 /**

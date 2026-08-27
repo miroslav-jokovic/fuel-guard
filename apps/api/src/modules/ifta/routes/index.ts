@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { rolesThatCanView } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -12,10 +13,10 @@ const querySchema = z.object({
 });
 
 /**
- * The IFTA period read, served by the API instead of a browser RPC (P1.10). Access is
- * deliberately the same audience the invoker RPCs granted — any authenticated org member —
- * so this seam closure changes WHO EXECUTES the query, not who may ask; tightening IFTA to a
- * role set is a phase-P4 access decision, not a carve-out side effect.
+ * The IFTA period read, served by the API instead of a browser RPC (P1.10). The P4.2 decision
+ * the original header deferred, now taken: quarterly fuel-tax position is a fuel-section
+ * surface, gated on the matrix-derived view set — which now includes the accountant (0266),
+ * because IFTA liability is a line in the books. Drivers lose a read they never had a page for.
  */
 export function iftaRouter(): Router {
   const router = Router();
@@ -23,6 +24,7 @@ export function iftaRouter(): Router {
   router.get(
     "/period",
     requireOrg,
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const parsed = querySchema.safeParse(req.query);
       if (!parsed.success) {
