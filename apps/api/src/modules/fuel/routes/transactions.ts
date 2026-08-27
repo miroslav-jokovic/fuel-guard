@@ -8,7 +8,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { scoreWithCascade } from "../../anomalies/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../../efs/index.js";
 import { notifyForTransaction } from "../../messaging/index.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 import { buildIngestSource } from "../../efs/index.js";
 import {
   startJob, finishJob, startJobHeartbeat, scoringDedupKey, JobConflictError,

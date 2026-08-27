@@ -1,6 +1,6 @@
 import type { JobHandler } from "../types.js";
-import { buildBinder } from "../../../modules/evidence/index.js";
-import { markDone, markFailed, markRunning, storeBinder } from "../../../modules/evidence/index.js";
+import { buildBinder } from "../../modules/evidence/index.js";
+import { markDone, markFailed, markRunning, storeBinder } from "../../modules/evidence/index.js";
 
 /**
  * `dq_binder` — assemble an auditor's sample into one PDF (DQ-BINDER-PLAN D-BD3).

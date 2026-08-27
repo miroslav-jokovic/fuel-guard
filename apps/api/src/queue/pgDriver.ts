@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { JobKind } from "../../modules/org/index.js";
-import { updateJobProgress } from "../../modules/org/index.js";
+import type { JobKind } from "../modules/org/index.js";
+import { updateJobProgress } from "../modules/org/index.js";
 import type { EnqueueOpts, QueueDriver, QueueJob } from "./types.js";
 
 /**

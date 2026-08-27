@@ -28,7 +28,7 @@ const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }));
 
 // The handler imports the samsara collector through its module index (2026-08-26 carve-out), so
 // the mock targets the index — per-file mocks of the old services/ paths would silently not apply.
-vi.mock("../../../modules/samsara/index.js", () => ({
+vi.mock("../../modules/samsara/index.js", () => ({
   syncHosDutySegments: hosSync.syncHosDutySegments,
   syncHosCurrentStatus: hosSync.syncHosCurrentStatus,
   syncVehiclesFromSamsara: vehicleSync.syncVehiclesFromSamsara,
@@ -40,19 +40,19 @@ vi.mock("../../../modules/samsara/index.js", () => ({
   syncIftaMilesForMonth: vi.fn(),
 }));
 // The idle syncs now live behind the idle module index (2026-08-26 carve-out) — mock the index.
-vi.mock("../../../modules/idle/index.js", () => ({
+vi.mock("../../modules/idle/index.js", () => ({
   syncIdleFoundation: idleFoundation.syncIdleFoundation,
   syncIdleDutyEvidence: idleDutyEvidence.syncIdleDutyEvidence,
   syncIdleRollup: idleRollup.syncIdleRollup,
 }));
 // The handler reaches scores through the performance module index (2026-08-27 carve-out).
-vi.mock("../../../modules/performance/index.js", () => ({
+vi.mock("../../modules/performance/index.js", () => ({
   syncDriverScores: scoreSync.syncDriverScores,
   syncRecentDriverScoreWeeks: scoreSync.syncRecentDriverScoreWeeks,
   snapshotSettledWeeks: vi.fn(),
 }));
-vi.mock("../../nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));
-vi.mock("../../../lib/audit.js", () => audit);
+vi.mock("../../services/nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));
+vi.mock("../../lib/audit.js", () => audit);
 
 import {
   syncDriverScoresHandler,

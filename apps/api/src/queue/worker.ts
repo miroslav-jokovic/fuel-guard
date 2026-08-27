@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../../env.js";
-import type { JobKind } from "../../modules/org/index.js";
+import type { Env } from "../env.js";
+import type { JobKind } from "../modules/org/index.js";
 import { pgQueueDriver } from "./pgDriver.js";
 import { getHandler, registeredKinds } from "./registry.js";
 import type { JobContext, QueueDriver, QueueJob } from "./types.js";

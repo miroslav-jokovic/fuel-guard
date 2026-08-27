@@ -31,7 +31,7 @@ import {
   rollbackToPreviousCert,
   uploadClientCert,
 } from "../modules/efs/services/efsSoapClientCerts.js";
-import { dispatchJob } from "../services/queue/dispatch.js";
+import { dispatchJob } from "../queue/dispatch.js";
 import type { RunJobResult } from "../modules/org/index.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../modules/samsara/lib/samsaraToken.js";
 import { SecretBoxError } from "../lib/secretBox.js";

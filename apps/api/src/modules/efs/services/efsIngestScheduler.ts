@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { scoringDedupKey, runJob, JobConflictError } from "../../org/index.js";
-import { enqueueJob } from "../../../services/queue/enqueue.js";
+import { enqueueJob } from "../../../queue/enqueue.js";
 import { runEfsIngest, buildIngestSource } from "./efsAutoIngest.js";
 
 /**

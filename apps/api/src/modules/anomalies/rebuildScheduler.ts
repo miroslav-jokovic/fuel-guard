@@ -1,7 +1,7 @@
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { RECENT_REBUILD_DAYS } from "./scoring/index.js";
-import { dispatchJob } from "../../services/queue/dispatch.js";
+import { dispatchJob } from "../../queue/dispatch.js";
 
 /**
  * Run a one-time anomaly rebuild shortly after boot so a redeploy automatically re-scores existing

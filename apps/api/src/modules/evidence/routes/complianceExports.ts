@@ -25,7 +25,7 @@ import {
   markFailed,
   signExport,
 } from "../dqExports.js";
-import { dispatchJob } from "../../../services/queue/dispatch.js";
+import { dispatchJob } from "../../../queue/dispatch.js";
 
 /**
  * DQ exports — the /api/compliance/exports/* surface (DQ-BINDER-PLAN), split out of

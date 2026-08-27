@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { JobKind } from "../../modules/org/index.js";
-import { JobConflictError } from "../../modules/org/index.js";
+import type { JobKind } from "../modules/org/index.js";
+import { JobConflictError } from "../modules/org/index.js";
 import { pgQueueDriver } from "./pgDriver.js";
 import type { EnqueueOpts, QueueDriver } from "./types.js";
 

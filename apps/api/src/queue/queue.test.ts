@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { JobConflictError } from "../../modules/org/index.js";
+import { JobConflictError } from "../modules/org/index.js";
 import { clearHandlers, getHandler, registerHandler, registeredKinds } from "./registry.js";
 import { enqueueJob } from "./enqueue.js";
 import { dispatchJob } from "./dispatch.js";

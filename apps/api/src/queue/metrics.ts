@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../../env.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
+import type { Env } from "../env.js";
+import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 
 /**
  * Queue observability (plan A1 — "observed from day one"). Reports the live backlog so a queue that starts

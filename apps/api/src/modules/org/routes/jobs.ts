@@ -4,7 +4,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { failedJobs, latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../jobs.js";
-import { queueMetrics } from "../../../services/queue/metrics.js";
+import { queueMetrics } from "../../../queue/metrics.js";
 
 const KNOWN_KINDS = new Set<JobKind>([
   "rebuild",

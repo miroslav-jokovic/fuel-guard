@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../../env.js";
+import type { Env } from "../env.js";
 import {
   JobConflictError,
   runJob,
@@ -7,7 +7,7 @@ import {
   SCORING_JOB_KINDS,
   type JobKind,
   type RunJobResult,
-} from "../../modules/org/index.js";
+} from "../modules/org/index.js";
 import { enqueueJob } from "./enqueue.js";
 import { getHandler } from "./registry.js";
 import type { JobContext } from "./types.js";

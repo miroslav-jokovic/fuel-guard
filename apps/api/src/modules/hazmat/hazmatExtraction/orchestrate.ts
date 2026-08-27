@@ -12,7 +12,7 @@ import { anthropicVisionExtractor, HAZMAT_EXTRACTION_PROMPT_VERSION, type ImageI
 import { runExtraction } from "./extract.js";
 import { computeExtractionFlags, isGreen } from "./outcome.js";
 import { notifyReviewersOfFlag } from "../hazmatNotify.js";
-import { enqueueJob } from "../../../services/queue/enqueue.js";
+import { enqueueJob } from "../../../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 import { evaluateQualification } from "../qualification.js";
 import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";

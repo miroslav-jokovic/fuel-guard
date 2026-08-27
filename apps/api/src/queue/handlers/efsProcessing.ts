@@ -1,4 +1,4 @@
-import { processEfsProcessingRun } from "../../../modules/efs/services/efsProcessing.js";
+import { processEfsProcessingRun } from "../../modules/efs/services/efsProcessing.js";
 import type { JobHandler } from "../types.js";
 
 export const efsProcessingHandler: JobHandler = async (ctx, job) => {

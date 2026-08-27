@@ -14,7 +14,7 @@ import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
-import { registerAllHandlers } from "./services/queue/handlers/index.js";
+import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
