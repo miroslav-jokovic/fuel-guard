@@ -12,7 +12,7 @@ import {
   type DeclineSignal,
 } from "@silvicom/shared";
 import type { Env } from "../env.js";
-import { reconcileWithSamsara } from "./samsaraRecon.js";
+import { reconcileWithSamsara } from "../modules/samsara/index.js";
 import { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js";
 import { resolveDeclineDrivers } from "./declineDriverResolution.js";
 

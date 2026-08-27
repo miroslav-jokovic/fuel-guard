@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /** Fake admin: select → existing fixture; update/insert captured. Distinguishes the deactivation update
  *  (status:inactive + .in(ids)) from the per-driver identity updates. */

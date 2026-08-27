@@ -15,7 +15,7 @@ import {
   type SamsaraSafetyScoreFetcher,
   type SamsaraDriverEfficiencyFetcher,
 } from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { NoSamsaraTokenError } from "../modules/samsara/index.js";
 
 export interface DriverScoreSyncResult {
   weekStart: string;

@@ -7,7 +7,7 @@ import {
   type SamsaraNumericStatEvent,
   type VehicleTelemetryFetcher,
 } from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { NoSamsaraTokenError } from "../modules/samsara/index.js";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleTelemetrySyncResult {

@@ -8,9 +8,9 @@ import {
   type SamsaraVehicle,
   type VehicleFuelLevel,
 } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { isTmsRosterMaster } from "../modules/mcleod/index.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { isTmsRosterMaster } from "../mcleod/index.js";
 import {
   makeSamsaraVehicleLister,
   makeSamsaraOdometerFetcher,
@@ -18,7 +18,7 @@ import {
   type SamsaraVehicleLister,
   type SamsaraOdometerFetcher,
   type SamsaraAssignmentFetcher,
-} from "../lib/samsara.js";
+} from "../../lib/samsara.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara

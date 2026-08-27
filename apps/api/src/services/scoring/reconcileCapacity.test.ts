@@ -22,7 +22,9 @@ import { testEnv } from "../../testing/testEnv.js";
  * which there is exactly one capacity to resolve.
  */
 const mocks = vi.hoisted(() => ({ reconcileWithSamsara: vi.fn() }));
-vi.mock("../samsaraRecon.js", () => ({
+// reconcile.ts imports these through the samsara module index (2026-08-26 carve-out) — the mock
+// must target that specifier or it silently stops applying.
+vi.mock("../../modules/samsara/index.js", () => ({
   reconcileWithSamsara: mocks.reconcileWithSamsara,
   SamsaraUnavailableError: class SamsaraUnavailableError extends Error {},
 }));

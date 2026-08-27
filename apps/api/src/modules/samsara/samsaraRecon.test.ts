@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 import type { VehicleView } from "@silvicom/shared";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 const env = testEnv({ SITE_PROX_MILES: 0.5, LOCATION_MISMATCH_MIN_MILES: 50 });
 const admin = {} as unknown as SupabaseClient; // unused when fetcher + geocode are injected

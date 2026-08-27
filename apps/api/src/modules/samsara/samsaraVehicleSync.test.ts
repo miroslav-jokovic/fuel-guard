@@ -76,9 +76,9 @@ describe("syncVehicleStatsFromSamsara (live-stats tier)", () => {
 });
 
 // ── Replacement lifecycle (identity check 2026-08-12) ───────────────────────────────────────────
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { syncVehiclesFromSamsara } from "./samsaraVehicleSync.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 describe("syncVehiclesFromSamsara — samsara_missing_since lifecycle", () => {
   const ORG = "org-1";

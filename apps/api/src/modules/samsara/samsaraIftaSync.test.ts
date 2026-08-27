@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseIftaVehicleReport, type RawIftaResponse } from "@silvicom/shared";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { isProvisionalMonth, monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 
 /**

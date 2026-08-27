@@ -26,17 +26,21 @@ const scoreSync = vi.hoisted(() => ({
 }));
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }));
 
-vi.mock("../../samsaraVehicleSync.js", () => ({
+// The handler imports the samsara collector through its module index (2026-08-26 carve-out), so
+// the mock targets the index — per-file mocks of the old services/ paths would silently not apply.
+vi.mock("../../../modules/samsara/index.js", () => ({
   syncVehiclesFromSamsara: vehicleSync.syncVehiclesFromSamsara,
   syncVehicleStatsFromSamsara: vehicleSync.syncVehicleStatsFromSamsara,
   NoSamsaraTokenError,
+  syncTrailersFromSamsara: trailerSync.syncTrailersFromSamsara,
+  syncDriversFromSamsara: driverSync.syncDriversFromSamsara,
+  monthsToSync: vi.fn(() => []),
+  syncIftaMilesForMonth: vi.fn(),
 }));
-vi.mock("../../samsaraTrailerSync.js", () => trailerSync);
 vi.mock("../../idleFoundationSync.js", () => idleFoundation);
 vi.mock("../../hosSync.js", () => hosSync);
 vi.mock("../../idleDutyEvidenceSync.js", () => idleDutyEvidence);
 vi.mock("../../idleRollup.js", () => idleRollup);
-vi.mock("../../samsaraDriverSync.js", () => driverSync);
 vi.mock("../../driverScoreSync.js", () => scoreSync);
 vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
 vi.mock("../../nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));

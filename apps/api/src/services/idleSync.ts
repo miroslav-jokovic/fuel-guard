@@ -15,7 +15,7 @@ import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraIdlingEventFetcher } from "../lib/samsara.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { backfillTemperatures } from "./weatherBackfill.js";
-import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { NoSamsaraTokenError } from "../modules/samsara/index.js";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleSyncResult {

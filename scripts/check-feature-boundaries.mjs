@@ -81,7 +81,12 @@ const DRIVER_ALLOW = new Set([]);
 // apps/api modules (D-ARC1, docs/ARCHITECTURE.md): the carve-outs land under apps/api/src/modules/<name>,
 // and module isolation is enforced from the FIRST module — the dir not existing yet skips silently, the
 // same forward-arming as the driver check below.
-const API_ALLOW = new Set([]);
+const API_ALLOW = new Set([
+  // Samsara's roster syncs defer to McLeod on identity fields when the org has declared McLeod
+  // roster master (isTmsRosterMaster, via mcleod's index only). A real cross-collector rule,
+  // recorded here so the day it changes, this entry says who depended on it.
+  "samsara -> mcleod",
+]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
 checkFeatureIsolation(join(ROOT, "apps/api/src/modules"), API_ALLOW, "api");

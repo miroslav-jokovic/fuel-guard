@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { IFTA_MONTHS, iftaMonthNumber, type IftaVehicleReport } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { makeSamsaraIftaFetcher, type SamsaraIftaFetcher } from "../lib/samsaraIfta.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { makeSamsaraIftaFetcher, type SamsaraIftaFetcher } from "../../lib/samsaraIfta.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 
 /**

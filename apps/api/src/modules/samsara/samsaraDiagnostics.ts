@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { samsaraFetch } from "../lib/samsaraHttp.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
+import { samsaraFetch } from "../../lib/samsaraHttp.js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 
 /**
