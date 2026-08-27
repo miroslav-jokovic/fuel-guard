@@ -54,10 +54,10 @@
     "apps/web/src/features/drivers/useDriverPerformanceSettings.ts"
   ],
   "driver_performance_weeks": [
-    "apps/api/src/services/driverPerformanceSnapshot.ts"
+    "apps/api/src/modules/performance/driverPerformanceSnapshot.ts"
   ],
   "driver_scores": [
-    "apps/api/src/services/driverScoreSync.ts"
+    "apps/api/src/modules/performance/driverScoreSync.ts"
   ],
   "driver_time_off": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"

@@ -12,8 +12,8 @@ import {
   type WeekLeaderboard,
   type WeekWindow,
 } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { notify } from "../modules/messaging/index.js";
+import type { Env } from "../../env.js";
+import { notify } from "../messaging/index.js";
 
 const HOUR = 3_600_000;
 

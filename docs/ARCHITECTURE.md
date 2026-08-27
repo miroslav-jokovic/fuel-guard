@@ -109,7 +109,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 | `fuel-spend` (carved 2026-08-26, `apps/api/src/modules/fuel-spend/`) | `fuel_statements`, `fuel_statement_lines`, `fuel_spend_days`, `fuel_recon_runs`, `fuel_exceptions`, `fuel_exception_events` | reconcile, reports, fuel |
 | `ifta` | (reads `samsara` staging + `fuel`) | ifta |
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
-| `performance` | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
+| `performance` (carved 2026-08-27, `apps/api/src/modules/performance/`) | `driver_scores`, `driver_performance_weeks`, `driver_performance_settings` | drivers; driver-app score |
 | `compliance` (DQF, binders) | (reads `evidence`; binder rendering in `services/dqBinder/`) | compliance |
 | `recruiting` (carved 2026-08-27, `apps/api/src/modules/recruiting/`) | `driver_applications`, `application_drafts`, `application_invitations`, `application_captures`, `applicant_dispositions`, `employer_inquiries`, `driver_employment_history`, `esign_consents`, `sms_consents`, `seven_day_statements` | recruitment, apply |
 | `hazmat` (carved 2026-08-27, `apps/api/src/modules/hazmat/`) | `hazmat_loads`, `hazmat_documents`, `hazmat_policies`, `hazmat_reviews`, `hazmat_runs` | hazmat |

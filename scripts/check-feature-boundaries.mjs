@@ -137,6 +137,12 @@ const API_ALLOW = new Set([
   "loads -> recruiting",
   // A red hazmat verdict tells the office through the same fabric as everyone else.
   "hazmat -> messaging",
+  // The Samsara scheduler paces the score sync and week snapshots — the cadence clock again.
+  "samsara -> performance",
+  // A score alert reaches the driver through the fabric.
+  "performance -> messaging",
+  // Score sync runs on the vendor client and shares its token-missing error class.
+  "performance -> samsara",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

@@ -7,15 +7,15 @@ import {
   type SafetyScoreRow,
   type EfficiencyScoreRow,
 } from "@silvicom/shared";
-import type { Env } from "../env.js";
-import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import type { Env } from "../../env.js";
+import { loadSamsaraToken } from "../../lib/samsaraToken.js";
 import {
   makeSamsaraSafetyScoreFetcher,
   makeSamsaraDriverEfficiencyFetcher,
   type SamsaraSafetyScoreFetcher,
   type SamsaraDriverEfficiencyFetcher,
-} from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "../modules/samsara/index.js";
+} from "../../lib/samsara.js";
+import { NoSamsaraTokenError } from "../samsara/index.js";
 
 export interface DriverScoreSyncResult {
   weekStart: string;

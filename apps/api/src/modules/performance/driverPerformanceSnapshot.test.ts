@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
-import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../testing/supabaseRecorder.js";
-import { testEnv } from "../testing/testEnv.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Migrated off the local filter-aware `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). That fake read
