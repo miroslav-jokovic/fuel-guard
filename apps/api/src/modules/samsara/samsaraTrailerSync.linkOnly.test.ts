@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { testEnv } from "../testing/testEnv.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { testEnv } from "../../testing/testEnv.js";
 import { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
 
 /**

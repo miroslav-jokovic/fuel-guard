@@ -3,7 +3,7 @@ import { parseAssetGps, inferTrailerPairing, type GpsSample, type TruckTrack } f
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraTrailerGpsFetcher, makeSamsaraVehiclesGpsFetcher } from "../lib/samsara.js";
-import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { NoSamsaraTokenError } from "../modules/samsara/index.js";
 
 /** Days of GPS history to match over — enough to establish the current hauler without an unbounded fetch. */
 const WINDOW_DAYS = 5;

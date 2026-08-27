@@ -1,21 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import type { Env } from "../../env.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import {
   syncVehiclesFromSamsara,
   syncVehicleStatsFromSamsara,
   NoSamsaraTokenError,
 } from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
-import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
-import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
-import { syncIdleFoundation } from "./idleFoundationSync.js";
-import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
-import { syncIdleRollup } from "./idleRollup.js";
-import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
-import { runDataRetention } from "./dataRetention.js";
-import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "./jobs.js";
-import { enqueueJob } from "./queue/enqueue.js";
+import { syncRecentDriverScoreWeeks } from "../../services/driverScoreSync.js";
+import { snapshotSettledWeeks } from "../../services/driverPerformanceSnapshot.js";
+import { syncIdleFoundation } from "../../services/idleFoundationSync.js";
+import { syncHosDutySegments, syncHosCurrentStatus } from "../../services/hosSync.js";
+import { syncIdleRollup } from "../../services/idleRollup.js";
+import { syncIdleDutyEvidence } from "../../services/idleDutyEvidenceSync.js";
+import { runDataRetention } from "../../services/dataRetention.js";
+import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../../services/jobs.js";
+import { enqueueJob } from "../../services/queue/enqueue.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —

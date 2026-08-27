@@ -63,10 +63,11 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "driver_vehicle_assignments": [
-    "apps/api/src/services/idleSync.ts",
-    "apps/api/src/services/samsaraVehicleSync.ts"
+    "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
+    "apps/api/src/services/idleSync.ts"
   ],
   "drivers": [
+    "apps/api/src/modules/samsara/samsaraDriverSync.ts",
     "apps/api/src/routes/invites.ts",
     "apps/api/src/routes/members.ts",
     "apps/api/src/routes/roster/archive.ts",
@@ -76,7 +77,6 @@
     "apps/api/src/services/driverCredentials.ts",
     "apps/api/src/services/efsIngest.ts",
     "apps/api/src/services/hosSync.ts",
-    "apps/api/src/services/samsaraDriverSync.ts",
     "apps/web/src/composables/useDrivers.ts"
   ],
   "efs_capability_promotions": [
@@ -227,8 +227,8 @@
   ],
   "integration_credentials": [
     "apps/api/src/lib/samsaraToken.ts",
-    "apps/api/src/services/queue/handlers/samsara.ts",
-    "apps/api/src/services/samsaraScheduler.ts"
+    "apps/api/src/modules/samsara/samsaraScheduler.ts",
+    "apps/api/src/services/queue/handlers/samsara.ts"
   ],
   "invites": [
     "apps/api/src/routes/invites.ts",
@@ -314,10 +314,10 @@
     "apps/api/src/services/routeGeometry.ts"
   ],
   "samsara_ifta_fetches": [
-    "apps/api/src/services/samsaraIftaSync.ts"
+    "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
   "samsara_ifta_jurisdiction_miles": [
-    "apps/api/src/services/samsaraIftaSync.ts"
+    "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
   "scoring_attempts": [
     "apps/api/src/services/scoring/persist.ts"
@@ -341,16 +341,16 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "trailers": [
+    "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/api/src/services/reeferPairing.ts",
-    "apps/api/src/services/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
   "vehicle_engine_days": [
     "apps/api/src/services/idleCapabilitySync.ts"
   ],
   "vehicles": [
+    "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/api/src/services/idleCapabilitySync.ts",
-    "apps/api/src/services/samsaraVehicleSync.ts",
     "apps/api/src/services/scoring/learnVehicle.ts",
     "apps/api/src/services/scoring/persist.ts",
     "apps/web/src/composables/useDrivers.ts",

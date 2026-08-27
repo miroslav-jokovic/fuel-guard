@@ -5,7 +5,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
+import { runSamsaraDiagnostics } from "../modules/samsara/index.js";
 import {
   getTmsIntegrationStatus,
   enableTmsIntegration,

@@ -7,7 +7,7 @@ import {
   type VehicleView,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { reconcileWithSamsara, SamsaraUnavailableError } from "../samsaraRecon.js";
+import { reconcileWithSamsara, SamsaraUnavailableError } from "../../modules/samsara/index.js";
 import { n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 
