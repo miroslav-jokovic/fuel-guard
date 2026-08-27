@@ -4,7 +4,7 @@ import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraDriverLister, type SamsaraDriverLister } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
-import { isTmsRosterMaster } from "../tms/rosterMastery.js";
+import { isTmsRosterMaster } from "../modules/mcleod/index.js";
 
 export interface DriverSyncResult {
   total: number;

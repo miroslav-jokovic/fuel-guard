@@ -10,7 +10,7 @@ import {
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { inferTrailerPairings } from "./reeferPairing.js";
-import { isTmsRosterMaster } from "../tms/rosterMastery.js";
+import { isTmsRosterMaster } from "../modules/mcleod/index.js";
 
 export interface TrailerSyncResult {
   total: number;

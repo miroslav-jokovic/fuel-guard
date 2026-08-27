@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { apiError, asyncHandler } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 
 /**
  * Declaring — and withdrawing — the carrier's TMS as the master of the roster.

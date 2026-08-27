@@ -10,7 +10,7 @@ import {
   getTmsIntegrationStatus,
   enableTmsIntegration,
   disableTmsIntegration,
-} from "../services/tmsIngest.js";
+} from "../modules/mcleod/index.js";
 import {
   disableEfsSoapCredentials,
   getEfsSoapCredentials,

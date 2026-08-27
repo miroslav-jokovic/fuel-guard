@@ -22,7 +22,7 @@ import { vehiclePatch, trailerPatch } from "./rosterFields.js";
  * The migrations are scanned rather than one file being named, so a later migration that re-attaches
  * a trigger is the one this checks.
  */
-const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), "../../../../supabase/migrations");
+const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), "../../../../../supabase/migrations");
 
 /** The argument list of the LAST `create trigger … claim_identity_for_office(…)` for a table. */
 function triggerColumns(table: string): string[] {
