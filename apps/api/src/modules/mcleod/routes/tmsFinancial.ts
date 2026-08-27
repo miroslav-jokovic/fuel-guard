@@ -1,9 +1,15 @@
 import type { Router } from "express";
-import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema, tmsBillingPayloadSchema } from "@silvicom/shared";
+import {
+  tmsSettlementsPayloadSchema,
+  tmsApVouchersPayloadSchema,
+  tmsBillingPayloadSchema,
+  tmsMovementFactsPayloadSchema,
+} from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { ingestSettlements, ingestApVouchers, ingestBilling } from "../financialIngest.js";
+import { ingestMovementFacts } from "../movementFactIngest.js";
 
 /**
  * Financial staging endpoints for the on-prem agent (P3.2). Registered INSIDE tmsIngestRouter,
@@ -37,6 +43,23 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestApVouchers(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // Distinct from POST /movements (the `ws` dispatch path): that receives OPEN loads for the duty
+  // timeline; this receives SETTLED trips for cost-per-mile. Two lifecycles, two contracts — the
+  // distinction argued at length atop movementFact.ts.
+  router.post(
+    "/movement-facts",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsMovementFactsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid movement-facts payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestMovementFacts(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

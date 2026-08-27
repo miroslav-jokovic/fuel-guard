@@ -21,6 +21,7 @@ import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, 
 import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
+import { fetchMovementFacts } from "./movements.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -171,16 +172,24 @@ async function postToFuelGuard(path, body) {
   }
 }
 
-/** Send rows in ≤1000-row batches (FuelGuard's per-request cap) and total the reported results. */
-async function sendBatched(path, key, rows) {
+/**
+ * Send rows in bounded batches (FuelGuard's per-request cap) and total the reported results.
+ *
+ * `extra` rides along on EVERY batch. The financial payload schemas require `window_start`/
+ * `window_end` beside the rows — the ingest uses them to tell a short batch from an empty window —
+ * and the first version of this helper silently dropped them, which would have 400'd every
+ * financial POST on the sweep's first real run. Caught 2026-08-27 wiring movement facts; the sweep
+ * had never run against production, so the schemas' own validation was the only thing that noticed.
+ */
+async function sendBatched(path, key, rows, extra = {}, batchSize = 1000) {
   let received = 0,
     upserted = 0,
     updated = 0,
     created = 0,
     skippedOwned = 0;
   const unmatched = new Set();
-  for (const batch of chunk(rows, 1000)) {
-    const r = await postToFuelGuard(path, { [key]: batch });
+  for (const batch of chunk(rows, batchSize)) {
+    const r = await postToFuelGuard(path, { ...extra, [key]: batch });
     received += r.received ?? 0;
     upserted += r.upserted ?? 0;
     updated += r.updated ?? 0;
@@ -510,13 +519,25 @@ async function runFinancial() {
   const windowEnd = end.toISOString().slice(0, 10);
   log(`financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}`);
 
+  const windowExtra = { window_start: windowStart, window_end: windowEnd };
+
   const st = await fetchSettlements({ ...CFG.sql, windowStart, windowEnd });
-  const rs = await sendBatched("/api/tms/settlements", "settlements", st.settlements);
+  const rs = await sendBatched("/api/tms/settlements", "settlements", st.settlements, windowExtra, 2000);
   log(`financial: settlements sent=${st.settlements.length} received=${rs.received} upserted=${rs.upserted}`);
 
   const ex = await fetchExpenses({ ...CFG.sql, windowStart, windowEnd });
-  const rv = await sendBatched("/api/tms/vouchers", "vouchers", ex.vouchers);
+  const rv = await sendBatched("/api/tms/vouchers", "vouchers", ex.vouchers, windowExtra, 1000);
   log(`financial: vouchers sent=${ex.vouchers.length} received=${rv.received} upserted=${rv.upserted}`);
+
+  // Movement facts — the cents-per-mile denominator (C2 posting; C1's dry run proved the window's
+  // mileage against the carrier's own operations report first). The window predicate is
+  // xfer2settle_date, same clock the settlement sweep uses, so a trip and its pay arrive under the
+  // same sweep horizon. Batches of 500: the payload schema caps `movements` there because each row
+  // carries its ordered stops array.
+  const mv = await fetchMovementFacts({ ...CFG.sql, windowStart, windowEnd });
+  const rm = await sendBatched("/api/tms/movement-facts", "movements", mv.movements, windowExtra, 500);
+  log(`financial: movement-facts sent=${mv.movements.length} received=${rm.received} upserted=${rm.upserted}`);
+
   // Reconciliation stays where it always ran: the standalone CLIs print the to-the-cent GL
   // tie-outs; this sweep only persists. Fuel purchases are deliberately NOT posted — EFS is
   // authoritative for fuel (D-FS2) and the McLeod copy lands via P3.4's projection decision.

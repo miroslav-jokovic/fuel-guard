@@ -341,6 +341,10 @@
       "module": "mcleod",
       "layer": "raw"
     },
+    "mcleod_movements": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
     "mcleod_settlements": {
       "module": "mcleod",
       "layer": "raw"
