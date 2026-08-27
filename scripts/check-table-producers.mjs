@@ -32,8 +32,6 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   ["financial_entries", "0257 shipped schema-first; McLeod ingestion is the committed next build (FINANCIAL-STORE-PLAN)"],
-  ["mcleod_settlements", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
-  ["mcleod_ap_vouchers", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
   ["mcleod_billing", "0257 staging for the financial-store ingestion, same plan as financial_entries"],
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
 ]);
