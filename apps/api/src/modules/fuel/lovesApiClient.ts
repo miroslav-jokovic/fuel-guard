@@ -12,7 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LovesLocationRow } from "@silvicom/shared";
-import type { Env } from "../env.js";
+import type { Env } from "../../env.js";
 import { upsertLoves } from "./lovesIngest.js";
 
 export const LOVES_API_SOURCE = "loves_api";

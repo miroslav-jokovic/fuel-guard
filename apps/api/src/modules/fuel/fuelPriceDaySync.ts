@@ -6,7 +6,7 @@ import {
   type FuelPriceDay,
   type PostedPriceDay,
 } from "@silvicom/shared";
-import { organizationTimezone } from "../modules/idle/index.js";
+import { organizationTimezone } from "../idle/index.js";
 
 /**
  * Materialize one diesel price per (org, day) from the fleet's own purchases — the history the idle cost

@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotLocationsExport, PILOT_FAMILY_BRANDS, type Cell, type PilotLocationRow } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 const SOURCE = "pilot_locations_export";
 

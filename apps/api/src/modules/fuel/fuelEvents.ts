@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { makeSender } from "../lib/mailer.js";
+import type { Env } from "../../env.js";
+import { makeSender } from "../../lib/mailer.js";
 
 export interface SamsaraWebhookHeaders {
   signature?: string; // X-Samsara-Signature: "v1=<hex>"

@@ -13,8 +13,8 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "../modules/samsara/index.js";
-import { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js";
-import { resolveDeclineDrivers } from "./declineDriverResolution.js";
+import { syncCardAssignments, lookupCardAssignment } from "../modules/fuel/index.js";
+import { resolveDeclineDrivers } from "../modules/fuel/index.js";
 
 const WINDOW_H = 3; // hours around a decline for repeat / approval-elsewhere checks
 

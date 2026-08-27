@@ -1,8 +1,8 @@
 /** Scoring orchestration: cascade, org backfill, import/vehicle scoring. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
-import { attributeDrivers } from "../driverAttribution.js";
-import { learnStationGeocodes } from "../stationGeocodeLearning.js";
+import { attributeDrivers } from "../../modules/fuel/index.js";
+import { learnStationGeocodes } from "../../modules/fuel/index.js";
 import { loadSamsaraToken } from "../../lib/samsaraToken.js";
 import { makeSamsaraFetcher } from "../../lib/samsara.js";
 import { collectTxnIds, loadThresholds, loadOperatingHours } from "./loaders.js";

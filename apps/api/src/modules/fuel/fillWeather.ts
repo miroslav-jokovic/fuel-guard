@@ -7,8 +7,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isNoonSentinelIso } from "@silvicom/shared";
-import type { OpenMeteoFetcher } from "../lib/openMeteo.js";
-import { backfillTemperatures } from "./weatherBackfill.js";
+import type { OpenMeteoFetcher } from "../../lib/openMeteo.js";
+import { backfillTemperatures } from "../../services/weatherBackfill.js";
 
 const PAGE = 500;
 

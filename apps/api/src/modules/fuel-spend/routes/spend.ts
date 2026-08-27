@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
-import { resolveFuelTransactionStations } from "../../../services/fuelStationResolve.js";
+import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
 import type { SpendGrain } from "@silvicom/shared";
 

@@ -95,6 +95,17 @@ const API_ALLOW = new Set([
   // A fetched PSP report is filed into the DQ record through evidence's registerDocument —
   // the collector→core write, made through the owner's interface exactly as D-ARC3 asks.
   "psp -> evidence",
+  // A rejected EFS row still needs its decline driver resolved against the canonical record.
+  "efs -> fuel",
+  // The transactions API re-ingests through the collector's entrypoints, and decline resolution
+  // reads the card mirror through efs's index — core asking the collector, never parsing vendor data.
+  "fuel -> efs",
+  // Price-day bucketing borrows the org timezone the idle pipeline already derives.
+  "fuel -> idle",
+  // The spend report resolves station names against the canonical station record.
+  "fuel-spend -> fuel",
+  // The idle rollup finishes by deriving the price days its dollars are priced with.
+  "idle -> fuel",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

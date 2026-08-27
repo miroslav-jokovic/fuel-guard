@@ -26,7 +26,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildStationIndex, matchFillStation, type StationMatchReason, type StationRef } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 const UPDATE_CHUNK = 500;
 
