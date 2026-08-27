@@ -6,16 +6,16 @@ import {
   rolesThatManage,
   type PspOrderRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
-import { hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
-import { orderPspRecord, pspOrderPreflight } from "../../services/pspOrder.js";
-import { loadScreeningReadiness } from "../../services/screeningReadiness.js";
-import { dobCsvTemplate, importDriverDob } from "../../services/dobImport.js";
-import { fetchRecordPdf, requestRecord } from "../../psp/client.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { hasFreshAuth, stepUpRequired } from "../../../middleware/requireFreshAuth.js";
+import { orderPspRecord, pspOrderPreflight } from "../pspOrder.js";
+import { loadScreeningReadiness } from "../../../services/screeningReadiness.js";
+import { dobCsvTemplate, importDriverDob } from "../../../services/dobImport.js";
+import { fetchRecordPdf, requestRecord } from "../client.js";
 
 /**
  * Ordering a PSP record — the surface P6 and P7 were built behind (P9).

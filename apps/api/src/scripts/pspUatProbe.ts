@@ -9,7 +9,7 @@ import {
   type PspRequestDraft,
 } from "@silvicom/shared";
 import { loadEnv, pspApiKey, pspApiKeyVar, type Env } from "../env.js";
-import { PspError, fetchMonitoringReport, fetchRecordPdf, pspHost, requestRecord } from "../psp/client.js";
+import { PspError, fetchMonitoringReport, fetchRecordPdf, pspHost, requestRecord } from "../modules/psp/index.js";
 
 /**
  * Exercise the PSP vendor edge against the UAT account, and keep what comes back.

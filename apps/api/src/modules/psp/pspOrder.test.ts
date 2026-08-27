@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { loadEnv } from "../env.js";
-import { PspError } from "../psp/client.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { loadEnv } from "../../env.js";
+import { PspError } from "./client.js";
 import { orderPspRecord, pspOrderPreflight, type PspOrderInput } from "./pspOrder.js";
 
 /**

@@ -17,7 +17,7 @@ import {
   type PspReport,
   type PspRequestDraft,
 } from "@silvicom/shared";
-import { pspApiKey, pspApiKeyVar, type Env } from "../env.js";
+import { pspApiKey, pspApiKeyVar, type Env } from "../../env.js";
 
 /**
  * Ordering a PSP record — P6 and P7 (HIRING-PLAN H7).
