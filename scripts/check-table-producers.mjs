@@ -42,10 +42,16 @@ const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
 const CREATE_RE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)/gi;
 const DROP_RE = /drop\s+table\s+(?:if\s+exists\s+)?(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)/gi;
 
+// Comments must be stripped before matching: "-- Rollback: drop table efs_soap_credentials."
+// (0091) matched DROP_RE and silently removed two live tables from this gate's universe until
+// 2026-08-27 — a table whose migration merely *mentions* dropping it escaped the producer
+// requirement entirely.
+const stripSql = (sql) => sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
 const live = new Map(); // table → migration that created it
 let allSql = "";
 for (const f of files) {
-  const sql = readFileSync(join(MIGRATIONS, f), "utf8");
+  const sql = stripSql(readFileSync(join(MIGRATIONS, f), "utf8"));
   allSql += `\n${sql}`;
   for (const m of sql.matchAll(CREATE_RE)) if (!live.has(m[1].toLowerCase())) live.set(m[1].toLowerCase(), f);
   for (const m of sql.matchAll(DROP_RE)) live.delete(m[1].toLowerCase());
