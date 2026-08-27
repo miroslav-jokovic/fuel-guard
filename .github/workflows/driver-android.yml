@@ -107,7 +107,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package for React Native
-        run: pnpm --filter @fuelguard/shared build:rn
+        run: pnpm --filter ./packages/shared build:rn
 
       - name: Write driver environment
         working-directory: apps/driver
