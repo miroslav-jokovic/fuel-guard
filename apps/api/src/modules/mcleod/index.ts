@@ -24,7 +24,9 @@ export {
   readSettlementsWindow,
   readApVouchersWindow,
   readBillingWindow,
+  readLedgerTotals,
   type StagedSettlement,
   type StagedVoucher,
   type StagedBilling,
+  type StagedGlTotal,
 } from "./financialReads.js";

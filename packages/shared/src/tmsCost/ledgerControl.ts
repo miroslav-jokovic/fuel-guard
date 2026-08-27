@@ -26,6 +26,23 @@ export const glModuleTotalSchema = z.object({
 });
 export type GlModuleTotal = z.infer<typeof glModuleTotalSchema>;
 
+/**
+ * The wire envelope for a control-totals sweep — CALENDAR-MONTH grained, unlike the row-level
+ * sweeps' rolling windows. Control totals are aggregates over a period, so the period must be a
+ * stable, meaningful unit or every re-sweep would mint a fresh set of overlapping windows that
+ * nothing can reconcile against; the month is the unit the carrier's own close and P&L use. A
+ * month is re-swept (and wholly replaced) while McLeod's late manual entry is still landing in it
+ * — that lag runs about a month, which is exactly why re-sweeping matters.
+ */
+export const tmsLedgerTotalsPayloadSchema = z.object({
+  /** First day of the month, YYYY-MM-DD. */
+  period_start: z.string().regex(/^\d{4}-\d{2}-01$/),
+  /** First day of the NEXT month — half-open, like every window in this integration. */
+  period_end: z.string().regex(/^\d{4}-\d{2}-01$/),
+  totals: z.array(glModuleTotalSchema).max(5000),
+});
+export type TmsLedgerTotalsPayload = z.infer<typeof tmsLedgerTotalsPayloadSchema>;
+
 /** What a subledger extraction claims it captured for one module. */
 export interface SubledgerClaim {
   post_module: string;

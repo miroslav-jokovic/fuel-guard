@@ -5,7 +5,7 @@ import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.j
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { searchEntries, summarizeByCategory, apSpendByAccount } from "../../financial/index.js";
+import { searchEntries, summarizeByCategory, apSpendByAccount, getLedgerCoverage } from "../../financial/index.js";
 
 const windowSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -98,6 +98,28 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const accounts = await apSpendByAccount(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, accounts });
+    }),
+  );
+
+  // The missing-entries instrument (0269): McLeod's own monthly control totals against what our
+  // staging holds, module by module. Coverage is a BREADTH signal — modules are lifecycle views
+  // of the same dollars (D-MC13) — so the UI must present drift per module, never a summed total.
+  router.get(
+    "/ledger-coverage",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?period=YYYY-MM."));
+        return;
+      }
+      const [y, m] = parsed.data.period.split("-").map(Number);
+      const periodStart = `${parsed.data.period}-01`;
+      const next = m === 12 ? `${y! + 1}-01` : `${y}-${String(m! + 1).padStart(2, "0")}`;
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const report = await getLedgerCoverage(admin, req.auth!.orgId!, periodStart, `${next}-01`);
+      res.json({ ok: true, ...report });
     }),
   );
 

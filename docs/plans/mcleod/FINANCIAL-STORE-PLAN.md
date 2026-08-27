@@ -98,6 +98,19 @@ be proved against the carrier's books.
 > basis a report divides by is a per-report harness decision, stated on the report, never a silent
 > substitution at ingest (the D-FS2 posture, applied to miles).
 
+> **D-FS8 — GL control totals stage month-grained, and the coverage report claims only what is
+> proven (0269, 2026-08-27).** `mcleod_gl_totals` holds per-(module, account) totals per CALENDAR
+> MONTH — aggregates need a stable period, and the month is the carrier's own close unit; the
+> agent re-sweeps every month its rolling window touches and the ingest REPLACES the month
+> (upsert under a batch stamp, then delete older stamps), because a reclassified entry moves money
+> between accounts and a pure upsert would leave the old account's stale total standing. The
+> `/api/accounting/ledger-coverage` report states subledger claims ONLY where the tie-out is
+> proven — SET via `posted_pay` on the accrual side (D-MC23/D-MC24) — and reports AP/BILL/everything
+> else as named uncovered modules rather than fabricating drift. OFFICE lines (`OFF` module) are
+> deliberately NOT staged yet: the extraction pulls no stable row key for `gl_ledger`, and inventing
+> idempotency for an append-heavy line table is how duplicates ship — enumerating `gl_ledger`'s key
+> column is a recon question before that sweep exists.
+
 ## 4. What the matrix proves
 
 `supabase/tests/financial-entries.test.mjs`, 29 assertions:
