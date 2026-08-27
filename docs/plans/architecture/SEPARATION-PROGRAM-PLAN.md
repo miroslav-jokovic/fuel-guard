@@ -537,10 +537,25 @@ pinned in advance. Program-specific additions:
 
 ### Phase 6 — Ratchet to zero
 
-- **P6.1 — Grandfather burn-down.** Scheduled passes shrinking P0.2/P0.3 lists to zero for
+- **P6.1 — FIRST PASS DONE 2026-08-27 (PR #339) — Grandfather burn-down.**
+  Writers 67 → 63, access 36 → 35, dynamic pins unchanged: the sealed-passwords one-shot deleted
+  after MEASURING production clean (0 plaintext rows), and the three browser-writing settings
+  surfaces (thresholds, driver-performance, discount rules) moved behind validated, admin-gated,
+  audited owner endpoints — reads stay on PostgREST under their client policies. REMAINING
+  clusters, named: collector→core roster writes (samsara/mcleod/efs → drivers/vehicles/trailers,
+  ~20 sites — needs roster interfaces per family), fuel_transactions writers pending the 0261
+  satellite writer-flips (~8), the fuel_stations scraper writes (5, needs the fuel station-upsert
+  interface), lib/audit as platform fabric (1, deliberate), browser writers needing bigger
+  endpoints (useFuelLog, useVehicleSetupImport), and the staging-read pins that close with owner
+  read-interfaces. Burn-down continues as scheduled passes; the counts above are the scoreboard. Scheduled passes shrinking P0.2/P0.3 lists to zero for
   collector-staging reads and out-of-owner writes; ARCHITECTURE.md §6 table updated to show
   the freeze actually collapsing (the promise measured false this audit).
-- **P6.2 — Contracts gate.** The last hand-held rule ("contracts only in `packages/shared`",
+- **P6.2 — DONE 2026-08-27 (PR #339) — Contracts gate.**
+  check-shared-contracts.mjs: contract-shaped app exports may not shadow shared or appear in two
+  apps; vendor parser functions (parse*/normalize*/reconcile*/detect*) may never be
+  value-imported by a browser app, one pinned exception with its argument (decode-time sheet
+  selection). The gate's own authoring session hit the collision twice (DiscountRule,
+  DiscountType) — the disease is real and now gated. ARCHITECTURE §6's last hand-held row flips. The last hand-held rule ("contracts only in `packages/shared`",
   plus D-SEP11's converse "vendor parsers never in shared") becomes a lint, closing
   ARCHITECTURE.md §6's known gap.
 

@@ -3,7 +3,7 @@
     "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"
   ],
   "anomaly_thresholds": [
-    "apps/web/src/features/settings/useThresholds.ts"
+    "apps/api/src/modules/anomalies/thresholdSettings.ts"
   ],
   "applicant_dispositions": [
     "apps/api/src/modules/recruiting/routes/dispositions.ts"
@@ -51,7 +51,7 @@
     "apps/api/src/modules/recruiting/routes/employment.ts"
   ],
   "driver_performance_settings": [
-    "apps/web/src/features/drivers/useDriverPerformanceSettings.ts"
+    "apps/api/src/modules/performance/performanceSettings.ts"
   ],
   "driver_performance_weeks": [
     "apps/api/src/modules/performance/driverPerformanceSnapshot.ts"
@@ -113,8 +113,7 @@
   ],
   "efs_soap_credentials": [
     "apps/api/src/modules/efs/services/efsSoapCertExpiry.ts",
-    "apps/api/src/modules/efs/services/efsSoapCredentials.ts",
-    "apps/api/src/scripts/backfillEfsSoapPasswords.ts"
+    "apps/api/src/modules/efs/services/efsSoapCredentials.ts"
   ],
   "efs_transactions": [
     "apps/api/src/modules/efs/services/efsIngest.ts"
@@ -129,7 +128,7 @@
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
   "fuel_discount_rules": [
-    "apps/web/src/features/fueling/useDiscountRules.ts"
+    "apps/api/src/modules/fuel/discountRules.ts"
   ],
   "fuel_events": [
     "apps/api/src/modules/samsara/fuelEventsWebhook.ts"

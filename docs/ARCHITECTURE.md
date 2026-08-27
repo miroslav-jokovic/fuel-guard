@@ -163,9 +163,9 @@ rewrite discards the knowledge and keeps the authors. So:
 | Migration numbering | `check-migration-versions.mjs` | live |
 | File/function budgets | `lint:filesize` / `lint:funcsize` | live (gap: no `.vue`/`.tsx`/shared coverage) |
 | **apps/api module isolation** | `check-feature-boundaries.mjs`, armed for `apps/api/src/modules` | live 2026-08-26 — fires on the first carve-out |
-| **Table ownership** (write-site freeze: a new writer is a deliberate manifest edit) | `check-table-writers.mjs` + `scripts/table-writers.json` | live 2026-08-26 (172 write sites pinned; collapses to owner paths as carve-outs land) |
+| **Table ownership** (write-site freeze: a new writer is a deliberate manifest edit) | `check-table-writers.mjs` + `scripts/table-writers.json` | live 2026-08-26; **collapsing as promised** — the out-of-owner grandfather list went 70 → 63 across Phases 1–6 (P1 moves, P1.4b/P2.5 owner interfaces, P6.1 settings endpoints + one-shot deletions), with the remaining clusters named in the program plan's P6.1 marker |
 | **Every table has a producer** (would have caught `financial_entries`, `terminals`) | `check-table-producers.mjs` | live 2026-08-26 (6 waivers after 0259 retired terminals, each naming the plan that owes the producer) |
-| Contracts only in `packages/shared` | review discipline | **not gate-backed; hold by hand** (becomes a gate at program step P6.2, with D-SEP11's converse: vendor parsers never in shared) |
+| Contracts only in `packages/shared` + vendor parsers never in a browser bundle | `check-shared-contracts.mjs` (`lint:shared-contracts`) | live 2026-08-27 (P6.2) — the last hand-held rule is gated; it caught two live name collisions during its own authoring |
 | **Table→module→layer manifest** (D-SEP2) | `check-table-modules.mjs` + `scripts/table-modules.json` | live 2026-08-27 (P0.2) — chained onto `lint:table-writers` |
 | **Table access respects layers** (D-SEP1) | `check-table-access.mjs` over `.from()` literals, dynamic-`.from()` indirection AND new migration SQL | live 2026-08-27 (P0.3) — chained onto `lint:boundaries` |
 | **SECTION_ACCESS matrix ↔ RLS policy role lists in sync** | `lint:section-policies` (`check-section-policies.mjs`) | live 2026-08-27 (P0.4) — chained onto `lint:rls`; route-mount half lands at P4.2 as a runtime test |

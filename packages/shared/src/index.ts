@@ -75,6 +75,7 @@ export * from "./driverPerformance/index.js";
 export * from "./tms.js";
 export * from "./tmsCost/index.js";
 export * from "./financialContract.js";
+export * from "./fuelDiscount.js";
 export * from "./driverContract.js";
 export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";

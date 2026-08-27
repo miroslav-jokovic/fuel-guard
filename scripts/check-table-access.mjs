@@ -52,7 +52,6 @@ const GRANDFATHERED_ACCESS = new Set([
   "declined_transactions <- apps/web/src/features/reports/useEfsData.ts",
   "declined_transactions <- apps/web/src/pages/FuelEventsPage.vue",
   "efs_cards <- apps/api/src/modules/fuel/declineDriverResolution.ts",
-  "efs_cards <- apps/api/src/scripts/backfillEfsSoapPasswords.ts",
   "efs_cards <- apps/api/src/scripts/runConfigScan.ts",
   "efs_transactions <- apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
   "efs_transactions <- apps/api/src/modules/fuel/declineDriverResolution.ts",

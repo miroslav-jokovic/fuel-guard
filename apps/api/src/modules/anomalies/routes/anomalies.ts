@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, isAnomalyTransitionAllowed, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, rolesThatManage, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -7,11 +7,35 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { loadEntityRiskContext } from "../entityRisk.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
+import { saveThresholds } from "../thresholdSettings.js";
 
 
 export function anomaliesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  // P6.1: the thresholds write comes off the browser and through the owner. Registered BEFORE
+  // the /:id routes so the literal segment can never be captured as an id. Mirrors the RLS
+  // write policy exactly: admin only (rolesThatManage("admin") is the derived form of it).
+  router.post(
+    "/thresholds",
+    requireOrg,
+    requireRole(...rolesThatManage("admin")),
+    validateBody(thresholdsFormSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      await saveThresholds(admin, orgId, res.locals.body);
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "settings.thresholds_saved",
+        entity: "anomaly_thresholds",
+        meta: {},
+      });
+      res.json({ ok: true });
+    }),
+  );
 
   // Entity-intelligence Phase 1 — derived-on-read risk snapshot for the case's driver/vehicle/card.
   router.get(

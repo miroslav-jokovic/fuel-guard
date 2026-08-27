@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { AnomalyThresholds, ThresholdsForm } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
 const COLS =
@@ -23,10 +24,10 @@ export function useSaveThresholds() {
   return useMutation({
     mutationFn: async (form: ThresholdsForm): Promise<void> => {
       if (!session.orgId) throw new Error("No organization in session");
-      const { error } = await supabase
-        .from("anomaly_thresholds")
-        .upsert({ org_id: session.orgId, ...form }, { onConflict: "org_id" });
-      if (error) throw new Error(error.message);
+      // P6.1: the write goes through the owner (validated, admin-gated, audited); reads stay
+      // on PostgREST under the client select policy.
+      const r = await apiFetch("/api/anomalies/thresholds", { method: "POST", body: form });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save thresholds");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["thresholds"] }),
   });
