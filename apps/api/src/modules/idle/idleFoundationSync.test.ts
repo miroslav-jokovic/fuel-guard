@@ -15,7 +15,7 @@ vi.mock("./idleEquipmentEvidenceSync.js", () => idleEquipmentEvidence);
 vi.mock("./idleLearnedEnvelopeSync.js", () => idleLearnedEnvelopes);
 
 import { syncIdleFoundation } from "./idleFoundationSync.js";
-import { testEnv } from "../testing/testEnv.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 describe("syncIdleFoundation", () => {
   it("runs events before capability learning and forwards the same window", async () => {

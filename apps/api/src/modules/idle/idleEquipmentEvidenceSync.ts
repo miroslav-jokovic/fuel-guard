@@ -9,7 +9,7 @@ import {
 } from "@silvicom/shared";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 import { resolveSessionThermalIntervals } from "./idleSessionWeather.js";
-import type { OpenMeteoFetcher } from "../lib/openMeteo.js";
+import type { OpenMeteoFetcher } from "../../lib/openMeteo.js";
 
 export interface IdleEquipmentEvidenceSyncResult {
   sessions: number;

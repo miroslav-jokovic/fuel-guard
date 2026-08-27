@@ -10,7 +10,8 @@
  * This file is the module's ONLY public surface. An import that reaches past it into a sibling
  * module's internals fails `lint:boundaries`; an import from here into `../../services/*` is
  * tolerated while the un-carved remainder still lives there, and each such import is a TODO the
- * next carve-out inherits (dqBinder/pdfDraw and fuelIdleVerdict are the two today).
+ * next carve-out inherits (dqBinder/pdfDraw is the one left — fuelIdleVerdict resolved into the
+ * idle module's interface at its 2026-08-26 carve-out).
  */
 export { registerSpendRoutes } from "./routes/spend.js";
 export { registerExceptionRoutes } from "./routes/exceptions.js";

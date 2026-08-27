@@ -63,8 +63,8 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "driver_vehicle_assignments": [
-    "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
-    "apps/api/src/services/idleSync.ts"
+    "apps/api/src/modules/idle/idleSync.ts",
+    "apps/api/src/modules/samsara/samsaraVehicleSync.ts"
   ],
   "drivers": [
     "apps/api/src/modules/samsara/samsaraDriverSync.ts",
@@ -205,20 +205,20 @@
     "apps/api/src/services/hosSync.ts"
   ],
   "idle_events": [
-    "apps/api/src/services/idleSync.ts"
+    "apps/api/src/modules/idle/idleSync.ts"
   ],
   "idle_park_sessions": [
-    "apps/api/src/services/idleCapabilitySync.ts"
+    "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
   "idle_rollup_days": [
-    "apps/api/src/services/idleRollupPersistence.ts"
+    "apps/api/src/modules/idle/idleRollupPersistence.ts"
   ],
   "idle_settings": [
-    "apps/api/src/services/idleSync.ts",
+    "apps/api/src/modules/idle/idleSync.ts",
     "apps/web/src/features/fleet/useIdleSettings.ts"
   ],
   "idle_telemetry_windows": [
-    "apps/api/src/services/idleTelemetrySync.ts"
+    "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
   "imports": [
     "apps/api/src/services/efsIngestReject.ts",
@@ -346,11 +346,11 @@
     "apps/web/src/composables/useTrailers.ts"
   ],
   "vehicle_engine_days": [
-    "apps/api/src/services/idleCapabilitySync.ts"
+    "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
   "vehicles": [
+    "apps/api/src/modules/idle/idleCapabilitySync.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
-    "apps/api/src/services/idleCapabilitySync.ts",
     "apps/api/src/services/scoring/learnVehicle.ts",
     "apps/api/src/services/scoring/persist.ts",
     "apps/web/src/composables/useDrivers.ts",
@@ -358,7 +358,7 @@
     "apps/web/src/features/fleet/useVehicleSetupImport.ts"
   ],
   "weather_cache": [
-    "apps/api/src/services/idleSessionWeather.ts",
+    "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/services/weatherBackfill.ts"
   ]
 }

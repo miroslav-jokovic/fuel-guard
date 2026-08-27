@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
-import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
+import type { Env } from "../../env.js";
+import { makeOpenMeteoFetcher } from "../../lib/openMeteo.js";
 import { syncIdleEvents, type IdleSyncResult } from "./idleSync.js";
 import { syncIdleCapabilities, type IdleCapabilityResult } from "./idleCapabilitySync.js";
 import { syncIdleTelemetry, type IdleTelemetrySyncResult } from "./idleTelemetrySync.js";

@@ -5,7 +5,7 @@ import {
   hourlyThermalIntervals,
   type IdleThermalInterval,
 } from "@silvicom/shared";
-import type { OpenMeteoFetcher, OpenMeteoDay } from "../lib/openMeteo.js";
+import type { OpenMeteoFetcher, OpenMeteoDay } from "../../lib/openMeteo.js";
 
 /**
  * Ambient temperature for a park session, from the session's OWN location.

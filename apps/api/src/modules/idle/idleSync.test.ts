@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { syncIdleEvents } from "./idleSync.js";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { testEnv } from "../testing/testEnv.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). Attribution is the whole

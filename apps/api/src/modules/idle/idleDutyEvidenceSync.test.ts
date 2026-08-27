@@ -3,7 +3,7 @@ import {
   createSupabaseRecorder,
   expectOrgScoped,
   type SupabaseRecorder,
-} from "../testing/supabaseRecorder.js";
+} from "../../testing/supabaseRecorder.js";
 import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 
 const ORG = "org-1";

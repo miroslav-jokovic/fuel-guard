@@ -24,7 +24,7 @@ import {
   type IdleCapability,
   type IdleVehicle,
 } from "@silvicom/shared";
-import { eachPage } from "../lib/paging.js";
+import { eachPage } from "../../lib/paging.js";
 
 /** Matches the Idling page's fallback when the org has configured neither. */
 const DEFAULT_BASIS = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0 };

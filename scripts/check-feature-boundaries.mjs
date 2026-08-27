@@ -86,6 +86,12 @@ const API_ALLOW = new Set([
   // roster master (isTmsRosterMaster, via mcleod's index only). A real cross-collector rule,
   // recorded here so the day it changes, this entry says who depended on it.
   "samsara -> mcleod",
+  // The idle syncs run on Samsara's vendor client and share its token-missing error class.
+  "idle -> samsara",
+  // The Samsara scheduler is the cadence clock: it paces the idle syncs on the vendor's rhythm.
+  "samsara -> idle",
+  // The spend report prints the fleet idle verdict next to the money it explains.
+  "fuel-spend -> idle",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

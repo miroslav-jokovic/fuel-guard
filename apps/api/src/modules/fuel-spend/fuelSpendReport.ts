@@ -39,7 +39,7 @@ import { GEOM } from "./fuelSpendReportTheme.js";
 import { drawBridge, drawHeadline, drawSeries, drawVerdict } from "./fuelSpendReportSections.js";
 import { drawDiscount, drawExceptions, drawIdle } from "./fuelSpendReportPolicy.js";
 import { plural, usd, windowLabel } from "./fuelSpendReportFormat.js";
-import { readFleetIdleVerdict } from "../../services/fuelIdleVerdict.js";
+import { readFleetIdleVerdict } from "../idle/index.js";
 
 export interface FuelSpendReportInput {
   orgId: string;
