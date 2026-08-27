@@ -259,7 +259,7 @@
     },
     "idle_events": {
       "module": "idle",
-      "layer": "raw"
+      "layer": "derived"
     },
     "idle_park_sessions": {
       "module": "idle",
