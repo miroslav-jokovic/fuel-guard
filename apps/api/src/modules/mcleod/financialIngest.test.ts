@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ingestSettlements, ingestApVouchers } from "./financialIngest.js";
-import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema } from "@silvicom/shared";
+import { ingestSettlements, ingestApVouchers, ingestBilling } from "./financialIngest.js";
+import { tmsSettlementsPayloadSchema, tmsApVouchersPayloadSchema, tmsBillingPayloadSchema } from "@silvicom/shared";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
 
@@ -33,7 +33,7 @@ const voucher = (over: Record<string, unknown> = {}) => ({
 
 describe("ingestSettlements", () => {
   it("upserts full rows onto (org_id, external_id) — every row names the org", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }] } });
+    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }], mcleod_billing: [{ id: "x" }] } });
     const payload = tmsSettlementsPayloadSchema.parse({
       settlements: [settlement(), settlement({ external_id: "S-2", payee_type: "owner_operator", total_pay: 2932 })],
       window_start: "2026-06-01",
@@ -59,7 +59,7 @@ describe("ingestSettlements", () => {
   });
 
   it("keeps total_pay and posted_pay apart — the two figures answer different questions", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }] } });
+    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }], mcleod_billing: [{ id: "x" }] } });
     const payload = tmsSettlementsPayloadSchema.parse({
       settlements: [settlement({ total_pay: 2932.0, posted_pay: 2926.33 })],
       window_start: "2026-06-01",
@@ -75,7 +75,7 @@ describe("ingestSettlements", () => {
 
 describe("ingestApVouchers", () => {
   it("upserts full voucher rows with the GL account intact — ap_glid is the only classification the source carries", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }] } });
+    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [{ id: "x" }], mcleod_ap_vouchers: [{ id: "x" }], mcleod_billing: [{ id: "x" }] } });
     const payload = tmsApVouchersPayloadSchema.parse({
       vouchers: [voucher(), voucher({ external_id: "V-2", ap_glid: null })],
       window_start: "2026-06-01",
@@ -88,6 +88,31 @@ describe("ingestApVouchers", () => {
     // an unclassified voucher lands with ap_glid null, never dropped — a bucket of cost nobody
     // can categorise is exactly what the allocation review needs to see
     expect(rows[1]).toMatchObject({ external_id: "V-2", ap_glid: null });
+    expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("ingestBilling", () => {
+  it("upserts full invoice rows with equipment intact — the one money table that names its truck", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_billing: [{ id: "x" }] } });
+    const payload = tmsBillingPayloadSchema.parse({
+      billing: [{
+        external_id: "B-1", company_id: "TMS", invoice_no: "INV-100", customer_id: "ACME",
+        order_external_id: "O-9", tractor_unit: "754", driver_external_id: "D42",
+        bill_date: "2026-06-10T00:00:00Z", total_charges: 3100.0, other_charge: 150.0, excise_tax: 0,
+        post_key: "PK-1", post_module: "BILL",
+      }],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    const r = await ingestBilling(rec.client, ORG, payload);
+    expect(r.received).toBe(1);
+    const rows = rec.writtenRows("mcleod_billing");
+    // linehaul, accessorials and excise held apart — they answer different questions
+    expect(rows[0]).toMatchObject({
+      org_id: ORG, external_id: "B-1", tractor_unit: "754",
+      total_charges: 3100.0, other_charge: 150.0, excise_tax: 0, post_module: "BILL",
+    });
     expectOrgScoped(rec, ORG);
   });
 });
