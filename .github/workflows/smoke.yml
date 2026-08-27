@@ -32,8 +32,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prod=false
-      - run: pnpm --filter @fuelguard/web exec playwright install --with-deps chromium
+      - run: pnpm --filter ./apps/web exec playwright install --with-deps chromium
       - name: Run unauthenticated smoke tests
         env:
           BASE_URL: ${{ env.API_URL }}
-        run: pnpm --filter @fuelguard/web e2e --project=chromium
+        run: pnpm --filter ./apps/web e2e --project=chromium
