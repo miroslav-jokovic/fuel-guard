@@ -188,6 +188,15 @@ function mountPublic(app: Express): void {
   );
 }
 
+/** The P5 finance sections — split out of createApp at the 200-line function budget. The
+ *  routeAuth/routeGates detectors read app.ts SOURCE for `app.use("/api/…", …Router())` lines,
+ *  so the mounts keep that exact shape here. */
+function mountFinanceRouters(app: express.Express): void {
+  app.use("/api/accounting", accountingRouter());
+  app.use("/api/billing", billingRouter());
+  app.use("/api/maintenance", maintenanceRouter());
+}
+
 export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });
@@ -319,9 +328,7 @@ export function createApp(env: Env): Express {
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/ifta", iftaRouter());
-  app.use("/api/accounting", accountingRouter());
-  app.use("/api/billing", billingRouter());
-  app.use("/api/maintenance", maintenanceRouter());
+  mountFinanceRouters(app);
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
