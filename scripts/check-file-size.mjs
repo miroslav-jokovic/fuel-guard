@@ -66,7 +66,6 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
  * high-water mark the gate now holds them under.
  */
 const GRANDFATHERED = {
-  "apps/api/src/routes/integrations.ts": 831,
   // Pinned 2026-08-13 — EFS card-control plan (docs/28-EFS-EXECUTION-PLAN.md) Phase 0 Step 0.6.
   // Phase 3 (the capability registry) restructures the remaining two: efsCardControl.ts splits into
   // five orchestrator phase modules, and cardControlContract.ts splits into per-capability contracts.
@@ -117,7 +116,6 @@ const GRANDFATHERED = {
 };
 
 const COMPRESSION_BUDGETS = {
-  "apps/api/src/routes/integrations.ts": 2,
   "apps/api/src/modules/efs/routes/experiments.ts": 12,
 };
 
