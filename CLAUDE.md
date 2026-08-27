@@ -55,6 +55,10 @@ Node >= 22, TypeScript run via tsx (no compile step except `@fuelguard/shared` f
   Match that register; don't strip it.
 - Plans live in `docs/plans/<area>/` as decision-log documents; `docs/DESIGN-SYSTEM-CONTRACT.md` and
   `docs/MIGRATION-DISCIPLINE.md` are canonical — read them before UI or schema work.
+- `docs/ARCHITECTURE.md` (module map, table ownership, D-ARC*) and `docs/SILVICOM-360.md` (product
+  scope, D-S360*) are canonical since the 2026-08-26 re-founding — read them before adding a
+  service, a table, or a feature. The product is Silvicom 360; "FuelGuard" in code predates the
+  rename step and is expected until it lands.
 - Branches: `claude/<topic>`; PRs to `main`. Commit messages are one descriptive sentence in the
   style of `git log` (they read as a narrative, not conventional-commit tags).
 - Background work runs in the worker (`WORKER_ROLE=scheduler|consumer|both`); schedulers must run in
