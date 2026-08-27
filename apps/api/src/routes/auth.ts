@@ -5,7 +5,7 @@ import {
   normalizeDriverUsername,
   toSyntheticDriverEmail,
   type DriverLoginRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

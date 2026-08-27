@@ -13,7 +13,7 @@ import { runKwikTripSync } from "../../services/kwikTripIngest.js";
 import { runRoadRangerFetch } from "../../services/roadRangerIngest.js";
 import { ingestLovesExport } from "../../services/lovesIngest.js";
 import { runLovesApiSync } from "../../services/lovesApiClient.js";
-import { parsePilotPublicPricesXlsx, type StatementWord } from "@fuelguard/shared";
+import { parsePilotPublicPricesXlsx, type StatementWord } from "@silvicom/shared";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "../../services/fuelStatementIngest.js";
 
 /** Add a truck-stop network to the org's enabled_brands so freshly loaded/synced stations show up on the

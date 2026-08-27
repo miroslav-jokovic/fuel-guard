@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 /**
  * Entity-intelligence panel (2026-08, Phases 1–2) — CONTEXT for the reviewer, never a score input.
  * Phase 1: the derived-on-read risk snapshot for the case's driver / vehicle / card (open cases,
@@ -9,7 +9,7 @@ import { AppButton as BaseButton } from "@fuelguard/ui";
  * button covers rebuild-created cases.
  */
 import { ref, onMounted } from "vue";
-import { formatRuleId } from "@fuelguard/shared";
+import { formatRuleId } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
 

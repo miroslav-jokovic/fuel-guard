@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateLoad, type LoadInput, type Verdict } from "@hazmat/engine";
-import type { HaulVehicleKind } from "@fuelguard/shared";
+import type { HaulVehicleKind } from "@silvicom/shared";
 import { equipmentAssumptionAdvisory, readEquipmentKind } from "./hazmatEquipment.js";
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
@@ -9,7 +9,7 @@ import { notifyReviewersOfFlag } from "./hazmatNotify.js";
 import type { Env } from "../env.js";
 import { enqueueJob } from "./queue/enqueue.js";
 import { evaluateQualification } from "./qualification.js";
-import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@fuelguard/shared";
+import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@silvicom/shared";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a

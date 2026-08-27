@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { APPLICATION_SECTION_ORDER } from "@fuelguard/shared";
+import { APPLICATION_SECTION_ORDER } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 
 /**

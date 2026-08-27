@@ -2,7 +2,7 @@ import {
   type EfsMileageCode,
   type WsLastMileage,
   wsLastMileageSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { bool, parseOne, payload } from "./efsAccountOps.js";

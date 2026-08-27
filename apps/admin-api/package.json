@@ -1,5 +1,5 @@
 {
-  "name": "@fuelguard/admin-api",
+  "name": "@silvicom/admin-api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fuelguard/shared": "workspace:*",
+    "@silvicom/shared": "workspace:*",
     "@supabase/supabase-js": "2.110.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",

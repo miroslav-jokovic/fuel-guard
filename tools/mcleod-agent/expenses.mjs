@@ -7,7 +7,7 @@
  * carrier's non-settlement cost, and the split between "attributed" and "needs an allocation rule" is
  * the number finance has to see before it can sign anything off.
  *
- * Read-only, same posture as `movements.mjs`. No `@fuelguard/shared` import — this ships to the
+ * Read-only, same posture as `movements.mjs`. No `@silvicom/shared` import — this ships to the
  * carrier's own machine with `mssql` as its only dependency.
  */
 

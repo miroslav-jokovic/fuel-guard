@@ -16,7 +16,7 @@ import {
   FUEL_EXCEPTION_OPEN_STATUSES,
   type FuelExceptionKind,
   type FuelExceptionStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 export interface ExceptionFilters {
   status?: FuelExceptionStatus[] | null;

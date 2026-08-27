@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
-import { stateTimeZone, type SystemFill } from "@fuelguard/shared";
+import { stateTimeZone, type SystemFill } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 

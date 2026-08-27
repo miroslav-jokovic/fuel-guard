@@ -1,7 +1,7 @@
 import {
   CORRELATION_THRESHOLDS, RECON_STATUS_LABELS,
   FUEL_EXCEPTION_STATUS_LABELS, type FuelExceptionStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
 const SOFT = {
@@ -286,7 +286,7 @@ export function employmentInquiryBadge(status: string): DqBadge {
 /**
  * A reconciliation row's status.
  *
- * The words come from `RECON_STATUS_LABELS` in `@fuelguard/shared` — the machine token and the label
+ * The words come from `RECON_STATUS_LABELS` in `@silvicom/shared` — the machine token and the label
  * ship as a pair, so no `.vue` file carries a status literal — and only the TONE is decided here.
  *
  * The three tones say what a reader should do, not how bad the row sounds. A fill the vendor billed and
@@ -317,7 +317,7 @@ export function reconStatusBadge(status: string): DqBadge {
 /**
  * An exception's status, in the ledger and its slide-over.
  *
- * The words come from `FUEL_EXCEPTION_STATUS_LABELS` in `@fuelguard/shared`; only the TONE is decided
+ * The words come from `FUEL_EXCEPTION_STATUS_LABELS` in `@silvicom/shared`; only the TONE is decided
  * here. What the tones say is *what a reader should do*, not how bad the row sounds:
  *
  *   open / investigating  — somebody's work, and warning is the colour of work outstanding

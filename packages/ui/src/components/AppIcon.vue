@@ -9,13 +9,13 @@ import type { Icon } from "../icons";
  * Tailwind sizing/colour convention (`class="size-5 text-brand-600"`).
  *
  * Migration note: this component replaces `@heroicons/vue`. Icons come from
- * the `@fuelguard/ui/icons` barrel — never import directly from
+ * the `@silvicom/ui/icons` barrel — never import directly from
  * `@hugeicons/core-free-icons` in feature code, so we retain the freedom to
  * swap variants (or upgrade to HugeIcons Pro) in one place.
  *
  * Usage:
- *   import { AppIcon } from "@fuelguard/ui";
- *   import { CheckCircleIcon } from "@fuelguard/ui/icons";
+ *   import { AppIcon } from "@silvicom/ui";
+ *   import { CheckCircleIcon } from "@silvicom/ui/icons";
  *
  *   <AppIcon :icon="CheckCircleIcon" class="size-5 text-success-500" aria-hidden="true" />
  *
@@ -29,7 +29,7 @@ import type { Icon } from "../icons";
 
 withDefaults(
   defineProps<{
-    /** An icon module imported from `@fuelguard/ui/icons`. */
+    /** An icon module imported from `@silvicom/ui/icons`. */
     icon: Icon;
     /** Stroke width. Keep the default unless a specific visual calls for another. */
     strokeWidth?: number;

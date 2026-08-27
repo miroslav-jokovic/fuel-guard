@@ -4,7 +4,7 @@ import {
   reconcileFuelLines,
   type EfsStoreLine,
   type ParsedFuelLine,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { scoreTransaction } from "./scoring/index.js";
 import {

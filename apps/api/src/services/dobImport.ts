@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planDobImport, serializeDobCsv, type DobCsvDriver, type DobImportPlan } from "@fuelguard/shared";
+import { planDobImport, serializeDobCsv, type DobCsvDriver, type DobImportPlan } from "@silvicom/shared";
 
 /**
  * Bulk date-of-birth import (P0b) — the read, the plan, and the one write.

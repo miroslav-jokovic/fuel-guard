@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
-import type { CardCapabilities, EfsLocation } from "@fuelguard/shared";
+import type { CardCapabilities, EfsLocation } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

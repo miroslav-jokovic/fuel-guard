@@ -3,7 +3,7 @@ import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { useSpendFilters } from "./useSpendFilters";
-import { defaultWindow } from "@fuelguard/shared";
+import { defaultWindow } from "@silvicom/shared";
 
 /**
  * The regression these exist for shipped to production and looked like a broken control rather than a

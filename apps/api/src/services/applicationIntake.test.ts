@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@fuelguard/shared";
+import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@silvicom/shared";
 import { loadEnv } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import {

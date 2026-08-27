@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { PlusIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@fuelguard/shared";
+import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
   useTrailersQuery,
@@ -22,7 +22,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import TrailerForm from "@/features/fleet/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

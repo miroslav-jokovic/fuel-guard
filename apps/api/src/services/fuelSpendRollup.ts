@@ -25,7 +25,7 @@ import {
   type SpendDefLine,
   type SpendEngineDay,
   type SpendRollupRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 /**

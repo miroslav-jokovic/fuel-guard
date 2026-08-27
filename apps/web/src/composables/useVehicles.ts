@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Vehicle, VehicleInput } from "@fuelguard/shared";
+import type { Vehicle, VehicleInput } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const VEHICLE_COLS =

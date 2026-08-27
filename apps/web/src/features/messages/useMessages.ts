@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ThreadDetailResponse, ThreadsResponse } from "@fuelguard/shared";
+import type { ThreadDetailResponse, ThreadsResponse } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { genUuid } from "@/lib/uuid";
 

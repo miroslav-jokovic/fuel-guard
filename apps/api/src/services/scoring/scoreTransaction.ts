@@ -11,7 +11,7 @@ import {
   type RuleContext,
   type RuleResult,
   type RuleId,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";

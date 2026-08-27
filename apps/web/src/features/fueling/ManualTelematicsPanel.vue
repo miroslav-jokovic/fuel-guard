@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ChevronDownIcon,
   ExclamationTriangleIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { reactive, ref } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import type { PlanRequest } from "./useFuelPlan";
 
 defineProps<{ message?: string; loading?: boolean }>();

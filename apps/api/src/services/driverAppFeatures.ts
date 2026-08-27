@@ -6,7 +6,7 @@ import {
   type FeatureState,
   type OrgFeatureRow,
   type OrgModule,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * DB-facing half of the feature control plane (hardening plan Phase 4). Fetches the org's feature

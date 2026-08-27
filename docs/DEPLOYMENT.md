@@ -8,8 +8,8 @@ serves `apps/web/dist`), and the browser calls the API at `/api/...` on the same
 
 | Service | Config file | Builds | Runs / serves | Redeploys when these change |
 |---|---|---|---|---|
-| **app** (a.k.a. "api") | `railway.json` (repo root) | `@fuelguard/web` | `@fuelguard/api` + the web SPA | `apps/api/**`, `apps/web/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.json` |
-| **admin** | `railway.admin.json` | `@fuelguard/admin` | `@fuelguard/admin-api` + the admin SPA | `apps/admin/**`, `apps/admin-api/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.admin.json` |
+| **app** (a.k.a. "api") | `railway.json` (repo root) | `@silvicom/web` | `@silvicom/api` + the web SPA | `apps/api/**`, `apps/web/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.json` |
+| **admin** | `railway.admin.json` | `@silvicom/admin` | `@silvicom/admin-api` + the admin SPA | `apps/admin/**`, `apps/admin-api/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.admin.json` |
 
 `apps/driver` is an Expo app and is **not** a Railway service.
 
@@ -43,7 +43,7 @@ Set this once per service (Railway → service → Settings):
    actually serves users) sat stale.
 
 To verify: push a web-only change to `main`. The **app service** should build and its log should
-show `pnpm --filter @fuelguard/web build`. If it doesn't, the service isn't reading `railway.json`
+show `pnpm --filter @silvicom/web build`. If it doesn't, the service isn't reading `railway.json`
 — re-check step 1.
 
 ## After setup — the contract

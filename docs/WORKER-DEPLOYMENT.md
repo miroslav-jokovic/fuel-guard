@@ -14,7 +14,7 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 (the one scheduler without a job-ledger guard) runs on every instance. To scale out:
 
 1. Add a second Railway service from the same repo — the **worker**:
-   - Start command: `pnpm --filter @fuelguard/api worker`
+   - Start command: `pnpm --filter @silvicom/api worker`
    - Same env vars as the API (Supabase, Samsara, mail, HERE, etc.)
    - **Replicas: 1** (schedulers must run in exactly one process).
 2. On the **API** service, set `RUN_SCHEDULERS_IN_PROCESS=false`. The API now serves only HTTP and can

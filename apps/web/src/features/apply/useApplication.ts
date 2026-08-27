@@ -6,7 +6,7 @@ import type {
   ApplicationCaptureView,
   AuthorizationPurpose,
   DriverApplication,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The applicant's own API calls (H5b) — the only place in this app that talks to the server without

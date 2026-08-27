@@ -8,7 +8,7 @@ import {
   sectionOwning,
   type ApplicationSection,
   type DriverApplicationFields,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "./draft";
 
 /**

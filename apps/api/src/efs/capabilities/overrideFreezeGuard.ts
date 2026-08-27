@@ -2,7 +2,7 @@ import {
   OVERRIDE_BLOCKED_CAPABILITIES,
   overrideBlockedMessage,
   overrideBlocksWrite,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import type { Snapshot } from "../types.js";
 

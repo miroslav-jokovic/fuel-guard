@@ -1,4 +1,4 @@
-import { cardLast4 } from "@fuelguard/shared";
+import { cardLast4 } from "@silvicom/shared";
 import { efsEndpointHost } from "./efsSoapCredentialIdentity.js";
 import type { CardMutationContext } from "../efs/orchestrator/types.js";
 

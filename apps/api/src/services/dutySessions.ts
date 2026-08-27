@@ -7,7 +7,7 @@ import {
   type EquipmentOption,
   type MeEquipmentResponse,
   type StartShiftRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Duty sessions — the driver-scoped equipment truth (Driver App Phase 3A, migration 0086, D43/D44).

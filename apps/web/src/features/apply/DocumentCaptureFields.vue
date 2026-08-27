@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import type { ApplicationCaptureView } from "@fuelguard/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import type { ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
 import { APPLY_COPY } from "@/features/apply/strings";
 

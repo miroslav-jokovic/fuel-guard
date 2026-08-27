@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { ref, watch, onBeforeUnmount } from "vue";
-import type { HazmatProduct } from "@fuelguard/shared";
-import { AppInput as BaseInput } from "@fuelguard/ui";
+import type { HazmatProduct } from "@silvicom/shared";
+import { AppInput as BaseInput } from "@silvicom/ui";
 import { useHazmatProductsQuery } from "./useHazmatCalc";
 
 /**

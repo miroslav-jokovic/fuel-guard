@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
-import type { DeclinedTransactionRow } from "@fuelguard/shared";
+import type { DeclinedTransactionRow } from "@silvicom/shared";
 import { rejectDateTime, stationLocalNote } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -10,8 +10,8 @@ import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppTable } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppTable } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import { toggleSort, type SortState } from "@/lib/sort";

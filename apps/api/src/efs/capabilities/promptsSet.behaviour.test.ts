@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
-import { type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET } from "@silvicom/shared";
+import { type PromptsSetBody, promptsSetContract } from "@silvicom/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { EquipmentOption } from '@fuelguard/shared';
+import type { EquipmentOption } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

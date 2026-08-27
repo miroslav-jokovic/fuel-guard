@@ -7,7 +7,7 @@
  * verbatim rather than flattened into "save failed".
  */
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { StatementWord } from "@fuelguard/shared";
+import type { StatementWord } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface SaveStatementResult {

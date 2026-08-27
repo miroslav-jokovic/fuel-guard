@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import type { ScreeningReadiness } from "@fuelguard/shared";
+import type { ScreeningReadiness } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

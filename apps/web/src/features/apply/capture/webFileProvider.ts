@@ -8,13 +8,13 @@ import {
   type ImageRef,
   type ScanResult,
   type SupportResult,
-} from "@fuelguard/capture-engine";
+} from "@silvicom/capture-engine";
 import { browserImageIo, pickPhotoFromCamera, type WebImageIo } from "./webImageIo";
 
 /**
  * The web capture provider (A7, D-APP11) — the applicant's own phone, from the application link.
  *
- * `@fuelguard/capture-engine` is pure and zero-dependency with an explicit provider seam, and its own
+ * `@silvicom/capture-engine` is pure and zero-dependency with an explicit provider seam, and its own
  * header says implementations live where the IO lives. This is that: the third implementation, beside
  * the native Expo module and the driver app's JS fallback, and it mirrors the fallback deliberately —
  * camera → downscale to the config long edge → WebP q80 (JPEG where the browser cannot) → EXIF gone.

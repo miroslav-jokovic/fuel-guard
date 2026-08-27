@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { StopInput } from "@fuelguard/shared";
+import type { StopInput } from "@silvicom/shared";
 
 /**
  * Shared internals for the dispatch-side load operations (P2 split of dispatchLoads.ts). Column lists,

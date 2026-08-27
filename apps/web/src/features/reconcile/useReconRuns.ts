@@ -16,7 +16,7 @@
  * reasons are surfaced verbatim rather than flattened into "could not reconcile".
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ReconResult, ReconSummary, StatementWord } from "@fuelguard/shared";
+import type { ReconResult, ReconSummary, StatementWord } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface ReconRunSummaryRow {

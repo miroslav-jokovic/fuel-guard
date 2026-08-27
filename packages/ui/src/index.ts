@@ -1,5 +1,5 @@
-// @fuelguard/ui — the shared design system consumed by both the customer and platform apps.
-// Import the token layer once per app: `import "@fuelguard/ui/tokens.css"`.
+// @silvicom/ui — the shared design system consumed by both the customer and platform apps.
+// Import the token layer once per app: `import "@silvicom/ui/tokens.css"`.
 //
 // Every export here must have a caller. `lint:ui-adoption` fails on one that does not, because a
 // barrel is a promise: four of these had no call site anywhere — AppNumberField and AppInputGroup

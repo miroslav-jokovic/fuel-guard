@@ -8,7 +8,7 @@
  * is the every-truck-is-avoidable over-count `docs/plans/IDLE-AVOIDABLE-HOS.md` was written to kill:
  * 17 of 195 trucks carry a confirmed APU, so for most of the fleet the driver had no choice.
  *
- * The judgement itself is pure and in `@fuelguard/shared` (`computeIdleBreakdown`). This is the I/O
+ * The judgement itself is pure and in `@silvicom/shared` (`computeIdleBreakdown`). This is the I/O
  * around it, and it is deliberately the SAME three reads the page makes, so a figure in a document and
  * the same figure on screen come from one implementation.
  *
@@ -23,7 +23,7 @@ import {
   type IdleBreakdownRollupRow,
   type IdleCapability,
   type IdleVehicle,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 /** Matches the Idling page's fallback when the org has configured neither. */

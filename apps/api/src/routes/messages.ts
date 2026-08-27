@@ -3,7 +3,7 @@ import {
   createThreadRequestSchema,
   reportMessageRequestSchema,
   sendMessageRequestSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg } from "../middleware/auth.js";
 import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
 import { requireModule } from "../middleware/requireModule.js";

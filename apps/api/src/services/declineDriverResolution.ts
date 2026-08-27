@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardDigits, driverMatchKey, isFullCardNumber } from "@fuelguard/shared";
+import { cardDigits, driverMatchKey, isFullCardNumber } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { eachPage } from "../lib/paging.js";
 import { cardRefHmac } from "./efsCardMirror.js";

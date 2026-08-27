@@ -8,8 +8,8 @@ import {
   canWriteDriverLifecycle,
   rolesThatManage,
   type ApplicantStage,
-} from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";

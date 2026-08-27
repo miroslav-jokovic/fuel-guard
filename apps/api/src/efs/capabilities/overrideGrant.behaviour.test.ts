@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OVERRIDE_LIMITS_STEP_UP, type OverrideGrantBody, overrideGrantContract } from "@fuelguard/shared";
+import { OVERRIDE_LIMITS_STEP_UP, type OverrideGrantBody, overrideGrantContract } from "@silvicom/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";

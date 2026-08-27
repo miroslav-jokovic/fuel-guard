@@ -52,7 +52,7 @@
 - **lib**: `apiError(code,message)→{error:{code,message}}`; `validateBody(schema)` sets `res.locals.body`; `asyncHandler(fn)`; `getSupabaseAdmin(env)`; `getAppLocals(req).env`; `writeAudit(admin, entry)` best-effort into `audit_logs`.
 - **Shared contracts**: add Zod schema + inferred type to `packages/shared/src/apiContract.ts`; barrel auto-exports via `index.ts`. One source of truth for API + web + driver.
 - **Tests**: route tests build `createApp(loadEnv({NODE_ENV:"test"}))`, inject `app.locals.verifyToken` (token string → `AuthContext`), `app.listen(0)`, real `fetch`, assert gating (401/403); teardown `server.close`. **No test mocks Supabase** — DB-backed logic is validated as pure service unit tests (`describe/it/expect`, real fixtures).
-- **Web** (Vue 3 `<script setup>` + Pinia + vue-router): pages in `apps/web/src/pages/*.vue`; feature composables in `apps/web/src/features/<domain>/use*.ts`; UI primitives `components/ui/` (`DataTable`, `BaseCard`, `BaseButton`, `BaseInput`, `FormField`, `PageHeader`); routes in `router/index.ts` with `meta:{requiresAuth:true, requiresAdmin|requiresManage:true, title, parent}`; API via `apiFetch` (`lib/api.ts`, Supabase bearer auto-attached); types from `@fuelguard/shared`. Canonical CRUD screen to mirror: `pages/SettingsUsersPage.vue`.
+- **Web** (Vue 3 `<script setup>` + Pinia + vue-router): pages in `apps/web/src/pages/*.vue`; feature composables in `apps/web/src/features/<domain>/use*.ts`; UI primitives `components/ui/` (`DataTable`, `BaseCard`, `BaseButton`, `BaseInput`, `FormField`, `PageHeader`); routes in `router/index.ts` with `meta:{requiresAuth:true, requiresAdmin|requiresManage:true, title, parent}`; API via `apiFetch` (`lib/api.ts`, Supabase bearer auto-attached); types from `@silvicom/shared`. Canonical CRUD screen to mirror: `pages/SettingsUsersPage.vue`.
 - **Driver app** (Expo Router): screens are files under `apps/driver/app/`; register top-level screens in `app/_layout.tsx` `<Stack>`; data via `useQuery` + shared-schema `apiFetch` (mirror `src/session/useDriverContext.ts`).
 
 ---
@@ -392,7 +392,7 @@ Rule: numeric DB columns → `z.coerce.number().nullable()`; dates → `z.string
 
 ## 8. Web + driver UI (exact)
 
-**Web** (mirror `SettingsUsersPage.vue` + `DataTable` + `apiFetch` + toasts; types from `@fuelguard/shared`; register in `router/index.ts`):
+**Web** (mirror `SettingsUsersPage.vue` + `DataTable` + `apiFetch` + toasts; types from `@silvicom/shared`; register in `router/index.ts`):
 
 - `pages/RosterDriversPage.vue` (list) + `pages/RosterDriverDetailPage.vue` (tabbed: Profile · Compliance · Endorsements · Assignments · Documents). Route meta `{requiresAuth:true, requiresManage:true, title:"Drivers", parent:"/fleet"}` (managers, not admin-only — use `requiresManage`).
 - `pages/RosterTractorsPage.vue` + detail; `pages/RosterTrailersPage.vue` + detail.

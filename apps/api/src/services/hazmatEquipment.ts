@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveVehicleKind, type VehicleKindResolution } from "@fuelguard/shared";
+import { resolveVehicleKind, type VehicleKindResolution } from "@silvicom/shared";
 
 /**
  * What kind of equipment is this hazmat load actually on (F-P2), and what tank does it carry (H-C2).

@@ -11,7 +11,7 @@ import {
   type ApplicationRelease,
   type ApplicationSubmit,
   type AuthorizationPurpose,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { promoteCaptures } from "./applicationCapture.js";
 import { ensureApplicationPdf } from "./applicationPdf/file.js";

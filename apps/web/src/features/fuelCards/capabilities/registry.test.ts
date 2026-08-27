@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAPABILITIES_WITH_STEP_UP_GATE, CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
+import { CAPABILITIES_WITH_STEP_UP_GATE, CARD_CAPABILITY_CONTRACTS } from "@silvicom/shared";
 import { CARD_CAPABILITY_VIEWS } from "./registry.js";
 
 /**

@@ -9,9 +9,9 @@ import {
   moduleEnabled,
   type DqFileItem,
   type DocumentRow,
-} from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";

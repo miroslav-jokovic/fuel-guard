@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { CardCapabilities, WsCard } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import type { CardCapabilities, WsCard } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -57,7 +57,7 @@ import { useOperationDispatch } from "./useOperationDispatch";
  *    button is DISABLED: that outcome means we do not know whether the write landed, and retrying
  *    could apply it twice.
  *
- * 5. **Step-up is predicted, not discovered** (`operationStepUp` → `@fuelguard/shared`'s
+ * 5. **Step-up is predicted, not discovered** (`operationStepUp` → `@silvicom/shared`'s
  *    `efs/stepUp.ts`, the same predicates the API refuses with). The refusal path stays as a
  *    fallback: two of the three gates decide against the document EFS returns at write time, and
  *    this only has the mirror.

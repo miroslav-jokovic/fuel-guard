@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { maskPan, mergeEffectiveConfig, policyNumberSchema, rolesThatCanView, rolesThatManage } from "@fuelguard/shared";
+import { maskPan, mergeEffectiveConfig, policyNumberSchema, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { getPolicyCached } from "../../lib/efsPolicyCache.js";
 import { EfsSoapError } from "../../lib/efsSoapSession.js";

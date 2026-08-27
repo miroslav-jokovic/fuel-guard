@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   CheckCircleIcon,
   CopyIcon,
   DevicePhoneMobileIcon,
   EyeIcon,
   EyeSlashIcon,
-} from "@fuelguard/ui/icons";
-import type { DriverCredentialIssued } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+} from "@silvicom/ui/icons";
+import type { DriverCredentialIssued } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 
 defineProps<{
   credential: DriverCredentialIssued;

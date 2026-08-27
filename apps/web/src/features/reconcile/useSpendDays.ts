@@ -4,7 +4,7 @@
  * `fuel_spend_days` carries an org-scoped select policy and no client write policy at all, so the
  * browser reads its own carrier's spend days straight from PostgREST and cannot assert one. Everything
  * the trend and the bridge show is derived from these rows by the pure functions in
- * `@fuelguard/shared` — the page does no arithmetic of its own, so a figure here and a figure in a
+ * `@silvicom/shared` — the page does no arithmetic of its own, so a figure here and a figure in a
  * test cannot drift apart.
  *
  * ── WHY THE WINDOW IS BOUNDED ────────────────────────────────────────────────────────────────────
@@ -14,7 +14,7 @@
  */
 import type { Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
-import type { SpendDay } from "@fuelguard/shared";
+import type { SpendDay } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

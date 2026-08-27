@@ -8,7 +8,7 @@ import {
   type DriverType,
   type Load,
   type StartLoadRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Driver-side load operations (Driver App Phase 3B, migration 0087, D45–D47).

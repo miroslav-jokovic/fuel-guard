@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   EllipsisVerticalIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, type Placement } from "@floating-ui/vue";
 

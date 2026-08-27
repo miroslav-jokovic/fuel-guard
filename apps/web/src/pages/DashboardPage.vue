@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppIcon } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -16,7 +16,7 @@ import {
   RejectionIcon,
   RoadIcon,
   ShieldExclamationIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed } from "vue";
 import { RouterLink } from "vue-router";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
@@ -27,7 +27,7 @@ import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import BaseChart from "@/components/BaseChart.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";

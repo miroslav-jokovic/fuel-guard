@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { renderAnomalyAlertEmail, type AnomalyEmailItem, type AnomalySeverity } from "@fuelguard/shared";
+import { renderAnomalyAlertEmail, type AnomalyEmailItem, type AnomalySeverity } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { makeSender, type Sender } from "../lib/mailer.js";
 

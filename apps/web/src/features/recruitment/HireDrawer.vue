@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { HANDOFF_SKIP_LABELS, RETURN_TO_DUTY_BLOCK, type HandoffSkipReason } from "@fuelguard/shared";
-import { AppButton as BaseButton, AppCallout, AppDateField, AppFormField as FormField } from "@fuelguard/ui";
+import { HANDOFF_SKIP_LABELS, RETURN_TO_DUTY_BLOCK, type HandoffSkipReason } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCallout, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";

@@ -43,5 +43,5 @@ Built from `Dockerfile` (`node:22-alpine`, two files copied, no package manager)
 ## Local run
 
 ```
-pnpm --filter @fuelguard/driver-dist dev     # DATA_DIR=./.data, both secrets = "dev"
+pnpm --filter @silvicom/driver-dist dev     # DATA_DIR=./.data, both secrets = "dev"
 ```

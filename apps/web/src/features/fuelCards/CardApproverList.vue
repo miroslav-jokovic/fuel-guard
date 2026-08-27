@@ -5,11 +5,11 @@ import {
   CARD_SCOPE_DESCRIPTIONS,
   CARD_SCOPE_LABELS,
   type CardControlScope,
-} from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { CardApproverRow, EligibleMember } from "./useCardControlSettings";
 

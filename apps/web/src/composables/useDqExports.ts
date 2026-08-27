@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { BinderRequest, DocumentExportRequest, DqExportRow } from "@fuelguard/shared";
+import type { BinderRequest, DocumentExportRequest, DqExportRow } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 

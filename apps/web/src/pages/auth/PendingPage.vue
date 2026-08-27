@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 // Shown when a user is authenticated but has no membership yet (audit B3) — never a blank screen.
 const session = useSessionStore();

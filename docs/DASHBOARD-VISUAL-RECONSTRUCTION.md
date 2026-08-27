@@ -410,7 +410,7 @@ Proposed domain components in `apps/web/src/features/dashboard/`:
 - `AttentionSection.vue`;
 - `InsightPanel.vue`.
 
-These are domain compositions, not candidates for `@fuelguard/ui` until another product surface demonstrates the same need.
+These are domain compositions, not candidates for `@silvicom/ui` until another product surface demonstrates the same need.
 
 ## 14. How the direction propagates beyond Dashboard
 

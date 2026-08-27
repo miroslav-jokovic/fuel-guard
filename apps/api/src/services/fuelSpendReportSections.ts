@@ -7,7 +7,7 @@
  * Every function here takes finished figures and draws them, so none of them can compute anything and
  * quietly disagree with the page.
  */
-import { operatingBridge, type SpendGrain, type SpendPeriod } from "@fuelguard/shared";
+import { operatingBridge, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { METRIC_STRIP_HEIGHT, metricStrip, money, waterfall, waterfallHeight, type Metric } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, totalRow, type Column, type Row } from "./fuelSpendReportTable.js";

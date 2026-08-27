@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { ChevronRightIcon, PlusIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ChevronRightIcon, PlusIcon } from "@silvicom/ui/icons";
 import {
   HAZMAT_LOAD_STATUSES,
   HAZMAT_LOAD_STATUS_LABELS,
   type HazmatLoadRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

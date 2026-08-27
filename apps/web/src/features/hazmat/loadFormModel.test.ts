@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HazmatProduct } from "@fuelguard/shared";
+import type { HazmatProduct } from "@silvicom/shared";
 import { emptyLine } from "./calcModel";
 import { buildCreateLoadRequest, emptyLoadForm, loadFormHasProduct, parseList, type LoadForm } from "./loadFormModel";
 

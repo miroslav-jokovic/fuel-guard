@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { DqGroup, DqItemState } from "@fuelguard/shared";
-import { AppIcon, AppButton as BaseButton } from "@fuelguard/ui";
-import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentCheckIcon, EyeIcon } from "@fuelguard/ui/icons";
+import type { DqGroup, DqItemState } from "@silvicom/shared";
+import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentCheckIcon, EyeIcon } from "@silvicom/ui/icons";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";

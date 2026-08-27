@@ -18,8 +18,8 @@ The Heroicons set is functional but visually generic. HugeIcons Stroke Rounded p
 
 1. Standardise on **HugeIcons Stroke Rounded, free tier** as the single icon system for every FuelGuard app.
 2. Consume via `@hugeicons/vue` + `@hugeicons/core-free-icons` on the web side; when the driver app is rebuilt, use `@hugeicons/react-native` against the **same** `@hugeicons/core-free-icons` data package so one icon inventory serves both products.
-3. Introduce an `AppIcon` wrapper component in `@fuelguard/ui` that preserves the existing Tailwind `size-* text-*` convention — icons continue to be styled with utility classes, not props.
-4. Introduce an `@fuelguard/ui/icons` barrel that re-exports every icon we use under a stable local name. All feature code imports from the barrel; nothing imports from `@hugeicons/core-free-icons` directly.
+3. Introduce an `AppIcon` wrapper component in `@silvicom/ui` that preserves the existing Tailwind `size-* text-*` convention — icons continue to be styled with utility classes, not props.
+4. Introduce an `@silvicom/ui/icons` barrel that re-exports every icon we use under a stable local name. All feature code imports from the barrel; nothing imports from `@hugeicons/core-free-icons` directly.
 5. Remove `@heroicons/vue` from the codebase entirely. No dual-icon-library period.
 
 ## Rationale
@@ -53,12 +53,12 @@ Because the driver source doesn't exist at the time of this ADR, no code changes
 
 ```tsx
 import { HugeiconsIcon } from "@hugeicons/react-native";
-import { TruckIcon } from "@fuelguard/ui/icons";  // same barrel, RN-safe
+import { TruckIcon } from "@silvicom/ui/icons";  // same barrel, RN-safe
 
 <HugeiconsIcon icon={TruckIcon} color={theme.brand} size={20} />
 ```
 
-The `@fuelguard/ui/icons` barrel is safe to import from React Native — it only re-exports data arrays.
+The `@silvicom/ui/icons` barrel is safe to import from React Native — it only re-exports data arrays.
 
 ## Migration
 

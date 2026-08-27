@@ -6,7 +6,7 @@ import {
   type UnitRow,
   type DriverKeyRow,
 } from "../tms/entityLookup.js";
-import type { TmsMovementInput, DriverTimeOffInput } from "@fuelguard/shared";
+import type { TmsMovementInput, DriverTimeOffInput } from "@silvicom/shared";
 import { generateIngestToken, hashIngestToken } from "../lib/ingestToken.js";
 
 /**

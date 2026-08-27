@@ -2,8 +2,8 @@
  * import-row creation and reconciliation helpers. Split from efsIngest.ts (file-size budget); the
  * behaviour is unchanged and efsIngest.ts re-exports the public symbols so callers/tests are stable. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isFullCardNumber, sameCardFill } from "@fuelguard/shared";
-import type { RawRow, ReportKind } from "@fuelguard/shared";
+import { isFullCardNumber, sameCardFill } from "@silvicom/shared";
+import type { RawRow, ReportKind } from "@silvicom/shared";
 
 /** How the report reached us — recorded on imports.summary.channel for auditing (no migration needed). */
 export type IngestChannel = "manual" | "auto";

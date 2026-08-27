@@ -1,4 +1,4 @@
-import type { CapturedPage, RejectionReason, ScanResult } from "@fuelguard/capture-engine";
+import type { CapturedPage, RejectionReason, ScanResult } from "@silvicom/capture-engine";
 
 /**
  * Pure capture view-logic (M6). No React Native imports → unit-tested and portable. The screen turns a

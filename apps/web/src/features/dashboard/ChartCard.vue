@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 
 defineProps<{
   title: string;

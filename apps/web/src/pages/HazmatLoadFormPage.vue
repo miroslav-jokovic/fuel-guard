@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
 import { useRouter } from "vue-router";
-import type { HazmatProduct } from "@fuelguard/shared";
+import type { HazmatProduct } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateTimeField } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateTimeField } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";

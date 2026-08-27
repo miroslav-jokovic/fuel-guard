@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   PlusIcon,
   TrashIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 /**
  * Dispatch → New / edit load (Phase 3D, D49). The form that retires `seed_driver_load.sql`.
  *
@@ -20,13 +20,13 @@ import {
   STOP_KINDS,
   type CreateLoadRequest,
   type StopInput,
-} from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateTimeField } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateTimeField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { DispatchLoad } from "@/features/dispatch/useDispatchLoads";
 

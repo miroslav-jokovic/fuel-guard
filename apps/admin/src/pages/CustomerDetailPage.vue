@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppCard, AppButton, AppInput, AppPageHeader, AppTable } from "@fuelguard/ui";
+import { AppCard, AppButton, AppInput, AppPageHeader, AppTable } from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, apiPost, type OrgDetail, type OrgMember, type Me } from "@/lib/api";
 import { useImpersonationStore } from "@/stores/impersonation";

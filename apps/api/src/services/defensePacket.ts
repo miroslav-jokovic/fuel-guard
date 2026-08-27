@@ -3,7 +3,7 @@ import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { placardSvg, PLACARD_ART_VERSION } from "@hazmat/placards";
 import type { PlacardName, Verdict } from "@hazmat/engine";
-import type { QualFinding } from "@fuelguard/shared";
+import type { QualFinding } from "@silvicom/shared";
 import { INK, MUTED, NAVY } from "./dqBinder/pdfDraw.js";
 
 /**

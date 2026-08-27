@@ -8,7 +8,7 @@ import {
   type ResolveExceptionRequest,
   type UpdateLoadRequest,
   RETURN_TO_DUTY_BLOCK,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "./shared.js";
 import { returnToDutyBlocked } from "../returnToDuty.js";
 

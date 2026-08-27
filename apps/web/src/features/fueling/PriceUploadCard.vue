@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ArrowUpTrayIcon,
   CheckCircleIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import { uploadPriceReport, type PriceIngestResult } from "./usePriceUpload";

@@ -13,12 +13,12 @@
  * plan says so explicitly. Do not convert them, and do not grow filters here.
  *
  * Local to `features/anomalies/` by D-DS18: one consumer does not get to design a shared API, and
- * `lint:ui-adoption` fails a `@fuelguard/ui` barrel export that nothing calls. It is promoted when a
+ * `lint:ui-adoption` fails a `@silvicom/ui` barrel export that nothing calls. It is promoted when a
  * second consumer exists and can argue for the shape.
  */
 import { computed, ref } from "vue";
-import { formatRuleId } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { formatRuleId } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { nearMissMarker } from "@/lib/badges";
 
 export interface NearMiss {

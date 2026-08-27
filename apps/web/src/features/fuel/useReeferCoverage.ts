@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import { computeReeferCoverage, type ReeferCoverageInput, type ReeferCoverageSummary } from "@fuelguard/shared";
+import { computeReeferCoverage, type ReeferCoverageInput, type ReeferCoverageSummary } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

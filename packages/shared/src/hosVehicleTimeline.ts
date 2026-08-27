@@ -6,7 +6,7 @@
  * driver-keyed HOS segments into a sorted disjoint interval list, plus the range query over it. Building
  * it once per vehicle and reusing it is what keeps the idle rollup off an O(sessions x segments) scan.
  *
- * Re-exported from the package root, so consumers keep importing these from "@fuelguard/shared".
+ * Re-exported from the package root, so consumers keep importing these from "@silvicom/shared".
  */
 import { hosDutyKind, type HosDutyKind, type HosSegment, type HosVehicleOverlap } from "./hos.js";
 

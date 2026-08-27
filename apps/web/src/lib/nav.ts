@@ -33,7 +33,7 @@ import {
   UsersIcon,
   VehicleIcon,
   type Icon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import {
   canViewSection,
   canManageSection,
@@ -42,7 +42,7 @@ import {
   moduleEnabled,
   type UserRole,
   type ModuleSet,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 export interface NavItem {
   name: string;

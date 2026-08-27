@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { performanceSettingsFormSchema, NORMALIZATION_METHODS, IDLE_SCORE_BASES, type PerformanceSettingsForm } from "@fuelguard/shared";
+import { performanceSettingsFormSchema, NORMALIZATION_METHODS, IDLE_SCORE_BASES, type PerformanceSettingsForm } from "@silvicom/shared";
 import { useDriverPerformanceSettings, useSaveDriverPerformanceSettings } from "@/features/drivers/useDriverPerformanceSettings";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppSelect } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppSelect } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useDriverPerformanceSettings();

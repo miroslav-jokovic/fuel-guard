@@ -2,7 +2,7 @@ import {
   type WsPolicy,
   parseEfsDateTime,
   wsPolicySchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { redactCardXml } from "./efsCardXml.js";

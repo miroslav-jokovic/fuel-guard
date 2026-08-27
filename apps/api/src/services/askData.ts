@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX, odometerAccuracy, type OdoRow } from "@fuelguard/shared";
+import { AI_MODELS, CASE_RULE_ID, MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX, odometerAccuracy, type OdoRow } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { anthropicClient } from "../lib/anthropic.js";
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   type Icon,
   CheckCircleIcon,
@@ -7,7 +7,7 @@ import {
   InformationCircleIcon,
   XCircleIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { useToastStore, type Toast, type ToastVariant } from "@/stores/toast";
 
 const toast = useToastStore();

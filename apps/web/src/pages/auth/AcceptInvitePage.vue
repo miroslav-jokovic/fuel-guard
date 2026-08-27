@@ -4,9 +4,9 @@ import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 // Reached via a Supabase invite email link (type=invite) OR a password-recovery email
 // (type=recovery, used when re-inviting a user whose email was already confirmed). Either way

@@ -1,4 +1,4 @@
-import { CARD_CAPABILITY_KEYS } from "@fuelguard/shared";
+import { CARD_CAPABILITY_KEYS } from "@silvicom/shared";
 
 /**
  * The `efs_capability_promotions` rows for an org where every capability is approved.

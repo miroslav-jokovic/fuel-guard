@@ -5,8 +5,8 @@ import {
   AppInput as BaseInput,
   AppSelect as BaseSelect,
   AppTextarea as BaseTextarea,
-} from "@fuelguard/ui";
-import { questionnaireForApplicant } from "@fuelguard/shared";
+} from "@silvicom/ui";
+import { questionnaireForApplicant } from "@silvicom/shared";
 import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
 

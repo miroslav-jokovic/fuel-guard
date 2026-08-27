@@ -43,7 +43,7 @@ describe("sending", () => {
 
   describe("once the wording is published", () => {
     const publish = async () => {
-      const shared = await import("@fuelguard/shared");
+      const shared = await import("@silvicom/shared");
       return vi.spyOn(shared.SMS_CONSENT, "version", "get").mockReturnValue("v1");
     };
 

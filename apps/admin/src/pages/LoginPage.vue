@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppBadge, AppButton, AppInput, AppCard } from "@fuelguard/ui";
+import { AppBadge, AppButton, AppInput, AppCard } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();

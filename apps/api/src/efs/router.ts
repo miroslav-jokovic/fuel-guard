@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { rolesThatManage } from "@fuelguard/shared";
+import { rolesThatManage } from "@silvicom/shared";
 import { asyncHandler } from "../lib/http.js";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../middleware/requireFreshAuth.js";

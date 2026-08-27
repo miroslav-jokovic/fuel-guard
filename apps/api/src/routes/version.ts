@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { APP_NAME } from "@fuelguard/shared";
+import { APP_NAME } from "@silvicom/shared";
 import { asyncHandler } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getBuildInfo } from "../lib/buildInfo.js";

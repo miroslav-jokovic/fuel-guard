@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppIcon } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   type Icon,
   BoltIcon,
@@ -8,11 +8,11 @@ import {
   FlagIcon,
   MapIcon,
   MapPinIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, reactive } from "vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { stripStepDistance } from "@fuelguard/shared";
+import { stripStepDistance } from "@silvicom/shared";
 import type { PlanStopView } from "./useFuelPlan";
 
 const props = defineProps<{

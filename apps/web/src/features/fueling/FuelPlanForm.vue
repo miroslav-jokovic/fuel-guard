@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   MapIcon,
   MapPinIcon,
   PlusIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { reactive, computed, ref, watch } from "vue";
-import { EQUIPMENT_TYPES } from "@fuelguard/shared";
+import { EQUIPMENT_TYPES } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useRouteFuelSettings } from "@/composables/useRouteFuelSettings";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import AddressInput from "./AddressInput.vue";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, fetchVehicleLocation, type PlanRequest } from "./useFuelPlan";
 
 const props = defineProps<{ loading?: boolean }>();

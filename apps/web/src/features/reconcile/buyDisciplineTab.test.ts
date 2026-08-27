@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, type CarriedFuelFill, type FuelPolicy } from "@fuelguard/shared";
+import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, type CarriedFuelFill, type FuelPolicy } from "@silvicom/shared";
 import BuyDisciplineTab from "./BuyDisciplineTab.vue";
 
 /**

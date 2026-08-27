@@ -2,7 +2,7 @@ import {
   type OverrideGrantBody,
   overrideGrantContract,
   overrideGrantStepUp,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 import { handEnterClause, overrideLimitsClause } from "../overrideLimits.js";
 

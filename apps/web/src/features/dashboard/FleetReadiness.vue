@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppIcon } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   CheckCircleIcon,
   ChevronDownIcon,
   ExclamationTriangleIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";

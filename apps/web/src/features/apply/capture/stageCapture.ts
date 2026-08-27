@@ -2,7 +2,7 @@ import {
   APPLICATION_CAPTURE_CONTENT_TYPES,
   type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   confirmApplicationCapture,
   startApplicationCapture,

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref, watch } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 const props = withDefaults(
   defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean; jumpable?: boolean }>(),

@@ -3,7 +3,7 @@ import {
   ESIGN_CONSENT,
   esignConsentBody,
   isDraftDisclosure,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   isIntakeError,
   resolveInvitation,

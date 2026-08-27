@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";

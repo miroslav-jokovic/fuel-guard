@@ -1,4 +1,4 @@
-import type { EfsMileageCode } from "@fuelguard/shared";
+import type { EfsMileageCode } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { getLastMileage, overrideLastMileage } from "../lib/efsSecureFuelOps.js";
 import type { CardOpOptions } from "../lib/efsCardOps.js";

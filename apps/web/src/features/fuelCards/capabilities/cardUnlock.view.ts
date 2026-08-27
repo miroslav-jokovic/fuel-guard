@@ -4,7 +4,7 @@ import {
   cardUnlockContract,
   cardUnlockNeedsStepUp,
   efsStatusEquals,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { defineView, row } from "./types.js";
 
 /**

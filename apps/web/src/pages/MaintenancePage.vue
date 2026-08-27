@@ -16,8 +16,8 @@
  * Do not add a health-check poll to the SPA to trigger it — that is a new background behaviour and
  * it was not decided in UI-GAPS-PLAN.md.
  */
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { ClockIcon } from "@fuelguard/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { ClockIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ErrorPanel from "@/components/ErrorPanel.vue";
 </script>

@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import type { SpendLine } from "@fuelguard/shared";
+import type { SpendLine } from "@silvicom/shared";
 
 /**
  * The fuel-spend page, mounted.
@@ -133,8 +133,8 @@ vi.mock("@/features/reconcile/ReconcileTab.vue", () => ({
 // `analyzePolicyExceptions` is spied rather than replaced: the tabs below render its real output, and
 // what is being pinned is that the page passes a policy at all (B4a) — the argument F3 replaces with
 // the org's own `route_fuel_settings`.
-vi.mock("@fuelguard/shared", async (orig) => {
-  const actual = await orig<typeof import("@fuelguard/shared")>();
+vi.mock("@silvicom/shared", async (orig) => {
+  const actual = await orig<typeof import("@silvicom/shared")>();
   return {
     ...actual,
     analyzePolicyExceptions: (...args: unknown[]) => {

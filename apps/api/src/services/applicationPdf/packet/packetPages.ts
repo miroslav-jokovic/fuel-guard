@@ -1,4 +1,4 @@
-import type { DriverApplication, EquipmentClass } from "@fuelguard/shared";
+import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, table, winAnsi, type Cell } from "../../dqBinder/pdfDraw.js";
 import { CONTINUED, P1, P2, P12, P16, P26 } from "./packetText.js";
 import {

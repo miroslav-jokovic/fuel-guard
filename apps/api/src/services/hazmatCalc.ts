@@ -1,7 +1,7 @@
 import { evaluateLoad, type LoadInput } from "@hazmat/engine";
 import { loadDataset, LATEST_DATASET_VERSION, listDatasetVersions } from "@hazmat/data";
 import { PLACARD_ART_VERSION } from "@hazmat/placards";
-import type { HazmatCalcRequest, HazmatCalcResponse } from "@fuelguard/shared";
+import type { HazmatCalcRequest, HazmatCalcResponse } from "@silvicom/shared";
 
 /**
  * Deterministic placard/eligibility calculation (plan H5) — the pure engine call shared by the

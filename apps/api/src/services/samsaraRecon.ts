@@ -11,7 +11,7 @@ import {
   resolveLocation,
   resolveCapacity,
   type VehicleView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveLimitVocabulary } from "@fuelguard/shared";
+import { resolveLimitVocabulary } from "@silvicom/shared";
 import type { OperationDraft } from "./cardOperations";
 import {
   ALLOW_HAND_ENTER_HELP,

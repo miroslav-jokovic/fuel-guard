@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { AppIcon } from "@fuelguard/ui";
-import { ChevronDownIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ChevronDownIcon } from "@silvicom/ui/icons";
 import type { NavGroup } from "@/lib/nav";
 
 /**

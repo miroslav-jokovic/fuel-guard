@@ -1,7 +1,7 @@
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/admin/dist && pnpm --filter @fuelguard/admin build",
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/admin/dist && pnpm --filter @silvicom/admin build",
     "watchPatterns": [
       "apps/admin/**",
       "apps/admin-api/**",
@@ -12,7 +12,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @fuelguard/admin-api start",
+    "startCommand": "pnpm --filter @silvicom/admin-api start",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

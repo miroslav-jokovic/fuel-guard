@@ -5,7 +5,7 @@ import {
   type LongIdleInput,
   type LongIdleRow,
   type IdleClassification,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 

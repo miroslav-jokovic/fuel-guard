@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { AppIcon, AppTable } from "@fuelguard/ui";
+import { AppIcon, AppTable } from "@silvicom/ui";
 import {
   CsvIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { ref, computed } from "vue";
-import type { Vehicle } from "@fuelguard/shared";
+import type { Vehicle } from "@silvicom/shared";
 import {
   buildVehicleImportTemplate,
   buildSetupCsv,
@@ -13,7 +13,7 @@ import {
   type VehicleImportPreview,
 } from "./useVehicleSetupImport";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 
 const props = defineProps<{ vehicles: Vehicle[] }>();

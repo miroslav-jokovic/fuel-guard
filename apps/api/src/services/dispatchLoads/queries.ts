@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssignmentRow } from "@fuelguard/shared";
+import type { AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 
 /**

@@ -8,7 +8,7 @@
  * completeness floor on the raw table, so a broken page can never empty the network.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseKwikTripStoreList, composeKwikTripStations } from "@fuelguard/shared";
+import { parseKwikTripStoreList, composeKwikTripStations } from "@silvicom/shared";
 import type { Env } from "../env.js";
 
 const BRAND = "kwik_trip";

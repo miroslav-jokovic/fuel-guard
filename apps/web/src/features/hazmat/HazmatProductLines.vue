@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { PlusIcon, XMarkIcon } from "@fuelguard/ui/icons";
-import type { HazmatProduct } from "@fuelguard/shared";
-import { packageTypeSpec } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
+import { PlusIcon, XMarkIcon } from "@silvicom/ui/icons";
+import type { HazmatProduct } from "@silvicom/shared";
+import { packageTypeSpec } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import {
   linePackagingDerivation,

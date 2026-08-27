@@ -1,6 +1,6 @@
 import type {
   CardCapabilities, EfsLimitOption, EfsLocation, OverrideLimit, PromptInput, WsCard,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { statusBlocker } from "./overrideException.js";
 import { grantBlocker } from "./overrideLimits.js";
 import * as drafts from "./promptDrafts";
@@ -13,7 +13,7 @@ import {
   type EfsWritableStatus,
   canonicalEfsStatus,
   efsStatusEquals,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { CARD_CAPABILITY_VIEWS } from "./capabilities/registry.js";
 import type { CapabilityCardContext, CapabilityConfirmation, CapabilityDiffRow } from "./capabilities/types.js";
 

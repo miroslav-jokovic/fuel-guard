@@ -3,12 +3,12 @@
  *
  * The standard EFS reject export carries no card-assigned truck (verified), so this learned table IS
  * the card→truck ground truth the decline scorer checks against. Learning rules live in
- * @fuelguard/shared (learnCardAssignments): ≥5 attributed fills in the window AND a ≥70% majority on
+ * @silvicom/shared (learnCardAssignments): ≥5 attributed fills in the window AND a ≥70% majority on
  * one vehicle — a floating/slip-seat card yields NO assignment rather than a wrong one. Manual rows
  * (assignment_source = 'manual') are authoritative and never overwritten.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { learnCardAssignments, cardIdentityKey, cardLast4, isFullCardNumber, type CardFillRow } from "@fuelguard/shared";
+import { learnCardAssignments, cardIdentityKey, cardLast4, isFullCardNumber, type CardFillRow } from "@silvicom/shared";
 
 /**
  * The vehicle a card is ASSIGNED to (fuel_cards), or null. Shared by decline scoring and the

@@ -5,7 +5,7 @@ import {
   AppInput as BaseInput,
   AppDateField,
   AppFormField as FormField,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 

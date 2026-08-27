@@ -33,7 +33,7 @@ Decisions locked with the fleet: fleet size **150–200 drivers**; ranking basis
 
 ## 1. Audit of the current system (reuse vs add)
 
-**Architecture:** pnpm monorepo — `apps/web` (Vue 3 + Vite + Pinia + TanStack Query + Tailwind v4), `apps/api` (Express + TS), `packages/shared` (`@fuelguard/shared`). Multi-file shared modules use a **folder** (precedent `packages/shared/src/recon/`); everything re-exported from `packages/shared/src/index.ts`.
+**Architecture:** pnpm monorepo — `apps/web` (Vue 3 + Vite + Pinia + TanStack Query + Tailwind v4), `apps/api` (Express + TS), `packages/shared` (`@silvicom/shared`). Multi-file shared modules use a **folder** (precedent `packages/shared/src/recon/`); everything re-exported from `packages/shared/src/index.ts`.
 
 **Web:** pages in `apps/web/src/pages`, hooks in `apps/web/src/features/<domain>/useX.ts`; reads go straight to Supabase under RLS (`useIdleScores`, `useDrivers`), mutations via `apiFetch`. Shared UI: `DataTable`, `FilterBar`, `FilterSelect`, `PageHeader`, `Base*`, `FormField`, `TablePagination`, `StatCard`. **Design tokens only** (`ink`/`brand`/`edge`/`success-700`…), enforced by `apps/web/scripts/check-design-tokens.mjs`. Helpers `lib/sort.ts`, `lib/badges.ts` (`toneClass`).
 
@@ -155,7 +155,7 @@ Router `/driver-performance` (Analysis nav, `TrophyIcon`, `canManage||readOnly`)
 3. **Token scopes** → *Read Safety Events & Scores* + *Read Driver Efficiency*; diagnostics reports 403 per feed.
 4. **`jobs.kind` DB constraint** → read `0027_jobs.sql`; if `kind` is CHECK/enum, extend it; if plain `text`, TS union suffices.
 5. **`driverIds` cap** → Safety 100/call (batch of 2); Efficiency undocumented → 100-chunk batching + `after` pagination.
-6. **Week-tz utility** → confirm `zonedWallTimeToUtcIso`/`stateTimeZone` in `@fuelguard/shared` cover arbitrary IANA zones; else `weekWindow.ts` adds a small tested helper.
+6. **Week-tz utility** → confirm `zonedWallTimeToUtcIso`/`stateTimeZone` in `@silvicom/shared` cover arbitrary IANA zones; else `weekWindow.ts` adds a small tested helper.
 
 No remaining assumptions in the scoring logic (fleet size, ranking basis, efficiency handling, gate, normalization, weights all decided as defaults).
 
@@ -173,7 +173,7 @@ No remaining assumptions in the scoring logic (fleet size, ranking basis, effici
 - [x] A7 · `driverPerformance/index.ts` + export from `packages/shared/src/index.ts`
 - [x] A8 · Migrations `0053/0054/0055` + `_deploy/apply_0053..55.sql`
 - [x] A9 · Append `0053/0054/0055` to `supabase/tests/rls.test.mjs` list + assertions
-- [x] A10 · Gate: `pnpm --filter @fuelguard/shared test`, `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
+- [x] A10 · Gate: `pnpm --filter @silvicom/shared test`, `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
 
 ### Phase B — API (starts with the live-schema gate)
 - [x] B0 · **Verification gate:** extend `samsaraDiagnostics.ts` with the two probes; run against the live org; confirm §9.1–9.3 and `jobs.kind` (§9.4); lock field mappings

@@ -12,7 +12,7 @@ import Constants from "expo-constants";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { isVersionBelow } from "@fuelguard/shared";
+import { isVersionBelow } from "@silvicom/shared";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { useFeatures } from "@/session/useFeatures";

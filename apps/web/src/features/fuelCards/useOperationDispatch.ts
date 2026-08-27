@@ -1,4 +1,4 @@
-import type { OverrideLimit, PromptInput } from "@fuelguard/shared";
+import type { OverrideLimit, PromptInput } from "@silvicom/shared";
 import type { CardOperationId } from "./cardOperations";
 import {
   useClearOverride,

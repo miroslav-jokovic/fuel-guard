@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hourBucketIso } from "../lib/timeBucket.js";
-import { parseLovesExport, median, type Cell, type LovesLocationRow } from "@fuelguard/shared";
+import { parseLovesExport, median, type Cell, type LovesLocationRow } from "@silvicom/shared";
 
 const BRAND = "loves";
 export const LOVES_EXPORT_SOURCE = "loves_export";

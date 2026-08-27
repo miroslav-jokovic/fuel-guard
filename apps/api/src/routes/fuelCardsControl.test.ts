@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { mountedCapabilities } from "../efs/registry.js";
-import type { AuthContext } from "@fuelguard/shared";
+import type { AuthContext } from "@silvicom/shared";
 import { closeTestServer } from "../testing/httpServer.js";
 
 /**

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import { usePriceCoverageQuery, pricedRangeIsNarrower } from "./usePriceCoverage";
 import { pct1 } from "./format";
 

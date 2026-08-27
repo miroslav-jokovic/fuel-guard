@@ -4,11 +4,11 @@ import { RouterLink } from "vue-router";
 import { useAuditSample, useRecallMetrics, useRecordVerdict, type SampledFill } from "@/features/anomalies/useRecallAudit";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useToastStore } from "@/stores/toast";
-import type { AuditVerdict } from "@fuelguard/shared";
+import type { AuditVerdict } from "@silvicom/shared";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const toast = useToastStore();

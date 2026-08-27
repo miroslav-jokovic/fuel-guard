@@ -6,7 +6,7 @@ import {
   type DriverAppOverrideRow,
   type FeatureKey,
   type OrgFeatureRow,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Dashboard control-plane services (hardening plan Phase 5.1/5.2). The ONLY door to

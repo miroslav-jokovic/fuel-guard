@@ -3,7 +3,7 @@ import { requireNativeModule } from "expo-modules-core";
 /**
  * TS bridge for the self-built native scanner (DCE v1 SystemScanner provider). The native module CAPTURES
  * (OS document scanner) and MEASURES (OS OCR → legibility metrics); it never decides accept/reject — the
- * §5 gate is OUR TS code in @fuelguard/capture-engine and runs in the provider above this bridge.
+ * §5 gate is OUR TS code in @silvicom/capture-engine and runs in the provider above this bridge.
  *
  * Loaded lazily so a dev build WITHOUT the native module (or an unsupported device) degrades to the JS
  * fallback provider instead of crashing at import.

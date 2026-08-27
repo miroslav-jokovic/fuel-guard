@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { effectScope, ref } from "vue";
-import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@fuelguard/shared";
+import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@silvicom/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
 import { useSigningCeremony } from "./useSigningCeremony";
 

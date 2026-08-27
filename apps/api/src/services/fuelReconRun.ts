@@ -37,7 +37,7 @@ import {
   type ReconResult,
   type StatementWord,
   type SystemFill,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { createHash } from "node:crypto";
 import { eachPage } from "../lib/paging.js";
 

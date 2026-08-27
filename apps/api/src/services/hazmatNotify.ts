@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HAZMAT_REVIEW_ROLES } from "@fuelguard/shared";
+import { HAZMAT_REVIEW_ROLES } from "@silvicom/shared";
 import { notify, loginForDriver } from "./notify.js";
 
 /**

@@ -30,7 +30,7 @@ import {
   type SpendDay,
   type SpendGrain,
   type SpendLine,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 import { newDrawing, winAnsi } from "./dqBinder/pdfDraw.js";
 import { letterhead, stampPages } from "./fuelSpendReportDraw.js";

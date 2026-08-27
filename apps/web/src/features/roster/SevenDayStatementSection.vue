@@ -6,8 +6,8 @@ import {
   AppInput as BaseInput,
   AppDateField,
   AppFormField as FormField,
-} from "@fuelguard/ui";
-import { sevenDayTotal, sevenDayWindow, type SevenDayEntry } from "@fuelguard/shared";
+} from "@silvicom/ui";
+import { sevenDayTotal, sevenDayWindow, type SevenDayEntry } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

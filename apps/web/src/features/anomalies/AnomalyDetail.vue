@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@fuelguard/shared";
+import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@silvicom/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppTextarea } from "@fuelguard/ui";
-import { AppTable } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppTextarea } from "@silvicom/ui";
+import { AppTable } from "@silvicom/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";

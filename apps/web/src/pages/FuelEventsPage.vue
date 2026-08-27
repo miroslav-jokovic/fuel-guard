@@ -2,10 +2,10 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
-import { CASE_RULE_ID } from "@fuelguard/shared";
+import { CASE_RULE_ID } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, suspicionTone, toneClass } from "@/lib/badges";
 import PageHeader from "@/components/ui/PageHeader.vue";
 

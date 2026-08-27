@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectReportKind } from "@fuelguard/shared";
+import { detectReportKind } from "@silvicom/shared";
 import { parseCsv, tokenizeCsv, fileSourceFor, readEfsBuffer } from "./readEfsFile.js";
 
 const TXN_HEADER = "Card #,Tran Date,Invoice,Unit,Driver Name,Odometer,Location Name,City,State/ Prov,Fees,Item,Unit Price,Qty,Amt,DB,Currency";

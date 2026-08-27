@@ -23,7 +23,7 @@
  */
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
-import { resolveCapacity, type CarriedFuelFill } from "@fuelguard/shared";
+import { resolveCapacity, type CarriedFuelFill } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v));

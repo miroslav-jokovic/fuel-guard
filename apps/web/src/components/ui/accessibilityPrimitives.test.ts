@@ -9,7 +9,7 @@ import {
   AppInput,
   AppSearchField,
   AppSelect,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 
 describe("shared primitive accessibility smoke", () => {
   afterEach(() => document.body.replaceChildren());

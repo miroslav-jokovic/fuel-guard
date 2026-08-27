@@ -1,4 +1,4 @@
-import { detectReportKind, type RawRow } from "@fuelguard/shared";
+import { detectReportKind, type RawRow } from "@silvicom/shared";
 
 /**
  * Server-side EFS report reader: turns delivered file bytes into the same `{ headers, rows }` shape the

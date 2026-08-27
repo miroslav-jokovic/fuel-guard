@@ -1,4 +1,4 @@
-import { detectReportKind } from "@fuelguard/shared";
+import { detectReportKind } from "@silvicom/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { __resetSoapPacing } from "./soapClient.js";

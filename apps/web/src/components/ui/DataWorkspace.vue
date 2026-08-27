@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppCard } from "@fuelguard/ui";
+import { AppCard } from "@silvicom/ui";
 </script>
 
 <template>

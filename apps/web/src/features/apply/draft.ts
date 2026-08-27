@@ -4,7 +4,7 @@ import {
   type DriverApplication,
   type EquipmentClass,
   type QuestionnaireQuestion,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The form's own working shape (H5b).

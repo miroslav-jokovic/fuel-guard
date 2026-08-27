@@ -13,7 +13,7 @@ import {
   type HosSegment,
   type HosVehicleOverlap,
   type HosVehicleTimeline,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 export type IdleDutyEvidenceStatus = "sufficient" | "insufficient" | "ambiguous";
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssignmentHistoryQuery, AssignmentHistoryRow } from "@fuelguard/shared";
+import type { AssignmentHistoryQuery, AssignmentHistoryRow } from "@silvicom/shared";
 
 /**
  * The attribution trail (loads plan L5, D-L6).

@@ -7,7 +7,7 @@ import {
   type Vehicle,
   type RawRow,
   type ApuType,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { readFile } from "@/lib/readFile";
 

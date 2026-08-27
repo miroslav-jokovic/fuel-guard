@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import type { HazmatLoadRow, HazmatRunRow } from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppTextarea } from "@fuelguard/ui";
+import type { HazmatLoadRow, HazmatRunRow } from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppTextarea } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   ATTESTATION_TEXT,

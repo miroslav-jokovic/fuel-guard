@@ -5,7 +5,7 @@ import {
   infoLabel,
   limitLabelFrom,
   limitOptionIndex,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * One row of "what the pump will actually enforce", for every kind of rule a card carries.

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import type { z } from "zod";
-import { cardLockContract, defineContract } from "@fuelguard/shared";
+import { cardLockContract, defineContract } from "@silvicom/shared";
 import { cardEchoVerify } from "./cardEchoVerify.js";
 import { defineBehaviour } from "./types.js";
 import type { CapabilityBehaviour, Mutation, Snapshot, Step } from "./types.js";

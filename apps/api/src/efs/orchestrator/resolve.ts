@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CapabilityContract } from "@fuelguard/shared";
+import type { CapabilityContract } from "@silvicom/shared";
 import type { CapabilityBehaviour } from "../types.js";
 import type { ResolvedCapability } from "./types.js";
 

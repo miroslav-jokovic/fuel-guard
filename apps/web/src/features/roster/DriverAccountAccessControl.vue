@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { NoSymbolIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
-import type { DriverAppAccess } from "@fuelguard/shared";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
+import { NoSymbolIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
+import type { DriverAppAccess } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 
 defineProps<{
   access: Exclude<DriverAppAccess, "none">;

@@ -9,7 +9,7 @@
  * Like the roster path, this file knows McLeod column names only by importing them from `queries.mjs`
  * — the mapping below turns them into the neutral shape `tmsMovementFactSchema` validates on arrival
  * (packages/shared/src/tmsCost/movementFact.ts). The agent deliberately does NOT import
- * `@fuelguard/shared`: it ships to the carrier's own machine with `mssql` as its only dependency, and
+ * `@silvicom/shared`: it ships to the carrier's own machine with `mssql` as its only dependency, and
  * a workspace import would drag the whole monorepo onto their box.
  */
 

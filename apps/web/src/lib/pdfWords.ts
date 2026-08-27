@@ -1,14 +1,14 @@
 /**
  * PDF → positioned words, in the browser. The decode edge for vendor statements that arrive as PDF.
  *
- * Kept deliberately thin: everything that decides MEANING lives in `@fuelguard/shared`
+ * Kept deliberately thin: everything that decides MEANING lives in `@silvicom/shared`
  * (`parsePilotStatement`, `splitTextRun`), so it is pure and unit-tested. This module only turns a File
  * into `{ text, x, y, page }` and normalises pdfjs's coordinate system.
  *
  * pdfjs is dynamically imported, exactly like ExcelJS in `usePriceUpload` — it is a large dependency and
  * only an upload should pay for it.
  */
-import { splitTextRun, type StatementWord } from "@fuelguard/shared";
+import { splitTextRun, type StatementWord } from "@silvicom/shared";
 
 /** Guards against a mis-picked file turning into a multi-minute parse. Statements run ~25 pages. */
 const MAX_PAGES = 400;

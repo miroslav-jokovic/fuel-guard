@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { CardControlScope } from "@fuelguard/shared";
+import type { CardControlScope } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { CardControlApiError } from "./useCardControl";
 

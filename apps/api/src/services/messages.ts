@@ -6,7 +6,7 @@ import {
   type Message,
   type SendMessageRequest,
   type Thread,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { notify } from "./notify.js";
 
 /**

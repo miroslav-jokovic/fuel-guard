@@ -4,7 +4,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { sumSpendDays, spendSeries, type SpendDay } from "@fuelguard/shared";
+import { sumSpendDays, spendSeries, type SpendDay } from "@silvicom/shared";
 
 /**
  * `fuel_spend_by_period` (0252) and `sumSpendDays` must not drift.

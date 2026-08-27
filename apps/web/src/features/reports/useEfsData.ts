@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
-import type { EfsTransactionRow, DeclinedTransactionRow } from "@fuelguard/shared";
+import type { EfsTransactionRow, DeclinedTransactionRow } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 export const EFS_PAGE_SIZE = 20;

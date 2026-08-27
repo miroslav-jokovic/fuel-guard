@@ -8,7 +8,7 @@
  */
 import { computed, type Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { FuelExceptionKind, FuelExceptionStatus } from "@fuelguard/shared";
+import type { FuelExceptionKind, FuelExceptionStatus } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface FuelException {

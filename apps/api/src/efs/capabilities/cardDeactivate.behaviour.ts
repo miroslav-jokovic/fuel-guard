@@ -1,4 +1,4 @@
-import { type CardDeactivateBody, cardDeactivateContract, efsStatusEquals } from "@fuelguard/shared";
+import { type CardDeactivateBody, cardDeactivateContract, efsStatusEquals } from "@silvicom/shared";
 import { deactivateEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { assertOverrideDoesNotBlock } from "./overrideFreezeGuard.js";

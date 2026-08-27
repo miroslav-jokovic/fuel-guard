@@ -86,7 +86,7 @@ describe("asking for somewhere to put a photograph", () => {
   it("refuses before the 7001(c) consent, like every other write on this link", async () => {
     const rec = seed();
     // A4's gate is armed by the disclosure version; a published one is what makes it bite.
-    const consent = await import("@fuelguard/shared");
+    const consent = await import("@silvicom/shared");
     const spy = vi.spyOn(consent.ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
     const result = await startCapture(
       rec.client, TOKEN, { slot: "cdl_front", content_type: "image/webp" }, NOW,

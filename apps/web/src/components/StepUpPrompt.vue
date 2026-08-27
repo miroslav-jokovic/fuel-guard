@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import { verifyStepUp } from "@/lib/stepUp";
 
 /**

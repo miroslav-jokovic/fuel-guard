@@ -7,7 +7,7 @@ import {
   driversToProvision,
   derivePricePerGal,
   learnEfsDriverIds,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { scoreImportWithCascade } from "./scoring/index.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
@@ -33,7 +33,7 @@ import type {
   IngestResult,
   KnownTxnIdentity,
 } from "./efsIngestShared.js";
-import type { EfsTransactionLine, ReconciledFuelLine } from "@fuelguard/shared";
+import type { EfsTransactionLine, ReconciledFuelLine } from "@silvicom/shared";
 
 type PreparedTransaction = {
   allLines: EfsTransactionLine[];

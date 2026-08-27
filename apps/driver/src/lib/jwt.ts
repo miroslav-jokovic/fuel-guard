@@ -1,4 +1,4 @@
-import type { AuthClaims } from '@fuelguard/shared';
+import type { AuthClaims } from '@silvicom/shared';
 
 // Base64 alphabet — decoded manually so we don't depend on `atob`/`Buffer`/`TextDecoder`, none of
 // which are reliably present on Hermes. Pure, deterministic, UTF-8 correct.

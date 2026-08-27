@@ -5,7 +5,7 @@ import {
   type DriverInquiryQueue,
   type QueueAttempt,
   type QueueEmployment,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The fleet-wide §391.23 queue (EMPLOYER-INQUIRY-PLAN E5).

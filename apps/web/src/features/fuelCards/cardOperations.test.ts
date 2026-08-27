@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@fuelguard/shared";
+import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@silvicom/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
@@ -16,7 +16,7 @@ import {
   type OperationCard,
 } from "./cardOperations";
 import { emptyDraft } from "./operationDrafts";
-import type { CardCapabilities } from "@fuelguard/shared";
+import type { CardCapabilities } from "@silvicom/shared";
 
 /** A card with no fuel exception — the state every blocker below is actually about. */
 const QUIET_CARD = {

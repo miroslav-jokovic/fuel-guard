@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 
 /**
- * `@fuelguard/ui` had no test runner until U4 (UI plan, D-UI4).
+ * `@silvicom/ui` had no test runner until U4 (UI plan, D-UI4).
  *
  * That was tolerable while the package held only presentational primitives whose whole behaviour was
  * their class list — `lint:tests` reported "no tests" for it and nothing was lost. `AppTabs` ends

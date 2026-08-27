@@ -3,7 +3,7 @@ import {
   DRIVER_WRITE_LIMITS, DAILY_CAP_CODE, RATE_LIMITED_CODE,
   driverWriteBucket, hitWindow, secondsUntilUtcMidnight,
   type DriverWriteBucket, type WindowState,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";

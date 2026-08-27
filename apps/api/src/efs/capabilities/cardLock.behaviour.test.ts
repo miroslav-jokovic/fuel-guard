@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CARD_LOCK_OVERRIDE_BLOCKED, type CardLockBody } from "@fuelguard/shared";
+import { CARD_LOCK_OVERRIDE_BLOCKED, type CardLockBody } from "@silvicom/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 import type { Snapshot } from "../types.js";

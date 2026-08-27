@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MODULE_KEYS, isModuleKey, type ModuleKey } from "@fuelguard/shared";
+import { MODULE_KEYS, isModuleKey, type ModuleKey } from "@silvicom/shared";
 
 /** Per-org aggregate row returned by the platform_org_overview RPC. */
 export interface OrgOverview {

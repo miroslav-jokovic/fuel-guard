@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import { AppSelect } from "@fuelguard/ui";
-import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppSelect } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import FilterSelect from "./FilterSelect.vue";
 import DateRangeFilter from "../DateRangeFilter.vue";
 

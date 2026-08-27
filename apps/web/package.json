@@ -1,5 +1,5 @@
 {
-  "name": "@fuelguard/web",
+  "name": "@silvicom/web",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@floating-ui/vue": "^2.0.0",
-    "@fuelguard/capture-engine": "workspace:*",
-    "@fuelguard/shared": "workspace:*",
-    "@fuelguard/ui": "workspace:*",
+    "@silvicom/capture-engine": "workspace:*",
+    "@silvicom/shared": "workspace:*",
+    "@silvicom/ui": "workspace:*",
     "@hazmat/engine": "workspace:*",
     "@hazmat/placards": "workspace:*",
     "@headlessui/vue": "1.7.23",

@@ -8,7 +8,7 @@ import {
   sortThreads,
   threadTitle,
   type Thread,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useModulesQuery } from "@/composables/useModules";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -20,11 +20,11 @@ import {
   useThreadsQuery,
 } from "@/features/messages/useMessages";
 import { useToastStore } from "@/stores/toast";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 /**

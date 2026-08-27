@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
-} from "@fuelguard/ui/icons";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+} from "@silvicom/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 withDefaults(defineProps<{ message?: string; retrying?: boolean }>(), {
   message: "Something went wrong while loading this data.",

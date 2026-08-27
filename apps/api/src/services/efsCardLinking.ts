@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FULL_PAN_MIN_DIGITS, cardDigits } from "@fuelguard/shared";
+import { FULL_PAN_MIN_DIGITS, cardDigits } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { open, secretAad } from "../lib/secretBox.js";
 

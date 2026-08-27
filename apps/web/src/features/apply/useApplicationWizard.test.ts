@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { effectScope, ref } from "vue";
-import { APPLICATION_SECTION_ORDER, driverApplicationSchema } from "@fuelguard/shared";
+import { APPLICATION_SECTION_ORDER, driverApplicationSchema } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import { issuesFromParse, useApplicationWizard, validateSection } from "./useApplicationWizard";
 import { toApplication } from "./draft";

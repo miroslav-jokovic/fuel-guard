@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { AppIcon } from "@fuelguard/ui";
-import { ChevronRightIcon, ShieldExclamationIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ChevronRightIcon, ShieldExclamationIcon } from "@silvicom/ui/icons";
 import {
   HAZMAT_LOAD_STATUS_LABELS,
   type HazmatCreateLoadRequest,
   type HazmatLoadStatus,
-} from "@fuelguard/shared";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+} from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";

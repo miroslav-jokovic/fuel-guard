@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { HandoffSkip, HireApplicant } from "@fuelguard/shared";
+import type { HandoffSkip, HireApplicant } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment/hire` — the Recruitment → DQF handoff (HIRING-PLAN.md H8). */

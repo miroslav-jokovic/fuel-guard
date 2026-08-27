@@ -15,7 +15,7 @@
  * disabled by env, failures logged and counted, never crashing the process.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parsePilotPricesPageHtml, median } from "@fuelguard/shared";
+import { parsePilotPricesPageHtml, median } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { hourBucketIso } from "../lib/timeBucket.js";

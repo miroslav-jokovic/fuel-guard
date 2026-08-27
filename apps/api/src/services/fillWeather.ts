@@ -6,7 +6,7 @@
  * (never guesses a temperature off a noon sentinel). Best-effort; failures leave rows unfilled.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isNoonSentinelIso } from "@fuelguard/shared";
+import { isNoonSentinelIso } from "@silvicom/shared";
 import type { OpenMeteoFetcher } from "../lib/openMeteo.js";
 import { backfillTemperatures } from "./weatherBackfill.js";
 

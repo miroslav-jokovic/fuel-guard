@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { screeningFieldLabel, rolesThatManage, type ScreeningRow } from "@fuelguard/shared";
-import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@fuelguard/ui";
+import { screeningFieldLabel, rolesThatManage, type ScreeningRow } from "@silvicom/shared";
+import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

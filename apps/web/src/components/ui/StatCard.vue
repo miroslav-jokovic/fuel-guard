@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppIcon, AppCard as BaseCard } from "@fuelguard/ui";
-import { type Icon } from "@fuelguard/ui/icons";
+import { AppIcon, AppCard as BaseCard } from "@silvicom/ui";
+import { type Icon } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import SparkLine from "@/components/SparkLine.vue";
 
@@ -17,7 +17,7 @@ import SparkLine from "@/components/SparkLine.vue";
  * dashboard internal.
  *
  * ⚠ **Named `StatCard`, not `AppStatCard`** as `RECRUITING-UI-SURFACE-PLAN.md` U3 provisionally
- * called it. In this codebase the `App*` prefix means "exported from `@fuelguard/ui`"; every
+ * called it. In this codebase the `App*` prefix means "exported from `@silvicom/ui`"; every
  * web-local composite beside this file (`PageHeader`, `DataWorkspace`, `FilterBar`, `DataTable`,
  * `FilterSelect`, `BaseModal`) carries no prefix. It cannot move into the shared package as it
  * stands anyway — `SparkLine` is web-local.

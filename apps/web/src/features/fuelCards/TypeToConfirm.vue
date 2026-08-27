@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppInput } from "@fuelguard/ui";
+import { AppInput } from "@silvicom/ui";
 
 /**
  * Type the card's last four before Confirm becomes pressable — Step 8.1's gate on `card_deactivate`.

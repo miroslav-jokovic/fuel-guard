@@ -9,7 +9,7 @@
  * silence reads as completeness. So this report lists EVERY posting module in the window, marks the
  * ones a sweep stands behind, and prints the uncovered value as a number rather than omitting it.
  *
- * Read-only, same posture as the other sweeps, no `@fuelguard/shared` import.
+ * Read-only, same posture as the other sweeps, no `@silvicom/shared` import.
  */
 
 import process from "node:process";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RECON_EXCEPTION_KINDS } from "@fuelguard/shared";
+import { RECON_EXCEPTION_KINDS } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { runFuelReconciliation } from "./fuelReconRun.js";
 

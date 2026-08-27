@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@fuelguard/ui";
-import { analyzePolicyExceptions, avoidedBrandsLabel, avoidedStatesLabel, listStates, type SpendLine } from "@fuelguard/shared";
+import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@silvicom/ui";
+import { analyzePolicyExceptions, avoidedBrandsLabel, avoidedStatesLabel, listStates, type SpendLine } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

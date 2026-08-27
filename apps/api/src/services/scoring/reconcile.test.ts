@@ -85,7 +85,7 @@ describe("reconciliation evidence precedence", () => {
   });
 
   it("applies live station coordinates to the current rule transaction immediately", () => {
-    const txn = { stationLat: null, stationLng: null, eventAt: null, timeConfirmed: false, fueledAtPrecision: "instant" } as unknown as import("@fuelguard/shared").TxnView;
+    const txn = { stationLat: null, stationLng: null, eventAt: null, timeConfirmed: false, fueledAtPrecision: "instant" } as unknown as import("@silvicom/shared").TxnView;
     const recon = result({ stationLat: 32.78, stationLng: -96.8, fuelingTimeBasis: "tank_confirmed", reconAt: "2026-08-08T12:00:00Z" });
     applyReconciledContext(recon, txn, { source: "efs" } as FtxnRow);
     expect(txn.stationLat).toBe(32.78);

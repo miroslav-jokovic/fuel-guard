@@ -12,7 +12,7 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
 ## A. Needs you (machine / Railway / Supabase / a decision)
 
 - [ ] **Finish the worker split (only when scaling the API past 1 instance).** Add a second Railway
-      service from this repo — start command `pnpm --filter @fuelguard/api worker`, **1 replica**, same env
+      service from this repo — start command `pnpm --filter @silvicom/api worker`, **1 replica**, same env
       as the API — then set `RUN_SCHEDULERS_IN_PROCESS=false` on the API service. Until then, nothing to do
       (default keeps schedulers in the API process). Runbook: `docs/WORKER-DEPLOYMENT.md`.
 - [ ] **Reconcile migrations & retire `supabase/_deploy/`.** Run the steps in `docs/MIGRATION-DISCIPLINE.md`
@@ -80,7 +80,7 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
 ## Done in this effort (for reference)
 Phase 1: root docs → `docs/plans/`, comment pointers fixed, name normalized to FuelGuard. ·
 Phase 2: file-size guardrail, design-token CI enforcement, **lint made meaningful (was red on ~7k lines of
-vendor noise)**, route-auth fitness test, `@fuelguard/shared` barrel boundary rule, migration runbook. ·
+vendor noise)**, route-auth fitness test, `@silvicom/shared` barrel boundary rule, migration runbook. ·
 Phase 3: split all four god-files (efsImport, anomalyRules, scoring, samsara) verbatim behind identical
 barrels — grandfather list 4 → 1; 636 shared + 115 api tests green throughout. ·
 Phase 4: AnomalyDetail (485→340) + IdlingPage (428→242) logic → composables, templates byte-identical. ·

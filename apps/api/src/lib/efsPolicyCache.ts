@@ -1,4 +1,4 @@
-import type { WsPolicy } from "@fuelguard/shared";
+import type { WsPolicy } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { getPolicy, type CardOpOptions } from "./efsCardOps.js";

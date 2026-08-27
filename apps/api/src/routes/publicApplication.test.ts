@@ -6,7 +6,7 @@ import { loadEnv } from "../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { closeTestServer } from "../testing/httpServer.js";
 import { hashInvitationToken } from "../services/applicationIntake.js";
-import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@fuelguard/shared";
+import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@silvicom/shared";
 
 /**
  * The public surface, end to end and unauthenticated.

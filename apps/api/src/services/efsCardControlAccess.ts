@@ -9,7 +9,7 @@ import {
   resolveEditableInfoIds,
   resolveLimitVocabulary,
   rolesThatManage,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 

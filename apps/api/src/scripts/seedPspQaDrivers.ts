@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DISCLOSURES, SCREENING_PREREQUISITES, liveAuthorization } from "@fuelguard/shared";
+import { DISCLOSURES, SCREENING_PREREQUISITES, liveAuthorization } from "@silvicom/shared";
 import { loadEnv, type Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { ROSTER } from "./pspUatProbe.js";
@@ -33,9 +33,9 @@ import { ROSTER } from "./pspUatProbe.js";
  * It also refuses to run unless `PSP_ENVIRONMENT=uat`. Fabricated consent has no business existing
  * in an environment pointed at the account that bills and pulls real people's records.
  *
- *   pnpm --filter @fuelguard/api seed:psp-qa              # report only, writes nothing
- *   pnpm --filter @fuelguard/api seed:psp-qa --apply      # create the drivers and authorizations
- *   pnpm --filter @fuelguard/api seed:psp-qa --drivers litton,davidson --apply
+ *   pnpm --filter @silvicom/api seed:psp-qa              # report only, writes nothing
+ *   pnpm --filter @silvicom/api seed:psp-qa --apply      # create the drivers and authorizations
+ *   pnpm --filter @silvicom/api seed:psp-qa --drivers litton,davidson --apply
  */
 
 /** `Silvicom 360 EFS QA`. A literal, because the whole safety argument rests on it being this org. */

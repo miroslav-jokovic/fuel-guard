@@ -2,7 +2,7 @@
  * One quarter's IFTA inputs, read through `ifta_period_jurisdictions` and `ifta_period_summary` (0256).
  *
  * ── THE ARITHMETIC IS NOT HERE ───────────────────────────────────────────────────────────────────
- * This fetches and shapes; `computeIftaPosition` and `tieOutMiles` in `@fuelguard/shared` do every
+ * This fetches and shapes; `computeIftaPosition` and `tieOutMiles` in `@silvicom/shared` do every
  * calculation, which is why the same numbers can be produced server-side for a filing without a second
  * implementation to drift. The SQL only sums (D-FC1's neighbours do the same) and the units stay
  * Samsara's all the way to the shared module, which is the one place they become miles (D-IF1).
@@ -12,8 +12,8 @@ import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
   computeIftaPosition, tieOutMiles,
   type IftaFuelPurchase, type IftaJurisdictionMiles, type IftaPosition, type MilesTieOut,
-} from "@fuelguard/shared";
-import { milesFromMeters } from "@fuelguard/shared";
+} from "@silvicom/shared";
+import { milesFromMeters } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 export interface IftaQuarter {

@@ -15,7 +15,7 @@ import { writeAudit } from "../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
   type FuelExceptionStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../../services/fuelExceptions.js";
 import { renderDisputePacket } from "../../services/fuelDisputePacket.js";
 

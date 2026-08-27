@@ -12,7 +12,7 @@ import {
   type LoadStatus,
   type TmsLoadInput,
   type TmsLoadResult,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * TMS → dispatchable loads (Phase 3E, decision D48).

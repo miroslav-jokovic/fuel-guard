@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { PSP_SOURCE_API, PSP_SOURCE_IMPORT } from "@fuelguard/shared";
+import { PSP_SOURCE_API, PSP_SOURCE_IMPORT } from "@silvicom/shared";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 
 /**

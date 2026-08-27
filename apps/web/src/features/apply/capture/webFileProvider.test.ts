@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BUNDLED_DEFAULT_CONFIG, type CaptureConfig } from "@fuelguard/capture-engine";
+import { BUNDLED_DEFAULT_CONFIG, type CaptureConfig } from "@silvicom/capture-engine";
 import { createWebFileProvider, processPhoto } from "./webFileProvider";
 import type { DecodedImage, EncodedImage, WebImageIo } from "./webImageIo";
 

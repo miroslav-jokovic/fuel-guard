@@ -4,12 +4,12 @@ import {
   type CertificationCreateRequest, type CertificationListQuery,
   type DocumentListQuery, type DocumentRegisterRequest, type DocumentRegisterResponse, type DocumentRow,
   type QualificationRecordCreateRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Compliance master data service — certifications (§3.1 / §10.1), qualification records (§3.2) and
  * documents (DQ0). Thin data layer over Supabase: routes gate by role, RLS (0127 / 0129 / 0146) is
- * the PostgREST backstop, and the pure decision logic lives in @fuelguard/shared
+ * the PostgREST backstop, and the pure decision logic lives in @silvicom/shared
  * (complianceContract). `compliance_items` and `master_documents` were retired by 0147.
  */
 

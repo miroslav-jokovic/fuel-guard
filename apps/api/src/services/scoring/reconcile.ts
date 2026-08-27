@@ -5,7 +5,7 @@ import {
   LOCATION_DISTANCE_MISMATCH_MILES,
   type TxnView,
   type VehicleView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "../samsaraRecon.js";
 import { n } from "./loaders.js";

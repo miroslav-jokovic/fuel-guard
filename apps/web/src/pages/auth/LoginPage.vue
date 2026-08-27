@@ -2,9 +2,9 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
-import { AppFormField as FormField } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 const session = useSessionStore();
 const router = useRouter();

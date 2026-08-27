@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery } from "@tanstack/vue-query";
-import type { HazmatCalcRequest, HazmatCalcResponse, HazmatProduct, HazmatProductsResponse } from "@fuelguard/shared";
+import type { HazmatCalcRequest, HazmatCalcResponse, HazmatProduct, HazmatProductsResponse } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import type { CalcResult } from "./calcModel";
 

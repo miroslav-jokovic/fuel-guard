@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { efsStatusEquals, matchStatusCasing } from "@fuelguard/shared";
+import { efsStatusEquals, matchStatusCasing } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {

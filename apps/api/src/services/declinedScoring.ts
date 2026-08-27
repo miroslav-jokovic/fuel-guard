@@ -10,7 +10,7 @@ import {
   isNoonSentinelIso,
   CARD_MISMATCH_UNVERIFIED_WEIGHT,
   type DeclineSignal,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 import { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js";

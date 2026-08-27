@@ -9,7 +9,7 @@ import {
   mergeOperatorAssignments,
   type IdleThresholds,
   type AssignmentInterval,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraIdlingEventFetcher } from "../lib/samsara.js";

@@ -12,7 +12,7 @@ import {
   type EfsTransactionLine,
   type Vehicle,
   type Driver,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";

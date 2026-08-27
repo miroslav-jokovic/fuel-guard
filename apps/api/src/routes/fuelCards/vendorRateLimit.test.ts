@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Router } from "express";
 import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
-import type { AuthContext } from "@fuelguard/shared";
+import type { AuthContext } from "@silvicom/shared";
 import { fuelCardCapabilityRouter } from "../../efs/router.js";
 import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardConfigScanRouter } from "./scan.js";

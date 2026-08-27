@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import { odometerMismatches, type OdoMismatchInput, type OdoMismatchReport } from "@fuelguard/shared";
+import { odometerMismatches, type OdoMismatchInput, type OdoMismatchReport } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

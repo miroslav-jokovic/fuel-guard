@@ -28,8 +28,8 @@
 import { ref, computed, watch } from "vue";
 import { onErrorCaptured } from "vue";
 import { useRoute } from "vue-router";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { ExclamationTriangleIcon } from "@fuelguard/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { ExclamationTriangleIcon } from "@silvicom/ui/icons";
 import { captureException, getClient } from "@sentry/vue";
 import ErrorPanel from "@/components/ErrorPanel.vue";
 import { errorReference } from "@/lib/errorReference";

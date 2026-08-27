@@ -8,7 +8,7 @@ import {
   threadTitle,
   type Message,
   type MessageReportReason,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import {
   ActionBar,
   AppText,

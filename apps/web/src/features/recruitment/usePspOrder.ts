@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { PspOrderPreflight } from "@fuelguard/shared";
+import type { PspOrderPreflight } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment/psp-orders` — the surface P6 and P7 were built behind (P9). */

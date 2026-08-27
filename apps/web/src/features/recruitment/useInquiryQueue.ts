@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import type { EmployerInquiryState } from "@fuelguard/shared";
+import type { EmployerInquiryState } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment/inquiry-queue` — every §391.23 file with work left (E5). */

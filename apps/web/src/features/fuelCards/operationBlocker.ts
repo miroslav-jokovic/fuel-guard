@@ -1,4 +1,4 @@
-import type { CardCapabilities } from "@fuelguard/shared";
+import type { CardCapabilities } from "@silvicom/shared";
 import { allowedInfoIdsFrom, allowedLimitsFrom } from "./promptDrafts";
 import { typeToConfirmSatisfied } from "./TypeToConfirm.vue";
 import type { CapabilityConfirmation } from "./capabilities/types";

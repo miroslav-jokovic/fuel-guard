@@ -7,8 +7,8 @@ import {
   AppCard as BaseCard,
   AppDateField,
   AppFormField as FormField,
-} from "@fuelguard/ui";
-import { APPLICATION_SECTION_LABELS } from "@fuelguard/shared";
+} from "@silvicom/ui";
+import { APPLICATION_SECTION_LABELS } from "@silvicom/shared";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
@@ -22,7 +22,7 @@ import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
-import { driverApplicationSchema } from "@fuelguard/shared";
+import { driverApplicationSchema } from "@silvicom/shared";
 import {
   giveEsignConsent,
   unlockApplicationDraft,

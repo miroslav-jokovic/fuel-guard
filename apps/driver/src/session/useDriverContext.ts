@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { meDriverResponseSchema, type MeDriverResponse } from '@fuelguard/shared';
+import { meDriverResponseSchema, type MeDriverResponse } from '@silvicom/shared';
 import { apiFetch } from '@/lib/api';
 import { ApiQueryError } from '@/lib/queryClient';
 

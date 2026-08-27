@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { useToastStore } from "@/stores/toast";
 import { downloadCsv } from "@/lib/csv";

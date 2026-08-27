@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { UserRole } from "./constants.js";
 
 /**
- * HazmatGuard API DTOs (plan H4). App-layer contracts live in `@fuelguard/shared`, NEVER in `@hazmat/*`,
+ * HazmatGuard API DTOs (plan H4). App-layer contracts live in `@silvicom/shared`, NEVER in `@hazmat/*`,
  * so the engine + data packages stay dependency-free and extractable (D3/G5).
  */
 
@@ -202,7 +202,7 @@ export interface HazmatAnalyzeResponse {
 
 // ── load + run read shapes (GET /hazmat/loads, /loads/:id, /loads/:id/runs) — plan H5 workspace ──
 // Typed views of the DB rows (snake_case as returned by the service). The web app reads these; the
-// verdict is the engine's Verdict (opaque here to keep @fuelguard/shared free of @hazmat/* deps).
+// verdict is the engine's Verdict (opaque here to keep @silvicom/shared free of @hazmat/* deps).
 export interface HazmatLoadRow {
   id: string;
   org_id: string;

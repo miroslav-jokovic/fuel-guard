@@ -5,7 +5,7 @@ import {
   type DashboardSummary,
   type FuelTransaction,
   type Anomaly,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 

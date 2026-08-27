@@ -9,7 +9,7 @@ import {
   type FeatureKey,
   type FeatureMap,
   type OdometerMode,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import { useDriverContext } from './useDriverContext';
 
 export interface FeaturesView {

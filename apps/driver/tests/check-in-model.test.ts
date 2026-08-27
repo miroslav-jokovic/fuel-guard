@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EquipmentOption } from '@fuelguard/shared';
+import type { EquipmentOption } from '@silvicom/shared';
 import {
   canSubmit,
   chooseBobtail,

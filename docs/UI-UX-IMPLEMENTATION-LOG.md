@@ -73,7 +73,7 @@ After these decisions, Slice 2 can promote the selected values into canonical se
 ### Foundations and shared components
 
 - `packages/ui/src/tokens.css` is the only shared token source. Web and admin import it; CI rejects mirrored declarations or consumer overrides.
-- `@fuelguard/ui` now owns Button, IconButton, Surface/Card, TextField/Input, NumberField, TextArea, Checkbox, RadioGroup, Switch, Select, Combobox, SearchField, DateField, DateTimeField, DateRangePicker, InputGroup, FormField, Badge, Table, and PageHeader.
+- `@silvicom/ui` now owns Button, IconButton, Surface/Card, TextField/Input, NumberField, TextArea, Checkbox, RadioGroup, Switch, Select, Combobox, SearchField, DateField, DateTimeField, DateRangePicker, InputGroup, FormField, Badge, Table, and PageHeader.
 - The web-local Button, Card, Input, Checkbox, Switch, Select, Combobox, SearchInput, and FormField clones were removed after imports moved.
 - Form/date/select inconsistencies were migrated to the shared implementations. Filter and date clear controls are siblings rather than nested interactive elements; combobox/filter keyboard contracts cover arrows, Home/End, Enter/Space, Escape, and Tab.
 - Vue accessibility linting and an axe-core primitive smoke test are part of the repository gate.

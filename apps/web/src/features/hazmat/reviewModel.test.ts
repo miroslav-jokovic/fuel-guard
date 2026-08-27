@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { HazmatLoadRow } from "@fuelguard/shared";
+import type { HazmatLoadRow } from "@silvicom/shared";
 import { deriveReviewItems, emptyQueueFilter, filterReviewQueue, hasViolation, labelForFlag } from "./reviewModel";
 
-// The clearing RULES are tested in @fuelguard/shared (hazmatReview.test.ts); here we cover the UI-only
+// The clearing RULES are tested in @silvicom/shared (hazmatReview.test.ts); here we cover the UI-only
 // flag → review-item mapping, and re-confirm the re-exported violation classifier is wired through.
 
 describe("reviewModel — flag → review items (UI)", () => {

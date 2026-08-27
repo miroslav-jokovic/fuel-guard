@@ -7,13 +7,13 @@ import {
   PAYMENT_METHODS,
   type Vehicle,
   type FillUpInput,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { genUuid } from "@/lib/uuid";
-import { AppSelect } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppDateTimeField } from "@fuelguard/ui";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppSelect } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppDateTimeField } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 
 const props = defineProps<{

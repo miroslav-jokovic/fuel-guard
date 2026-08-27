@@ -7,7 +7,7 @@ import type {
   EmploymentHistory,
   EmploymentHistoryCreate,
   EmploymentHistoryUpdate,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment` — the §391.21(b)(10) employment list (0208). */

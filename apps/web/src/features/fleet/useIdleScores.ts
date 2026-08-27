@@ -5,7 +5,7 @@ import {
   type IdleRow,
   type IdleSummary,
   type IdleClassification,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;

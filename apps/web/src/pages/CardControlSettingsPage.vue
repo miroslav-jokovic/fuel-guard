@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { CheckIcon, XMarkIcon } from "@fuelguard/ui/icons";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
+import { CheckIcon, XMarkIcon } from "@silvicom/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -19,7 +19,7 @@ import {
   useRevokeCardApprover,
   useUpdateCardControlSettings,
 } from "@/features/fuelCards/useCardControlSettings";
-import type { CardControlScope } from "@fuelguard/shared";
+import type { CardControlScope } from "@silvicom/shared";
 
 /**
  * The EFS write check — the gate that decides whether card actions exist at all.

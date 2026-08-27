@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { shiftDuration, type AssignmentHistoryRow } from "@fuelguard/shared";
+import { shiftDuration, type AssignmentHistoryRow } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDriversQuery } from "@/composables/useDrivers";

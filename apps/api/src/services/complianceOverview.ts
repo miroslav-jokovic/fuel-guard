@@ -9,7 +9,7 @@ import {
   type DqGroupSummary,
   type DqItemState,
   type DqRecordInput,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * The fleet-wide qualification picture (DQ redesign, D-DQ6).

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { nextEfsWallClock } from "@fuelguard/shared";
+import { nextEfsWallClock } from "@silvicom/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { buildSoapEnvelope, xmlEscape } from "./efsXml.js";

@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { computed, ref, type Ref } from "vue";
-import { spendSeries, periodTotals, type SpendDay } from "@fuelguard/shared";
+import { spendSeries, periodTotals, type SpendDay } from "@silvicom/shared";
 
 /**
  * The trend tab — the page's default view, and the one a boss opens it for.

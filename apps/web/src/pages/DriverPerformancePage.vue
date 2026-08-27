@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppIcon } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   TrophyIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, ref, watch } from "vue";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";

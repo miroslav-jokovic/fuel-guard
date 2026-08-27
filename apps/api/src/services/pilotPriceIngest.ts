@@ -1,6 +1,6 @@
 /**
  * Ingests a Pilot "Better Of Pricing Report" (daily diesel price email) for one org. Parse is pure
- * (@fuelguard/shared); here we geocode Pilot sites and load the global station registry + this day's prices.
+ * (@silvicom/shared); here we geocode Pilot sites and load the global station registry + this day's prices.
  *
  * Geocoding: the report carries only city + state, so we place each site by geocoding the CITY (address
  * search, always resolves) then refining with a POI /discover for the nearest Pilot Travel Center. HERE
@@ -14,7 +14,7 @@
  * no-op. Stations upsert on (brand, store_number), so re-uploads never duplicate a station either.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@fuelguard/shared";
+import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 import type { Env } from "../env.js";
 import { hereGeocode, mapPool } from "../lib/hereGeocode.js";

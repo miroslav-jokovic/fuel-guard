@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 withDefaults(defineProps<{ label: string; value: string; hint?: string; tone?: "ink" | "success" | "danger" | "warning" | "brand" }>(), {
   hint: undefined,
   tone: "ink",

@@ -3,7 +3,7 @@ import {
   markReadRequestSchema,
   registerPushTokenRequestSchema,
   updatePreferencesRequestSchema,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { requireAuth, requireOrg } from "../middleware/auth.js";
 import { requireModule } from "../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";

@@ -4,7 +4,7 @@ import {
   ESIGN_CONSENT_CLAUSES,
   ESIGN_CONSENT_CLAUSE_CITATIONS,
   esignConsentBody,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { hashInvitationToken, isIntakeError, requireEsignConsent } from "./applicationIntake.js";
 import { esignConsentForApplicant, recordEsignConsent } from "./esignConsent.js";

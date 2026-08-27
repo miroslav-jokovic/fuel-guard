@@ -251,6 +251,6 @@ A driver UI change is complete only when:
 - It respects safe areas, the 4pt spacing quantum, semantic layout rhythm, and minimum touch targets.
 - It uses `AppText` for semantic typography and the semantic `Icon` adapter.
 - It has a realistic gallery or screen example.
-- It passes `pnpm --filter @fuelguard/driver typecheck`.
-- It passes `pnpm --filter @fuelguard/driver lint` and `lint:tokens`.
+- It passes `pnpm --filter @silvicom/driver typecheck`.
+- It passes `pnpm --filter @silvicom/driver lint` and `lint:tokens`.
 - It passes the relevant driver tests.

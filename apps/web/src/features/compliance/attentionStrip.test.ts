@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAttentionStrip } from "./attentionStrip";
-import type { DriverOverviewRow } from "@fuelguard/shared";
+import type { DriverOverviewRow } from "@silvicom/shared";
 
 /** C5 — every tile's count derives from the same overview rows the table renders, so a tile and
  *  the rows its click reveals cannot disagree. The filter VALUES each tile applies are data here,

@@ -1,4 +1,4 @@
-import { trailerUnitMatchKey } from "@fuelguard/shared";
+import { trailerUnitMatchKey } from "@silvicom/shared";
 import { vehicleUnitKey } from "./rosterMatch.js";
 
 /**

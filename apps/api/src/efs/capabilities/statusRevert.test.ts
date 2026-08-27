@@ -1,7 +1,7 @@
 import type { EditsCtx } from "../types.js";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS } from "@silvicom/shared";
 import { describe, expect, it } from "vitest";
-import { deactivateCardSchema, lockCardSchema, unlockCardSchema } from "@fuelguard/shared";
+import { deactivateCardSchema, lockCardSchema, unlockCardSchema } from "@silvicom/shared";
 import type { z } from "zod";
 import type { Snapshot } from "../types.js";
 import { cardDeactivateBehaviour } from "./cardDeactivate.behaviour.js";

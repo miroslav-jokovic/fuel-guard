@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CardMutationIntent } from "@fuelguard/shared";
-import type { Target } from "@fuelguard/shared";
+import type { CardMutationIntent } from "@silvicom/shared";
+import type { Target } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import type { CardEdit } from "../../lib/efsCardEcho.js";
 import type { CardDocument } from "../../lib/efsCardXml.js";

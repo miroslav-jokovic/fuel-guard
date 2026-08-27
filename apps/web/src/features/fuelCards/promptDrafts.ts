@@ -5,7 +5,7 @@ import {
   type EfsLimitOption,
   type PromptInput,
   resolveLimitVocabulary,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { OperationCard } from "./cardOperations";
 
 /**

@@ -1,6 +1,6 @@
 import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
-import type { DriverApplication } from "@fuelguard/shared";
+import type { DriverApplication } from "@silvicom/shared";
 import { CORRECTIONS, P1, P2, P12, P16 } from "./packetText.js";
 import {
   RENDERED_PACKET_PAGES,

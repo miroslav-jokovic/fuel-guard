@@ -7,7 +7,7 @@ import {
   MPG_PLAUSIBLE_MAX,
   type FillUpInput,
   type FuelTransaction,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";

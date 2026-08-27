@@ -9,9 +9,9 @@
     "jsx": "preserve",
     "paths": {
       "@/*": ["./src/*"],
-      "@fuelguard/shared": ["../../packages/shared/src/index.ts"],
-      "@fuelguard/shared/*": ["../../packages/shared/src/*"],
-      "@fuelguard/ui": ["../../packages/ui/src/index.ts"]
+      "@silvicom/shared": ["../../packages/shared/src/index.ts"],
+      "@silvicom/shared/*": ["../../packages/shared/src/*"],
+      "@silvicom/ui": ["../../packages/ui/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts", "vite.config.ts"],

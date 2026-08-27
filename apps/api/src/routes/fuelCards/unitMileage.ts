@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { EFS_MILEAGE_CODES, overrideMileageSchema } from "@fuelguard/shared";
+import { EFS_MILEAGE_CODES, overrideMileageSchema } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { apiError, asyncHandler } from "../../lib/http.js";

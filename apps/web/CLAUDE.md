@@ -5,9 +5,9 @@ changing UI. The rules below are the ones most often violated; the contract has 
 
 ## Verify with
 
-- `pnpm --filter @fuelguard/web typecheck` (vue-tsc) and `pnpm --filter @fuelguard/web test` (vitest).
+- `pnpm --filter @silvicom/web typecheck` (vue-tsc) and `pnpm --filter @silvicom/web test` (vitest).
   These are the fast path and cover most changes.
-- **To SEE a change: `pnpm --filter @fuelguard/web preview:local`.** Builds and serves on :4173 with
+- **To SEE a change: `pnpm --filter @silvicom/web preview:local`.** Builds and serves on :4173 with
   the design-system lab switched on, so `/__design-system` renders real primitives without a login —
   everything else in the app is behind the auth wall. ⚠ `pnpm dev` crashes on some machines with
   `WebAssembly.Memory.grow(): Maximum memory size exceeded` inside vite's rolldown dependency
@@ -23,8 +23,8 @@ changing UI. The rules below are the ones most often violated; the contract has 
   never wrapped in another card), `FilterBar`, `FilterSelect` (toolbars) vs `ComboSelect` (forms),
   `SlideOver` (actions in `#footer`), `KebabMenu` (children are `BaseButton class="kebab-item"` — a
   raw `<button>` in pages/features fails `lint:ui-adoption`), `FileDropzone`, `StatusBadge`.
-- Primitives come from `@fuelguard/ui`, aliased to the old local names at the import:
-  `import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui"`. There is no
+- Primitives come from `@silvicom/ui`, aliased to the old local names at the import:
+  `import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui"`. There is no
   `BaseButton.vue` in `@/components/ui/` — a local clone of a shared primitive fails `lint:ui-adoption`.
   `@/components/ui/` holds the web-only composites: `DataTable`, `PageHeader`, `FilterBar`, `FilterSelect`,
   `DataWorkspace`, `StatCard`, `BaseModal`, `FileDropzone`, `SettingsSection`.

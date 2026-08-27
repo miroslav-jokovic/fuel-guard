@@ -1,4 +1,4 @@
-# @fuelguard/ui
+# @silvicom/ui
 
 Shared design-system primitives for the FuelGuard front ends.
 
@@ -10,8 +10,8 @@ FuelGuard uses [HugeIcons](https://hugeicons.com) (Stroke Rounded, free tier —
 
 ```vue
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { TruckIcon, CheckCircleIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { TruckIcon, CheckCircleIcon } from "@silvicom/ui/icons";
 </script>
 
 <template>
@@ -30,7 +30,7 @@ import { TruckIcon, CheckCircleIcon } from "@fuelguard/ui/icons";
 
 1. Find the glyph at [hugeicons.com](https://hugeicons.com) — filter to **Stroke Rounded** and **Free**. Note its export name (e.g. `PackageOpenIcon`).
 2. Add a re-export in [`src/icons.ts`](./src/icons.ts) under a stable local name.
-3. Import from `@fuelguard/ui/icons` at the call site.
+3. Import from `@silvicom/ui/icons` at the call site.
 
 The indirection is deliberate: it means a designer can swap a variant in one file rather than editing 300 call sites, and we can upgrade to HugeIcons Pro (all 10 styles) later by swapping the source package here — with no changes to feature code.
 

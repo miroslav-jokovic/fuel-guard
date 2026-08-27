@@ -12,7 +12,7 @@ import {
   type ApplicationCaptureSlot,
   type ApplicationCaptureStart,
   type ApplicationCaptureView,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,

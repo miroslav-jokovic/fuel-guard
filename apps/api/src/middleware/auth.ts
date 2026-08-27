@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import type { UserRole } from "@fuelguard/shared";
+import type { UserRole } from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { verifyAccessToken, getProjectJwks, projectTokenAudience } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";

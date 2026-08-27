@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { stateTimeZone } from "@fuelguard/shared";
+import { stateTimeZone } from "@silvicom/shared";
 import type { AnomalyTxnDetail } from "./useAnomalies";
 
 const props = defineProps<{

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@fuelguard/ui";
-import { ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ClipboardDocumentListIcon } from "@silvicom/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { useCertificationsQuery, useComplianceOverviewQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton, AppTabs, AppCallout, type TabItem } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppTabs, AppCallout, type TabItem } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import StatCard from "@/components/ui/StatCard.vue";

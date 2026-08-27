@@ -7,7 +7,7 @@ import {
   canReadInvestigationHistory,
   rolesThatManage,
   type InquiryMethod,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCard as BaseCard,
@@ -15,7 +15,7 @@ import {
   AppDateField,
   AppCombobox as ComboSelect,
   AppFormField as FormField,
-} from "@fuelguard/ui";
+} from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";

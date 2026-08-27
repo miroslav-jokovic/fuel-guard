@@ -1,4 +1,4 @@
-import { resolveEditableInfoIds } from "@fuelguard/shared";
+import { resolveEditableInfoIds } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CardMutationContext } from "./types.js";
 

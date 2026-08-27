@@ -5,7 +5,7 @@ import {
   CARD_MUTATION_STATUS_LABELS,
   type CardMutationIntent,
   type CardMutationStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";

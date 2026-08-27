@@ -10,7 +10,7 @@ import {
   type InquiryOutcome,
   type EmployerResponseDocument,
   type InquiryOutcomeUpdate,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * Recording a §391.23 previous-employer inquiry (EMPLOYER-INQUIRY-PLAN E3).

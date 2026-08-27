@@ -1,5 +1,5 @@
 /**
- * @fuelguard/capture-engine — the self-built document scanner core (DCE design of record).
+ * @silvicom/capture-engine — the self-built document scanner core (DCE design of record).
  *
  * Pure, reusable, platform-agnostic: public API contracts, the versioned + signed config, the §5
  * quality/legibility gate, and the provider seam. Built first in Silvicom 360 `apps/driver`; reused by the

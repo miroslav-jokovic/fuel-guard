@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppIcon, AppAvatar } from "@fuelguard/ui";
+import { AppIcon, AppAvatar } from "@silvicom/ui";
 import {
   ChevronUpDownIcon,
   SchemeDarkIcon,
   SchemeLightIcon,
   SchemeSystemIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { useColorScheme, type ColorScheme } from "@/composables/useColorScheme";
-import { USER_ROLE_LABELS, type UserRole } from "@fuelguard/shared";
+import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import { RouterLink } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
 

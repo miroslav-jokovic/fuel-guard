@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_KINDS,
   FUEL_EXCEPTION_STATUS_LABELS, FUEL_EXCEPTION_STATUSES,
   type FuelExceptionKind, type FuelExceptionStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

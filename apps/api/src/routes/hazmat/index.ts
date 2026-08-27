@@ -15,7 +15,7 @@ import {
   type HazmatAnalyzeResponse,
   HAZMAT_REVIEW_ROLES,
   rolesThatCanView, rolesThatManage,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { loadDataset, loadReferenceText } from "@hazmat/data";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireModule } from "../../middleware/requireModule.js";

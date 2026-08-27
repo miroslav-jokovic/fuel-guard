@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@fuelguard/shared";
-import type { CardCapabilities } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@silvicom/shared";
+import type { CardCapabilities } from "@silvicom/shared";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
 import {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENTS_BUCKET } from "@fuelguard/shared";
+import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 import type { PDFDocument } from "pdf-lib";
 import {
   gatherCarrier,

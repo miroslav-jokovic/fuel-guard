@@ -12,7 +12,7 @@
  * closure is safety-critical and needs a second signal); unknown sub-brand names are flagged, not guessed.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parsePilotLocationsExport, PILOT_FAMILY_BRANDS, type Cell, type PilotLocationRow } from "@fuelguard/shared";
+import { parsePilotLocationsExport, PILOT_FAMILY_BRANDS, type Cell, type PilotLocationRow } from "@silvicom/shared";
 import { eachPage } from "../lib/paging.js";
 
 const SOURCE = "pilot_locations_export";

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { AppIcon, AppInput } from "@fuelguard/ui";
+import { AppIcon, AppInput } from "@silvicom/ui";
 import {
   CheckIcon,
   ChevronDownIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
-} from "@fuelguard/ui/icons";
+} from "@silvicom/ui/icons";
 import { computed, nextTick, ref, watch } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 

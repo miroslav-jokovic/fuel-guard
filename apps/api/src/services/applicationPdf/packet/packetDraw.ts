@@ -11,7 +11,7 @@ import {
   type Column,
 } from "../../dqBinder/pdfDraw.js";
 import { CONTINUED, FOOTER } from "./packetText.js";
-import type { EquipmentClass } from "@fuelguard/shared";
+import type { EquipmentClass } from "@silvicom/shared";
 
 /** Name and legal address, from `organizations` (D-PKT8). Declared here so the drawing layer does
  *  not have to import the renderer's input type and create a cycle. */

@@ -59,7 +59,7 @@ Samsara/SOAP pacing is a module-level `Map` (`apps/api/src/lib/samsaraHttp.ts:17
 > (`eachPage` incremental + `fetchAllPaged`, unit-tested); 5 sites migrated (driverAttribution,
 > stationGeocodeLearning, pilot/posted/pilotLocations ingest). Still open in D: the `resolveCorridorPrices`
 > effective-price transform (duplicated across `fueling/stations.ts` ↔ `fuelPlanning.ts`) and the
-> `@fuelguard/shared` subpath-entrypoints (156-consumer barrel). Below:
+> `@silvicom/shared` subpath-entrypoints (156-consumer barrel). Below:
 > File-size guardrail is green — `fueling.ts` split into
 > `routes/fueling/{plans,mapProxies,networks,stations}.ts` and `dispatchLoads.ts` into
 > `services/dispatchLoads/{shared,queries,mutations}.ts` (0 files over budget). `integrations.ts` was
@@ -78,7 +78,7 @@ Samsara/SOAP pacing is a module-level `Map` (`apps/api/src/lib/samsaraHttp.ts:17
 `fueling.ts`: fuel-plan CRUD + a HERE raster-tile proxy + geocode + **8** truck-stop ingest endpoints + a 121-line `/stations` read-model. `integrations.ts`: Samsara + McLeod/TMS + EFS-SOAP, with a job-envelope block copy-pasted 6×. *Fix:* split by domain (`fueling/{plans,map,networks}.ts`, `integrations/{samsara,tms,efsSoap}.ts`) and extract a `withJob(...)` helper.
 
 **D. Duplicated price/paging logic + a 156-consumer barrel.**
-The effective-price + 1000-row paging transform is duplicated across `fueling.ts:442‑538` and `fuelPlanning.ts:264‑326` (and the paging loop re-implemented in 6+ files). `@fuelguard/shared`'s barrel (`packages/shared/src/index.ts`, 53 re-exports) is imported by **156 files** — large blast radius, defeats tree-shaking. *Fix:* promote a shared `resolveCorridorPrices()` + `fetchAllPaged()`; offer subpath entrypoints (`@fuelguard/shared/smartFueling`).
+The effective-price + 1000-row paging transform is duplicated across `fueling.ts:442‑538` and `fuelPlanning.ts:264‑326` (and the paging loop re-implemented in 6+ files). `@silvicom/shared`'s barrel (`packages/shared/src/index.ts`, 53 re-exports) is imported by **156 files** — large blast radius, defeats tree-shaking. *Fix:* promote a shared `resolveCorridorPrices()` + `fetchAllPaged()`; offer subpath entrypoints (`@silvicom/shared/smartFueling`).
 
 **E. The boundary linter is blind to most of the repo.**
 `scripts/check-feature-boundaries.mjs` only covers `apps/web/src/features` + the two hazmat packages. It does **not** cover the driver app — which already has a real cross-feature reach: `driver/src/features/loads/useLoads.ts:23‑24` imports `@/features/auth/SessionProvider` and `@/features/home/useDriverContext`. It also enforces **no** engine determinism/I/O purity (a future `Date.now`/`fetch` in engine logic would pass CI), and its cross-feature regex is bypassable via barrel (`@/features/x` no slash) or dynamic `import()`. *Fix:* parameterize `FEATURES` to multiple roots + run it in the driver repo; add a content scan banning `Date.now|Math.random|new Date(|fetch|node:|supabase` in `hazmat-engine/src`; tighten the regex; promote the shared driver hooks out of `features/`.

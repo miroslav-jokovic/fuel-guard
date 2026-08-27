@@ -1,9 +1,9 @@
 <script setup lang="ts" generic="Row extends Record<string, any>">
-import { AppIcon } from "@fuelguard/ui";
-import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@silvicom/ui/icons";
 import { computed, useSlots } from "vue";
 import { useMediaQuery } from "@vueuse/core";
-import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import type { SortState } from "@/lib/sort";

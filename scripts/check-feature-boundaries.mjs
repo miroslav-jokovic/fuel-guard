@@ -6,7 +6,7 @@
  *     another feature's internals — via the `@/features/<other>/…` alias OR a relative path that climbs
  *     into a sibling feature. Shared code lives in `@/composables`, `@/components`, `@/lib`, `@/stores`.
  *  2. Hazmat packages stay dependency-free (D3 / G5): `@hazmat/engine` + `@hazmat/data` may not import
- *     `@fuelguard/*`, the web `@/` alias, or each other — so they stay extractable to a standalone repo.
+ *     `@silvicom/*`, the web `@/` alias, or each other — so they stay extractable to a standalone repo.
  *  3. Engine determinism: `@hazmat/engine` (the pure decision engine) may not use non-deterministic APIs
  *     (Date.now, argless new Date, Math.random, performance.now) or do I/O (fetch, require, node builtins),
  *     so a verdict is a pure function of its inputs — reproducible and testable.
@@ -97,7 +97,7 @@ for (const file of driverAppFiles) {
 // ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5). ──
 for (const rel of ["packages/hazmat-engine", "packages/hazmat-data"]) {
   const other = rel.endsWith("engine") ? "@hazmat/data" : "@hazmat/engine";
-  const forbidden = new RegExp(`from\\s+["'](@fuelguard/|@/|${other.replace("/", "\\/")})`, "g");
+  const forbidden = new RegExp(`from\\s+["'](@silvicom/|@/|${other.replace("/", "\\/")})`, "g");
   let pkgFiles;
   try { pkgFiles = walk(join(ROOT, rel)); } catch { continue; }
   for (const file of pkgFiles) {

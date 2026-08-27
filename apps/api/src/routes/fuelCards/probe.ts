@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { policyNumberSchema } from "@fuelguard/shared";
+import { policyNumberSchema } from "@silvicom/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import {
   getCardSummaries,

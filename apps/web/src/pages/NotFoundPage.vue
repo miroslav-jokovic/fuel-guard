@@ -13,8 +13,8 @@
  */
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { MagnifyingGlassIcon } from "@fuelguard/ui/icons";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { MagnifyingGlassIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ErrorPanel from "@/components/ErrorPanel.vue";
 import { useSessionStore } from "@/stores/session";

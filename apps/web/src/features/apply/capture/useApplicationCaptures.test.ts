@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ref } from "vue";
-import type { CaptureProvider, CapturedPage, ScanResult } from "@fuelguard/capture-engine";
-import type { ApplicationCaptureView } from "@fuelguard/shared";
+import type { CaptureProvider, CapturedPage, ScanResult } from "@silvicom/capture-engine";
+import type { ApplicationCaptureView } from "@silvicom/shared";
 import type { CaptureIo } from "./stageCapture";
 import { useApplicationCaptures } from "./useApplicationCaptures";
 

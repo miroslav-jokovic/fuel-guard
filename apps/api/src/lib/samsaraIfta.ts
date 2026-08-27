@@ -5,7 +5,7 @@ import {
   parseIftaVehicleReport,
   type IftaVehicleReport,
   type RawIftaResponse,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * `GET /fleet/reports/ifta/vehicle` — per-vehicle, per-jurisdiction miles for one month.

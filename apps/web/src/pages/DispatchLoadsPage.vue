@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
-import { PlusIcon } from "@fuelguard/ui/icons";
+import { AppIcon } from "@silvicom/ui";
+import { PlusIcon } from "@silvicom/ui/icons";
 /**
  * Dispatch → Loads (Phase 3D, D49).
  *
@@ -13,7 +13,7 @@ import { PlusIcon } from "@fuelguard/ui/icons";
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@fuelguard/shared";
+import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -24,7 +24,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import {

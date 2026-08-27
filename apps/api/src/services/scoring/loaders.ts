@@ -1,6 +1,6 @@
 /** Scoring helpers: row types, txn-view mapping, threshold/hours loaders, txn-id collection. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TxnView, Thresholds, OperatingHours, FueledAtPrecision } from "@fuelguard/shared";
+import type { TxnView, Thresholds, OperatingHours, FueledAtPrecision } from "@silvicom/shared";
 
 export const FTXN_COLS =
   "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, control_id, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at, samsara_recon_checked_at, samsara_recon_status, samsara_recon_error, samsara_recon_evidence_version, is_canonical, duplicate_of, ambient_temp_f, case_level, case_signals, attribution_verdict, logbook_vehicle_id, created_at";

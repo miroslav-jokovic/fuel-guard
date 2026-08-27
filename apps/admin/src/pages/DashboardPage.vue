@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { AppCard, AppPageHeader } from "@fuelguard/ui";
+import { AppCard, AppPageHeader } from "@silvicom/ui";
 import { supabase, ADMIN_API_URL } from "@/lib/supabase";
 import AppShell from "@/layouts/AppShell.vue";
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus } from "@fuelguard/shared";
+import { HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 /** Load-status chip (plan H5), colored via the shared semantic tones. */

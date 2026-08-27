@@ -1,7 +1,7 @@
-import { PROMPT_INPUT_UNSET } from "@fuelguard/shared";
+import { PROMPT_INPUT_UNSET } from "@silvicom/shared";
 import {
   EFS_WRITABLE_STATUSES, efsStatusEquals, type EfsWritableStatus,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { CardOperationSpec, OperationCard, OperationDraft } from "./cardOperations";
 import { missingEditableInfoIds, promptDrafts } from "./promptDrafts";
 

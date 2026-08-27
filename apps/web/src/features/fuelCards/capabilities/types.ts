@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CapabilityContract, WsCard, EfsLimitOption } from "@fuelguard/shared";
+import type { CapabilityContract, WsCard, EfsLimitOption } from "@silvicom/shared";
 
 /**
  * The VIEW half of a capability: the words an operator reads before they commit.
@@ -96,7 +96,7 @@ export interface CapabilityView<TBody> {
   /**
    * The sentence warning that this request will ask for a password, or null (Step 6.1, invariant 5).
    *
-   * Every implementation MUST delegate to `@fuelguard/shared`'s `efs/stepUp.ts`, never restate the
+   * Every implementation MUST delegate to `@silvicom/shared`'s `efs/stepUp.ts`, never restate the
    * rule: the API's gates read the same predicates, and a second copy of a security threshold fails
    * silently — the drawer promises no password, the server asks for one. The registry's fitness test
    * asserts that every capability whose API behaviour declares a gate has a view that predicts it.

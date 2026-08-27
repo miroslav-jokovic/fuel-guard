@@ -80,14 +80,14 @@ if (strays.length) {
 }
 
 // 2 ─ The shared package's React Native build.
-// metro.config.js resolves @fuelguard/shared to packages/shared/dist/index.js, so a missing dist is a
+// metro.config.js resolves @silvicom/shared to packages/shared/dist/index.js, so a missing dist is a
 // resolution failure and a stale one is worse: it bundles cleanly against yesterday's contracts.
 const sharedEntry = path.join(shared, 'dist/index.js');
 if (!exists(sharedEntry)) {
   fail(
-    '@fuelguard/shared has not been built for React Native',
+    '@silvicom/shared has not been built for React Native',
     `Missing ${path.relative(root, sharedEntry)}.`,
-    'pnpm --filter @fuelguard/shared build:rn',
+    'pnpm --filter @silvicom/shared build:rn',
   );
 } else {
   const newest = (dir) => {
@@ -106,7 +106,7 @@ if (!exists(sharedEntry)) {
     fail(
       'packages/shared/dist is stale',
       `Source is ${minutes} minute(s) newer than the build. The driver bundle would use the old contracts.`,
-      'pnpm --filter @fuelguard/shared build:rn',
+      'pnpm --filter @silvicom/shared build:rn',
     );
   }
 }
@@ -336,7 +336,7 @@ if (process.platform === 'darwin') {
         BUILDING
           ? `Built ${built}. Not yet linked: ${missing.join(', ')}. This build runs prebuild + pod install and will link them — expected the first build after adding a native module.`
           : `Built ${built}. These are imported by the app but were NOT linked into it: ${missing.join(', ')}. The bundle will load and then die on "Cannot find native module".`,
-        'pnpm --filter @fuelguard/driver ios   (or android) — this reruns prebuild + pod install and installs a fresh binary.',
+        'pnpm --filter @silvicom/driver ios   (or android) — this reruns prebuild + pod install and installs a fresh binary.',
       );
     }
   }

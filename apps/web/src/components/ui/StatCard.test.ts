@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
-import { TruckIcon } from "@fuelguard/ui/icons";
+import { TruckIcon } from "@silvicom/ui/icons";
 import StatCard from "@/components/ui/StatCard.vue";
 
 /**

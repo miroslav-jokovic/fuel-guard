@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { DRAFT_PAYLOAD_MAX_BYTES } from "@fuelguard/shared";
+import { DRAFT_PAYLOAD_MAX_BYTES } from "@silvicom/shared";
 import { hashInvitationToken } from "./applicationIntake.js";
 import { isIntakeError } from "./applicationIntake.js";
 import { loadDraft, saveDraft, unlockDraft, viewDraft } from "./applicationDraft.js";

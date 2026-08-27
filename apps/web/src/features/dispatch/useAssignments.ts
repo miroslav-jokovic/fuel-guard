@@ -1,6 +1,6 @@
 import type { Ref } from "vue";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { AssignmentHistoryResponse, AssignmentRow } from "@fuelguard/shared";
+import type { AssignmentHistoryResponse, AssignmentRow } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

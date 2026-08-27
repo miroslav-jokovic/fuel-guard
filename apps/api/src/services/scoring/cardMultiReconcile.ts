@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CASE_RULE_ID, isFullCardNumber, sameCardFill } from "@fuelguard/shared";
+import { CASE_RULE_ID, isFullCardNumber, sameCardFill } from "@silvicom/shared";
 
 /** Default window (hours) matching the rule's cumulativeWindowHours default. */
 const DEFAULT_WINDOW_H = 48;

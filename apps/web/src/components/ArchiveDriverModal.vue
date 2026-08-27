@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import BaseModal from "@/components/ui/BaseModal.vue";
 
 /**

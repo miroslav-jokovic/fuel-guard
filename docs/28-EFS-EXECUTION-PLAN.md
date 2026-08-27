@@ -69,14 +69,14 @@ pnpm check:card-binding                 # Phase 2's exit gate, re-established in
 ```bash
 pnpm lint:secrets                          # ci.yml runs this FIRST, before install
 pnpm install --frozen-lockfile
-pnpm --filter @fuelguard/shared build:rn
+pnpm --filter @silvicom/shared build:rn
 pnpm lint
 pnpm lint:filesize
 pnpm lint:funcsize
 pnpm lint:migrations
 pnpm lint:upserts
 pnpm lint:tests
-pnpm --filter @fuelguard/web lint:tokens   # ← was missing from the old list
+pnpm --filter @silvicom/web lint:tokens   # ← was missing from the old list
 pnpm lint:tokens-parity
 pnpm lint:ui-contrast                      # ← was missing
 pnpm lint:chart-colors                     # ← was missing
@@ -262,7 +262,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Files:** `apps/api/src/middleware/requireFreshAuth.test.ts`.
 **Cause:** `61a05ca` added `hasStepUpToken`, which calls `req.header(STEP_UP_TOKEN_HEADER)`. The test's fake request is `{ auth: {...} } as unknown as Request` with **no `header` method**, so every call throws `TypeError`. **The middleware is correct; the test doubles are stale.**
 **Change:** give the fake request a `header: vi.fn().mockReturnValue(undefined)` and stub `getAppLocals`. Add the missing coverage while you are there: *"a valid step-up token passes without any iat"* · *"a token minted for a different org does not"*.
-**Verify:** `pnpm --filter @fuelguard/api test src/middleware/requireFreshAuth.test.ts` — 6+ passing, 0 failing.
+**Verify:** `pnpm --filter @silvicom/api test src/middleware/requireFreshAuth.test.ts` — 6+ passing, 0 failing.
 
 ### Step 0.2 — `efsCardEdits.test.ts` — 3 typecheck errors
 **Files:** `apps/api/src/services/efsCardEdits.test.ts` (~`:76-78`).
@@ -274,7 +274,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Files:** `apps/web/src/features/fuelCards/CardControlDrawer.test.ts`.
 **Cause:** *"does not dispatch a second time while the first confirm is in flight"* fails with `Button not found: Lock card. Present: Back | Locking…`. The confirmation replaces the body, so the second click must target the footer's busy confirm button, not the section button.
 **Change:** update the test to reflect the confirm-flow. **Preserve what it is testing** — the re-entrancy guard. Do not delete or skip it.
-**Verify:** `pnpm --filter @fuelguard/web test src/features/fuelCards/CardControlDrawer.test.ts` — 12 passing.
+**Verify:** `pnpm --filter @silvicom/web test src/features/fuelCards/CardControlDrawer.test.ts` — 12 passing.
 
 ### Step 0.4 — `lint` — 3 errors *(not card control)*
 **Files:** `apps/web/src/features/hazmat/calcModel.ts` (`:339`, `:340`), `scripts/samsara-vs-store-recon.mjs` (`:21`).
@@ -311,7 +311,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Files:** `apps/api/src/routeAuth.test.ts` (~`:37`).
 **Confirmed by recon:** the regex discovers **26** routers and `/api/fuel-cards` is **not** among them, because `app.ts:222` mounts six router factories on one path and `[^)]*?` cannot cross the first `)`.
 **Change:** widen the regex to handle multiple factories per mount.
-**Verify:** re-run the recon's D1 snippet — `fuel-cards discovered? true`. Then `pnpm --filter @fuelguard/api test src/routeAuth.test.ts`; all six card-control routers must pass the 401 assertion.
+**Verify:** re-run the recon's D1 snippet — `fuel-cards discovered? true`. Then `pnpm --filter @silvicom/api test src/routeAuth.test.ts`; all six card-control routers must pass the 401 assertion.
 
 ### Step 0.8 — Correct the false comment
 **Files:** `apps/api/src/services/efsCardEdits.ts:149-152`.
@@ -384,7 +384,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 
 **Do:** convert each to the design-system primitive. Assess per case — `:248` and `:202` are inline text affordances ("Change", "use it") and may want a link primitive rather than `AppButton`; `ActiveOverridesPanel:57` is a row target. **There is no allowlist for raw buttons and adding one would be weakening** — the checker only exempts routed pages missing a `PageHeader`.
 
-**Verify:** `pnpm lint:ui-adoption` green, plus `lint:ui-contrast`, `lint:chart-colors` and `pnpm --filter @fuelguard/web lint:tokens` still green. Existing web tests pass.
+**Verify:** `pnpm lint:ui-adoption` green, plus `lint:ui-contrast`, `lint:chart-colors` and `pnpm --filter @silvicom/web lint:tokens` still green. Existing web tests pass.
 
 **Land it on `delivery-p0-green`** — greening the pipeline is Phase 0's job, and PR #3 should not merge red.
 

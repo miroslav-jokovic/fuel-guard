@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { SevenDayStatement, SevenDayStatementCreate } from "@fuelguard/shared";
+import type { SevenDayStatement, SevenDayStatementCreate } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

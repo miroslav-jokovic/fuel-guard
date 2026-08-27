@@ -18,7 +18,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness, reachableSyncFloor } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";

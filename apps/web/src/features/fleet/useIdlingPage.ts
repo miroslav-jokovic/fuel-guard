@@ -9,7 +9,7 @@ import { useIdleConfidence } from "./useIdleConfidence";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
-import { APU_TYPE_LABELS, type ApuType } from "@fuelguard/shared";
+import { APU_TYPE_LABELS, type ApuType } from "@silvicom/shared";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /** All state + logic for IdlingPage.vue: fleet KPIs, tabs, and the three tab tables. */

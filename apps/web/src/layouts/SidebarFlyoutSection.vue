@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppIcon } from "@silvicom/ui";
 import { computed, ref, onBeforeUnmount } from "vue";
 import { RouterLink } from "vue-router";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";

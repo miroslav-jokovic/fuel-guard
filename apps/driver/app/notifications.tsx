@@ -7,7 +7,7 @@ import {
   isMutable,
   type NotificationCategory,
   type NotificationEvent,
-} from '@fuelguard/shared';
+} from '@silvicom/shared';
 import {
   Badge,
   AppText,

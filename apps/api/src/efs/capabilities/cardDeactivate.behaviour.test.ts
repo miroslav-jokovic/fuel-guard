@@ -1,9 +1,9 @@
 import type { EditsCtx } from "../types.js";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS } from "@silvicom/shared";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CAPABILITIES_WITH_STEP_UP_GATE, cardDeactivateContract } from "@fuelguard/shared";
+import { CAPABILITIES_WITH_STEP_UP_GATE, cardDeactivateContract } from "@silvicom/shared";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";

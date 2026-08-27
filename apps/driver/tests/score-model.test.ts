@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MeScoreResponse, MeScoreWeek } from '@fuelguard/shared';
+import type { MeScoreResponse, MeScoreWeek } from '@silvicom/shared';
 import {
   buildScoreView,
   homeScoreSummary,

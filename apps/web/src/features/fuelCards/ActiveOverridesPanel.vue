@@ -6,7 +6,7 @@ import { operationById, operationLink } from "./cardOperations";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useEfsCards } from "./useEfsCards";
 import { useRefreshCard } from "./useCardControl";
-import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 
 /** One rule for naming a card to a human, shared with the inventory — see cardIdentityLabel.ts. */
 const identity = cardIdentityLabel;

@@ -6,12 +6,12 @@ import {
   type HazmatCreateLoadRequest, type HazmatUpdateLoadRequest, type HazmatListLoadsQuery,
   type HazmatRegisterDocumentRequest, type HazmatRegisterDocumentResponse,
   type HazmatReviewRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 
 /**
  * HazmatGuard load service (plan H4-3). Thin data layer over Supabase (service-role client; RLS is the
  * backstop for direct PostgREST, the route's requireRole is the API-layer gate). The load state machine
- * lives in `@fuelguard/shared` (hazmatLifecycle) so it is pure + tested; this module enforces it against
+ * lives in `@silvicom/shared` (hazmatLifecycle) so it is pure + tested; this module enforces it against
  * the DB. Corrections never edit runs/reviews — those are immutable (H4-2 migration).
  */
 

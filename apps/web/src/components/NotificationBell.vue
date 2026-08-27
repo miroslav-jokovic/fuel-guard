@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppIcon, AppButton as BaseButton } from "@fuelguard/ui";
-import { BellIcon } from "@fuelguard/ui/icons";
+import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
+import { BellIcon } from "@silvicom/ui/icons";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { notificationRoute } from "@/lib/notificationRoute";

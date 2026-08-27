@@ -5,7 +5,7 @@ import type {
   OrgFeatureRow,
   SetDriverAppFeatureRequest,
   SetDriverAppOverrideRequest,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**

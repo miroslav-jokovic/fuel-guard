@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveCarrierIdentity, screeningReadiness, type ScreeningReadiness } from "@fuelguard/shared";
+import { resolveCarrierIdentity, screeningReadiness, type ScreeningReadiness } from "@silvicom/shared";
 import type { Env } from "../env.js";
 
 /**

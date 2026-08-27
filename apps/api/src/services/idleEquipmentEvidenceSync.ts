@@ -6,7 +6,7 @@ import {
   type IdleEquipmentEvidenceStatus,
   type IdleEquipmentProfile,
   type IdleThermalInterval,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 import { resolveSessionThermalIntervals } from "./idleSessionWeather.js";
 import type { OpenMeteoFetcher } from "../lib/openMeteo.js";

@@ -5,7 +5,7 @@ import {
   planApplicationNudges,
   type NudgeCandidate,
   type PlannedNudge,
-} from "@fuelguard/shared";
+} from "@silvicom/shared";
 import type { Env } from "../env.js";
 import { sendEmail } from "../lib/mailer.js";
 import { notify } from "./notify.js";
