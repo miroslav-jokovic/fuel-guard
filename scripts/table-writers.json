@@ -190,16 +190,16 @@
     "apps/api/src/services/geocode.ts"
   ],
   "hazmat_documents": [
-    "apps/api/src/services/hazmatLoads.ts"
+    "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
   "hazmat_loads": [
-    "apps/api/src/services/hazmatLoads.ts"
+    "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
   "hazmat_policies": [
-    "apps/api/src/services/hazmatLoads.ts"
+    "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
   "hazmat_reviews": [
-    "apps/api/src/services/hazmatLoads.ts"
+    "apps/api/src/modules/hazmat/hazmatLoads.ts"
   ],
   "hos_duty_segments": [
     "apps/api/src/services/hosSync.ts"

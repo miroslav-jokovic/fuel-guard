@@ -54,8 +54,8 @@ const ALLOWED = {
   //   documents        — carries org_id, subject_type, subject_id, kind, storage_path, content_type, sha256
   // Note `ignoreDuplicates` is NOT a general exemption: DO NOTHING still evaluates NOT NULL on the
   // proposed tuple, so an incomplete insert-or-skip fails exactly like an incomplete DO UPDATE.
-  "apps/api/src/services/hazmatLoads.ts": ["hazmat_documents", "hazmat_loads"],
-  "apps/api/src/services/compliance.ts": ["documents"],
+  "apps/api/src/modules/hazmat/hazmatLoads.ts": ["hazmat_documents", "hazmat_loads"],
+  "apps/api/src/modules/evidence/compliance.ts": ["documents"],
 };
 
 // ── required columns per table, from the migration ledger ────────────────────────────────────────

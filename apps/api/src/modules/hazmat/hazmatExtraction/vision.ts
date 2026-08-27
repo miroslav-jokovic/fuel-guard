@@ -1,5 +1,5 @@
-import type { Env } from "../../env.js";
-import { anthropicClient } from "../../lib/anthropic.js";
+import type { Env } from "../../../env.js";
+import { anthropicClient } from "../../../lib/anthropic.js";
 import { bolFieldsSchema, type BolFields } from "./bolFields.js";
 
 /**

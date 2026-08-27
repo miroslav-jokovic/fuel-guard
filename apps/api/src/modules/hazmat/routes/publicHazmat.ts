@@ -6,9 +6,9 @@ import {
   type HazmatProductsResponse,
 } from "@silvicom/shared";
 import { loadDataset } from "@hazmat/data";
-import { searchProducts } from "../services/hazmatProducts.js";
-import { computeCalc } from "../services/hazmatCalc.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
+import { searchProducts } from "../hazmatProducts.js";
+import { computeCalc } from "../hazmatCalc.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 
 /**
  * Public HazmatGuard placard calculator (M7). Unauthenticated + rate-limited (app.ts `calcLimiter`) —

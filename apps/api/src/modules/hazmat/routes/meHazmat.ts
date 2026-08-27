@@ -6,13 +6,13 @@ import {
   type HazmatCreateLoadRequest,
   type HazmatRegisterDocumentRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { requireModule } from "../middleware/requireModule.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { getAppLocals } from "../lib/appLocals.js";
-import { writeAudit } from "../lib/audit.js";
-import { resolveDriverId } from "../services/dutySessions.js";
+import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireModule } from "../../../middleware/requireModule.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
+import { resolveDriverId } from "../../../services/dutySessions.js";
 import {
   createLoad,
   registerDocument,
@@ -20,9 +20,9 @@ import {
   listRuns,
   transitionLoad,
   type ServiceError,
-} from "../services/hazmatLoads.js";
-import { startExtractionAnalysis } from "../services/hazmatExtraction/orchestrate.js";
-import { startManualAnalysis } from "../services/hazmatAnalysis.js";
+} from "../hazmatLoads.js";
+import { startExtractionAnalysis } from "../hazmatExtraction/orchestrate.js";
+import { startManualAnalysis } from "../hazmatAnalysis.js";
 
 const isServiceError = (v: unknown): v is ServiceError =>
   typeof v === "object" && v !== null && "code" in v && "error" in v;

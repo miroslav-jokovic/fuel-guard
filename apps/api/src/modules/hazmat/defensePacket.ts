@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { placardSvg, PLACARD_ART_VERSION } from "@hazmat/placards";
 import type { PlacardName, Verdict } from "@hazmat/engine";
 import type { QualFinding } from "@silvicom/shared";
-import { INK, MUTED, NAVY } from "../lib/pdfDraw.js";
+import { INK, MUTED, NAVY } from "../../lib/pdfDraw.js";
 
 /**
  * M12.1 — the Roadside Defense Packet. One tap → a SELF-CONTAINED PDF a driver can hand to an

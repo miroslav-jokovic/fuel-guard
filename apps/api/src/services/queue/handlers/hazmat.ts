@@ -1,5 +1,5 @@
-import { executeExtraction } from "../../hazmatExtraction/orchestrate.js";
-import { executeManualAnalysis } from "../../hazmatAnalysis.js";
+import { executeExtraction } from "../../../modules/hazmat/index.js";
+import { executeManualAnalysis } from "../../../modules/hazmat/index.js";
 import type { JobHandler } from "../types.js";
 
 /**

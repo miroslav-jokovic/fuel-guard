@@ -17,24 +17,24 @@ import {
   rolesThatCanView, rolesThatManage,
 } from "@silvicom/shared";
 import { loadDataset, loadReferenceText } from "@hazmat/data";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { requireModule } from "../../middleware/requireModule.js";
-import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireModule } from "../../../middleware/requireModule.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   createLoad, listLoads, getLoad, listRuns, listDocuments, updateLoad, transitionLoad, registerDocument,
   linkDispatchLoad, unlinkDispatchLoad,
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
-} from "../../services/hazmatLoads.js";
-import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
-import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchestrate.js";
-import { computeCalc } from "../../services/hazmatCalc.js";
-import { searchProducts } from "../../services/hazmatProducts.js";
-import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
-import { gatherPacketData, renderPacketPdf } from "../../services/defensePacket.js";
-import { reproduceRun } from "../../services/reproduce.js";
+} from "../hazmatLoads.js";
+import { startManualAnalysis } from "../hazmatAnalysis.js";
+import { startExtractionAnalysis } from "../hazmatExtraction/orchestrate.js";
+import { computeCalc } from "../hazmatCalc.js";
+import { searchProducts } from "../hazmatProducts.js";
+import { notifyDriverOfOutcome } from "../hazmatNotify.js";
+import { gatherPacketData, renderPacketPdf } from "../defensePacket.js";
+import { reproduceRun } from "../../../services/reproduce.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module

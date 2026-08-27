@@ -135,6 +135,8 @@ const API_ALLOW = new Set([
   // Releasing a load notifies its driver, and assignment refuses a driver blocked on return-to-duty.
   "loads -> messaging",
   "loads -> recruiting",
+  // A red hazmat verdict tells the office through the same fabric as everyone else.
+  "hazmat -> messaging",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
