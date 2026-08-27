@@ -19,6 +19,8 @@
 --
 -- cross-module-waiver: fuel's raw reject table sheds scoring columns into anomalies' satellite
 -- — the split is the cross-module act.
+-- raw-access-waiver: the trigger and backfill READ the raw reject rows to mirror their scoring
+-- columns out — this is the owner-side split itself, with fuel's consent recorded in this header.
 
 create table declined_txn_scores (
   declined_id                 uuid primary key references declined_transactions(id) on delete cascade,
