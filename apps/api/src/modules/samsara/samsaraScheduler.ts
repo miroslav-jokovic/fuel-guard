@@ -7,8 +7,8 @@ import {
   NoSamsaraTokenError,
 } from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
-import { syncRecentDriverScoreWeeks } from "../../services/driverScoreSync.js";
-import { snapshotSettledWeeks } from "../../services/driverPerformanceSnapshot.js";
+import { syncRecentDriverScoreWeeks } from "../performance/index.js";
+import { snapshotSettledWeeks } from "../performance/index.js";
 import { syncIdleFoundation } from "../idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "../../services/hosSync.js";
 import { syncIdleRollup } from "../idle/index.js";

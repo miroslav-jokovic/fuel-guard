@@ -44,8 +44,12 @@ vi.mock("../../../modules/idle/index.js", () => ({
   syncIdleRollup: idleRollup.syncIdleRollup,
 }));
 vi.mock("../../hosSync.js", () => hosSync);
-vi.mock("../../driverScoreSync.js", () => scoreSync);
-vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
+// The handler reaches scores through the performance module index (2026-08-27 carve-out).
+vi.mock("../../../modules/performance/index.js", () => ({
+  syncDriverScores: scoreSync.syncDriverScores,
+  syncRecentDriverScoreWeeks: scoreSync.syncRecentDriverScoreWeeks,
+  snapshotSettledWeeks: vi.fn(),
+}));
 vi.mock("../../nightlyReconcile.js", () => ({ runNightlyReconcile: vi.fn() }));
 vi.mock("../../../lib/audit.js", () => audit);
 
