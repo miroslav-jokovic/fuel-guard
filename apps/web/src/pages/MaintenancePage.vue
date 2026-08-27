@@ -24,7 +24,7 @@ import ErrorPanel from "@/components/ErrorPanel.vue";
 
 <template>
   <div>
-    <PageHeader description="FuelGuard is briefly offline for planned maintenance." />
+    <PageHeader description="Silvicom 360 is briefly offline for planned maintenance." />
     <ErrorPanel
       :icon="ClockIcon"
       message="Nothing is required from you. Try again shortly — and if this page is still here well past the window you were told about, that is worth reporting rather than waiting out."

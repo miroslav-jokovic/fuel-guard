@@ -151,7 +151,7 @@ function timeLabel(iso: string): string {
     </PageHeader>
 
     <BaseCard v-if="!messagesEntitled">
-      <p class="text-sm text-ink-muted">Messages isn't part of your plan. Contact FuelGuard to enable it.</p>
+      <p class="text-sm text-ink-muted">Messages isn't part of your plan. Contact Silvicom 360 to enable it.</p>
     </BaseCard>
 
     <BaseCard v-else-if="composing">

@@ -19,7 +19,7 @@ import { generateIngestToken, hashIngestToken } from "../lib/ingestToken.js";
 export interface IngestResult {
   received: number;
   upserted: number;
-  /** Match keys (unit numbers / driver ids) we couldn't resolve to a FuelGuard record — surfaced so the
+  /** Match keys (unit numbers / driver ids) we couldn't resolve to a Silvicom 360 record — surfaced so the
    *  agent/operator can fix the mapping rather than silently dropping context. */
   unmatched: string[];
 }
@@ -136,7 +136,7 @@ async function unitMap(
   orgId: string,
 ): Promise<KeyResolver> {
   const { data } = await admin.from(table).select("id, unit_number").eq("org_id", orgId);
-  // Normalised, not raw: FuelGuard prefixes reefers with `R` and McLeod does not, so a raw compare
+  // Normalised, not raw: Silvicom 360 prefixes reefers with `R` and McLeod does not, so a raw compare
   // misses ~44 of this carrier's trailers — on the feed whose entire purpose is spotting reefer
   // movements (D-FG8).
   return unitResolver((data ?? []) as UnitRow[], table);

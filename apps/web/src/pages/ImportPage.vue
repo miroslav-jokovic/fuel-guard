@@ -228,7 +228,7 @@ async function onRepair() {
           <span class="mt-0.5 shrink-0 text-warning-500">⚠</span>
           <p>
             <strong>This file was already imported.</strong>
-            Re-committing is safe: rows already in FuelGuard are skipped, and any rows that are missing
+            Re-committing is safe: rows already in Silvicom 360 are skipped, and any rows that are missing
             (e.g. from an earlier partial import) will be added. Check "New fill-ups" below — if it shows 0
             but the dashboard is missing days, use <em>Repair fuel data</em> instead.
           </p>
@@ -248,7 +248,7 @@ async function onRepair() {
               <span v-if="preview.reportFrom" class="text-ink-tertiary"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
             </p>
             <p class="mt-1 text-xs text-ink-tertiary">
-              Rows already in FuelGuard are detected and skipped automatically — safe to upload an overlapping period.
+              Rows already in Silvicom 360 are detected and skipped automatically — safe to upload an overlapping period.
             </p>
           </div>
           <BaseButton

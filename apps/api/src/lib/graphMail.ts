@@ -136,7 +136,7 @@ export function graphMailClient(cfg: GraphConfig): GraphMailClient {
 
   /** Resolve the optional folder display name to a path segment; empty = whole mailbox. Checks top-level
    *  folders first, then Inbox subfolders — so a folder created via right-click Inbox → New folder (the common
-   *  case, e.g. "FuelGuard EFS") resolves instead of failing as not-found. */
+   *  case, e.g. "Silvicom 360 EFS") resolves instead of failing as not-found. */
   async function folderSegment(): Promise<string> {
     if (!cfg.folder) return "";
     const id =

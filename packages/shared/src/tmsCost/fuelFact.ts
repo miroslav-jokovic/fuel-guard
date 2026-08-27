@@ -10,7 +10,7 @@ import { z } from "zod";
  *    extraction can prove itself complete against the carrier's own books rather than against another
  *    integration's opinion (D-MC12).
  *  · **The reefer and DEF split.** McLeod breaks a single pump transaction into tractor, reefer, DEF,
- *    oil and misc components. EFS reports the transaction. FuelGuard's reefer logic has been inferring
+ *    oil and misc components. EFS reports the transaction. Silvicom 360's reefer logic has been inferring
  *    that split; here it is stated.
  *
  * Attribution is complete, which is why this is worth extracting at all. Measured over June 2026:
@@ -55,7 +55,7 @@ export const tmsFuelPurchaseFactSchema = z.object({
   order_external_id: z.string().trim().min(1).max(8).nullish(),
 
   purchased_at: z.string().nullish(),
-  /** `truck_stop_state`. The IFTA dimension, and a cross-check against FuelGuard's own fuelTax logic. */
+  /** `truck_stop_state`. The IFTA dimension, and a cross-check against Silvicom 360's own fuelTax logic. */
   state: z.string().max(2).nullish(),
   truck_stop_name: z.string().max(60).nullish(),
   truck_stop_city: z.string().max(60).nullish(),

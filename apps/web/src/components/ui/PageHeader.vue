@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{ title?: string; description?: string }>
 });
 const route = useRoute();
 const router = useRouter();
-const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "FuelGuard");
+const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "Silvicom 360");
 
 /**
  * The breadcrumb trail (G2, UI-GAPS-PLAN.md), walked from `meta.parent` by `lib/breadcrumbs.ts`.

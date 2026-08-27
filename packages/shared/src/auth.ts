@@ -1,7 +1,7 @@
 import { USER_ROLES, isApplicantStatus, type UserRole } from "./constants.js";
 
 /**
- * Claims FuelGuard reads from a verified Supabase JWT.
+ * Claims Silvicom 360 reads from a verified Supabase JWT.
  * `org_id` + `user_role` are injected by the Custom Access Token hook (migration 0006).
  * Absent org_id ⇒ the user has no membership yet (audit B3) ⇒ "account pending" state.
  */

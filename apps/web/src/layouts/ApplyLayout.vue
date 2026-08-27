@@ -34,7 +34,7 @@ defineProps<{ carrier: string | null }>();
         <p>
           This application is collected for
           <span class="font-medium text-ink-secondary">{{ carrier ?? "the carrier" }}</span>
-          and processed on their behalf by FuelGuard. Your answers are shared with the carrier only.
+          and processed on their behalf by Silvicom 360. Your answers are shared with the carrier only.
         </p>
       </div>
     </footer>

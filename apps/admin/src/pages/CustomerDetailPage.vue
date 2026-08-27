@@ -177,7 +177,7 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
       <AppCard class="mt-4">
         <h2 class="text-sm font-semibold text-ink-secondary">Entitlements</h2>
         <p class="mt-1 text-xs text-ink-muted">
-          Which FuelGuard products this customer has bought (org_modules). Granting a module is what
+          Which Silvicom 360 products this customer has bought (org_modules). Granting a module is what
           makes its surfaces exist for their org — their own dashboard then controls what drivers see.
           Every change is recorded in the platform log and the customer's audit trail.
         </p>

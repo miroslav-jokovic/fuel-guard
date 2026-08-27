@@ -257,7 +257,7 @@ export const EFS_INFO_LABELS: Record<string, string> = {
  * The FALLBACK editable set — what this product may edit when it has never asked the account.
  *
  * Driver and unit only, because a DRID/UNIT record with EXACT_MATCH is what makes the pump validate
- * who is fuelling and in what truck — the two facts every downstream FuelGuard attribution decision
+ * who is fuelling and in what truck — the two facts every downstream Silvicom 360 attribution decision
  * depends on. Until Phase 9 this was the WHOLE editable set, hardcoded; `resolveEditableInfoIds`
  * now widens it to what the account actually offers, and falls back to this pair when it cannot.
  *

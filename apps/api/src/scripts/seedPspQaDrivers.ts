@@ -15,7 +15,7 @@ import { ROSTER } from "./pspUatProbe.js";
  * citing it. That needs a real driver and real authorizations, and this puts them there.
  *
  * ── WHY THIS IS PINNED TO ONE ORG, AND REFUSES EVERY OTHER ─────────────────────────────────────
- * The only Supabase this repo is configured against is PRODUCTION. `FuelGuard EFS QA` is a separate
+ * The only Supabase this repo is configured against is PRODUCTION. `Silvicom 360 EFS QA` is a separate
  * org created for the EFS work, holds no real drivers, and has a null `dot_number` — so tenant
  * isolation keeps everything here out of Silvicom Inc's real DQ evidence, and even a mistaken
  * production run could not silently borrow their USDOT number. Seeding anywhere else would put
@@ -38,9 +38,9 @@ import { ROSTER } from "./pspUatProbe.js";
  *   pnpm --filter @fuelguard/api seed:psp-qa --drivers litton,davidson --apply
  */
 
-/** `FuelGuard EFS QA`. A literal, because the whole safety argument rests on it being this org. */
+/** `Silvicom 360 EFS QA`. A literal, because the whole safety argument rests on it being this org. */
 const QA_ORG_ID = "07fe4058-cc72-4a69-b3e9-29b4cf1c6a44";
-const QA_ORG_NAME = "FuelGuard EFS QA";
+const QA_ORG_NAME = "Silvicom 360 EFS QA";
 
 /** Rich enough to exercise the screens: crashes, a long inspection list, and a short one. */
 const DEFAULT_DRIVERS = ["litton", "davidson", "davis"];

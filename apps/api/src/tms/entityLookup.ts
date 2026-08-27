@@ -2,7 +2,7 @@ import { trailerUnitMatchKey } from "@fuelguard/shared";
 import { vehicleUnitKey } from "./rosterMatch.js";
 
 /**
- * Resolving a TMS's own identifiers to FuelGuard ids, for the ingests OUTSIDE the roster module
+ * Resolving a TMS's own identifiers to Silvicom 360 ids, for the ingests OUTSIDE the roster module
  * (MCLEOD-FIELD-GAP-PLAN F1, D-FG7/D-FG8).
  *
  * The roster ingest got this right and nothing else did. Two measured consequences, both silent:
@@ -12,7 +12,7 @@ import { vehicleUnitKey } from "./rosterMatch.js";
  *     `mcleod_driver_id` — the link the entire integration is built on — was never consulted. A
  *     McLeod load would resolve to nobody, be reported as unmatched, and land with a null driver.
  *
- *   · **The trailer prefix was normalised in exactly one place.** FuelGuard writes `R532159` for the
+ *   · **The trailer prefix was normalised in exactly one place.** Silvicom 360 writes `R532159` for the
  *     reefer McLeod calls `532159`; `trailerUnitMatchKey` strips that and lifted roster trailer
  *     matching from 157 of 235 to 201. Both the loads and movements ingests compared raw unit
  *     numbers, so roughly 44 reefers would fail to attach — to the very feed that exists to identify
@@ -29,7 +29,7 @@ import { vehicleUnitKey } from "./rosterMatch.js";
  * whichever row happened to come last.
  */
 export interface KeyResolver {
-  /** The FuelGuard id for this external key, or undefined when unknown or ambiguous. */
+  /** The Silvicom 360 id for this external key, or undefined when unknown or ambiguous. */
   get(raw: string | null | undefined): string | undefined;
 }
 

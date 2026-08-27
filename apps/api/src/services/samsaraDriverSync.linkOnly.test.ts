@@ -8,7 +8,7 @@ import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
  * This is the half of the cutover that PROTECTS features rather than adding one. The obvious way to
  * "switch drivers to McLeod" is to turn this sync off, and that would be quietly destructive:
  * `samsara_driver_id` is the join key seventeen call sites in hosSync alone dereference, and PHONE is
- * a field McLeod does not have at all — 0 of its 1,463 driver rows carry one, while 164 of FuelGuard's
+ * a field McLeod does not have at all — 0 of its 1,463 driver rows carry one, while 164 of Silvicom 360's
  * 166 active drivers do and every one came from here.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";

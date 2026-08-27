@@ -527,7 +527,7 @@ describe("unassigned cards sink to the bottom", () => {
 
   it("ignores the fuel_cards link", () => {
     // 17 of this account's cards are unlinked purely because two physical cards share a last four.
-    // That is FuelGuard's own attribution guess failing, and says nothing about whether a driver is
+    // That is Silvicom 360's own attribution guess failing, and says nothing about whether a driver is
     // using the card — sinking those would hide working cards.
     expect(cardAssignmentRank(card({ driverIdPrompt: "0225" }))).toBe(0);
   });

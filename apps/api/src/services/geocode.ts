@@ -174,7 +174,7 @@ async function hereAutosuggest(env: Env, query: string, limit: number): Promise<
 
 async function nominatimSuggest(env: Env, query: string, limit: number): Promise<AddressSuggestion[]> {
   const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(query)}&format=json&limit=${limit}&countrycodes=us,ca&addressdetails=0`;
-  const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
+  const res = await fetch(url, { headers: { "User-Agent": `Silvicom 360/1.0 (${env.MAIL_FROM})` } });
   if (!res.ok) return [];
   const arr = (await res.json()) as Array<{ display_name?: string; lat?: string; lon?: string }>;
   return (arr ?? [])
@@ -193,7 +193,7 @@ async function lookup(env: Env, parts: (string | null)[]): Promise<{ lat: number
   if (!q) return null;
   // us + ca: EFS fleets cross the border regularly — us-only made every Canadian station unresolvable.
   const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us,ca&addressdetails=0`;
-  const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
+  const res = await fetch(url, { headers: { "User-Agent": `Silvicom 360/1.0 (${env.MAIL_FROM})` } });
   if (!res.ok) return null;
   const arr = (await res.json()) as Array<{ lat?: string; lon?: string; class?: string }>;
   const hit = arr?.[0];

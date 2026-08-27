@@ -343,7 +343,7 @@ export async function generateAndSendDigest(
     return { sent: false, reason: "ai_failed", summary: null };
   }
 
-  const mail = renderDigestEmail((org.name as string) ?? "FuelGuard", summary, {
+  const mail = renderDigestEmail((org.name as string) ?? "Silvicom 360", summary, {
     alertCount: data.alertCount,
     siphonCount: data.siphonCount,
     declineAlertCount: data.declineAlertCount,

@@ -6,5 +6,5 @@ const env = loadEnv();
 const app = createApp(env);
 
 app.listen(env.PORT, () => {
-  console.log(`[FuelGuard Admin API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
+  console.log(`[Silvicom 360 Admin API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });

@@ -1,20 +1,20 @@
 import { driverMatchKey, trailerUnitMatchKey } from "@fuelguard/shared";
 
 /**
- * Matching a TMS roster row to an existing FuelGuard record — pure, so the precedence can be tested
+ * Matching a TMS roster row to an existing Silvicom 360 record — pure, so the precedence can be tested
  * without a database and without SQL Server.
  *
  * The precedences below are not guesses; each was measured against the carrier's data on 2026-08-24
  * (MCLEOD-ROSTER-SYNC-PLAN §7):
  *
  *   drivers  link → CDL → name.  The licence carries it: 162 of McLeod's 164 active drivers match a
- *            FuelGuard active driver on licence alone, and both sides hold a distinct one for every
+ *            Silvicom 360 active driver on licence alone, and both sides hold a distinct one for every
  *            active driver. Phone — the key the Samsara sync leans on — is not available at all;
  *            McLeod has no phone number for any of its 1,463 driver rows.
  *   vehicles link → VIN → unit.  Both keys select the same 175 of 190, so they corroborate rather
  *            than complement, and either alone would do. VIN is preferred because a unit number can
  *            be reassigned to a different truck and a VIN cannot.
- *   trailers link → normalised unit → VIN.  VIN is last because FuelGuard holds none today.
+ *   trailers link → normalised unit → VIN.  VIN is last because Silvicom 360 holds none today.
  *
  * AMBIGUITY IS NEVER RESOLVED BY GUESSING. A key held by two or more existing rows matches nothing —
  * the same rule `samsaraDriverSync` applies to names, for the same reason: merging two different
@@ -41,7 +41,7 @@ export type MatchOutcome =
   | { kind: "unmatched" };
 
 /** Licence numbers are compared case- and punctuation-insensitively; McLeod's are bare alphanumerics
- *  (8–13 chars, verified) but FuelGuard's may have been typed with spaces or hyphens. */
+ *  (8–13 chars, verified) but Silvicom 360's may have been typed with spaces or hyphens. */
 export const cdlKey = (v: string | null | undefined): string =>
   (v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
@@ -108,7 +108,7 @@ export interface AssetMatcher {
 /**
  * Vehicles and trailers differ only in how a unit number is compared, so they share one matcher.
  *
- * `unitKey` is where the trailer prefix lives: FuelGuard writes `R532159` for the reefer McLeod calls
+ * `unitKey` is where the trailer prefix lives: Silvicom 360 writes `R532159` for the reefer McLeod calls
  * `532159`, and normalising lifted the trailer match from 157 of 235 to 201. The stored unit_number is
  * never rewritten — renaming ~46 trailers is a decision for a human, not a side effect of a sync
  * (D-MR11) — so the normalisation exists here, at the comparison, and nowhere else.

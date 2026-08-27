@@ -22,7 +22,7 @@ export interface ApiResult<T> {
   detail?: Record<string, unknown>;
 }
 
-/** Call the FuelGuard API with the current Supabase access token as a Bearer credential. */
+/** Call the Silvicom 360 API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,
   options: {

@@ -175,7 +175,7 @@ export function compareCardValues(
  * operator opens this page to look at. Interleaved by card number they push the working fleet down
  * the list, so the default order sinks them and everything else keeps its natural order above.
  *
- * Deliberately NOT based on the `fuel_cards` link. That link is FuelGuard's own attribution guess and
+ * Deliberately NOT based on the `fuel_cards` link. That link is Silvicom 360's own attribution guess and
  * is null for 17 of this account's cards purely because two physical cards share a last four — which
  * says nothing about whether a driver is using them.
  */

@@ -22,7 +22,7 @@ export const promptsSetView = defineView(promptsSetContract, {
           tone: "danger" as const,
           title: "Stop asking who is fueling?",
           body:
-            "The pump will stop checking a Driver ID on this card. Anyone holding it can fuel, and FuelGuard loses its strongest signal for attributing a fill to a driver. " +
+            "The pump will stop checking a Driver ID on this card. Anyone holding it can fuel, and Silvicom 360 loses its strongest signal for attributing a fill to a driver. " +
             "Confirm your password to continue.",
           confirmLabel: "Remove Driver ID prompt",
           busyLabel: "Saving…",

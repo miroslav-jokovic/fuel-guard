@@ -175,7 +175,7 @@ describe("the rendered packet", () => {
   });
 
   /**
-   * D-PKT8. FuelGuard is multi-tenant and this is a document somebody signs — a second carrier being
+   * D-PKT8. Silvicom 360 is multi-tenant and this is a document somebody signs — a second carrier being
    * handed a form with the first one's name on it is the failure worth a test.
    */
   describe("the letterhead", () => {

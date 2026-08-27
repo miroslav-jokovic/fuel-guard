@@ -4,7 +4,7 @@ import { loadEnv } from "../env.js";
 
 describe("parseSender", () => {
   it("splits a display-name sender into name + email (for Brevo)", () => {
-    expect(parseSender("FuelGuard <miki@silvicominc.com>")).toEqual({ name: "FuelGuard", email: "miki@silvicominc.com" });
+    expect(parseSender("Silvicom 360 <miki@silvicominc.com>")).toEqual({ name: "Silvicom 360", email: "miki@silvicominc.com" });
   });
   it("handles a bare email", () => {
     expect(parseSender("miki@silvicominc.com")).toEqual({ email: "miki@silvicominc.com" });

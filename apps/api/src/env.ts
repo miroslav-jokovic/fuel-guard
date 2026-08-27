@@ -310,9 +310,9 @@ const EnvSchema = z.object({
   // Sender for outbound email.
   // Default uses Resend's shared test sender (onboarding@resend.dev) — no domain verification
   // required, works with just a RESEND_API_KEY. Switch to your own verified domain address
-  // (e.g. "FuelGuard <miki@silvicominc.com>") once you have DNS access to verify silvicominc.com
+  // (e.g. "Silvicom 360 <miki@silvicominc.com>") once you have DNS access to verify silvicominc.com
   // in resend.com/domains.
-  MAIL_FROM: z.string().default("FuelGuard <onboarding@resend.dev>"),
+  MAIL_FROM: z.string().default("Silvicom 360 <onboarding@resend.dev>"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

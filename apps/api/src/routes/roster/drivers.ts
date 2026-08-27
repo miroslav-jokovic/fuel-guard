@@ -341,7 +341,7 @@ export function rosterDriversRouter(): Router {
         return;
       }
 
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
+      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "Silvicom 360", email);
       if (!delivery.sent)
         console.error(`[roster] driver invite not sent for ${email} (${delivery.reason})`);
 

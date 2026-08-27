@@ -2,7 +2,7 @@
 /**
  * The fuel-card inventory, as EFS reports it.
  *
- * New surface: until now FuelGuard has only ever INFERRED card state from fill history
+ * New surface: until now Silvicom 360 has only ever INFERRED card state from fill history
  * (learnCardAssignments), so "is this card locked?" had no answer. These rows come from the vendor.
  */
 import { computed, ref, watch } from "vue";

@@ -100,10 +100,10 @@ describe("tms ingest", () => {
  * The movement feed exists to answer one question — was this a temperature-controlled movement — and
  * it answers it from the TRAILER. So a trailer that fails to resolve is not a cosmetic gap: it is the
  * feed silently failing at its only job, on precisely the ~44 reefers whose unit numbers differ by
- * FuelGuard's `R` prefix (D-FG8).
+ * Silvicom 360's `R` prefix (D-FG8).
  */
 describe("a McLeod movement finds the records it names", () => {
-  it("resolves a reefer whose McLeod unit number lacks FuelGuard's R prefix", async () => {
+  it("resolves a reefer whose McLeod unit number lacks Silvicom 360's R prefix", async () => {
     const { admin, writes } = makeAdmin((q) => {
       if (q.table === "vehicles") return [{ id: "v1", unit_number: "104" }];
       if (q.table === "trailers") return [{ id: "t1", unit_number: "R532159" }];

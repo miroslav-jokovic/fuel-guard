@@ -1,7 +1,7 @@
 /**
  * @fuelguard/ui/icons — the curated icon inventory.
  *
- * Every icon used anywhere in a FuelGuard app is re-exported from here under a
+ * Every icon used anywhere in a Silvicom 360 app is re-exported from here under a
  * stable local name. Feature code imports from this barrel; the barrel maps to
  * whichever HugeIcons glyph we consider canonical for that concept.
  *

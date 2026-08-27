@@ -162,7 +162,7 @@ const rows = [
     <header class="lab-controls" aria-label="Prototype controls">
       <div>
         <p class="lab-eyebrow">Development-only prototype</p>
-        <h1>FuelGuard visual direction</h1>
+        <h1>Silvicom 360 visual direction</h1>
         <p>{{ actionDescription }}</p>
       </div>
 
@@ -194,7 +194,7 @@ const rows = [
       <aside class="prototype-sidebar">
         <div class="prototype-brand">
           <span class="prototype-brand-mark">F</span>
-          <span>FuelGuard</span>
+          <span>Silvicom 360</span>
         </div>
         <nav aria-label="Prototype navigation">
           <p>Workspace</p>

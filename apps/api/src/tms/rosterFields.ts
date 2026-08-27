@@ -67,7 +67,7 @@ export function driverPatch(r: TmsDriverInput): Record<string, unknown> {
   set("postal_code", r.postal_code);
 
   // `phone` is absent on purpose and must stay absent. McLeod holds no phone number for ANY of its
-  // 1,463 driver rows, and `samsaraDriverSync` is the only writer of the 164 FuelGuard has. SMS
+  // 1,463 driver rows, and `samsaraDriverSync` is the only writer of the 164 Silvicom 360 has. SMS
   // consent, driver-app invitations and messaging all depend on them.
   return p;
 }
@@ -86,7 +86,7 @@ export function vehiclePatch(r: TmsVehicleInput): Record<string, unknown> {
   set("registration_expires_at", r.registration_expires_at);
 
   // McLeod's `inspection_date` is the date the annual inspection was PERFORMED — 175 of 175 in the
-  // past, the exact opposite of every driver date on the same row — while FuelGuard's column is an
+  // past, the exact opposite of every driver date on the same row — while Silvicom 360's column is an
   // EXPIRY. The derivation is §396.17's annual interval, done here rather than in the agent so the
   // raw observation crosses the wire unchanged and this assumption stays visible and reviewable.
   if (r.annual_inspection_performed_at) {
@@ -125,7 +125,7 @@ export function trailerPatch(r: TmsTrailerInput): Record<string, unknown> {
 
   // Identical derivation to the tractor's, and for the identical reason: measured 2026-08-24,
   // `trailer.inspection_date` is populated on 228 of 235 and 228 of those are in the PAST, so it
-  // records when the annual was performed while FuelGuard's column is an expiry. §396.17's interval
+  // records when the annual was performed while Silvicom 360's column is an expiry. §396.17's interval
   // is applied here rather than in the agent so the raw observation crosses the wire unchanged.
   if (r.annual_inspection_performed_at) {
     const d = new Date(`${r.annual_inspection_performed_at}T00:00:00Z`);
@@ -138,7 +138,7 @@ export function trailerPatch(r: TmsTrailerInput): Record<string, unknown> {
   // `registration_expires_at` is absent and stays absent: McLeod's `tag_expire_date` is populated on
   // ZERO of 235 active trailers. The tractor path writes it because there the column has 175 values.
 
-  // `unit_number` is NOT written. FuelGuard prefixes reefers with `R` and McLeod does not; the ingest
+  // `unit_number` is NOT written. Silvicom 360 prefixes reefers with `R` and McLeod does not; the ingest
   // normalises for MATCHING and leaves the stored value alone, because renaming ~46 trailers is a
   // user-visible decision for a human (D-MR11). `assigned_vehicle_id`, `pairing_source` and
   // `pairing_confidence` are excluded for a stronger reason: reeferPairing INFERS them from telemetry,

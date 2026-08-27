@@ -12,7 +12,7 @@ import {
 
 describe("shared constants", () => {
   it("exposes the app name", () => {
-    expect(APP_NAME).toBe("FuelGuard");
+    expect(APP_NAME).toBe("Silvicom 360");
   });
 
   it("defines the seven user roles (incl. the department roles and the recruiter)", () => {

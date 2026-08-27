@@ -37,7 +37,7 @@ const canGoBack = computed(() => window.history.state?.back != null);
 
 <template>
   <div>
-    <PageHeader description="That address does not match anything in FuelGuard." />
+    <PageHeader description="That address does not match anything in Silvicom 360." />
     <ErrorPanel
       :icon="MagnifyingGlassIcon"
       message="Check the address for a typo. If you followed a link from an email or a bookmark, the page it pointed at may have moved or been renamed."

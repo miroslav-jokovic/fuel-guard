@@ -197,7 +197,7 @@ const testChipClass = computed(() => {
   <div class="mx-auto max-w-3xl space-y-6">
     <PageHeader>
       EFS SOAP integration — the direct webservice link that delivers posted transactions and
-      rejected authorization attempts into FuelGuard. One credential set covers both feeds. See
+      rejected authorization attempts into Silvicom 360. One credential set covers both feeds. See
       <code class="rounded-control bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
       for the full plan and the list of items still awaiting EFS's data release.
     </PageHeader>

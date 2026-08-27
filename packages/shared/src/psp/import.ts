@@ -7,7 +7,7 @@ import { PSP_IMPORT_SOURCE } from "./provenance.js";
  * ── WHY THIS EXISTS AT ALL, GIVEN P6 ALREADY BUYS RECORDS ───────────────────────────────────────
  * The API cannot fetch a record we already own. Five endpoints, none of which lists past
  * transactions, and `/Record` needs an `authCode` that expires 120 hours after the request that
- * produced it (guide §7). A carrier switching to FuelGuard therefore has a drawer of PSP PDFs that
+ * produced it (guide §7). A carrier switching to Silvicom 360 therefore has a drawer of PSP PDFs that
  * no integration can recover — and buying them a second time would be paying twice for a record we
  * are already holding lawfully, on a driver who already signed for the first one.
  *
@@ -94,7 +94,7 @@ export type PspImport = z.infer<typeof pspImportSchema>;
  * right: we are about to make the request, so the consent has to be one we hold. An import is the
  * opposite situation. The pull already happened, on a portal, under an account agreement, before
  * this driver had a row in this system — the consent that authorised it is on paper in a folder and
- * may predate FuelGuard by years. Requiring a digital authorization would refuse to file lawfully
+ * may predate Silvicom 360 by years. Requiring a digital authorization would refuse to file lawfully
  * obtained evidence, and the workaround would be to back-date a signature into the table that exists
  * precisely so signatures are never back-dated.
  *

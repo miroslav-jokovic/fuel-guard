@@ -172,7 +172,7 @@ async function notifyFuelDrop(
   const where = ev.address ? ` near ${ev.address}` : "";
   const mag = ev.dropPct != null ? ` (~${ev.dropPct}% drop)` : "";
   const subject = `⚠ Possible fuel theft: sudden fuel drop on ${unit}`;
-  const text = `Samsara detected a sudden fuel-level drop on vehicle ${unit}${mag} at ${when}${where}. This can indicate siphoning. Review in FuelGuard: ${env.WEB_APP_URL}/fuel-events`;
+  const text = `Samsara detected a sudden fuel-level drop on vehicle ${unit}${mag} at ${when}${where}. This can indicate siphoning. Review in Silvicom 360: ${env.WEB_APP_URL}/fuel-events`;
   const send = makeSender(env);
   await send({ to: org.notification_emails as string[], subject, html: `<p>${text}</p>`, text });
 }

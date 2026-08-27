@@ -91,9 +91,9 @@ export function invitesRouter(): Router {
       }
       const result = await sendEmail(env, {
         to: [to],
-        subject: "FuelGuard test email",
-        html: "<p>This is a FuelGuard test email. If you received it, outbound email is working.</p>",
-        text: "This is a FuelGuard test email. If you received it, outbound email is working.",
+        subject: "Silvicom 360 test email",
+        html: "<p>This is a Silvicom 360 test email. If you received it, outbound email is working.</p>",
+        text: "This is a Silvicom 360 test email. If you received it, outbound email is working.",
       });
       res.json({ ...result, from: env.MAIL_FROM, to });
     }),
@@ -167,7 +167,7 @@ export function invitesRouter(): Router {
 
       // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
       // regardless so the admin can copy/share it if email delivery is misconfigured.
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
+      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "Silvicom 360", email);
       if (!delivery.sent)
         console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
@@ -272,7 +272,7 @@ export function invitesRouter(): Router {
       const delivery = await deliverInvite(
         admin,
         env,
-        (org?.name as string) ?? "FuelGuard",
+        (org?.name as string) ?? "Silvicom 360",
         existing.email,
       );
       const emailSent = delivery.sent;

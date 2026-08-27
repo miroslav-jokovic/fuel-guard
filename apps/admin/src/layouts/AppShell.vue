@@ -40,7 +40,7 @@ async function signOut() {
       <div class="flex h-12 items-center justify-between px-4 sm:px-6">
         <div class="flex items-center gap-3">
           <span class="rounded-control bg-brand-accent px-2 py-0.5 text-xs font-bold tracking-wide text-ink">PLATFORM</span>
-          <span class="text-sm font-semibold">FuelGuard Control Plane</span>
+          <span class="text-sm font-semibold">Silvicom 360 Control Plane</span>
         </div>
         <div class="flex items-center gap-3 text-sm">
           <span class="text-ink-inverse/70">{{ session.email }}</span>

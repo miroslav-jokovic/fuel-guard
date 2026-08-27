@@ -317,7 +317,7 @@ export function reportsRouter(): Router {
       res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-summary.pdf"');
       const doc = new PDFDocument({ margin: 50 });
       doc.pipe(res);
-      doc.fontSize(20).text("FuelGuard — Fuel Summary", { continued: false });
+      doc.fontSize(20).text("Silvicom 360 — Fuel Summary", { continued: false });
       doc.moveDown(0.3).fontSize(10).fillColor("#666").text(`Period: ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
       doc.moveDown().fillColor("#000").fontSize(12);
       doc.text(`Total fuel spend:  $${summary.totalSpend.toLocaleString()}`);

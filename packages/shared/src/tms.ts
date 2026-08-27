@@ -2,9 +2,9 @@ import { z } from "zod";
 import type { LoadStatus } from "./loadsContract.js";
 
 /**
- * TMS (dispatch) integration contract — the NEUTRAL shape the on-prem sync agent POSTs to FuelGuard after it
+ * TMS (dispatch) integration contract — the NEUTRAL shape the on-prem sync agent POSTs to Silvicom 360 after it
  * reads the carrier's TMS (McLeod LoadMaster `ws` API is the first provider). Keeping the wire contract
- * provider-neutral means the agent owns the McLeod-specific field mapping, and FuelGuard never has to reach
+ * provider-neutral means the agent owns the McLeod-specific field mapping, and Silvicom 360 never has to reach
  * into the carrier's network or learn a vendor's schema. Matching keys (unit numbers / driver ids) are
  * resolved to our ids on ingest.
  */
@@ -59,7 +59,7 @@ export type TmsProvider = (typeof TMS_PROVIDERS)[number];
 /**
  * One STOP on an ingested load, normalized by the on-prem agent from McLeod's StopService.
  * Deliberately the same vocabulary as a manually-created stop — the agent owns the McLeod field
- * mapping so FuelGuard never learns a vendor schema (the D48 seam).
+ * mapping so Silvicom 360 never learns a vendor schema (the D48 seam).
  */
 export const tmsStopInputSchema = z.object({
   seq: z.number().int().min(1).max(50),
@@ -154,7 +154,7 @@ export function tmsMayOverwrite(status: LoadStatus): boolean {
  * The carrier's TMS owns WHO IS EMPLOYED and WHAT IS IN THE FLEET; telematics owns what they did.
  * These three shapes carry the first answer across the seam, and they are provider-NEUTRAL for the
  * same reason the movement contract above is: the on-prem agent owns the vendor field mapping, so
- * FuelGuard never learns a vendor schema. That matters more against a database than an API — McLeod's
+ * Silvicom 360 never learns a vendor schema. That matters more against a database than an API — McLeod's
  * `dbo.driver` has 159 columns and no compatibility promise, and coupling the deployable to it would
  * make every carrier upgrade our problem.
  *
@@ -168,7 +168,7 @@ export function tmsMayOverwrite(status: LoadStatus): boolean {
  * on `external_id`, which is what makes a full re-push always safe.
  */
 
-/** Employment status, already mapped by the agent onto FuelGuard's vocabulary (DRIVER_STATUSES). */
+/** Employment status, already mapped by the agent onto Silvicom 360's vocabulary (DRIVER_STATUSES). */
 export const TMS_DRIVER_STATUSES = ["active", "inactive", "terminated"] as const;
 export type TmsDriverStatus = (typeof TMS_DRIVER_STATUSES)[number];
 
@@ -182,7 +182,7 @@ export const tmsDriverInputSchema = z.object({
 
   // ── match keys ────────────────────────────────────────────────────────────────
   // The licence is THE key: measured 2026-08-24, McLeod carries a distinct one for 164 of 164 active
-  // drivers and FuelGuard for 166 of 166, matching 162 of them. Name is the fallback and phone is not
+  // drivers and Silvicom 360 for 166 of 166, matching 162 of them. Name is the fallback and phone is not
   // available at all — McLeod holds no phone number for any of its 1,463 driver rows.
   cdl_number: z.string().trim().min(1).max(32).nullish(),
   cdl_state: z.string().trim().min(1).max(8).nullish(),
@@ -232,7 +232,7 @@ export const tmsVehicleInputSchema = z.object({
   plate_state: z.string().trim().max(8).nullish(),
   registration_expires_at: isoDate.nullish(),
   /** `inspection_date` — the date the annual inspection was PERFORMED, not an expiry (verified:
-   *  175/175 in the past). FuelGuard's column is an expiry, so the derivation happens on ingest and
+   *  175/175 in the past). Silvicom 360's column is an expiry, so the derivation happens on ingest and
    *  the raw observation crosses the wire unchanged. */
   annual_inspection_performed_at: isoDate.nullish(),
   /** `purchase_date` — 190 of 190 active tractors, every one in the past (measured 2026-08-24). */
@@ -246,7 +246,7 @@ export const tmsTrailerInputSchema = z.object({
   company_id: z.string().trim().min(1).max(32).optional(),
 
   // ── match keys ────────────────────────────────────────────────────────────────
-  /** McLeod's bare unit number. FuelGuard prefixes reefers with `R` (`R532159` here is `532159`
+  /** McLeod's bare unit number. Silvicom 360 prefixes reefers with `R` (`R532159` here is `532159`
    *  there); the INGEST normalises for matching and never rewrites a stored unit_number — renaming
    *  ~46 trailers is a user-visible decision, not a sync's (D-MR11). */
   unit_number: z.string().trim().min(1).max(64).nullish(),
@@ -264,7 +264,7 @@ export const tmsTrailerInputSchema = z.object({
   /** `purchase_date` — 224 of 235 active trailers, all past. */
   purchased_at: isoDate.nullish(),
   /** `inspection_date` — 228 of 235, and 228 of 228 in the PAST, so it is the date the annual was
-   *  performed, exactly like the tractor's. FuelGuard's column is an expiry; the +1 year derivation
+   *  performed, exactly like the tractor's. Silvicom 360's column is an expiry; the +1 year derivation
    *  happens on ingest so the raw observation crosses the wire unchanged. */
   annual_inspection_performed_at: isoDate.nullish(),
   /** `axles` — 193 of 235, every populated row a 2. */
@@ -282,11 +282,11 @@ export type TmsVehiclesPayload = z.infer<typeof tmsVehiclesPayloadSchema>;
 export type TmsTrailersPayload = z.infer<typeof tmsTrailersPayloadSchema>;
 
 /**
- * Strip FuelGuard's reefer prefix so a McLeod unit number can be compared to a stored one.
+ * Strip Silvicom 360's reefer prefix so a McLeod unit number can be compared to a stored one.
  * MATCHING ONLY — never write the result back to `unit_number`.
  *
- * Measured effect (2026-08-24): trailer matches went from 157 of 235 to 201, and FuelGuard-only rows
- * from 50 to 6. The prefix is a real signal, not noise — FuelGuard has 46 `R`-prefixed trailers and
+ * Measured effect (2026-08-24): trailer matches went from 157 of 235 to 201, and Silvicom 360-only rows
+ * from 50 to 6. The prefix is a real signal, not noise — Silvicom 360 has 46 `R`-prefixed trailers and
  * McLeod 45 with `trailer_type = 'R'` — which is why `is_reefer` comes from the type and never from
  * the prefix.
  */

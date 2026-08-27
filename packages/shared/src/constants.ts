@@ -1,5 +1,5 @@
 /** Application-wide constants shared between web and api. */
-export const APP_NAME = "FuelGuard";
+export const APP_NAME = "Silvicom 360";
 
 /** User roles within an organization (mirrors the `user_role` Postgres enum).
  *  `dispatcher` + `safety_manager` are department roles: scoped write access to one product area (see the

@@ -235,7 +235,7 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
      * *"unassigned cards dont have any prompts and we dont even have option to add them."* Correct:
      * every prompt path this product had edited or REMOVED records the card already carried, so a
      * card with an empty `<infos>` could never be given a Driver ID prompt — which is the whole of
-     * FuelGuard's attribution signal for that card. Unreachable, silently, since the feature shipped.
+     * Silvicom 360's attribution signal for that card. Unreachable, silently, since the feature shipped.
      */
     applies: (card, allowed) => missingEditableInfoIds(card, allowed).length > 0,
     /**

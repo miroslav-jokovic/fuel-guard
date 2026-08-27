@@ -348,7 +348,7 @@ function chooseAdded(infoId: string): void {
       The pump will stop asking for
       {{ infoLabel(props.draft.removeInfoId) }} on this card after you confirm.
       <span v-if="props.draft.removeInfoId === 'DRID'">
-        FuelGuard also loses its strongest signal for attributing a fill to a driver.
+        Silvicom 360 also loses its strongest signal for attributing a fill to a driver.
       </span>
     </p>
   </div>
