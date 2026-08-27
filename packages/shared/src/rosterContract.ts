@@ -139,7 +139,6 @@ export const driverListItemSchema = z.object({
   cdl_number: z.string().nullable(),
   cdl_expires_at: z.string().nullable(),
   medical_card_expires_at: z.string().nullable(),
-  home_terminal_id: z.uuid().nullable(),
   hire_date: z.string().nullable(),
   created_at: z.string(),
   /**
@@ -180,7 +179,6 @@ export const driverCreateSchema = z
     status: driverStatusSchema.default("active"),
     driver_type: driverTypeSchema.nullish(),
     hire_date: isoDateSchema,
-    home_terminal_id: z.uuid().nullish(),
     cdl_number: z.string().max(60).nullish(),
     cdl_state: z.string().max(10).nullish(),
     cdl_class: z.enum(CDL_CLASSES).nullish(),
@@ -286,7 +284,6 @@ export const driverUpdateSchema = z
     driver_type: driverTypeSchema.nullish(),
     hire_date: isoDateSchema,
     termination_date: isoDateSchema,
-    home_terminal_id: z.uuid().nullish(),
     date_of_birth: dateOfBirthSchema,
     address_line1: z.string().max(200).nullish(),
     address_line2: z.string().max(200).nullish(),

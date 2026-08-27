@@ -47,7 +47,6 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "route_geometries", column: "cache_key", migration: "0059" },
   // Master Data & Identity (M1). One probe per migration — enough to prove the file ran, and
   // `invites.driver_id` in particular is the column the driver app's whole login→roster link needs.
-  { table: "terminals", column: "code", migration: "0097" },
   { table: "drivers", column: "identity_source", migration: "0098" },
   { table: "vehicles", column: "identity_source", migration: "0099" },
   { table: "trailers", column: "identity_source", migration: "0100" },
@@ -55,6 +54,8 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // until 0147 dropped all three: no producer, no consumer, and `master_documents` pointed at a
   // Storage bucket that was never created. Probing a table nobody reads only teaches the boot log to
   // cry wolf. The compliance probe that matters now is `documents` (0146), below.
+  // `terminals` (0097) joined that list at 0259 — same disease, found by the 2026-08-26 audit and
+  // dropped at the roster carve-out after measuring zero rows and zero FK references in production.
   { table: "invites", column: "driver_id", migration: "0102" },
   // EFS mutual TLS. Probed because an unapplied 0106 makes certificate upload fail at the DB layer
   // with a schema-cache error that reads like an application bug.

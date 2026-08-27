@@ -5,11 +5,11 @@ import {
   type CreateDriverLoginRequest,
   type ResetDriverPasswordRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 import {
   DriverCredentialError,
   createDriverLogin,
@@ -17,7 +17,7 @@ import {
   enableDriverLogin,
   resetDriverPassword,
   revokeDriverLogin,
-} from "../../services/driverCredentials.js";
+} from "../driverCredentials.js";
 
 /**
  * Driver app-access lifecycle (DRIVER-CREDENTIALS-PLAN.md DC4) — company-issued logins, managed from

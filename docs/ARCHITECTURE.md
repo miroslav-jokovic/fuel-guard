@@ -83,14 +83,15 @@ bypasses RLS; ownership is the discipline that replaces it.
 | Core module | Owns |
 |---|---|
 | `org` (identity & platform) | `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`, `integration_credentials`, `org_usage_month`, `platform_admins`, `platform_audit_log`, `support_impersonation_grants`, `audit_logs` (append-only), `jobs`, `migration_markers` |
-| `roster` | `drivers`, `vehicles`, `trailers`, `terminals`†, `driver_vehicle_assignments`, `driver_time_off` |
+| `roster` (carved 2026-08-27, `apps/api/src/modules/roster/`) | `drivers`, `vehicles`, `trailers`, `driver_vehicle_assignments`, `driver_time_off` |
 | `fuel` | `fuel_transactions`, `fuel_events`, `declined_transactions`, `fuel_cards`, `fuel_stations`, `station_geocode_learned`, `fuel_prices`, `fuel_prices_posted`, `fuel_price_days`, `fuel_discount_rules` |
 | `evidence` (carved 2026-08-26, `apps/api/src/modules/evidence/` — first core-store module) | `documents`, `certifications`, `qualification_records`, `dq_exports` — the append-only set pinned in `RETENTION_FORBIDDEN` |
 | `loads` | `loads`, `load_stops`, `load_events`, `load_stop_photos` |
 | `financial` | `financial_entries` (staging feeds arrive via the `mcleod` collector) |
 
-† `terminals` has zero producers and zero readers since 0097 while three roster FKs point at it —
-resolve (build or drop) during the `roster` carve-out.
+† resolved: `terminals` was DROPPED at the roster carve-out (0259, 2026-08-27) after measuring zero
+rows and zero FK references in production — a future terminals feature recreates it WITH a
+producer, an ordering `lint:table-producers` now guarantees.
 
 **The CDL/medical dual-source resolves toward `evidence`** when `roster` and `evidence` are
 carved out: `certifications` is what the qualification gate (§391) already reads, so it is the
@@ -151,7 +152,7 @@ rewrite discards the knowledge and keeps the authors. So:
 | File/function budgets | `lint:filesize` / `lint:funcsize` | live (gap: no `.vue`/`.tsx`/shared coverage) |
 | **apps/api module isolation** | `check-feature-boundaries.mjs`, armed for `apps/api/src/modules` | live 2026-08-26 — fires on the first carve-out |
 | **Table ownership** (write-site freeze: a new writer is a deliberate manifest edit) | `check-table-writers.mjs` + `scripts/table-writers.json` | live 2026-08-26 (172 write sites pinned; collapses to owner paths as carve-outs land) |
-| **Every table has a producer** (would have caught `financial_entries`, `terminals`) | `check-table-producers.mjs` | live 2026-08-26 (7 waivers, each naming the plan that owes the producer) |
+| **Every table has a producer** (would have caught `financial_entries`, `terminals`) | `check-table-producers.mjs` | live 2026-08-26 (6 waivers after 0259 retired terminals, each naming the plan that owes the producer) |
 | Contracts only in `packages/shared` | review discipline | **not gate-backed; hold by hand** |
 
 All three re-founding gates run in CI since 2026-08-26 (`.github/workflows/ci.yml`), alongside

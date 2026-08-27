@@ -13,7 +13,7 @@ import {
   expectOrgScoped,
   RECORDER_AUTH_USER_ID,
   type SupabaseRecorder,
-} from "../testing/supabaseRecorder.js";
+} from "../../testing/supabaseRecorder.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). This service hands out a

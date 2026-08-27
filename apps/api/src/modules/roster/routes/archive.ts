@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { canArchiveDriver, rolesThatCanView } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import { getAppLocals } from "../../lib/appLocals.js";
-import { writeAudit } from "../../lib/audit.js";
+import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { writeAudit } from "../../../lib/audit.js";
 
 /**
  * Archiving a driver or an applicant (migration 0235).
