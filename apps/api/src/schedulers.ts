@@ -18,6 +18,7 @@ import { startNotificationPushScheduler } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
+import { startFinancialProjectionScheduler } from "./modules/financial/index.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -56,4 +57,5 @@ export function startAllSchedulers(env: Env): void {
   startDqExportSweeper(env); // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
   startPatternSweepScheduler(env); // durable enrichment requests survive queue dispatch outages
   startFuelSpendRollupScheduler(env); // 0244: nightly re-derivation of the daily fuel-spend rollup
+  startFinancialProjectionScheduler(env); // P3.4: nightly projection of staging into financial_entries
 }

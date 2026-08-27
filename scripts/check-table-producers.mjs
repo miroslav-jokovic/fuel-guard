@@ -31,7 +31,6 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // Ratchet: entries leave when the table gains a producer or gets dropped; additions need a
 // justification in the commit that adds them.
 const WAIVERS = new Map([
-  ["financial_entries", "0257 shipped schema-first; McLeod ingestion is the committed next build (FINANCIAL-STORE-PLAN)"],
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
 ]);
 

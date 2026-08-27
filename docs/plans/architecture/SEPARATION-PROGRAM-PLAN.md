@@ -422,27 +422,48 @@ pinned in advance. Program-specific additions:
 
 ### Phase 3 — Finance data: McLeod → collector → core (accounting's substrate)
 
-- **P3.1 — Wire contracts.** `packages/shared` payload schemas mapping the proven fact schemas
+- **P3.1 — DONE 2026-08-27 (measured, PR #333) — Wire contracts.**
+  Found already shipped: tmsSettlementsPayloadSchema/tmsApVouchersPayloadSchema map 1:1 onto
+  0257; voids never cross the wire because extraction excludes them (D-MC18). The billing
+  contract landed at P3.3. `packages/shared` payload schemas mapping the proven fact schemas
   (`tmsCost/settlementFact`, `expenseFact`) onto the 0257 column sets (incl.
   `accrual_key`/`post_key`); no parser logic in shared (D-SEP11).
-- **P3.2 — Ingest endpoints + agent wiring (settlements, AP).** `/api/tms/settlements`,
+- **P3.2 — DONE 2026-08-27 (PR #333) — Ingest endpoints + agent wiring (settlements, AP).**
+  /api/tms/settlements + /vouchers behind the same ingest-token middleware; agent --financial
+  mode reads the SQL the reconciliation CLIs proved to the cent; two producer waivers retired.
+  ⚠ Owed: one on-prem verification run against live McLeod (Miki — carrier VPN). `/api/tms/settlements`,
   `/api/tms/vouchers` in `modules/mcleod` (same token middleware; §6 Q3 credential ruling
   applied); upsert services on `(org_id, external_id)`; `agent.mjs` gains the sweeps (today
   print-only) with `sendBatched`; producer waivers for `mcleod_settlements`/`mcleod_ap_vouchers`
   removed — **that gate turning green is this step's acceptance criterion.** `expectOrgScoped`
   on every query.
-- **P3.3 — Billing extraction (greenfield).** `BILLING_HISTORY` query in the agent
+- **P3.3 — DONE-to-the-honest-boundary 2026-08-27 (PR #334) — Billing extraction (greenfield).**
+  Contract + ingestBilling + /api/tms/billing complete (third waiver retired). The McLeod-side
+  SELECT is deliberately NOT guessed: recon questions F1/F2 re-take the 0257 measurement;
+  the BILLING_HISTORY sweep is written against their pasted answers (Miki, on-prem). `BILLING_HISTORY` query in the agent
   (`queries.mjs`), `billing.mjs` sweep with GL-BILL reconciliation proof (the 0257:274 claim
   becomes runnable), shared contract, `/api/tms/billing` endpoint, upsert into `mcleod_billing`;
   waiver removed.
-- **P3.4 — `modules/financial` (core).** The projection service: `dedup_key` computation,
+- **P3.4 — DONE 2026-08-27 (PR #335) — `modules/financial` (core).**
+  The projection: payee-split settlements (accrual, total_pay), AP vouchers (fuel-vendor rows
+  land category=fuel NON-canonical per D-FS2 — the flag, not the key, holds the $1,017,601.81
+  to one count), billing split linehaul/accessorial (excise not revenue), canonical EFS fills
+  (costless fills skipped and counted). Staging read ONLY through mcleod's exported readers
+  (D-SEP1). financial_entries' waiver retired — import_rows is the schema's last.
+  Deviation, stated: retention stance for financial_entries stays as 0257 built it (is_void +
+  canonical dedup, no append-only trigger) — changing it is a migration decision for the
+  reporting phase, not a projection side effect. The projection service: `dedup_key` computation,
   canonical selection, D-FS2 fuel policy (McLeod fuel + PILOKNTN AP rows collapse into the EFS
   entry), accrual-vs-payment lifecycle split, `is_void` carry-through, unit-string →
   `vehicle_id`/`driver_id`/`load_id` resolution (extending `entityLookup`/`rosterMatch`
   patterns). `financial_entries` waiver removed; retention stance declared (§3.9). PGlite
   matrix: same source row twice → one canonical entry; void propagates; maintenance category
   rows carry the dedup key FleetPal will later have to match (D-SEP8).
-- **P3.5 — Backfill to 2024-01-01 (D-FS3)** as a job-queue kind (closed `JobKind` union +
+- **P3.5 — DONE-as-designed 2026-08-27 (PR #335) — Backfill to 2024-01-01 (D-FS3)**
+  The financial_projection job (KIND_CAPS 1) with payload.full IS the backfill — dispatched
+  once, by a person, after the agent's --financial sweeps fill staging back that far; the
+  nightly scheduler re-projects the trailing 50 days. Reconciliation-from-the-store
+  verification runs when production staging holds the history. Original text: as a job-queue kind (closed `JobKind` union +
   `KIND_CAPS` cap 1), idempotent, with the agent-side reconciliation totals re-verified against
   persisted rows and the numbers quoted in the PR body.
 
