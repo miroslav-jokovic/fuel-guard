@@ -94,6 +94,7 @@ export {
   Home01Icon                  as HomeIcon,
   TestTube01Icon              as BeakerIcon,
   DollarCircleIcon            as CurrencyDollarIcon,
+  ChartAverageIcon            as ChartAverageIcon,               // cost-per-mile: an average, per unit
   Link04Icon                  as LinkIcon,                       // ⚠ verify (01/02/03/04 stylistic)
   ChampionIcon                as TrophyIcon,                     // ⚠ verify (ChampionIcon vs. Trophy01Icon)
   SecurityCheckIcon           as ShieldCheckIcon,                // ⚠ verify (shield-with-tick)

@@ -237,6 +237,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/accounting",
   },
   {
+    "name": "cpm",
+    "params": {},
+    "url": "/cpm",
+  },
+  {
     "name": "billing",
     "params": {},
     "url": "/billing",
@@ -501,6 +506,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "coverage",
     "path": "/coverage",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Cost per mile",
+    },
+    "name": "cpm",
+    "path": "/cpm",
     "redirect": null,
   },
   {
