@@ -57,6 +57,7 @@ function mapDeduction(row) {
     payee_type: PAYEE_TYPE[String(row.payee_type || "").trim()] ?? "other",
     tractor_unit: row.tractor_unit ?? null,
     deduct_code: row.deduct_code ?? null,
+    glid: row.glid ?? null,
     deduction_type: row.deduction_type ?? null,
     transacted_at: row.transacted_at ? `${row.transacted_at}Z` : null,
     amount: num(row.amount),

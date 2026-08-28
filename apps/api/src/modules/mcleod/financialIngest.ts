@@ -125,6 +125,7 @@ export async function ingestDeductions(
       // the rest follow the person; the harness's allocation rules interpret that, never the ingest.
       tractor_unit: d.tractor_unit ?? null,
       deduct_code: d.deduct_code ?? null,
+      glid: d.glid ?? null,
       deduction_type: d.deduction_type ?? null,
       transacted_at: d.transacted_at ?? null,
       amount: d.amount,

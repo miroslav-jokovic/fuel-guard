@@ -114,7 +114,11 @@ describe("computeCpmForWindow", () => {
     expect(truck.directCpm).toBeCloseTo((1600 / truck.totalMiles) * 100, 1);
     // The schedule's lease charges its own column; direct stays measured-only.
     expect(truck.fixedCost).toBe(2500);
-    expect(truck.totalCpm).toBeCloseTo(((1600 + 2500) / truck.totalMiles) * 100, 1);
+    // Overhead is ALLOCATED since the 2026-08-28 ruling. 754 is the only company truck here — 801
+    // settles to an owner-operator and leaves the table — so it carries the whole $5,000 INSCO
+    // voucher. The fuel vendor's $999,999 stays out, which is the D-FS2 exclusion still holding.
+    expect(truck.allocatedOverhead).toBe(5000);
+    expect(truck.totalCpm).toBeCloseTo(((1600 + 2500 + 5000) / truck.totalMiles) * 100, 1);
     expect(provenance.scheduledUnits).toBe(1);
     expect(report.caveats.some((c) => c.includes("contracts, not measurements"))).toBe(true);
     // Revenue: only the two GL-booked invoices join — $4,000 over 1,400 measured miles — and net
@@ -122,10 +126,18 @@ describe("computeCpmForWindow", () => {
     expect(provenance.bookedInvoices).toBe(2);
     expect(truck.revenue).toBe(4000);
     expect(truck.revenueCpm).toBeCloseTo((4000 / 1400) * 100, 1);
-    expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 2500, 2);
-    expect(report.caveats.some((c) => c.includes("NET per mile subtracts ONLY"))).toBe(true);
-    // The fuel-vendor voucher stayed OUT of the pool: only the $5,000 insurance invoice remains.
-    expect(report.excluded.unallocatedOverhead).toBe(5000);
+    expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 2500 - 5000, 2);
+    // Nothing is withheld any more, so net subtracts every cost in the report and there is no
+    // "subtracts ONLY" caveat to emit.
+    expect(report.excluded.unallocatedOverhead).toBe(0);
+    // The fuel-vendor voucher stayed OUT of the pool: only the $5,000 insurance invoice was spread,
+    // which is the D-FS2 exclusion still holding.
+    //
+    // And the pool came from the VOUCHERS here, not the ledger — this fixture's GL books $4,000 of
+    // expense against $1,600 attributed plus a $2,900 owner-operator settlement, so the remainder
+    // would be −$500. The harness refuses a negative remainder rather than spreading a credit
+    // across trucks, and falls back with `overheadSource` saying so.
+    expect(report.excluded.overheadSource).toBe("ap_vouchers");
     // The fleet-truth check: GL income statement through McLeod's own classes; assets ignored.
     expect(provenance.glCheck.revenue).toBe(10000);
     expect(provenance.glCheck.expenses).toBe(4000);
@@ -133,10 +145,14 @@ describe("computeCpmForWindow", () => {
     expect(provenance.glCheck.monthsCovered).toEqual(["2026-06"]);
     expect(provenance.glCheck.unclassifiedNet).toBe(0);
 
-    // The honesty ledger: overhead unallocated (no finance ruling), owner-operator pooled apart.
-    expect(report.excluded.unallocatedOverhead).toBe(5000);
+    // The honesty ledger. Overhead is now ON the trucks, so nothing sits unallocated; the
+    // owner-operator settlement is still pooled apart, because its arithmetic is a different
+    // question and averaging it with company trucks describes neither.
+    expect(report.excluded.unallocatedOverhead).toBe(0);
     expect(report.excluded.ownerOperatorSettlement).toBe(2900);
-    expect(report.caveats.some((c) => c.includes("EXCLUDES $5000.00 of overhead"))).toBe(true);
+    // 801 ran only for the contractor, so it leaves the company table entirely rather than drawing
+    // a share of company overhead it never caused.
+    expect(report.trucks.some((t) => t.tractor_unit === "801")).toBe(false);
     expectOrgScoped(rec, ORG);
   });
 

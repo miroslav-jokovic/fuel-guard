@@ -1,4 +1,4 @@
-import type { CpmRules } from "./cpmHarness.js";
+import type { CpmRules } from "./cpmContract.js";
 import { fixedCostCaveats, type FixedCostSummary } from "./fixedCosts.js";
 
 /**

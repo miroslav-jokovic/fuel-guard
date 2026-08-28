@@ -1,10 +1,20 @@
-import { inferDeadheadLegs, type TmsMovementFact } from "./movementFact.js";
-import type { FixedCostSummary } from "./fixedCosts.js";
+import { inferDeadheadLegs } from "./movementFact.js";
 import { buildCpmCaveats } from "./cpmCaveats.js";
-import type { TmsFuelPurchaseFact } from "./fuelFact.js";
-import type { TmsSettlementFact, SettlementPayeeType } from "./settlementFact.js";
-import type { TmsApVoucherFact } from "./expenseFact.js";
-import type { TmsOfficeSettlementLine } from "./ledgerControl.js";
+import type { SettlementPayeeType } from "./settlementFact.js";
+import {
+  classifyOwnerOperatorUnits,
+  accumulateOwnerOperatorPay,
+  creditOwnerOperatorRevenue,
+  summariseOwnerOperators,
+} from "./ownerOperators.js";
+import {
+  DEFAULT_CPM_RULES,
+  type CpmRules,
+  type CpmInputs,
+  type CpmReport,
+  type TruckCpm,
+  type MilesBasis,
+} from "./cpmContract.js";
 
 /**
  * Cents per mile, per truck — the harness C1 through C4 were built to feed.
@@ -23,179 +33,6 @@ import type { TmsOfficeSettlementLine } from "./ledgerControl.js";
  * Direct cost is measured. Allocated cost is a policy. The output keeps them apart at every level.
  */
 
-/** How to treat the miles McLeod does not record. */
-export const DEADHEAD_TREATMENTS = ["estimate", "exclude"] as const;
-export type DeadheadTreatment = (typeof DEADHEAD_TREATMENTS)[number];
-
-/** How to spread cost that carries no truck. */
-export const OVERHEAD_BASES = ["total_miles", "loaded_miles", "equal_per_truck", "none"] as const;
-export type OverheadBasis = (typeof OVERHEAD_BASES)[number];
-
-export interface CpmRules {
-  /**
-   * `estimate` adds the great-circle deadhead chained from stop coordinates — roughly 4% of loaded
-   * miles for this carrier, and a FLOOR, since road distance runs above great-circle. `exclude`
-   * divides by loaded miles alone, which overstates cost per mile by about that same 4%.
-   *
-   * Neither is "right". `estimate` is the better default because the miles were genuinely driven and
-   * the truck genuinely burned fuel over them; the alternative silently attributes empty-mile cost to
-   * loaded miles.
-   */
-  deadhead: DeadheadTreatment;
-
-  /**
-   * The basis for spreading unattributed cost. `none` reports overhead as a fleet total and assigns
-   * none of it, which is the honest default before finance has ruled.
-   */
-  overheadBasis: OverheadBasis;
-
-  /**
-   * Owner-operator settlements bundle the truck, its fuel and its maintenance into one contractor
-   * payment (D-MC20). Including them alongside company trucks produces an average that describes
-   * neither, so they are excluded by default and reported in their own pool.
-   */
-  includeOwnerOperators: boolean;
-
-  /**
-   * AP expense accounts treated as fleet overhead. `null` means every account.
-   *
-   * Accounts are the ONLY classification `voucher_hist` carries, so this is where a finance decision
-   * about "which spend is a cost of running trucks" has to be expressed.
-   */
-  overheadAccounts: string[] | null;
-}
-
-/**
- * The default rules, chosen to be defensible and conservative rather than flattering.
- *
- * `overheadBasis: "none"` matters most: until finance signs an allocation rule, this harness assigns
- * no overhead to any truck and reports the unallocated pool as its own number. That produces a cost
- * per mile that is UNDERSTATED and known to be, which is the safe direction for a figure someone
- * might price freight against.
- */
-export const DEFAULT_CPM_RULES: CpmRules = {
-  deadhead: "estimate",
-  overheadBasis: "none",
-  includeOwnerOperators: false,
-  overheadAccounts: null,
-};
-
-export interface CpmInputs {
-  movements: TmsMovementFact[];
-  fuel: TmsFuelPurchaseFact[];
-  settlements: TmsSettlementFact[];
-  vouchers?: TmsApVoucherFact[];
-  officeLines?: TmsOfficeSettlementLine[];
-  /**
-   * MEASURED total miles per tractor unit — Samsara GPS actuals, the fleet's mileage source of
-   * truth by owner ruling (2026-08-27). When present, this IS the denominator: it already
-   * contains empty and out-of-route miles as driven, so nothing is inferred and nothing added.
-   * McLeod's loaded miles stay in the report as the reference the pay and ops numbers are built
-   * on. When absent (Samsara not yet synced for the window), the harness falls back to
-   * loaded-plus-inferred-deadhead and SAYS SO — a fleet-wide basis note, never a silent switch,
-   * and never a per-truck mix: a truck with movements but no measured miles gets NO cost per
-   * mile rather than one computed on a basis its neighbours didn't use.
-   */
-  actualMilesByUnit?: Record<string, number>;
-  /**
-   * The office's fixed-cost schedule summed for the window (fixedCosts.ts): lease, insurance,
-   * GPS — the dollars McLeod structurally cannot attribute (T1, TRUCK-COST-ATTRIBUTION-PLAN).
-   * A contract's assertion, not a measurement: charged in its own column, its caveats generated
-   * from what the summary actually contains, never blended into the measured direct figures.
-   */
-  fixedCosts?: FixedCostSummary;
-  /**
-   * GL-BOOKED revenue per tractor unit, aggregated by the caller under the documented posting
-   * predicate (post_key + module BILL — the projection's own rule). The owner's point, verbatim:
-   * cost per mile alone is half the answer; what matters is what a truck is LEFT WITH per mile.
-   * Revenue hauled by owner-operator trucks routes to its own excluded pool when the rules
-   * exclude them — showing their revenue against a cost column that pools their pay elsewhere
-   * would print a margin no truck earned.
-   */
-  revenueByUnit?: Record<string, number>;
-  /** Booked revenue whose invoice names no tractor — excluded and stated, never spread (D-FS5). */
-  revenueWithoutTruck?: number;
-}
-
-/** Which denominator this report's figures stand on. One basis per report, never mixed. */
-export type MilesBasis = "samsara_actual" | "mcleod_loaded_plus_deadhead_estimate";
-
-export interface TruckCpm {
-  tractor_unit: string;
-  movements: number;
-  loadedMiles: number;
-  /** Inferred, never recorded by McLeod. Zero when the rule says `exclude` or the basis is Samsara. */
-  deadheadMilesEstimated: number;
-  /** Samsara's measured miles for this truck. Null under the estimate basis. */
-  actualMiles: number | null;
-  totalMiles: number;
-  /** Costs McLeod attributed to this truck itself. */
-  directFuel: number;
-  directSettlement: number;
-  directTotal: number;
-  /** Overhead this run's rule assigned. Zero under `none`. */
-  allocatedOverhead: number;
-  /** The schedule's whole-month charge for this truck. A contract figure, not a measurement. */
-  fixedCost: number;
-  /** GL-booked revenue this truck hauled. Zero when the caller supplied no invoices. */
-  revenue: number;
-  /** Revenue minus every cost IN THIS REPORT (direct + allocated + fixed) — the caveat names what is not. */
-  netTotal: number;
-  /** Cents per mile. Direct, allocated and fixed kept apart; `total` is their sum. */
-  directCpm: number;
-  allocatedCpm: number;
-  fixedCpm: number;
-  totalCpm: number;
-  revenueCpm: number;
-  netCpm: number;
-}
-
-export interface CpmReport {
-  rules: CpmRules;
-  milesBasis: MilesBasis;
-  trucks: TruckCpm[];
-  fleet: {
-    trucks: number;
-    loadedMiles: number;
-    deadheadMilesEstimated: number;
-    totalMiles: number;
-    directFuel: number;
-    directSettlement: number;
-    directTotal: number;
-    fixedTotal: number;
-    revenueTotal: number;
-    netTotal: number;
-    directCpm: number;
-    allocatedCpm: number;
-    fixedCpm: number;
-    totalCpm: number;
-    revenueCpm: number;
-    netCpm: number;
-  };
-  /**
-   * Everything the per-truck figures do NOT contain. This is the honesty ledger, and it is the first
-   * thing a reviewer should read.
-   */
-  excluded: {
-    /** Overhead left unassigned — the whole pool under the default `none` basis. */
-    unallocatedOverhead: number;
-    /** AP vouchers that fell outside `overheadAccounts`. */
-    outOfScopeVouchers: number;
-    /** Owner-operator settlements, when excluded. Their own pool, never averaged in. */
-    ownerOperatorSettlement: number;
-    /** Revenue hauled by owner-operator trucks, pooled beside their settlements when excluded. */
-    ownerOperatorRevenue: number;
-    /** Booked revenue naming no tractor — a fact about the source, stated rather than spread. */
-    revenueWithoutTruck: number;
-    /** Fuel and settlement rows carrying no tractor at all — cost McLeod could not place. */
-    fuelWithoutTruck: number;
-    settlementWithoutTruck: number;
-    /** Movements whose miles cannot join a truck, so their miles are absent from the denominator. */
-    movementsWithoutTruck: number;
-  };
-  /** Free-text warnings a reader must see before quoting any figure here. */
-  caveats: string[];
-}
 
 const round = (n: number) => Math.round(n * 100) / 100;
 /** Cents, to one decimal — beyond that is false precision on an allocated number. */
@@ -285,12 +122,20 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     );
   }
 
+  // Who is a contractor and which tractors are theirs — see `ownerOperators.ts` for why this is
+  // settled at order grain rather than by tractor.
+  const { ownerOpUnits, ownerOpOrders, pureOwnerOpUnits } = classifyOwnerOperatorUnits(
+    inputs.settlements,
+    rules.includeOwnerOperators,
+  );
+  const ownerOpByPayee = rules.includeOwnerOperators
+    ? new Map<string, ReturnType<typeof accumulateOwnerOperatorPay> extends Map<string, infer V> ? V : never>()
+    : accumulateOwnerOperatorPay(inputs.settlements);
+
   let settlementWithoutTruck = 0;
   let ownerOperatorSettlement = 0;
-  const ownerOpUnits = new Set<string>();
   for (const s of inputs.settlements) {
     const isOwnerOperator: boolean = s.payee_type === ("owner_operator" as SettlementPayeeType);
-    if (isOwnerOperator && s.tractor_unit) ownerOpUnits.add(s.tractor_unit);
     if (isOwnerOperator && !rules.includeOwnerOperators) {
       ownerOperatorSettlement = round(ownerOperatorSettlement + s.total_pay);
       continue;
@@ -307,17 +152,42 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   // Revenue: GL-booked dollars per unit, routed AFTER settlements so owner-operator units are
   // known. An owner-op truck's revenue against a cost column whose pay is pooled elsewhere would
   // print a margin no truck earned — it follows the pay into the excluded pool instead.
-  const hasRevenue = inputs.revenueByUnit !== undefined;
+  const hasRevenue = inputs.revenueByUnit !== undefined || inputs.revenueBills !== undefined;
   const revenueWithoutTruck = round(inputs.revenueWithoutTruck ?? 0);
   let ownerOperatorRevenue = 0;
   const revenueByUnit: Record<string, number> = {};
-  for (const [unit, dollars] of Object.entries(inputs.revenueByUnit ?? {})) {
-    if (!rules.includeOwnerOperators && ownerOpUnits.has(unit)) {
-      ownerOperatorRevenue = round(ownerOperatorRevenue + dollars);
-      continue;
+
+  if (inputs.revenueBills) {
+    // Order grain: the precise path. A bill follows the settlement that paid its order, so a truck
+    // that ran for both an owner-operator and a company driver keeps each side's revenue with the
+    // pay that earned it — instead of the whole unit falling to one side of the line.
+    for (const bill of inputs.revenueBills) {
+      const dollars = round(bill.dollars);
+      const isOwnerOp =
+        !rules.includeOwnerOperators &&
+        bill.order_external_id !== null &&
+        ownerOpOrders.has(bill.order_external_id);
+      if (isOwnerOp) {
+        ownerOperatorRevenue = round(ownerOperatorRevenue + dollars);
+        // Credit the payee whose order it was, so each contractor's deal percentage is readable.
+        creditOwnerOperatorRevenue(ownerOpByPayee, inputs.settlements, bill.order_external_id, dollars);
+        continue;
+      }
+      if (!bill.tractor_unit) continue; // counted in revenueWithoutTruck by the caller
+      revenueByUnit[bill.tractor_unit] = round((revenueByUnit[bill.tractor_unit] ?? 0) + dollars);
+      bucketFor(buckets, bill.tractor_unit);
     }
-    revenueByUnit[unit] = round(dollars);
-    bucketFor(buckets, unit); // a truck that earned still ran, even if its costs missed the window
+  } else {
+    // Unit grain: the older path, kept for callers that only have per-unit totals. It cannot split
+    // a mixed truck, so a unit with ANY owner-operator settlement goes wholly to that pool.
+    for (const [unit, dollars] of Object.entries(inputs.revenueByUnit ?? {})) {
+      if (!rules.includeOwnerOperators && ownerOpUnits.has(unit)) {
+        ownerOperatorRevenue = round(ownerOperatorRevenue + dollars);
+        continue;
+      }
+      revenueByUnit[unit] = round(dollars);
+      bucketFor(buckets, unit); // a truck that earned still ran, even if its costs missed the window
+    }
   }
 
   // Overhead pool: unattributed by construction. voucher_hist has no equipment column and OFF posts
@@ -331,6 +201,78 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     else outOfScopeVouchers = round(outOfScopeVouchers + v.amount);
   }
   for (const l of inputs.officeLines ?? []) overheadPool = round(overheadPool + Math.abs(l.amount));
+
+  /**
+   * The GL-anchored pool, when the ledger can anchor it: everything the carrier spent that this
+   * report did not put on a truck or in the owner-operator pool.
+   *
+   * This REPLACES the voucher build-up rather than adding to it — the AP vouchers are already
+   * inside the GL total, and adding both is the double-count #357 removed from the fuel side.
+   *
+   * Two guards. The window must be month-aligned, because GL totals are month-grained and a
+   * part-month window would charge a whole month's overhead against part of a month's miles. And a
+   * negative remainder is refused: it means more was attributed than the ledger booked, which is a
+   * staging problem worth showing rather than a credit worth spreading across trucks.
+   */
+  /**
+   * Fuel bought on the carrier's card for an owner-operator's truck — and it is NOT a carrier
+   * expense, which is the opposite of what it looks like from the EFS side.
+   *
+   * Measured against the ledger on 2026-08-28 rather than reasoned about. McLeod books that fuel to
+   * `Fuel Advance` (account 17000000, a Current ASSET), and the owner-operator repays it through the
+   * FEE settlement deduction, which credits the same asset. June 2026: the FUEL module debited
+   * $62,131.62 and the DRS module credited $54,941.30 against it — a receivable that grew $7,190.32,
+   * never a line on the income statement.
+   *
+   * That matters twice. It stays out of the owner-operator's cost, because they pay for it. And it
+   * has to be ADDED BACK when the overhead pool is derived from GL expenses, because our EFS feed
+   * booked it as an expense and the general ledger never did — subtracting it as though the GL knew
+   * about it would shrink the overhead pool by money the income statement never contained.
+   *
+   * Computed here rather than in the fuel loop because a unit is not known to be owner-operator
+   * until its settlements have been read.
+   */
+  /**
+   * Units that ran ONLY for an owner-operator in this window.
+   *
+   * The distinction matters because four of June's eight owner-operator tractors were also driven
+   * by a company driver. A mixed truck stays in the company table carrying its company-side pay and
+   * revenue — dropping it would lose that driver's cost entirely — while a truck that ran purely
+   * for a contractor leaves, because none of its economics are the carrier's to average.
+   *
+   * Its fuel goes with it. Fuel carries no order in McLeod, so a MIXED truck's fuel cannot be split
+   * by settlement the way its revenue can; it stays on the company side and the caveats name the
+   * trucks affected rather than inventing a ratio to divide it by.
+   */
+  let ownerOperatorFuel = 0;
+  for (const unit of pureOwnerOpUnits) {
+    const b = buckets.get(unit);
+    if (b) ownerOperatorFuel = round(ownerOperatorFuel + b.fuel);
+  }
+  // A purely owner-operator truck leaves the company table entirely: it must not appear as a row,
+  // must not dilute the mileage denominator, and must not draw a share of company overhead.
+  for (const unit of pureOwnerOpUnits) buckets.delete(unit);
+
+  const attributedDirect = round(
+    [...buckets.values()].reduce((sum, b) => sum + b.fuel + b.settlement, 0),
+  );
+  // The caller supplies `glExpenseTotal` only for a month-aligned window — GL totals are
+  // month-grained, and charging a whole month's overhead against part of a month's miles would
+  // invent a figure the ledger never asserted. See `computeCpmForWindow`.
+  let glRemainder: number | null = null;
+  if (inputs.glExpenseTotal !== undefined && inputs.glExpenseTotal > 0) {
+    // No owner-operator term beyond the pay: `attributedDirect` is summed AFTER the purely
+    // owner-operator units leave the buckets, so their fuel is already outside it — which is the
+    // right side of the line, because McLeod booked that fuel to a receivable and the income
+    // statement never carried it either. Adding it back here would credit the pool twice.
+    const remainder = round(inputs.glExpenseTotal - attributedDirect - ownerOperatorSettlement);
+    // A negative remainder means more was attributed than the ledger booked. That is a staging
+    // problem worth surfacing, never a credit worth spreading across trucks.
+    if (remainder >= 0) {
+      glRemainder = remainder;
+      overheadPool = remainder;
+    }
+  }
 
   // Denominators, before any overhead is spread.
   const list = [...buckets.values()];
@@ -464,10 +406,34 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       revenueCpm: cents(fleetRevenue, fleetTotal),
       netCpm: cents(fleetNet, fleetTotal),
     },
+    /**
+     * The owner-operator side, kept apart because the arithmetic is not the same question.
+     *
+     * A company truck's cost is the carrier's fuel and the driver's pay. An owner-operator's is a
+     * contractual SHARE of the load — measured June 2026 at 88%, 90% and 95% depending on the
+     * payee, five payees and three different deals — and the carrier's earning is the remainder,
+     * not the linehaul. Averaging the two produces a number describing neither.
+     *
+     * `dealPct` is derived, not configured: pay ÷ revenue on that payee's own orders. It reads
+     * back the contract from what actually settled, so a renegotiated split shows up without
+     * anyone editing a table, and a payee whose loads are missing revenue reads as null rather
+     * than as a suspiciously round number.
+     */
+    ownerOperators: summariseOwnerOperators(ownerOpByPayee, inputs.ownerOperatorDeductionIncome),
     excluded: {
       unallocatedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,
+      /**
+       * Where the overhead pool came from. `gl_remainder` means it is the income statement minus
+       * what this report attributed, so every dollar the carrier spent is accounted for somewhere;
+       * `ap_vouchers` is the older build-up, which misses journal-posted cost (lease, insurance)
+       * and is used only when the window is not month-aligned. The page must say which, because
+       * the two differ by ~40% of the fleet's cost and a reader cannot tell from the number alone.
+       */
+      overheadSource: glRemainder === null ? ("ap_vouchers" as const) : ("gl_remainder" as const),
+      glExpenseTotal: inputs.glExpenseTotal ?? null,
       outOfScopeVouchers,
       ownerOperatorSettlement: rules.includeOwnerOperators ? 0 : ownerOperatorSettlement,
+      ownerOperatorFuelAdvanced: ownerOperatorFuel,
       ownerOperatorRevenue,
       revenueWithoutTruck,
       fuelWithoutTruck,

@@ -149,6 +149,40 @@ export async function readBillingDispatchers(
   return out;
 }
 
+export interface StagedDeduction {
+  payee_id: string | null;
+  glid: string | null;
+  amount: number | string;
+}
+
+/**
+ * Owner-operator settlement deductions in a window, with the account each posts to (0274).
+ *
+ * The account is the point. "Deduction" covers three unrelated events — an earning, a repayment of
+ * an advance, and a cost recovery the ledger has already netted — and only `glid` tells them apart.
+ * The caller classifies against `mcleod_gl_accounts`, so the chart of accounts stays McLeod's.
+ */
+export async function readOwnerOperatorDeductions(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<StagedDeduction[]> {
+  return paged<StagedDeduction>((from, to) =>
+    admin
+      .from("mcleod_deductions")
+      .select("payee_id, glid, amount")
+      .eq("org_id", orgId)
+      .eq("payee_type", "owner_operator")
+      .eq("is_void", false)
+      .gte("transacted_at", fromIso)
+      .lt("transacted_at", toIso)
+      .order("payee_id", { ascending: true })
+      .order("external_id", { ascending: true }) // tie-heavy timestamps page unstably alone
+      .range(from, to),
+  );
+}
+
 /** One month's GL control totals (0269) — the figures every subledger claim is checked against. */
 export async function readLedgerTotals(
   admin: SupabaseClient,

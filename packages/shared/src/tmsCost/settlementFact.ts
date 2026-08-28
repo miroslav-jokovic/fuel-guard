@@ -102,6 +102,13 @@ export const tmsDeductionFactSchema = z.object({
   payee_type: z.enum(SETTLEMENT_PAYEE_TYPES).default("other"),
   tractor_unit: z.string().trim().min(1).max(8).nullish(),
   deduct_code: z.string().max(8).nullish(),
+  /**
+   * The GL account the deduction posts to — the only thing that says what KIND of deduction it is.
+   * A revenue account means the carrier earned it, a balance-sheet account means a contractor
+   * repaid an advance, an expense account means a cost recovery the ledger has already netted.
+   * 0274's header carries the June 2026 measurement behind that split.
+   */
+  glid: z.string().max(16).nullish(),
   deduction_type: z.string().max(1).nullish(),
   transacted_at: z.string().nullish(),
   amount: z.number().default(0),
