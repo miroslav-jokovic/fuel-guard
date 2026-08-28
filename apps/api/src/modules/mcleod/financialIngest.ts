@@ -158,6 +158,8 @@ export async function ingestBilling(
       tractor_unit: b.tractor_unit ?? null,
       trailer_unit: b.trailer_unit ?? null,
       driver_external_id: b.driver_external_id ?? null,
+      dispatcher_user_id: b.dispatcher_user_id ?? null,
+      dispatcher_name: b.dispatcher_name ?? null,
       bill_date: b.bill_date ?? null,
       ship_date: b.ship_date ?? null,
       delivery_date: b.delivery_date ?? null,

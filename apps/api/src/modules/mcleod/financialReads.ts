@@ -48,6 +48,9 @@ export interface StagedBilling {
   order_external_id: string | null;
   tractor_unit: string | null;
   driver_external_id: string | null;
+  /** `orders.operations_user`, resolved to a display name by the collector (0273). */
+  dispatcher_user_id: string | null;
+  dispatcher_name: string | null;
   bill_date: string | null;
   transfer_date: string | null;
   total_charges: number | string;
@@ -107,7 +110,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
       .eq("org_id", orgId)
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)
@@ -115,6 +118,35 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
       .order("id", { ascending: true }) // ~80 invoices share each bill_date; see the settlements tiebreaker
       .range(from, to),
   );
+}
+
+/**
+ * Dispatcher names for a specific set of staged bills, keyed by `external_id`.
+ *
+ * Exists so the invoice list can show who booked each load without re-reading the whole window:
+ * the list is one page of 50 rows out of a 90-day window, and reading every bill to label 50 of
+ * them would be a scan per keystroke. Chunked because PostgREST puts the `in` list in the URL.
+ */
+export async function readBillingDispatchers(
+  admin: SupabaseClient,
+  orgId: string,
+  externalIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(externalIds)].filter(Boolean);
+  const CHUNK = 200;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const { data, error } = await admin
+      .from("mcleod_billing")
+      .select("external_id, dispatcher_name")
+      .eq("org_id", orgId)
+      .in("external_id", unique.slice(i, i + CHUNK));
+    if (error) throw new Error(error.message);
+    for (const r of (data ?? []) as Array<{ external_id: string; dispatcher_name: string | null }>) {
+      if (r.dispatcher_name) out.set(r.external_id, r.dispatcher_name);
+    }
+  }
+  return out;
 }
 
 /** One month's GL control totals (0269) — the figures every subledger claim is checked against. */

@@ -24,6 +24,7 @@ export {
   readSettlementsWindow,
   readApVouchersWindow,
   readBillingWindow,
+  readBillingDispatchers,
   readLedgerTotals,
   readGlAccounts,
   readMovementsWindow,
