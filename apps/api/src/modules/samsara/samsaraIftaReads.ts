@@ -25,6 +25,8 @@ export async function readVehicleMonthlyMiles(
         .eq("org_id", orgId)
         .eq("period_year", year)
         .eq("period_month", month)
+        // Unordered .range() paging repeats/drops rows across pages — order by pk (financialReads lesson).
+        .order("id", { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) throw new Error(`samsara_ifta_jurisdiction_miles read failed: ${error.message}`);
       const rows = (data ?? []) as Array<{ vehicle_id: string; total_meters: number | string }>;

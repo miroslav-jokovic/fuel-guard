@@ -80,6 +80,11 @@ export async function readSettlementsWindow(admin: SupabaseClient, orgId: string
       .gte("accrued_at", fromIso)
       .lt("accrued_at", toIso)
       .order("accrued_at", { ascending: true })
+      // Tiebreaker: settlements batch-share accrued_at to the SECOND (D-MC29 — 70.3% of
+      // consecutive same-tractor pairs). A tied sort is not a total order, and .range() paging
+      // over one repeats and drops boundary rows — the first full projection hit exactly that
+      // ("ON CONFLICT DO UPDATE command cannot affect row a second time", 2026-08-28).
+      .order("id", { ascending: true })
       .range(from, to),
   );
 }
@@ -93,6 +98,7 @@ export async function readApVouchersWindow(admin: SupabaseClient, orgId: string,
       .gte("distribution_date", fromIso)
       .lt("distribution_date", toIso)
       .order("distribution_date", { ascending: true })
+      .order("id", { ascending: true }) // same-day vouchers tie; see the settlements tiebreaker
       .range(from, to),
   );
 }
@@ -106,6 +112,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)
       .order("bill_date", { ascending: true })
+      .order("id", { ascending: true }) // ~80 invoices share each bill_date; see the settlements tiebreaker
       .range(from, to),
   );
 }
@@ -123,6 +130,7 @@ export async function readLedgerTotals(
       .eq("org_id", orgId)
       .eq("period_start", periodStart)
       .order("post_module", { ascending: true })
+      .order("glid", { ascending: true }) // (period, module, glid) is the row identity — a total order
       .range(from, to),
   );
 }
@@ -156,6 +164,7 @@ export async function readMovementsWindow(
       .gte("settled_at", fromIso)
       .lt("settled_at", toIso)
       .order("settled_at", { ascending: true })
+      .order("external_id", { ascending: true }) // settled_at is batch-shared (D-MC29); see the settlements tiebreaker
       .range(from, to),
   );
 }
