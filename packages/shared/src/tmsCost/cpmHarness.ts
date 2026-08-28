@@ -1,4 +1,5 @@
 import { inferDeadheadLegs, type TmsMovementFact } from "./movementFact.js";
+import { fixedCostCaveats, type FixedCostSummary } from "./fixedCosts.js";
 import type { TmsFuelPurchaseFact } from "./fuelFact.js";
 import type { TmsSettlementFact, SettlementPayeeType } from "./settlementFact.js";
 import type { TmsApVoucherFact } from "./expenseFact.js";
@@ -95,6 +96,13 @@ export interface CpmInputs {
    * mile rather than one computed on a basis its neighbours didn't use.
    */
   actualMilesByUnit?: Record<string, number>;
+  /**
+   * The office's fixed-cost schedule summed for the window (fixedCosts.ts): lease, insurance,
+   * GPS — the dollars McLeod structurally cannot attribute (T1, TRUCK-COST-ATTRIBUTION-PLAN).
+   * A contract's assertion, not a measurement: charged in its own column, its caveats generated
+   * from what the summary actually contains, never blended into the measured direct figures.
+   */
+  fixedCosts?: FixedCostSummary;
 }
 
 /** Which denominator this report's figures stand on. One basis per report, never mixed. */
@@ -115,9 +123,12 @@ export interface TruckCpm {
   directTotal: number;
   /** Overhead this run's rule assigned. Zero under `none`. */
   allocatedOverhead: number;
-  /** Cents per mile. Direct and allocated kept apart; `total` is their sum. */
+  /** The schedule's whole-month charge for this truck. A contract figure, not a measurement. */
+  fixedCost: number;
+  /** Cents per mile. Direct, allocated and fixed kept apart; `total` is their sum. */
   directCpm: number;
   allocatedCpm: number;
+  fixedCpm: number;
   totalCpm: number;
 }
 
@@ -133,8 +144,10 @@ export interface CpmReport {
     directFuel: number;
     directSettlement: number;
     directTotal: number;
+    fixedTotal: number;
     directCpm: number;
     allocatedCpm: number;
+    fixedCpm: number;
     totalCpm: number;
   };
   /**
@@ -230,6 +243,11 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     }
   }
 
+  // A scheduled truck that ran nothing still costs its lease — it belongs in the report with its
+  // fixed cost and zero miles, not silently outside it.
+  const fixedByUnit = inputs.fixedCosts?.byUnit ?? {};
+  for (const unit of Object.keys(fixedByUnit)) bucketFor(buckets, unit);
+
   let fuelWithoutTruck = 0;
   for (const f of inputs.fuel) {
     if (!f.tractor_unit) {
@@ -307,6 +325,7 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
           : (rules.overheadBasis === "total_miles" ? totalMiles : b.loadedMiles) / basisTotal;
     const allocatedOverhead = round(overheadPool * share);
     const directTotal = round(b.fuel + b.settlement);
+    const fixedCost = round(fixedByUnit[b.tractor_unit] ?? 0);
     return {
       tractor_unit: b.tractor_unit,
       movements: b.movements,
@@ -318,9 +337,11 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       directSettlement: b.settlement,
       directTotal,
       allocatedOverhead,
+      fixedCost,
       directCpm: cents(directTotal, totalMiles),
       allocatedCpm: cents(allocatedOverhead, totalMiles),
-      totalCpm: cents(round(directTotal + allocatedOverhead), totalMiles),
+      fixedCpm: cents(fixedCost, totalMiles),
+      totalCpm: cents(round(directTotal + allocatedOverhead + fixedCost), totalMiles),
     };
   });
 
@@ -334,6 +355,8 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   }
   const fleetDirect = round(fleetFuel + fleetSettlement);
   const allocatedTotal = rules.overheadBasis === "none" ? 0 : overheadPool;
+  let fleetFixed = 0;
+  for (const t of trucks) fleetFixed = round(fleetFixed + t.fixedCost);
 
   // The caveats are generated from what actually happened in THIS run, not written once and left to
   // rot. A reader who ignores them will quote a number that does not mean what they think.
@@ -393,6 +416,13 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
         `denominator here.`,
     );
   }
+  if (inputs.fixedCosts) {
+    const uncoveredActive = list.filter(
+      (b) =>
+        (b.movements > 0 || b.fuel > 0 || b.settlement > 0) && !((fixedByUnit[b.tractor_unit] ?? 0) > 0),
+    ).length;
+    caveats.push(...fixedCostCaveats(inputs.fixedCosts, uncoveredActive));
+  }
 
   return {
     rules,
@@ -406,9 +436,11 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       directFuel: fleetFuel,
       directSettlement: fleetSettlement,
       directTotal: fleetDirect,
+      fixedTotal: fleetFixed,
       directCpm: cents(fleetDirect, fleetTotal),
       allocatedCpm: cents(allocatedTotal, fleetTotal),
-      totalCpm: cents(round(fleetDirect + allocatedTotal), fleetTotal),
+      fixedCpm: cents(fleetFixed, fleetTotal),
+      totalCpm: cents(round(fleetDirect + allocatedTotal + fleetFixed), fleetTotal),
     },
     excluded: {
       unallocatedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,

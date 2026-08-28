@@ -242,6 +242,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/cpm",
   },
   {
+    "name": "cost-schedule",
+    "params": {},
+    "url": "/cost-schedule",
+  },
+  {
     "name": "billing",
     "params": {},
     "url": "/billing",
@@ -497,6 +502,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "driver-qualification",
     "path": "/compliance/:id",
     "redirect": "fn",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fixed costs",
+    },
+    "name": "cost-schedule",
+    "path": "/cost-schedule",
+    "redirect": null,
   },
   {
     "meta": {
