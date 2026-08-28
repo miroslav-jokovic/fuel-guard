@@ -260,11 +260,11 @@
   "mcleod_billing": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
-  "mcleod_gl_totals": [
-    "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
-  ],
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
+  "mcleod_gl_totals": [
+    "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
   "mcleod_movements": [
     "apps/api/src/modules/mcleod/movementFactIngest.ts"
@@ -364,6 +364,9 @@
     "apps/api/src/modules/roster/trailerPairing.ts",
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
+  ],
+  "truck_cost_schedules": [
+    "apps/api/src/modules/financial/costSchedules.ts"
   ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"

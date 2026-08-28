@@ -365,3 +365,80 @@ describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () 
     expect(r.trucks[0]!.totalMiles).toBe(900);
   });
 });
+
+describe("computeCpm — fixed costs from the office schedule (T1)", () => {
+  const fixedCosts = (byUnit: Record<string, number>, byCategory: Record<string, number>, monthCount = 1) => ({
+    byUnit,
+    byCategory,
+    total: Object.values(byUnit).reduce((a, b) => a + b, 0),
+    monthCount,
+  });
+
+  it("charges the schedule in its own column and adds it to total CPM, never to direct", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [fuel("F1", "101", 300)],
+        settlements: [settle("S1", "101", 500)],
+        fixedCosts: fixedCosts({ "101": 2500 }, { lease: 2500 }),
+      },
+      PLAIN,
+    );
+    const t = r.trucks[0]!;
+    expect(t.fixedCost).toBe(2500);
+    expect(t.directTotal).toBe(800); // fixed never blends into the measured figure
+    expect(t.directCpm).toBe(80);
+    expect(t.fixedCpm).toBe(250);
+    expect(t.totalCpm).toBe(330);
+    expect(r.fleet.fixedTotal).toBe(2500);
+    expect(r.caveats.some((c) => c.includes("contracts, not measurements"))).toBe(true);
+  });
+
+  it("a scheduled truck with no activity appears with its fixed cost and zero miles", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [],
+        settlements: [],
+        fixedCosts: fixedCosts({ "999": 3000 }, { lease: 3000 }),
+      },
+      PLAIN,
+    );
+    const idle = r.trucks.find((t) => t.tractor_unit === "999")!;
+    expect(idle.fixedCost).toBe(3000);
+    expect(idle.totalMiles).toBe(0);
+    expect(idle.totalCpm).toBe(0); // no denominator — cost shown, rate not fabricated
+  });
+
+  it("names how many active trucks the schedule does not cover", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000), move("M2", "202", 500)],
+        fuel: [],
+        settlements: [],
+        fixedCosts: fixedCosts({ "101": 2500 }, { lease: 2500 }),
+      },
+      PLAIN,
+    );
+    expect(r.caveats.some((c) => c.includes("1 truck(s) with activity"))).toBe(true);
+  });
+
+  it("an empty schedule keeps full CPM equal to direct CPM and says so; no schedule input, no caveat", () => {
+    const withEmpty = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [fuel("F1", "101", 300)],
+        settlements: [],
+        fixedCosts: fixedCosts({}, {}),
+      },
+      PLAIN,
+    );
+    expect(withEmpty.trucks[0]!.totalCpm).toBe(withEmpty.trucks[0]!.directCpm);
+    expect(withEmpty.caveats.some((c) => c.includes("NOT in these figures"))).toBe(true);
+    const without = computeCpm(
+      { movements: [move("M1", "101", 1000)], fuel: [], settlements: [] },
+      PLAIN,
+    );
+    expect(without.caveats.some((c) => c.includes("fixed-cost"))).toBe(false);
+  });
+});

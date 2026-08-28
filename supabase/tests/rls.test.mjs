@@ -2241,6 +2241,11 @@ async function main() {
         `insert into samsara_ifta_jurisdiction_miles ` +
         `  (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction) ` +
         `select '${org}', id, 'rls-ifta', 2026, 4, 'TX' from v`,
+      // 0271 constrains effective_from to the first of a month (whole-month charging is the T1
+      // rule) — the generic seeder's arbitrary date can land mid-month, so hand it an aligned one.
+      truck_cost_schedules: (org) =>
+        `insert into truck_cost_schedules (org_id, unit_number, category, label, monthly_amount, effective_from) ` +
+        `values ('${org}', 'rls-754', 'lease', 'rls test lease', 100.00, '2026-06-01')`,
     },
   });
   console.log(

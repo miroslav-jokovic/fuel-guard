@@ -13,6 +13,7 @@ import {
   computeCpmForWindow,
 } from "../../financial/index.js";
 import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
+import { registerCostScheduleRoutes } from "./costSchedules.js";
 
 const windowSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -158,6 +159,9 @@ export function accountingRouter(): Router {
       res.json({ ok: true, ...report });
     }),
   );
+
+  // Truck fixed-cost schedule CRUD (T1) — its own file; writes audit, reads share the view gate.
+  registerCostScheduleRoutes(router);
 
   return router;
 }

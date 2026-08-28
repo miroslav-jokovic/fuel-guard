@@ -341,11 +341,11 @@
       "module": "mcleod",
       "layer": "raw"
     },
-    "mcleod_gl_totals": {
+    "mcleod_deductions": {
       "module": "mcleod",
       "layer": "raw"
     },
-    "mcleod_deductions": {
+    "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw"
     },
@@ -471,6 +471,10 @@
     },
     "trailers": {
       "module": "roster",
+      "layer": "core"
+    },
+    "truck_cost_schedules": {
+      "module": "financial",
       "layer": "core"
     },
     "vehicle_engine_days": {

@@ -11,6 +11,7 @@ import {
 } from "@silvicom/shared";
 import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
+import { readFixedCostsForMonths } from "./costSchedules.js";
 
 /**
  * Cost per mile, per truck, from the STORE — the report this whole pipeline exists to produce
@@ -42,6 +43,8 @@ export interface CpmWindowReport {
     vouchers: number;
     /** Vehicles with Samsara measured miles in the window's months. */
     samsaraVehicles: number;
+    /** Units the fixed-cost schedule charged in this window. */
+    scheduledUnits: number;
     /** Named empty sources — what to run before believing an empty report. */
     pendingSources: string[];
     notes: string[];
@@ -57,7 +60,7 @@ export async function computeCpmForWindow(
   toIso: string,
   rules: Partial<CpmRules> = {},
 ): Promise<CpmWindowReport> {
-  const [staged, settlements, vouchers, fuelByUnit, samsaraMiles] = await Promise.all([
+  const [staged, settlements, vouchers, fuelByUnit, samsaraMiles, fixedCosts] = await Promise.all([
     readMovementsWindow(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
     readApVouchersWindow(admin, orgId, fromIso, toIso),
@@ -66,6 +69,8 @@ export async function computeCpmForWindow(
     // covers. The page defaults to a full month, where this is exact; a partial-month window's
     // mismatch is called out in provenance rather than silently prorated.
     readVehicleMonthlyMiles(admin, orgId, monthsCovered(fromIso, toIso)),
+    // The office schedule is month-grained too — same month set, whole months charged (T1).
+    readFixedCostsForMonths(admin, orgId, monthsCovered(fromIso, toIso)),
   ]);
 
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
@@ -159,6 +164,7 @@ export async function computeCpmForWindow(
       })),
       officeLines: [],
       actualMilesByUnit,
+      fixedCosts,
     },
     { ...DEFAULT_CPM_RULES, ...rules },
   );
@@ -191,6 +197,7 @@ export async function computeCpmForWindow(
       settlements: settlements.length,
       vouchers: vouchers.length,
       samsaraVehicles: samsaraMiles.size,
+      scheduledUnits: Object.keys(fixedCosts.byUnit).length,
       pendingSources,
       notes,
     },
