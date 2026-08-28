@@ -1,5 +1,6 @@
 import { inferDeadheadLegs, type TmsMovementFact } from "./movementFact.js";
-import { fixedCostCaveats, type FixedCostSummary } from "./fixedCosts.js";
+import type { FixedCostSummary } from "./fixedCosts.js";
+import { buildCpmCaveats } from "./cpmCaveats.js";
 import type { TmsFuelPurchaseFact } from "./fuelFact.js";
 import type { TmsSettlementFact, SettlementPayeeType } from "./settlementFact.js";
 import type { TmsApVoucherFact } from "./expenseFact.js";
@@ -103,6 +104,17 @@ export interface CpmInputs {
    * from what the summary actually contains, never blended into the measured direct figures.
    */
   fixedCosts?: FixedCostSummary;
+  /**
+   * GL-BOOKED revenue per tractor unit, aggregated by the caller under the documented posting
+   * predicate (post_key + module BILL — the projection's own rule). The owner's point, verbatim:
+   * cost per mile alone is half the answer; what matters is what a truck is LEFT WITH per mile.
+   * Revenue hauled by owner-operator trucks routes to its own excluded pool when the rules
+   * exclude them — showing their revenue against a cost column that pools their pay elsewhere
+   * would print a margin no truck earned.
+   */
+  revenueByUnit?: Record<string, number>;
+  /** Booked revenue whose invoice names no tractor — excluded and stated, never spread (D-FS5). */
+  revenueWithoutTruck?: number;
 }
 
 /** Which denominator this report's figures stand on. One basis per report, never mixed. */
@@ -125,11 +137,17 @@ export interface TruckCpm {
   allocatedOverhead: number;
   /** The schedule's whole-month charge for this truck. A contract figure, not a measurement. */
   fixedCost: number;
+  /** GL-booked revenue this truck hauled. Zero when the caller supplied no invoices. */
+  revenue: number;
+  /** Revenue minus every cost IN THIS REPORT (direct + allocated + fixed) — the caveat names what is not. */
+  netTotal: number;
   /** Cents per mile. Direct, allocated and fixed kept apart; `total` is their sum. */
   directCpm: number;
   allocatedCpm: number;
   fixedCpm: number;
   totalCpm: number;
+  revenueCpm: number;
+  netCpm: number;
 }
 
 export interface CpmReport {
@@ -145,10 +163,14 @@ export interface CpmReport {
     directSettlement: number;
     directTotal: number;
     fixedTotal: number;
+    revenueTotal: number;
+    netTotal: number;
     directCpm: number;
     allocatedCpm: number;
     fixedCpm: number;
     totalCpm: number;
+    revenueCpm: number;
+    netCpm: number;
   };
   /**
    * Everything the per-truck figures do NOT contain. This is the honesty ledger, and it is the first
@@ -161,6 +183,10 @@ export interface CpmReport {
     outOfScopeVouchers: number;
     /** Owner-operator settlements, when excluded. Their own pool, never averaged in. */
     ownerOperatorSettlement: number;
+    /** Revenue hauled by owner-operator trucks, pooled beside their settlements when excluded. */
+    ownerOperatorRevenue: number;
+    /** Booked revenue naming no tractor — a fact about the source, stated rather than spread. */
+    revenueWithoutTruck: number;
     /** Fuel and settlement rows carrying no tractor at all — cost McLeod could not place. */
     fuelWithoutTruck: number;
     settlementWithoutTruck: number;
@@ -261,8 +287,10 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
 
   let settlementWithoutTruck = 0;
   let ownerOperatorSettlement = 0;
+  const ownerOpUnits = new Set<string>();
   for (const s of inputs.settlements) {
     const isOwnerOperator: boolean = s.payee_type === ("owner_operator" as SettlementPayeeType);
+    if (isOwnerOperator && s.tractor_unit) ownerOpUnits.add(s.tractor_unit);
     if (isOwnerOperator && !rules.includeOwnerOperators) {
       ownerOperatorSettlement = round(ownerOperatorSettlement + s.total_pay);
       continue;
@@ -274,6 +302,22 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     bucketFor(buckets, s.tractor_unit).settlement = round(
       bucketFor(buckets, s.tractor_unit).settlement + s.total_pay,
     );
+  }
+
+  // Revenue: GL-booked dollars per unit, routed AFTER settlements so owner-operator units are
+  // known. An owner-op truck's revenue against a cost column whose pay is pooled elsewhere would
+  // print a margin no truck earned — it follows the pay into the excluded pool instead.
+  const hasRevenue = inputs.revenueByUnit !== undefined;
+  const revenueWithoutTruck = round(inputs.revenueWithoutTruck ?? 0);
+  let ownerOperatorRevenue = 0;
+  const revenueByUnit: Record<string, number> = {};
+  for (const [unit, dollars] of Object.entries(inputs.revenueByUnit ?? {})) {
+    if (!rules.includeOwnerOperators && ownerOpUnits.has(unit)) {
+      ownerOperatorRevenue = round(ownerOperatorRevenue + dollars);
+      continue;
+    }
+    revenueByUnit[unit] = round(dollars);
+    bucketFor(buckets, unit); // a truck that earned still ran, even if its costs missed the window
   }
 
   // Overhead pool: unattributed by construction. voucher_hist has no equipment column and OFF posts
@@ -326,6 +370,8 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     const allocatedOverhead = round(overheadPool * share);
     const directTotal = round(b.fuel + b.settlement);
     const fixedCost = round(fixedByUnit[b.tractor_unit] ?? 0);
+    const revenue = round(revenueByUnit[b.tractor_unit] ?? 0);
+    const netTotal = round(revenue - directTotal - allocatedOverhead - fixedCost);
     return {
       tractor_unit: b.tractor_unit,
       movements: b.movements,
@@ -338,10 +384,14 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       directTotal,
       allocatedOverhead,
       fixedCost,
+      revenue,
+      netTotal,
       directCpm: cents(directTotal, totalMiles),
       allocatedCpm: cents(allocatedOverhead, totalMiles),
       fixedCpm: cents(fixedCost, totalMiles),
       totalCpm: cents(round(directTotal + allocatedOverhead + fixedCost), totalMiles),
+      revenueCpm: cents(revenue, totalMiles),
+      netCpm: cents(netTotal, totalMiles),
     };
   });
 
@@ -356,73 +406,41 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   const fleetDirect = round(fleetFuel + fleetSettlement);
   const allocatedTotal = rules.overheadBasis === "none" ? 0 : overheadPool;
   let fleetFixed = 0;
-  for (const t of trucks) fleetFixed = round(fleetFixed + t.fixedCost);
+  let fleetRevenue = 0;
+  for (const t of trucks) {
+    fleetFixed = round(fleetFixed + t.fixedCost);
+    fleetRevenue = round(fleetRevenue + t.revenue);
+  }
+  const fleetNet = round(fleetRevenue - fleetDirect - allocatedTotal - fleetFixed);
 
-  // The caveats are generated from what actually happened in THIS run, not written once and left to
-  // rot. A reader who ignores them will quote a number that does not mean what they think.
-  if (rules.overheadBasis === "none" && overheadPool > 0) {
-    caveats.push(
-      `Cost per mile EXCLUDES $${overheadPool.toFixed(2)} of overhead — no allocation basis is set. ` +
-        `Every figure below is understated by that amount spread across ${fleetTotal.toFixed(0)} miles ` +
-        `(about ${cents(overheadPool, fleetTotal).toFixed(1)}¢/mi).`,
-    );
-  }
-  if (useActual) {
-    caveats.push(
-      `Miles are Samsara GPS actuals — the fleet's mileage source of truth by owner ruling. The ` +
-        `denominator already contains empty and out-of-route miles as driven; nothing is inferred. ` +
-        `McLeod loaded miles (${fleetLoaded.toFixed(0)}) are shown for reference` +
-        (fleetLoaded > 0 && fleetActual > 0
-          ? ` — measured miles run ${(((fleetActual - fleetLoaded) / fleetLoaded) * 100).toFixed(1)}% above loaded, which IS the measured empty/out-of-route share.`
-          : `.`),
-    );
-    if (trucksWithoutMeasuredMiles > 0) {
-      caveats.push(
-        `${trucksWithoutMeasuredMiles} truck(s) carry McLeod activity but no Samsara miles in this ` +
-          `window; their cost per mile is NOT computed rather than computed on a different basis ` +
-          `than the rest of the fleet.`,
-      );
-    }
-  }
-  if (!useActual && rules.deadhead === "estimate" && fleetDeadhead > 0) {
-    caveats.push(
-      `${fleetDeadhead.toFixed(0)} deadhead miles are ESTIMATED by chaining stop coordinates, not read ` +
-        `from McLeod, which records none. Great-circle is a floor, so real deadhead is higher and cost ` +
-        `per mile correspondingly lower.`,
-    );
-  }
-  if (!useActual && rules.deadhead === "exclude") {
-    caveats.push(
-      `Deadhead is EXCLUDED, so the denominator is loaded miles only and every figure is overstated by ` +
-        `roughly the fleet's empty-mile share (~4-5% for this carrier).`,
-    );
-  }
-  if (!rules.includeOwnerOperators && ownerOperatorSettlement > 0) {
-    caveats.push(
-      `$${ownerOperatorSettlement.toFixed(2)} of owner-operator settlement is excluded. Those payments ` +
-        `bundle truck, fuel and maintenance into one contractor rate and are not comparable to a ` +
-        `company truck's costs.`,
-    );
-  }
-  if (fuelWithoutTruck > 0 || settlementWithoutTruck > 0) {
-    caveats.push(
-      `$${round(fuelWithoutTruck + settlementWithoutTruck).toFixed(2)} of direct cost carries no ` +
-        `tractor in McLeod and is excluded rather than spread.`,
-    );
-  }
-  if (movementsWithoutTruck > 0) {
-    caveats.push(
-      `${movementsWithoutTruck} movement(s) resolve to no tractor; their miles are absent from every ` +
-        `denominator here.`,
-    );
-  }
-  if (inputs.fixedCosts) {
-    const uncoveredActive = list.filter(
-      (b) =>
-        (b.movements > 0 || b.fuel > 0 || b.settlement > 0) && !((fixedByUnit[b.tractor_unit] ?? 0) > 0),
-    ).length;
-    caveats.push(...fixedCostCaveats(inputs.fixedCosts, uncoveredActive));
-  }
+  caveats.push(
+    ...buildCpmCaveats({
+      rules,
+      useActual,
+      overheadPool,
+      fleetTotal,
+      fleetLoaded,
+      fleetActual,
+      fleetDeadhead,
+      trucksWithoutMeasuredMiles,
+      ownerOperatorSettlement: rules.includeOwnerOperators ? 0 : ownerOperatorSettlement,
+      fuelWithoutTruck,
+      settlementWithoutTruck,
+      movementsWithoutTruck,
+      hasRevenue,
+      revenueWithoutTruck,
+      ownerOperatorRevenue,
+      netExcludedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,
+      fixedCosts: inputs.fixedCosts,
+      uncoveredActiveTrucks: inputs.fixedCosts
+        ? list.filter(
+            (b) =>
+              (b.movements > 0 || b.fuel > 0 || b.settlement > 0) &&
+              !((fixedByUnit[b.tractor_unit] ?? 0) > 0),
+          ).length
+        : 0,
+    }),
+  );
 
   return {
     rules,
@@ -437,15 +455,21 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       directSettlement: fleetSettlement,
       directTotal: fleetDirect,
       fixedTotal: fleetFixed,
+      revenueTotal: fleetRevenue,
+      netTotal: fleetNet,
       directCpm: cents(fleetDirect, fleetTotal),
       allocatedCpm: cents(allocatedTotal, fleetTotal),
       fixedCpm: cents(fleetFixed, fleetTotal),
       totalCpm: cents(round(fleetDirect + allocatedTotal + fleetFixed), fleetTotal),
+      revenueCpm: cents(fleetRevenue, fleetTotal),
+      netCpm: cents(fleetNet, fleetTotal),
     },
     excluded: {
       unallocatedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,
       outOfScopeVouchers,
       ownerOperatorSettlement: rules.includeOwnerOperators ? 0 : ownerOperatorSettlement,
+      ownerOperatorRevenue,
+      revenueWithoutTruck,
       fuelWithoutTruck,
       settlementWithoutTruck,
       movementsWithoutTruck,

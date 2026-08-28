@@ -6,3 +6,4 @@ export * from "./settlementFact.js";
 export * from "./ledgerControl.js";
 export * from "./cpmHarness.js";
 export * from "./fixedCosts.js";
+export * from "./cpmCaveats.js";

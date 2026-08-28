@@ -9,7 +9,7 @@ import {
   type TmsFuelPurchaseFact,
   type TmsSettlementFact,
 } from "@silvicom/shared";
-import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow } from "../mcleod/index.js";
+import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow, readBillingWindow } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readFixedCostsForMonths } from "./costSchedules.js";
 
@@ -45,6 +45,8 @@ export interface CpmWindowReport {
     samsaraVehicles: number;
     /** Units the fixed-cost schedule charged in this window. */
     scheduledUnits: number;
+    /** GL-booked invoices joined as revenue (the projection's posting predicate). */
+    bookedInvoices: number;
     /** Named empty sources — what to run before believing an empty report. */
     pendingSources: string[];
     notes: string[];
@@ -60,10 +62,11 @@ export async function computeCpmForWindow(
   toIso: string,
   rules: Partial<CpmRules> = {},
 ): Promise<CpmWindowReport> {
-  const [staged, settlements, vouchers, fuelByUnit, samsaraMiles, fixedCosts] = await Promise.all([
+  const [staged, settlements, vouchers, billing, fuelByUnit, samsaraMiles, fixedCosts] = await Promise.all([
     readMovementsWindow(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
     readApVouchersWindow(admin, orgId, fromIso, toIso),
+    readBillingWindow(admin, orgId, fromIso, toIso),
     canonicalFuelByUnit(admin, orgId, fromIso, toIso),
     // Samsara publishes vehicle miles per CALENDAR MONTH; the window is treated as the months it
     // covers. The page defaults to a full month, where this is exact; a partial-month window's
@@ -74,6 +77,22 @@ export async function computeCpmForWindow(
   ]);
 
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
+
+  // Revenue per truck — the other half of the owner's question (what a truck is LEFT WITH per
+  // mile). Only GL-BOOKED invoices count, the projection's own predicate; excise tax stays out
+  // (collected for the government is not revenue). Unattributed invoices go to their own stated
+  // pool, and owner-operator routing happens in the harness where payee types are known.
+  const revenueByUnit: Record<string, number> = {};
+  let revenueWithoutTruck = 0;
+  let bookedInvoices = 0;
+  for (const b of billing) {
+    if (!b.post_key || b.post_module !== "BILL") continue;
+    bookedInvoices++;
+    const dollars = num(b.total_charges) + num(b.other_charge);
+    const unit = b.tractor_unit?.trim();
+    if (!unit) revenueWithoutTruck = Math.round((revenueWithoutTruck + dollars) * 100) / 100;
+    else revenueByUnit[unit] = Math.round(((revenueByUnit[unit] ?? 0) + dollars) * 100) / 100;
+  }
 
   const movements: TmsMovementFact[] = staged.map((m) => ({
     external_id: m.external_id,
@@ -165,6 +184,8 @@ export async function computeCpmForWindow(
       officeLines: [],
       actualMilesByUnit,
       fixedCosts,
+      revenueByUnit,
+      revenueWithoutTruck,
     },
     { ...DEFAULT_CPM_RULES, ...rules },
   );
@@ -198,6 +219,7 @@ export async function computeCpmForWindow(
       vouchers: vouchers.length,
       samsaraVehicles: samsaraMiles.size,
       scheduledUnits: Object.keys(fixedCosts.byUnit).length,
+      bookedInvoices,
       pendingSources,
       notes,
     },

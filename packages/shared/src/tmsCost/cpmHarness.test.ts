@@ -442,3 +442,95 @@ describe("computeCpm — fixed costs from the office schedule (T1)", () => {
     expect(without.caveats.some((c) => c.includes("fixed-cost"))).toBe(false);
   });
 });
+
+describe("computeCpm — revenue and net per mile (the owner's margin requirement)", () => {
+  it("joins GL-booked revenue per truck and nets it against every cost in the report", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [fuel("F1", "101", 300)],
+        settlements: [settle("S1", "101", 500)],
+        revenueByUnit: { "101": 2000 },
+        revenueWithoutTruck: 75,
+        fixedCosts: { byUnit: { "101": 400 }, byCategory: { lease: 400 }, total: 400, monthCount: 1 },
+      },
+      PLAIN,
+    );
+    const t = r.trucks[0]!;
+    expect(t.revenue).toBe(2000);
+    expect(t.revenueCpm).toBe(200);
+    expect(t.netTotal).toBe(800); // 2000 - 300 fuel - 500 pay - 400 fixed
+    expect(t.netCpm).toBe(80);
+    expect(r.fleet.revenueTotal).toBe(2000);
+    expect(r.fleet.netTotal).toBe(800);
+    expect(r.excluded.revenueWithoutTruck).toBe(75);
+    expect(r.caveats.some((c) => c.includes("$75.00 of booked revenue carries no tractor"))).toBe(true);
+  });
+
+  it("routes an owner-operator truck's revenue to the excluded pool beside its settlement", () => {
+    const r = computeCpm(
+      {
+        movements: [],
+        fuel: [],
+        settlements: [settle("S1", "900", 2900, "owner_operator")],
+        revenueByUnit: { "900": 4200 },
+      },
+      PLAIN,
+    );
+    expect(r.excluded.ownerOperatorRevenue).toBe(4200);
+    expect(r.excluded.ownerOperatorSettlement).toBe(2900);
+    expect(r.trucks.find((t) => t.tractor_unit === "900")).toBeUndefined();
+    expect(r.caveats.some((c) => c.includes("hauled by owner-operator trucks"))).toBe(true);
+    // Including owner-operators flips the routing: the truck appears with revenue AND its pay.
+    const inc = computeCpm(
+      {
+        movements: [],
+        fuel: [],
+        settlements: [settle("S1", "900", 2900, "owner_operator")],
+        revenueByUnit: { "900": 4200 },
+      },
+      { ...PLAIN, includeOwnerOperators: true },
+    );
+    const t900 = inc.trucks.find((t) => t.tractor_unit === "900")!;
+    expect(t900.revenue).toBe(4200);
+    expect(t900.netTotal).toBe(1300);
+    expect(inc.excluded.ownerOperatorRevenue).toBe(0);
+  });
+
+  it("states that net omits unallocated overhead, sized in cents per mile", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [],
+        settlements: [],
+        vouchers: [voucher("V1", 5000)],
+        revenueByUnit: { "101": 3000 },
+      },
+      PLAIN,
+    );
+    expect(r.caveats.some((c) => c.includes("NET per mile subtracts ONLY") && c.includes("$5000.00"))).toBe(true);
+    // Net deliberately does NOT subtract the unallocated pool — the caveat carries the size.
+    expect(r.trucks[0]!.netTotal).toBe(3000);
+  });
+
+  it("a truck with revenue but no cost rows in the window still appears", () => {
+    const r = computeCpm(
+      { movements: [], fuel: [], settlements: [], revenueByUnit: { "777": 1500 } },
+      PLAIN,
+    );
+    const t = r.trucks.find((x) => x.tractor_unit === "777")!;
+    expect(t.revenue).toBe(1500);
+    expect(t.netTotal).toBe(1500);
+    expect(t.netCpm).toBe(0); // no miles — no fabricated rate
+  });
+
+  it("without a revenue input nothing changes and no revenue caveats appear", () => {
+    const r = computeCpm(
+      { movements: [move("M1", "101", 1000)], fuel: [fuel("F1", "101", 300)], settlements: [] },
+      PLAIN,
+    );
+    expect(r.trucks[0]!.revenue).toBe(0);
+    expect(r.fleet.revenueTotal).toBe(0);
+    expect(r.caveats.some((c) => c.includes("revenue"))).toBe(false);
+  });
+});
