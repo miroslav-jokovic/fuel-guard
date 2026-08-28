@@ -22,11 +22,17 @@ export function useCostSchedulesQuery() {
   });
 }
 
+/** How finely McLeod can split an account — a fact about the source, not a preference. */
+export type CostGrain = "per_truck" | "per_person" | "per_vendor" | "company";
+
 export interface GlMonthlyCostAccount {
   glid: string;
   descr: string | null;
   typeId: string | null;
   amount: number;
+  /** The posting modules the dollars came through, so the grain can be checked, not just trusted. */
+  modules: string[];
+  grain: CostGrain;
 }
 export interface GlMonthlyCosts {
   period: string;

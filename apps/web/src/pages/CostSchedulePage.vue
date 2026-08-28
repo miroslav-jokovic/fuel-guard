@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { FIXED_COST_CATEGORIES, truckCostScheduleSchema, type TruckCostScheduleRow } from "@silvicom/shared";
 import {
   useCostSchedulesQuery,
@@ -7,12 +8,14 @@ import {
   useUpdateScheduleMutation,
   useDeleteScheduleMutation,
   useGlMonthlyCostsQuery,
+  type CostGrain,
 } from "@/features/accounting/useCostSchedules";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { useToastStore } from "@/stores/toast";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import {
   AppCard as BaseCard,
   AppButton as BaseButton,
@@ -81,7 +84,70 @@ const periodOptions = computed(() => {
 // kind of invented attribution D-MC12 forbids the extraction layer from making.
 const glTotal = computed(() => glCosts.value?.total ?? 0);
 const coverage = computed(() => (glTotal.value > 0 ? monthlyTotal.value / glTotal.value : 0));
-const topAccounts = computed(() => (glCosts.value?.accounts ?? []).slice(0, 12));
+
+/**
+ * EVERY account, not a top slice. The page showed `.slice(0, 12)` until 2026-08-28 and the owner
+ * caught it: June posts 69 expense accounts totalling $3,634,060.11, so office payroll, salaries,
+ * payroll tax and rent were all present in the data and cut off the screen. A cost report that
+ * silently truncates is worse than one that loads slowly.
+ */
+const accountSearch = ref("");
+const grainFilter = ref("");
+const accountSort = ref<SortState>({ key: "amount", dir: "desc" });
+const onAccountSort = (key: string) => (accountSort.value = toggleSort(accountSort.value, key));
+
+const GRAIN_LABELS: Record<CostGrain, string> = {
+  per_truck: "Per truck",
+  per_person: "Per person",
+  per_vendor: "Per vendor",
+  company: "Company only",
+};
+const grainOptions = [
+  { value: "", label: "Any attribution" },
+  { value: "per_truck", label: "Per truck" },
+  { value: "per_person", label: "Per person" },
+  { value: "per_vendor", label: "Per vendor" },
+  { value: "company", label: "Company only" },
+];
+
+const glAccounts = computed(() => {
+  const q = accountSearch.value.trim().toLowerCase();
+  const rows = (glCosts.value?.accounts ?? []).filter(
+    (a) =>
+      (!q || (a.descr ?? a.glid).toLowerCase().includes(q)) &&
+      (!grainFilter.value || a.grain === grainFilter.value),
+  );
+  return sortRows(rows, accountSort.value);
+});
+const hiddenAccounts = computed(() => (glCosts.value?.accounts.length ?? 0) - glAccounts.value.length);
+const accountFilterCount = computed(() => (accountSearch.value.trim() ? 1 : 0) + (grainFilter.value ? 1 : 0));
+function resetAccountFilters() {
+  accountSearch.value = "";
+  grainFilter.value = "";
+}
+
+/**
+ * How much of the month's cost McLeod can place on something, and how much it structurally cannot.
+ *
+ * Measured June 2026: SET and FUEL resolve to a truck, OFF to one of 31 people, AP to one of 30
+ * vendors — but GJ ($609,465) and RJ ($131,941) carry no payee at all, so lease, insurance, officer
+ * salaries and payroll tax are company-level in McLeod and no amount of collecting changes that.
+ * The split is shown because "company only" must read as a property of the source, not as a backlog.
+ */
+const attributable = computed(() =>
+  (glCosts.value?.accounts ?? []).filter((a) => a.grain !== "company").reduce((s, a) => s + a.amount, 0),
+);
+const companyOnly = computed(() =>
+  (glCosts.value?.accounts ?? []).filter((a) => a.grain === "company").reduce((s, a) => s + a.amount, 0),
+);
+
+const glAccountColumns: DataTableColumn[] = [
+  { key: "descr", label: "Account", sortable: true },
+  { key: "typeId", label: "Class", cellClass: "text-ink-tertiary", sortable: true },
+  { key: "modules", label: "Posted via", cellClass: "font-mono text-xs text-ink-tertiary" },
+  { key: "grain", label: "Attributable", sortable: true },
+  { key: "amount", label: "Month", numeric: true, sortable: true },
+];
 
 const blank = () => ({
   unit_number: "",
@@ -156,24 +222,34 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Which truck carries which fixed cost — lease, insurance, GPS, permits — entered from the signed contracts. McLeod holds every one of these dollars; what it has no record of is the per-truck split, so this schedule supplies it. These rows charge whole months into the cost-per-mile report, and the report names every truck this schedule does not cover." />
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Scheduled / month</p>
         <p class="text-2xl font-bold text-ink">{{ fmtUsd(monthlyTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">open rows, charged whole into cost per mile</p>
+        <p class="text-xs text-ink-tertiary">open rows, charged whole into cost per mile</p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Booked in the ledger</p>
         <p class="text-2xl font-bold text-ink">{{ glLoading ? "…" : fmtUsd(glTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">
+        <p class="text-xs text-ink-tertiary">
           every expense account McLeod posted that month — the pool this schedule splits
         </p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Attributed to a truck</p>
         <p class="text-2xl font-bold text-ink">{{ glTotal > 0 ? `${Math.round(coverage * 100)}%` : "—" }}</p>
-        <p class="text-2xs text-ink-tertiary">
+        <p class="text-xs text-ink-tertiary">
           the rest stays fleet overhead in the cost-per-mile report, never lost
+        </p>
+      </BaseCard>
+      <!-- The distinction that stops "company only" reading as a backlog. GJ and RJ carry no payee
+           at all, so lease, insurance, officer salaries and payroll tax cannot be split by anyone,
+           at any point, no matter what we collect. -->
+      <BaseCard padding="sm">
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">McLeod cannot split</p>
+        <p class="text-2xl font-bold text-ink">{{ glLoading ? "…" : fmtUsd(companyOnly) }}</p>
+        <p class="text-xs text-ink-tertiary">
+          posted with no truck, person or vendor — {{ fmtUsd(attributable) }} of the month can be placed
         </p>
       </BaseCard>
     </div>
@@ -181,37 +257,64 @@ const columns: DataTableColumn[] = [
     <!-- McLeod's own accounts, its own descriptions, its own classes (0272). No category is
          inferred here: which of our five categories an account belongs to is a human judgement,
          and guessing it from an account name is the invented attribution D-MC12 rules out. -->
-    <BaseCard padding="sm">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">What McLeod booked</p>
-          <p class="text-2xs text-ink-tertiary">
-            The month's largest expense accounts, straight from the general ledger. Read the per-truck
-            split off the signed contracts behind these lines — the ledger cannot supply it.
-          </p>
-        </div>
-        <BaseSelect v-model="glPeriod" :options="periodOptions" class="w-48" />
-      </div>
+    <!-- The month's expense accounts, every one of them, as a DataTable inside a padding="none"
+         card — the design contract's one table primitive, not a hand-rolled list. It carries its own
+         FilterBar because 69 accounts is a list you search, not one you scan. -->
+    <FilterBar
+      v-model:search="accountSearch"
+      search-placeholder="Search an expense account…"
+      :count="glAccounts.length"
+      count-label="accounts"
+    >
+      <template #filters>
+        <FilterSelect v-model="glPeriod" label="Month" :options="periodOptions" />
+        <FilterSelect v-model="grainFilter" label="Attributable" :options="grainOptions" />
+      </template>
+      <template #actions>
+        <BaseButton v-if="accountFilterCount" variant="ghost" size="sm" @click="resetAccountFilters">Clear filters</BaseButton>
+      </template>
+    </FilterBar>
 
-      <p v-if="glLoading" class="mt-3 text-xs text-ink-tertiary">Loading the ledger…</p>
-      <p v-else-if="!glCosts?.swept" class="mt-3 text-xs text-danger-600">
-        The GL is not swept for this month yet. Run the McLeod agent's financial pass, then this panel
-        fills in.
-      </p>
-      <p v-else-if="!glCosts?.accountsStaged" class="mt-3 text-xs text-danger-600">
-        The chart of accounts has not been staged, so the ledger's dollars cannot be classified. Run the
-        McLeod agent's financial pass — it sweeps the account master whole.
-      </p>
-      <ul v-else class="mt-3 space-y-1">
-        <li
-          v-for="a in topAccounts"
-          :key="a.glid"
-          class="flex items-baseline justify-between gap-4 border-b border-edge-subtle py-1 last:border-0"
-        >
-          <span class="text-xs text-ink-secondary">{{ a.descr ?? a.glid }}</span>
-          <span class="font-mono text-xs text-ink tabular-nums">{{ fmtUsd(a.amount) }}</span>
-        </li>
-      </ul>
+    <p v-if="hiddenAccounts > 0" class="text-xs text-ink-tertiary">
+      {{ hiddenAccounts }} {{ hiddenAccounts === 1 ? "account" : "accounts" }} hidden by the filters above.
+      The figures in the cards cover every account in the month.
+    </p>
+
+    <BaseCard padding="none">
+      <DataTable
+        :columns="glAccountColumns"
+        :rows="glAccounts"
+        row-key="glid"
+        :loading="glLoading"
+        :error="null"
+        :sort="accountSort"
+        @sort="onAccountSort"
+      >
+        <template #empty>
+          <div v-if="!glCosts?.swept" class="space-y-1">
+            <p>The general ledger is not swept for this month yet.</p>
+            <p class="text-xs text-ink-tertiary">Run the McLeod agent's financial pass, then this table fills in.</p>
+          </div>
+          <div v-else-if="!glCosts?.accountsStaged" class="space-y-1">
+            <p>The chart of accounts has not been staged, so the ledger's dollars cannot be classified.</p>
+            <p class="text-xs text-ink-tertiary">Run the McLeod agent's financial pass — it sweeps the account master whole.</p>
+          </div>
+          <div v-else class="space-y-1">
+            <p>No account matches these filters.</p>
+            <p class="text-xs text-ink-tertiary">{{ glCosts.accounts.length }} accounts posted this month. Clear the filters to see them.</p>
+          </div>
+        </template>
+        <template #cell-descr="{ row }">{{ row.descr ?? row.glid }}</template>
+        <template #cell-modules="{ value }">{{ (value as string[]).join(" · ") }}</template>
+        <!-- "Company only" is a property of McLeod, not a backlog item, so it reads as a plain
+             statement rather than a warning. -->
+        <template #cell-grain="{ value }">
+          <span :class="value === 'company' ? 'text-ink-tertiary' : 'text-ink-secondary'">
+            {{ GRAIN_LABELS[value as CostGrain] }}
+          </span>
+        </template>
+        <template #cell-amount="{ value }">{{ fmtUsd(value) }}</template>
+      </DataTable>
     </BaseCard>
 
     <BaseCard padding="sm">

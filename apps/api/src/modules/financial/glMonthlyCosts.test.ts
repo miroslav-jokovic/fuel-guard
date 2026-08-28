@@ -99,3 +99,62 @@ describe("getGlMonthlyCosts", () => {
     expect(r.total).toBe(0);
   });
 });
+
+describe("getGlMonthlyCosts — grain says how finely McLeod can split each account", () => {
+  /**
+   * The distinction the Fixed costs page turns on. $194,407 of office payroll and $400,000 of VIP
+   * lease look identical as totals, but one resolves to 31 named people and the other resolves to
+   * nothing finer than the company — and a reader who cannot tell them apart will read
+   * "company-level" as "not split yet" rather than as "McLeod does not hold it".
+   */
+  const ACCOUNTS = [
+    { glid: "40900000", descr: "Subcontracted Labor: Office", type_id: "Operating Expenses" },
+    { glid: "40850000", descr: "VIP Lease", type_id: "Operating Expenses" },
+    { glid: "40140000", descr: "Shop Parts", type_id: "Operating Expenses" },
+    { glid: "40120000", descr: "Fuel for Hired Vehicles", type_id: "Operating Expenses" },
+    { glid: "42100000", descr: "Rent Expense", type_id: "General & Admin Expenses" },
+  ];
+  const TOTALS = [
+    { post_module: "OFF", glid: "40900000", line_count: 199, net_amount: "194407.20", abs_amount: "194407.20" },
+    { post_module: "GJ", glid: "40850000", line_count: 6, net_amount: "400000.00", abs_amount: "400000.00" },
+    { post_module: "AP", glid: "40140000", line_count: 47, net_amount: "37403.89", abs_amount: "37403.89" },
+    { post_module: "FUEL", glid: "40120000", line_count: 5752, net_amount: "899741.93", abs_amount: "899741.93" },
+    // One account through two modules — AP and OFF. Person beats vendor.
+    { post_module: "AP", glid: "42100000", line_count: 3, net_amount: "16723.23", abs_amount: "16723.23" },
+    { post_module: "OFF", glid: "42100000", line_count: 4, net_amount: "9198.47", abs_amount: "9198.47" },
+  ];
+  const rec = () => createSupabaseRecorder({ tables: { mcleod_gl_totals: TOTALS, mcleod_gl_accounts: ACCOUNTS } });
+  const grainOf = (r: Awaited<ReturnType<typeof getGlMonthlyCosts>>, descr: string) =>
+    r.accounts.find((a) => a.descr === descr)!.grain;
+
+  it("reads office payroll as splittable per person", async () => {
+    expect(grainOf(await getGlMonthlyCosts(rec().client, ORG, "2026-06"), "Subcontracted Labor: Office")).toBe("per_person");
+  });
+
+  it("reads a journal-posted lease as company-level, because McLeod holds nothing finer", async () => {
+    expect(grainOf(await getGlMonthlyCosts(rec().client, ORG, "2026-06"), "VIP Lease")).toBe("company");
+  });
+
+  it("reads AP spend as splittable per vendor", async () => {
+    expect(grainOf(await getGlMonthlyCosts(rec().client, ORG, "2026-06"), "Shop Parts")).toBe("per_vendor");
+  });
+
+  it("reads fuel as splittable per truck", async () => {
+    expect(grainOf(await getGlMonthlyCosts(rec().client, ORG, "2026-06"), "Fuel for Hired Vehicles")).toBe("per_truck");
+  });
+
+  // Grain is decided after every module is known. Reporting vendor-only because AP was read first
+  // would understate what McLeod actually holds about that account.
+  it("takes the FINEST grain when an account posts through several modules", async () => {
+    const r = await getGlMonthlyCosts(rec().client, ORG, "2026-06");
+    const rent = r.accounts.find((a) => a.descr === "Rent Expense")!;
+    expect(rent.modules).toEqual(["AP", "OFF"]);
+    expect(rent.grain).toBe("per_person");
+    expect(rent.amount).toBe(25921.7); // both modules summed, D-MC13
+  });
+
+  it("names the modules behind every account, so the grain can be checked rather than trusted", async () => {
+    const r = await getGlMonthlyCosts(rec().client, ORG, "2026-06");
+    expect(r.accounts.find((a) => a.descr === "VIP Lease")!.modules).toEqual(["GJ"]);
+  });
+});
