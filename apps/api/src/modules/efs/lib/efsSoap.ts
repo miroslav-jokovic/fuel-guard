@@ -53,6 +53,15 @@ export interface EfsSoapFetchOptions {
   maxPages?: number;
   /** Injectable fetch — tests pass a stub. */
   fetchImpl?: typeof fetch;
+  /**
+   * Fetch EXACTLY this historical range instead of the cursor's window — the hole re-fetch path
+   * (recon F11 found two multi-week gaps the 2026-08 backfill dropped). The range is still paged
+   * at EFS's per-request day cap; `maxPages` defaults to enough pages to cover it whole, because
+   * a re-fetch that silently stops mid-hole would recreate the exact defect it exists to repair.
+   * The returned `nextCursor` describes THIS range's end and must never be persisted as the live
+   * feed's cursor — the caller owns that discipline (efsWindowRefetch.ts is the only caller).
+   */
+  windowOverride?: { start: string; end: string };
 }
 
 // ─── Public operations ─────────────────────────────────────────────────────────────────────────
@@ -222,7 +231,12 @@ function feedBody(feed: FeedName, clientId: string, pageStart: Date, pageEnd: Da
 }
 
 async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cursor: string | null, opts: EfsSoapFetchOptions): Promise<EfsSoapFetchResult> {
-  const { start, end } = dateWindow(env, cursor);
+  const { start, end } = opts.windowOverride
+    ? { start: new Date(opts.windowOverride.start), end: new Date(opts.windowOverride.end) }
+    : dateWindow(env, cursor);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+    throw new EfsSoapError(`invalid fetch window ${String(opts.windowOverride?.start)}..${String(opts.windowOverride?.end)}`, "transport");
+  }
   const priority = opts.priority ?? (feed === "posted" ? "backfill" : "live");
   // How many windows does the outstanding range cover? One (or less) means we are in steady state
   // and a single page is correct. More means we are catching up — a first backfill, or a feed that
@@ -234,7 +248,9 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
   // or an older deploy that predates these keys). Degrading to the previous behaviour is safe;
   // arithmetic on undefined silently disables the loop, which is not.
   const catchUpPages = env.EFS_SOAP_BACKFILL_MAX_PAGES;
-  const maxPages = Math.max(1, opts.maxPages ?? (windowsOutstanding > 1 ? catchUpPages : 1));
+  // A windowOverride defaults to covering its WHOLE range — stopping mid-hole would recreate the
+  // gap this path exists to repair (the budget checks below still apply as a hard stop).
+  const maxPages = Math.max(1, opts.maxPages ?? (opts.windowOverride ? windowsOutstanding : windowsOutstanding > 1 ? catchUpPages : 1));
   const deadline = env.EFS_SOAP_BACKFILL_MAX_MS ? Date.now() + env.EFS_SOAP_BACKFILL_MAX_MS : Infinity;
   const rowBudget = env.EFS_SOAP_MAX_ROWS_PER_POLL;
 

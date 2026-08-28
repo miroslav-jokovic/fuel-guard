@@ -4,7 +4,7 @@ import { dataRetentionHandler } from "./retention.js";
 import { dqBinderHandler } from "./dqBinder.js";
 import { documentDeriveHandler } from "./documentDerive.js";
 import { efsCardSyncHandler } from "./efsCardSync.js";
-import { efsSoapHandler } from "./efsSoap.js";
+import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import {
@@ -37,6 +37,7 @@ import { financialProjectionHandler } from "./financial.js";
 export function registerAllHandlers(): void {
   registerHandler("efs_ingest", efsIngestHandler);
   registerHandler("efs_soap_posted", efsSoapHandler);
+  registerHandler("efs_window_refetch", efsWindowRefetchHandler);
   registerHandler("efs_soap_rejected", efsSoapHandler);
   registerHandler("efs_process_import", efsProcessingHandler);
   // Card mirror sweep. Vendor-calling on the SHARED EFS service account, so kindCaps pins it to 1.
