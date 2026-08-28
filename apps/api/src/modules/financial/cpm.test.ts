@@ -68,6 +68,12 @@ describe("computeCpmForWindow", () => {
         samsara_ifta_jurisdiction_miles: [
           { vehicle_id: "v1", total_meters: 1400 * 1609.344 },
         ],
+        // Booked revenue: two GL-posted invoices for 754 and one unposted (never joined).
+        mcleod_billing: [
+          { id: "b1", external_id: "INV-1", order_external_id: null, tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-10T00:00:00Z", transfer_date: null, total_charges: 2500, other_charge: 100, excise_tax: 0, post_key: "PK1", post_module: "BILL" },
+          { id: "b2", external_id: "INV-2", order_external_id: null, tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-20T00:00:00Z", transfer_date: null, total_charges: 1400, other_charge: 0, excise_tax: 0, post_key: "PK2", post_module: "BILL" },
+          { id: "b3", external_id: "INV-3", order_external_id: null, tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-22T00:00:00Z", transfer_date: null, total_charges: 999, other_charge: 0, excise_tax: 0, post_key: null, post_module: null },
+        ],
         // The office schedule (T1): a lease row covering June. Charged whole-month, own column.
         truck_cost_schedules: [
           { id: "cs1", unit_number: "754", category: "lease", label: "VIP Lease 754", monthly_amount: 2500, effective_from: "2026-01-01", effective_to: null, notes: null },
@@ -97,6 +103,13 @@ describe("computeCpmForWindow", () => {
     expect(truck.totalCpm).toBeCloseTo(((1600 + 2500) / truck.totalMiles) * 100, 1);
     expect(provenance.scheduledUnits).toBe(1);
     expect(report.caveats.some((c) => c.includes("contracts, not measurements"))).toBe(true);
+    // Revenue: only the two GL-booked invoices join — $4,000 over 1,400 measured miles — and net
+    // subtracts every cost IN the report (direct 1600 + fixed 2500).
+    expect(provenance.bookedInvoices).toBe(2);
+    expect(truck.revenue).toBe(4000);
+    expect(truck.revenueCpm).toBeCloseTo((4000 / 1400) * 100, 1);
+    expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 2500, 2);
+    expect(report.caveats.some((c) => c.includes("NET per mile subtracts ONLY"))).toBe(true);
 
     // The honesty ledger: overhead unallocated (no finance ruling), owner-operator pooled apart.
     expect(report.excluded.unallocatedOverhead).toBe(5000);
@@ -107,7 +120,7 @@ describe("computeCpmForWindow", () => {
 
   it("an empty window names the sweeps that have not run instead of reporting a $0.00 fleet", async () => {
     const rec = createSupabaseRecorder({
-      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
+      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(report.trucks).toEqual([]);
@@ -126,6 +139,7 @@ describe("computeCpmForWindow", () => {
         vehicles: [],
         samsara_ifta_jurisdiction_miles: [],
         truck_cost_schedules: [],
+        mcleod_billing: [],
       },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-06-01", "2026-07-01");

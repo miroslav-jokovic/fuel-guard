@@ -17,6 +17,7 @@ export interface CpmProvenance {
   vouchers: number;
   samsaraVehicles: number;
   scheduledUnits: number;
+  bookedInvoices: number;
   pendingSources: string[];
   notes: string[];
 }

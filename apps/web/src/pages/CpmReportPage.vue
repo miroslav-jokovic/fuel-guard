@@ -58,8 +58,10 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: "directSettlement", label: "Driver pay", numeric: true },
   { key: "directTotal", label: "Direct cost", numeric: true },
   { key: "fixedCost", label: "Fixed cost", numeric: true },
-  { key: "directCpm", label: "Direct ¢/mi", numeric: true },
-  { key: "totalCpm", label: "Full ¢/mi", numeric: true },
+  { key: "revenue", label: "Revenue", numeric: true },
+  { key: "totalCpm", label: "Cost ¢/mi", numeric: true },
+  { key: "revenueCpm", label: "Rev ¢/mi", numeric: true },
+  { key: "netCpm", label: "Net ¢/mi", numeric: true },
 ]);
 </script>
 
@@ -67,9 +69,14 @@ const columns = computed<DataTableColumn[]>(() => [
   <div class="space-y-6">
     <PageHeader description="Direct cost per mile for every company truck — measured miles, measured cost, and every assumption stated. Overhead stays unallocated until finance sets a rule; the caveats say exactly what each figure excludes." />
 
-    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Fleet ¢ / mile</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Net ¢ / mile</p>
+        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.netCpm) }}</p>
+        <p class="text-2xs text-ink-tertiary">revenue {{ fmtCpm(report.fleet.revenueCpm) }} − cost {{ fmtCpm(report.fleet.totalCpm) }}; read the caveats for what net still omits</p>
+      </BaseCard>
+      <BaseCard padding="sm">
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost ¢ / mile</p>
         <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.totalCpm) }}</p>
         <p class="text-2xs text-ink-tertiary">direct {{ fmtCpm(report.fleet.directCpm) }} + fixed {{ fmtCpm(report.fleet.fixedCpm) }}</p>
       </BaseCard>
@@ -79,9 +86,9 @@ const columns = computed<DataTableColumn[]>(() => [
         <p class="text-2xs text-ink-tertiary">{{ samsaraBasis ? "Samsara measured, empty miles included" : `${fmtMiles(report.fleet.deadheadMilesEstimated)} estimated deadhead` }}</p>
       </BaseCard>
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost in figures</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">fuel + driver pay + scheduled fixed ({{ fmtUsd(report.fleet.fixedTotal) }})</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Booked revenue</p>
+        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.revenueTotal) }}</p>
+        <p class="text-2xs text-ink-tertiary">GL-posted invoices on company trucks; cost in figures {{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Not in these figures</p>
@@ -124,9 +131,11 @@ const columns = computed<DataTableColumn[]>(() => [
       <template #cell-directSettlement="{ value }">{{ fmtUsd(value) }}</template>
       <template #cell-directTotal="{ value }">{{ fmtUsd(value) }}</template>
       <template #cell-fixedCost="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-directCpm="{ value }">{{ fmtCpm(value) }}</template>
-      <template #cell-totalCpm="{ value }">
-        <span class="font-semibold text-ink">{{ fmtCpm(value) }}</span>
+      <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
+      <template #cell-totalCpm="{ value }">{{ fmtCpm(value) }}</template>
+      <template #cell-revenueCpm="{ value }">{{ fmtCpm(value) }}</template>
+      <template #cell-netCpm="{ value }">
+        <span class="font-semibold" :class="value >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(value) }}</span>
       </template>
     </DataTable>
 
