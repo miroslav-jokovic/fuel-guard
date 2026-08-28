@@ -263,6 +263,9 @@
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_gl_accounts": [
+    "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
+  ],
   "mcleod_gl_totals": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],

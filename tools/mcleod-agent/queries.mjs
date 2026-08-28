@@ -744,3 +744,17 @@ export const BILLING_HISTORY = `
      WHERE b.company_id = @companyId
        AND b.bill_date >= @windowStart
        AND b.bill_date <  @windowEnd`;
+
+/**
+ * The chart of accounts — glid, name, and McLeod's OWN classification (`type_id`: "Revenue",
+ * "Operating Expenses", …). Swept whole with every --financial pass (123 rows measured
+ * 2026-08-28, recon F9/F10): the GL month totals are unreadable as an income statement without
+ * it, and the fleet-truth check on the CPM page is exactly that reading.
+ */
+export const GL_ACCOUNTS = `
+    SELECT
+      LTRIM(RTRIM(a.id))                       AS glid,
+      NULLIF(LTRIM(RTRIM(a.descr)), '')        AS descr,
+      NULLIF(LTRIM(RTRIM(a.type_id)), '')      AS type_id
+      FROM dbo.gl_account AS a
+     WHERE a.company_id = @companyId`;

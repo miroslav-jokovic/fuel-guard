@@ -168,3 +168,21 @@ export async function readMovementsWindow(
       .range(from, to),
   );
 }
+
+/** The chart of accounts (0272): glid → McLeod's own name and P&L class. */
+export interface StagedGlAccount {
+  glid: string;
+  descr: string | null;
+  type_id: string | null;
+}
+
+export async function readGlAccounts(admin: SupabaseClient, orgId: string): Promise<StagedGlAccount[]> {
+  return paged<StagedGlAccount>((from, to) =>
+    admin
+      .from("mcleod_gl_accounts")
+      .select("glid, descr, type_id")
+      .eq("org_id", orgId)
+      .order("glid", { ascending: true }) // glid is unique per org — a total order
+      .range(from, to),
+  );
+}

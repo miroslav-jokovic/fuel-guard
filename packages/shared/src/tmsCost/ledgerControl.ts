@@ -43,6 +43,28 @@ export const tmsLedgerTotalsPayloadSchema = z.object({
 });
 export type TmsLedgerTotalsPayload = z.infer<typeof tmsLedgerTotalsPayloadSchema>;
 
+/**
+ * The chart of accounts (gl_account master) — glid, name, and McLeod's OWN classification
+ * (`type_id`: "Revenue" / "Operating Expenses" / "General & Admin Expenses" / …). Swept whole with
+ * every --financial pass (123 rows measured 2026-08-28) so the GL totals can be read as an income
+ * statement without anyone re-deriving what an account means.
+ */
+export const glAccountSchema = z.object({
+  glid: z.string().min(1).max(20),
+  descr: z.string().max(120).nullish(),
+  type_id: z.string().max(60).nullish(),
+});
+export const tmsGlAccountsPayloadSchema = z.object({
+  accounts: z.array(glAccountSchema).max(5000),
+});
+export type TmsGlAccountsPayload = z.infer<typeof tmsGlAccountsPayloadSchema>;
+
+/** The account classes that constitute the income statement, exactly as gl_account.type_id spells
+ *  them. Balance-sheet classes (assets, liabilities, equity) are deliberately absent: a loan draw
+ *  is not revenue and a driver-advance repayment is not an expense. */
+export const PNL_REVENUE_TYPES = ["Revenue"] as const;
+export const PNL_EXPENSE_TYPES = ["Operating Expenses", "General & Admin Expenses", "Income Tax Expense"] as const;
+
 /** What a subledger extraction claims it captured for one module. */
 export interface SubledgerClaim {
   post_module: string;

@@ -12,6 +12,8 @@ import {
 import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow, readBillingWindow } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readFixedCostsForMonths } from "./costSchedules.js";
+import { FUEL_AP_VENDOR_IDS } from "./projection.js";
+import { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
 
 /**
  * Cost per mile, per truck, from the STORE — the report this whole pipeline exists to produce
@@ -47,6 +49,13 @@ export interface CpmWindowReport {
     scheduledUnits: number;
     /** GL-booked invoices joined as revenue (the projection's posting predicate). */
     bookedInvoices: number;
+    /**
+     * The fleet-truth check: the GL for this window's months, read as an income statement via
+     * McLeod's own account classes (0272). This is EVERY dollar — office payroll, lease cheques,
+     * interest — where the report's cost columns hold only per-truck attributable cost; the
+     * owner's 2026-08-28 reconciliation proved this number reproduces his P&L to the dollar.
+     */
+    glCheck: GlIncomeSummary & { netCpm: number };
     /** Named empty sources — what to run before believing an empty report. */
     pendingSources: string[];
     notes: string[];
@@ -77,6 +86,7 @@ export async function computeCpmForWindow(
   ]);
 
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
+  const glIncome = await getGlIncomeForMonths(admin, orgId, monthsCovered(fromIso, toIso));
 
   // Revenue per truck — the other half of the owner's question (what a truck is LEFT WITH per
   // mile). Only GL-BOOKED invoices count, the projection's own predicate; excise tax stays out
@@ -161,7 +171,12 @@ export async function computeCpmForWindow(
       movements,
       fuel,
       settlements: settlementFacts,
-      vouchers: vouchers.map((v) => ({
+      // D-FS2 applies to the overhead pool too: the fuel vendor's AP invoices are the SAME dollars
+      // EFS already put on each truck, so they may not sit in the pool as if they were more cost.
+      // Measured 2026-07: $1,074,669.07 of the month's $1,491,893 staged vouchers — the pool
+      // overstated "overhead" by ~2x (and by ~70¢/mi) until the owner's fleet-net reconciliation
+      // caught it against the GL.
+      vouchers: vouchers.filter((v) => !(v.vendor_id != null && FUEL_AP_VENDOR_IDS.has(v.vendor_id))).map((v) => ({
         external_id: v.external_id,
         company_id: "n/a",
         voucher_no: null,
@@ -220,6 +235,13 @@ export async function computeCpmForWindow(
       samsaraVehicles: samsaraMiles.size,
       scheduledUnits: Object.keys(fixedCosts.byUnit).length,
       bookedInvoices,
+      glCheck: {
+        ...glIncome,
+        netCpm:
+          report.fleet.totalMiles > 0
+            ? Math.round((glIncome.net / report.fleet.totalMiles) * 100 * 10) / 10
+            : 0,
+      },
       pendingSources,
       notes,
     },
