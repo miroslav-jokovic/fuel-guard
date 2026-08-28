@@ -266,6 +266,21 @@ export const INSPECTION = [
    where g.company_id = @companyId
      and g.transaction_date >= '2026-01-01' and g.transaction_date < '2027-01-01'
    group by ltrim(rtrim(g.glid))` },
+  // The EFS completeness control: our raw fuel_transactions were BACKFILLED by the SOAP feed when
+  // it went live 2026-08-03, and April/May sit visibly below their neighbours ($621k/$431k vs ~$1M).
+  // McLeod's Fuel-for-Hired-Vehicles account (40050000, F10) is entered from the EFS statements by
+  // the office — if ITS April/May match ours, the dip is real; if not, the backfill has a hole.
+  { id: "F11", blocks: "EFS raw completeness (fuel_transactions backfill vs GL control)", question: "What did the GL fuel account book per month in 2026?", sql: `
+  select convert(varchar(7), g.transaction_date, 126) as month,
+         count(*) as lines,
+         sum(g.amount) as net_amount
+    from (select company_id, glid, amount, transaction_date from dbo.gl_ledger
+          union all
+          select company_id, glid, amount, transaction_date from dbo.gl_ledger_hist) as g
+   where g.company_id = @companyId
+     and ltrim(rtrim(g.glid)) = '40050000'
+     and g.transaction_date >= '2026-01-01' and g.transaction_date < '2027-01-01'
+   group by convert(varchar(7), g.transaction_date, 126)` },
   { id: "F7", blocks: "gl_ledger office-line staging (stable row key)", question: "Does gl_ledger have an identity column or unique index to key rows by?", sql: `
   select c.name as column_name, c.is_identity,
          isnull(i.name, '') as unique_index, isnull(i.is_primary_key, 0) as is_primary_key
