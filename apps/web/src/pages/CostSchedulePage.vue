@@ -6,6 +6,7 @@ import {
   useCreateScheduleMutation,
   useUpdateScheduleMutation,
   useDeleteScheduleMutation,
+  useGlMonthlyCostsQuery,
 } from "@/features/accounting/useCostSchedules";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { useToastStore } from "@/stores/toast";
@@ -20,11 +21,25 @@ import {
   AppFormField as FormField,
 } from "@silvicom/ui";
 
-// The page maintains the office's contract knowledge — the lease/insurance/GPS dollars McLeod
-// structurally cannot attribute (T1, TRUCK-COST-ATTRIBUTION-PLAN). Corrections that change
-// history are close-and-replace: end the old row at a month boundary, add its successor. The
-// "Close" action below does exactly that first half, on purpose, instead of offering free edits
-// of past amounts.
+// The page maintains the office's contract knowledge — the PER-TRUCK split of lease, insurance,
+// GPS and permit dollars (T1, TRUCK-COST-ATTRIBUTION-PLAN). Corrections that change history are
+// close-and-replace: end the old row at a month boundary, add its successor. The "Close" action
+// below does exactly that first half, on purpose, instead of offering free edits of past amounts.
+//
+// The framing here was wrong until 2026-08-28 and the owner caught it. The page said these were
+// "the fixed costs McLeod cannot attribute" over an empty table, which reads as a claim McLeod does
+// not HOLD the money. It does — all of it. Rebuilding June 2026 out of `gl_ledger` through McLeod's
+// own account classes reproduces the owner's printed income statement to the cent. What McLeod has
+// no record of is the per-TRUCK split, and that was measured rather than assumed: `gl_ledger` HAS a
+// `tractor` column and 0 of 29,427 June lines fill it; AP carries no equipment coding anywhere; and
+// McLeod's profitability-costing module, which exists precisely for this, was never configured by
+// this carrier. VIP Lease arrives as six journal lines saying "VIP LEASE".
+//
+// So the schedule stays manual — it is the only route to a per-truck fixed cost — and the GL panel
+// below shows the month's actual expense accounts next to it, so an empty schedule reads as what it
+// is (nothing entered yet) rather than as an absence of cost.
+const glPeriod = ref(previousMonth());
+const { data: glCosts, isLoading: glLoading } = useGlMonthlyCostsQuery(glPeriod);
 const toast = useToastStore();
 const { data, isLoading, isError, error, refetch, isFetching } = useCostSchedulesQuery();
 const create = useCreateScheduleMutation();
@@ -42,6 +57,31 @@ const firstOfNextMonth = () => {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
 };
+
+/** The last complete month — the GL panel compares against a month that has finished posting. */
+function previousMonth(): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** The last twelve complete months, newest first — enough to check a schedule against history. */
+const periodOptions = computed(() => {
+  const now = new Date();
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1 - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return { value, label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) };
+  });
+});
+
+// The comparison the page exists to make visible: what the schedule charges per month against what
+// the ledger actually booked. Deliberately NOT a per-category match — mapping a GL account to one
+// of our five categories is a human judgement, and inferring it from account names is exactly the
+// kind of invented attribution D-MC12 forbids the extraction layer from making.
+const glTotal = computed(() => glCosts.value?.total ?? 0);
+const coverage = computed(() => (glTotal.value > 0 ? monthlyTotal.value / glTotal.value : 0));
+const topAccounts = computed(() => (glCosts.value?.accounts ?? []).slice(0, 12));
 
 const blank = () => ({
   unit_number: "",
@@ -114,19 +154,70 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="The per-truck fixed costs McLeod cannot attribute — lease, insurance, GPS, permits — entered from the signed contracts. These rows charge whole months into the cost-per-mile report; the report names every truck this schedule does not cover." />
+    <PageHeader description="Which truck carries which fixed cost — lease, insurance, GPS, permits — entered from the signed contracts. McLeod holds every one of these dollars; what it has no record of is the per-truck split, so this schedule supplies it. These rows charge whole months into the cost-per-mile report, and the report names every truck this schedule does not cover." />
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Open rows / month</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Scheduled / month</p>
         <p class="text-2xl font-bold text-ink">{{ fmtUsd(monthlyTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">compare against the income statement's lease + insurance + GPS lines — a shortfall means missing rows</p>
+        <p class="text-2xs text-ink-tertiary">open rows, charged whole into cost per mile</p>
       </BaseCard>
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Correction rule</p>
-        <p class="text-sm text-ink-secondary">Amount changed? <span class="font-semibold">Close</span> the old row at a month boundary and add its successor. Delete is for typos only.</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Booked in the ledger</p>
+        <p class="text-2xl font-bold text-ink">{{ glLoading ? "…" : fmtUsd(glTotal) }}</p>
+        <p class="text-2xs text-ink-tertiary">
+          every expense account McLeod posted that month — the pool this schedule splits
+        </p>
+      </BaseCard>
+      <BaseCard padding="sm">
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Attributed to a truck</p>
+        <p class="text-2xl font-bold text-ink">{{ glTotal > 0 ? `${Math.round(coverage * 100)}%` : "—" }}</p>
+        <p class="text-2xs text-ink-tertiary">
+          the rest stays fleet overhead in the cost-per-mile report, never lost
+        </p>
       </BaseCard>
     </div>
+
+    <!-- McLeod's own accounts, its own descriptions, its own classes (0272). No category is
+         inferred here: which of our five categories an account belongs to is a human judgement,
+         and guessing it from an account name is the invented attribution D-MC12 rules out. -->
+    <BaseCard padding="sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">What McLeod booked</p>
+          <p class="text-2xs text-ink-tertiary">
+            The month's largest expense accounts, straight from the general ledger. Read the per-truck
+            split off the signed contracts behind these lines — the ledger cannot supply it.
+          </p>
+        </div>
+        <BaseSelect v-model="glPeriod" :options="periodOptions" class="w-48" />
+      </div>
+
+      <p v-if="glLoading" class="mt-3 text-xs text-ink-tertiary">Loading the ledger…</p>
+      <p v-else-if="!glCosts?.swept" class="mt-3 text-xs text-danger-600">
+        The GL is not swept for this month yet. Run the McLeod agent's financial pass, then this panel
+        fills in.
+      </p>
+      <p v-else-if="!glCosts?.accountsStaged" class="mt-3 text-xs text-danger-600">
+        The chart of accounts has not been staged, so the ledger's dollars cannot be classified. Run the
+        McLeod agent's financial pass — it sweeps the account master whole.
+      </p>
+      <ul v-else class="mt-3 space-y-1">
+        <li
+          v-for="a in topAccounts"
+          :key="a.glid"
+          class="flex items-baseline justify-between gap-4 border-b border-edge-subtle py-1 last:border-0"
+        >
+          <span class="text-xs text-ink-secondary">{{ a.descr ?? a.glid }}</span>
+          <span class="font-mono text-xs text-ink tabular-nums">{{ fmtUsd(a.amount) }}</span>
+        </li>
+      </ul>
+    </BaseCard>
+
+    <BaseCard padding="sm">
+      <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Correction rule</p>
+      <p class="text-sm text-ink-secondary">Amount changed? <span class="font-semibold">Close</span> the old row at a month boundary and add its successor. Delete is for typos only.</p>
+    </BaseCard>
 
     <FilterBar :count="rows.length" count-label="schedule rows">
       <template #actions>
@@ -172,7 +263,10 @@ const columns: DataTableColumn[] = [
       <template #empty>
         <div class="space-y-1">
           <p>No fixed costs scheduled yet.</p>
-          <p class="text-xs text-ink-tertiary">Until rows exist, cost per mile shows direct cost only and says so in its caveats.</p>
+          <p class="text-xs text-ink-tertiary">
+            The ledger booked {{ fmtUsd(glTotal) }} of expenses that month, none of it split per truck.
+            Until rows exist here, cost per mile shows direct cost only and says so in its caveats.
+          </p>
         </div>
       </template>
       <template #cell-monthly_amount="{ value }">{{ fmtUsd(value) }}</template>

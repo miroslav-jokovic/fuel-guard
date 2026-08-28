@@ -1,3 +1,4 @@
+import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import type { TruckCostScheduleInput, TruckCostScheduleRow } from "@silvicom/shared";
@@ -17,6 +18,39 @@ export function useCostSchedulesQuery() {
       const r = await apiFetch<{ schedules: TruckCostScheduleRow[] }>("/api/accounting/cost-schedules");
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the cost schedule");
       return r.data.schedules;
+    },
+  });
+}
+
+export interface GlMonthlyCostAccount {
+  glid: string;
+  descr: string | null;
+  typeId: string | null;
+  amount: number;
+}
+export interface GlMonthlyCosts {
+  period: string;
+  swept: boolean;
+  accountsStaged: boolean;
+  accounts: GlMonthlyCostAccount[];
+  total: number;
+}
+
+/**
+ * The month's expense accounts from McLeod's ledger — the costs this schedule exists to split.
+ *
+ * The schedule page cannot be read honestly without them. On its own an empty schedule looks like
+ * an absence of cost; beside the GL it is plainly an absence of ENTRY, against $400,000 of lease
+ * and $165,054 of insurance McLeod is holding for the same month.
+ */
+export function useGlMonthlyCostsQuery(period: Ref<string>) {
+  return useQuery({
+    queryKey: ["accounting", "gl-monthly-costs", period] as const,
+    enabled: computed(() => !!period.value),
+    queryFn: async (): Promise<GlMonthlyCosts> => {
+      const r = await apiFetch<GlMonthlyCosts>(`/api/accounting/gl-monthly-costs?period=${period.value}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the ledger's costs");
+      return r.data;
     },
   });
 }

@@ -11,6 +11,7 @@ import {
   apSpendByAccount,
   getLedgerCoverage,
   computeCpmForWindow,
+  getGlMonthlyCosts,
 } from "../../financial/index.js";
 import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
@@ -157,6 +158,27 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const report = await getLedgerCoverage(admin, req.auth!.orgId!, periodStart, `${next}-01`);
       res.json({ ok: true, ...report });
+    }),
+  );
+
+  // The month's expense accounts from McLeod's own ledger — what the fixed-cost schedule is meant
+  // to cover. The schedule page used to assert McLeod "cannot attribute" these costs and show an
+  // empty table, which reads as a claim the money is not in McLeod at all; it is (the 2026-08-28
+  // reconciliation reproduces the printed income statement to the cent). Only the per-TRUCK split
+  // is missing. This endpoint puts the GL lines next to the schedule so the gap is a number.
+  router.get(
+    "/gl-monthly-costs",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?period=YYYY-MM."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const costs = await getGlMonthlyCosts(admin, req.auth!.orgId!, parsed.data.period);
+      res.json({ ok: true, ...costs });
     }),
   );
 
