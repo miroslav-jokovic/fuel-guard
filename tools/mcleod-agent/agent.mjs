@@ -23,6 +23,7 @@ import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
 import { fetchLedgerControl } from "./ledger.mjs";
+import { fetchBilling, mapBilling } from "./billing.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -557,6 +558,14 @@ async function runFinancial() {
   const mv = await fetchMovementFacts({ ...CFG.sql, windowStart, windowEnd });
   const rm = await sendBatched("/api/tms/movement-facts", "movements", mv.movements, windowExtra, 500);
   log(`financial: movement-facts sent=${mv.movements.length} received=${rm.received} upserted=${rm.upserted}`);
+
+  // Billing — the earnings side, posting unlocked 2026-08-27 the day F1/F2 answered. EVERYTHING in
+  // the window is staged, canceled/rebilled flags verbatim (their vocabulary is F3's still-open
+  // question); what reaches reports is decided downstream by the documented GL-posted predicate,
+  // never here. Windowed on bill_date, the economic date, like the dry-run CLI.
+  const bl = await fetchBilling({ ...CFG.sql, windowStart, windowEnd });
+  const rb = await sendBatched("/api/tms/billing", "billing", bl.rows.map(mapBilling), windowExtra, 2000);
+  log(`financial: billing sent=${bl.rows.length} received=${rb.received} upserted=${rb.upserted}`);
 
   // GL control totals — month-grained, unlike everything above: totals are aggregates over a
   // period, so the period must be the stable unit the carrier's own close uses. Every calendar

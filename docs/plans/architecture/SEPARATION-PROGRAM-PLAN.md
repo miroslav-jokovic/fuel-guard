@@ -445,13 +445,19 @@ pinned in advance. Program-specific additions:
   tractor_id/trailer_id/driver_id (revenue-per-truck confirmed at source), excisetax_total,
   billing_loaded/empty_distance, canceled/rebilled flags; 137,649 TMS rows + 16,733 TMS2 + 311
   TMS3. `BILLING_HISTORY` (queries.mjs) + `billing.mjs` DRY-RUN shipped, written from the answers.
-  **Posting stays OFF behind two evidential gates:** (1) the void predicate — recon F3 measures
-  the canceled/rebilled vocabulary with June dollars; a canceled invoice imported as revenue
-  overstates everything; (2) acceptance — `npm run billing -- 2026-06-01 2026-07-01` monthly
-  totals must match the income statement's June revenue ($5,107,789.04). Both need the next VPN
-  window (it closed mid-recon). When they pass: filter from F3's table, wire mapBilling→
-  /api/tms/billing into --financial, and decide whether billing_loaded/empty_distance join the
-  contract (needs a mcleod_billing migration).
+  **POSTING ON (same day, later) — behind the DOCUMENTED predicate instead of the unmeasured
+  flags.** The VPN window closed before F3 could run, but the documentation already held the
+  discriminator: June 2026 had 1,640 billing rows of which exactly 1,595 posted one-line-per-
+  invoice to GL module BILL (0257's measurement) — so the projection's canonical predicate is
+  "the GL booked it" (post_key + BILL), the D-MC12 control doctrine applied to revenue. What
+  shipped: 0270 widens mcleod_billing with canceled/rebilled (VERBATIM, filter-forbidden until F3
+  answers) and billing_loaded/empty_distance; the agent's --financial posts the whole window; the
+  projection holds unposted rows out and COUNTS them (`unpostedBilling`); ledger-coverage gains
+  the BILL claim on the receivable basis (charges + excise, billing_history's own
+  totalcharge_and_excisetax naming) — which turns the one-off income-statement acceptance check
+  into a continuous, per-month drift figure recomputed every sweep. STILL OWED: recon F3 (flag
+  vocabulary — may let the 45-row residue be explained, never needed for correctness now) and the
+  first real sweep's coverage reading against June's $5,107,789.04.
 - **P3.4 — DONE 2026-08-27 (PR #335) — `modules/financial` (core).**
   The projection: payee-split settlements (accrual, total_pay), AP vouchers (fuel-vendor rows
   land category=fuel NON-canonical per D-FS2 — the flag, not the key, holds the $1,017,601.81

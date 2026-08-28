@@ -41,6 +41,18 @@ export const tmsBillingFactSchema = z.object({
   other_charge: z.number().default(0),
   excise_tax: z.number().default(0),
 
+  /**
+   * Staged verbatim; vocabulary unmeasured until recon F3 answers (2026-08-27). NO reader may
+   * filter on these — the revenue predicate is the GL's own posting (post_key + BILL), which
+   * 0257 measured: 1,595 of June's 1,640 rows posted one-line-per-invoice.
+   */
+  canceled: z.string().max(4).nullish(),
+  rebilled: z.string().max(4).nullish(),
+
+  /** billing_history's own mileage assertion — a third measurement beside movement and Samsara. */
+  billing_loaded_distance: z.number().nonnegative().max(99_999).nullish(),
+  billing_empty_distance: z.number().nonnegative().max(99_999).nullish(),
+
   /** The GL BILL key — the reconciliation join, one receivable line per invoice. */
   post_key: z.string().max(32).nullish(),
   post_module: z.string().max(4).nullish(),

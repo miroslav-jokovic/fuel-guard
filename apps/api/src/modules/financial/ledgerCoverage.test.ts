@@ -12,6 +12,7 @@ describe("getLedgerCoverage", () => {
         mcleod_gl_totals: [
           { post_module: "SET", glid: "20500010", line_count: 2751, net_amount: 0, abs_amount: 2525787.48 },
           { post_module: "FUEL", glid: "20550000", line_count: 57486, net_amount: 0, abs_amount: 2383148.18 },
+          { post_module: "BILL", glid: "12000000", line_count: 2, net_amount: 0, abs_amount: 6200 },
         ],
         // posted_pay sums to SET's one-sided value exactly → drift 0. The voided row must not
         // count: its dollars were never paid and never posted to the accrual either (D-MC18).
@@ -20,11 +21,23 @@ describe("getLedgerCoverage", () => {
           { posted_pay: 0.74, is_void: false },
           { posted_pay: 999.99, is_void: true },
         ],
+        // One GL-booked invoice and one unposted row: only the booked one may carry the BILL
+        // claim — the unposted row is F3's still-unmeasured vocabulary and stays out of every sum.
+        mcleod_billing: [
+          { total_charges: 3000, other_charge: 100, excise_tax: 0, post_key: "PK-1", post_module: "BILL" },
+          { total_charges: 999, other_charge: 0, excise_tax: 0, post_key: null, post_module: null },
+        ],
       },
     });
     const report = await getLedgerCoverage(rec.client, ORG, "2026-06-01", "2026-07-01");
 
     expect(report.sweptMonth).toBe(true);
+    // BILL claims only the GL-booked receivable: 3000 + 100 against a $3,100 one-sided module
+    // (abs 6200 / 2) → drift 0. The unposted 999 row is in staging and in NO sum.
+    const bill = report.modules.find((m) => m.post_module === "BILL")!;
+    expect(bill.extracted).toBe(3100);
+    expect(bill.oneSidedValue).toBe(3100);
+    expect(bill.drift).toBe(0);
     const set = report.modules.find((m) => m.post_module === "SET")!;
     expect(set.oneSidedValue).toBe(1262893.74);
     expect(set.source).toContain("settlement sweep");
@@ -39,7 +52,7 @@ describe("getLedgerCoverage", () => {
   });
 
   it("an unswept month says so instead of returning an empty report that reads as clean books", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [], mcleod_settlements: [] } });
+    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [], mcleod_settlements: [], mcleod_billing: [] } });
     const report = await getLedgerCoverage(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(report.sweptMonth).toBe(false);
     expect(report.modules).toEqual([]);
