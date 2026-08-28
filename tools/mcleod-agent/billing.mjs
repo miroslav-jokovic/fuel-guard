@@ -47,6 +47,7 @@ export function mapBilling(row) {
     rebilled: row.rebilled ?? null,
     billing_loaded_distance: row.billing_loaded_distance == null ? null : num(row.billing_loaded_distance),
     billing_empty_distance: row.billing_empty_distance == null ? null : num(row.billing_empty_distance),
+    distance: row.distance == null ? null : num(row.distance),
     post_key: row.post_key || null,
     post_module: row.post_module || null,
   };
