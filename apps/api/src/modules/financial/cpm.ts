@@ -9,12 +9,12 @@ import {
   type TmsFuelPurchaseFact,
   type TmsSettlementFact,
 } from "@silvicom/shared";
-import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow, readBillingWindow, readOwnerOperatorDeductions, readGlAccounts } from "../mcleod/index.js";
+import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow, readBillingWindow } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readFixedCostsForMonths } from "./costSchedules.js";
 import { FUEL_AP_VENDOR_IDS } from "./projection.js";
 import { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
-import { PNL_REVENUE_TYPES } from "@silvicom/shared";
+import { readOwnerOperatorDeductionIncome } from "./ownerOperatorIncome.js";
 
 /**
  * Cost per mile, per truck, from the STORE — the report this whole pipeline exists to produce
@@ -65,6 +65,38 @@ export interface CpmWindowReport {
 
 const num = (v: number | string | null | undefined) => (v == null ? 0 : Number(v));
 
+/**
+ * Revenue for the window, in the two grains the harness needs.
+ *
+ * Only GL-BOOKED invoices count — the projection's own predicate (post_key present, module BILL),
+ * D-MC12's control-total doctrine applied to revenue — and excise tax stays out because money
+ * collected for the government was never the carrier's earning.
+ *
+ * Per-unit totals answer "what did this truck earn". The ORDER grain answers the question per-unit
+ * totals cannot: four of June's eight owner-operator tractors were also driven by a company driver,
+ * and only the order says which of them a given bill belongs to.
+ */
+function buildRevenueInputs(billing: Awaited<ReturnType<typeof readBillingWindow>>) {
+  const revenueByUnit: Record<string, number> = {};
+  const revenueBills: Array<{ tractor_unit: string | null; order_external_id: string | null; dollars: number }> = [];
+  let revenueWithoutTruck = 0;
+  let bookedInvoices = 0;
+  for (const b of billing) {
+    if (!b.post_key || b.post_module !== "BILL") continue;
+    bookedInvoices++;
+    const dollars = num(b.total_charges) + num(b.other_charge);
+    const unit = b.tractor_unit?.trim();
+    revenueBills.push({
+      tractor_unit: unit ? unit : null,
+      order_external_id: b.order_external_id?.trim() ?? null,
+      dollars,
+    });
+    if (!unit) revenueWithoutTruck = Math.round((revenueWithoutTruck + dollars) * 100) / 100;
+    else revenueByUnit[unit] = Math.round(((revenueByUnit[unit] ?? 0) + dollars) * 100) / 100;
+  }
+  return { revenueByUnit, revenueBills, revenueWithoutTruck, bookedInvoices };
+}
+
 export async function computeCpmForWindow(
   admin: SupabaseClient,
   orgId: string,
@@ -89,61 +121,15 @@ export async function computeCpmForWindow(
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
   const glIncome = await getGlIncomeForMonths(admin, orgId, monthsCovered(fromIso, toIso));
 
-  /**
-   * Owner-operator deduction INCOME, per payee (0274).
-   *
-   * "Deduction" is three unrelated events wearing one word, and only the GL account tells them
-   * apart. A credit to a REVENUE account is money the carrier earned — equipment rental, insurance
-   * collection, installment sale, ~$29,733 across five payees in June 2026. A credit to `Fuel
-   * Advance` is a contractor repaying an advance, which is a receivable settling, not income. A
-   * credit to an expense account has already reduced that expense inside the ledger, so counting it
-   * here would book the same dollar twice.
-   *
-   * The classification is McLeod's own `gl_account.type_id`, never a list of deduct codes we
-   * maintain: June alone used 23 codes, several of them opaque (`OWR`, `TOP`, `DRT`), and a
-   * hardcoded list would silently miss the next one the bookkeeper adds.
-   */
-  const [deductions, glAccounts] = await Promise.all([
-    readOwnerOperatorDeductions(admin, orgId, fromIso, toIso),
-    readGlAccounts(admin, orgId),
-  ]);
-  const revenueTypes = new Set<string>(PNL_REVENUE_TYPES);
-  const revenueGlids = new Set(
-    glAccounts.filter((a) => a.type_id && revenueTypes.has(a.type_id)).map((a) => a.glid.trim()),
-  );
-  const ownerOperatorDeductionIncome: Record<string, number> = {};
-  for (const d of deductions) {
-    const glid = d.glid?.trim();
-    if (!glid || !revenueGlids.has(glid) || !d.payee_id) continue;
-    const key = d.payee_id;
-    ownerOperatorDeductionIncome[key] =
-      Math.round(((ownerOperatorDeductionIncome[key] ?? 0) + num(d.amount)) * 100) / 100;
-  }
+  // Who paid the carrier what, beyond the load share they kept — classified by McLeod's own
+  // chart of accounts, never by a list of deduct codes we maintain (see the module's header).
+  const ownerOperatorDeductionIncome = await readOwnerOperatorDeductionIncome(admin, orgId, fromIso, toIso);
 
   // Revenue per truck — the other half of the owner's question (what a truck is LEFT WITH per
   // mile). Only GL-BOOKED invoices count, the projection's own predicate; excise tax stays out
   // (collected for the government is not revenue). Unattributed invoices go to their own stated
   // pool, and owner-operator routing happens in the harness where payee types are known.
-  const revenueByUnit: Record<string, number> = {};
-  // The same bills at ORDER grain, so the harness can split a truck that ran for both an
-  // owner-operator and a company driver. Four of June's eight owner-operator tractors did exactly
-  // that; per-unit totals cannot express it and sent the whole truck to one side of the line.
-  const revenueBills: Array<{ tractor_unit: string | null; order_external_id: string | null; dollars: number }> = [];
-  let revenueWithoutTruck = 0;
-  let bookedInvoices = 0;
-  for (const b of billing) {
-    if (!b.post_key || b.post_module !== "BILL") continue;
-    bookedInvoices++;
-    const dollars = num(b.total_charges) + num(b.other_charge);
-    const unit = b.tractor_unit?.trim();
-    revenueBills.push({
-      tractor_unit: unit ? unit : null,
-      order_external_id: b.order_external_id?.trim() ?? null,
-      dollars,
-    });
-    if (!unit) revenueWithoutTruck = Math.round((revenueWithoutTruck + dollars) * 100) / 100;
-    else revenueByUnit[unit] = Math.round(((revenueByUnit[unit] ?? 0) + dollars) * 100) / 100;
-  }
+  const { revenueByUnit, revenueBills, revenueWithoutTruck, bookedInvoices } = buildRevenueInputs(billing);
 
   const movements: TmsMovementFact[] = staged.map((m) => ({
     external_id: m.external_id,
