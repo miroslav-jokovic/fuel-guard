@@ -25,3 +25,4 @@ export {
   type AccountSpend,
 } from "./reads.js";
 export { getLedgerCoverage } from "./ledgerCoverage.js";
+export { computeCpmForWindow, type CpmWindowReport } from "./cpm.js";

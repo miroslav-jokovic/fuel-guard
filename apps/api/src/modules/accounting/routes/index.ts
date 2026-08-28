@@ -5,7 +5,14 @@ import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.j
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { searchEntries, summarizeByCategory, apSpendByAccount, getLedgerCoverage } from "../../financial/index.js";
+import {
+  searchEntries,
+  summarizeByCategory,
+  apSpendByAccount,
+  getLedgerCoverage,
+  computeCpmForWindow,
+} from "../../financial/index.js";
+import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
 
 const windowSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -98,6 +105,35 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const accounts = await apSpendByAccount(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, accounts });
+    }),
+  );
+
+  // Cost per mile per truck — the report the whole McLeod pipeline exists to produce. The
+  // harness's caveats array is part of the payload ON PURPOSE: a CPM figure whose assumptions
+  // are invisible is worse than none, because it gets quoted (cpmHarness.ts's own doctrine).
+  // Overhead allocation stays off until finance's §6 Q5 ruling; the report says what it excludes.
+  router.get(
+    "/cpm",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema
+        .extend({
+          deadhead: z.enum(DEADHEAD_TREATMENTS).optional(),
+          includeOwnerOperators: z.coerce.boolean().optional(),
+        })
+        .safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD (optional: deadhead=estimate|exclude, includeOwnerOperators=1)."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const f = parsed.data;
+      const result = await computeCpmForWindow(admin, req.auth!.orgId!, f.from, f.to, {
+        ...(f.deadhead ? { deadhead: f.deadhead } : {}),
+        ...(f.includeOwnerOperators !== undefined ? { includeOwnerOperators: f.includeOwnerOperators } : {}),
+      });
+      res.json({ ok: true, ...result });
     }),
   );
 
