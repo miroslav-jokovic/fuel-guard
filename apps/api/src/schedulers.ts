@@ -19,6 +19,7 @@ import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
 import { startFinancialProjectionScheduler } from "./modules/financial/index.js";
+import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -46,6 +47,7 @@ export function startAllSchedulers(env: Env): void {
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair -> rescore -> rebuild
   startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports (XLSX/CSV — manual/mailbox source)
   startEfsSoapPoller(env); // per-org EFS SOAP acquisition (posted + rejected feeds); gated on EFS_SOAP_ENABLED
+  startInprocessJobDrain(env); // inprocess mode only: executes queued-as-rows repair jobs (efs_window_refetch, financial_projection) — no-op in queue mode
   startEfsProcessingScheduler(env); // durable post-acquisition scoring + alert emission
   startEfsSoapCertExpiryWatcher(env); // daily: warn before an mTLS client certificate takes the feed down
   startEfsCardSyncScheduler(env); // daily: refresh the EFS card mirror (config changes are rare; the
