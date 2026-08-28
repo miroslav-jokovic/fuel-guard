@@ -602,6 +602,9 @@ export const SETTLEMENT_DEDUCTIONS = `
       NULLIF(LTRIM(RTRIM(d.deduction_type)), '')    AS deduction_type,
       CONVERT(varchar(19), d.transaction_date, 126) AS transacted_at,
       d.amount                                      AS amount,
+      -- The account is what tells an EARNING from a REPAYMENT from a cost RECOVERY; the deduct code
+      -- cannot, and guessing from the code would be an attribution we invented (0274's header).
+      NULLIF(LTRIM(RTRIM(d.glid)), '')              AS glid,
       LTRIM(RTRIM(d.accrual_key))                   AS accrual_key
       FROM dbo.drs_deduct_hist AS d
      WHERE d.company_id = @companyId

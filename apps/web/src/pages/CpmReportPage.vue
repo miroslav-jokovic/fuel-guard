@@ -84,6 +84,23 @@ function resetFilters() {
   minMiles.value = "0";
 }
 
+// The contractor side. `dealPct` is derived by the harness from pay ÷ revenue on that payee's own
+// orders — never configured, so it reads back the contract rather than asserting one.
+const ownerOperators = computed(() => report.value?.ownerOperators ?? []);
+const ownerOpRevenue = computed(() => ownerOperators.value.reduce((a, o) => a + o.revenue, 0));
+const ownerOpMargin = computed(() => ownerOperators.value.reduce((a, o) => a + o.netMargin, 0));
+const ownerOpColumns: DataTableColumn[] = [
+  { key: "payeeId", label: "Contractor", cellClass: "font-mono text-xs" },
+  { key: "units", label: "Trucks", cellClass: "font-mono text-xs text-ink-tertiary" },
+  { key: "settlements", label: "Settlements", numeric: true, cellClass: "text-ink-tertiary" },
+  { key: "revenue", label: "Hauled", numeric: true },
+  { key: "dealPct", label: "Their share", numeric: true },
+  { key: "pay", label: "Paid out", numeric: true },
+  { key: "grossMargin", label: "Kept on loads", numeric: true },
+  { key: "deductionIncome", label: "Rental + fees", numeric: true },
+  { key: "netMargin", label: "We keep", numeric: true },
+];
+
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
@@ -116,7 +133,7 @@ const columns = computed<DataTableColumn[]>(() => [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Direct cost per mile for every company truck — measured miles, measured cost, and every assumption stated. Overhead stays unallocated until finance sets a rule; the caveats say exactly what each figure excludes." />
+    <PageHeader description="What every company truck costs and earns per mile — measured miles, measured cost, and every assumption stated. Overhead is the income statement less what the trucks already carry, spread by miles; owner-operators are counted separately below, because their pay is a share of the load rather than a cost we bear. The caveats say exactly what each figure rests on." />
 
     <!-- The equation reads left to right — earning, cost, what is left — because that is the order
          the owner asks it in. Earning per mile used to exist only as small print under the net
@@ -147,10 +164,21 @@ const columns = computed<DataTableColumn[]>(() => [
         <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
         <p class="text-2xs text-ink-tertiary">direct + scheduled fixed, against {{ fmtUsd(report.fleet.revenueTotal) }} of GL-posted invoices on company trucks</p>
       </BaseCard>
+      <!-- This card used to read "Not in these figures" over the money the report declined to
+           place. That was the complaint: a number nobody could act on, holding 38.9% of the
+           fleet's cost. Overhead is now ON the trucks, so the card states what each mile carries
+           of it — and if any is still withheld it says so in red rather than quietly. -->
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Not in these figures</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.excluded.unallocatedOverhead + report.excluded.ownerOperatorSettlement) }}</p>
-        <p class="text-2xs text-ink-tertiary">unallocated overhead + owner-operator pool</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Overhead $ / mile</p>
+        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.allocatedCpm) }}</p>
+        <p class="text-2xs text-ink-tertiary">
+          {{ report.excluded.overheadSource === "gl_remainder"
+            ? "the income statement, less what the trucks already carry"
+            : "from AP vouchers — journal-posted cost is not in this figure" }}
+        </p>
+        <p v-if="report.excluded.unallocatedOverhead > 0" class="text-2xs text-danger-600">
+          {{ fmtUsd(report.excluded.unallocatedOverhead) }} still unallocated
+        </p>
       </BaseCard>
     </div>
 
@@ -220,6 +248,43 @@ const columns = computed<DataTableColumn[]>(() => [
         <span class="font-semibold" :class="value >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(value) }}</span>
       </template>
     </DataTable>
+
+    <!-- Owner-operators, kept apart because the arithmetic is a different question. A company
+         truck's cost is our fuel and the driver's pay; a contractor's is a SHARE of the load —
+         measured at 88%, 90% and 95% across five payees in June 2026, three different deals — and
+         our earning is the remainder. Averaging the two describes neither. The deal percentage is
+         read back from what settled, so a renegotiation shows up without anyone editing a table. -->
+    <BaseCard v-if="ownerOperators.length" padding="none">
+      <div class="px-4 pt-4 pb-2">
+        <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+          Owner-operators — {{ fmtUsd(ownerOpMargin) }} kept on {{ fmtUsd(ownerOpRevenue) }} hauled
+        </h3>
+        <p class="text-2xs text-ink-tertiary">
+          Their pay is a contracted share of the load, so they carry no company overhead and no cost
+          per mile. "We keep" is the share retained plus rental, insurance-collection and
+          installment deductions that post to revenue accounts. Fuel advanced on the card is a
+          receivable they repay, not a cost, and is not in these figures.
+        </p>
+      </div>
+      <DataTable :columns="ownerOpColumns" :rows="ownerOperators" row-key="payeeId" :loading="false" :error="null">
+        <template #cell-units="{ value }">{{ (value as string[]).join(', ') || '—' }}</template>
+        <template #cell-dealPct="{ value }">
+          <span :class="value === null ? 'text-ink-tertiary' : ''">{{ value === null ? "—" : `${value}%` }}</span>
+        </template>
+        <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
+        <template #cell-pay="{ value }">{{ fmtUsd(value) }}</template>
+        <template #cell-grossMargin="{ value }">{{ fmtUsd(value) }}</template>
+        <!-- Only deductions that posted to a REVENUE account: equipment rental, insurance
+             collection, installment sale. A Fuel Advance repayment is a receivable settling and an
+             expense-account credit already reduced that expense in the ledger — neither is income. -->
+        <template #cell-deductionIncome="{ value }">
+          <span :class="value ? '' : 'text-ink-tertiary'">{{ fmtUsd(value) }}</span>
+        </template>
+        <template #cell-netMargin="{ value }">
+          <span class="font-semibold" :class="value >= 0 ? 'text-success-700' : 'text-danger-700'">{{ fmtUsd(value) }}</span>
+        </template>
+      </DataTable>
+    </BaseCard>
 
     <!-- The fleet truth: the GL for this window's months read as an income statement through
          McLeod's own account classes. EVERY dollar — office payroll, lease cheques, interest —

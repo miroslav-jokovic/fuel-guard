@@ -25,6 +25,8 @@ export {
   readApVouchersWindow,
   readBillingWindow,
   readBillingDispatchers,
+  readOwnerOperatorDeductions,
+  type StagedDeduction,
   readLedgerTotals,
   readGlAccounts,
   readMovementsWindow,

@@ -4,6 +4,8 @@ export * from "./expenseFact.js";
 export * from "./billingFact.js";
 export * from "./settlementFact.js";
 export * from "./ledgerControl.js";
+export * from "./cpmContract.js";
+export * from "./ownerOperators.js";
 export * from "./cpmHarness.js";
 export * from "./fixedCosts.js";
 export * from "./cpmCaveats.js";

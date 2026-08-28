@@ -179,9 +179,21 @@ describe("computeCpm — overhead allocation", () => {
     vouchers: [voucher("V1", 4000)],
   };
 
-  it("assigns NO overhead by default, and says so loudly", () => {
-    // The default is deliberately understated-and-known rather than allocated-and-invented.
+  // Owner ruling 2026-08-28: the default reversed. Leaving the pool unassigned was the honest
+  // choice only while it was a guess assembled from AP vouchers; once it is the income statement
+  // minus what was attributed, withholding it reports $1.21/mi for a fleet spending $2.05/mi.
+  it("allocates overhead by total miles by default", () => {
     const r = computeCpm(inputs, PLAIN);
+    // 1,000 and 3,000 miles → $1,000 and $3,000 of a $4,000 pool. Nothing left over.
+    expect(r.trucks.find((t) => t.tractor_unit === "101")!.allocatedOverhead).toBe(1000);
+    expect(r.trucks.find((t) => t.tractor_unit === "202")!.allocatedOverhead).toBe(3000);
+    expect(r.excluded.unallocatedOverhead).toBe(0);
+  });
+
+  // The escape hatch survives the ruling: a reader who wants the direct-only figure can still ask
+  // for it, and the caveat still carries the size of what was withheld.
+  it("still withholds and reports the pool when the basis is none", () => {
+    const r = computeCpm(inputs, { ...PLAIN, overheadBasis: "none" });
     expect(r.trucks.every((t) => t.allocatedOverhead === 0)).toBe(true);
     expect(r.excluded.unallocatedOverhead).toBe(4000);
     expect(r.caveats.some((c) => c.includes("EXCLUDES") && c.includes("4000.00"))).toBe(true);
@@ -498,6 +510,24 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
   });
 
   it("states that net omits unallocated overhead, sized in cents per mile", () => {
+    // Only meaningful under the `none` basis now — with overhead allocated there is nothing left
+    // for net to omit, which is the point of the 2026-08-28 ruling.
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [],
+        settlements: [],
+        vouchers: [voucher("V1", 5000)],
+        revenueByUnit: { "101": 3000 },
+      },
+      { ...PLAIN, overheadBasis: "none" },
+    );
+    expect(r.caveats.some((c) => c.includes("NET per mile subtracts ONLY") && c.includes("$5000.00"))).toBe(true);
+    // Net deliberately does NOT subtract the unallocated pool — the caveat carries the size.
+    expect(r.trucks[0]!.netTotal).toBe(3000);
+  });
+
+  it("under the default basis net subtracts the overhead, because it is no longer unallocated", () => {
     const r = computeCpm(
       {
         movements: [move("M1", "101", 1000)],
@@ -508,9 +538,8 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
       },
       PLAIN,
     );
-    expect(r.caveats.some((c) => c.includes("NET per mile subtracts ONLY") && c.includes("$5000.00"))).toBe(true);
-    // Net deliberately does NOT subtract the unallocated pool — the caveat carries the size.
-    expect(r.trucks[0]!.netTotal).toBe(3000);
+    expect(r.trucks[0]!.allocatedOverhead).toBe(5000);
+    expect(r.trucks[0]!.netTotal).toBe(-2000); // $3,000 earned against $5,000 of real cost
   });
 
   it("a truck with revenue but no cost rows in the window still appears", () => {
@@ -532,5 +561,215 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
     expect(r.trucks[0]!.revenue).toBe(0);
     expect(r.fleet.revenueTotal).toBe(0);
     expect(r.caveats.some((c) => c.includes("revenue"))).toBe(false);
+  });
+});
+
+/**
+ * The 2026-08-28 owner rulings, pinned against the numbers that produced them.
+ *
+ * Every figure quoted in these tests was measured against the McLeod sandbox and the carrier's own
+ * June 2026 income statement, not invented for the fixture.
+ */
+const settleFor = (
+  id: string,
+  tractor: string | null,
+  total_pay: number,
+  payee_type: "company_driver" | "owner_operator",
+  payee_id: string,
+  order_external_id: string,
+) =>
+  tmsSettlementFactSchema.parse({
+    external_id: id,
+    company_id: "TMS",
+    tractor_unit: tractor,
+    payee_type,
+    payee_id,
+    order_external_id,
+    total_pay,
+    posted_pay: total_pay,
+  });
+
+describe("computeCpm — the GL anchors the overhead pool (owner ruling 2026-08-28)", () => {
+  const base = {
+    movements: [move("M1", "101", 1000), move("M2", "202", 1000)],
+    fuel: [fuel("F1", "101", 300), fuel("F2", "202", 300)],
+    settlements: [settle("S1", "101", 200), settle("S2", "202", 200)],
+  };
+
+  it("derives the pool by subtraction, so no account can be forgotten", () => {
+    // $1,000 attributed (600 fuel + 400 pay) against a $3,000 income statement → $2,000 overhead.
+    const r = computeCpm({ ...base, glExpenseTotal: 3000 }, PLAIN);
+    expect(r.excluded.overheadSource).toBe("gl_remainder");
+    expect(r.trucks[0]!.allocatedOverhead).toBe(1000);
+    expect(r.trucks[1]!.allocatedOverhead).toBe(1000);
+  });
+
+  // The failure this replaces: the pool was built from AP vouchers, which never see the journal
+  // entries this carrier posts its lease and insurance through. June 2026 accounted for $1,992,498
+  // of a $3,634,060 income statement and left 38.9% of every dollar outside the report.
+  it("beats the voucher build-up, which sees only what passed through AP", () => {
+    const withVouchers = { ...base, vouchers: [voucher("V1", 400)] };
+    const apOnly = computeCpm(withVouchers, PLAIN);
+    const glAnchored = computeCpm({ ...withVouchers, glExpenseTotal: 3000 }, PLAIN);
+    expect(apOnly.excluded.overheadSource).toBe("ap_vouchers");
+    expect(apOnly.fleet.totalCpm).toBeLessThan(glAnchored.fleet.totalCpm);
+  });
+
+  it("does not double-count the vouchers that are already inside the GL total", () => {
+    const r = computeCpm({ ...base, vouchers: [voucher("V1", 400)], glExpenseTotal: 3000 }, PLAIN);
+    // $2,000, not $2,400 — the pool REPLACES the build-up rather than adding to it.
+    expect(r.trucks.reduce((a, t) => a + t.allocatedOverhead, 0)).toBe(2000);
+  });
+
+  // Fuel advanced to an owner-operator is a receivable in McLeod (account 17000000), never an
+  // expense, so the GL total never contained it — but our EFS feed booked it as cost. Subtracting
+  // it as though the ledger knew about it would shrink the pool by money the P&L never held.
+  it("adds owner-operator fuel back, because the income statement never carried it", () => {
+    const withOwnerOp = {
+      movements: [move("M1", "101", 1000), move("M2", "999", 1000)],
+      fuel: [fuel("F1", "101", 300), fuel("F2", "999", 500)],
+      settlements: [settle("S1", "101", 200), settle("S2", "999", 900, "owner_operator")],
+      glExpenseTotal: 3000,
+    };
+    const r = computeCpm(withOwnerOp, PLAIN);
+    // 3000 − attributed(300 + 500 + 200) − ownerOpPay(900) + ownerOpFuel(500) = 1600.
+    expect(r.trucks.find((t) => t.tractor_unit === "101")!.allocatedOverhead).toBe(1600);
+  });
+
+  it("refuses a negative remainder rather than spreading a credit across trucks", () => {
+    const r = computeCpm({ ...base, glExpenseTotal: 500 }, PLAIN);
+    expect(r.excluded.overheadSource).toBe("ap_vouchers"); // fell back, did not go negative
+    expect(r.trucks.every((t) => t.allocatedOverhead >= 0)).toBe(true);
+  });
+});
+
+describe("computeCpm — a mixed truck splits by settlement, not by unit", () => {
+  /**
+   * Measured June 2026: five owner-operator payees ran eight tractors, and four of those tractors
+   * were also driven by a company driver in the same month. Unit-level classification sent 100% of
+   * such a truck's revenue to the owner-operator pool while its company driver's pay stayed in the
+   * truck's cost column — so the truck showed cost against no revenue.
+   */
+  const mixed = {
+    movements: [move("M1", "751", 1000)],
+    fuel: [],
+    settlements: [
+      settleFor("S1", "751", 900, "owner_operator", "SCORELIL", "ORD-OO"),
+      settleFor("S2", "751", 300, "company_driver", "DRIVER1", "ORD-CO"),
+    ],
+    revenueBills: [
+      { tractor_unit: "751", order_external_id: "ORD-OO", dollars: 1000 },
+      { tractor_unit: "751", order_external_id: "ORD-CO", dollars: 400 },
+    ],
+  };
+
+  it("keeps the company load's revenue on the truck that earned it", () => {
+    const r = computeCpm(mixed, PLAIN);
+    const t = r.trucks.find((x) => x.tractor_unit === "751")!;
+    expect(t.revenue).toBe(400); // the company order only
+    expect(t.directSettlement).toBe(300); // and the company driver's pay only
+  });
+
+  it("routes the owner-operator load's revenue to its own pool", () => {
+    const r = computeCpm(mixed, PLAIN);
+    expect(r.excluded.ownerOperatorRevenue).toBe(1000);
+    expect(r.excluded.ownerOperatorSettlement).toBe(900);
+  });
+
+  // The regression: under unit-grain the whole $1,400 left the truck and its $300 of company pay
+  // stayed, printing cost against no revenue.
+  it("the old unit-grain path still shows the distortion it was replaced for", () => {
+    const unitGrain = computeCpm(
+      { ...mixed, revenueBills: undefined, revenueByUnit: { "751": 1400 } },
+      PLAIN,
+    );
+    const t = unitGrain.trucks.find((x) => x.tractor_unit === "751")!;
+    expect(t.revenue).toBe(0);
+    expect(t.directSettlement).toBe(300);
+  });
+});
+
+describe("computeCpm — owner-operator deals are read back, not configured", () => {
+  /** Real June 2026 rates: SCORELIL settles at 95%, SWISSANM at 88%. */
+  const inputs = {
+    movements: [],
+    fuel: [],
+    settlements: [
+      settleFor("S1", "762", 9500, "owner_operator", "SCORELIL", "ORD-A"),
+      settleFor("S2", "512", 8800, "owner_operator", "SWISSANM", "ORD-B"),
+    ],
+    revenueBills: [
+      { tractor_unit: "762", order_external_id: "ORD-A", dollars: 10000 },
+      { tractor_unit: "512", order_external_id: "ORD-B", dollars: 10000 },
+    ],
+  };
+
+  it("derives each payee's own percentage from what actually settled", () => {
+    const r = computeCpm(inputs, PLAIN);
+    const scorelil = r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!;
+    const swissanm = r.ownerOperators.find((o) => o.payeeId === "SWISSANM")!;
+    expect(scorelil.dealPct).toBe(95);
+    expect(swissanm.dealPct).toBe(88);
+  });
+
+  it("states the carrier's gross margin per payee, which is the earning they actually produce", () => {
+    const r = computeCpm(inputs, PLAIN);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!.grossMargin).toBe(500);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SWISSANM")!.grossMargin).toBe(1200);
+  });
+
+  it("reads no deal rather than a round number when the loads carry no revenue", () => {
+    const r = computeCpm({ ...inputs, revenueBills: [] }, PLAIN);
+    expect(r.ownerOperators.every((o) => o.dealPct === null)).toBe(true);
+  });
+
+  it("names the trucks each payee ran, so a shared tractor is visible", () => {
+    const r = computeCpm(inputs, PLAIN);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!.units).toEqual(["762"]);
+  });
+});
+
+describe("computeCpm — deduction income reaches the contractor margin", () => {
+  const inputs = {
+    movements: [],
+    fuel: [],
+    settlements: [settleFor("S1", "762", 9500, "owner_operator", "SCORELIL", "ORD-A")],
+    revenueBills: [{ tractor_unit: "762", order_external_id: "ORD-A", dollars: 10000 }],
+  };
+
+  it("adds revenue-account deductions on top of the retained load share", () => {
+    // $500 kept of the load, plus $1,200 of equipment rental and insurance collection.
+    const r = computeCpm({ ...inputs, ownerOperatorDeductionIncome: { SCORELIL: 1200 } }, PLAIN);
+    const o = r.ownerOperators[0]!;
+    expect(o.grossMargin).toBe(500);
+    expect(o.deductionIncome).toBe(1200);
+    expect(o.netMargin).toBe(1700);
+  });
+
+  it("leaves the margin alone when a payee has no deduction income", () => {
+    const r = computeCpm(inputs, PLAIN);
+    expect(r.ownerOperators[0]!.deductionIncome).toBe(0);
+    expect(r.ownerOperators[0]!.netMargin).toBe(500);
+  });
+
+  // The caller passes ONLY revenue-account dollars. A `Fuel Advance` repayment is a receivable
+  // settling and an expense-account credit already reduced that expense in the ledger — both would
+  // invent earnings, and the classification lives with the chart of accounts, not here.
+  it("credits only the payee it is keyed to", () => {
+    const two = {
+      ...inputs,
+      settlements: [
+        ...inputs.settlements,
+        settleFor("S2", "512", 8800, "owner_operator", "SWISSANM", "ORD-B"),
+      ],
+      revenueBills: [
+        ...inputs.revenueBills,
+        { tractor_unit: "512", order_external_id: "ORD-B", dollars: 10000 },
+      ],
+      ownerOperatorDeductionIncome: { SCORELIL: 1200 },
+    };
+    const r = computeCpm(two, PLAIN);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!.netMargin).toBe(1700);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SWISSANM")!.netMargin).toBe(1200);
   });
 });

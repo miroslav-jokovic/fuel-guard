@@ -14,6 +14,7 @@ import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readFixedCostsForMonths } from "./costSchedules.js";
 import { FUEL_AP_VENDOR_IDS } from "./projection.js";
 import { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
+import { readOwnerOperatorDeductionIncome } from "./ownerOperatorIncome.js";
 
 /**
  * Cost per mile, per truck, from the STORE — the report this whole pipeline exists to produce
@@ -64,6 +65,38 @@ export interface CpmWindowReport {
 
 const num = (v: number | string | null | undefined) => (v == null ? 0 : Number(v));
 
+/**
+ * Revenue for the window, in the two grains the harness needs.
+ *
+ * Only GL-BOOKED invoices count — the projection's own predicate (post_key present, module BILL),
+ * D-MC12's control-total doctrine applied to revenue — and excise tax stays out because money
+ * collected for the government was never the carrier's earning.
+ *
+ * Per-unit totals answer "what did this truck earn". The ORDER grain answers the question per-unit
+ * totals cannot: four of June's eight owner-operator tractors were also driven by a company driver,
+ * and only the order says which of them a given bill belongs to.
+ */
+function buildRevenueInputs(billing: Awaited<ReturnType<typeof readBillingWindow>>) {
+  const revenueByUnit: Record<string, number> = {};
+  const revenueBills: Array<{ tractor_unit: string | null; order_external_id: string | null; dollars: number }> = [];
+  let revenueWithoutTruck = 0;
+  let bookedInvoices = 0;
+  for (const b of billing) {
+    if (!b.post_key || b.post_module !== "BILL") continue;
+    bookedInvoices++;
+    const dollars = num(b.total_charges) + num(b.other_charge);
+    const unit = b.tractor_unit?.trim();
+    revenueBills.push({
+      tractor_unit: unit ? unit : null,
+      order_external_id: b.order_external_id?.trim() ?? null,
+      dollars,
+    });
+    if (!unit) revenueWithoutTruck = Math.round((revenueWithoutTruck + dollars) * 100) / 100;
+    else revenueByUnit[unit] = Math.round(((revenueByUnit[unit] ?? 0) + dollars) * 100) / 100;
+  }
+  return { revenueByUnit, revenueBills, revenueWithoutTruck, bookedInvoices };
+}
+
 export async function computeCpmForWindow(
   admin: SupabaseClient,
   orgId: string,
@@ -88,21 +121,15 @@ export async function computeCpmForWindow(
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
   const glIncome = await getGlIncomeForMonths(admin, orgId, monthsCovered(fromIso, toIso));
 
+  // Who paid the carrier what, beyond the load share they kept — classified by McLeod's own
+  // chart of accounts, never by a list of deduct codes we maintain (see the module's header).
+  const ownerOperatorDeductionIncome = await readOwnerOperatorDeductionIncome(admin, orgId, fromIso, toIso);
+
   // Revenue per truck — the other half of the owner's question (what a truck is LEFT WITH per
   // mile). Only GL-BOOKED invoices count, the projection's own predicate; excise tax stays out
   // (collected for the government is not revenue). Unattributed invoices go to their own stated
   // pool, and owner-operator routing happens in the harness where payee types are known.
-  const revenueByUnit: Record<string, number> = {};
-  let revenueWithoutTruck = 0;
-  let bookedInvoices = 0;
-  for (const b of billing) {
-    if (!b.post_key || b.post_module !== "BILL") continue;
-    bookedInvoices++;
-    const dollars = num(b.total_charges) + num(b.other_charge);
-    const unit = b.tractor_unit?.trim();
-    if (!unit) revenueWithoutTruck = Math.round((revenueWithoutTruck + dollars) * 100) / 100;
-    else revenueByUnit[unit] = Math.round(((revenueByUnit[unit] ?? 0) + dollars) * 100) / 100;
-  }
+  const { revenueByUnit, revenueBills, revenueWithoutTruck, bookedInvoices } = buildRevenueInputs(billing);
 
   const movements: TmsMovementFact[] = staged.map((m) => ({
     external_id: m.external_id,
@@ -200,6 +227,15 @@ export async function computeCpmForWindow(
       actualMilesByUnit,
       fixedCosts,
       revenueByUnit,
+      revenueBills,
+      ownerOperatorDeductionIncome,
+      // The completeness anchor, and ONLY on a month-aligned window: GL totals are month-grained,
+      // so charging a whole month's overhead against part of a month's miles would invent a figure
+      // the ledger never asserted. On a partial window the harness falls back to the voucher pool
+      // and `excluded.overheadSource` says so.
+      ...(isMonthAligned(fromIso, toIso) && glIncome.monthsMissing.length === 0
+        ? { glExpenseTotal: glIncome.expenses }
+        : {}),
       revenueWithoutTruck,
     },
     { ...DEFAULT_CPM_RULES, ...rules },
