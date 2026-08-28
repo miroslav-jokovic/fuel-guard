@@ -3,6 +3,7 @@ import {
   tmsSettlementsPayloadSchema,
   tmsApVouchersPayloadSchema,
   tmsBillingPayloadSchema,
+  tmsOfficeLinesPayloadSchema,
   tmsMovementFactsPayloadSchema,
   tmsDeductionsPayloadSchema,
   tmsLedgerTotalsPayloadSchema,
@@ -11,7 +12,8 @@ import {
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions } from "../financialIngest.js";
+import { ingestSettlements, ingestApVouchers, ingestBilling,
+  ingestOfficeLines, ingestDeductions } from "../financialIngest.js";
 import { ingestMovementFacts } from "../movementFactIngest.js";
 import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
 
@@ -106,6 +108,22 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestGlAccounts(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // Office payroll at person grain (0276). The only expense module with no subledger — OFF posts
+  // straight to the ledger, so the GL line is the record and this endpoint is its only route in.
+  router.post(
+    "/office-lines",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsOfficeLinesPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid office-lines payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestOfficeLines(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

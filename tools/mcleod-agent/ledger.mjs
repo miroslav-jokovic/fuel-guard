@@ -54,6 +54,7 @@ export async function fetchLedgerControl({
         abs_amount: num(r.abs_amount),
       })),
       officeLines: officeRows.recordset.map((r) => ({
+        external_id: String(r.external_id || "").trim(),
         glid: r.glid,
         descr: r.descr ?? null,
         payee_id: r.payee_id ?? null,

@@ -111,11 +111,23 @@ describe("tmsOfficeSettlementLineSchema", () => {
     // parsed out — a unit scraped from a 40-character truncated string is a guess, and D-MC12
     // forbids the extraction layer from asserting an attribution McLeod does not make itself.
     const line = tmsOfficeSettlementLineSchema.parse({
+      // `gl_ledger.id`, required since 0276 made these lines STAGED rather than report-only: the
+      // sweep re-reads a rolling window, so the upsert needs the line's own identity or every pass
+      // would stack another copy of the same month's payroll.
+      external_id: "GL-2291",
       glid: "30290000",
       descr: "BIGRIG, Towing (truck # 506) reimbur",
       amount: 1203,
     });
     expect(line.descr).toBe("BIGRIG, Towing (truck # 506) reimbur");
     expect(line).not.toHaveProperty("tractor_unit");
+  });
+
+  // The identity is not optional. A line without it cannot be upserted idempotently, and silently
+  // accepting one would mean the payroll table grows a duplicate set of rows on every sweep.
+  it("refuses a line with no identity", () => {
+    expect(
+      tmsOfficeSettlementLineSchema.safeParse({ glid: "30290000", amount: 1203 }).success,
+    ).toBe(false);
   });
 });

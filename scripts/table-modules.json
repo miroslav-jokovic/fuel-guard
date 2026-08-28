@@ -500,6 +500,10 @@
     "weather_cache": {
       "module": "idle",
       "layer": "infra"
+    },
+    "mcleod_office_lines": {
+      "module": "mcleod",
+      "layer": "raw"
     }
   }
 }
