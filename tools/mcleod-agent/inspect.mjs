@@ -235,6 +235,37 @@ export const INSPECTION = [
   // `gl_ledger` rows have a stable per-row key. This lists the key candidates the catalog itself
   // claims: identity columns and unique-index membership. No identity and no unique index means
   // month-grained totals stay the only honest grain.
+  // R4 (TRUCK-COST-ATTRIBUTION-PLAN) needs a checklist of GL accounts WITH NAMES — glid alone is
+  // a number nobody can rule on. Nothing measured yet names the account-master table, so first
+  // list the candidates the catalog offers; F9 reads names + totals once this answers.
+  { id: "F8", blocks: "R4 jurisdictional-account checklist (account master discovery)", question: "Which tables could be the GL account master?", sql: `
+  select t.name as table_name, count(c.column_id) as n_columns
+    from sys.tables as t
+         inner join sys.columns as c on c.object_id = t.object_id
+   where t.name like '%gl%' or t.name like '%acct%' or t.name like '%account%'
+   group by t.name` },
+  // F8 (answered 2026-08-28) named `gl_account` (32 columns) the account master; its column list
+  // decides which of them carries the human name the R4 checklist needs.
+  { id: "F9", blocks: "R4 jurisdictional-account checklist (account-name column)", question: "What columns does gl_account carry?", sql: `
+  select c.column_name, c.data_type
+    from information_schema.columns as c
+   where c.table_name = 'gl_account'` },
+  // The R4/R1 worksheet itself: every account that moved money in 2026, named. `descr` and
+  // `type_id` come from F9's answer; the live/_hist union is the same shape GL_CONTROL_TOTALS
+  // uses (both tables hold 2026 lines — D-MC12's control-total doctrine).
+  { id: "F10", blocks: "R4 jurisdictional-account checklist + R1 overhead ruling (named 2026 account totals)", question: "Which GL accounts moved money in 2026, and what is each called?", sql: `
+  select ltrim(rtrim(g.glid)) as glid,
+         max(ltrim(rtrim(a.descr))) as descr,
+         max(ltrim(rtrim(a.type_id))) as type_id,
+         count(*) as lines,
+         sum(g.amount) as net_amount
+    from (select company_id, glid, amount, transaction_date from dbo.gl_ledger
+          union all
+          select company_id, glid, amount, transaction_date from dbo.gl_ledger_hist) as g
+         left join dbo.gl_account as a on a.company_id = g.company_id and a.id = g.glid
+   where g.company_id = @companyId
+     and g.transaction_date >= '2026-01-01' and g.transaction_date < '2027-01-01'
+   group by ltrim(rtrim(g.glid))` },
   { id: "F7", blocks: "gl_ledger office-line staging (stable row key)", question: "Does gl_ledger have an identity column or unique index to key rows by?", sql: `
   select c.name as column_name, c.is_identity,
          isnull(i.name, '') as unique_index, isnull(i.is_primary_key, 0) as is_primary_key
