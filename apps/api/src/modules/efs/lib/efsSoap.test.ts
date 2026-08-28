@@ -235,3 +235,53 @@ describe("catch-up paging", () => {
     }
   });
 });
+
+describe("windowOverride — the historical hole re-fetch path (recon F11)", () => {
+  afterEach(() => __resetSoapPacing());
+
+  it("fetches exactly the requested range, paged at the day cap, covering it whole by default", async () => {
+    // 2026-04-18..05-05 is 17 days → 3 pages at the 7-day cap. The default page budget for an
+    // override is the whole range, NOT the steady-state single page.
+    const seq = pagedSequence([1, 1, 1]);
+    const r = await fetchPostedTransactions(pagingEnv, creds, null, {
+      fetchImpl: seq.fetchImpl,
+      windowOverride: { start: "2026-04-18T00:00:00.000Z", end: "2026-05-05T00:00:00.000Z" },
+    });
+    expect(r.pagesFetched).toBe(3);
+    expect(r.moreAvailable).toBe(false);
+    const begFirst = /<begDate>([^<]+)<\/begDate>/.exec(seq.bodies[1] ?? "")?.[1];
+    const endLast = /<endDate>([^<]+)<\/endDate>/.exec(seq.bodies[3] ?? "")?.[1];
+    expect(begFirst).toBe("2026-04-18T00:00:00.000Z");
+    expect(endLast).toBe("2026-05-05T00:00:00.000Z");
+    // The cursor result describes THIS range's end — callers must never persist it as the feed's.
+    expect(r.nextCursor).toBe("2026-05-05T00:00:00.000Z");
+  });
+
+  it("still honors the hard row budget, reporting moreAvailable with a resumable nextCursor", async () => {
+    const tight = testEnv({ ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 1 });
+    const seq = pagedSequence([1, 1, 1]);
+    const r = await fetchPostedTransactions(tight, creds, null, {
+      fetchImpl: seq.fetchImpl,
+      windowOverride: { start: "2026-04-18T00:00:00.000Z", end: "2026-05-05T00:00:00.000Z" },
+    });
+    expect(r.pagesFetched).toBe(1);
+    expect(r.moreAvailable).toBe(true);
+    expect(r.nextCursor).toBe("2026-04-25T00:00:00.000Z"); // last COMPLETED page — resume point
+  });
+
+  it("refuses an inverted or unparseable window instead of fetching now-minus-backfill", async () => {
+    const seq = pagedSequence([1]);
+    await expect(
+      fetchPostedTransactions(pagingEnv, creds, null, {
+        fetchImpl: seq.fetchImpl,
+        windowOverride: { start: "2026-05-05T00:00:00.000Z", end: "2026-04-18T00:00:00.000Z" },
+      }),
+    ).rejects.toThrow(/invalid fetch window/);
+    await expect(
+      fetchPostedTransactions(pagingEnv, creds, null, {
+        fetchImpl: seq.fetchImpl,
+        windowOverride: { start: "not-a-date", end: "2026-04-18T00:00:00.000Z" },
+      }),
+    ).rejects.toThrow(/invalid fetch window/);
+  });
+});

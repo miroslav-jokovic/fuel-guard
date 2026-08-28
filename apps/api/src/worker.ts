@@ -56,6 +56,7 @@ const KIND_CAPS: Record<string, number> = {
   financial_projection: 1,
   efs_soap_posted: 1,
   efs_soap_rejected: 1,
+  efs_window_refetch: 1,
   efs_process_import: 1,
   efs_card_sync: 1,
   hazmat_extract: 2,

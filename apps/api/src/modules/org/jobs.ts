@@ -25,6 +25,7 @@ export type JobKind =
   | "efs_ingest"
   | "efs_soap_posted" // EFS SOAP posted-feed acquisition (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
   | "efs_soap_rejected" // EFS SOAP rejected-feed acquisition
+  | "efs_window_refetch" // targeted historical re-fetch of windows the backfill dropped (recon F11); payload.windows = [{start,end}]
   | "efs_process_import" // durable post-acquisition scoring + alert emission
   | "efs_card_sync" // refresh the EFS card mirror (docs/plans/EFS-CARD-CONTROL-PLAN.md, Phase A)
   | "sync_driver_scores"
