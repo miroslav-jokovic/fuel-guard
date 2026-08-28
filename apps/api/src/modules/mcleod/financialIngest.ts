@@ -172,6 +172,7 @@ export async function ingestBilling(
       rebilled: b.rebilled ?? null,
       billing_loaded_distance: b.billing_loaded_distance ?? null,
       billing_empty_distance: b.billing_empty_distance ?? null,
+      distance: b.distance ?? null,
       post_key: b.post_key ?? null,
       post_module: b.post_module ?? null,
     }));

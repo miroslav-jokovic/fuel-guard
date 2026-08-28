@@ -737,8 +737,13 @@ export const BILLING_HISTORY = `
       b.total_charges                                AS total_charges,
       b.other_charge                                 AS other_charge,
       b.excisetax_total                              AS excise_tax,
+      -- Both of these are EMPTY at this carrier (0 of 1,640 June bills) and are staged anyway,
+      -- because what McLeod asserts here is "nothing" and that is worth recording. `distance` is
+      -- the one that is filled — 1,614 of 1,640, 1,513,720 June miles — and it is the denominator
+      -- for dispatcher revenue per mile and for weekly proration (0275).
       b.billing_loaded_distance                      AS billing_loaded_distance,
       b.billing_empty_distance                       AS billing_empty_distance,
+      b.distance                                     AS distance,
       NULLIF(LTRIM(RTRIM(b.canceled)), '')           AS canceled,
       NULLIF(LTRIM(RTRIM(b.rebilled)), '')           AS rebilled,
       LTRIM(RTRIM(b.post_key))                       AS post_key,

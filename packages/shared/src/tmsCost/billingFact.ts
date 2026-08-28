@@ -64,9 +64,17 @@ export const tmsBillingFactSchema = z.object({
   canceled: z.string().max(4).nullish(),
   rebilled: z.string().max(4).nullish(),
 
-  /** billing_history's own mileage assertion — a third measurement beside movement and Samsara. */
+  /**
+   * billing_history's own mileage assertion — a third measurement beside movement and Samsara.
+   *
+   * The two `billing_*` columns are EMPTY at this carrier: 0 of 1,640 posted June bills fill
+   * either, so they join the list of McLeod distance columns that are always zero. `distance` is
+   * the populated one (1,614 of 1,640, 1,513,720 June miles) and is what per-dispatcher revenue
+   * per mile and weekly proration divide by (0275).
+   */
   billing_loaded_distance: z.number().nonnegative().max(99_999).nullish(),
   billing_empty_distance: z.number().nonnegative().max(99_999).nullish(),
+  distance: z.number().nonnegative().max(99_999).nullish(),
 
   /** The GL BILL key — the reconciliation join, one receivable line per invoice. */
   post_key: z.string().max(32).nullish(),
