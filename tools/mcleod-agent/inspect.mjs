@@ -203,4 +203,45 @@ export const INSPECTION = [
    where b.company_id = @companyId
      and b.bill_date >= '2026-01-01'
    group by convert(varchar(7), b.bill_date, 126)` },
+  // F3 (answered 2026-08-28) showed June has ZERO canceled/rebilled rows, so the 45-row gap between
+  // 1,640 billed and 1,595 GL-posted is timing, not voids. This splits the month's dollars by the
+  // exact predicate the ledger-coverage BILL claim uses — the posted bucket is the figure that must
+  // land next to the income statement's June revenue.
+  { id: "F5", blocks: "ledger-coverage BILL claim (acceptance)", question: "June 2026 dollars split by the GL-booked predicate — what does the posted bucket total?", sql: `
+  select case when b.post_key is not null and ltrim(rtrim(b.post_key)) <> '' and ltrim(rtrim(b.post_module)) = 'BILL'
+              then 'posted' else 'unposted' end as bucket,
+         count(*) as n,
+         sum(b.total_charges) as total_charges,
+         sum(b.other_charge) as other_charge,
+         sum(b.excisetax_total) as excise_tax
+    from dbo.billing_history as b
+   where b.company_id = @companyId
+     and b.bill_date >= '2026-06-01' and b.bill_date < '2026-07-01'
+   group by case when b.post_key is not null and ltrim(rtrim(b.post_key)) <> '' and ltrim(rtrim(b.post_module)) = 'BILL'
+                 then 'posted' else 'unposted' end` },
+  // 0268 staged `deduct_code` verbatim and recorded its vocabulary as an unmeasured gap. This is
+  // the measurement: every code that carried dollars in 2026, so the harness can decide which
+  // deductions are driver cost vs pass-through without guessing from the code's spelling.
+  { id: "F6", blocks: "mcleod_deductions semantics (deduct_code vocabulary)", question: "Which deduct codes exist and how many 2026 dollars does each carry?", sql: `
+  select ltrim(rtrim(d.deduct_code_id)) as deduct_code,
+         ltrim(rtrim(d.deduction_type)) as deduction_type,
+         count(*) as n, sum(d.amount) as amount
+    from dbo.drs_deduct_hist as d
+   where d.company_id = @companyId
+     and d.is_void = 'N'
+     and d.transaction_date >= '2026-01-01'
+   group by d.deduct_code_id, d.deduction_type` },
+  // D-FS8 deferred staging the GL's OFF office lines because nothing had measured whether
+  // `gl_ledger` rows have a stable per-row key. This lists the key candidates the catalog itself
+  // claims: identity columns and unique-index membership. No identity and no unique index means
+  // month-grained totals stay the only honest grain.
+  { id: "F7", blocks: "gl_ledger office-line staging (stable row key)", question: "Does gl_ledger have an identity column or unique index to key rows by?", sql: `
+  select c.name as column_name, c.is_identity,
+         isnull(i.name, '') as unique_index, isnull(i.is_primary_key, 0) as is_primary_key
+    from sys.columns as c
+         inner join sys.tables as t on t.object_id = c.object_id
+         left join sys.index_columns as ic on ic.object_id = c.object_id and ic.column_id = c.column_id
+         left join sys.indexes as i on i.object_id = ic.object_id and i.index_id = ic.index_id and i.is_unique = 1
+   where t.name = 'gl_ledger'
+     and (c.is_identity = 1 or i.index_id is not null)` },
 ];

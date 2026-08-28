@@ -110,6 +110,19 @@ be proved against the carrier's books.
 > deliberately NOT staged yet: the extraction pulls no stable row key for `gl_ledger`, and inventing
 > idempotency for an append-heavy line table is how duplicates ship — enumerating `gl_ledger`'s key
 > column is a recon question before that sweep exists.
+>
+> *Recon answers, 2026-08-28 (questions F5–F7):* `gl_ledger` **has** a primary key,
+> `(company_id, id)` — the OFF-line deferral above is no longer blocked on a key, only on someone
+> prioritising the sweep. F5 found the refreshed sandbox copy shows ALL 1,640 June 2026 billing rows
+> GL-posted (the 45-row gap from the 2026-08-27 recon was posting lag, exactly as the predicate
+> assumed): posted June = $5,490,961.97 charges + $147,083.96 other charges = $5,638,045.93, which
+> sits **$530,256.89 above** the income statement's June revenue of $5,107,789.04. That gap is a
+> reconciliation question for the GL module totals once staged (revenue-account netting, or a P&L
+> line built off a different population) — NOT a reason to tighten the billing predicate on a guess.
+> F6 measured the `deduct_code` vocabulary: ~115 codes across `deduction_type` D/R/E (E rows are
+> earnings-shaped — LAY/DEN/STO/bonus — R reimbursement-shaped, D deductions proper); which of these
+> are driver cost vs pass-through is the semantics ruling still owed before deductions project into
+> `financial_entries`.
 
 ## 4. What the matrix proves
 
