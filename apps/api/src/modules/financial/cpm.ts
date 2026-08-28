@@ -275,6 +275,9 @@ async function canonicalFuelByUnit(
       .eq("is_void", false)
       .gte("occurred_at", fromIso)
       .lt("occurred_at", toIso)
+      // UNORDERED paging is not paging at all — Postgres owes no stable row order across two
+      // queries, so pages can overlap or skip. Order by the primary key (the financialReads lesson).
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`financial_entries fuel read failed: ${error.message}`);
     const rows = (data ?? []) as Array<{ vehicle_id: string | null; amount: number | string }>;

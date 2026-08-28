@@ -240,6 +240,8 @@ export async function projectFinancialWindow(
       .gte("fueled_at", fromIso)
       .lt("fueled_at", toIso)
       .order("fueled_at", { ascending: true })
+      // Two pumps stamp the same second; a tied sort pages unstably (the financialReads lesson).
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as {

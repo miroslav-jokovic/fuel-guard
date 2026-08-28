@@ -67,7 +67,10 @@ export async function searchEntries(
   if (f.to) q = q.lt("occurred_at", f.to);
   // external_id reaches one payment by its own reference (the 0257 index); ledger keys too.
   if (f.q) q = q.or(`external_id.ilike.%${f.q}%,ledger_account.ilike.%${f.q}%`);
-  const { data, error, count } = await q.order("occurred_at", { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error, count } = await q
+    .order("occurred_at", { ascending: false })
+    .order("id", { ascending: false }) // stable UI pagination under tied timestamps
+    .range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return { entries: (data ?? []) as unknown as FinancialEntryRow[], total: count ?? 0 };
 }
@@ -91,6 +94,7 @@ async function canonicalWindow(
       .gte("occurred_at", from)
       .lt("occurred_at", to)
       .order("occurred_at", { ascending: true })
+      .order("id", { ascending: true }) // tie-heavy timestamps page unstably alone (financialReads lesson)
       .range(p, p + PAGE - 1);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as unknown as FinancialEntryRow[];
