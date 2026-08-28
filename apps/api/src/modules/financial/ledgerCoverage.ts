@@ -5,7 +5,7 @@ import {
   type GlModuleTotal,
   type SubledgerClaim,
 } from "@silvicom/shared";
-import { readLedgerTotals, readSettlementsWindow } from "../mcleod/index.js";
+import { readLedgerTotals, readSettlementsWindow, readBillingWindow } from "../mcleod/index.js";
 
 /**
  * The month's answer to "are entries missing?" — McLeod's own control totals against what our
@@ -15,13 +15,15 @@ import { readLedgerTotals, readSettlementsWindow } from "../mcleod/index.js";
  * what a claim means — accounting then reads it through this module's interface, the only door the
  * boundary gate allows it.
  *
- * Claims are stated ONLY for modules whose reconciliation basis is proven. Today that is SET
- * alone: settlements reconcile on the accrual side via accrual_key — 2,751 keys to 2,751 ledger
- * lines, $0.00 difference (D-MC23) — and `posted_pay` is the figure that ties (D-MC24). AP and
- * BILL staging exist but their per-line tie-out has not been proven, so they report as UNCOVERED
- * rather than carrying a claim that would show meaningless drift; an uncovered module is an honest
- * gap, a wrong claim is noise wearing a number (the shared report's own doctrine: silence about
- * ten modules reads as completeness, so the report names them instead).
+ * Claims are stated ONLY for modules whose reconciliation basis is documented. SET: settlements
+ * reconcile on the accrual side via accrual_key — 2,751 keys to 2,751 ledger lines, $0.00
+ * difference (D-MC23) — and `posted_pay` is the figure that ties (D-MC24). BILL: 0257 measured
+ * one receivable line per invoice for exactly the GL-booked rows (1,595 of June's 1,640), so the
+ * claim is the booked rows on the receivable basis. AP staging exists but its per-line tie-out
+ * has not been proven, so it reports as UNCOVERED rather than carrying a claim that would show
+ * meaningless drift; an uncovered module is an honest gap, a wrong claim is noise wearing a
+ * number (the shared report's own doctrine: silence about ten modules reads as completeness, so
+ * the report names them instead).
  */
 export async function getLedgerCoverage(
   admin: SupabaseClient,
@@ -46,6 +48,26 @@ export async function getLedgerCoverage(
     claims.push({
       post_module: "SET",
       source: "settlement sweep (mcleod_settlements.posted_pay on accrual, D-MC23/D-MC24)",
+      extracted: Math.round(extracted * 100) / 100,
+    });
+  }
+
+  // BILL: the sweep's GL-BOOKED rows, on the receivable basis — 0257 measured one receivable line
+  // per invoice, and billing_history's own `totalcharge_and_excisetax` names the receivable as
+  // charges + excise. This claim doubles as the CONTINUOUS acceptance check for the billing
+  // extraction: the month's drift against the carrier's own books, recomputed every sweep, is the
+  // income-statement comparison the dry-run CLI performs once. Unposted rows carry no claim — the
+  // projection holds them out for the same reason (F3's vocabulary is still unmeasured).
+  const billing = await readBillingWindow(admin, orgId, periodStart, periodEnd);
+  const booked = billing.filter((b) => b.post_key && b.post_module === "BILL");
+  if (booked.length) {
+    const extracted = booked.reduce(
+      (sum, b) => sum + Number(b.total_charges) + Number(b.other_charge) + Number(b.excise_tax),
+      0,
+    );
+    claims.push({
+      post_module: "BILL",
+      source: "billing sweep (mcleod_billing, GL-booked rows on the receivable basis)",
       extracted: Math.round(extracted * 100) / 100,
     });
   }

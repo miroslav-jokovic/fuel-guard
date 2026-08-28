@@ -165,6 +165,10 @@ export async function ingestBilling(
       total_charges: b.total_charges,
       other_charge: b.other_charge,
       excise_tax: b.excise_tax,
+      canceled: b.canceled ?? null,
+      rebilled: b.rebilled ?? null,
+      billing_loaded_distance: b.billing_loaded_distance ?? null,
+      billing_empty_distance: b.billing_empty_distance ?? null,
       post_key: b.post_key ?? null,
       post_module: b.post_module ?? null,
     }));

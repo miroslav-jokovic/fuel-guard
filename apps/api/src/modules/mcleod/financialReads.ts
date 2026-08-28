@@ -52,6 +52,7 @@ export interface StagedBilling {
   transfer_date: string | null;
   total_charges: number | string;
   other_charge: number | string;
+  excise_tax: number | string;
   post_key: string | null;
   post_module: string | null;
 }
@@ -100,7 +101,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, bill_date, transfer_date, total_charges, other_charge, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
       .eq("org_id", orgId)
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)

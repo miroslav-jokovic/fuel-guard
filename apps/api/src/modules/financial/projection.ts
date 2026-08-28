@@ -41,6 +41,8 @@ export interface ProjectionResult {
   settlements: number;
   vouchers: number;
   billing: number;
+  /** Staged billing rows the GL never booked — held out of reports, never silently dropped. */
+  unpostedBilling: number;
   fuelFills: number;
   skippedFuelNoCost: number;
   entriesUpserted: number;
@@ -209,8 +211,18 @@ export async function projectFinancialWindow(
   const vouchers = await readApVouchersWindow(admin, orgId, fromIso, toIso);
   for (const v of vouchers) entries.push(voucherEntry(orgId, v));
 
+  // Only GL-BOOKED revenue projects (post_key present, module BILL): 0257 measured June 2026 at
+  // 1,640 staged rows of which exactly 1,595 posted one-line-per-invoice — the other 45 are
+  // whatever `canceled`/`rebilled` will turn out to mean (recon F3, still owed), and until that
+  // vocabulary is MEASURED they stay in staging, visible and uncounted. The GL is the control
+  // (D-MC12); a predicate built on an unmeasured flag would be a guess wearing a filter.
+  let unpostedBilling = 0;
   const billing = await readBillingWindow(admin, orgId, fromIso, toIso);
   for (const b of billing) {
+    if (!b.post_key || b.post_module !== "BILL") {
+      unpostedBilling++;
+      continue;
+    }
     const { vehicleId, driverId } = resolve(b.tractor_unit, b.driver_external_id);
     entries.push(...billingEntries(orgId, b, vehicleId, driverId));
   }
@@ -273,6 +285,7 @@ export async function projectFinancialWindow(
     settlements: settlements.length,
     vouchers: vouchers.length,
     billing: billing.length,
+    unpostedBilling,
     fuelFills,
     skippedFuelNoCost,
     entriesUpserted,

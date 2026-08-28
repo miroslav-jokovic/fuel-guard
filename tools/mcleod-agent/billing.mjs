@@ -41,6 +41,10 @@ export function mapBilling(row) {
     total_charges: num(row.total_charges),
     other_charge: num(row.other_charge),
     excise_tax: num(row.excise_tax),
+    canceled: row.canceled ?? null,
+    rebilled: row.rebilled ?? null,
+    billing_loaded_distance: row.billing_loaded_distance == null ? null : num(row.billing_loaded_distance),
+    billing_empty_distance: row.billing_empty_distance == null ? null : num(row.billing_empty_distance),
     post_key: row.post_key || null,
     post_module: row.post_module || null,
   };

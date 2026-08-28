@@ -41,6 +41,15 @@ const seed = () =>
           driver_external_id: "D42", bill_date: "2026-06-10T00:00:00Z", transfer_date: null,
           total_charges: 3100, other_charge: 150, post_key: "PK-B", post_module: "BILL",
         },
+        // Never GL-booked — the projection must hold it out of financial_entries entirely and
+        // count it, because until recon F3 measures the canceled/rebilled vocabulary, an unposted
+        // row's meaning is unknown and its dollars stay out of every report (D-MC12: the GL is
+        // the control).
+        {
+          id: "row-b2", external_id: "B-UNPOSTED", order_external_id: "O-10", tractor_unit: "754",
+          driver_external_id: "D42", bill_date: "2026-06-12T00:00:00Z", transfer_date: null,
+          total_charges: 999, other_charge: 0, post_key: null, post_module: null,
+        },
       ],
       fuel_transactions: [
         { id: "ft-1", external_ref: "EFS-1", fueled_at: "2026-06-11T08:00:00Z", total_cost: 512.4, vehicle_id: "veh-754", driver_id: "drv-42", is_canonical: true },
@@ -55,7 +64,7 @@ describe("projectFinancialWindow", () => {
   it("projects every domain with the dedup rules the reports depend on", async () => {
     const rec = seed();
     const r = await projectFinancialWindow(rec.client, ORG, FROM, TO);
-    expect(r).toMatchObject({ settlements: 2, vouchers: 2, billing: 1, fuelFills: 1, skippedFuelNoCost: 1 });
+    expect(r).toMatchObject({ settlements: 2, vouchers: 2, billing: 2, unpostedBilling: 1, fuelFills: 1, skippedFuelNoCost: 1 });
 
     const rows = rec.writtenRows("financial_entries") as Record<string, unknown>[];
     const by = (ext: string) => rows.find((e) => e.external_id === ext)!;
