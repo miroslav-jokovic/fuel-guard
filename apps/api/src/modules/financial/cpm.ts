@@ -205,7 +205,12 @@ function monthsCovered(fromIso: string, toIso: string): Array<{ year: number; mo
     const first = `${y}-${String(m).padStart(2, "0")}-01`;
     if (first >= toIso) break;
     months.push({ year: y!, month: m! });
-    m === 12 ? ((y! += 1), (m = 1)) : (m! += 1);
+    if (m === 12) {
+      y! += 1;
+      m = 1;
+    } else {
+      m! += 1;
+    }
   }
   return months;
 }
