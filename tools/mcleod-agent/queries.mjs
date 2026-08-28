@@ -738,9 +738,9 @@ export const BILLING_HISTORY = `
       b.other_charge                                 AS other_charge,
       b.excisetax_total                              AS excise_tax,
       -- Both of these are EMPTY at this carrier (0 of 1,640 June bills) and are staged anyway,
-      -- because what McLeod asserts here is "nothing" and that is worth recording. `distance` is
-      -- the one that is filled — 1,614 of 1,640, 1,513,720 June miles — and it is the denominator
-      -- for dispatcher revenue per mile and for weekly proration (0275).
+      -- because what McLeod asserts here is "nothing" and that is worth recording. The plain
+      -- distance column is the one that is filled (1,614 of 1,640, 1,513,720 June miles) and is
+      -- the denominator for dispatcher revenue per mile and for weekly proration (0275).
       b.billing_loaded_distance                      AS billing_loaded_distance,
       b.billing_empty_distance                       AS billing_empty_distance,
       b.distance                                     AS distance,
