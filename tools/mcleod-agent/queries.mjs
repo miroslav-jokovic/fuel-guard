@@ -739,8 +739,25 @@ export const BILLING_HISTORY = `
       NULLIF(LTRIM(RTRIM(b.canceled)), '')           AS canceled,
       NULLIF(LTRIM(RTRIM(b.rebilled)), '')           AS rebilled,
       LTRIM(RTRIM(b.post_key))                       AS post_key,
-      LTRIM(RTRIM(b.post_module))                    AS post_module
+      LTRIM(RTRIM(b.post_module))                    AS post_module,
+      -- The dispatcher who booked the load. LEFT JOINs on purpose: a bill whose order carries no
+      -- operations user is a fact about the carrier's data entry, and the reports show it as its
+      -- own "(unassigned)" bucket rather than dropping the money.
+      --
+      -- Both joins are 1:1 and were measured before being written (0273's header): all 1,640 June
+      -- bills resolve to a name and the revenue total is unchanged by the join. The alternative
+      -- route to a dispatcher, movement.dispatcher_user_id via movement_order, FANS OUT — the same
+      -- 1,640 bills become 3,408 rows and $5,490,961.97 becomes $11,486,355.54. That is why this
+      -- reads the ORDER's operations user and never the movement's dispatcher.
+      NULLIF(LTRIM(RTRIM(ord.operations_user)), '')  AS dispatcher_user_id,
+      NULLIF(LTRIM(RTRIM(usr.name)), '')             AS dispatcher_name
       FROM dbo.billing_history AS b
+      LEFT JOIN dbo.orders AS ord
+             ON ord.company_id = b.company_id
+            AND ord.id         = b.order_id
+      LEFT JOIN dbo.users AS usr
+             ON usr.company_id = b.company_id
+            AND usr.id         = ord.operations_user
      WHERE b.company_id = @companyId
        AND b.bill_date >= @windowStart
        AND b.bill_date <  @windowEnd`;

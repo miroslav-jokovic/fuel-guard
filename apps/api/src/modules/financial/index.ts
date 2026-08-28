@@ -26,6 +26,7 @@ export {
 } from "./reads.js";
 export { getLedgerCoverage } from "./ledgerCoverage.js";
 export { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
+export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
 export {
   getGlMonthlyCosts,
   type GlMonthlyCosts,

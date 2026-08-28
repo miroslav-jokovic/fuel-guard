@@ -34,6 +34,8 @@ export function mapBilling(row) {
     tractor_unit: row.tractor_unit ?? null,
     trailer_unit: row.trailer_unit ?? null,
     driver_external_id: row.driver_external_id ?? null,
+    dispatcher_user_id: row.dispatcher_user_id ?? null,
+    dispatcher_name: row.dispatcher_name ?? null,
     bill_date: row.bill_date ? `${row.bill_date}Z` : null,
     ship_date: row.ship_date ? `${row.ship_date}Z` : null,
     delivery_date: row.delivery_date ? `${row.delivery_date}Z` : null,

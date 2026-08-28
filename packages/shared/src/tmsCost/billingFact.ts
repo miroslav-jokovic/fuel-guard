@@ -31,6 +31,21 @@ export const tmsBillingFactSchema = z.object({
   trailer_unit: z.string().trim().min(1).max(8).nullish(),
   driver_external_id: z.string().trim().min(1).max(8).nullish(),
 
+  /**
+   * The dispatcher who booked the load — `orders.operations_user`, resolved to `users.name`.
+   *
+   * Measured against June 2026 before choosing: this join is 1:1, all 1,640 bills resolve, and the
+   * revenue total survives it unchanged. The tempting alternative, `movement.dispatcher_user_id`,
+   * is semantically closer but only reachable through `movement_order`, which FANS OUT — 1,640
+   * bills become 3,408 rows and $5.49M becomes $11.49M. `billing_history.entered_user_id` is also
+   * 100% populated but names the clerk who keyed the invoice, not the dispatcher. 0273's header
+   * carries the full measurement.
+   *
+   * The id is McLeod's stable handle and survives a rename; the name is what a person reads.
+   */
+  dispatcher_user_id: z.string().trim().min(1).max(32).nullish(),
+  dispatcher_name: z.string().trim().min(1).max(64).nullish(),
+
   /** The economic date (D-FS6/D-MC19): billing keys off the bill date, never the cash date. */
   bill_date: z.string().nullish(),
   ship_date: z.string().nullish(),
