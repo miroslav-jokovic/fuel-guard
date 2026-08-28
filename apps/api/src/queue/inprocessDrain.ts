@@ -28,7 +28,19 @@ import type { JobKind } from "../modules/org/index.js";
  * process calls claim, for which kinds, on what tick.
  */
 
-const DRAIN_KINDS: JobKind[] = ["efs_window_refetch", "financial_projection"];
+/**
+ * Which kinds THIS instance may claim. Env-gated per kind because more than one process runs
+ * schedulers in this deploy topology (the public web/api service and the WEX-whitelisted poller
+ * service both do), and the first drain deploy proved they race: the web instance — where
+ * EFS_SOAP_ENABLED is off — claimed the EFS re-fetch and failed it with "EFS_SOAP_ENABLED is
+ * off" while the instance that could have run it watched. An instance that cannot execute a kind
+ * must not be able to CLAIM it.
+ */
+function drainKinds(env: Env): JobKind[] {
+  const kinds: JobKind[] = ["financial_projection"];
+  if (env.EFS_SOAP_ENABLED) kinds.push("efs_window_refetch");
+  return kinds;
+}
 const TICK_MS = 2 * 60_000;
 const WORKER_ID = "inprocess-drain";
 const RETRY_BACKOFF_S = 120;
@@ -55,7 +67,7 @@ export function startInprocessJobDrain(env: Env): void {
   setTimeout(() => void tick(), 45_000);
   setInterval(() => void tick(), TICK_MS);
   console.log(
-    `[job-drain] inprocess drain on — kinds: ${DRAIN_KINDS.join(", ")} every ${TICK_MS / 60_000}m`,
+    `[job-drain] inprocess drain on — kinds: ${drainKinds(env).join(", ")} every ${TICK_MS / 60_000}m`,
   );
 }
 
@@ -66,7 +78,7 @@ export async function drainOnce(
 ): Promise<void> {
   const driver = pgQueueDriver(admin);
   // Long lease: the re-fetch walks multi-week EFS windows and the full projection reads two years.
-  const job = await driver.claim(WORKER_ID, DRAIN_KINDS, LEASE_SECONDS, {});
+  const job = await driver.claim(WORKER_ID, drainKinds(env), LEASE_SECONDS, {});
   if (!job) return;
 
   const handler = getHandler(job.kind);
