@@ -150,6 +150,12 @@ tie between the three buckets and the GL, and any nonzero residual names its acc
 
 ## 4. Open rulings — each blocks the step named, nothing else
 
+*R1, R2 and R4 have prepared worksheets — measured candidates with proposals to strike or confirm,
+from recon F6/F10 (2026-08-28): see [COST-RULING-WORKSHEETS](./COST-RULING-WORKSHEETS.md). R2's
+worksheet also surfaced that T3's taxonomy needs a FOURTH class: McLeod's type-R deduction rows are
+reimbursements — truck cost arriving via the settlement — not recoveries, so `truck_cost` joins the
+three classes named under T3.*
+
 - **R1 (blocks T6):** overhead allocation basis. Recommended `total_miles`; owner decides.
 - **R2 (blocks T3):** the deduct-code classification, ruled per code over the F6 measured list.
 - **R3 (blocks T4):** which toll transponder service the fleet uses, and access to its per-unit
