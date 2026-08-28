@@ -118,11 +118,14 @@ const columns = computed<DataTableColumn[]>(() => [
   <div class="space-y-6">
     <PageHeader description="Direct cost per mile for every company truck — measured miles, measured cost, and every assumption stated. Overhead stays unallocated until finance sets a rule; the caveats say exactly what each figure excludes." />
 
-    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <!-- The equation reads left to right — earning, cost, what is left — because that is the order
+         the owner asks it in. Earning per mile used to exist only as small print under the net
+         card, which made the one number a carrier prices freight against the hardest to find. -->
+    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Net $ / mile</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.netCpm) }}</p>
-        <p class="text-2xs text-ink-tertiary">revenue {{ fmtCpm(report.fleet.revenueCpm) }} − cost {{ fmtCpm(report.fleet.totalCpm) }}; read the caveats for what net still omits</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Earning $ / mile</p>
+        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.revenueCpm) }}</p>
+        <p class="text-2xs text-ink-tertiary">{{ fmtUsd(report.fleet.revenueTotal) }} booked over {{ fmtMiles(report.fleet.totalMiles) }} miles</p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost $ / mile</p>
@@ -130,14 +133,19 @@ const columns = computed<DataTableColumn[]>(() => [
         <p class="text-2xs text-ink-tertiary">direct {{ fmtCpm(report.fleet.directCpm) }} + fixed {{ fmtCpm(report.fleet.fixedCpm) }}</p>
       </BaseCard>
       <BaseCard padding="sm">
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Net $ / mile</p>
+        <p class="text-2xl font-bold" :class="report.fleet.netCpm >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(report.fleet.netCpm) }}</p>
+        <p class="text-2xs text-ink-tertiary">earning {{ fmtCpm(report.fleet.revenueCpm) }} − cost {{ fmtCpm(report.fleet.totalCpm) }}; read the caveats for what net still omits</p>
+      </BaseCard>
+      <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Total miles</p>
         <p class="text-2xl font-bold text-ink">{{ fmtMiles(report.fleet.totalMiles) }}</p>
         <p class="text-2xs text-ink-tertiary">{{ samsaraBasis ? "Samsara measured, empty miles included" : `${fmtMiles(report.fleet.deadheadMilesEstimated)} estimated deadhead` }}</p>
       </BaseCard>
       <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Booked revenue</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.revenueTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">GL-posted invoices on company trucks; cost in figures {{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
+        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost in these figures</p>
+        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
+        <p class="text-2xs text-ink-tertiary">direct + scheduled fixed, against {{ fmtUsd(report.fleet.revenueTotal) }} of GL-posted invoices on company trucks</p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Not in these figures</p>
