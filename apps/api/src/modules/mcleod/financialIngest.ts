@@ -4,6 +4,7 @@ import type {
   TmsApVouchersPayload,
   TmsBillingPayload,
   TmsDeductionsPayload,
+  TmsOfficeLinesPayload,
 } from "@silvicom/shared";
 
 /**
@@ -184,4 +185,41 @@ export async function ingestBilling(
     upserted += data?.length ?? rows.length;
   }
   return { received: payload.billing.length, upserted };
+}
+
+
+/**
+ * Office payroll lines (0276) — the one expense module with no subledger behind it.
+ *
+ * Every other module that posts payroll-shaped cost reaches the store through its own detail table:
+ * SET and DRS through settlements and deductions, AP through vouchers carrying a vendor. OFF posts
+ * STRAIGHT TO THE LEDGER, so the GL line IS the record and this is the only route it has.
+ *
+ * Upserted on the line's own `gl_ledger.id`, because the sweep re-reads a rolling window and would
+ * otherwise stack a fresh copy of the same month's payroll on every pass.
+ */
+export async function ingestOfficeLines(
+  admin: SupabaseClient,
+  orgId: string,
+  payload: TmsOfficeLinesPayload,
+): Promise<FinancialIngestResult> {
+  let upserted = 0;
+  for (let i = 0; i < payload.lines.length; i += CHUNK) {
+    const rows = payload.lines.slice(i, i + CHUNK).map((l) => ({
+      org_id: orgId,
+      external_id: l.external_id,
+      payee_id: l.payee_id ?? null,
+      glid: l.glid,
+      descr: l.descr ?? null,
+      amount: l.amount,
+      transacted_at: l.transacted_at ?? null,
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await admin
+      .from("mcleod_office_lines")
+      .upsert(rows, { onConflict: "org_id,external_id" });
+    if (error) throw new Error(error.message);
+    upserted += rows.length;
+  }
+  return { received: payload.lines.length, upserted };
 }

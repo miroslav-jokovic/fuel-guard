@@ -272,6 +272,9 @@
   "mcleod_movements": [
     "apps/api/src/modules/mcleod/movementFactIngest.ts"
   ],
+  "mcleod_office_lines": [
+    "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],

@@ -679,12 +679,31 @@ export const GL_CONTROL_TOTALS = `
  */
 export const OFFICE_SETTLEMENT_LINES = `
     SELECT
+      LTRIM(RTRIM(g.id))                            AS external_id,
       LTRIM(RTRIM(g.glid))                          AS glid,
       LTRIM(RTRIM(g.descr))                         AS descr,
       NULLIF(LTRIM(RTRIM(g.payee_id)), '')          AS payee_id,
       CONVERT(varchar(19), g.transaction_date, 126) AS transacted_at,
       g.amount                                      AS amount
       FROM dbo.gl_ledger AS g
+     WHERE g.company_id = @companyId
+       AND g.post_module = 'OFF'
+       AND g.transaction_date >= @windowStart
+       AND g.transaction_date <  @windowEnd
+    UNION ALL
+    -- The history half. D-MC11 / the live-vs-_hist trap: gl_ledger holds 732,530 rows against
+    -- gl_ledger_hist's 1,767,734, and a reading that takes only the live table has already produced
+    -- one wrong conclusion at this carrier. This query read the live half alone until 2026-08-28,
+    -- which was survivable while its only consumer was a coverage REPORT and is not now that the
+    -- rows are staged and a page divides by them.
+    SELECT
+      LTRIM(RTRIM(g.id)),
+      LTRIM(RTRIM(g.glid)),
+      LTRIM(RTRIM(g.descr)),
+      NULLIF(LTRIM(RTRIM(g.payee_id)), ''),
+      CONVERT(varchar(19), g.transaction_date, 126),
+      g.amount
+      FROM dbo.gl_ledger_hist AS g
      WHERE g.company_id = @companyId
        AND g.post_module = 'OFF'
        AND g.transaction_date >= @windowStart

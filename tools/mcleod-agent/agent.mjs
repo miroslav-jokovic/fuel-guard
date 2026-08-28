@@ -573,6 +573,14 @@ async function runFinancial() {
   const rg = await postToFuelGuard("/api/tms/gl-accounts", { accounts: ga.accounts });
   log(`financial: gl-accounts sent=${ga.accounts.length} upserted=${rg.upserted ?? 0}`);
 
+  // Office payroll at PERSON grain (0276). `fetchLedgerControl` has read these lines since C4 for
+  // the coverage report and then thrown them away; OFF is the one expense module with no subledger,
+  // so the ledger line is the only record of who was paid. Swept on the rolling window like the
+  // other detail, and month-whole totals below stay the control they are checked against.
+  const officeWindow = await fetchLedgerControl({ ...CFG.sql, windowStart, windowEnd });
+  const ro = await sendBatched("/api/tms/office-lines", "lines", officeWindow.officeLines, windowExtra, 2000);
+  log(`financial: office-lines sent=${officeWindow.officeLines.length} received=${ro.received} upserted=${ro.upserted}`);
+
   // GL control totals — month-grained, unlike everything above: totals are aggregates over a
   // period, so the period must be the stable unit the carrier's own close uses. Every calendar
   // month the rolling window touches is swept WHOLE (bounded month, not clipped to the window) and

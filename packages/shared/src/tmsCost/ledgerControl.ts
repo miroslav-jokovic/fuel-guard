@@ -195,6 +195,12 @@ export function buildLedgerCoverageReport(
  * allocation rule the harness applies, with finance's sign-off, not a regex applied here.
  */
 export const tmsOfficeSettlementLineSchema = z.object({
+  /**
+   * `gl_ledger.id` — the line's own key. Added when these stopped being report-only and started
+   * being STAGED (0276): a rolling window re-reads the same lines every pass, so the upsert needs
+   * an identity or each sweep would duplicate the payroll it already holds.
+   */
+  external_id: z.string().min(1).max(32),
   glid: z.string().max(20),
   descr: z.string().max(40).nullish(),
   payee_id: z.string().trim().min(1).max(8).nullish(),
@@ -202,3 +208,10 @@ export const tmsOfficeSettlementLineSchema = z.object({
   amount: z.number().default(0),
 });
 export type TmsOfficeSettlementLine = z.infer<typeof tmsOfficeSettlementLineSchema>;
+
+export const tmsOfficeLinesPayloadSchema = z.object({
+  lines: z.array(tmsOfficeSettlementLineSchema).max(2000),
+  window_start: z.string(),
+  window_end: z.string(),
+});
+export type TmsOfficeLinesPayload = z.infer<typeof tmsOfficeLinesPayloadSchema>;

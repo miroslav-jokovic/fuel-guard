@@ -183,6 +183,40 @@ export async function readOwnerOperatorDeductions(
   );
 }
 
+export interface StagedOfficeLine {
+  payee_id: string | null;
+  glid: string | null;
+  descr: string | null;
+  amount: number | string;
+  transacted_at: string | null;
+}
+
+/**
+ * Office payroll lines for a window (0276) — the only expense module the store holds at person
+ * grain, because OFF is the only one that posts to the ledger without a subledger behind it.
+ *
+ * `descr` comes back verbatim and must not be parsed: it is 40 truncated characters reading like
+ * "ARKADZIO, Office Payroll", and `payee_id` is the assertion (D-MC12).
+ */
+export async function readOfficeLinesWindow(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<StagedOfficeLine[]> {
+  return paged<StagedOfficeLine>((from, to) =>
+    admin
+      .from("mcleod_office_lines")
+      .select("payee_id, glid, descr, amount, transacted_at")
+      .eq("org_id", orgId)
+      .gte("transacted_at", fromIso)
+      .lt("transacted_at", toIso)
+      .order("transacted_at", { ascending: true })
+      .order("external_id", { ascending: true }) // payroll batches share a timestamp; page stably
+      .range(from, to),
+  );
+}
+
 /** One month's GL control totals (0269) — the figures every subledger claim is checked against. */
 export async function readLedgerTotals(
   admin: SupabaseClient,

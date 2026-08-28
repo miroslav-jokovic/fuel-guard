@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions } from "./financialIngest.js";
+import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions, ingestOfficeLines } from "./financialIngest.js";
 import {
   tmsSettlementsPayloadSchema,
   tmsApVouchersPayloadSchema,
   tmsBillingPayloadSchema,
   tmsDeductionsPayloadSchema,
+  tmsOfficeLinesPayloadSchema,
 } from "@silvicom/shared";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
@@ -168,5 +169,62 @@ describe("ingestDeductions", () => {
     expect(rows[1]).toMatchObject({ external_id: "DD-2", tractor_unit: null, amount: 300.0 });
     expect(Object.keys(rows[0]!).sort()).toEqual(Object.keys(rows[1]!).sort());
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("ingestOfficeLines", () => {
+  /**
+   * OFF is the only expense module with no subledger — 0257 measured that office payroll posts
+   * straight to the ledger, so the GL line IS the record. June 2026: 318 lines, 318 of them
+   * carrying a payee, 31 distinct people, $194,407.20 that the store could previously only hold
+   * as one company-level number.
+   */
+  it("stages payroll at person grain, keeping the payee McLeod asserts", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_office_lines: [{ id: "x" }] } });
+    const payload = tmsOfficeLinesPayloadSchema.parse({
+      lines: [{
+        external_id: "GL-778", glid: "40900000", descr: "ARKADZIO, Office Payroll",
+        payee_id: "ARKADZIO", transacted_at: "2026-06-12T00:00:00Z", amount: 4210.55,
+      }],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    const r = await ingestOfficeLines(rec.client, ORG, payload);
+    expect(r.received).toBe(1);
+    expect(rec.writtenRows("mcleod_office_lines")[0]).toMatchObject({
+      org_id: ORG, external_id: "GL-778", payee_id: "ARKADZIO", amount: 4210.55,
+    });
+    expectOrgScoped(rec, ORG);
+  });
+
+  // `descr` is 40 truncated characters of free text and D-MC12 forbids mining it for attribution.
+  // It is stored exactly as McLeod wrote it so a human can read the row, and nothing parses it.
+  it("stores descr verbatim rather than parsing a name out of it", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_office_lines: [{ id: "x" }] } });
+    const payload = tmsOfficeLinesPayloadSchema.parse({
+      lines: [{
+        external_id: "GL-779", glid: "40900000", descr: "BIGRIG, Towing (truck # 506) reimbur",
+        payee_id: "BIGRIG", transacted_at: "2026-06-12T00:00:00Z", amount: 300,
+      }],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    await ingestOfficeLines(rec.client, ORG, payload);
+    const row = rec.writtenRows("mcleod_office_lines")[0]!;
+    expect(row.descr).toBe("BIGRIG, Towing (truck # 506) reimbur");
+    // The truck number in that text is NOT lifted onto the row.
+    expect(Object.keys(row)).not.toContain("tractor_unit");
+  });
+
+  it("upserts on the line's own id, so a re-swept window updates instead of duplicating payroll", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_office_lines: [{ id: "x" }] } });
+    const payload = tmsOfficeLinesPayloadSchema.parse({
+      lines: [{ external_id: "GL-778", glid: "40900000", payee_id: "ARKADZIO", amount: 4210.55 }],
+      window_start: "2026-06-01",
+      window_end: "2026-07-01",
+    });
+    await ingestOfficeLines(rec.client, ORG, payload);
+    const call = rec.queries.find((q) => q.table === "mcleod_office_lines");
+    expect(call?.ops.some((o) => o.method === "upsert" && JSON.stringify(o.args).includes("org_id,external_id"))).toBe(true);
   });
 });
