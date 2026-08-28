@@ -84,14 +84,30 @@ export interface CpmInputs {
   settlements: TmsSettlementFact[];
   vouchers?: TmsApVoucherFact[];
   officeLines?: TmsOfficeSettlementLine[];
+  /**
+   * MEASURED total miles per tractor unit — Samsara GPS actuals, the fleet's mileage source of
+   * truth by owner ruling (2026-08-27). When present, this IS the denominator: it already
+   * contains empty and out-of-route miles as driven, so nothing is inferred and nothing added.
+   * McLeod's loaded miles stay in the report as the reference the pay and ops numbers are built
+   * on. When absent (Samsara not yet synced for the window), the harness falls back to
+   * loaded-plus-inferred-deadhead and SAYS SO — a fleet-wide basis note, never a silent switch,
+   * and never a per-truck mix: a truck with movements but no measured miles gets NO cost per
+   * mile rather than one computed on a basis its neighbours didn't use.
+   */
+  actualMilesByUnit?: Record<string, number>;
 }
+
+/** Which denominator this report's figures stand on. One basis per report, never mixed. */
+export type MilesBasis = "samsara_actual" | "mcleod_loaded_plus_deadhead_estimate";
 
 export interface TruckCpm {
   tractor_unit: string;
   movements: number;
   loadedMiles: number;
-  /** Inferred, never recorded by McLeod. Zero when the rule says `exclude`. */
+  /** Inferred, never recorded by McLeod. Zero when the rule says `exclude` or the basis is Samsara. */
   deadheadMilesEstimated: number;
+  /** Samsara's measured miles for this truck. Null under the estimate basis. */
+  actualMiles: number | null;
   totalMiles: number;
   /** Costs McLeod attributed to this truck itself. */
   directFuel: number;
@@ -107,6 +123,7 @@ export interface TruckCpm {
 
 export interface CpmReport {
   rules: CpmRules;
+  milesBasis: MilesBasis;
   trucks: TruckCpm[];
   fleet: {
     trucks: number;
@@ -184,6 +201,13 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   const buckets = new Map<string, Bucket>();
   const caveats: string[] = [];
 
+  // One basis per report (owner ruling 2026-08-27): Samsara measured miles when the window has
+  // them, the McLeod estimate otherwise — decided fleet-wide, stated in the output, never mixed
+  // per truck.
+  const actualByUnit = inputs.actualMilesByUnit ?? {};
+  const useActual = Object.keys(actualByUnit).length > 0;
+  const milesBasis: MilesBasis = useActual ? "samsara_actual" : "mcleod_loaded_plus_deadhead_estimate";
+
   let movementsWithoutTruck = 0;
   for (const m of inputs.movements) {
     if (!m.tractor_unit) {
@@ -195,7 +219,11 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     b.loadedMiles = round(b.loadedMiles + (m.loaded_miles ?? 0));
   }
 
-  if (rules.deadhead === "estimate") {
+  if (useActual) {
+    // A truck Samsara measured that settled no movement still ran — its miles (and any fuel it
+    // burned) belong in the report, not silently outside it.
+    for (const unit of Object.keys(actualByUnit)) bucketFor(buckets, unit);
+  } else if (rules.deadhead === "estimate") {
     for (const leg of inferDeadheadLegs(inputs.movements)) {
       const b = bucketFor(buckets, leg.tractor_unit);
       b.deadheadMiles = round(b.deadheadMiles + leg.miles);
@@ -246,11 +274,18 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   const list = [...buckets.values()];
   let fleetLoaded = 0;
   let fleetDeadhead = 0;
+  let fleetActual = 0;
+  let trucksWithoutMeasuredMiles = 0;
   for (const b of list) {
     fleetLoaded = round(fleetLoaded + b.loadedMiles);
     fleetDeadhead = round(fleetDeadhead + b.deadheadMiles);
+    if (useActual) {
+      const a = actualByUnit[b.tractor_unit] ?? 0;
+      fleetActual = round(fleetActual + a);
+      if (a <= 0 && (b.loadedMiles > 0 || b.fuel > 0 || b.settlement > 0)) trucksWithoutMeasuredMiles++;
+    }
   }
-  const fleetTotal = round(fleetLoaded + fleetDeadhead);
+  const fleetTotal = useActual ? fleetActual : round(fleetLoaded + fleetDeadhead);
 
   const basisTotal =
     rules.overheadBasis === "total_miles"
@@ -262,7 +297,8 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
           : 0;
 
   const trucks: TruckCpm[] = list.map((b) => {
-    const totalMiles = round(b.loadedMiles + b.deadheadMiles);
+    const actual = useActual ? (actualByUnit[b.tractor_unit] ?? 0) : null;
+    const totalMiles = useActual ? (actual ?? 0) : round(b.loadedMiles + b.deadheadMiles);
     const share =
       basisTotal <= 0
         ? 0
@@ -276,6 +312,7 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       movements: b.movements,
       loadedMiles: b.loadedMiles,
       deadheadMilesEstimated: b.deadheadMiles,
+      actualMiles: actual,
       totalMiles,
       directFuel: b.fuel,
       directSettlement: b.settlement,
@@ -307,14 +344,31 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
         `(about ${cents(overheadPool, fleetTotal).toFixed(1)}¢/mi).`,
     );
   }
-  if (rules.deadhead === "estimate" && fleetDeadhead > 0) {
+  if (useActual) {
+    caveats.push(
+      `Miles are Samsara GPS actuals — the fleet's mileage source of truth by owner ruling. The ` +
+        `denominator already contains empty and out-of-route miles as driven; nothing is inferred. ` +
+        `McLeod loaded miles (${fleetLoaded.toFixed(0)}) are shown for reference` +
+        (fleetLoaded > 0 && fleetActual > 0
+          ? ` — measured miles run ${(((fleetActual - fleetLoaded) / fleetLoaded) * 100).toFixed(1)}% above loaded, which IS the measured empty/out-of-route share.`
+          : `.`),
+    );
+    if (trucksWithoutMeasuredMiles > 0) {
+      caveats.push(
+        `${trucksWithoutMeasuredMiles} truck(s) carry McLeod activity but no Samsara miles in this ` +
+          `window; their cost per mile is NOT computed rather than computed on a different basis ` +
+          `than the rest of the fleet.`,
+      );
+    }
+  }
+  if (!useActual && rules.deadhead === "estimate" && fleetDeadhead > 0) {
     caveats.push(
       `${fleetDeadhead.toFixed(0)} deadhead miles are ESTIMATED by chaining stop coordinates, not read ` +
         `from McLeod, which records none. Great-circle is a floor, so real deadhead is higher and cost ` +
         `per mile correspondingly lower.`,
     );
   }
-  if (rules.deadhead === "exclude") {
+  if (!useActual && rules.deadhead === "exclude") {
     caveats.push(
       `Deadhead is EXCLUDED, so the denominator is loaded miles only and every figure is overstated by ` +
         `roughly the fleet's empty-mile share (~4-5% for this carrier).`,
@@ -342,6 +396,7 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
 
   return {
     rules,
+    milesBasis,
     trucks,
     fleet: {
       trucks: trucks.length,

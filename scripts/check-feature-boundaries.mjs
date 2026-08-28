@@ -127,6 +127,10 @@ const API_ALLOW = new Set([
   // The projection reads financial staging through the collector's exported readers — never the
   // raw tables (D-SEP1); the dedup rules live in financial, the vendor shape stays in mcleod.
   "financial -> mcleod",
+  // The CPM denominator is Samsara actual GPS miles by owner ruling (2026-08-27, D-FS7's basis
+  // decision exercised): the harness reads monthly vehicle miles through samsara's exported
+  // reader — never the raw jurisdiction table.
+  "financial -> samsara",
   // The three P5 surfaces read the money store through financial's interface — the deny-all RLS
   // posture (D-SEP7) makes these routers THE read path; none of them owns a table.
   "accounting -> financial",
