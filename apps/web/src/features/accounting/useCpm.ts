@@ -1,6 +1,7 @@
 import { type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 import type { CpmReport, DeadheadTreatment } from "@silvicom/shared";
 
 /**
@@ -33,6 +34,7 @@ export interface CpmProvenance {
 
 export interface CpmFilter {
   from: string;
+  /** The inclusive end day the picker shows — converted to the API's exclusive bound on send. */
   to: string;
   deadhead: DeadheadTreatment;
   includeOwnerOperators: boolean;
@@ -44,7 +46,10 @@ export function useCpmQuery(filter: Ref<CpmFilter>) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<{ report: CpmReport; provenance: CpmProvenance }> => {
       const f = filter.value;
-      const params = new URLSearchParams({ from: f.from, to: f.to, deadhead: f.deadhead });
+      const params = new URLSearchParams({ from: f.from, to: exclusiveEnd(f.to), deadhead: f.deadhead });
+      // Sent only when true, and read as a strict "1"/"true" server-side: `z.coerce.boolean()`
+      // treated the STRING "0" as true, so a hand-typed `?includeOwnerOperators=false` used to
+      // switch the pool ON. The page never sent that shape; the URL is a supported entry point.
       if (f.includeOwnerOperators) params.set("includeOwnerOperators", "1");
       const r = await apiFetch<{ report: CpmReport; provenance: CpmProvenance }>(
         `/api/accounting/cpm?${params}`,
