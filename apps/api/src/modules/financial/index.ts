@@ -25,6 +25,7 @@ export {
   type AccountSpend,
 } from "./reads.js";
 export { getLedgerCoverage } from "./ledgerCoverage.js";
+export { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
 export { computeCpmForWindow, type CpmWindowReport } from "./cpm.js";
 export {
   listSchedules,

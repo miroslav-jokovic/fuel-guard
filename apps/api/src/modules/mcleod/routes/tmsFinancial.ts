@@ -6,13 +6,14 @@ import {
   tmsMovementFactsPayloadSchema,
   tmsDeductionsPayloadSchema,
   tmsLedgerTotalsPayloadSchema,
+  tmsGlAccountsPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { ingestSettlements, ingestApVouchers, ingestBilling, ingestDeductions } from "../financialIngest.js";
 import { ingestMovementFacts } from "../movementFactIngest.js";
-import { ingestLedgerTotals } from "../ledgerControlIngest.js";
+import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
 
 /**
  * Financial staging endpoints for the on-prem agent (P3.2). Registered INSIDE tmsIngestRouter,
@@ -91,6 +92,20 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestLedgerTotals(admin, req.tms!.orgId, parsed.data);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  router.post(
+    "/gl-accounts",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsGlAccountsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid gl-accounts payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestGlAccounts(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

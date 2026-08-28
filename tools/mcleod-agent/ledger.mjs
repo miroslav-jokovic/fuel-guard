@@ -13,7 +13,7 @@
  */
 
 import process from "node:process";
-import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES } from "./queries.mjs";
+import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS } from "./queries.mjs";
 import { withPool } from "./roster.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchSettlements } from "./settlements.mjs";
@@ -221,3 +221,22 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await main();
+
+/** The chart of accounts, whole — the classification the GL totals are read through. */
+export async function fetchGlAccounts({
+  server, port, database, user, password, companyId, encrypt, trustCert, serverName,
+}) {
+  return withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, async (pool, mssql) => {
+    const rows = await pool
+      .request()
+      .input("companyId", mssql.VarChar(32), companyId)
+      .query(GL_ACCOUNTS);
+    return {
+      accounts: rows.recordset.map((r) => ({
+        glid: String(r.glid || "").trim(),
+        descr: r.descr ?? null,
+        type_id: r.type_id ?? null,
+      })),
+    };
+  });
+}

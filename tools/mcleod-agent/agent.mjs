@@ -22,7 +22,7 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
-import { fetchLedgerControl } from "./ledger.mjs";
+import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
@@ -566,6 +566,12 @@ async function runFinancial() {
   const bl = await fetchBilling({ ...CFG.sql, windowStart, windowEnd });
   const rb = await sendBatched("/api/tms/billing", "billing", bl.rows.map(mapBilling), windowExtra, 2000);
   log(`financial: billing sent=${bl.rows.length} received=${rb.received} upserted=${rb.upserted}`);
+
+  // The chart of accounts, whole — 123 rows; the classification the GL month totals below are
+  // read through (the CPM page's fleet-truth income statement).
+  const ga = await fetchGlAccounts(CFG.sql);
+  const rg = await postToFuelGuard("/api/tms/gl-accounts", { accounts: ga.accounts });
+  log(`financial: gl-accounts sent=${ga.accounts.length} upserted=${rg.upserted ?? 0}`);
 
   // GL control totals — month-grained, unlike everything above: totals are aggregates over a
   // period, so the period must be the stable unit the carrier's own close uses. Every calendar

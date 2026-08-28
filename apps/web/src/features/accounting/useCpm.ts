@@ -18,6 +18,15 @@ export interface CpmProvenance {
   samsaraVehicles: number;
   scheduledUnits: number;
   bookedInvoices: number;
+  glCheck: {
+    revenue: number;
+    expenses: number;
+    net: number;
+    netCpm: number;
+    monthsCovered: string[];
+    monthsMissing: string[];
+    unclassifiedNet: number;
+  };
   pendingSources: string[];
   notes: string[];
 }

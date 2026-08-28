@@ -57,6 +57,20 @@ describe("computeCpmForWindow", () => {
         ],
         mcleod_ap_vouchers: [
           { external_id: "V-1", vendor_id: "INSCO", invoice_date: "2026-06-10T00:00:00Z", distribution_date: "2026-06-10T00:00:00Z", amount: 5000, ap_glid: "70300000", is_paid: true, check_number: null, post_key: "PK", post_module: "AP" },
+          // The fuel vendor's invoice is the SAME money EFS already put on the truck (D-FS2) —
+          // it must never inflate the overhead pool (it did, by ~$1M/month, until 2026-08-28).
+          { external_id: "V-2", vendor_id: "PILOKNTN", invoice_date: "2026-06-15T00:00:00Z", distribution_date: "2026-06-15T00:00:00Z", amount: 999999, ap_glid: "20550000", is_paid: true, check_number: null, post_key: "PK2", post_module: "AP" },
+        ],
+        mcleod_gl_accounts: [
+          { glid: "30000001", descr: "Gross Trucking Income", type_id: "Revenue" },
+          { glid: "40050000", descr: "Fuel for Hired Vehicles", type_id: "Operating Expenses" },
+          { glid: "11000000", descr: "BMO Harris Bank", type_id: "Current Assets" },
+        ],
+        mcleod_gl_totals: [
+          { post_module: "BILL", glid: "30000001", line_count: 10, net_amount: -10000, abs_amount: 10000 },
+          { post_module: "AP", glid: "40050000", line_count: 5, net_amount: 4000, abs_amount: 4000 },
+          // Balance-sheet motion — a loan draw is not income and must not leak into the check.
+          { post_module: "CHK", glid: "11000000", line_count: 2, net_amount: 700, abs_amount: 700 },
         ],
         financial_entries: [
           { vehicle_id: "v1", amount: 600 },
@@ -110,6 +124,14 @@ describe("computeCpmForWindow", () => {
     expect(truck.revenueCpm).toBeCloseTo((4000 / 1400) * 100, 1);
     expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 2500, 2);
     expect(report.caveats.some((c) => c.includes("NET per mile subtracts ONLY"))).toBe(true);
+    // The fuel-vendor voucher stayed OUT of the pool: only the $5,000 insurance invoice remains.
+    expect(report.excluded.unallocatedOverhead).toBe(5000);
+    // The fleet-truth check: GL income statement through McLeod's own classes; assets ignored.
+    expect(provenance.glCheck.revenue).toBe(10000);
+    expect(provenance.glCheck.expenses).toBe(4000);
+    expect(provenance.glCheck.net).toBe(6000);
+    expect(provenance.glCheck.monthsCovered).toEqual(["2026-06"]);
+    expect(provenance.glCheck.unclassifiedNet).toBe(0);
 
     // The honesty ledger: overhead unallocated (no finance ruling), owner-operator pooled apart.
     expect(report.excluded.unallocatedOverhead).toBe(5000);
@@ -120,7 +142,7 @@ describe("computeCpmForWindow", () => {
 
   it("an empty window names the sweeps that have not run instead of reporting a $0.00 fleet", async () => {
     const rec = createSupabaseRecorder({
-      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
+      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], mcleod_gl_accounts: [], mcleod_gl_totals: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(report.trucks).toEqual([]);
@@ -140,6 +162,8 @@ describe("computeCpmForWindow", () => {
         samsara_ifta_jurisdiction_miles: [],
         truck_cost_schedules: [],
         mcleod_billing: [],
+        mcleod_gl_accounts: [],
+        mcleod_gl_totals: [],
       },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-06-01", "2026-07-01");

@@ -49,9 +49,12 @@ export interface ProjectionResult {
 }
 
 /** The fuel-card vendor(s) whose AP invoices duplicate EFS fuel (measured 2026-08-24: 59 of
- *  June's 183 expense rows, the same $1,017,601.81). Grows per onboarded carrier — with the
- *  measurement that justifies each entry, like the GLID prefixes in packages/shared/tmsCost. */
-const FUEL_AP_VENDOR_IDS = new Set(["PILOKNTN"]);
+ *  June's 183 expense rows, the same $1,017,601.81; re-measured 2026-07: $1,074,669.07 of the
+ *  month's $1,491,893 voucher total). Grows per onboarded carrier — with the measurement that
+ *  justifies each entry, like the GLID prefixes in packages/shared/tmsCost. Exported because the
+ *  CPM endpoint must apply the SAME D-FS2 rule to its overhead pool — it didn't, and the pool
+ *  double-counted ~$1M/month of fuel until the owner's 2026-08-28 fleet-net reconciliation. */
+export const FUEL_AP_VENDOR_IDS = new Set(["PILOKNTN"]);
 
 const CHUNK = 500;
 

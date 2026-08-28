@@ -345,6 +345,10 @@
       "module": "mcleod",
       "layer": "raw"
     },
+    "mcleod_gl_accounts": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
     "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw"
