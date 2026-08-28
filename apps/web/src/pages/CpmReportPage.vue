@@ -40,17 +40,25 @@ const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", c
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 const fmtCpm = (n: number) => `${n.toFixed(1)}¢`;
 
-const columns: DataTableColumn[] = [
+// The miles columns follow the report's basis (owner ruling: Samsara actuals are the fleet's
+// mileage truth; McLeod loaded stays as reference). The estimate columns appear only when the
+// window has no Samsara miles and the harness fell back — and said so.
+const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
+const columns = computed<DataTableColumn[]>(() => [
   { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs" },
   { key: "movements", label: "Trips", numeric: true },
-  { key: "loadedMiles", label: "Loaded mi", numeric: true },
-  { key: "deadheadMilesEstimated", label: "Deadhead mi", numeric: true, cellClass: "text-ink-tertiary" },
-  { key: "totalMiles", label: "Total mi", numeric: true },
+  { key: "loadedMiles", label: "Loaded mi", numeric: true, cellClass: "text-ink-tertiary" },
+  ...(samsaraBasis.value
+    ? [{ key: "totalMiles", label: "Samsara mi", numeric: true } as DataTableColumn]
+    : [
+        { key: "deadheadMilesEstimated", label: "Deadhead mi", numeric: true, cellClass: "text-ink-tertiary" } as DataTableColumn,
+        { key: "totalMiles", label: "Total mi", numeric: true } as DataTableColumn,
+      ]),
   { key: "directFuel", label: "Fuel", numeric: true },
   { key: "directSettlement", label: "Driver pay", numeric: true },
   { key: "directTotal", label: "Direct cost", numeric: true },
   { key: "directCpm", label: "¢ / mile", numeric: true },
-];
+]);
 </script>
 
 <template>
@@ -66,7 +74,7 @@ const columns: DataTableColumn[] = [
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Total miles</p>
         <p class="text-2xl font-bold text-ink">{{ fmtMiles(report.fleet.totalMiles) }}</p>
-        <p class="text-2xs text-ink-tertiary">{{ fmtMiles(report.fleet.deadheadMilesEstimated) }} estimated deadhead</p>
+        <p class="text-2xs text-ink-tertiary">{{ samsaraBasis ? "Samsara measured, empty miles included" : `${fmtMiles(report.fleet.deadheadMilesEstimated)} estimated deadhead` }}</p>
       </BaseCard>
       <BaseCard padding="sm">
         <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Direct cost</p>
@@ -82,7 +90,7 @@ const columns: DataTableColumn[] = [
 
     <FilterBar :count="trucks.length" count-label="trucks">
       <template #filters>
-        <FilterSelect v-model="deadhead" label="Miles basis" :options="deadheadOptions" />
+        <FilterSelect v-if="!samsaraBasis" v-model="deadhead" label="Miles basis" :options="deadheadOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
       </template>
       <template #actions>
@@ -120,10 +128,11 @@ const columns: DataTableColumn[] = [
 
     <!-- The harness's own caveats — generated from what happened in THIS run. A CPM figure whose
          assumptions are invisible is worse than none, because it gets quoted. -->
-    <BaseCard v-if="report?.caveats.length" padding="sm">
+    <BaseCard v-if="report?.caveats.length || provenance?.notes.length" padding="sm">
       <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Read before quoting</p>
       <ul class="mt-2 space-y-1">
-        <li v-for="c in report.caveats" :key="c" class="text-xs text-ink-secondary">{{ c }}</li>
+        <li v-for="c in report?.caveats ?? []" :key="c" class="text-xs text-ink-secondary">{{ c }}</li>
+        <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">{{ n }}</li>
       </ul>
     </BaseCard>
   </div>

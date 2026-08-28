@@ -46,7 +46,7 @@ const MOVEMENTS = [
 ];
 
 describe("computeCpmForWindow", () => {
-  it("divides staged cost by staged miles per truck, infers deadhead, and carries the harness caveats", async () => {
+  it("divides staged cost by Samsara measured miles per truck and carries the harness caveats", async () => {
     const rec = createSupabaseRecorder({
       tables: {
         mcleod_movements: MOVEMENTS,
@@ -63,6 +63,11 @@ describe("computeCpmForWindow", () => {
           { vehicle_id: "v1", amount: 400 },
         ],
         vehicles: [{ id: "v1", unit_number: "754 " }],
+        // Samsara's measured June: 1,400 mi for the truck (meters at source; owner ruling makes
+        // this THE denominator — loaded 1,300 stays as reference, deadhead is not inferred).
+        samsara_ifta_jurisdiction_miles: [
+          { vehicle_id: "v1", total_meters: 1400 * 1609.344 },
+        ],
       },
     });
 
@@ -70,12 +75,14 @@ describe("computeCpmForWindow", () => {
 
     expect(provenance.pendingSources).toEqual([]);
     expect(provenance.movements).toBe(2);
+    expect(provenance.samsaraVehicles).toBe(1);
+    expect(report.milesBasis).toBe("samsara_actual");
 
     const truck = report.trucks.find((t) => t.tractor_unit === "754")!;
     expect(truck.loadedMiles).toBe(1300);
-    // Atlanta dropoff → Chattanooga pickup: inferred, nonzero, and a floor (great-circle).
-    expect(truck.deadheadMilesEstimated).toBeGreaterThan(80);
-    expect(truck.totalMiles).toBe(truck.loadedMiles + truck.deadheadMilesEstimated);
+    expect(truck.actualMiles).toBe(1400);
+    expect(truck.deadheadMilesEstimated).toBe(0);
+    expect(truck.totalMiles).toBe(1400);
     // Fuel joined by unit (trimmed "754 " → "754"): $1000. Settlement: $600.
     expect(truck.directFuel).toBe(1000);
     expect(truck.directSettlement).toBe(600);
@@ -91,12 +98,33 @@ describe("computeCpmForWindow", () => {
 
   it("an empty window names the sweeps that have not run instead of reporting a $0.00 fleet", async () => {
     const rec = createSupabaseRecorder({
-      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], financial_entries: [], vehicles: [] },
+      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [] },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(report.trucks).toEqual([]);
-    expect(provenance.pendingSources).toHaveLength(3);
+    expect(provenance.pendingSources).toHaveLength(4);
     expect(provenance.pendingSources.join(" ")).toContain("--financial");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("falls back to the estimate basis when Samsara has no miles, infers deadhead, and names the gap", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_movements: MOVEMENTS,
+        mcleod_settlements: [],
+        mcleod_ap_vouchers: [],
+        financial_entries: [],
+        vehicles: [],
+        samsara_ifta_jurisdiction_miles: [],
+      },
+    });
+    const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-06-01", "2026-07-01");
+    expect(report.milesBasis).toBe("mcleod_loaded_plus_deadhead_estimate");
+    const truck = report.trucks.find((t) => t.tractor_unit === "754")!;
+    // Atlanta dropoff → Chattanooga pickup: inferred, nonzero, and a floor (great-circle).
+    expect(truck.deadheadMilesEstimated).toBeGreaterThan(80);
+    expect(truck.totalMiles).toBe(truck.loadedMiles + truck.deadheadMilesEstimated);
+    expect(provenance.pendingSources.join(" ")).toContain("Samsara");
     expectOrgScoped(rec, ORG);
   });
 });

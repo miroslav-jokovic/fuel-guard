@@ -303,3 +303,65 @@ describe("computeCpm — the honesty ledger", () => {
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
+
+describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () => {
+  it("divides by measured miles when they exist, fleet-wide, and states the basis", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 900)],
+        fuel: [fuel("F1", "101", 600)],
+        settlements: [settle("S1", "101", 400)],
+        // Measured 1,000 mi against 900 loaded: the 100-mile gap IS the measured empty share.
+        actualMilesByUnit: { "101": 1000 },
+      },
+      PLAIN,
+    );
+    expect(r.milesBasis).toBe("samsara_actual");
+    const t = r.trucks[0]!;
+    expect(t.actualMiles).toBe(1000);
+    expect(t.totalMiles).toBe(1000);
+    expect(t.loadedMiles).toBe(900);
+    expect(t.deadheadMilesEstimated).toBe(0);
+    expect(t.directCpm).toBe(100); // $1,000 over 1,000 measured miles
+    expect(r.caveats.some((c) => c.includes("Samsara GPS actuals"))).toBe(true);
+    expect(r.caveats.some((c) => c.includes("11.1% above loaded"))).toBe(true);
+  });
+
+  it("a truck with cost but no measured miles gets NO rate, and the report names it — never a mixed basis", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 900), move("M2", "202", 500)],
+        fuel: [fuel("F1", "101", 600), fuel("F2", "202", 300)],
+        settlements: [],
+        actualMilesByUnit: { "101": 1000 }, // 202 has McLeod activity but no Samsara miles
+      },
+      PLAIN,
+    );
+    const t202 = r.trucks.find((t) => t.tractor_unit === "202")!;
+    expect(t202.actualMiles).toBe(0);
+    expect(t202.totalMiles).toBe(0);
+    expect(t202.directCpm).toBe(0); // not computed on loaded miles — that would be a second basis
+    expect(r.caveats.some((c) => c.includes("no Samsara miles"))).toBe(true);
+    // The fleet denominator is measured miles only; 202's loaded 500 never enters it.
+    expect(r.fleet.totalMiles).toBe(1000);
+  });
+
+  it("a measured truck with no settled movements still appears — its miles were driven", () => {
+    const r = computeCpm(
+      { movements: [], fuel: [], settlements: [], actualMilesByUnit: { "303": 800 } },
+      PLAIN,
+    );
+    expect(r.trucks).toHaveLength(1);
+    expect(r.trucks[0]!.totalMiles).toBe(800);
+  });
+
+  it("without measured miles the harness falls back to the estimate basis and says so", () => {
+    const r = computeCpm(
+      { movements: [move("M1", "101", 900)], fuel: [], settlements: [], actualMilesByUnit: {} },
+      PLAIN,
+    );
+    expect(r.milesBasis).toBe("mcleod_loaded_plus_deadhead_estimate");
+    expect(r.trucks[0]!.actualMiles).toBeNull();
+    expect(r.trucks[0]!.totalMiles).toBe(900);
+  });
+});

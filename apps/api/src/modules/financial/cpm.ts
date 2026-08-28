@@ -10,6 +10,7 @@ import {
   type TmsSettlementFact,
 } from "@silvicom/shared";
 import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow } from "../mcleod/index.js";
+import { readVehicleMonthlyMiles } from "../samsara/index.js";
 
 /**
  * Cost per mile, per truck, from the STORE — the report this whole pipeline exists to produce
@@ -39,8 +40,11 @@ export interface CpmWindowReport {
     fuelVehicles: number;
     settlements: number;
     vouchers: number;
+    /** Vehicles with Samsara measured miles in the window's months. */
+    samsaraVehicles: number;
     /** Named empty sources — what to run before believing an empty report. */
     pendingSources: string[];
+    notes: string[];
   };
 }
 
@@ -53,12 +57,18 @@ export async function computeCpmForWindow(
   toIso: string,
   rules: Partial<CpmRules> = {},
 ): Promise<CpmWindowReport> {
-  const [staged, settlements, vouchers, fuelByUnit] = await Promise.all([
+  const [staged, settlements, vouchers, fuelByUnit, samsaraMiles] = await Promise.all([
     readMovementsWindow(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
     readApVouchersWindow(admin, orgId, fromIso, toIso),
     canonicalFuelByUnit(admin, orgId, fromIso, toIso),
+    // Samsara publishes vehicle miles per CALENDAR MONTH; the window is treated as the months it
+    // covers. The page defaults to a full month, where this is exact; a partial-month window's
+    // mismatch is called out in provenance rather than silently prorated.
+    readVehicleMonthlyMiles(admin, orgId, monthsCovered(fromIso, toIso)),
   ]);
+
+  const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
 
   const movements: TmsMovementFact[] = staged.map((m) => ({
     external_id: m.external_id,
@@ -148,6 +158,7 @@ export async function computeCpmForWindow(
         post_module: v.post_module,
       })),
       officeLines: [],
+      actualMilesByUnit,
     },
     { ...DEFAULT_CPM_RULES, ...rules },
   );
@@ -159,6 +170,17 @@ export async function computeCpmForWindow(
     pendingSources.push("no canonical fuel entries in this window — the financial projection over EFS supplies them");
   if (!settlements.length)
     pendingSources.push("mcleod_settlements is empty for this window — the agent's --financial sweep supplies it");
+  if (!samsaraMiles.size)
+    pendingSources.push(
+      "no Samsara miles for this window's months — the IFTA mileage sync supplies them; until it runs, miles fall back to McLeod loaded + estimated deadhead and the report says so",
+    );
+
+  const notes: string[] = [];
+  if (samsaraMiles.size && !isMonthAligned(fromIso, toIso)) {
+    notes.push(
+      "Samsara miles are month-grained and this window is not month-aligned — measured miles cover the window's calendar months, not the exact dates.",
+    );
+  }
 
   return {
     report,
@@ -168,9 +190,50 @@ export async function computeCpmForWindow(
       fuelVehicles: fuelByUnit.size,
       settlements: settlements.length,
       vouchers: vouchers.length,
+      samsaraVehicles: samsaraMiles.size,
       pendingSources,
+      notes,
     },
   };
+}
+
+/** Every calendar month the half-open [from, to) window touches. */
+function monthsCovered(fromIso: string, toIso: string): Array<{ year: number; month: number }> {
+  const months: Array<{ year: number; month: number }> = [];
+  let [y, m] = fromIso.slice(0, 10).split("-").map(Number) as [number, number, number];
+  for (;;) {
+    const first = `${y}-${String(m).padStart(2, "0")}-01`;
+    if (first >= toIso) break;
+    months.push({ year: y!, month: m! });
+    m === 12 ? ((y! += 1), (m = 1)) : (m! += 1);
+  }
+  return months;
+}
+
+function isMonthAligned(fromIso: string, toIso: string): boolean {
+  return fromIso.slice(8, 10) === "01" && toIso.slice(8, 10) === "01";
+}
+
+/** Re-key Samsara's per-vehicle miles by tractor unit — the harness's bucket key. */
+async function milesByVehicleToUnit(
+  admin: SupabaseClient,
+  orgId: string,
+  byVehicle: Map<string, number>,
+): Promise<Record<string, number>> {
+  if (!byVehicle.size) return {};
+  const { data, error } = await admin
+    .from("vehicles")
+    .select("id, unit_number")
+    .eq("org_id", orgId)
+    .in("id", [...byVehicle.keys()]);
+  if (error) throw new Error(`vehicles read failed: ${error.message}`);
+  const out: Record<string, number> = {};
+  for (const v of (data ?? []) as Array<{ id: string; unit_number: string | null }>) {
+    const unit = v.unit_number?.trim();
+    if (!unit) continue;
+    out[unit] = Math.round(((out[unit] ?? 0) + (byVehicle.get(v.id) ?? 0)) * 10) / 10;
+  }
+  return out;
 }
 
 const UNATTRIBUTED = "∅";

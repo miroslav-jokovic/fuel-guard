@@ -15,7 +15,9 @@ export interface CpmProvenance {
   fuelVehicles: number;
   settlements: number;
   vouchers: number;
+  samsaraVehicles: number;
   pendingSources: string[];
+  notes: string[];
 }
 
 export interface CpmFilter {
