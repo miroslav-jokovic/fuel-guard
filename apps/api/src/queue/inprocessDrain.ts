@@ -2,7 +2,8 @@ import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./handlers/index.js";
 import { getHandler } from "./registry.js";
-import type { JobContext, QueueJob } from "./types.js";
+import { pgQueueDriver } from "./pgDriver.js";
+import type { JobContext } from "./types.js";
 import type { JobKind } from "../modules/org/index.js";
 
 /**
@@ -21,15 +22,17 @@ import type { JobKind } from "../modules/org/index.js";
  * only kinds that are legitimately dispatched-as-rows belong here. Growing the list is a code
  * change with this comment staring at you.
  *
- * Claiming is a compare-and-set UPDATE guarded on `status = 'queued'` — safe against a concurrent
- * queue-mode consumer by construction (this drain does not run in queue mode) and against a second
- * drain because schedulers run in exactly ONE process fleet-wide (docs/WORKER-DEPLOYMENT.md).
+ * Claim/settle go through the SAME 0095 RPCs the queue consumer uses (`claim_next_job` /
+ * `complete_job` / `fail_job`) — FOR UPDATE SKIP LOCKED, the attempts budget, backoff, all owned
+ * by the jobs table's own interface rather than re-implemented here. The drain is only: which
+ * process calls claim, for which kinds, on what tick.
  */
 
 const DRAIN_KINDS: JobKind[] = ["efs_window_refetch", "financial_projection"];
 const TICK_MS = 2 * 60_000;
 const WORKER_ID = "inprocess-drain";
 const RETRY_BACKOFF_S = 120;
+const LEASE_SECONDS = 30 * 60;
 
 export function startInprocessJobDrain(env: Env): void {
   if (env.JOB_EXECUTION_MODE === "queue") return; // the real consumer owns the table
@@ -56,78 +59,26 @@ export function startInprocessJobDrain(env: Env): void {
   );
 }
 
-/** One drain pass — claim at most one due row, run it, settle it. Exported for its test. */
+/** One drain pass — claim at most one due row via the 0095 RPC, run it, settle it. Exported for its test. */
 export async function drainOnce(
   env: Env,
   admin: ReturnType<typeof getSupabaseAdmin>,
 ): Promise<void> {
-  const nowIso = new Date().toISOString();
-  const { data: candidates, error } = await admin
-    .from("jobs")
-    .select("id, org_id, kind, payload, attempts, max_attempts")
-    .in("kind", DRAIN_KINDS)
-    .eq("status", "queued")
-    .lte("run_after", nowIso)
-    .order("run_after", { ascending: true })
-    .limit(1);
-  if (error) throw new Error(error.message);
-  const row = (candidates ?? [])[0] as QueueJob | undefined;
-  if (!row) return;
+  const driver = pgQueueDriver(admin);
+  // Long lease: the re-fetch walks multi-week EFS windows and the full projection reads two years.
+  const job = await driver.claim(WORKER_ID, DRAIN_KINDS, LEASE_SECONDS, {});
+  if (!job) return;
 
-  // Compare-and-set claim: only a row still queued flips to running.
-  const { data: claimed, error: claimErr } = await admin
-    .from("jobs")
-    .update({
-      status: "running",
-      locked_by: WORKER_ID,
-      started_at: nowIso,
-      attempts: row.attempts + 1,
-      updated_at: nowIso,
-    })
-    .eq("id", row.id)
-    .eq("status", "queued")
-    .select("id")
-    .maybeSingle();
-  if (claimErr) throw new Error(claimErr.message);
-  if (!claimed) return; // raced — next tick finds the next row
-
-  const handler = getHandler(row.kind);
+  const handler = getHandler(job.kind);
   const ctx: JobContext = { admin, env };
   try {
-    if (!handler) throw new Error(`no handler registered for kind ${row.kind}`);
-    const stats = await handler(ctx, { ...row, attempts: row.attempts + 1 }, async () => undefined);
-    await admin
-      .from("jobs")
-      .update({
-        status: "done",
-        stats: stats ?? {},
-        finished_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", row.id);
-    console.log(`[job-drain] ${row.kind} ${row.id} done`);
+    if (!handler) throw new Error(`no handler registered for kind ${job.kind}`);
+    const stats = await handler(ctx, job, async () => undefined);
+    await driver.complete(job.id, (stats ?? {}) as Record<string, unknown>);
+    console.log(`[job-drain] ${job.kind} ${job.id} done`);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    const retry = row.attempts + 1 < row.max_attempts;
-    await admin
-      .from("jobs")
-      .update(
-        retry
-          ? {
-              status: "queued",
-              error: message,
-              locked_by: null,
-              run_after: new Date(Date.now() + RETRY_BACKOFF_S * 1000).toISOString(),
-              updated_at: new Date().toISOString(),
-            }
-          : {
-              status: "failed",
-              error: message,
-              finished_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-      )
-      .eq("id", row.id);
-    console.error(`[job-drain] ${row.kind} ${row.id} ${retry ? "requeued" : "FAILED"}: ${message}`);
+    await driver.fail(job.id, message, true, RETRY_BACKOFF_S);
+    console.error(`[job-drain] ${job.kind} ${job.id} settled via fail_job: ${message}`);
   }
 }

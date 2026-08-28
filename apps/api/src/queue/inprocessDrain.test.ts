@@ -5,67 +5,61 @@ import { clearHandlers, registerHandler } from "./registry.js";
 import { drainOnce } from "./inprocessDrain.js";
 
 /**
- * The drain's contract, proven against the recorder: it claims a due queued row with a
- * compare-and-set (never a blind update), runs the registered handler, and settles the row —
- * done with stats on success, requeued-with-backoff or failed by the attempts budget on error.
- * The real defect this file exists for: a job row inserted as DATA in inprocess mode was
- * invisible to every executor (2026-08-28 — the owner's repair dispatch sat queued forever).
+ * The drain's contract, proven against the recorder: it claims through the SAME 0095 RPCs the
+ * queue consumer uses (claim_next_job / complete_job / fail_job) — never a direct jobs write, the
+ * table-modules gate enforces that — runs the registered handler, and settles the row. The defect
+ * this file exists for: a job row inserted as DATA in inprocess mode had no executor at all
+ * (2026-08-28 — the owner's repair dispatch sat queued forever).
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const env = testEnv({});
 
-const queuedRow = (over: Record<string, unknown> = {}) => ({
+const claimedRow = {
   id: "11111111-2222-4333-8444-555555555555",
   org_id: ORG,
   kind: "efs_window_refetch",
   payload: { windows: [{ start: "2026-04-18", end: "2026-05-05" }] },
-  attempts: 0,
+  attempts: 1,
   max_attempts: 5,
-  status: "queued",
-  run_after: new Date(Date.now() - 60_000).toISOString(),
-  ...over,
-});
+};
 
 afterEach(() => clearHandlers());
 
 describe("drainOnce", () => {
-  it("claims the row, runs the handler, and marks it done with the handler's stats", async () => {
+  it("claims via claim_next_job, runs the handler, completes with the handler's stats", async () => {
     let ran = 0;
     registerHandler("efs_window_refetch", async (_ctx, job) => {
       ran++;
       expect(job.org_id).toBe(ORG);
-      expect(job.attempts).toBe(1);
       return { windows: [{ status: "ingested" }] };
     });
-    const rec = createSupabaseRecorder({ tables: { jobs: [queuedRow()] } });
+    const rec = createSupabaseRecorder({
+      rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
+    });
     await drainOnce(env, rec.client);
     expect(ran).toBe(1);
-    const writes = rec.writtenRows("jobs");
-    expect(writes[0]).toMatchObject({ status: "running", locked_by: "inprocess-drain", attempts: 1 });
-    expect(writes[1]).toMatchObject({ status: "done", stats: { windows: [{ status: "ingested" }] } });
-    // The claim is guarded on status='queued' — the compare half of compare-and-set.
-    const claim = rec.writes().find((q) => (q.write?.payload as Record<string, unknown> | undefined)?.status === "running");
-    expect(claim?.filters()).toEqual(
-      expect.arrayContaining([{ col: "status", val: "queued" }, { col: "id", val: queuedRow().id }]),
-    );
+    const rpcs = rec.rpcs();
+    expect(rpcs[0]!.fn).toBe("claim_next_job");
+    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["efs_window_refetch", "financial_projection"]);
+    expect(rpcs[1]).toMatchObject({ fn: "complete_job", args: { p_id: claimedRow.id, p_stats: { windows: [{ status: "ingested" }] } } });
   });
 
-  it("requeues with backoff while attempts remain, then fails terminally", async () => {
+  it("settles a thrown handler through fail_job (retry semantics live in the RPC)", async () => {
     registerHandler("efs_window_refetch", async () => {
       throw new Error("EFS fault");
     });
-    const rec = createSupabaseRecorder({ tables: { jobs: [queuedRow({ attempts: 0, max_attempts: 5 })] } });
+    const rec = createSupabaseRecorder({
+      rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
+    });
     await drainOnce(env, rec.client);
-    expect(rec.writtenRows("jobs")[1]).toMatchObject({ status: "queued", error: "EFS fault", locked_by: null });
-
-    const rec2 = createSupabaseRecorder({ tables: { jobs: [queuedRow({ attempts: 4, max_attempts: 5 })] } });
-    await drainOnce(env, rec2.client);
-    expect(rec2.writtenRows("jobs")[1]).toMatchObject({ status: "failed", error: "EFS fault" });
+    const fail = rec.rpcs().find((r) => r.fn === "fail_job");
+    expect(fail?.args).toMatchObject({ p_id: claimedRow.id, p_error: "EFS fault", p_retry: true });
   });
 
-  it("does nothing when no due row exists", async () => {
-    const rec = createSupabaseRecorder({ tables: { jobs: [] } });
+  it("does nothing when the claim returns no row", async () => {
+    const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(env, rec.client);
+    expect(rec.rpcs()).toHaveLength(1);
     expect(rec.writes()).toEqual([]);
   });
 });
