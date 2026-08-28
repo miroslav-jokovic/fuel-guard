@@ -12,7 +12,7 @@ import { drainOnce } from "./inprocessDrain.js";
  * (2026-08-28 — the owner's repair dispatch sat queued forever).
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
-const env = testEnv({});
+const env = testEnv({ EFS_SOAP_ENABLED: true });
 
 const claimedRow = {
   id: "11111111-2222-4333-8444-555555555555",
@@ -40,7 +40,7 @@ describe("drainOnce", () => {
     expect(ran).toBe(1);
     const rpcs = rec.rpcs();
     expect(rpcs[0]!.fn).toBe("claim_next_job");
-    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["efs_window_refetch", "financial_projection"]);
+    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "efs_window_refetch"]);
     expect(rpcs[1]).toMatchObject({ fn: "complete_job", args: { p_id: claimedRow.id, p_stats: { windows: [{ status: "ingested" }] } } });
   });
 
@@ -54,6 +54,16 @@ describe("drainOnce", () => {
     await drainOnce(env, rec.client);
     const fail = rec.rpcs().find((r) => r.fn === "fail_job");
     expect(fail?.args).toMatchObject({ p_id: claimedRow.id, p_error: "EFS fault", p_retry: true });
+  });
+
+  it("an instance without EFS access never CLAIMS the EFS kind — the first deploy's race", async () => {
+    // Two scheduler processes exist in this topology; the one where EFS_SOAP_ENABLED is off
+    // claimed the re-fetch first and failed it with "EFS_SOAP_ENABLED is off" while the capable
+    // instance watched. The claim list, not the handler, is where capability must be enforced.
+    const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
+    const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
+    await drainOnce(noEfs, rec.client);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection"]);
   });
 
   it("does nothing when the claim returns no row", async () => {
