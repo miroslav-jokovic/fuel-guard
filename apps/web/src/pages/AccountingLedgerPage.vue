@@ -2,6 +2,9 @@
 import { computed, ref, watch } from "vue";
 import { FINANCIAL_CATEGORIES, FINANCIAL_CATEGORY_LABELS, type FinancialCategory } from "@silvicom/shared";
 import { useLedgerQuery, useLedgerSummaryQuery, LEDGER_PAGE_SIZE, type LedgerFilter } from "@/features/accounting/useLedger";
+import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useDriversQuery } from "@/composables/useDrivers";
+import { trailingDays } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -12,21 +15,28 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
-// Default window: the trailing 90 days — long enough for a quarter's shape, short enough to load fast.
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+// Default window: the trailing 90 days — long enough for a quarter's shape, short enough to load
+// fast. Both ends are INCLUSIVE here, which is what the picker shows; `useLedger` converts the end
+// to the API's exclusive bound. The old default reached a day into tomorrow to compensate for that
+// conversion being missing, which made the default right and every hand-picked range wrong.
+const defaultWindow = trailingDays(90);
 const search = ref("");
 const category = ref("");
 const direction = ref("");
-const from = ref<string>(ymd(new Date(Date.now() - 90 * 86_400_000)));
-const to = ref<string>(ymd(new Date(Date.now() + 86_400_000)));
+const vehicleId = ref("");
+const driverId = ref("");
+const from = ref<string>(defaultWindow.from);
+const to = ref<string>(defaultWindow.to);
 const showAll = ref(false);
 const page = ref(1);
-watch([search, category, direction, from, to, showAll], () => (page.value = 1));
+watch([search, category, direction, vehicleId, driverId, from, to, showAll], () => (page.value = 1));
 
 const filter = computed<LedgerFilter>(() => ({
   q: search.value,
   category: category.value,
   direction: direction.value,
+  vehicleId: vehicleId.value,
+  driverId: driverId.value,
   from: from.value,
   to: to.value,
   all: showAll.value,
@@ -47,13 +57,34 @@ const directionOptions = [
   { value: "earning", label: "Earnings" },
   { value: "expense", label: "Expenses" },
 ];
+
+// Truck and driver: the API has accepted `vehicleId`/`driverId` since the router was written, but
+// nothing on the page ever sent them, so the ledger could only be read as one undifferentiated
+// list. These are the two dimensions an accountant actually asks it about — "what did 754 cost me",
+// "what did this driver draw" — so they belong on the toolbar, not in a hand-built URL.
+const { data: vehicles } = useVehiclesQuery();
+const { data: drivers } = useDriversQuery();
+const vehicleOptions = computed(() => [
+  { value: "", label: "All trucks" },
+  ...(vehicles.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
+]);
+const driverOptions = computed(() => [
+  { value: "", label: "All drivers" },
+  ...(drivers.value ?? []).map((d) => ({ value: d.id, label: d.full_name })),
+]);
+
 const activeFilterCount = computed(
-  () => [category.value, direction.value].filter(Boolean).length + (search.value.trim() ? 1 : 0) + (showAll.value ? 1 : 0),
+  () =>
+    [category.value, direction.value, vehicleId.value, driverId.value].filter(Boolean).length +
+    (search.value.trim() ? 1 : 0) +
+    (showAll.value ? 1 : 0),
 );
 function resetFilters() {
   search.value = "";
   category.value = "";
   direction.value = "";
+  vehicleId.value = "";
+  driverId.value = "";
   showAll.value = false;
 }
 
@@ -104,6 +135,8 @@ const columns: DataTableColumn[] = [
       <template #filters>
         <FilterSelect v-model="category" label="Category" :options="categoryOptions" />
         <FilterSelect v-model="direction" label="Direction" :options="directionOptions" />
+        <FilterSelect v-model="vehicleId" label="Truck" :options="vehicleOptions" />
+        <FilterSelect v-model="driverId" label="Driver" :options="driverOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
       </template>
       <template #actions>

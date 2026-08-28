@@ -12,24 +12,9 @@ import {
   getLedgerCoverage,
   computeCpmForWindow,
 } from "../../financial/index.js";
-import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
-const windowSchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
-});
-
-const entriesSchema = windowSchema.partial().extend({
-  q: z.string().max(80).optional(),
-  category: z.string().max(30).optional(),
-  direction: z.enum(["earning", "expense"]).optional(),
-  vehicleId: z.string().uuid().optional(),
-  driverId: z.string().uuid().optional(),
-  all: z.coerce.boolean().optional(), // drill-down: include non-canonical + void rows
-  limit: z.coerce.number().int().min(1).max(200).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
-});
+import { windowSchema, entriesSchema, cpmQuerySchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -118,14 +103,9 @@ export function accountingRouter(): Router {
     requireOrg,
     canView,
     asyncHandler(async (req, res) => {
-      const parsed = windowSchema
-        .extend({
-          deadhead: z.enum(DEADHEAD_TREATMENTS).optional(),
-          includeOwnerOperators: z.coerce.boolean().optional(),
-        })
-        .safeParse(req.query);
+      const parsed = cpmQuerySchema.safeParse(req.query);
       if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD (optional: deadhead=estimate|exclude, includeOwnerOperators=1)."));
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD with from before to (to is exclusive); optional: deadhead=estimate|exclude, includeOwnerOperators=1."));
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);

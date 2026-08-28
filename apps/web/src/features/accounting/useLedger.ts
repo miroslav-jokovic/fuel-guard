@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 
 import type { FinancialEntryDto } from "@silvicom/shared";
 
@@ -8,6 +9,10 @@ import type { FinancialEntryDto } from "@silvicom/shared";
  * Accounting data layer — API-only by design (D-SEP7): financial_entries is deny-all in RLS,
  * so /api/accounting is THE read path, role-gated on the accounting section's matrix row.
  * No PostgREST fallback exists or ever should.
+ *
+ * `filter.to` is the INCLUSIVE day the picker shows; the API windows on `.lt("occurred_at", to)`.
+ * The conversion happens here, at the boundary, so the page never has to think about it — see
+ * `@/lib/dateWindow` for why a picker's last day used to disappear.
  */
 export type LedgerEntry = FinancialEntryDto;
 
@@ -16,7 +21,11 @@ export interface LedgerFilter {
   category: string;
   direction: string;
   from: string;
+  /** The inclusive end day the picker shows — converted to the API's exclusive bound on send. */
   to: string;
+  /** Drill-down dimensions the API has always accepted (`entriesSchema`); now reachable from the page. */
+  vehicleId: string;
+  driverId: string;
   all: boolean;
   page: number;
 }
@@ -34,7 +43,9 @@ export function useLedgerQuery(filter: Ref<LedgerFilter>) {
       if (f.category) params.set("category", f.category);
       if (f.direction) params.set("direction", f.direction);
       if (f.from) params.set("from", f.from);
-      if (f.to) params.set("to", f.to);
+      if (f.to) params.set("to", exclusiveEnd(f.to));
+      if (f.vehicleId) params.set("vehicleId", f.vehicleId);
+      if (f.driverId) params.set("driverId", f.driverId);
       if (f.all) params.set("all", "1");
       params.set("limit", String(LEDGER_PAGE_SIZE));
       params.set("offset", String((f.page - 1) * LEDGER_PAGE_SIZE));
@@ -58,7 +69,7 @@ export function useLedgerSummaryQuery(from: Ref<string>, to: Ref<string>) {
     enabled: computed(() => !!from.value && !!to.value),
     queryFn: async (): Promise<CategorySummary[]> => {
       const r = await apiFetch<{ summary: CategorySummary[] }>(
-        `/api/accounting/summary?from=${from.value}&to=${to.value}`,
+        `/api/accounting/summary?from=${from.value}&to=${exclusiveEnd(to.value)}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the summary");
       return r.data.summary;

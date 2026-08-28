@@ -2,6 +2,8 @@
 import { computed, ref } from "vue";
 import type { DeadheadTreatment } from "@silvicom/shared";
 import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
+import { lastFullMonth } from "@/lib/dateWindow";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -12,12 +14,22 @@ import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 
 // Default window: the trailing full month — CPM is a period figure, and a part-month reads low
 // on fixed-cadence costs. The caveats below the numbers are the harness's own, not the page's.
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
-const now = new Date();
-const from = ref<string>(ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
-const to = ref<string>(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
+//
+// Both ends are INCLUSIVE ("Jul 1 to Jul 31"), matching what the picker shows; `useCpm` converts
+// the end to the API's exclusive bound. The old default wrote `to` as the 1st of the NEXT month to
+// stand in for that conversion, which left the default correct and every hand-picked range one day
+// short — the report simply read low, with nothing to show it had.
+const defaultWindow = lastFullMonth();
+const from = ref<string>(defaultWindow.from);
+const to = ref<string>(defaultWindow.to);
 const deadhead = ref<DeadheadTreatment>("estimate");
 const includeOwnerOperators = ref(false);
+const unitSearch = ref("");
+// Idle trucks are the report's loudest distortion: a unit that moved 4 miles and carries a whole
+// month of fixed cost prints a four-figure $/mi and drags the eye off the fleet. The floor hides
+// the row without touching the arithmetic — fleet totals below still come from the harness, over
+// every truck — and it defaults OFF so nothing is hidden until the reader asks for it.
+const minMiles = ref("0");
 
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
@@ -29,12 +41,48 @@ const { data, isLoading, isError, error, refetch, isFetching } = useCpmQuery(fil
 
 const report = computed(() => data.value?.report ?? null);
 const provenance = computed(() => data.value?.provenance ?? null);
-const trucks = computed(() => report.value?.trucks ?? []);
+const allTrucks = computed(() => report.value?.trucks ?? []);
+
+/**
+ * The visible rows. Filtering and sorting are deliberately CLIENT-side and view-only: the fleet
+ * figures above, the caveats below and the GL card all come from the harness over the whole fleet,
+ * and narrowing the table must never look like it changed them. A row hidden here is hidden, not
+ * excluded from the arithmetic.
+ */
+const sort = ref<SortState>({ key: null, dir: "asc" });
+const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
+const trucks = computed(() => {
+  const q = unitSearch.value.trim().toLowerCase();
+  const floor = Number(minMiles.value) || 0;
+  const rows = allTrucks.value.filter(
+    (t) => (!q || t.tractor_unit.toLowerCase().includes(q)) && t.totalMiles >= floor,
+  );
+  return sortRows(rows, sort.value);
+});
+const hiddenCount = computed(() => allTrucks.value.length - trucks.value.length);
 
 const deadheadOptions = [
   { value: "estimate", label: "Deadhead estimated" },
   { value: "exclude", label: "Loaded miles only" },
 ];
+// A truck that barely moved carries a whole month of fixed cost over a handful of miles, so its
+// $/mi is arithmetically right and analytically useless. These are the thresholds an owner reads
+// the report at; "any" is the default so the table starts by hiding nothing.
+const minMilesOptions = [
+  { value: "0", label: "Any mileage" },
+  { value: "100", label: "100+ miles" },
+  { value: "1000", label: "1,000+ miles" },
+  { value: "5000", label: "5,000+ miles" },
+];
+
+const activeFilterCount = computed(
+  () => (unitSearch.value.trim() ? 1 : 0) + (minMiles.value !== "0" ? 1 : 0),
+);
+function resetFilters() {
+  unitSearch.value = "";
+  minMiles.value = "0";
+}
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
@@ -46,23 +94,23 @@ const fmtCpm = (n: number) => `$${(n / 100).toFixed(2)}`;
 // window has no Samsara miles and the harness fell back — and said so.
 const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
 const columns = computed<DataTableColumn[]>(() => [
-  { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs" },
-  { key: "movements", label: "Trips", numeric: true },
-  { key: "loadedMiles", label: "Loaded mi", numeric: true, cellClass: "text-ink-tertiary" },
+  { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs", sortable: true },
+  { key: "movements", label: "Trips", numeric: true, sortable: true },
+  { key: "loadedMiles", label: "Loaded mi", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
   ...(samsaraBasis.value
-    ? [{ key: "totalMiles", label: "Samsara mi", numeric: true } as DataTableColumn]
+    ? [{ key: "totalMiles", label: "Samsara mi", numeric: true, sortable: true } as DataTableColumn]
     : [
-        { key: "deadheadMilesEstimated", label: "Deadhead mi", numeric: true, cellClass: "text-ink-tertiary" } as DataTableColumn,
-        { key: "totalMiles", label: "Total mi", numeric: true } as DataTableColumn,
+        { key: "deadheadMilesEstimated", label: "Deadhead mi", numeric: true, cellClass: "text-ink-tertiary", sortable: true } as DataTableColumn,
+        { key: "totalMiles", label: "Total mi", numeric: true, sortable: true } as DataTableColumn,
       ]),
-  { key: "directFuel", label: "Fuel", numeric: true },
-  { key: "directSettlement", label: "Driver pay", numeric: true },
-  { key: "directTotal", label: "Direct cost", numeric: true },
-  { key: "fixedCost", label: "Fixed cost", numeric: true },
-  { key: "revenue", label: "Revenue", numeric: true },
-  { key: "totalCpm", label: "Cost $/mi", numeric: true },
-  { key: "revenueCpm", label: "Rev $/mi", numeric: true },
-  { key: "netCpm", label: "Net $/mi", numeric: true },
+  { key: "directFuel", label: "Fuel", numeric: true, sortable: true },
+  { key: "directSettlement", label: "Driver pay", numeric: true, sortable: true },
+  { key: "directTotal", label: "Direct cost", numeric: true, sortable: true },
+  { key: "fixedCost", label: "Fixed cost", numeric: true, sortable: true },
+  { key: "revenue", label: "Revenue", numeric: true, sortable: true },
+  { key: "totalCpm", label: "Cost $/mi", numeric: true, sortable: true },
+  { key: "revenueCpm", label: "Rev $/mi", numeric: true, sortable: true },
+  { key: "netCpm", label: "Net $/mi", numeric: true, sortable: true },
 ]);
 </script>
 
@@ -98,17 +146,30 @@ const columns = computed<DataTableColumn[]>(() => [
       </BaseCard>
     </div>
 
-    <FilterBar :count="trucks.length" count-label="trucks">
+    <FilterBar v-model:search="unitSearch" search-placeholder="Search by truck unit…" :count="trucks.length" count-label="trucks">
       <template #filters>
+        <!-- Hidden, correctly, when Samsara measured the window: `computeCpm` picks ONE basis
+             fleet-wide (owner ruling 2026-08-27) and ignores the deadhead rule entirely under
+             `useActual`, so rendering this control there would offer a switch wired to nothing.
+             The basis in force is stated on the Total miles card and in the harness's caveats. -->
         <FilterSelect v-if="!samsaraBasis" v-model="deadhead" label="Miles basis" :options="deadheadOptions" />
+        <FilterSelect v-model="minMiles" label="Min miles" :options="minMilesOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
       </template>
       <template #actions>
         <BaseButton :variant="includeOwnerOperators ? 'secondary' : 'ghost'" size="sm" @click="includeOwnerOperators = !includeOwnerOperators">
           {{ includeOwnerOperators ? "Owner-operators included" : "Company trucks only" }}
         </BaseButton>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
     </FilterBar>
+
+    <!-- Say what the table is not showing. A filtered view that looks like the whole fleet is how
+         a per-truck number gets quoted as a fleet number. -->
+    <p v-if="hiddenCount > 0" class="text-xs text-ink-tertiary">
+      {{ hiddenCount }} {{ hiddenCount === 1 ? "truck" : "trucks" }} hidden by the filters above. The fleet
+      figures and the ledger below still cover every truck in the window.
+    </p>
 
     <DataTable
       :columns="columns"
@@ -117,10 +178,22 @@ const columns = computed<DataTableColumn[]>(() => [
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
       :retrying="isFetching"
+      :sort="sort"
+      @sort="onSort"
       @retry="refetch"
     >
       <template #empty>
-        <div class="space-y-1">
+        <!-- Two different emptinesses. "The filters matched nothing" is the reader's own doing and
+             is fixed by clearing them; "the sweeps have not run" is the harness's, and naming the
+             pending source is the whole point of the provenance block. -->
+        <div v-if="allTrucks.length" class="space-y-1">
+          <p>No truck matches these filters.</p>
+          <p class="text-xs text-ink-tertiary">
+            {{ allTrucks.length }} {{ allTrucks.length === 1 ? "truck is" : "trucks are" }} in the window. Clear
+            the filters to see them.
+          </p>
+        </div>
+        <div v-else class="space-y-1">
           <p>No cost per mile for this window yet.</p>
           <p v-for="s in provenance?.pendingSources ?? []" :key="s" class="text-xs text-ink-tertiary">{{ s }}</p>
         </div>
