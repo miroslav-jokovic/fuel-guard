@@ -25,6 +25,8 @@ export {
   readApVouchersWindow,
   readBillingWindow,
   readLedgerTotals,
+  readMovementsWindow,
+  type StagedMovement,
   type StagedSettlement,
   type StagedVoucher,
   type StagedBilling,

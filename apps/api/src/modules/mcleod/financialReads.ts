@@ -125,3 +125,36 @@ export async function readLedgerTotals(
       .range(from, to),
   );
 }
+
+export interface StagedMovement {
+  external_id: string;
+  tractor_unit: string | null;
+  trailer_unit: string | null;
+  driver_external_ids: string[];
+  order_ids: string[];
+  loaded_miles: number | string | null;
+  fuel_miles: number | string | null;
+  distance_unit: string;
+  settled_at: string | null;
+  /** The ordered stop array, exactly as tmsStopFactSchema shaped it on the way in (0267). */
+  stops: unknown;
+}
+
+/** Settled movements over a window — the cents-per-mile denominator (0267). */
+export async function readMovementsWindow(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<StagedMovement[]> {
+  return paged<StagedMovement>((from, to) =>
+    admin
+      .from("mcleod_movements")
+      .select("external_id, tractor_unit, trailer_unit, driver_external_ids, order_ids, loaded_miles, fuel_miles, distance_unit, settled_at, stops")
+      .eq("org_id", orgId)
+      .gte("settled_at", fromIso)
+      .lt("settled_at", toIso)
+      .order("settled_at", { ascending: true })
+      .range(from, to),
+  );
+}
