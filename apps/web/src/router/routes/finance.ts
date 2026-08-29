@@ -12,7 +12,7 @@ export const financeRoutes: RouteRecordRaw[] = [
     path: "/accounting",
     name: "accounting",
     component: () => import("@/pages/AccountingLedgerPage.vue"),
-    meta: { requiresAuth: true, title: "Ledger" },
+    meta: { requiresAuth: true, title: "Money in & out" },
   },
   {
     path: "/cpm",
@@ -24,13 +24,13 @@ export const financeRoutes: RouteRecordRaw[] = [
     path: "/cost-schedule",
     name: "cost-schedule",
     component: () => import("@/pages/CostSchedulePage.vue"),
-    meta: { requiresAuth: true, title: "Fixed costs" },
+    meta: { requiresAuth: true, title: "Truck fixed costs" },
   },
   {
     path: "/billing",
     name: "billing",
     component: () => import("@/pages/BillingPage.vue"),
-    meta: { requiresAuth: true, title: "Billing" },
+    meta: { requiresAuth: true, title: "Revenue & margin" },
   },
   {
     path: "/shop",
