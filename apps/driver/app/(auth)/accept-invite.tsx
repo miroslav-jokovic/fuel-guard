@@ -157,7 +157,7 @@ export default function AcceptInvite() {
             <AuthHero
               icon="badge"
               title="Set your password"
-              subtitle="Finish setting up your FuelGuard Driver account."
+              subtitle="Finish setting up your Silvicom 360 Driver account."
             />
             {error ? <Banner tone="danger" message={error} /> : null}
             <View className="gap-4">

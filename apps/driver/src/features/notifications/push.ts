@@ -56,7 +56,7 @@ export async function registerForPush(): Promise<boolean> {
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'FuelGuard',
+        name: 'Silvicom 360 Driver',
         importance: Notifications.AndroidImportance.HIGH,
       });
     }
