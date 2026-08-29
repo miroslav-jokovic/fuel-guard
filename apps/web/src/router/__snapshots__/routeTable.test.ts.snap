@@ -435,7 +435,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Ledger",
+      "title": "Money in & out",
     },
     "name": "accounting",
     "path": "/accounting",
@@ -482,7 +482,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Billing",
+      "title": "Revenue & margin",
     },
     "name": "billing",
     "path": "/billing",
@@ -506,7 +506,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fixed costs",
+      "title": "Truck fixed costs",
     },
     "name": "cost-schedule",
     "path": "/cost-schedule",

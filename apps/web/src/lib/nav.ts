@@ -190,10 +190,10 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       label: "Finance",
       icon: CurrencyDollarIcon,
       items: [
-        { name: "Ledger", to: "/accounting", icon: CurrencyDollarIcon, show: canViewSection(role, "accounting") },
+        { name: "Money in & out", to: "/accounting", icon: CurrencyDollarIcon, show: canViewSection(role, "accounting") },
         { name: "Cost per mile", to: "/cpm", icon: ChartAverageIcon, show: canViewSection(role, "accounting") },
-        { name: "Fixed costs", to: "/cost-schedule", icon: InvoiceIcon, show: canViewSection(role, "accounting") },
-        { name: "Billing", to: "/billing", icon: DocumentTextIcon, show: canViewSection(role, "billing") },
+        { name: "Truck fixed costs", to: "/cost-schedule", icon: InvoiceIcon, show: canViewSection(role, "accounting") },
+        { name: "Revenue & margin", to: "/billing", icon: DocumentTextIcon, show: canViewSection(role, "billing") },
       ],
     },
     {
