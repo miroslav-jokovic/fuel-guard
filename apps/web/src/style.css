@@ -21,6 +21,25 @@ body {
   --sidebar-edge: var(--edge-subtle);
   --sidebar-focus: var(--focus-ring);
 
+  /*
+   * The Silvicom marks' own tones. Deliberately NOT theme roles — a logo does not restyle itself
+   * with the palette — but they are `light-dark()` pairs anyway, because both marks are two-tone:
+   * the "360" is knocked OUT of the navy. Inverting such a mark means SWAPPING the pair, not
+   * flattening it. Flattening is exactly the defect this replaced (2026-08-29): the marks shipped
+   * as <img> recoloured with `brightness-0 invert`, a filter that cannot tell the tones apart, so
+   * it painted the knockout white as well and the 360 disappeared on both marks in dark mode.
+   *
+   * The wordmark and the S mark carry different navies (and different knockouts) in the source
+   * artwork. They are never on screen together, and copying each one exactly is what keeps the
+   * light rendering pixel-identical to the assets, so they get a role each rather than an average.
+   */
+  --brand-wordmark-ink: light-dark(#1e1d45, #ffffff);
+  --brand-wordmark-knockout: light-dark(#ffffff, #1e1d45);
+  /* The dot over the i is the brand's warm grey, which carries on either surface unchanged. */
+  --brand-wordmark-dot: #8c8784;
+  --brand-mark-ink: light-dark(#18274d, #ffffff);
+  --brand-mark-knockout: light-dark(#f2f2f2, #18274d);
+
   /* Development A/B lab tokens remain isolated from shipped component roles. */
   --prototype-canvas: oklch(0.968 0.007 247.896);
   --prototype-surface: oklch(1 0 0);

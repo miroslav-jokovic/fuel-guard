@@ -19,17 +19,16 @@ import NotificationBell from "@/components/NotificationBell.vue";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import { useThreadsQuery } from "@/features/messages/useMessages";
 import AppLogo from "@/components/AppLogo.vue";
+import AppWordmark from "@/components/AppWordmark.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import { useSidebarSections } from "@/composables/useSidebarSections";
-import { useColorScheme } from "@/composables/useColorScheme";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
 
 const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
-const { isDark } = useColorScheme();
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
@@ -154,13 +153,7 @@ async function signOut() {
                   <!-- Same size and inset as the desktop header above, measured against this
                        drawer's own px-3 body padding so the wordmark lands on the nav icon column. -->
                   <div class="sidebar-divider flex h-14 shrink-0 items-center border-b px-2.5">
-                    <img
-                      src="/SilvicomLogoText.svg"
-                      alt="Silvicom 360"
-                      class="h-8 object-contain"
-                      :class="isDark ? 'brightness-0 invert' : ''"
-                      draggable="false"
-                    />
+                    <AppWordmark class="h-8" />
                   </div>
                   <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
                     <ul class="flex flex-1 flex-col gap-y-0.5">
@@ -233,14 +226,7 @@ async function signOut() {
               starts on the same vertical line as the nav icons below it instead of 6px to their
               left. Move the two together if the nav padding ever changes.
             -->
-            <img
-              v-else
-              src="/SilvicomLogoText.svg"
-              alt="Silvicom 360"
-              class="ml-2.5 h-8 object-contain"
-              :class="isDark ? 'brightness-0 invert' : ''"
-              draggable="false"
-            />
+            <AppWordmark v-else class="ml-2.5 h-8" />
           </div>
 
           <!-- Nav -->
