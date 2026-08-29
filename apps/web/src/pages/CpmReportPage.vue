@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { DeadheadTreatment } from "@silvicom/shared";
 import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
+import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
+import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
+import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import StatCard from "@/components/ui/StatCard.vue";
+import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
+import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 
 // Default window: the trailing full month — CPM is a period figure, and a part-month reads low
-// on fixed-cadence costs. The caveats below the numbers are the harness's own, not the page's.
+// on fixed-cadence costs. The caveats in the explainer are the harness's own, not the page's.
 //
 // Both ends are INCLUSIVE ("Jul 1 to Jul 31"), matching what the picker shows; `useCpm` converts
 // the end to the API's exclusive bound. The old default wrote `to` as the 1st of the NEXT month to
@@ -27,9 +31,22 @@ const includeOwnerOperators = ref(false);
 const unitSearch = ref("");
 // Idle trucks are the report's loudest distortion: a unit that moved 4 miles and carries a whole
 // month of fixed cost prints a four-figure $/mi and drags the eye off the fleet. The floor hides
-// the row without touching the arithmetic — fleet totals below still come from the harness, over
+// the row without touching the arithmetic — the figures above still come from the harness, over
 // every truck — and it defaults OFF so nothing is hidden until the reader asks for it.
 const minMiles = ref("0");
+
+/**
+ * Three views of one period, so each table gets a page to itself (owner ruling, 2026-08-29). They
+ * used to be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check,
+ * which read as one report with two footnotes rather than three answers to three questions.
+ */
+type CpmTab = "trucks" | "contractors" | "fleet";
+const TABS: TabItem[] = [
+  { value: "trucks", label: "Per truck" },
+  { value: "contractors", label: "Contractors" },
+  { value: "fleet", label: "Company total" },
+];
+const tab = ref<CpmTab>("trucks");
 
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
@@ -45,12 +62,15 @@ const allTrucks = computed(() => report.value?.trucks ?? []);
 
 /**
  * The visible rows. Filtering and sorting are deliberately CLIENT-side and view-only: the fleet
- * figures above, the caveats below and the GL card all come from the harness over the whole fleet,
+ * figures above, the caveats and the company total all come from the harness over the whole fleet,
  * and narrowing the table must never look like it changed them. A row hidden here is hidden, not
  * excluded from the arithmetic.
  */
+const PAGE_SIZE = 20;
+const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
 const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+watch([unitSearch, minMiles, from, to, deadhead, includeOwnerOperators, tab], () => (page.value = 1));
 
 const trucks = computed(() => {
   const q = unitSearch.value.trim().toLowerCase();
@@ -60,10 +80,11 @@ const trucks = computed(() => {
   );
   return sortRows(rows, sort.value);
 });
+const truckPage = computed(() => trucks.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const hiddenCount = computed(() => allTrucks.value.length - trucks.value.length);
 
 const deadheadOptions = [
-  { value: "estimate", label: "Deadhead estimated" },
+  { value: "estimate", label: "Include empty miles" },
   { value: "exclude", label: "Loaded miles only" },
 ];
 // A truck that barely moved carries a whole month of fixed cost over a handful of miles, so its
@@ -89,240 +110,175 @@ function resetFilters() {
 const ownerOperators = computed(() => report.value?.ownerOperators ?? []);
 const ownerOpRevenue = computed(() => ownerOperators.value.reduce((a, o) => a + o.revenue, 0));
 const ownerOpMargin = computed(() => ownerOperators.value.reduce((a, o) => a + o.netMargin, 0));
-const ownerOpColumns: DataTableColumn[] = [
-  { key: "payeeId", label: "Contractor", cellClass: "font-mono text-xs" },
-  { key: "units", label: "Trucks", cellClass: "font-mono text-xs text-ink-tertiary" },
-  { key: "settlements", label: "Settlements", numeric: true, cellClass: "text-ink-tertiary" },
-  { key: "revenue", label: "Hauled", numeric: true },
-  { key: "dealPct", label: "Their share", numeric: true },
-  { key: "pay", label: "Paid out", numeric: true },
-  { key: "grossMargin", label: "Kept on loads", numeric: true },
-  { key: "deductionIncome", label: "Rental + fees", numeric: true },
-  { key: "netMargin", label: "We keep", numeric: true },
-];
+const ownerOpPage = computed(() =>
+  ownerOperators.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+);
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
 const fmtCpm = (n: number) => `$${(n / 100).toFixed(2)}`;
 
-// The miles columns follow the report's basis (owner ruling: Samsara actuals are the fleet's
-// mileage truth; McLeod loaded stays as reference). The estimate columns appear only when the
-// window has no Samsara miles and the harness fell back — and said so.
 const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
-const columns = computed<DataTableColumn[]>(() => [
-  { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs", sortable: true },
-  { key: "movements", label: "Trips", numeric: true, sortable: true },
-  { key: "loadedMiles", label: "Loaded mi", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
-  ...(samsaraBasis.value
-    ? [{ key: "totalMiles", label: "Samsara mi", numeric: true, sortable: true } as DataTableColumn]
-    : [
-        { key: "deadheadMilesEstimated", label: "Deadhead mi", numeric: true, cellClass: "text-ink-tertiary", sortable: true } as DataTableColumn,
-        { key: "totalMiles", label: "Total mi", numeric: true, sortable: true } as DataTableColumn,
-      ]),
-  { key: "directFuel", label: "Fuel", numeric: true, sortable: true },
-  { key: "directSettlement", label: "Driver pay", numeric: true, sortable: true },
-  { key: "directTotal", label: "Direct cost", numeric: true, sortable: true },
-  { key: "fixedCost", label: "Fixed cost", numeric: true, sortable: true },
-  { key: "revenue", label: "Revenue", numeric: true, sortable: true },
-  { key: "totalCpm", label: "Cost $/mi", numeric: true, sortable: true },
-  { key: "revenueCpm", label: "Rev $/mi", numeric: true, sortable: true },
-  { key: "netCpm", label: "Net $/mi", numeric: true, sortable: true },
-]);
+const visibleCount = computed(() => (tab.value === "trucks" ? trucks.value.length : ownerOperators.value.length));
+const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contractors"));
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What every company truck costs and earns per mile — measured miles, measured cost, and every assumption stated. Overhead is the income statement less what the trucks already carry, spread by miles; owner-operators are counted separately below, because their pay is a share of the load rather than a cost we bear. The caveats say exactly what each figure rests on." />
+    <PageHeader description="What each truck costs and earns for every mile it drives." />
 
-    <!-- The equation reads left to right — earning, cost, what is left — because that is the order
-         the owner asks it in. Earning per mile used to exist only as small print under the net
-         card, which made the one number a carrier prices freight against the hardest to find. -->
+    <!--
+      The method, one click away. Every sentence here used to sit in the page description or in
+      trailing cards, in front of the figures rather than behind them — and none of it can be lost:
+      a cost-per-mile number whose assumptions are invisible is worse than none, because it gets
+      quoted. The caveats are generated by the harness from what happened in THIS run.
+    -->
+    <ExplainerPanel>
+      <p>
+        Every mile the trucks drove in the period, measured by Samsara where it has them, against
+        every cost the ledger can place on a truck: fuel, driver pay, and the fixed monthly charges
+        from the truck fixed-costs page.
+      </p>
+      <p>
+        Costs that belong to no single truck — office wages, rent, interest — are shared out across
+        the miles, so nothing is left out of the figure. Contractors are not in the per-truck table:
+        they are paid a share of each load rather than costing us fuel and wages, so they have their
+        own tab and the company total covers both.
+      </p>
+      <ul v-if="report?.caveats.length || provenance?.notes.length" class="space-y-1">
+        <li v-for="c in report?.caveats ?? []" :key="c" class="text-sm text-ink-secondary">• {{ c }}</li>
+        <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">• {{ n }}</li>
+      </ul>
+    </ExplainerPanel>
+
+    <!-- The equation reads left to right — earned, cost, what is left — because that is the order
+         the owner asks it in. -->
     <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Earning $ / mile</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.revenueCpm) }}</p>
-        <p class="text-2xs text-ink-tertiary">{{ fmtUsd(report.fleet.revenueTotal) }} booked over {{ fmtMiles(report.fleet.totalMiles) }} miles</p>
-      </BaseCard>
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost $ / mile</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.totalCpm) }}</p>
-        <p class="text-2xs text-ink-tertiary">direct {{ fmtCpm(report.fleet.directCpm) }} + fixed {{ fmtCpm(report.fleet.fixedCpm) }}</p>
-      </BaseCard>
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Net $ / mile</p>
-        <p class="text-2xl font-bold" :class="report.fleet.netCpm >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(report.fleet.netCpm) }}</p>
-        <p class="text-2xs text-ink-tertiary">earning {{ fmtCpm(report.fleet.revenueCpm) }} − cost {{ fmtCpm(report.fleet.totalCpm) }}; read the caveats for what net still omits</p>
-      </BaseCard>
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Total miles</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtMiles(report.fleet.totalMiles) }}</p>
-        <p class="text-2xs text-ink-tertiary">{{ samsaraBasis ? "Samsara measured, empty miles included" : `${fmtMiles(report.fleet.deadheadMilesEstimated)} estimated deadhead` }}</p>
-      </BaseCard>
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Cost in these figures</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal) }}</p>
-        <p class="text-2xs text-ink-tertiary">direct + scheduled fixed, against {{ fmtUsd(report.fleet.revenueTotal) }} of GL-posted invoices on company trucks</p>
-      </BaseCard>
+      <StatCard
+        label="Earned per mile"
+        :value="fmtCpm(report.fleet.revenueCpm)"
+        :sub="`${fmtUsd(report.fleet.revenueTotal)} over ${fmtMiles(report.fleet.totalMiles)} miles`"
+      />
+      <StatCard
+        label="Cost per mile"
+        :value="fmtCpm(report.fleet.totalCpm)"
+        :sub="`${fmtCpm(report.fleet.directCpm)} fuel and pay + ${fmtCpm(report.fleet.fixedCpm)} fixed`"
+      />
+      <StatCard
+        label="Left per mile"
+        :value="fmtCpm(report.fleet.netCpm)"
+        :sub="report.fleet.netCpm >= 0 ? 'earned minus cost' : 'each mile is losing money'"
+        :sub-tone="report.fleet.netCpm >= 0 ? undefined : 'text-danger-700'"
+      />
+      <StatCard
+        label="Miles driven"
+        :value="fmtMiles(report.fleet.totalMiles)"
+        :sub="samsaraBasis ? 'measured by Samsara, empty miles included' : `${fmtMiles(report.fleet.deadheadMilesEstimated)} empty miles estimated`"
+      />
+      <StatCard
+        label="Total cost"
+        :value="fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal)"
+        :sub="`against ${fmtUsd(report.fleet.revenueTotal)} earned on company trucks`"
+      />
       <!-- This card used to read "Not in these figures" over the money the report declined to
-           place. That was the complaint: a number nobody could act on, holding 38.9% of the
-           fleet's cost. Overhead is now ON the trucks, so the card states what each mile carries
-           of it — and if any is still withheld it says so in red rather than quietly. -->
-      <BaseCard padding="sm">
-        <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Overhead $ / mile</p>
-        <p class="text-2xl font-bold text-ink">{{ fmtCpm(report.fleet.allocatedCpm) }}</p>
-        <p class="text-2xs text-ink-tertiary">
-          {{ report.excluded.overheadSource === "gl_remainder"
-            ? "the income statement, less what the trucks already carry"
-            : "from AP vouchers — journal-posted cost is not in this figure" }}
-        </p>
-        <p v-if="report.excluded.unallocatedOverhead > 0" class="text-2xs text-danger-600">
-          {{ fmtUsd(report.excluded.unallocatedOverhead) }} still unallocated
-        </p>
-      </BaseCard>
+           place. That was the complaint: a number nobody could act on, holding 38.9% of the fleet's
+           cost. Overhead is now ON the trucks, so the card states what each mile carries of it —
+           and if any is still withheld it says so in red rather than quietly. -->
+      <StatCard
+        label="Shared costs per mile"
+        :value="fmtCpm(report.fleet.allocatedCpm)"
+        :sub="report.excluded.unallocatedOverhead > 0
+          ? `${fmtUsd(report.excluded.unallocatedOverhead)} could not be shared out`
+          : 'office, rent and interest, spread over the miles'"
+        :sub-tone="report.excluded.unallocatedOverhead > 0 ? 'text-danger-600' : undefined"
+      />
     </div>
 
-    <FilterBar v-model:search="unitSearch" search-placeholder="Search by truck unit…" :count="trucks.length" count-label="trucks">
-      <template #filters>
-        <!-- Hidden, correctly, when Samsara measured the window: `computeCpm` picks ONE basis
-             fleet-wide (owner ruling 2026-08-27) and ignores the deadhead rule entirely under
-             `useActual`, so rendering this control there would offer a switch wired to nothing.
-             The basis in force is stated on the Total miles card and in the harness's caveats. -->
-        <FilterSelect v-if="!samsaraBasis" v-model="deadhead" label="Miles basis" :options="deadheadOptions" />
-        <FilterSelect v-model="minMiles" label="Min miles" :options="minMilesOptions" />
-        <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
-      </template>
-      <template #actions>
-        <BaseButton :variant="includeOwnerOperators ? 'secondary' : 'ghost'" size="sm" @click="includeOwnerOperators = !includeOwnerOperators">
-          {{ includeOwnerOperators ? "Owner-operators included" : "Company trucks only" }}
-        </BaseButton>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-      </template>
-    </FilterBar>
+    <AppTabs v-model="tab" :tabs="TABS" label="Cost per mile views" id-prefix="cpm" />
 
-    <!-- Say what the table is not showing. A filtered view that looks like the whole fleet is how
-         a per-truck number gets quoted as a fleet number. -->
-    <p v-if="hiddenCount > 0" class="text-xs text-ink-tertiary">
-      {{ hiddenCount }} {{ hiddenCount === 1 ? "truck" : "trucks" }} hidden by the filters above. The fleet
-      figures and the ledger below still cover every truck in the window.
+    <!-- Contractors get their headline as prose, because the two numbers are a sentence: what they
+         hauled, and what of it we kept. -->
+    <p v-if="tab === 'contractors' && ownerOperators.length" class="text-sm text-ink-secondary">
+      Contractors hauled <span class="font-semibold text-ink">{{ fmtUsd(ownerOpRevenue) }}</span> in this
+      period, of which we kept <span class="font-semibold text-ink">{{ fmtUsd(ownerOpMargin) }}</span
+      >. They are paid a share of each load, so they carry no share of the company's costs.
     </p>
 
-    <DataTable
-      :columns="columns"
-      :rows="trucks"
-      row-key="tractor_unit"
+    <CpmFleetTotal
+      v-if="tab === 'fleet' && provenance?.glCheck?.monthsCovered?.length"
+      :gl="provenance.glCheck"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-      :retrying="isFetching"
-      :sort="sort"
-      @sort="onSort"
-      @retry="refetch"
-    >
-      <template #empty>
-        <!-- Two different emptinesses. "The filters matched nothing" is the reader's own doing and
-             is fixed by clearing them; "the sweeps have not run" is the harness's, and naming the
-             pending source is the whole point of the provenance block. -->
-        <div v-if="allTrucks.length" class="space-y-1">
-          <p>No truck matches these filters.</p>
-          <p class="text-xs text-ink-tertiary">
-            {{ allTrucks.length }} {{ allTrucks.length === 1 ? "truck is" : "trucks are" }} in the window. Clear
-            the filters to see them.
-          </p>
-        </div>
-        <div v-else class="space-y-1">
-          <p>No cost per mile for this window yet.</p>
-          <p v-for="s in provenance?.pendingSources ?? []" :key="s" class="text-xs text-ink-tertiary">{{ s }}</p>
-        </div>
-      </template>
-      <template #cell-loadedMiles="{ value }">{{ fmtMiles(value) }}</template>
-      <template #cell-deadheadMilesEstimated="{ value }">{{ fmtMiles(value) }}</template>
-      <template #cell-totalMiles="{ value }">{{ fmtMiles(value) }}</template>
-      <template #cell-directFuel="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-directSettlement="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-directTotal="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-fixedCost="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
-      <template #cell-totalCpm="{ value }">{{ fmtCpm(value) }}</template>
-      <template #cell-revenueCpm="{ value }">{{ fmtCpm(value) }}</template>
-      <template #cell-netCpm="{ value }">
-        <span class="font-semibold" :class="value >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(value) }}</span>
-      </template>
-    </DataTable>
+    />
+    <p v-else-if="tab === 'fleet'" class="text-sm text-ink-secondary">
+      The company total needs the ledger for a whole month. Pick a period that covers one, or run the
+      McLeod sweep for this one.
+    </p>
 
-    <!-- Owner-operators, kept apart because the arithmetic is a different question. A company
-         truck's cost is our fuel and the driver's pay; a contractor's is a SHARE of the load —
-         measured at 88%, 90% and 95% across five payees in June 2026, three different deals — and
-         our earning is the remainder. Averaging the two describes neither. The deal percentage is
-         read back from what settled, so a renegotiation shows up without anyone editing a table. -->
-    <BaseCard v-if="ownerOperators.length" padding="none">
-      <div class="px-4 pt-4 pb-2">
-        <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">
-          Owner-operators — {{ fmtUsd(ownerOpMargin) }} kept on {{ fmtUsd(ownerOpRevenue) }} hauled
-        </h3>
-        <p class="text-2xs text-ink-tertiary">
-          Their pay is a contracted share of the load, so they carry no company overhead and no cost
-          per mile. "We keep" is the share retained plus rental, insurance-collection and
-          installment deductions that post to revenue accounts. Fuel advanced on the card is a
-          receivable they repay, not a cost, and is not in these figures.
-        </p>
-      </div>
-      <DataTable :columns="ownerOpColumns" :rows="ownerOperators" row-key="payeeId" :loading="false" :error="null">
-        <template #cell-units="{ value }">{{ (value as string[]).join(', ') || '—' }}</template>
-        <template #cell-dealPct="{ value }">
-          <span :class="value === null ? 'text-ink-tertiary' : ''">{{ value === null ? "—" : `${value}%` }}</span>
+    <DataWorkspace v-if="tab !== 'fleet'">
+      <FilterBar
+        v-model:search="unitSearch"
+        embedded
+        :search-placeholder="tab === 'trucks' ? 'Search by truck number…' : ''"
+        :count="visibleCount"
+        :count-label="countLabel"
+      >
+        <template #filters>
+          <!-- Hidden, correctly, when Samsara measured the period: `computeCpm` picks ONE basis
+               fleet-wide (owner ruling 2026-08-27) and ignores the empty-miles rule entirely under
+               `useActual`, so rendering this control there would offer a switch wired to nothing.
+               The basis in force is stated on the Miles driven card and in the explainer. -->
+          <FilterSelect v-if="!samsaraBasis && tab === 'trucks'" v-model="deadhead" label="Which miles" :options="deadheadOptions" />
+          <FilterSelect v-if="tab === 'trucks'" v-model="minMiles" label="Least miles" :options="minMilesOptions" />
+          <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>
-        <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
-        <template #cell-pay="{ value }">{{ fmtUsd(value) }}</template>
-        <template #cell-grossMargin="{ value }">{{ fmtUsd(value) }}</template>
-        <!-- Only deductions that posted to a REVENUE account: equipment rental, insurance
-             collection, installment sale. A Fuel Advance repayment is a receivable settling and an
-             expense-account credit already reduced that expense in the ledger — neither is income. -->
-        <template #cell-deductionIncome="{ value }">
-          <span :class="value ? '' : 'text-ink-tertiary'">{{ fmtUsd(value) }}</span>
+        <template #actions>
+          <BaseButton
+            v-if="tab === 'trucks'"
+            :variant="includeOwnerOperators ? 'secondary' : 'ghost'"
+            size="sm"
+            title="Contractor trucks are normally left out of this table, because their cost is a share of the load rather than our fuel and wages."
+            @click="includeOwnerOperators = !includeOwnerOperators"
+          >
+            {{ includeOwnerOperators ? "Contractor trucks included" : "Company trucks only" }}
+          </BaseButton>
+          <BaseButton v-if="tab === 'trucks' && activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         </template>
-        <template #cell-netMargin="{ value }">
-          <span class="font-semibold" :class="value >= 0 ? 'text-success-700' : 'text-danger-700'">{{ fmtUsd(value) }}</span>
-        </template>
-      </DataTable>
-    </BaseCard>
+      </FilterBar>
 
-    <!-- The fleet truth: the GL for this window's months read as an income statement through
-         McLeod's own account classes. EVERY dollar — office payroll, lease cheques, interest —
-         where the table above holds only per-truck attributable cost. Proven to reproduce the
-         owner's P&L to the dollar (2026-08-28 reconciliation). -->
-    <BaseCard v-if="provenance?.glCheck?.monthsCovered?.length" padding="sm">
-      <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Fleet truth — the general ledger for {{ provenance.glCheck.monthsCovered.join(", ") }}</p>
-      <div class="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div>
-          <p class="text-2xs text-ink-tertiary">GL revenue</p>
-          <p class="text-lg font-bold text-ink">{{ fmtUsd(provenance.glCheck.revenue) }}</p>
-        </div>
-        <div>
-          <p class="text-2xs text-ink-tertiary">GL expenses — every dollar, not just per-truck</p>
-          <p class="text-lg font-bold text-ink">{{ fmtUsd(provenance.glCheck.expenses) }}</p>
-        </div>
-        <div>
-          <p class="text-2xs text-ink-tertiary">GL net income</p>
-          <p class="text-lg font-bold" :class="provenance.glCheck.net >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtUsd(provenance.glCheck.net) }}</p>
-        </div>
-        <div>
-          <p class="text-2xs text-ink-tertiary">GL net $ / mile</p>
-          <p class="text-lg font-bold" :class="provenance.glCheck.netCpm >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(provenance.glCheck.netCpm) }}</p>
-        </div>
-      </div>
-      <p class="mt-2 text-2xs text-ink-tertiary">The whole-fleet bottom line from McLeod's ledger. The per-truck table above attributes what CAN be attributed; the difference is unattributed overhead and the owner-operator pool — never missing money.</p>
-      <p v-if="provenance.glCheck.monthsMissing.length" class="text-2xs text-danger-600">GL not yet swept for: {{ provenance.glCheck.monthsMissing.join(", ") }}</p>
-      <p v-if="Math.abs(provenance.glCheck.unclassifiedNet) > 0.01" class="text-2xs text-danger-600">{{ fmtUsd(provenance.glCheck.unclassifiedNet) }} sits in accounts the staged chart of accounts cannot classify — re-run the agent sweep.</p>
-    </BaseCard>
+      <!-- Say what the table is not showing. A filtered view that looks like the whole fleet is how
+           a per-truck number gets quoted as a fleet number. -->
+      <p v-if="tab === 'trucks' && hiddenCount > 0" class="px-4 py-2.5 text-xs text-ink-tertiary sm:px-6">
+        {{ hiddenCount }} {{ hiddenCount === 1 ? "truck is" : "trucks are" }} hidden by the filters above.
+        The figures at the top of the page still cover every truck.
+      </p>
 
-    <!-- The harness's own caveats — generated from what happened in THIS run. A CPM figure whose
-         assumptions are invisible is worse than none, because it gets quoted. -->
-    <BaseCard v-if="report?.caveats.length || provenance?.notes.length" padding="sm">
-      <p class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Read before quoting</p>
-      <ul class="mt-2 space-y-1">
-        <li v-for="c in report?.caveats ?? []" :key="c" class="text-xs text-ink-secondary">{{ c }}</li>
-        <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">{{ n }}</li>
-      </ul>
-    </BaseCard>
+      <CpmTruckTable
+        v-if="tab === 'trucks'"
+        :rows="truckPage"
+        :samsara-basis="samsaraBasis"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :retrying="isFetching"
+        :sort="sort"
+        :page="page"
+        :total="trucks.length"
+        :total-unfiltered="allTrucks.length"
+        :pending-sources="provenance?.pendingSources ?? []"
+        :page-size="PAGE_SIZE"
+        @sort="onSort"
+        @retry="refetch"
+        @update:page="page = $event"
+      />
+      <CpmOwnerOperatorTable
+        v-else
+        :rows="ownerOpPage"
+        :page="page"
+        :total="ownerOperators.length"
+        :page-size="PAGE_SIZE"
+        :loading="isLoading"
+        @update:page="page = $event"
+      />
+    </DataWorkspace>
   </div>
 </template>
