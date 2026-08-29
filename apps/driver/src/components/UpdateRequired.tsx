@@ -1,7 +1,7 @@
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from './AppText';
-import { Icon } from './Icon';
+import { SilvicomLogo360 } from './SilvicomLogo360';
 import { layout } from '@/theme/tokens';
 
 /**
@@ -23,10 +23,7 @@ export function UpdateRequired({ minVersion }: { minVersion: string }) {
       }}
       showsVerticalScrollIndicator={false}
     >
-      <View className="flex-row items-center gap-2">
-        <Icon name="download" size={24} className="text-brand" />
-        <AppText variant="sectionTitle" tone="secondary">FuelGuard Driver</AppText>
-      </View>
+      <SilvicomLogo360 />
       <View className="gap-2">
         <AppText variant="screenTitle">Update required</AppText>
         <AppText tone="secondary">

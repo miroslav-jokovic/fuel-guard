@@ -48,7 +48,7 @@ const hasCertificate =
 
 // Public config only — NEVER put secrets in `extra` (it ships in the bundle). Plan §12.5 / §21 F5.
 const config: ExpoConfig = {
-  name: 'FuelGuard Driver',
+  name: 'Silvicom 360 Driver',
   slug: 'fuelguard-driver',
   scheme: 'fuelguard',
   version: '0.0.1',
@@ -88,7 +88,7 @@ const config: ExpoConfig = {
       'expo-image-picker',
       {
         cameraPermission:
-          'FuelGuard Driver uses your camera to photograph load stops — bill of lading, seal, trailer and any damage — as proof of work.',
+          'Silvicom 360 Driver uses your camera to photograph load stops — bill of lading, seal, trailer and any damage — as proof of work.',
         photosPermission: false,
         microphonePermission: false,
       },
@@ -102,7 +102,7 @@ const config: ExpoConfig = {
       'expo-location',
       {
         locationWhenInUsePermission:
-          'FuelGuard Driver uses your location to show your position on the route and keep navigation centered while you drive.',
+          'Silvicom 360 Driver uses your location to show your position on the route and keep navigation centered while you drive.',
       },
     ],
   ],

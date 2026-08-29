@@ -22,12 +22,14 @@ import AppLogo from "@/components/AppLogo.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import { useSidebarSections } from "@/composables/useSidebarSections";
+import { useColorScheme } from "@/composables/useColorScheme";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
 
 const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
+const { isDark } = useColorScheme();
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
@@ -152,11 +154,11 @@ async function signOut() {
                   <div
                     class="sidebar-divider flex h-14 shrink-0 items-center gap-x-2.5 border-b px-1.5"
                   >
-                    <AppLogo class="size-7 shrink-0" />
                     <img
-                      src="/logo-wordmark.png"
+                      src="/SilvicomLogoText.svg"
                       alt="Silvicom 360"
                       class="h-5 object-contain"
+                      :class="isDark ? 'brightness-0 invert' : ''"
                       draggable="false"
                     />
                   </div>
@@ -219,12 +221,13 @@ async function signOut() {
             class="sidebar-divider flex h-14 shrink-0 items-center border-b"
             :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-2.5 px-4'"
           >
-            <AppLogo class="size-7 shrink-0" />
+            <AppLogo v-if="sidebarCollapsed" class="size-7 shrink-0" />
             <img
-              v-if="!sidebarCollapsed"
-              src="/logo-wordmark.png"
+              v-else
+              src="/SilvicomLogoText.svg"
               alt="Silvicom 360"
               class="h-5 object-contain"
+              :class="isDark ? 'brightness-0 invert' : ''"
               draggable="false"
             />
           </div>

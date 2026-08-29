@@ -1,19 +1,12 @@
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppText, Icon, type Tone } from '@/components';
+import { AppText, SilvicomLogo360, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { layout } from '@/theme/tokens';
 
-const FG: Record<Tone, string> = {
-  neutral: 'text-ink-secondary', brand: 'text-brand', danger: 'text-danger', caution: 'text-caution',
-  warning: 'text-warning', success: 'text-success', info: 'text-info',
-};
-
 /** Compact enterprise identity block; no oversized centered badge or decorative hero space. */
 export function AuthHero({
-  icon,
-  tone = 'brand',
   title,
   subtitle,
 }: {
@@ -24,10 +17,7 @@ export function AuthHero({
 }) {
   return (
     <View className="items-start gap-3">
-      <View className="flex-row items-center gap-2">
-        <Icon name={icon} size={24} fill className={FG[tone]} />
-        <AppText variant="sectionTitle" tone="secondary">FuelGuard Driver</AppText>
-      </View>
+      <SilvicomLogo360 />
       <View className="gap-1">
         <AppText variant="screenTitle" accessibilityRole="header">{title}</AppText>
         {subtitle ? <AppText variant="body" tone="muted">{subtitle}</AppText> : null}

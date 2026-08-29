@@ -86,7 +86,7 @@ export default function StopCapture() {
         setCaptures((prev) => [...prev.filter((c) => c.slot !== slot), result.capture]);
         haptics.success();
       } else if (result.reason === 'permission') {
-        setError('Camera access is off. Enable it for FuelGuard Driver in Settings to add photos.');
+        setError('Camera access is off. Enable it for Silvicom 360 Driver in Settings to add photos.');
       } else if (result.reason === 'error') {
         setError(result.message ?? 'That photo could not be processed. Try again.');
       }

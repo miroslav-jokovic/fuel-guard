@@ -51,6 +51,12 @@ export function initColorScheme() {
 }
 
 export function useColorScheme() {
+  const isDark = computed(() => {
+    if (scheme.value === "dark") return true;
+    if (scheme.value === "light") return false;
+    return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+  });
+
   function set(value: ColorScheme) {
     scheme.value = value;
     paint(value);
@@ -64,6 +70,7 @@ export function useColorScheme() {
 
   return {
     scheme: computed(() => scheme.value),
+    isDark,
     set,
     /** Cycles system → light → dark → system, for a single-control affordance. */
     cycle: () => set(SCHEMES[(SCHEMES.indexOf(scheme.value) + 1) % SCHEMES.length]!),
