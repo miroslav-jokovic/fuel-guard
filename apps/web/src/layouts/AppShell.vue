@@ -151,13 +151,13 @@ async function signOut() {
                 <div
                   class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-3 pb-3"
                 >
-                  <div
-                    class="sidebar-divider flex h-14 shrink-0 items-center gap-x-2.5 border-b px-1.5"
-                  >
+                  <!-- Same size and inset as the desktop header above, measured against this
+                       drawer's own px-3 body padding so the wordmark lands on the nav icon column. -->
+                  <div class="sidebar-divider flex h-14 shrink-0 items-center border-b px-2.5">
                     <img
                       src="/SilvicomLogoText.svg"
                       alt="Silvicom 360"
-                      class="h-5 object-contain"
+                      class="h-8 object-contain"
                       :class="isDark ? 'brightness-0 invert' : ''"
                       draggable="false"
                     />
@@ -219,14 +219,25 @@ async function signOut() {
           <!-- Sidebar header -->
           <div
             class="sidebar-divider flex h-14 shrink-0 items-center border-b"
-            :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-2.5 px-4'"
+            :class="sidebarCollapsed ? 'justify-center px-2' : 'px-3'"
           >
             <AppLogo v-if="sidebarCollapsed" class="size-7 shrink-0" />
+            <!--
+              The wordmark is a two-line lockup (silvicom stacked over the 360 badge), so height
+              buys far less apparent size than it would for a single-line mark: at the h-5 it
+              shipped with on 2026-08-29 each of the three 360 discs rendered ~9px tall and read as
+              grey mush. h-8 puts the wordmark itself at ~17px — a step above the 14px nav label,
+              as an identity should be — and still leaves 12px of air above and below inside h-14.
+
+              ml-2.5 repeats the inset a nav link carries inside the nav's own px-3, so the "s"
+              starts on the same vertical line as the nav icons below it instead of 6px to their
+              left. Move the two together if the nav padding ever changes.
+            -->
             <img
               v-else
               src="/SilvicomLogoText.svg"
               alt="Silvicom 360"
-              class="h-5 object-contain"
+              class="ml-2.5 h-8 object-contain"
               :class="isDark ? 'brightness-0 invert' : ''"
               draggable="false"
             />
