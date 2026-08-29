@@ -150,10 +150,11 @@ async function signOut() {
                 <div
                   class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-3 pb-3"
                 >
-                  <!-- Same size and inset as the desktop header above, measured against this
-                       drawer's own px-3 body padding so the wordmark lands on the nav icon column. -->
-                  <div class="sidebar-divider flex h-14 shrink-0 items-center border-b px-2.5">
-                    <AppWordmark class="h-8" />
+                  <!-- Same size and placement as the desktop header below. -->
+                  <div
+                    class="sidebar-divider flex h-16 shrink-0 items-center justify-center border-b px-2.5"
+                  >
+                    <AppWordmark class="h-10" />
                   </div>
                   <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
                     <ul class="flex flex-1 flex-col gap-y-0.5">
@@ -211,22 +212,22 @@ async function signOut() {
         <div class="sidebar-glass-content flex min-h-0 grow flex-col overflow-x-hidden">
           <!-- Sidebar header -->
           <div
-            class="sidebar-divider flex h-14 shrink-0 items-center border-b"
-            :class="sidebarCollapsed ? 'justify-center px-2' : 'px-3'"
+            class="sidebar-divider flex h-16 shrink-0 items-center justify-center border-b"
+            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
           >
             <AppLogo v-if="sidebarCollapsed" class="size-7 shrink-0" />
             <!--
-              The wordmark is a two-line lockup (silvicom stacked over the 360 badge), so height
-              buys far less apparent size than it would for a single-line mark: at the h-5 it
-              shipped with on 2026-08-29 each of the three 360 discs rendered ~9px tall and read as
-              grey mush. h-8 puts the wordmark itself at ~17px — a step above the 14px nav label,
-              as an identity should be — and still leaves 12px of air above and below inside h-14.
+              The mark is centred rather than aligned to the nav icon column, and the whole chrome
+              band went 3.5rem → 4rem to give it room: the wordmark is a two-line lockup, so height
+              buys far less apparent size than it would for a single-line mark. It shipped at h-5 on
+              2026-08-29 with each 360 disc ~9px tall, went to h-8, and reads properly at h-10 —
+              ~21px of wordmark over a 14px nav label, with 12px of air above and below.
 
-              ml-2.5 repeats the inset a nav link carries inside the nav's own px-3, so the "s"
-              starts on the same vertical line as the nav icons below it instead of 6px to their
-              left. Move the two together if the nav padding ever changes.
+              h-16 is duplicated by the mobile drawer header above and the main sticky header below,
+              on purpose: the three form one horizontal rule across the top of the app, and a
+              sidebar header taller than the content header would break it. Move all three or none.
             -->
-            <AppWordmark v-else class="ml-2.5 h-8" />
+            <AppWordmark v-else class="h-10" />
           </div>
 
           <!-- Nav -->
@@ -310,7 +311,7 @@ async function signOut() {
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-chrome flex h-14 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+        class="sticky top-0 z-chrome flex h-16 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
       >
         <div class="flex items-center gap-x-3">
           <button

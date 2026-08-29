@@ -17,9 +17,9 @@
  * scheme with the app open kept the wrong mark until reload.
  *
  * The artwork itself is untouched: `public/SilvicomLogoText.svg` and `public/SilvicomLogoS.svg`
- * remain the source these were generated from — same geometry, same paint order, only the fills
- * became classes — and the S mark is still the favicon in `index.html`. Regenerate from those if
- * the brand files are ever revised.
+ * remain the source these were generated from — same paint order, the fills became classes, and
+ * the wordmark's 360 badge carries one deliberate translate (see the template). The S mark is
+ * still the favicon in `index.html`. Regenerate from those if the brand files are ever revised.
  *
  * Size it from the parent, e.g. <AppWordmark class="h-8" />.
  */
@@ -50,7 +50,17 @@
     <polygon class="ink" points="1095.91 240.51 1021.53 240.46 1087.52 72.61 1162.65 72.54 1095.91 240.51"/>
     <polygon class="ink" points="1192.02 240.57 1117.94 240.55 1183.76 72.58 1258.3 72.66 1192.02 240.57"/>
     <path class="ink" d="M1336.81,118.53l-48.18,122.17-75.02-.03,66.12-167.77,37.39-.65c12.54,1.59,21.7,10.08,23.24,22.72.96,7.87-.73,15.02-3.55,23.55Z"/>
-    <g>
+    <!--
+      The one deliberate departure from the artwork. In the brand file the 360 badge hangs off the
+      RIGHT end of the wordmark (x 810.5 of a 1340.63 box), which is fine on a wide surface but in a
+      272px sidebar reads as a logo pushed to one side no matter where the lockup itself is placed —
+      the complaint that prompted this (2026-08-29). The translate centres the three discs under the
+      word: they span x 810.5 → 1307, midpoint 1058.75, and the box's midpoint is 670.3.
+
+      It moves the whole group, so the degree mark stays attached to the 0 and every other
+      relationship inside the badge is untouched. Nothing else is re-drawn.
+    -->
+    <g transform="translate(-388.45 0)">
     <circle class="ink" cx="889.7" cy="366.1" r="79.23" transform="translate(1.71 736.34) rotate(-45)"/>
     <path class="knockout" d="M863.29,384.98l14.75-1.87c.47,3.91,1.74,6.91,3.8,8.98s4.56,3.11,7.48,3.11c3.14,0,5.79-1.24,7.95-3.72,2.15-2.49,3.23-5.83,3.23-10.05,0-3.99-1.03-7.15-3.1-9.48-2.06-2.34-4.57-3.5-7.54-3.5-1.95,0-4.29.39-7,1.18l1.68-12.93c4.12.11,7.27-.82,9.44-2.8,2.17-1.98,3.25-4.6,3.25-7.88,0-2.79-.79-5.01-2.38-6.66-1.59-1.66-3.71-2.49-6.35-2.49s-4.83.94-6.67,2.82-2.96,4.63-3.36,8.24l-14.04-2.48c.97-5.01,2.45-9.01,4.42-12,1.97-2.99,4.71-5.34,8.24-7.06,3.52-1.71,7.47-2.57,11.84-2.57,7.48,0,13.48,2.48,18,7.45,3.72,4.06,5.59,8.65,5.59,13.77,0,7.26-3.81,13.06-11.44,17.39,4.56,1.02,8.2,3.29,10.93,6.83,2.73,3.54,4.09,7.81,4.09,12.82,0,7.26-2.55,13.45-7.65,18.57-5.1,5.12-11.45,7.68-19.04,7.68-7.19,0-13.16-2.16-17.9-6.46-4.74-4.31-7.48-9.95-8.24-16.91Z"/>
     <circle class="ink" cx="1058.72" cy="366.1" r="79.23" transform="translate(51.22 855.85) rotate(-45)"/>
