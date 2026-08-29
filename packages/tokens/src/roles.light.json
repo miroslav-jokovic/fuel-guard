@@ -2,14 +2,15 @@
   "role": {
     "canvas": {
       "$type": "color",
-      "$value": "oklch(98.5% 0.003 258)",
+      "$value": "oklch(97.6% 0.0013 286.4)",
       "$extensions": {
         "silvicom.section": [
-          "\u2500\u2500 2. Semantic roles (a future .dark block re-points these) \u2500\u2500\u2500\u2500\u2500\u2500",
+          "── 2. Semantic roles (a future .dark block re-points these) ──────",
           "app background + raised surfaces"
         ],
         "silvicom.expose": "color"
-      }
+      },
+      "$description": "OMNIA #F7F7F8"
     },
     "surface": {
       "$type": "color",
@@ -20,85 +21,88 @@
     },
     "surface-subtle": {
       "$type": "color",
-      "$value": "oklch(98.2% 0.004 258)",
-      "$description": "table headers, hover rows",
+      "$value": "oklch(95.6% 0.0027 286.3)",
+      "$description": "OMNIA #F0F0F2 — table headers, hover rows",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "surface-muted": {
       "$type": "color",
-      "$value": "oklch(94.5% 0.008 258)",
-      "$description": "soft buttons, wells",
+      "$value": "oklch(93.2% 0.004 286.3)",
+      "$description": "OMNIA #E8E8EB — soft buttons, wells",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "surface-navigation": {
       "$type": "color",
-      "$value": "oklch(96.8% 0.007 258)",
-      "$description": "persistent app navigation",
+      "$value": "oklch(95.6% 0.0027 286.3)",
+      "$description": "OMNIA's low-emphasis region #F0F0F2 — persistent app navigation",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "surface-inverse": {
       "$type": "color",
-      "$value": "oklch(23.5% 0.022 258)",
-      "$description": "code blocks, tooltips",
+      "$value": "oklch(22.8% 0.0057 285.9)",
+      "$description": "OMNIA #1C1C1F — code blocks, tooltips",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "scrim": {
       "$type": "color",
-      "$value": "oklch(21.5% 0.02 258)",
-      "$description": "modal veil \u2014 stays dark in both schemes, unlike the ramp it came from",
+      "$value": "oklch(21.5% 0.006 286)",
+      "$description": "modal veil — stays dark in both schemes, unlike the ramp it came from",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ink": {
       "$type": "color",
-      "$value": "oklch(29% 0.02 258)",
+      "$value": "oklch(29.9% 0.0089 285.8)",
       "$extensions": {
         "silvicom.section": [
           "text"
         ],
         "silvicom.expose": "color"
-      }
+      },
+      "$description": "OMNIA #2D2D32"
     },
     "ink-secondary": {
       "$type": "color",
-      "$value": "oklch(44% 0.022 258)",
+      "$value": "oklch(47.8% 0.0159 285.8)",
       "$extensions": {
         "silvicom.expose": "color"
-      }
+      },
+      "$description": "OMNIA #5C5C66"
     },
     "ink-muted": {
       "$type": "color",
-      "$value": "oklch(50.5% 0.02 258)",
+      "$value": "oklch(50.5% 0.016 286)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ink-tertiary": {
       "$type": "color",
-      "$value": "oklch(51.5% 0.019 258)",
+      "$value": "oklch(51.5% 0.0155 286)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ink-subtle": {
       "$type": "color",
-      "$value": "oklch(63% 0.017 258)",
+      "$value": "oklch(64.3% 0.0148 286)",
       "$extensions": {
         "silvicom.expose": "color"
-      }
+      },
+      "$description": "OMNIA #8C8C96"
     },
     "ink-disabled": {
       "$type": "color",
-      "$value": "oklch(63% 0.017 258)",
+      "$value": "oklch(64.3% 0.0148 286)",
       "$extensions": {
         "silvicom.expose": "color"
       }
@@ -112,8 +116,8 @@
     },
     "edge-subtle": {
       "$type": "color",
-      "$value": "oklch(92.5% 0.006 258)",
-      "$description": "decorative row dividers",
+      "$value": "oklch(94.7% 0.004 286.3)",
+      "$description": "OMNIA #EDEDF0 — decorative row dividers",
       "$extensions": {
         "silvicom.section": [
           "hairlines & control borders"
@@ -123,23 +127,23 @@
     },
     "edge": {
       "$type": "color",
-      "$value": "oklch(87% 0.009 258)",
-      "$description": "surface and overlay grouping",
+      "$value": "oklch(92.0% 0.004 286.3)",
+      "$description": "OMNIA #E4E4E7 — surface and overlay grouping",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "edge-strong": {
       "$type": "color",
-      "$value": "oklch(64% 0.017 258)",
-      "$description": "compatibility alias",
+      "$value": "oklch(82.2% 0.0069 286.2)",
+      "$description": "OMNIA #C4C4C9 — emphasised or hovered boundary",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "edge-control": {
       "$type": "color",
-      "$value": "oklch(63.5% 0.018 258)",
+      "$value": "oklch(63.5% 0.015 286)",
       "$description": "essential control boundary; 3:1 on canvas",
       "$extensions": {
         "silvicom.expose": "color"
@@ -171,7 +175,7 @@
       "$value": "0 1px 2px var(--shadow-tint-1)",
       "$extensions": {
         "silvicom.section": [
-          "elevation \u2014 shadows carry depth so cards and overlays do not need dark perimeters"
+          "elevation — shadows carry depth so cards and overlays do not need dark perimeters"
         ],
         "silvicom.expose": "shadow"
       }
@@ -202,7 +206,7 @@
       "$value": "inset 0 -1px 0 0 var(--edge)",
       "$extensions": {
         "silvicom.section": [
-          "Not depth \u2014 a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge."
+          "Not depth — a hairline. A sticky <thead> cannot keep a border-bottom while its table scrolls under it, so the rule is drawn as an inset shadow instead. Named here (D-DS7a) because it had been living in DataTable as `shadow-[inset_0_-1px_0_0_var(--edge)]`, which is a design decision spelled as a magic string: unreusable, and invisible to a future theme that re-points --edge."
         ],
         "silvicom.expose": "shadow"
       }
@@ -370,7 +374,7 @@
       "$description": "MPG line",
       "$extensions": {
         "silvicom.section": [
-          "data-viz roles \u2014 canvas charts resolve these at runtime (features/dashboard/chartTheme.ts); keep in sync with the ramps"
+          "data-viz roles — canvas charts resolve these at runtime (features/dashboard/chartTheme.ts); keep in sync with the ramps"
         ]
       }
     },
