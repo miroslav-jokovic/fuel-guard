@@ -179,8 +179,10 @@ export async function computeCpmForWindow(
       trailer_unit: null,
       driver_external_id: s.driver_external_id,
       movement_external_id: null,
-      order_external_id: null,
-      payee_id: null,
+      // Both were hard-coded null here, and the harness needs both: it groups contractors by payee
+      // and follows a bill to the settlement that paid its ORDER. See `StagedSettlement`.
+      order_external_id: s.order_external_id ?? null,
+      payee_id: s.payee_id ?? null,
       payee_type: (s.payee_type as TmsSettlementFact["payee_type"]) ?? "other",
       pay_method: null,
       accrued_at: s.accrued_at,

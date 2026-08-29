@@ -10,6 +10,18 @@ export interface StagedSettlement {
   external_id: string;
   tractor_unit: string | null;
   driver_external_id: string | null;
+  /**
+   * WHO was paid, and for WHICH order. Both are on the table and both were being dropped here.
+   *
+   * `accumulateOwnerOperatorPay` groups contractors by `payee_id`, falling back to "(unnamed)" —
+   * so a null collapsed all eight of this carrier's contractors into ONE row. And `order_external_id`
+   * is how a bill is matched to the settlement that earned it: with it null, `ownerOpOrders` was
+   * empty, no revenue was ever routed to the contractor pool, and every contractor's margin read as
+   * its pay negated. Measured 2026-08-29: all 20,693 staged settlements carry both columns, all 574
+   * owner-operator rows included, so nothing was missing except the SELECT.
+   */
+  payee_id: string | null;
+  order_external_id: string | null;
   payee_type: string;
   accrued_at: string | null;
   paid_at: string | null;
@@ -78,7 +90,7 @@ export async function readSettlementsWindow(admin: SupabaseClient, orgId: string
   return paged<StagedSettlement>((from, to) =>
     admin
       .from("mcleod_settlements")
-      .select("id, external_id, tractor_unit, driver_external_id, payee_type, accrued_at, paid_at, total_pay, posted_pay, is_void, accrual_key")
+      .select("id, external_id, tractor_unit, driver_external_id, payee_id, order_external_id, payee_type, accrued_at, paid_at, total_pay, posted_pay, is_void, accrual_key")
       .eq("org_id", orgId)
       .gte("accrued_at", fromIso)
       .lt("accrued_at", toIso)
