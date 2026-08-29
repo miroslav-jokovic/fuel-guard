@@ -23,10 +23,14 @@ defineProps<{
 defineEmits<{ "update:page": [n: number] }>();
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+const unitLabel = (units: string[]) =>
+  units.length === 0 ? "—" : units.length <= 3 ? units.join(", ") : `${units.length} trucks`;
 
 const columns: DataTableColumn[] = [
+  // McLeod's own payee code. It is what the settlement and the cheque say, so it is the name to
+  // quote back at the office — a friendlier one would not match anything they can look up.
   { key: "payeeId", label: "Contractor", cellClass: "font-mono text-xs" },
-  { key: "units", label: "Trucks", cellClass: "font-mono text-xs text-ink-tertiary" },
+  { key: "units", label: "Trucks", cellClass: "text-ink-tertiary" },
   { key: "settlements", label: "Payments", numeric: true, cellClass: "text-ink-tertiary" },
   { key: "revenue", label: "Hauled", numeric: true },
   { key: "dealPct", label: "Their share", numeric: true },
@@ -42,7 +46,11 @@ const columns: DataTableColumn[] = [
     <template #empty>
       <p>No contractor settlements in this period.</p>
     </template>
-    <template #cell-units="{ value }">{{ (value as string[]).join(", ") || "—" }}</template>
+    <!-- One contractor ran nine tractors in the July window. Spelling all nine into a cell turns
+         the row into a paragraph, so past three it counts them and keeps the list in the hover. -->
+    <template #cell-units="{ value }">
+      <span :title="(value as string[]).join(', ')">{{ unitLabel(value as string[]) }}</span>
+    </template>
     <template #cell-dealPct="{ value }">
       <span
         :class="value === null ? 'text-ink-tertiary' : ''"

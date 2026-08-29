@@ -156,6 +156,58 @@ describe("computeCpmForWindow", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  /**
+   * The contractor pool, per payee — the shape the Contractors tab renders.
+   *
+   * This is a regression test for a defect that reached production: `cpm.ts` built its settlement
+   * facts with `payee_id: null` and `order_external_id: null` hard-coded, though `mcleod_settlements`
+   * carries both (measured 2026-08-29: 20,693 of 20,693 staged rows, all 574 owner-operator rows
+   * included). Two things followed. `accumulateOwnerOperatorPay` groups by payee with a
+   * "(unnamed)" fallback, so all eight of this carrier's contractors collapsed into ONE row; and
+   * `ownerOpOrders` was empty, so no bill was ever routed to the pool — every contractor's margin
+   * read as its pay negated, and the revenue stayed on the company trucks, inflating their $/mile.
+   */
+  it("keeps each contractor its own row and credits the revenue its own orders earned", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_movements: MOVEMENTS,
+        mcleod_settlements: [
+          { external_id: "S-1", tractor_unit: "754", driver_external_id: "D42", payee_id: "D42", order_external_id: "O-0", payee_type: "company_driver", accrued_at: "2026-06-16T00:00:00Z", paid_at: null, total_pay: 600, posted_pay: 600, is_void: false, accrual_key: "AK-1" },
+          { external_id: "S-2", tractor_unit: "801", driver_external_id: "D9", payee_id: "SCORELIL", order_external_id: "O-1", payee_type: "owner_operator", accrued_at: "2026-06-18T00:00:00Z", paid_at: null, total_pay: 900, posted_pay: 900, is_void: false, accrual_key: "AK-2" },
+          { external_id: "S-3", tractor_unit: "802", driver_external_id: "D8", payee_id: "IVETJOIL", order_external_id: "O-2", payee_type: "owner_operator", accrued_at: "2026-06-19T00:00:00Z", paid_at: null, total_pay: 450, posted_pay: 450, is_void: false, accrual_key: "AK-3" },
+        ],
+        mcleod_ap_vouchers: [],
+        mcleod_gl_accounts: [],
+        mcleod_gl_totals: [],
+        financial_entries: [],
+        vehicles: [{ id: "v1", unit_number: "754" }],
+        samsara_ifta_jurisdiction_miles: [{ vehicle_id: "v1", total_meters: 1400 * 1609.344 }],
+        mcleod_billing: [
+          { id: "b0", external_id: "INV-0", order_external_id: "O-0", tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-10T00:00:00Z", transfer_date: null, total_charges: 2000, other_charge: 0, excise_tax: 0, post_key: "PK0", post_module: "BILL" },
+          { id: "b1", external_id: "INV-1", order_external_id: "O-1", tractor_unit: "801", driver_external_id: "D9", bill_date: "2026-06-18T00:00:00Z", transfer_date: null, total_charges: 1000, other_charge: 0, excise_tax: 0, post_key: "PK1", post_module: "BILL" },
+          { id: "b2", external_id: "INV-2", order_external_id: "O-2", tractor_unit: "802", driver_external_id: "D8", bill_date: "2026-06-19T00:00:00Z", transfer_date: null, total_charges: 500, other_charge: 0, excise_tax: 0, post_key: "PK2", post_module: "BILL" },
+        ],
+        truck_cost_schedules: [],
+      },
+    });
+
+    const { report } = await computeCpmForWindow(rec.client, ORG, "2026-06-01", "2026-07-01");
+
+    const byPayee = Object.fromEntries(report.ownerOperators.map((o) => [o.payeeId, o]));
+    expect(Object.keys(byPayee).sort()).toEqual(["IVETJOIL", "SCORELIL"]);
+    expect(byPayee.SCORELIL!.pay).toBe(900);
+    expect(byPayee.SCORELIL!.revenue).toBe(1000);
+    expect(byPayee.SCORELIL!.grossMargin).toBe(100);
+    expect(byPayee.SCORELIL!.dealPct).toBe(90);
+    expect(byPayee.SCORELIL!.units).toEqual(["801"]);
+    expect(byPayee.IVETJOIL!.pay).toBe(450);
+    expect(byPayee.IVETJOIL!.revenue).toBe(500);
+    // The contractors' revenue leaves the company table with their pay, instead of inflating 754.
+    expect(report.trucks.find((t) => t.tractor_unit === "754")!.revenue).toBe(2000);
+    expect(report.trucks.some((t) => t.tractor_unit === "801" || t.tractor_unit === "802")).toBe(false);
+    expectOrgScoped(rec, ORG);
+  });
+
   it("an empty window names the sweeps that have not run instead of reporting a $0.00 fleet", async () => {
     const rec = createSupabaseRecorder({
       tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], mcleod_gl_accounts: [], mcleod_gl_totals: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
