@@ -163,28 +163,28 @@
   /* ── 2. Semantic roles (a future .dark block re-points these) ────── */
 
   /* app background + raised surfaces */
-  --canvas: light-dark(oklch(98.5% 0.003 258), oklch(21.5% 0.003 258));
-  --surface: light-dark(oklch(100% 0 0), oklch(24.5% 0 0));
-  --surface-subtle: light-dark(oklch(98.2% 0.004 258), oklch(27.5% 0.004 258)); /* table headers, hover rows */
-  --surface-muted: light-dark(oklch(94.5% 0.008 258), oklch(31.5% 0.008 258)); /* soft buttons, wells */
-  --surface-navigation: light-dark(oklch(96.8% 0.007 258), oklch(23.5% 0.007 258)); /* persistent app navigation */
-  --surface-inverse: light-dark(oklch(23.5% 0.022 258), oklch(93.0% 0.02 258)); /* code blocks, tooltips */
-  --scrim: oklch(21.5% 0.02 258); /* modal veil — stays dark in both schemes, unlike the ramp it came from */
+  --canvas: light-dark(oklch(97.6% 0.0013 286.4), oklch(18.3% 0.004 286.0)); /* OMNIA #F7F7F8 */
+  --surface: light-dark(oklch(100% 0 0), oklch(22.8% 0.0057 285.9));
+  --surface-subtle: light-dark(oklch(95.6% 0.0027 286.3), oklch(21.0% 0.0039 286.1)); /* OMNIA #F0F0F2 — table headers, hover rows */
+  --surface-muted: light-dark(oklch(93.2% 0.004 286.3), oklch(30.3% 0.0071 286.0)); /* OMNIA #E8E8EB — soft buttons, wells */
+  --surface-navigation: light-dark(oklch(95.6% 0.0027 286.3), oklch(21.0% 0.0039 286.1)); /* OMNIA's low-emphasis region #F0F0F2 — persistent app navigation */
+  --surface-inverse: light-dark(oklch(22.8% 0.0057 285.9), oklch(94.4% 0.004 286.3)); /* OMNIA #1C1C1F — code blocks, tooltips */
+  --scrim: oklch(21.5% 0.006 286); /* modal veil — stays dark in both schemes, unlike the ramp it came from */
 
   /* text */
-  --ink: light-dark(oklch(29% 0.02 258), oklch(91.5% 0.02 258));
-  --ink-secondary: light-dark(oklch(44% 0.022 258), oklch(80.0% 0.02 258));
-  --ink-muted: light-dark(oklch(50.5% 0.02 258), oklch(71.5% 0.02 258));
-  --ink-tertiary: light-dark(oklch(51.5% 0.019 258), oklch(70.5% 0.019 258));
-  --ink-subtle: light-dark(oklch(63% 0.017 258), oklch(62% 0.017 258));
-  --ink-disabled: light-dark(oklch(63% 0.017 258), oklch(54.5% 0.017 258));
+  --ink: light-dark(oklch(29.9% 0.0089 285.8), oklch(94.4% 0.004 286.3)); /* OMNIA #2D2D32 */
+  --ink-secondary: light-dark(oklch(47.8% 0.0159 285.8), oklch(69.6% 0.0145 286.0)); /* OMNIA #5C5C66 */
+  --ink-muted: light-dark(oklch(50.5% 0.016 286), oklch(71.5% 0.0145 286));
+  --ink-tertiary: light-dark(oklch(51.5% 0.0155 286), oklch(70.5% 0.014 286));
+  --ink-subtle: light-dark(oklch(64.3% 0.0148 286), oklch(53.1% 0.0155 285.9)); /* OMNIA #8C8C96 */
+  --ink-disabled: light-dark(oklch(64.3% 0.0148 286), oklch(47.0% 0.014 286));
   --ink-inverse: light-dark(oklch(100% 0 0), oklch(21.5% 0 0));
 
   /* hairlines & control borders */
-  --edge-subtle: light-dark(oklch(92.5% 0.006 258), oklch(31.5% 0.006 258)); /* decorative row dividers */
-  --edge: light-dark(oklch(87% 0.009 258), oklch(38.0% 0.009 258)); /* surface and overlay grouping */
-  --edge-strong: light-dark(oklch(64% 0.017 258), oklch(55.0% 0.017 258)); /* compatibility alias */
-  --edge-control: light-dark(oklch(63.5% 0.018 258), oklch(58.5% 0.018 258)); /* essential control boundary; 3:1 on canvas */
+  --edge-subtle: light-dark(oklch(94.7% 0.004 286.3), oklch(23.6% 0.0057 286.0)); /* OMNIA #EDEDF0 — decorative row dividers */
+  --edge: light-dark(oklch(92.0% 0.004 286.3), oklch(27.8% 0.0073 285.9)); /* OMNIA #E4E4E7 — surface and overlay grouping */
+  --edge-strong: light-dark(oklch(82.2% 0.0069 286.2), oklch(35.0% 0.0086 285.9)); /* OMNIA #C4C4C9 — emphasised or hovered boundary */
+  --edge-control: light-dark(oklch(63.5% 0.015 286), oklch(58.5% 0.015 286)); /* essential control boundary; 3:1 on canvas */
 
   /* Shadow TINTS are colours, so they can be light-dark() pairs like everything else. The
      elevations below are built from them: a shadow value itself cannot go through light-dark(),
