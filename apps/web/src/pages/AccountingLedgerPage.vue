@@ -7,7 +7,7 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { trailingDays } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -15,7 +15,6 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 // Default window: the trailing 90 days — long enough for a quarter's shape, short enough to load
@@ -30,9 +29,22 @@ const vehicleId = ref("");
 const driverId = ref("");
 const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
-const showAll = ref(false);
+/**
+ * Which lines the table shows.
+ *
+ * Cancelled lines and duplicates are OUT of every total and out of the table by default, and this
+ * exists so somebody checking a figure against McLeod can see the rows that were left out. It used
+ * to be a button on the toolbar reading "Canonical only" / "Hiding nothing", which said neither
+ * what it did nor why it was there (owner, 2026-08-29). It is now a named option in the Filters
+ * popover with the plain words in it, and it announces itself as a chip when it is on.
+ */
+const lines = ref("");
+const linesOptions = [
+  { value: "", label: "Only lines that count" },
+  { value: "all", label: "Also cancelled and duplicates" },
+];
 const page = ref(1);
-watch([search, category, direction, vehicleId, driverId, from, to, showAll], () => (page.value = 1));
+watch([search, category, direction, vehicleId, driverId, from, to, lines], () => (page.value = 1));
 
 const filter = computed<LedgerFilter>(() => ({
   q: search.value,
@@ -42,7 +54,7 @@ const filter = computed<LedgerFilter>(() => ({
   driverId: driverId.value,
   from: from.value,
   to: to.value,
-  all: showAll.value,
+  all: lines.value === "all",
   page: page.value,
 }));
 const { data, isLoading, isError, error, refetch, isFetching } = useLedgerQuery(filter);
@@ -79,19 +91,34 @@ const driverOptions = computed(() => [
   ...(drivers.value ?? []).map((d) => ({ value: d.id, label: d.full_name })),
 ]);
 
-const activeFilterCount = computed(
-  () =>
-    [category.value, direction.value, vehicleId.value, driverId.value].filter(Boolean).length +
-    (search.value.trim() ? 1 : 0) +
-    (showAll.value ? 1 : 0),
-);
-function resetFilters() {
+/**
+ * Truck, driver and the cancelled-lines option live in the Filters popover, so the toolbar is one
+ * row rather than two. The contract's rule: 2–4 primary dimensions inline, the rest in `#more`,
+ * and every secondary filter that is ON says so as a removable chip — otherwise a narrowed table
+ * looks like the whole ledger.
+ */
+const labelFor = (options: { value: string; label: string }[], value: string) =>
+  options.find((o) => o.value === value)?.label ?? value;
+const chips = computed<FilterChip[]>(() => {
+  const out: FilterChip[] = [];
+  if (vehicleId.value) out.push({ key: "truck", label: "Truck", value: labelFor(vehicleOptions.value, vehicleId.value) });
+  if (driverId.value) out.push({ key: "driver", label: "Driver", value: labelFor(driverOptions.value, driverId.value) });
+  if (lines.value === "all") out.push({ key: "lines", label: "Showing", value: "Cancelled and duplicates" });
+  return out;
+});
+const moreCount = computed(() => chips.value.length);
+function removeChip(key: string) {
+  if (key === "truck") vehicleId.value = "";
+  if (key === "driver") driverId.value = "";
+  if (key === "lines") lines.value = "";
+}
+function clearAll() {
   search.value = "";
   category.value = "";
   direction.value = "";
   vehicleId.value = "";
   driverId.value = "";
-  showAll.value = false;
+  lines.value = "";
 }
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -106,15 +133,20 @@ const totals = computed(() => {
   return { earned, spent, net: earned - spent };
 });
 
-const columns: DataTableColumn[] = [
+/**
+ * The flags column only exists to mark the cancelled lines and duplicates, and those cannot appear
+ * unless the reader asked for them — so in the default view it was a permanently empty column
+ * taking width from the six that carry something.
+ */
+const columns = computed<DataTableColumn[]>(() => [
   { key: "occurred_at", label: "Date", cellClass: "text-ink-secondary" },
   { key: "category", label: "What for" },
   { key: "direction", label: "In or out" },
   { key: "amount", label: "Amount", numeric: true },
   { key: "external_id", label: "Reference", cellClass: "font-mono text-xs text-ink-secondary" },
   { key: "source", label: "Came from", cellClass: "text-ink-tertiary" },
-  { key: "flags", label: "", align: "center" },
-];
+  ...(lines.value === "all" ? [{ key: "flags", label: "", align: "center" } as DataTableColumn] : []),
+]);
 </script>
 
 <template>
@@ -133,11 +165,14 @@ const columns: DataTableColumn[] = [
         whole date range you picked, not just the page you are looking at.
       </p>
       <p>
-        Some lines are kept for the audit trail but left out of the totals, and they say so in the
-        last column: <span class="font-medium text-ink">Cancelled</span> is money that never actually
-        moved, and <span class="font-medium text-ink">Counted elsewhere</span> is a second view of
-        money already counted on another line — a fuel purchase that also appears on the card
-        statement, for example. Turn on “Show cancelled and duplicates” to see them in the table.
+        Cancelled lines and duplicates are <span class="font-medium text-ink">not in this table</span>
+        and not in any total. A cancelled line is money that never actually moved; a duplicate is a
+        second view of money already counted on another line — a fuel purchase that also appears on
+        the card statement, for example. Both are kept in the database because an audit needs them,
+        and you can bring them into view under <span class="font-medium text-ink">Filters → Lines to
+        show</span> when you are checking a figure against McLeod. They arrive marked
+        <span class="font-medium text-ink">Cancelled</span> or
+        <span class="font-medium text-ink">Counted elsewhere</span> in the last column.
       </p>
     </ExplainerPanel>
 
@@ -160,25 +195,22 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search by reference or account number…"
         :count="total"
         count-label="lines"
+        :chips="chips"
+        :more-count="moreCount"
+        @remove="removeChip"
+        @clear-all="clearAll"
       >
         <template #filters>
-          <FilterSelect v-model="category" label="What for" :options="categoryOptions" />
           <FilterSelect v-model="direction" label="In or out" :options="directionOptions" />
-          <FilterSelect v-model="vehicleId" label="Truck" :options="vehicleOptions" />
-          <FilterSelect v-model="driverId" label="Driver" :options="driverOptions" />
+          <FilterSelect v-model="category" label="What for" :options="categoryOptions" />
           <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>
-        <template #actions>
-          <!-- Drill-down: include the non-canonical twins and voids behind a number. Never a report view. -->
-          <BaseButton
-            :variant="showAll ? 'secondary' : 'ghost'"
-            size="sm"
-            title="Cancelled lines and duplicates are hidden by default because they are not part of any total. Turning this on shows them so you can check a figure."
-            @click="showAll = !showAll"
-          >
-            {{ showAll ? "Showing cancelled and duplicates" : "Show cancelled and duplicates" }}
-          </BaseButton>
-          <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+        <template #more>
+          <FilterSelect v-model="vehicleId" label="Truck" :options="vehicleOptions" block />
+          <FilterSelect v-model="driverId" label="Driver" :options="driverOptions" block />
+          <!-- Drill-down: show the cancelled lines and the duplicates behind a number. Never the
+               default, because neither is part of any total. -->
+          <FilterSelect v-model="lines" label="Lines to show" :options="linesOptions" block />
         </template>
       </FilterBar>
 
