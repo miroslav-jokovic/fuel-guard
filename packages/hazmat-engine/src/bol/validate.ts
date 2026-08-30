@@ -15,6 +15,7 @@
  */
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
+import { isEnvironmentallyHazardousEntry } from "../placards/marinePollutant.js";
 
 interface DsEntry {
   entryId: string;
@@ -110,7 +111,14 @@ export function validateBol(load: LoadInput): BolValidation {
     const names = [entry.psnPrinted, ...(entry.psnAlternates ?? [])]
       .filter((n): n is string => typeof n === "string")
       .map(norm);
-    if (ds.marinePollutants.some((m) => names.includes(m.nameNormalized))) {
+    // The SP-441 route matters here for the same reason it matters to §172.322: appendix B lists
+    // substances, and a UN3077/UN3082 shipment is a marine pollutant described by a component the
+    // list cannot contain. Without it the engine would demand the MARINE POLLUTANT mark on the
+    // vehicle while saying nothing about the words the shipping paper has to carry.
+    if (
+      ds.marinePollutants.some((m) => names.includes(m.nameNormalized)) ||
+      isEnvironmentallyHazardousEntry(entry)
+    ) {
       additionalRequired.push("the words “Marine Pollutant” (§172.203(l))");
     }
     // §172.203(c): RQ if a listed hazardous substance (Appendix A). Petroleum fuels are CERCLA-excluded.

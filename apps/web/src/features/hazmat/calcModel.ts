@@ -72,6 +72,16 @@ export interface CalcForm {
    * display on big single-product package loads, and NEVER the placard aggregate (hazmat-only by CFR).
    */
   otherFreight: string;
+  /**
+   * §172.322: does any part of this move go by vessel? "" = not stated | "no" | "yes".
+   *
+   * It exists because the marine-pollutant answer INVERTS on it, and in the direction nobody
+   * expects: §171.4(c)(1) exempts non-bulk marine pollutants from the whole subchapter on a
+   * highway-only move, and §172.322(d)(3) waives the mark on an already-placarded bulk vehicle
+   * "except for transportation by vessel". Left unstated, the engine raises a conditional rather
+   * than guessing — but only on the loads where the two branches actually disagree.
+   */
+  vesselLeg: string;
   lines: CalcLineForm[];
 }
 
@@ -141,6 +151,13 @@ export const OTHER_FREIGHT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "no", label: "No — these products are the whole load" },
   { value: "yes", label: "Yes — other freight rides along (mixed load)" },
 ];
+/** §172.322: the vessel-leg tri-state. Blank means unstated — the engine then asks rather than assumes. */
+export const VESSEL_LEG_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Not stated" },
+  { value: "no", label: "No — highway only" },
+  { value: "yes", label: "Yes — part of this move goes by vessel" },
+];
+
 /** D-H14: per-package size units. gal/L are receptacle volume; lb/kg are water capacity (gases). */
 export const CAPACITY_UNIT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "gal", label: "gal" },
@@ -191,6 +208,7 @@ export function emptyForm(): CalcForm {
     tankState: "loaded",
     businessDayIds: "",
     otherFreight: "",
+    vesselLeg: "",
     lines: [emptyLine()],
   };
 }
@@ -334,7 +352,10 @@ export function buildCalcRequest(form: CalcForm): HazmatCalcRequest {
     // H-MX: tri-state — "yes"/"no" are the user's statement, blank stays null (unknown, conservative).
     otherFreightAboard: form.otherFreight === "yes" ? true : form.otherFreight === "no" ? false : null,
     claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
-    portContext: { vesselConnected: null, imdgPapers: null },
+    portContext: {
+      vesselConnected: form.vesselLeg === "yes" ? true : form.vesselLeg === "no" ? false : null,
+      imdgPapers: null,
+    },
     tripContext: {
       previousOrCurrentBusinessDayIds: parseBusinessDayIds(form.businessDayIds),
       carrierRelationship: "unknown" as const,
