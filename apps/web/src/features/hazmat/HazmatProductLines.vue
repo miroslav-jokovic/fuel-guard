@@ -15,6 +15,7 @@ import {
   stripCitations,
   suggestedGrossLb,
   marinePollutantThresholdPct,
+  MARINE_PER_PACKAGE_UNIT_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
   CAPACITY_UNIT_OPTIONS,
   GROSS_WEIGHT_UNIT_OPTIONS,
@@ -227,7 +228,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
               HMT entries, plus the two n.o.s. ones). On every other line the answer cannot change
               anything, and a question that never matters is one people learn to skip past.
             -->
-            <div v-if="line.product?.isMarinePollutant" class="border-t border-edge pt-3">
+            <div v-if="line.product?.isMarinePollutant" class="space-y-3 border-t border-edge pt-3">
               <FormField
                 v-slot="{ id }"
                 label="If this is a solution or mixture, what is it by weight?"
@@ -245,6 +246,34 @@ function applyGrossSuggestion(line: CalcLineForm) {
                     :placeholder="String(thresholdPct(line))"
                   />
                   <span class="flex shrink-0 items-center rounded-control bg-surface-subtle px-3 text-sm text-ink-muted ring-1 ring-inset ring-edge">% by weight</span>
+                </div>
+              </FormField>
+
+              <!--
+                §172.322(d)(1). Only for PACKAGED freight — a bulk packaging has no inner packaging
+                and starts above 450 L, so the question cannot apply to it.
+              -->
+              <FormField
+                v-if="line.packageType !== 'bulk_cargo'"
+                v-slot="{ id }"
+                label="Net quantity in each package"
+                hint="What each package actually contains — per inner packaging if it is a box of bottles, otherwise per package. At 5 L or less of liquid (5 kg or less of solid) no marine-pollutant mark is needed at all. This is the contents, not the size of the container above."
+              >
+                <div class="flex items-stretch gap-2">
+                  <BaseInput
+                    :id="id"
+                    v-model="line.marinePollutantPerPackageValue"
+                    class="min-w-0 flex-1"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    placeholder="5"
+                  />
+                  <ComboSelect
+                    v-model="line.marinePollutantPerPackageUnit"
+                    class="w-36 shrink-0"
+                    :options="MARINE_PER_PACKAGE_UNIT_OPTIONS"
+                  />
                 </div>
               </FormField>
             </div>

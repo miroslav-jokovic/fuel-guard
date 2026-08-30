@@ -106,6 +106,29 @@ Then §172.322(d) — the mark is **not** required:
 > vehicle that bears a label or placard specified in subparts E or F of this part.**
 > (4) On a package of limited quantity material marked in accordance with § 172.315…
 
+**(d)(1) — built 2026-08-30 (engine 0.15.0).** It takes a NET QUANTITY: what each single package,
+or each inner packaging of a combination packaging, actually contains. The line carries its own field
+for it, deliberately NOT the D-H14 per-package CAPACITY — same units, different measurement, and
+using the capacity would fail OPEN by excusing a mark on a package whose contents nobody stated. The
+UNIT selects the limb, because `phaseForHazardClass` cannot: it only ever answers "gas" or "liquid",
+since hazard class does not state phase. Litres is the 5 L liquid limb, kilograms the 5 kg solid one,
+and no other unit is offered because the CFR has no gallons or pounds limb to convert into.
+
+**(d)(2) is deliberately NOT implemented, and that is the conservative choice.** It tests net
+CAPACITY ≤ 5 on a combination packaging holding a non-severe pollutant. A package cannot contain more
+than it holds, so capacity ≤ 5 implies quantity ≤ 5, and every load (d)(2) would excuse is one (d)(1)
+already excuses on a stated quantity. The single case (d)(2) adds is "capacity known, contents
+unknown" — where declining to apply it leaves the mark REQUIRED.
+
+Two more limits, both stated in the code. A GAS never takes the exception: (d)(1) has a liquid limb
+and a solid limb and no third one. And it can only reach non-bulk lines, since a bulk packaging has no
+inner packaging and §171.8 puts its floor above 450 L.
+
+§171.4(c)(2) offers a WIDER exception at the same 5 L / 5 kg figure — lifting the marine-pollutant
+requirements generally rather than just the mark — but only where the packagings meet §§173.24 and
+173.24a and the material is neither a hazardous waste nor a hazardous substance. None of those three
+is checkable here, so the finding names it rather than applying it.
+
 **(d)(3) is the one that matters for trucking.** A domestic bulk marine pollutant on a vehicle that is
 already placarded needs **no** MARINE POLLUTANT mark. A placarded gasoline tanker hauling a listed
 pollutant is the common case, and the correct answer there is "nothing extra".
@@ -156,6 +179,13 @@ names the exception in the finding instead of applying it — over-display, neve
 ## 6. Deliberately out of scope
 
 - ~~The 10%/1% concentration test (§171.8).~~ **Built 2026-08-30**, see §1.
+- ~~The §172.322(d)(1)/(2) 5 L / 5 kg exceptions.~~ **(d)(1) built 2026-08-30**, see §3; (d)(2)
+  deliberately not, because it is subsumed and declining it is the conservative direction.
+- **§172.322(d)(4) — still open.** A package of limited quantity material marked per §172.315 needs
+  no MARINE POLLUTANT mark. The engine cannot apply it yet: the exception must key on the VERIFIED
+  LQ acceptance (`Resolved.lqAccepted`), never on the offeror's unverified `isLimitedQuantity` claim,
+  and `recognized` — the list this rule reads, precisely because it includes lines that take no
+  placard — does not carry it. Using the claim would fail open. Current behaviour over-displays.
 - §172.322(a)(1) — the technical-name-in-parentheses rule for G/n.o.s. entries. That is a shipping
   PAPER and package-marking rule; `bol/validate.ts` already owns the §172.203(l) half, and the
   §172.203(k) technical-name rule is already emitted there.

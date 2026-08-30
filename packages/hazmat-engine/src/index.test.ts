@@ -28,6 +28,7 @@ const gasLine = {
   packagingKind: "bulk" as const,
   packageCount: null,
   marinePollutantConcentrationPct: null,
+  marinePollutantPerPackage: null,
 };
 
 describe("evaluateLoad — H2 confirmed gates", () => {

@@ -116,6 +116,9 @@ function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions, 
     // the percent by weight of a marine-pollutant component. Null is the fail-closed answer — the
     // line stays classified as a marine pollutant and the finding asks for the number (0.14.0).
     marinePollutantConcentrationPct: null,
+    // Nor the §172.322(d)(1) net quantity per package: a shipping paper states the total, not what
+    // each inner packaging holds. Null keeps the mark required, which is the safe direction.
+    marinePollutantPerPackage: null,
     reclassedCombustible,
     // H-LQ: true ONLY when BOTH vision passes independently read the §172.203(b)/§172.315 notation
     // (extract.ts computes the confirmation; a one-pass read raises pass_disagreement:lqNotation and

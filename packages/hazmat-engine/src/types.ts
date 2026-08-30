@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.14.0";
+export const ENGINE_VERSION = "0.15.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -50,6 +50,19 @@ export const lineSchema = z.object({
    * actually states the number (0.14.0).
    */
   marinePollutantConcentrationPct: z.number().nullable().default(null),
+  /**
+   * §172.322(d)(1): the NET QUANTITY in each single package, or in each inner packaging of a
+   * combination packaging — not the outer package, and not a capacity.
+   *
+   * The UNIT carries the phase, which is why value and unit travel together: §172.322(d)(1)(i) is a
+   * 5 L limb for liquids and (d)(1)(ii) a 5 kg limb for solids, and `phaseForHazardClass` cannot
+   * tell them apart (it only ever answers "gas" or "liquid" — hazard class does not state phase).
+   * Litres means the liquid limb; kilograms the solid one. Null leaves the mark required (0.15.0).
+   */
+  marinePollutantPerPackage: z
+    .object({ value: z.number(), unit: z.enum(["L", "kg"]) })
+    .nullable()
+    .default(null),
 });
 export type HazmatLine = z.infer<typeof lineSchema>;
 

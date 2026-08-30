@@ -102,3 +102,38 @@ describe("declaration provenance cannot reach the engine", () => {
     expect(parsed.packagingKind).toBe("non_bulk");
   });
 });
+
+/**
+ * The marine-pollutant inputs, which decide whether a load is marked at all.
+ *
+ * ⚠ Both fail in the DANGEROUS direction if dropped. A blank concentration re-classifies the line as
+ * a marine pollutant; a blank net quantity puts the §172.322(d)(1) mark back. So a re-opened draft
+ * that lost them would add a marking requirement nobody chose — which is the D-H23 failure this file
+ * exists to prevent, and it was reintroduced with the concentration field before a test caught it.
+ */
+describe("the marine-pollutant inputs survive a re-opened draft", () => {
+  const mpLine = (over: Partial<CalcLineForm> = {}): CalcLineForm => ({
+    ...drumLine(),
+    marinePollutantConcentrationPct: "40",
+    marinePollutantPerPackageValue: "2.5",
+    marinePollutantPerPackageUnit: "L",
+    ...over,
+  });
+
+  it("recovers the §171.8 concentration", () => {
+    const back = formLineFromDeclared(buildEngineLine(mpLine(), "van"), "van")!;
+    expect(back.marinePollutantConcentrationPct).toBe("40");
+  });
+
+  it("recovers the §172.322(d)(1) net quantity and its unit", () => {
+    const back = formLineFromDeclared(buildEngineLine(mpLine({ marinePollutantPerPackageUnit: "kg" }), "van"), "van")!;
+    expect(back.marinePollutantPerPackageValue).toBe("2.5");
+    expect(back.marinePollutantPerPackageUnit).toBe("kg");
+  });
+
+  it("leaves both blank when the declaration stated neither", () => {
+    const back = formLineFromDeclared(buildEngineLine(drumLine(), "van"), "van")!;
+    expect(back.marinePollutantConcentrationPct).toBe("");
+    expect(back.marinePollutantPerPackageValue).toBe("");
+  });
+});

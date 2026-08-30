@@ -33,6 +33,12 @@ import type { DsEntry, DsView } from "./classify.js";
  * them being displayed.
  */
 
+/** §172.322(d)(1) has no limb for gases, so a Class 2 pollutant can never take the exception. */
+const isGasEntry = (entry: { hazardClass?: string | null }): boolean => {
+  const c = (entry.hazardClass ?? "").trim();
+  return c === "2" || c.startsWith("2.");
+};
+
 /** Appendix B is matched on the printed name, the way `bol/validate.ts` already matches it. */
 const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -69,11 +75,50 @@ export interface MarinePollutantHit {
   bulk: boolean;
   /** The stated §171.8 concentration by weight, when the offeror gave one. */
   concentrationPct: number | null;
+  /** §172.322(d)(1) is excepted for this line — see `smallPackageExcepted`. */
+  smallPackageExcepted: boolean;
+}
+
+/**
+ * §172.322(d)(1) — the small-package exception to the MARK.
+ *
+ * > (1) On single packagings or combination packagings where each single package or each inner
+ * > packaging of combination packagings has: (i) A net quantity of 5 L (1.3 gallons) or less for
+ * > liquids; or (ii) A net mass of 5 kg (11 pounds) or less for solids
+ *
+ * Three things this deliberately does NOT do.
+ *
+ * It does not reuse the D-H14 per-package CAPACITY field. That figure is a §171.8 receptacle
+ * capacity and this is a NET QUANTITY — the actual contents. Conflating two measurements because
+ * they share a unit is precisely the error D-H14 exists to record, and here it would fail OPEN, by
+ * excusing a mark on a package whose contents were never stated.
+ *
+ * It does not implement §172.322(d)(2), and that is safe rather than lazy. (d)(2) tests net
+ * CAPACITY ≤ 5 on a combination packaging holding a non-severe pollutant — and a package cannot
+ * contain more than it holds, so capacity ≤ 5 implies quantity ≤ 5 and every load (d)(2) would
+ * excuse is one (d)(1) already excuses on a stated quantity. The only case (d)(2) adds is "capacity
+ * known, contents unknown", where declining to apply it leaves the mark REQUIRED. Conservative.
+ *
+ * It does not except a GAS. (d)(1) has a liquid limb and a solid limb and no third one, so a Class 2
+ * marine pollutant keeps its mark whatever number is stated.
+ */
+export function smallPackageExcepted(
+  perPackage: { value: number; unit: "L" | "kg" } | null | undefined,
+  isGas: boolean,
+): boolean {
+  if (!perPackage || isGas) return false;
+  // 5 L (1.3 gal) for liquids, 5 kg (11 lb) for solids — the unit says which limb applies.
+  return perPackage.value <= 5;
 }
 
 /** A line that resolved to an HMT entry, whether or not it takes a placard. */
 export interface RecognizedLine {
-  line: { hmtRef: string; packagingKind?: string; marinePollutantConcentrationPct?: number | null };
+  line: {
+    hmtRef: string;
+    packagingKind?: string;
+    marinePollutantConcentrationPct?: number | null;
+    marinePollutantPerPackage?: { value: number; unit: "L" | "kg" } | null;
+  };
   entry: DsEntry;
 }
 
@@ -139,12 +184,16 @@ export function findMarinePollutants(recognized: RecognizedLine[], ds: DsView, i
     const pct = r.line.marinePollutantConcentrationPct;
     if (typeof pct === "number" && pct < concentrationThresholdPct(severe)) continue;
 
+    const bulk = r.line.packagingKind === "bulk" || isTank;
     hits.push({
       hmtRef: r.line.hmtRef,
       psn: r.entry.psnPrinted,
       severe,
-      bulk: r.line.packagingKind === "bulk" || isTank,
+      bulk,
       concentrationPct: typeof pct === "number" ? pct : null,
+      // §172.322(d)(1) is a package-level exception, so it can only reach non-bulk lines: a bulk
+      // packaging has no inner packaging, and §171.8 puts its floor above 450 L regardless.
+      smallPackageExcepted: !bulk && smallPackageExcepted(r.line.marinePollutantPerPackage, isGasEntry(r.entry)),
     });
   }
   return hits;
@@ -269,9 +318,45 @@ export function applyMarinePollutantMark(args: {
   }
 
   // ── NON-BULK ────────────────────────────────────────────────────────────────────────────────────
-  if (nonBulkHits.length === 0) return;
-  const nbNames = nonBulkHits.map((h) => h.psn).join(", ");
-  const nbEvidence = { lines: nonBulkHits.map((h) => ({ hmtRef: h.hmtRef, psn: h.psn, severe: h.severe })) };
+  //
+  // §172.322(d)(1) is applied FIRST and to each line separately, because it is an exception to the
+  // MARK rather than to being a marine pollutant — the §171.8 classification in
+  // `findMarinePollutants` has already happened and stands. A line whose packages are small enough
+  // simply stops being a reason to mark, so:
+  //   · if every non-bulk line is excepted, no mark, and no vessel question either — the answer no
+  //     longer depends on it, and asking a question that cannot change the outcome is the noise that
+  //     teaches people to ignore conditionals;
+  //   · §172.322(c)'s VEHICLE marking falls away with them, because it is owed only where a package
+  //     is "subject to the marking requirements of paragraph (a) or (b)".
+  const excepted = nonBulkHits.filter((h) => h.smallPackageExcepted);
+  if (excepted.length > 0) {
+    const names = excepted.map((h) => h.psn).join(", ");
+    findings.push({
+      ruleId: "marine_pollutant_small_package_excepted",
+      tier: "info",
+      message:
+        `${names}: every package holds 5 L or less of liquid (5 kg or less of solid), so the MARINE ` +
+        `POLLUTANT mark is not required on the packages or the vehicle (§172.322(d)(1)). Stated per ` +
+        `single package, or per inner packaging of a combination packaging. A wider exception may also ` +
+        `be available — §171.4(c)(2) lifts the marine-pollutant requirements generally at the same 5 L / ` +
+        `5 kg figure, but only where the packagings meet §§173.24 and 173.24a and the material is ` +
+        `neither a hazardous waste nor a hazardous substance, none of which this tool can verify.`,
+      citations: [{ cfr: "49 CFR 172.322(d)(1)" }, { cfr: "49 CFR 171.4(c)(2)" }],
+      evidence: { lines: excepted.map((h) => ({ hmtRef: h.hmtRef, psn: h.psn })) },
+    });
+    trace.push({
+      ruleId: "marine_pollutant_small_package",
+      fired: true,
+      inputs: { excepted: excepted.length, of: nonBulkHits.length },
+      citations: [{ cfr: "49 CFR 172.322(d)(1)" }],
+      note: `No MARINE POLLUTANT mark for ${names}: 5 L / 5 kg or less per package (§172.322(d)(1)).`,
+    });
+  }
+
+  const nonBulkRemaining = nonBulkHits.filter((h) => !h.smallPackageExcepted);
+  if (nonBulkRemaining.length === 0) return;
+  const nbNames = nonBulkRemaining.map((h) => h.psn).join(", ");
+  const nbEvidence = { lines: nonBulkRemaining.map((h) => ({ hmtRef: h.hmtRef, psn: h.psn, severe: h.severe })) };
 
   if (vessel === false) {
     findings.push({
@@ -297,8 +382,8 @@ export function applyMarinePollutantMark(args: {
         `${nbNames} is a listed marine pollutant in non-bulk packaging and part of this move is by vessel, so ` +
         `§171.4(c)(1)'s highway exception does not apply: the MARINE POLLUTANT mark goes on each package in ` +
         `association with its labels (§172.322(a)) and on each side and each end of the vehicle (§172.322(c)). ` +
-        `The §172.322(d)(1)/(d)(2) small-package exceptions (5 L / 5 kg per inner packaging) are NET quantities ` +
-        `this tool does not collect — check them against the paper before omitting the mark. ` + concentrationNote(hits),
+        `If every package holds 5 L or less of liquid (5 kg or less of solid), §172.322(d)(1) lifts the mark — ` +
+        `state the net quantity per package to have that applied. ` + concentrationNote(hits),
       citations: [...CITE_322A, { cfr: "49 CFR 172.322(d)(1)" }],
       evidence: nbEvidence,
     });
