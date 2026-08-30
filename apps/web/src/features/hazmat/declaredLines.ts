@@ -40,6 +40,7 @@ export function formLineFromDeclared(raw: unknown, equipmentType = ""): CalcLine
   const base = emptyLine(equipmentType);
   const perPackage = row.declaredPerPackage as { value?: unknown; unit?: unknown } | null | undefined;
   const quantity = row.quantity as { value?: unknown; unit?: unknown } | undefined;
+  const perPackageNet = row.marinePollutantPerPackage as { value?: unknown; unit?: unknown } | null | undefined;
 
   return {
     ...base,
@@ -58,6 +59,17 @@ export function formLineFromDeclared(raw: unknown, equipmentType = ""): CalcLine
     isResidueLine: row.isResidueLine === true,
     reclassedCombustible: row.reclassedCombustible === true,
     isLimitedQuantity: row.isLimitedQuantity === true,
+    /**
+     * The two marine-pollutant inputs, which the engine line stores and this used to drop.
+     *
+     * Losing them on a re-opened draft is not cosmetic: a blank concentration re-classifies the line
+     * AS a marine pollutant, and a blank net quantity puts the §172.322(d)(1) mark back — so the next
+     * save could add a marking requirement nobody chose to add. That is the D-H23 failure exactly,
+     * and it was reintroduced with the concentration field before this caught it.
+     */
+    marinePollutantConcentrationPct: row.marinePollutantConcentrationPct == null ? "" : str(row.marinePollutantConcentrationPct),
+    marinePollutantPerPackageValue: perPackageNet?.value == null ? "" : str(perPackageNet.value),
+    marinePollutantPerPackageUnit: perPackageNet?.unit === "kg" ? "kg" : base.marinePollutantPerPackageUnit,
   };
 }
 

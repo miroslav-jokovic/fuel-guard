@@ -64,6 +64,15 @@ export interface CalcLineForm {
    * someone actually states the number. Only asked on a product that IS on appendix B.
    */
   marinePollutantConcentrationPct: string;
+  /**
+   * §172.322(d)(1): net quantity in each single package, or in each inner packaging of a combination
+   * packaging. Distinct from `perPackageCapacityValue`, which is a §171.8 receptacle CAPACITY (D-H14)
+   * — same units, different measurement, and using the capacity here would excuse a mark on a package
+   * whose contents nobody stated. Blank leaves the mark required.
+   */
+  marinePollutantPerPackageValue: string;
+  /** "L" for the liquid limb, "kg" for the solid one — the unit is what selects the limb. */
+  marinePollutantPerPackageUnit: string;
 }
 
 export interface CalcForm {
@@ -159,6 +168,23 @@ export const OTHER_FREIGHT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "yes", label: "Yes — other freight rides along (mixed load)" },
 ];
 /**
+ * §172.322(d)(1)'s net quantity per package, as the engine takes it. Only "L" and "kg" are offered,
+ * because those are the two limbs the CFR has — there is no gallons limb and no pounds limb, and
+ * converting into one would be inventing a threshold the regulation does not state.
+ */
+export function marinePollutantPerPackage(l: CalcLineForm): { value: number; unit: "L" | "kg" } | null {
+  const value = numOrNull(l.marinePollutantPerPackageValue);
+  if (value == null) return null;
+  return { value, unit: l.marinePollutantPerPackageUnit === "kg" ? "kg" : "L" };
+}
+
+/** The §172.322(d)(1) limbs. Litres for liquids, kilograms for solids — no other unit is lawful here. */
+export const MARINE_PER_PACKAGE_UNIT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "L", label: "L (liquid)" },
+  { value: "kg", label: "kg (solid)" },
+];
+
+/**
  * §171.8's threshold for the product on a line — 10% listed, 1% severe, and 1% when the severity is
  * unknown because the pollutant is an unnamed component (SP 441). The stricter figure classifies MORE
  * mixtures as marine pollutants, which is the over-display direction.
@@ -211,6 +237,8 @@ export function emptyLine(equipmentType = ""): CalcLineForm {
     reclassedCombustible: false,
     isLimitedQuantity: false,
     marinePollutantConcentrationPct: "",
+    marinePollutantPerPackageValue: "",
+    marinePollutantPerPackageUnit: "L",
   };
 }
 
@@ -344,6 +372,7 @@ export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<str
     packagingKind: linePackagingKind(l, equipmentType),
     packageCount: count === null ? null : Math.trunc(count),
     marinePollutantConcentrationPct: numOrNull(l.marinePollutantConcentrationPct),
+    marinePollutantPerPackage: marinePollutantPerPackage(l),
   };
 }
 

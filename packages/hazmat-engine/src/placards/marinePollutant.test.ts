@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateLoad } from "../index.js";
-import { concentrationThresholdPct } from "./marinePollutant.js";
+import { concentrationThresholdPct, findMarinePollutants, smallPackageExcepted } from "./marinePollutant.js";
 import type { LoadInput } from "../types.js";
 
 /**
@@ -232,5 +232,90 @@ describe("§171.8 — the concentration test", () => {
     const finding = (v.notices ?? []).find((f) => f.ruleId === "marine_pollutant_mark_required");
     expect(finding?.message).toContain("40%");
     expect(finding?.message).not.toContain("no concentration input");
+  });
+});
+
+/**
+ * §172.322(d)(1) — the small-package exception (0.15.0).
+ *
+ * ⚠ This is the ONLY rule in this file that can REMOVE a marking requirement on a stated number, so
+ * every test here is really asking the same question: can it be made to fire when it should not?
+ *
+ * Note what it is measured against. (d)(1) is a NET QUANTITY — the contents — and the form already
+ * carries a per-package CAPACITY for the §171.8 bulk test (D-H14). They share a unit and mean
+ * different things, and using the capacity here would fail OPEN: it would excuse a mark on a package
+ * whose contents nobody stated.
+ */
+const VAN2 = { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null } as unknown as LoadInput["vehicle"];
+const perPackage = (v: number, unit: "L" | "kg") => ({ value: v, unit });
+
+describe("§172.322(d)(1) — the small-package exception", () => {
+  const vesselNonBulk = (over: Record<string, unknown>) =>
+    evaluateLoad(load({ vehicle: VAN2, lines: [line({ packagingKind: "non_bulk", ...over })] }, true));
+
+  it("lifts the mark when every package holds 5 L or less", () => {
+    expect(marks(vesselNonBulk({ marinePollutantPerPackage: perPackage(5, "L") }))).not.toContain("MARINE_POLLUTANT");
+  });
+
+  it("keeps it at 5.1 L — the limb is 5 L or LESS", () => {
+    expect(marks(vesselNonBulk({ marinePollutantPerPackage: perPackage(5.1, "L") }))).toContain("MARINE_POLLUTANT");
+  });
+
+  it("lifts it at 5 kg for a solid, the other limb", () => {
+    expect(marks(vesselNonBulk({ marinePollutantPerPackage: perPackage(5, "kg") }))).not.toContain("MARINE_POLLUTANT");
+  });
+
+  it("keeps it when nothing is stated — a blank is not a small package", () => {
+    expect(marks(vesselNonBulk({ marinePollutantPerPackage: null }))).toContain("MARINE_POLLUTANT");
+  });
+
+  it("stops asking about the vessel leg once the answer cannot depend on it", () => {
+    // Unstated vessel + excepted packages: highway says nothing, vessel says nothing. No question.
+    const v = evaluateLoad(load({ vehicle: VAN2, lines: [line({ packagingKind: "non_bulk", marinePollutantPerPackage: perPackage(1, "L") })] }, null));
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("marine_pollutant_vessel_unknown");
+    expect(marks(v)).not.toContain("MARINE_POLLUTANT");
+  });
+
+  it("marks the load when only SOME lines are excepted", () => {
+    const v = evaluateLoad(load({
+      vehicle: VAN2,
+      lines: [
+        line({ packagingKind: "non_bulk", marinePollutantPerPackage: perPackage(1, "L") }),
+        line({ hmtRef: "UN3082-ehs#III", packagingKind: "non_bulk", marinePollutantPerPackage: null }),
+      ],
+    }, true));
+    expect(marks(v)).toContain("MARINE_POLLUTANT");
+  });
+});
+
+describe("§172.322(d)(1) — what it must never excuse", () => {
+  /**
+   * Asserted on the FLAG, not on the mark. Marking a bulk line is already guaranteed by the branch
+   * structure — the exception is only consulted in the non-bulk path — so a test that checks the mark
+   * passes whether or not the `!bulk` guard exists, and would have claimed to cover something it did
+   * not. This reads the guard directly.
+   */
+  it("never sets the exception on a BULK line, which has no inner packaging and starts above 450 L", () => {
+    const ds = { marinePollutants: [{ nameNormalized: "flammable liquid, n.o.s.", severe: false }] } as never;
+    const bulkLine = { line: { hmtRef: "x", packagingKind: "bulk", marinePollutantPerPackage: perPackage(1, "L") }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
+    expect(findMarinePollutants([bulkLine], ds, false)[0]!.smallPackageExcepted).toBe(false);
+
+    const nonBulk = { line: { hmtRef: "x", packagingKind: "non_bulk", marinePollutantPerPackage: perPackage(1, "L") }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
+    expect(findMarinePollutants([nonBulk], ds, false)[0]!.smallPackageExcepted).toBe(true);
+  });
+
+  it("a bulk marine pollutant is still marked, small per-package figure or not", () => {
+    const v = evaluateLoad(load({ lines: [line({ packagingKind: "bulk", marinePollutantPerPackage: perPackage(1, "L") })] }, true));
+    expect(marks(v)).toContain("MARINE_POLLUTANT");
+  });
+
+  it("never excepts a gas — (d)(1) has a liquid limb and a solid limb and no third one", () => {
+    expect(smallPackageExcepted(perPackage(1, "L"), true)).toBe(false);
+    expect(smallPackageExcepted(perPackage(1, "L"), false)).toBe(true);
+  });
+
+  it("treats a missing figure as no exception, never as zero", () => {
+    expect(smallPackageExcepted(null, false)).toBe(false);
+    expect(smallPackageExcepted(undefined, false)).toBe(false);
   });
 });
