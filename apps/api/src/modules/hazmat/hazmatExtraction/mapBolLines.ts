@@ -112,6 +112,10 @@ function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions, 
 
   const engineLine: HazmatLine = {
     hmtRef: resolution.hmtRef,
+    // §171.8 concentration is never read from the paper: a BOL states the shipping description, not
+    // the percent by weight of a marine-pollutant component. Null is the fail-closed answer — the
+    // line stays classified as a marine pollutant and the finding asks for the number (0.14.0).
+    marinePollutantConcentrationPct: null,
     reclassedCombustible,
     // H-LQ: true ONLY when BOTH vision passes independently read the §172.203(b)/§172.315 notation
     // (extract.ts computes the confirmation; a one-pass read raises pass_disagreement:lqNotation and

@@ -14,6 +14,7 @@ import {
   linePackagingDerivation,
   stripCitations,
   suggestedGrossLb,
+  marinePollutantThresholdPct,
   PACKAGE_TYPE_OPTIONS,
   CAPACITY_UNIT_OPTIONS,
   GROSS_WEIGHT_UNIT_OPTIONS,
@@ -77,6 +78,9 @@ function grossSuggestion(line: CalcLineForm): number | null {
   if (line.grossWeightValue !== "") return null;
   return suggestedGrossLb(line);
 }
+
+/** The §171.8 figure this line's product is judged against — 10% listed, 1% severe or unknown. */
+const thresholdPct = (line: CalcLineForm): number => marinePollutantThresholdPct(line.product);
 
 function applyGrossSuggestion(line: CalcLineForm) {
   const lb = suggestedGrossLb(line);
@@ -216,6 +220,33 @@ function applyGrossSuggestion(line: CalcLineForm) {
               <BaseCheckbox v-model="line.isResidueLine">Residue only — the packaging is empty but not cleaned</BaseCheckbox>
               <BaseCheckbox v-model="line.isLimitedQuantity">Marked “Limited Quantity” on the BOL</BaseCheckbox>
               <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible by the shipper</BaseCheckbox>
+            </div>
+
+            <!--
+              §171.8 — asked ONLY on a product that is actually on appendix B (roughly 132 of 2,479
+              HMT entries, plus the two n.o.s. ones). On every other line the answer cannot change
+              anything, and a question that never matters is one people learn to skip past.
+            -->
+            <div v-if="line.product?.isMarinePollutant" class="border-t border-edge pt-3">
+              <FormField
+                v-slot="{ id }"
+                label="If this is a solution or mixture, what is it by weight?"
+                :hint="`${line.product.psn} is a marine pollutant. Neat, it stays one whatever you enter — but a mixture below ${thresholdPct(line)}% by weight is not a marine pollutant at all. Leave blank if it is the material itself, or if the paper does not say.`"
+              >
+                <div class="flex items-stretch gap-2">
+                  <BaseInput
+                    :id="id"
+                    v-model="line.marinePollutantConcentrationPct"
+                    class="min-w-0 flex-1"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    max="100"
+                    :placeholder="String(thresholdPct(line))"
+                  />
+                  <span class="flex shrink-0 items-center rounded-control bg-surface-subtle px-3 text-sm text-ink-muted ring-1 ring-inset ring-edge">% by weight</span>
+                </div>
+              </FormField>
             </div>
           </div>
         </div>

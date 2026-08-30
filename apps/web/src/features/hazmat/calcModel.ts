@@ -57,6 +57,13 @@ export interface CalcLineForm {
   /** H-LQ: the offeror's Limited Quantity declaration (§172.203(b)/§172.315) — INPUT, never
    *  inferred. The engine verifies it against HMT column 8A and refuses fail-closed. */
   isLimitedQuantity: boolean;
+  /**
+   * §171.8: percent by weight of the marine-pollutant component, when this line is a SOLUTION OR
+   * MIXTURE rather than the material itself. Blank means neat, or a mixture nobody measured — both
+   * stay classified as a marine pollutant, so this field can only ever remove a requirement when
+   * someone actually states the number. Only asked on a product that IS on appendix B.
+   */
+  marinePollutantConcentrationPct: string;
 }
 
 export interface CalcForm {
@@ -151,6 +158,18 @@ export const OTHER_FREIGHT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "no", label: "No — these products are the whole load" },
   { value: "yes", label: "Yes — other freight rides along (mixed load)" },
 ];
+/**
+ * §171.8's threshold for the product on a line — 10% listed, 1% severe, and 1% when the severity is
+ * unknown because the pollutant is an unnamed component (SP 441). The stricter figure classifies MORE
+ * mixtures as marine pollutants, which is the over-display direction.
+ *
+ * Mirrors `concentrationThresholdPct` in the engine so the form's hint states the same number the
+ * verdict will apply.
+ */
+export function marinePollutantThresholdPct(product: HazmatProduct | null): number {
+  return product?.marinePollutantSevere === false ? 10 : 1;
+}
+
 /** §172.322: the vessel-leg tri-state. Blank means unstated — the engine then asks rather than assumes. */
 export const VESSEL_LEG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "Not stated" },
@@ -191,6 +210,7 @@ export function emptyLine(equipmentType = ""): CalcLineForm {
     isResidueLine: false,
     reclassedCombustible: false,
     isLimitedQuantity: false,
+    marinePollutantConcentrationPct: "",
   };
 }
 
@@ -323,6 +343,7 @@ export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<str
     ethanolPct: null,
     packagingKind: linePackagingKind(l, equipmentType),
     packageCount: count === null ? null : Math.trunc(count),
+    marinePollutantConcentrationPct: numOrNull(l.marinePollutantConcentrationPct),
   };
 }
 

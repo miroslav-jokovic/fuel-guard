@@ -17,6 +17,8 @@ const GASOLINE: HazmatProduct = {
   symbols: [],
   label: "UN1203 · Gasoline · Class 3 · PG II",
   isFuelCommon: true,
+  isMarinePollutant: false,
+  marinePollutantSevere: null,
 };
 
 function drumLine(): CalcLineForm {

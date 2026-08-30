@@ -17,6 +17,8 @@ import { auditProvidedInputs, checkEligibility } from "./eligibility.js";
 export * from "./types.js";
 export { computePlacards } from "./placards/compute.js";
 export { checkSegregation } from "./segregation/check.js";
+// Exported so the products API can ask the SAME question the §172.322 rule answers (0.14.0).
+export { classifyMarinePollutantEntry, concentrationThresholdPct } from "./placards/marinePollutant.js";
 export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/validate.js";
 export { checkEligibility, auditProvidedInputs, UNEVALUATED_INPUTS, type EligibilityInput, type EligibilityResult } from "./eligibility.js";
 
