@@ -56,8 +56,8 @@ export function complianceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("fleet"));
-  const canManage = requireRole(...rolesThatManage("fleet"));
+  const canView = requireRole(...rolesThatCanView("roster"));
+  const canManage = requireRole(...rolesThatManage("roster"));
 
   // Create a certification (auto-supersedes the prior current one, §10.1). Client-generated id ⇒
   // idempotent replay. Every write is audited — these rows are the DQF a DOT auditor asks for.

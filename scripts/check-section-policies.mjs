@@ -52,9 +52,13 @@ const MODULE_SECTIONS = {
   mcleod: null,
   psp: "safety",
   org: "admin",
-  roster: "fleet",
-  idle: "fleet",
-  performance: "fleet",
+  // `fleet` split into `roster` + `equipment` on 2026-08-30 (D-ROS12, DRIVER-ROSTER-PLAN R0a), so
+  // every module that used to point at it had to be re-pointed deliberately rather than by search
+  // and replace. `roster` is the DEFAULT for its module and the two equipment tables it owns are
+  // named in TABLE_SECTIONS below — see that comment for why the module was not split instead.
+  roster: "roster",
+  idle: "equipment",      // idle_events, engine days, the learned idle envelope — telemetry off a truck
+  performance: "roster",  // driver scores and the weeks they are computed over — facts about a person
   evidence: "safety",
   loads: "dispatch",
   financial: "accounting", // mapped at P4.1 — the finance sections are born checked
@@ -66,6 +70,30 @@ const MODULE_SECTIONS = {
   recruiting: "recruitment",
   hazmat: "hazmat",
 };
+
+/**
+ * Table → section, consulted BEFORE the module default. Empty until the D-ROS12 split, and it exists
+ * because that split made one module legitimately span two sections: `roster` owns `drivers`,
+ * `driver_time_off` and `driver_vehicle_assignments` (the people) alongside `vehicles` and `trailers`
+ * (the machines).
+ *
+ * The alternative was splitting the MODULE to match the sections, and it was rejected. Module
+ * ownership answers "which code may write this table" (lint:boundaries, check-table-modules.mjs) and
+ * is correct as it stands — one roster module writes all five. Section membership answers "which role
+ * may act here". They are different questions and are allowed different answers; bending the module
+ * boundary to satisfy a permissions rename would be moving the wrong thing.
+ */
+const TABLE_SECTIONS = {
+  vehicles: "equipment",
+  trailers: "equipment",
+};
+
+/** The section a table's policies are checked against: its own override, else its module's default. */
+function sectionForTable(manifest, table) {
+  if (table in TABLE_SECTIONS) return TABLE_SECTIONS[table];
+  const module = manifest.tables[table]?.module;
+  return module ? MODULE_SECTIONS[module] : undefined;
+}
 
 function parseMatrix() {
   const src = readFileSync(join(ROOT, "packages", "shared", "src", "auth.ts"), "utf8");
@@ -105,7 +133,7 @@ function checkNewPolicies(matrix, manifest, migrationsDir) {
       const lists = [...body.matchAll(/auth_role\(\)\s+in\s+\(([^)]*)\)/gi)];
       if (!lists.length) continue;
       const module = manifest.tables[table]?.module;
-      const section = module ? MODULE_SECTIONS[module] : undefined;
+      const section = sectionForTable(manifest, table);
       for (const l of lists) {
         const roles = new Set([...l[1].matchAll(/'(\w+)'/g)].map((x) => x[1]));
         if (!section) {
@@ -131,9 +159,21 @@ function selfTest(matrix, manifest) {
   // policy detector: a wrong role list on a sectioned table must mismatch both derived sets
   const table = Object.keys(manifest.tables).find((t) => MODULE_SECTIONS[manifest.tables[t].module]);
   const wrong = new Set(["driver"]);
-  const sec = MODULE_SECTIONS[manifest.tables[table].module];
+  const sec = sectionForTable(manifest, table);
   const exp = expectedSets(matrix, sec);
   if (setsEqual(wrong, exp.manage) || setsEqual(wrong, exp.view)) fails.push("policy detector cannot fire — ['driver'] equals a derived set");
+
+  // The TABLE_SECTIONS override must actually override, and must name a section the matrix knows.
+  // Without this, a typo in the map would silently fall back to the module default and the gate
+  // would check `vehicles` against the roster section — passing, while checking the wrong thing.
+  for (const [t, want] of Object.entries(TABLE_SECTIONS)) {
+    if (!(t in manifest.tables)) { fails.push(`TABLE_SECTIONS names ${t}, which is not a live table`); continue; }
+    if (sectionForTable(manifest, t) !== want) fails.push(`TABLE_SECTIONS override for ${t} did not take effect`);
+    const roleWithMatrix = Object.keys(matrix)[0];
+    if (!(want in matrix[roleWithMatrix])) fails.push(`TABLE_SECTIONS maps ${t} to "${want}", which is not a section in SECTION_ACCESS`);
+    if (sectionForTable(manifest, t) === MODULE_SECTIONS[manifest.tables[t].module])
+      fails.push(`TABLE_SECTIONS entry for ${t} is redundant — it equals its module default`);
+  }
   return fails;
 }
 

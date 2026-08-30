@@ -14,7 +14,7 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  * middleware, before any query runs.
  *
  * ⚠ **The door gate is deliberately the WIDER of the two gates, and this file can only test that
- * one.** `canSeeRoster` is `rolesThatCanView("fleet") ∪ rolesThatCanView("recruitment")`, because the
+ * one.** `canSeeRoster` is `rolesThatCanView("roster") ∪ rolesThatCanView("recruitment")`, because the
  * real gate — `canArchiveDriver` — depends on the DRIVER'S STATUS as well as the caller's role, and
  * the status is not known until the row is read. A dispatcher reaching the handler and being refused
  * by that second gate is the design, not a hole: refusing them at the door would need a database read

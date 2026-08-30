@@ -35,7 +35,7 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 export function complianceExportsRouter(): Router {
   const router = Router();
 
-  const canManage = requireRole(...rolesThatManage("fleet"));
+  const canManage = requireRole(...rolesThatManage("roster"));
   /**
    * Who may see the export LEDGER. Wider than who may create an export — an internal auditor's whole
    * job is reading the record of what left the building — and narrower than the fleet section's

@@ -37,7 +37,7 @@ export function rosterSevenDayRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("fleet"));
+  const canView = requireRole(...rolesThatCanView("roster"));
 
   router.get(
     "/:id/seven-day-statements",

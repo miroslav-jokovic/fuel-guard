@@ -73,7 +73,7 @@ export function rosterDriversRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("fleet"));
+  const canView = requireRole(...rolesThatCanView("roster"));
   /**
    * Create + edit a driver row, which is a RECRUITMENT action as much as a fleet one.
    *
@@ -86,7 +86,7 @@ export function rosterDriversRouter(): Router {
    * access (admin + fleet_manager), which hands out a login.
    */
   const canWriteDriver = requireRole(
-    ...new Set([...rolesThatManage("fleet"), ...rolesThatManage("recruitment")]),
+    ...new Set([...rolesThatManage("roster"), ...rolesThatManage("recruitment")]),
   );
 
   // List the org's drivers (managers + dispatch/audit read).
@@ -274,6 +274,8 @@ export function rosterDriversRouter(): Router {
 
   // Enroll an EXISTING roster driver for driver-app access (admin/fleet_manager).
   // The invite carries `driver_id`; acceptance binds `drivers.user_id` (routes/invites.ts, plan §3.2).
+  // ⚠ Narrower than `rolesThatManage("roster")` on purpose — see rosterCredentialsRouter's header.
+  // An invitation is the first half of issuing a credential, so it carries the same gate.
   router.post(
     "/:id/invite",
     requireOrg,
@@ -366,6 +368,11 @@ export function rosterDriversRouter(): Router {
   // Reconcile duplicate / name-only drivers: fold each unmatched (no Samsara id) driver into its Samsara
   // twin. DRY RUN by default (returns the exact merge pairs to review); { apply: true } executes them via
   // the atomic merge_driver() function. Admin/fleet-manager only.
+  //
+  // ⚠ Narrower than `rolesThatManage("roster")` on purpose, and this is the one where it matters most:
+  // a merge moves every fuel, idle, HOS and qualification row off one driver onto another and there is
+  // no un-merge. The D-ROS12 split must not widen it to `safety_manager` as a side effect of a rename;
+  // if that grant is ever wanted it is a decision somebody makes on its own, in writing.
   router.post(
     "/reconcile",
     requireOrg,
@@ -390,6 +397,8 @@ export function rosterDriversRouter(): Router {
 
   // Manually link an unmatched driver to a Samsara driver — folds :id (source) INTO { canonicalId }.
   // For the residual single-name cases the auto-reconcile won't touch. Admin/fleet-manager only.
+  // ⚠ Narrower than the section for the same reason /reconcile is — it is the same irreversible act,
+  // performed one pair at a time.
   router.post(
     "/:id/merge",
     requireOrg,

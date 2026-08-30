@@ -22,7 +22,7 @@ import { runApplicationNudgesOnce } from "../recruiting/index.js";
  *   - No driver notifications, ever (D-DQ13: the file is company-only).
  */
 const CHECK_INTERVAL_MS = 6 * 3_600_000;
-const OFFICE_ROLES = rolesThatManage("fleet"); // admin, fleet_manager, safety_manager
+const OFFICE_ROLES = rolesThatManage("roster"); // admin, fleet_manager, safety_manager
 
 async function sentKeys(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
   const { data, error } = await admin

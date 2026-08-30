@@ -8,7 +8,7 @@ import { sha256Hex } from "@/composables/useCompliance";
  * `/api/recruitment/psp-imports` — filing a PSP record the carrier already bought (PSP-PLAN P14).
  *
  * Deliberately NOT `useUploadDocument` plus `useCreateQualificationRecord`, which between them write
- * the same two rows. That pair posts to `/api/compliance/*`, which gates on `rolesThatManage("fleet")`
+ * the same two rows. That pair posts to `/api/compliance/*`, which gates on `rolesThatManage("roster")`
  * — and a recruiter has `fleet: view`, so the role the Recruitment section exists for could not file
  * the evidence it is responsible for. The import endpoints gate on the recruitment section instead,
  * compose the `psp_report` kind server-side (the kind is what carries the §391.53(a)(1) read

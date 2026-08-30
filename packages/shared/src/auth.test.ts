@@ -73,25 +73,37 @@ describe("role helpers", () => {
 });
 
 describe("section capability matrix", () => {
-  it("dispatcher: manages Dispatch, reads Fuel + Fleet, no Safety/Admin", () => {
+  it("dispatcher: manages Dispatch, reads Fuel + Roster + Equipment, no Safety/Admin", () => {
     expect(canManageSection("dispatcher", "dispatch")).toBe(true);
     expect(canViewSection("dispatcher", "fuel")).toBe(true);
     expect(canManageSection("dispatcher", "fuel")).toBe(false);
-    expect(canViewSection("dispatcher", "fleet")).toBe(true);
-    expect(canManageSection("dispatcher", "fleet")).toBe(false);
+    expect(canViewSection("dispatcher", "roster")).toBe(true);
+    expect(canManageSection("dispatcher", "roster")).toBe(false);
+    expect(canViewSection("dispatcher", "equipment")).toBe(true);
+    expect(canManageSection("dispatcher", "equipment")).toBe(false);
     expect(canViewSection("dispatcher", "safety")).toBe(false);
     expect(canViewSection("dispatcher", "admin")).toBe(false);
   });
-  it("safety_manager: manages Safety + Fleet, reads Fuel, no Dispatch/Admin", () => {
+  /**
+   * THE D-ROS12 ROW. This is the case that forced `fleet` apart on 2026-08-30: a safety manager owns
+   * the §391.51 qualification file, so they must WRITE driver rows — and has no business editing a
+   * tractor's plate or VIN, which the single `fleet` section handed them as a side effect. Under one
+   * section neither half could be said without the other, so the product said it twice instead, in a
+   * hand-written `canManageFleet` that disagreed with the matrix. Both halves are pinned here so the
+   * two cannot drift back together.
+   */
+  it("safety_manager: manages Safety + Roster, READS Equipment, reads Fuel, no Dispatch/Admin", () => {
     expect(canManageSection("safety_manager", "safety")).toBe(true);
-    expect(canManageSection("safety_manager", "fleet")).toBe(true);
+    expect(canManageSection("safety_manager", "roster")).toBe(true);
+    expect(canViewSection("safety_manager", "equipment")).toBe(true);
+    expect(canManageSection("safety_manager", "equipment")).toBe(false);
     expect(canViewSection("safety_manager", "fuel")).toBe(true);
     expect(canManageSection("safety_manager", "fuel")).toBe(false);
     expect(canViewSection("safety_manager", "dispatch")).toBe(false);
     expect(canViewSection("safety_manager", "admin")).toBe(false);
   });
   it("admin manages everything incl. Admin; auditor views all but manages none; driver sees no section", () => {
-    for (const s of ["fuel", "dispatch", "safety", "fleet", "recruitment", "admin"] as const) expect(canManageSection("admin", s)).toBe(true);
+    for (const s of ["fuel", "dispatch", "safety", "roster", "equipment", "recruitment", "admin"] as const) expect(canManageSection("admin", s)).toBe(true);
     expect(canViewSection("auditor", "safety")).toBe(true);
     expect(canManageSection("auditor", "safety")).toBe(false);
     expect(canViewSection("driver", "fuel")).toBe(false);
@@ -108,11 +120,14 @@ describe("section capability matrix", () => {
     expect(canManageSection("fleet_manager", "recruitment")).toBe(true);
     expect(canManageSection("safety_manager", "recruitment")).toBe(true);
     expect(canManageSection("recruiter", "recruitment")).toBe(true);
-    // The recruiter's whole shape: hiring, and nothing else. `fleet: view` is what lets them open a
-    // driver's §391.51 file at all (routes/compliance.ts gates on rolesThatCanView("fleet")); it is
-    // deliberately not "manage", which would also hand them vehicles and trailers.
-    expect(canViewSection("recruiter", "fleet")).toBe(true);
-    expect(canManageSection("recruiter", "fleet")).toBe(false);
+    // The recruiter's whole shape: hiring, and nothing else. `roster: view` is what lets them open a
+    // driver's §391.51 file at all (routes/compliance.ts gates on rolesThatCanView("roster")); it is
+    // deliberately not "manage" — the one write they need is granted by name in 0212.
+    expect(canViewSection("recruiter", "roster")).toBe(true);
+    expect(canManageSection("recruiter", "roster")).toBe(false);
+    // `equipment: none` is the NARROWING the D-ROS12 split made possible. Under `fleet: view` a
+    // recruiter could read the tractor and trailer lists; nobody hiring a driver needs them.
+    expect(canViewSection("recruiter", "equipment")).toBe(false);
     for (const s of ["fuel", "dispatch", "safety", "hazmat", "admin"] as const) {
       expect(canViewSection("recruiter", s)).toBe(false);
     }
@@ -182,7 +197,13 @@ describe("section capability matrix", () => {
   it("rolesThatManage/rolesThatCanView expose the matrix for guard building", () => {
     expect(rolesThatManage("dispatch").sort()).toEqual(["admin", "dispatcher", "fleet_manager"]);
     expect(rolesThatManage("safety").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
-    expect(rolesThatManage("fleet").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
+    // D-ROS12: these two lines are the whole split, and they are what R0a's Done-when names.
+    expect(rolesThatManage("roster").sort()).toEqual(["admin", "fleet_manager", "safety_manager"]);
+    expect(rolesThatManage("equipment").sort()).toEqual(["admin", "fleet_manager"]);
+    // 0277 mirrors the equipment line into vehicles_write / trailers_write. The view side is wider
+    // than the manage side on purpose — a dispatcher and a safety manager both READ the truck list.
+    expect(rolesThatCanView("equipment").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "safety_manager"]);
+    expect(rolesThatCanView("roster").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "recruiter", "safety_manager"]);
     // Mirrored by driver_employment_history's write policy (0208) and its restrictive read (0209).
     expect(rolesThatManage("recruitment").sort()).toEqual(["admin", "fleet_manager", "recruiter", "safety_manager"]);
     expect(rolesThatCanView("recruitment").sort()).toEqual(["admin", "auditor", "fleet_manager", "recruiter", "safety_manager"]);
