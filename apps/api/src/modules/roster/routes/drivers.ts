@@ -78,7 +78,7 @@ export function rosterDriversRouter(): Router {
    * Create + edit a driver row, which is a RECRUITMENT action as much as a fleet one.
    *
    * An applicant is a `drivers` row — `driver_employment_history.driver_id` references it — so a
-   * recruiter cannot work without writing this table. Granting them `fleet: manage` to get there
+   * recruiter cannot work without writing this table. Granting them `roster: manage` to get there
    * would also hand over vehicles, trailers and terminals through seventeen other policies, which is
    * the leak the `recruitment` section was introduced to close. So the two section role-sets are
    * UNIONED here, by name, on these two routes only, and migration 0212 mirrors it in

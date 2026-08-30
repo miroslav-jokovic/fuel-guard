@@ -405,18 +405,22 @@ A `lint:capabilities` script that fails on: `canManageFleet` used anywhere in `a
 section was too coarse; it conflated the people with the trucks, and every workaround downstream of
 it inherited that. Specified as **D-ROS12** and built as **R0a**, which now precedes R0.
 
-**Q2 — When McLeod is roster master, who owns CDL and medical expiry?** (blocks R1)
-Three candidate answers, and they are not equivalent:
-- (a) McLeod's sweep also writes a `certifications` row through `insert_certification`, so the
-  carrier's system of record feeds the gate. Truthful, and the supersede chain records each sweep.
-  Risk: a chatty sync writing evidence rows.
-- (b) `drivers.*_expires_at` stays display-only and the office still files the certification, with
-  the roster surfacing the mismatch as a data-gap. Safest, most manual.
-- (c) `buildDqFile` treats a McLeod-sourced column as evidence of a *stated* date but not a
-  *documented* one — a distinct state, since §391.51(b)(6) wants the artifact, not the date.
-- **My reading:** (c) is the most honest to the regulation and (a) is the most useful day to day;
-  (b) is the safe interim. Owner ruling needed, and it is worth writing down before McLeod goes on
-  for a second org.
+~~**Q2 — When McLeod is roster master, who owns CDL and medical expiry?** (blocks R1)~~
+**ANSWERED 2026-08-30 (owner): option (a)** — the McLeod sweep writes a `certifications` row through
+`insert_certification`, so the carrier's system of record feeds the gate. Built as R1.
+
+Two consequences the ruling carries, both to be held in the implementation rather than argued again:
+
+- **The sync must write only on CHANGE.** `insert_certification` unconditionally inserts and
+  supersedes, so a naive per-sweep call adds one row per driver per sweep to an append-only table
+  pinned in `RETENTION_FORBIDDEN` — forever, and unprunable by design. "Risk: a chatty sync writing
+  evidence rows" is therefore not a risk to accept but an invariant to enforce, and it belongs to
+  `evidence` as the owner rather than to `mcleod` as the caller (D-ARC3).
+- **Option (c)'s concern survives the ruling and becomes Q6.** `buildDqFile` computes
+  `present = Boolean(cert ?? record)` (`dqFile.ts:320`), so a McLeod-sourced date flips the medical
+  card to `current` with **no scan on file** — while §391.51(b)(6) wants the artifact, not the date.
+  Choosing (a) does not make that untrue; it decides where the date comes from, not what the file
+  may claim. See Q6.
 
 **Q3 — Saved views: per user, per org, or both?** (blocks R3) Storage, sharing, and whether a view
 is a URL. A view that cannot be linked to is half a feature; a view stored per org needs a policy.
@@ -425,6 +429,19 @@ is a URL. A view that cannot be linked to is half a feature; a view stored per o
 Candidates with no sync owner and no legal consequence: `employee_id`, `phone_alt`,
 `emergency_contact_*`, `eld_id`. Explicitly **not**: any `DRIVER_IDENTITY_FIELDS` member, `status`,
 `termination_date`, `hire_date`, `date_of_birth`, `pay_*`, anything McLeod writes.
+
+**Q6 — May the DQ file read `current` on a date with no scan behind it?** (raised by Q2's ruling;
+does not block R1)
+`buildDqFile` treats any certification as presence, and R1 will start creating certifications from a
+TMS field rather than from a document. So a driver whose medical card McLeod knows about, but whose
+scan nobody has filed, will read `current` — and §391.51(b)(6)(i) wants the certificate in the file,
+legible. The file already computes `documentId: null` per item, so the information to tell the two
+apart exists and is simply not rendered.
+- **My reading:** the honest fix is a `documented` flag distinct from `present`, surfaced as its own
+  state on the item ("date on file, scan missing") rather than as a second kind of `missing`. That is
+  a `@silvicom/shared` change touching the queue, the roster columns and the binder, so it is its own
+  step and not a rider on R1. R1 will therefore stamp every synced row with a `notes` line naming
+  McLeod as the source, so the rows are identifiable when this is answered.
 
 **Q5 — Does the ask survive this plan?** The original request was to delete `/drivers/:id`. This
 plan keeps it and instead deletes six tabs, one global boolean and (at R8) probably two pages. If
