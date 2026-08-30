@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   HazmatCreateLoadRequest,
+  HazmatUpdateLoadRequest,
   HazmatLoadRow,
   HazmatLoadsListResponse,
   HazmatRunRow,
@@ -65,12 +66,29 @@ function useLoadsMutation<TVars, TData>(fn: (vars: TVars) => Promise<TData>) {
     mutationFn: fn,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: loadsKey });
+      // Every lifecycle move here changes what the DISPATCH load shows — `HazmatPanel`'s status
+      // rail, the board's hazmat chip, the readiness checklist. Those live under a different query
+      // key, so without this the panel that STARTED the record kept rendering the state before the
+      // move until something else happened to refetch it (H-C1's two surfaces, one record).
+      void qc.invalidateQueries({ queryKey: ["dispatch", "load"] });
+      void qc.invalidateQueries({ queryKey: ["dispatch", "loads"] });
     },
   });
 }
 
 export function useCreateHazmatLoad() {
   return useLoadsMutation((req: HazmatCreateLoadRequest) => call<{ id: string }>("/api/hazmat/loads", "POST", req));
+}
+
+/**
+ * D-H23: correct a DRAFT record's declaration. The API refuses this on any other status
+ * (`canEditLoad` in the shared state machine), which is the real gate — the UI only mirrors it so a
+ * hidden editor is explained rather than a rejected save.
+ */
+export function useUpdateLoad() {
+  return useLoadsMutation((vars: { id: string; patch: HazmatUpdateLoadRequest }) =>
+    call<{ id: string }>(`/api/hazmat/loads/${vars.id}`, "PATCH", vars.patch),
+  );
 }
 
 export function useSubmitLoad() {

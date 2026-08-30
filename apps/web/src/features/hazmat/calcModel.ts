@@ -250,12 +250,47 @@ export function lineGrossWeightLb(line: CalcLineForm): number | null {
   return weightToLb(numOrNull(line.grossWeightValue), line.grossWeightUnit);
 }
 
+/**
+ * D-H23 (2026-08-30): what the offeror DECLARED, carried alongside what the engine consumes.
+ *
+ * `declared_lines` is an EVIDENCE column — the defense packet prints it and `reproduce.ts` re-runs
+ * from it — and until now it stored only the engine's derived answer: `packagingKind: "non_bulk"`
+ * where the BOL said "10 drums", and an opaque `hmtRef` where the paper said "UN1203 · Gasoline".
+ * Two things went wrong with that. A draft could not be re-opened for editing without silently
+ * losing the package type and the per-package size, which are the two inputs the §171.8 derivation
+ * (D-H14) runs on — so a second save could flip bulk/non-bulk on a record nobody had knowingly
+ * changed. And a packet could not state the declaration in the words the shipping paper used.
+ *
+ * These keys can never change a verdict — the engine's `lineSchema` is a plain `z.object`, so zod
+ * STRIPS unknown keys before any rule sees them (pinned by "is stripped by lineSchema" in
+ * declaredLines.test.ts). They survive onto the stored row because
+ * `hazmatCreateLoadRequestSchema.declaredLines` is `z.array(z.record(z.string(), z.unknown()))` and
+ * `hazmatLoads.ts` writes the request's lines verbatim.
+ *
+ * `declaredProduct` is a SNAPSHOT, for display and re-editing only. The authoritative resolution
+ * stays `hmtRef` against the run's pinned `dataset_version` — never this copy, which is why
+ * `reproduce.ts` reads the ref and not the label.
+ */
+export interface DeclaredLineProvenance {
+  declaredProduct: HazmatProduct;
+  /** The BOL package vocabulary the user stated ("drums", "ibc_tote", "bulk_cargo", …). */
+  declaredPackageType: string;
+  /** The optional measured per-package size (D-H14), as entered. Null when it was left blank. */
+  declaredPerPackage: { value: string; unit: string } | null;
+}
+
 /** Map one resolved form line to a canonical engine `LoadInput` line (also used for a load's declared_lines). */
 export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<string, unknown> {
   const product = l.product as HazmatProduct;
   const compartment = numOrNull(l.compartmentIndex);
   const count = isVehiclePackaging(l.packageType) ? null : numOrNull(l.packageCount);
   return {
+    declaredProduct: product,
+    declaredPackageType: l.packageType,
+    declaredPerPackage:
+      l.perPackageCapacityValue.trim() === ""
+        ? null
+        : { value: l.perPackageCapacityValue, unit: l.perPackageCapacityUnit },
     hmtRef: product.hmtRef,
     reclassedCombustible: l.reclassedCombustible,
     isLimitedQuantity: l.isLimitedQuantity,
