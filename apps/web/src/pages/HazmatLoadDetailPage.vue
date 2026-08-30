@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
+import DeclaredProductsCard from "@/features/hazmat/DeclaredProductsCard.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -163,14 +164,6 @@ const primaryLabel = computed(() =>
   load.value?.status === "draft" ? "Submit & analyze" : load.value?.status === "submitted" ? "Analyze" : "Re-analyze",
 );
 const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.status ?? ""));
-
-function declaredLine(l: unknown): { hmtRef: string; qty: string } {
-  const o = (l ?? {}) as { hmtRef?: string; quantity?: { value?: number; unit?: string } };
-  return {
-    hmtRef: o.hmtRef ?? "—",
-    qty: o.quantity ? `${o.quantity.value ?? "?"} ${o.quantity.unit ?? ""}`.trim() : "—",
-  };
-}
 </script>
 
 <template>
@@ -217,16 +210,7 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
         </dl>
       </BaseCard>
 
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Declared products</h2>
-        <ul class="mt-2 divide-y divide-edge text-sm">
-          <li v-for="(l, i) in load.declared_lines" :key="i" class="flex items-center justify-between py-2">
-            <span class="font-mono text-ink-secondary">{{ declaredLine(l).hmtRef }}</span>
-            <span class="text-ink">{{ declaredLine(l).qty }}</span>
-          </li>
-          <li v-if="load.declared_lines.length === 0" class="py-2 text-ink-muted">No products declared.</li>
-        </ul>
-      </BaseCard>
+      <DeclaredProductsCard :load="load" :can-manage="session.canManage" />
 
       <!-- review + attestation (H7) — review-role users only; RLS is the real gate -->
       <ReviewPanel v-if="load.status === 'needs_review' && canReview && latestRun" :load="load" :run="latestRun" />
