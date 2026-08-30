@@ -1,28 +1,37 @@
 <script setup lang="ts">
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { ref, watch, onBeforeUnmount } from "vue";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
 import type { HazmatProduct } from "@silvicom/shared";
-import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import { useHazmatProductsQuery } from "./useHazmatCalc";
 
 /**
  * HMT product picker (plan H5). Search by UN/NA number or shipping name; the list resolves through
- * `GET /api/hazmat/products` (curated fuel shortlist when blank, full-HMT search when typing). Selecting a
- * row yields a canonical `hmtRef` — there is no free-text entry, so an unknown product simply cannot be
- * added (fail-closed at the source). Exact-substring only; never a fuzzy best-guess (resolveHmtLine rule).
+ * `GET /api/hazmat/products` (curated fuel shortlist when blank, full-HMT search when typing).
+ * Selecting a row yields a canonical `hmtRef` — there is no free-text entry, so an unknown product
+ * simply cannot be added (fail-closed at the source). Exact-substring only; never a fuzzy best-guess.
+ *
+ * D-H20 (2026-08-30): this used to be a hand-rolled combobox, and every way it differed from the
+ * primitive was a defect rather than a requirement — no keyboard support at all (↑/↓/Enter/Escape
+ * were dead), button elements carrying role="option" inside a role="listbox", and a click-away catcher built
+ * from `AppButton`, whose `h-9` beat `inset-0` so the "full-screen" backdrop rendered as a visible
+ * 36 px bar across the top of the viewport and click-away worked nowhere else. The genuinely
+ * different requirement was only that the options come from a server search, which is now
+ * `serverFiltered` + `update:query` on `AppCombobox`. The scrim went away entirely: the primitive
+ * closes on `focusout`, so there is nothing to mis-size.
  */
 const props = withDefaults(defineProps<{ basePath?: string }>(), { basePath: "/api/hazmat" });
 const emit = defineEmits<{ select: [product: HazmatProduct] }>();
 
 const query = ref("");
 const debounced = ref("");
-const open = ref(false);
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-watch(query, (v) => {
+// The debounce stays here rather than in the primitive: it is a property of THIS lookup's cost, not
+// of comboboxes, and the query key downstream is what actually caches the result.
+watch(query, (value) => {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
-    debounced.value = v;
+    debounced.value = value;
   }, 200);
 });
 onBeforeUnmount(() => {
@@ -31,59 +40,51 @@ onBeforeUnmount(() => {
 
 const { data: products, isFetching, isError } = useHazmatProductsQuery(debounced, props.basePath);
 
-function choose(p: HazmatProduct) {
-  emit("select", p);
+/**
+ * The shortlist header the old picker drew above the blank-query results — "a shortcut, not the
+ * scope" — is folded into the option labels' surrounding copy instead of a bespoke list header,
+ * because the primitive owns the list. The `fuel` marker survives as a label suffix.
+ */
+const options = computed(() =>
+  (products.value ?? []).map((product) => ({
+    value: product.hmtRef,
+    label: product.isFuelCommon ? `${product.label} · common fuel` : product.label,
+  })),
+);
+
+const emptyText = computed(() =>
+  isError.value
+    ? "Lookup failed — try again."
+    : "No matching product. Only regulated HMT entries can be added.",
+);
+
+const hint = computed(() =>
+  query.value.trim() === ""
+    ? "Common fuel products are listed first — search any UN/NA number or shipping name to reach the whole Hazardous Materials Table."
+    : null,
+);
+
+function choose(hmtRef: string) {
+  const product = (products.value ?? []).find((p) => p.hmtRef === hmtRef);
+  if (!product) return; // fail-closed: an unresolved ref is never emitted as a product
+  emit("select", product);
   query.value = "";
   debounced.value = "";
-  open.value = false;
 }
 </script>
 
 <template>
-  <div class="relative">
-    <BaseInput
-      v-model="query"
-      type="search"
+  <div>
+    <ComboSelect
+      model-value=""
+      :options="options"
+      :loading="isFetching"
+      :empty-text="emptyText"
       placeholder="Search by UN/NA number or shipping name…"
-      autocomplete="off"
-      @focus="open = true"
+      server-filtered
+      @update:query="query = $event"
+      @update:model-value="choose"
     />
-    <div
-      v-if="open"
-      class="absolute z-sticky-lead mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
-      role="listbox"
-    >
-      <p v-if="isFetching" class="px-3 py-2 text-sm text-ink-muted">Searching…</p>
-      <p v-else-if="isError" class="px-3 py-2 text-sm text-danger-600">Lookup failed — try again.</p>
-      <p v-else-if="!products || products.length === 0" class="px-3 py-2 text-sm text-ink-muted">
-        No matching product. Only regulated HMT entries can be added.
-      </p>
-      <template v-else>
-        <div v-if="!query" class="px-3 pt-2">
-          <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Common fuel products</p>
-          <p class="pt-0.5 text-xs text-ink-muted">
-            A shortcut, not the scope — search any UN/NA number or shipping name to reach the whole
-            Hazardous Materials Table.
-          </p>
-        </div>
-        <BaseButton
-          v-for="p in products"
-          :key="p.hmtRef"
-          type="button"
-          role="option"
-          class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-surface-subtle"
-          @click="choose(p)"
-        >
-          <span class="truncate">{{ p.label }}</span>
-          <span
-            v-if="p.isFuelCommon"
-            class="shrink-0 rounded-control bg-surface-muted px-1.5 py-0.5 text-xs font-medium text-ink-tertiary ring-1 ring-inset ring-edge"
-            >fuel</span
-          >
-        </BaseButton>
-      </template>
-    </div>
-    <!-- click-away backdrop while open -->
-    <BaseButton v-if="open" type="button" class="fixed inset-0 z-sticky cursor-default" tabindex="-1" aria-hidden="true" @click="open = false" />
+    <p v-if="hint" class="mt-1 text-xs text-ink-muted">{{ hint }}</p>
   </div>
 </template>
