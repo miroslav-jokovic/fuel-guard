@@ -314,12 +314,37 @@ load's hazmat panel and the notification.
 select; the list paints over the app top bar and escapes the `overflow-hidden` product line; the
 async path has unit tests; every existing `AppCombobox` caller still passes.
 
-### H-U5 — The design-contract sweep
+### H-U5 — The design-contract sweep — **DONE 2026-08-30**
 `!capitalize` off the five badges; the two `!important` link overrides replaced; the segmented control
 becomes `AppTabs`; inline mutation errors become toasts; the raw `<label>` becomes `FormField`; the
 packet download becomes one shared token-authenticated composable.
 **Done when:** no `!` override on a shared primitive and no raw `<a href="/api/…">` remains in
 `apps/web/src`; the board reads "Needs review"; a test pins a mapped-label chip against title-casing.
+
+**What shipped:**
+- **The `capitalize` regression, all four sites.** Two rendered MAPPED labels and were broken by it
+  (`LoadStatusBadge` shipped "Needs Review"); two rendered RAW engine tokens, which is the case
+  `badges.ts` says a call-site `capitalize` marks — so those got the mapping they were missing.
+  `REVIEW_TIER_LABELS` is now one vocabulary shared by `FindingRow` and `ReviewPanel`, and
+  `conditional` deliberately reads **Review**: it is the tier that stops a load auto-clearing, so the
+  badge names the consequence rather than the mechanism. Tank state is mapped too, in both the panel
+  and the workspace, instead of a `capitalize`/`first-letter:uppercase` on a machine token.
+- **`AppButton` gained the `link` variant** the two `!important` blocks were faking. Six `!important`s
+  to undo a button's box against a contract whose first rule is that a primitive is never re-styled:
+  the honest reading was that the variant was missing. Measured after: 16px tall, zero padding,
+  transparent, inheriting the surrounding 12px.
+- **The segmented control became `AppTabs`** — the hand-rolled pair announced a `role="group"` with no
+  `aria-pressed`, no roving tabindex and no arrow keys, the exact failure AppTabs exists to stop.
+- **The packet 401.** `HazmatPanel`'s raw `<a href="/api/hazmat/loads/:id/packet">` could never have
+  worked for anyone: the router is `requireAuth` and the middleware accepts only a bearer header,
+  which a new tab does not send. `useDefensePacket` is now the one implementation, and it revokes its
+  object URL in `finally` rather than leaking one per download.
+- Mutation feedback on the workspace became toasts, and the hand-written `<label>` became `FormField`.
+
+**Verified by:** web suite 80 files / 716 tests (5 new pinning the copy voice, mutation-tested by
+re-adding `!capitalize` — it fails naming the status), ui 42, `pnpm -r test`, `typecheck`, `lint`,
+`lint:ui-adoption`, `lint:filesize`, `lint:comment-claims`, web `lint:tokens`; the `link` variant
+measured in a real browser on the public calculator.
 
 ### H-U6 — Calculator and verdict composition — **DONE 2026-08-30**
 Kill the 1/3/4 numbering or derive it from one place. Give the verdict a lead answer — the required

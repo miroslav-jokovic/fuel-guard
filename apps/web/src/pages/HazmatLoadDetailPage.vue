@@ -5,14 +5,15 @@ import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import DeclaredProductsCard from "@/features/hazmat/DeclaredProductsCard.vue";
+import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import LoadDeclarationCard from "@/features/hazmat/LoadDeclarationCard.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppFormField as FormField } from "@silvicom/ui";
 import LoadStatusBadge from "@/features/hazmat/LoadStatusBadge.vue";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import type { CalcResult } from "@/features/hazmat/calcModel";
@@ -34,33 +35,8 @@ import {
 const route = useRoute();
 const id = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id) as string | undefined);
 
-// M12.1 — fetch the defense-packet PDF with the auth token and trigger a download.
-const packetLoading = ref(false);
-const packetToast = useToastStore();
-async function downloadPacket() {
-  const loadId = id.value;
-  if (!loadId) return;
-  packetLoading.value = true;
-  try {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    const res = await fetch(`/api/hazmat/loads/${loadId}/packet`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (!res.ok) throw new Error(`Packet failed (${res.status})`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `hazmat-packet-${loadId.slice(0, 8)}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    packetToast.error("Could not generate the defense packet", e instanceof Error ? e.message : undefined);
-  } finally {
-    packetLoading.value = false;
-  }
-}
+const packet = useDefensePacket();
+const toast = useToastStore();
 
 // M12.2 — verify the recorded verdict reproduces under its dataset, and diff vs the current one.
 interface ReproduceDiff { placardsAdded: string[]; placardsRemoved: string[]; eligibilityBefore: string; eligibilityAfter: string; findingsAdded: string[]; findingsRemoved: string[] }
@@ -77,7 +53,7 @@ async function verifyReproducibility() {
   reproduceLoading.value = true; reproduceResult.value = null;
   const res = await apiFetch<ReproduceResult>(`/api/hazmat/loads/${loadId}/runs/${runId}/reproduce`);
   reproduceLoading.value = false;
-  if (!res.ok) { packetToast.error("Could not verify reproducibility", res.error?.message); return; }
+  if (!res.ok) { toast.error("Could not verify reproducibility", res.error?.message); return; }
   reproduceResult.value = res.data ?? null;
 }
 
@@ -88,29 +64,28 @@ const { data: runs } = useHazmatRunsQuery(id, analyzing);
 const submit = useSubmitLoad();
 const analyze = useAnalyzeLoad();
 const cancel = useCancelLoad();
-const actionError = ref<string | null>(null);
 const showCancel = ref(false);
 const cancelReason = ref("");
 
 const busy = computed(() => submit.isPending.value || analyze.isPending.value || cancel.isPending.value || analyzing.value);
 
 async function submitAndAnalyze() {
-  actionError.value = null;
   try {
     if (load.value?.status === "draft") await submit.mutateAsync(id.value!);
     await analyze.mutateAsync(id.value!);
+    toast.success("Analysis started", "The verdict lands here in a moment.");
   } catch (e) {
-    actionError.value = e instanceof Error ? e.message : "Action failed.";
+    toast.error("Could not analyze this load", e instanceof Error ? e.message : undefined);
   }
 }
 async function doCancel() {
-  actionError.value = null;
   try {
     await cancel.mutateAsync({ id: id.value!, reason: cancelReason.value.trim() || "cancelled by user" });
     showCancel.value = false;
     cancelReason.value = "";
+    toast.success("Load cancelled");
   } catch (e) {
-    actionError.value = e instanceof Error ? e.message : "Cancel failed.";
+    toast.error("Could not cancel this load", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -158,7 +133,7 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
   <div class="space-y-6">
     <PageHeader description="Hazmat load — analysis, placards and findings.">
       <template #actions>
-        <BaseButton v-if="latestRun" variant="ghost" size="sm" :disabled="packetLoading" @click="downloadPacket">{{ packetLoading ? "Preparing…" : "Defense packet" }}</BaseButton>
+        <BaseButton v-if="latestRun" variant="ghost" size="sm" :disabled="packet.loading.value" @click="packet.download(id!)">{{ packet.loading.value ? "Preparing…" : "Defense packet" }}</BaseButton>
         <BaseButton variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
@@ -182,13 +157,11 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
         </div>
 
         <div v-if="showCancel" class="mt-3 flex flex-wrap items-end gap-2">
-          <div class="grow">
-            <label class="block text-sm font-medium text-ink-secondary">Reason</label>
-            <BaseInput v-model="cancelReason" class="mt-1" placeholder="Why is this load being cancelled?" />
-          </div>
+          <FormField v-slot="{ id: reasonId }" label="Reason" class="grow">
+            <BaseInput :id="reasonId" v-model="cancelReason" placeholder="Why is this load being cancelled?" />
+          </FormField>
           <BaseButton variant="danger" size="sm" :disabled="cancel.isPending.value" @click="doCancel">Confirm cancel</BaseButton>
         </div>
-        <p v-if="actionError" class="mt-2 text-sm text-danger-600">{{ actionError }}</p>
       </BaseCard>
 
       <LoadDeclarationCard :load="load" :can-manage="session.canManage" />

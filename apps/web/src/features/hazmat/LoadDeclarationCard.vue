@@ -126,7 +126,9 @@ async function save() {
 }
 
 // ── read-only labels ──────────────────────────────────────────────────────────
-const humanize = (value: string): string => value.replace(/_/g, " ");
+/** One tank-state vocabulary with the panel and the calculator, mapped rather than case-transformed. */
+const tankStateLabel = (value: string): string =>
+  TANK_STATE_OPTIONS.find((o) => o.value === value)?.label ?? value.replace(/_/g, " ");
 const vehicleLabel = computed(
   () => (vehicles.value ?? []).find((v) => v.id === props.load.vehicle_id)?.unit_number ?? "—",
 );
@@ -162,7 +164,7 @@ const permitsLabel = computed(() => (props.load.special_permit_numbers ?? []).jo
       <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ trailerLabel }}</dd></div>
       <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ driverLabel }}</dd></div>
       <div><dt class="text-ink-tertiary">Planned pickup</dt><dd class="text-ink">{{ pickupLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Tank state</dt><dd class="text-ink first-letter:uppercase">{{ humanize(load.tank_state) }}</dd></div>
+      <div><dt class="text-ink-tertiary">Tank state</dt><dd class="text-ink">{{ tankStateLabel(load.tank_state) }}</dd></div>
       <div class="col-span-2"><dt class="text-ink-tertiary">Who placards this vehicle</dt><dd class="text-ink">{{ carrierLabel }}</dd></div>
       <div><dt class="text-ink-tertiary">Special permits</dt><dd class="text-ink">{{ permitsLabel }}</dd></div>
       <div v-if="load.claimed_no_placards" class="col-span-2 sm:col-span-4">
