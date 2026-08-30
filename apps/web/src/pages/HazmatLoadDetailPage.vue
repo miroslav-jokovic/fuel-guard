@@ -41,7 +41,7 @@ const toast = useToastStore();
 // M12.2 — verify the recorded verdict reproduces under its dataset, and diff vs the current one.
 interface ReproduceDiff { placardsAdded: string[]; placardsRemoved: string[]; eligibilityBefore: string; eligibilityAfter: string; findingsAdded: string[]; findingsRemoved: string[] }
 interface ReproduceResult {
-  identical: boolean; identicalModuloVersions: boolean; reason: string | null;
+  identical: boolean; identicalModuloVersions: boolean; decisionIdentical: boolean; reason: string | null;
   recordedDatasetVersion: string; source: string;
   currentDataset: { version: string; diff: ReproduceDiff } | null;
 }
@@ -215,6 +215,16 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
         <div v-if="reproduceResult" class="mt-3 text-sm">
           <p v-if="reproduceResult.identical" class="font-medium text-success-700">✓ Byte-identical to the recorded verdict (dataset {{ reproduceResult.recordedDatasetVersion }}).</p>
           <p v-else-if="reproduceResult.identicalModuloVersions" class="font-medium text-success-700">✓ Identical except the version stamps.</p>
+          <!--
+            Three statements, not two. "The decision reproduced but the bytes did not" is what an
+            engine release that improves an explanation looks like, and reporting it in the same
+            warning tone as a changed verdict is a false alarm on the surface a reviewer is least
+            able to afford one.
+          -->
+          <p v-else-if="reproduceResult.decisionIdentical" class="font-medium text-success-700">
+            ✓ The decision reproduced — same placards, marks, ID displays, eligibility and findings.
+            <span class="font-normal text-ink-muted">{{ reproduceResult.reason }}</span>
+          </p>
           <p v-else class="font-medium text-warning-700">{{ reproduceResult.reason }}</p>
           <div v-if="reproduceResult.currentDataset" class="mt-2 text-xs text-ink-secondary">
             <p class="text-ink-muted">Under the current dataset {{ reproduceResult.currentDataset.version }}:</p>
