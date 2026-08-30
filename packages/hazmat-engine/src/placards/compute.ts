@@ -24,6 +24,7 @@ import { baseClass, DANGEROUS_CATEGORY_BAR_LB, readDataset, subsidiary505 } from
 import { ID_NUMBER_PROHIBITED_PLACARDS, planIdDisplay, type PlacardComputation, type Resolved, withheld } from "./computeSupport.js";
 import { addSubsidiaryPlacards, finalizePlacards } from "./computeFinalize.js";
 import { applyMarinePollutantMark } from "./marinePollutant.js";
+import { applyScopeGates } from "./computeScopeGates.js";
 import { resolvePlacardLines } from "./resolve.js";
 
 export function computePlacards(load: LoadInput): PlacardComputation {
@@ -42,39 +43,9 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   const { resolved, table1Hits, explosivesHits } = resolution;
   if (!resolution.complete) return { placards, findings, trace };
 
-  // Table 1 gate verdict (D4-revised): any Table 1 line blocks the WHOLE load — no placards computed, a
-  // `violation` finding (→ eligibility forced `blocked` in evaluateLoad). "We don't cover this — do not rely on
-  // the tool" is the only allowed answer; silence or a partial placard set on a Table 1 load is forbidden.
-  if (table1Hits.length > 0) {
-    const classes = [...new Set(table1Hits.map((h) => h.classOrDivision))];
-    findings.push({
-      ruleId: "table1_out_of_scope_v1",
-      tier: "violation",
-      message:
-        `This load contains a 49 CFR 172.504 Table 1 material (${classes.join(", ")}), which is outside ` +
-        `HazmatGuard's v1 scope. Placards cannot be computed and the load cannot be cleared — route it to a ` +
-        `hazmat-trained reviewer; do not rely on the tool for this load.`,
-      citations: [{ cfr: "49 CFR 172.504" }, { cfr: "internal: Table 1 out of scope (plan D4-revised / D2)" }],
-      evidence: { table1Classes: classes, lines: table1Hits.map((h) => h.hmtRef) },
-    });
-    trace.push({ ruleId: "table1_out_of_scope_v1", fired: true, inputs: { table1Classes: classes, count: table1Hits.length }, citations: [{ cfr: "49 CFR 172.504" }], note: "Table 1 recognized and blocked; no placards computed for the load." });
-    return { placards, findings, trace };
-  }
-
-  // Explosives verdict — same posture as Table 1: whole load blocked, nothing computed, said plainly.
-  if (explosivesHits.length > 0) {
-    const classes = [...new Set(explosivesHits.map((h) => h.classOrDivision))];
-    findings.push({
-      ruleId: "explosives_out_of_scope_v1",
-      tier: "violation",
-      message:
-        `This load contains an explosives material (${classes.join(", ")}). Explosives placarding depends on ` +
-        `compatibility groups and exception rules HazmatGuard does not yet evaluate, so no placards are computed ` +
-        `and the load cannot be cleared — route it to a hazmat-trained reviewer; do not rely on the tool for this load.`,
-      citations: [{ cfr: "49 CFR 172.504" }, { cfr: "internal: explosives out of scope (plan D4-revised / D2)" }],
-      evidence: { explosivesClasses: classes, lines: explosivesHits.map((h) => h.hmtRef) },
-    });
-    trace.push({ ruleId: "explosives_out_of_scope_v1", fired: true, inputs: { explosivesClasses: classes, count: explosivesHits.length }, citations: [{ cfr: "49 CFR 172.504" }], note: "Explosives recognized and blocked; no placards computed for the load." });
+  // Materials the engine recognises and refuses to assess — Table 1 and explosives (D4-revised).
+  // Both block the whole load; see computeScopeGates.ts for why that is the only allowed answer.
+  if (applyScopeGates({ table1Hits, explosivesHits, findings, trace })) {
     return { placards, findings, trace };
   }
 
