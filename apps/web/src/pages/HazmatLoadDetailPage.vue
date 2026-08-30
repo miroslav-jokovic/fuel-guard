@@ -5,6 +5,7 @@ import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import DeclaredProductsCard from "@/features/hazmat/DeclaredProductsCard.vue";
+import LoadDeclarationCard from "@/features/hazmat/LoadDeclarationCard.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -12,8 +13,6 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useDriversQuery } from "@/composables/useDrivers";
 import LoadStatusBadge from "@/features/hazmat/LoadStatusBadge.vue";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import type { CalcResult } from "@/features/hazmat/calcModel";
@@ -85,17 +84,6 @@ async function verifyReproducibility() {
 const { data: load, isLoading, isError, error } = useHazmatLoadQuery(id);
 const analyzing = computed(() => isAnalyzing(load.value?.status));
 const { data: runs } = useHazmatRunsQuery(id, analyzing);
-
-const { data: vehicles } = useVehiclesQuery();
-const { data: drivers } = useDriversQuery();
-const vehicleLabel = computed(() => {
-  const v = (vehicles.value ?? []).find((x) => x.id === load.value?.vehicle_id);
-  return v ? `Unit ${v.unit_number}` : "—";
-});
-const driverLabel = computed(() => {
-  const d = (drivers.value ?? []).find((x) => x.id === load.value?.driver_id);
-  return d ? d.full_name : "—";
-});
 
 const submit = useSubmitLoad();
 const analyze = useAnalyzeLoad();
@@ -171,7 +159,7 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
     <PageHeader description="Hazmat load — analysis, placards and findings.">
       <template #actions>
         <BaseButton v-if="latestRun" variant="ghost" size="sm" :disabled="packetLoading" @click="downloadPacket">{{ packetLoading ? "Preparing…" : "Defense packet" }}</BaseButton>
-        <BaseButton variant="ghost" size="sm" to="/hazmat/loads">← Loads</BaseButton>
+        <BaseButton variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
 
@@ -201,14 +189,9 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
           <BaseButton variant="danger" size="sm" :disabled="cancel.isPending.value" @click="doCancel">Confirm cancel</BaseButton>
         </div>
         <p v-if="actionError" class="mt-2 text-sm text-danger-600">{{ actionError }}</p>
-
-        <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-          <div><dt class="text-ink-tertiary">Vehicle</dt><dd class="text-ink">{{ vehicleLabel }}</dd></div>
-          <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ driverLabel }}</dd></div>
-          <div><dt class="text-ink-tertiary">Tank state</dt><dd class="capitalize text-ink">{{ load.tank_state.replace(/_/g, " ") }}</dd></div>
-          <div><dt class="text-ink-tertiary">Carrier</dt><dd class="capitalize text-ink">{{ load.carrier_relationship.replace(/_/g, " ") }}</dd></div>
-        </dl>
       </BaseCard>
+
+      <LoadDeclarationCard :load="load" :can-manage="session.canManage" />
 
       <DeclaredProductsCard :load="load" :can-manage="session.canManage" />
 

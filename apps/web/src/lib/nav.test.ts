@@ -12,23 +12,38 @@ import { buildNavGroups } from "./nav";
 const withHazmat = new Set(["hazmatguard"]) as unknown as ModuleSet;
 
 describe("buildNavGroups", () => {
-  it("shows ONE hazmat entry — the HazmatGuard hub — never the sub-pages (H-C4)", () => {
+  /**
+   * D-H15 (owner, 2026-08-30) replaces H-C4's single hub entry with two. H-C4 cut FIVE items to one
+   * because four duplicated Loads, Trailers and Compliance — that reasoning retires the duplicates,
+   * not the surfaces. What must stay dead is the DUPLICATION: no hazmat loads board, no cargo-tank
+   * page, and no hub in between.
+   */
+  it("shows exactly two hazmat entries, and never the surfaces that duplicate Loads or Trailers", () => {
     const safety = buildNavGroups("admin", withHazmat, { hazmatReview: 3 }).find((g) => g.label === "Safety");
     const names = safety?.items.map((i) => i.name) ?? [];
-    expect(names).toContain("HazmatGuard");
-    for (const gone of ["Placard Calculator", "Hazmat Loads", "Hazmat Review", "Cargo-Tank Profiles"]) {
+    expect(names).toContain("Placard calculator");
+    expect(names).toContain("Hazmat review");
+    for (const gone of ["HazmatGuard", "Hazmat Loads", "Cargo-Tank Profiles", "Tank Equipment"]) {
       expect(names).not.toContain(gone);
     }
-    // The review badge rides on the hub now.
-    const hazmat = safety?.items.find((i) => i.name === "HazmatGuard");
-    expect(hazmat?.badge).toBe(3);
-    expect(hazmat?.icon).toBe(HazmatPlacardIcon);
-    expect(hazmat?.icon).not.toBe(ShieldExclamationIcon);
   });
 
-  it("hides HazmatGuard entirely without the module entitlement", () => {
+  it("puts the review badge on the review queue, where it means something", () => {
+    const safety = buildNavGroups("admin", withHazmat, { hazmatReview: 3 }).find((g) => g.label === "Safety");
+    const review = safety?.items.find((i) => i.name === "Hazmat review");
+    const calculator = safety?.items.find((i) => i.name === "Placard calculator");
+    expect(review?.badge).toBe(3);
+    expect(review?.icon).toBe(ShieldExclamationIcon);
+    // A count of pending reviews on an item that opens a calculator would be a lie.
+    expect(calculator?.badge).toBeUndefined();
+    expect(calculator?.icon).toBe(HazmatPlacardIcon);
+  });
+
+  it("hides both hazmat entries without the module entitlement", () => {
     const safety = buildNavGroups("admin", null).find((g) => g.label === "Safety");
-    expect(safety?.items.map((i) => i.name)).not.toContain("HazmatGuard");
+    const names = safety?.items.map((i) => i.name) ?? [];
+    expect(names).not.toContain("Placard calculator");
+    expect(names).not.toContain("Hazmat review");
   });
 
   it("places Driver Qualification in Safety without duplicating it in Fleet", () => {

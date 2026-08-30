@@ -25,6 +25,7 @@ import {
   FuelCardIcon,
   RejectionIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
   HazmatPlacardIcon,
   LicenseIcon,
   SparklesIcon,
@@ -141,13 +142,27 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
         // licence and a medical card, so LicenseIcon says what it holds.
         { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection(role, "fleet") },
-        // ONE hazmat entry (H-C4, owner decision 2026-08-08): the hub routes to the calculator, the
-        // loads board and the review queue — duplicating them here duplicated Loads/Trailers for no
-        // gain. The review badge rides on the hub so the queue still announces itself.
+        /**
+         * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is
+         * gone. H-C4 cut five items to one because four of them duplicated Loads, Trailers and
+         * Compliance; that reasoning retires the DUPLICATES, not the surfaces. These two duplicate
+         * nothing: the calculator is a tool with no other home, and the review queue is a §172
+         * work queue for a tighter role set than dispatch (D6). Routing both through a hub cost a
+         * click each and made the review badge point at a menu instead of at the work.
+         *
+         * The badge sits on Review, where it means something. On the hub it announced a queue the
+         * hub did not contain.
+         */
         {
-          name: "HazmatGuard",
-          to: "/hazmat",
+          name: "Placard calculator",
+          to: "/hazmat/calculator",
           icon: HazmatPlacardIcon,
+          show: isStaff && moduleEnabled(modules, "hazmatguard"),
+        },
+        {
+          name: "Hazmat review",
+          to: "/hazmat/review",
+          icon: ShieldExclamationIcon,
           show: isStaff && moduleEnabled(modules, "hazmatguard"),
           badge: counts.hazmatReview,
         },

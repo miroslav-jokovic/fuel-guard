@@ -1,10 +1,8 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
-  HazmatCreateLoadRequest,
   HazmatUpdateLoadRequest,
   HazmatLoadRow,
-  HazmatLoadsListResponse,
   HazmatRunRow,
   HazmatRunsResponse,
 } from "@silvicom/shared";
@@ -25,18 +23,6 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
 }
 
 const isAnalyzing = (status: string | undefined): boolean => status === "submitted" || status === "extracting";
-
-export function useHazmatLoadsQuery(status: Ref<string | undefined>) {
-  return useQuery({
-    queryKey: computed(() => [...loadsKey, "list", status.value ?? "all"] as const),
-    queryFn: async (): Promise<HazmatLoadRow[]> => {
-      const qs = status.value ? `?status=${encodeURIComponent(status.value)}` : "";
-      const res = await call<HazmatLoadsListResponse>(`/api/hazmat/loads${qs}`);
-      return res.loads;
-    },
-    refetchInterval: 30_000,
-  });
-}
 
 export function useHazmatLoadQuery(id: Ref<string | undefined>) {
   return useQuery({
@@ -74,10 +60,6 @@ function useLoadsMutation<TVars, TData>(fn: (vars: TVars) => Promise<TData>) {
       void qc.invalidateQueries({ queryKey: ["dispatch", "loads"] });
     },
   });
-}
-
-export function useCreateHazmatLoad() {
-  return useLoadsMutation((req: HazmatCreateLoadRequest) => call<{ id: string }>("/api/hazmat/loads", "POST", req));
 }
 
 /**

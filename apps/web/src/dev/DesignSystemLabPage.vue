@@ -26,10 +26,12 @@ type SidebarMode = "dark" | "light";
  * the specimen. Production is unaffected — a parent is never the current route, and `/settings`
  * while on `/settings/audit` is an inclusive match, which RouterLink does not treat as current.
  */
+// A three-level specimen, no longer copied from the router: D-H17 deleted the hazmat board and the
+// app's deepest real trail is two. The specimen stays three deep because that is what it is for.
 const labTrailDeep: Crumb[] = [
-  { label: "HazmatGuard", to: "/hazmat" },
-  { label: "Hazmat Loads", to: "/hazmat/loads" },
-  { label: "Hazmat Load", to: "/hazmat/loads/specimen" },
+  { label: "Settings", to: "/settings" },
+  { label: "Users", to: "/settings/users" },
+  { label: "Specimen user", to: "/settings/users/specimen" },
 ];
 const labTrailTwo: Crumb[] = [
   { label: "Settings", to: "/settings" },

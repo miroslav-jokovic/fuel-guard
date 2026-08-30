@@ -1,11 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { buildTrail, type CrumbMeta } from "./breadcrumbs";
 
-/** The real chain from the router, written out so the test does not depend on the route table. */
+/**
+ * A chain written out so the test does not depend on the route table.
+ *
+ * ⚠ The three-level case is now SYNTHETIC. It used to be copied from the router
+ * (`/hazmat` → `/hazmat/loads` → `/hazmat/loads/:id`), but D-H17 deleted the hazmat board and with
+ * it the app's only depth-3 chain — every real trail is two levels today. The case stays because
+ * `MAX_DEPTH` is 5 and the walk has to keep working past two; it is just no longer a transcript of
+ * anything shipping, and calling it one would be the kind of comment that rots into a lie.
+ */
 const ROUTES: Record<string, CrumbMeta> = {
-  "/hazmat": { title: "HazmatGuard" },
-  "/hazmat/loads": { title: "Hazmat Loads", parent: "/hazmat" },
-  "/hazmat/loads/hz_1": { title: "Hazmat Load", parent: "/hazmat/loads" },
+  "/a": { title: "Level one" },
+  "/a/b": { title: "Level two", parent: "/a" },
+  "/a/b/c": { title: "Level three", parent: "/a/b" },
   "/settings": { title: "Settings" },
   "/settings/audit": { title: "Audit Log", parent: "/settings" },
   "/": { title: "Dashboard" },
@@ -14,11 +22,11 @@ const ROUTES: Record<string, CrumbMeta> = {
 const resolve = (p: string): CrumbMeta | null => ROUTES[p] ?? null;
 
 describe("buildTrail (G2)", () => {
-  it("walks the real three-level chain, root first, current page last", () => {
-    expect(buildTrail("/hazmat/loads/hz_1", resolve)).toEqual([
-      { label: "HazmatGuard", to: "/hazmat" },
-      { label: "Hazmat Loads", to: "/hazmat/loads" },
-      { label: "Hazmat Load", to: "/hazmat/loads/hz_1" },
+  it("walks a three-level chain, root first, current page last", () => {
+    expect(buildTrail("/a/b/c", resolve)).toEqual([
+      { label: "Level one", to: "/a" },
+      { label: "Level two", to: "/a/b" },
+      { label: "Level three", to: "/a/b/c" },
     ]);
   });
 
