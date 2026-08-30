@@ -141,3 +141,29 @@ describe("recruitment is navigable, not just routed", () => {
     expect(qualification?.icon).not.toBe(items.find((i) => i.to === "/assignments")?.icon);
   });
 });
+
+/**
+ * A SECTION icon renders only in the COLLAPSED RAIL (`SidebarFlyoutSection`'s trigger), where there
+ * are no labels at all — so two sections sharing a glyph are two wordless, identical buttons stacked
+ * on each other. Maintenance and Admin both wore `Cog6ToothIcon` and did exactly that.
+ *
+ * This is the same failure U5/D-UI6 fixed for nav ITEMS, one level up and with worse consequences,
+ * because an item at least has its label beside it.
+ */
+describe("the collapsed rail can tell its sections apart", () => {
+  it("gives every labelled section its own glyph", () => {
+    const groups = buildNavGroups("admin", new Set(["hazmatguard", "dispatch", "messages"]) as never);
+    const sections = groups.filter((g) => g.label != null);
+    const icons = sections.map((g) => g.icon);
+    expect(icons.every((i) => i != null)).toBe(true);
+    expect(new Set(icons).size).toBe(sections.length);
+  });
+
+  it("keeps the cog for Admin, whose child Settings is the one thing a cog really means", () => {
+    const groups = buildNavGroups("admin", new Set(["hazmatguard", "dispatch"]) as never);
+    const admin = groups.find((g) => g.label === "Admin");
+    const maintenance = groups.find((g) => g.label === "Maintenance");
+    expect(admin?.icon).not.toBe(maintenance?.icon);
+    expect(admin?.items.find((i) => i.name === "Settings")?.icon).toBe(admin?.icon);
+  });
+});

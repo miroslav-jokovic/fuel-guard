@@ -423,9 +423,30 @@ answerable. Engine 0.11.0 → **0.12.0**.
 all five decision-table branches exercised against the REAL shipped dataset through a locally-run
 API, including a non-bulk aniline load with a vessel leg that takes no placard and does need the mark.
 
-### H-U7 — The fitness check (D-H22)
+### H-U7 — The fitness check (D-H22) — **DONE 2026-08-30**
 The gate, with a grandfather list that should be empty by the time it lands.
 **Done when:** it fails on a reintroduced override and passes on `main`.
+
+**What shipped:** `lint:template-integrity` (`scripts/check-template-integrity.mjs`), chained onto
+`lint:ui-adoption` so CI runs it without a workflow edit — the convention four other gates already
+use. Three checks, each of which had SHIPPED: an unresolved component (`vue-tsc` does not resolve
+template components, so `<BaseCard>` unimported rendered as an unstyled unknown element); Tailwind
+`!important` in a static `class=` (skipping `:class`, because `:class="!loading ? …"` is a JS
+negation and counting it was the first thing the check got wrong); and `<a href="/api/…">`, which
+cannot authenticate against a bearer-only API. **Zero grandfathered entries** — H-U1…H-U6 cleared
+them all. Each check was mutation-tested, and a comment describing the same markup correctly does not
+fire.
+
+**Deliberately NOT checked: `capitalize` on a badge.** It was the fourth audit finding, but a blanket
+rule would be wrong — `badges.ts` sanctions a call-site `capitalize` for an unmapped vocabulary and
+**eleven sites** across anomalies, rejections and `StatusBadge` are exactly that. The harmful case is
+`capitalize` over an already-MAPPED label, which no static check can distinguish from the sanctioned
+one. Pinned by a test instead (H-U5's `LoadStatusBadge.test.ts`).
+
+**Also fixed here:** `lint:ui-adoption` counted `<button` with a regex that did not strip comments, so
+a doc comment describing the defect failed the gate during H-U4 and had to be reworded to appease it.
+It strips comments now, every count it produces is no longer inflated by documented markup, and
+`ProductPicker`'s comment says `<button role="option">` again.
 
 ## 6. Open questions
 

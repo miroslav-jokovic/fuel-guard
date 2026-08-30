@@ -36,6 +36,7 @@ import {
   TruckStopIcon,
   UserGroupIcon,
   UserListIcon,
+  WrenchIcon,
   UsersIcon,
   VehicleIcon,
   type Icon,
@@ -213,7 +214,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
     },
     {
       label: "Maintenance",
-      icon: Cog6ToothIcon,
+      icon: WrenchIcon,
       items: [
         { name: "Repair spend", to: "/shop", icon: GaugeIcon, show: canViewSection(role, "maintenance") },
       ],
