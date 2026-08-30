@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from "vue";
+import { computed, onBeforeUnmount, ref, useId, watch, nextTick } from "vue";
 import { CheckIcon, ChevronUpDownIcon } from "../icons";
 import AppIcon from "./AppIcon.vue";
 import AppInput from "./AppInput.vue";
@@ -17,10 +17,28 @@ const props = withDefaults(
     id?: string;
     placeholder?: string;
     disabled?: boolean;
+    /**
+     * The options are already filtered by whoever supplied them (a server search), so this component
+     * must not filter them a second time — a remote result set does not contain the substring the
+     * user typed in the label often enough for a local pass to be anything but a bug. Callers using
+     * this also listen to `update:query`, which is the only way they learn what to search for.
+     */
+    serverFiltered?: boolean;
+    /** Shown in place of the list while a server search is in flight. */
+    loading?: boolean;
+    /** What an empty list means here — a remote lookup wants to say more than "No matches". */
+    emptyText?: string;
   }>(),
-  { id: undefined, placeholder: "Select…", disabled: false },
+  {
+    id: undefined,
+    placeholder: "Select…",
+    disabled: false,
+    serverFiltered: false,
+    loading: false,
+    emptyText: "No matches",
+  },
 );
-const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+const emit = defineEmits<{ "update:modelValue": [value: string]; "update:query": [value: string] }>();
 const selectedLabel = computed(
   () => props.options.find((option) => option.value === props.modelValue)?.label ?? "",
 );
@@ -29,6 +47,7 @@ const open = ref(false);
 const activeIndex = ref(-1);
 const listboxId = `combo-${useId()}`;
 const filtered = computed(() => {
+  if (props.serverFiltered) return props.options;
   const value = query.value.trim().toLowerCase();
   if (!value || query.value === selectedLabel.value) return props.options;
   return props.options.filter((option) => option.label.toLowerCase().includes(value));
@@ -41,6 +60,55 @@ watch(filtered, (options) => {
   if (activeIndex.value >= options.length) activeIndex.value = options.length - 1;
 });
 
+
+/**
+ * D-H21 — the list is TELEPORTED to <body> and positioned in viewport coordinates.
+ *
+ * It used to be `absolute` inside this component's `relative` wrapper at `z-sticky-lead` (20), which
+ * lost two fights it could not win from inside the flow:
+ *  · any ancestor with `overflow: hidden` CLIPPED it — the hazmat product line is exactly that, and
+ *    a 240 px option list inside a card that ends sooner simply disappears at the card's edge;
+ *  · `--z-index-chrome` is 40, so on any page where the list opened near the top it painted UNDER
+ *    the app top bar.
+ * `tokens.css` has defined `--z-index-popover: 70` for "dropdowns, menus, flyouts (teleported)"
+ * since the layer scale was written; this is the component finally using the layer it was given.
+ *
+ * Position is `fixed` from the trigger's own rect, recomputed on open and on any scroll or resize
+ * while open (capture phase, so a scrolling ANCESTOR is caught, not just the window). The list flips
+ * above the trigger when the space below cannot hold it.
+ */
+const root = ref<HTMLElement | null>(null);
+const listStyle = ref<Record<string, string>>({});
+const MAX_LIST_H = 240; // matches max-h-60 below — the flip decision needs the number, not the class
+
+function place() {
+  const el = root.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom - 8;
+  const above = r.top - 8;
+  const flip = below < Math.min(MAX_LIST_H, 160) && above > below;
+  listStyle.value = {
+    position: "fixed",
+    left: `${Math.round(r.left)}px`,
+    width: `${Math.round(r.width)}px`,
+    maxHeight: `${Math.round(Math.min(MAX_LIST_H, flip ? above : below))}px`,
+    ...(flip ? { bottom: `${Math.round(window.innerHeight - r.top + 4)}px` } : { top: `${Math.round(r.bottom + 4)}px` }),
+  };
+}
+
+function bindReposition(on: boolean) {
+  const fn = on ? window.addEventListener : window.removeEventListener;
+  fn("scroll", place, true);
+  fn("resize", place);
+}
+
+watch(open, (isOpen) => {
+  bindReposition(isOpen);
+  if (isOpen) void nextTick(place);
+});
+onBeforeUnmount(() => bindReposition(false));
+
 function focus() {
   if (props.disabled) return;
   open.value = true;
@@ -52,6 +120,7 @@ function focus() {
 function input(value: string) {
   query.value = value;
   open.value = true;
+  emit("update:query", value);
   activeIndex.value = filtered.value.findIndex((option) => !option.disabled);
 }
 function pick(option: ComboboxOption) {
@@ -101,7 +170,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="relative" @focusout="blur" @focusin="focus">
+  <div ref="root" class="relative" @focusout="blur" @focusin="focus">
     <AppInput
       :id="id"
       :model-value="query"
@@ -124,38 +193,42 @@ function onKeydown(event: KeyboardEvent) {
       class="pointer-events-none absolute top-1/2 right-2.5 size-5 -translate-y-1/2 text-ink-tertiary"
       aria-hidden="true"
     />
-    <ul
-      v-if="open"
-      :id="listboxId"
-      class="absolute z-sticky-lead mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
-      role="listbox"
-    >
-      <li
-        v-for="(option, index) in filtered"
-        :id="`${listboxId}-option-${index}`"
-        :key="option.value"
-        class="flex items-center gap-2 px-3 py-1.5"
-        :class="[
-          option.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer',
-          option.value === modelValue ? 'font-medium text-brand-700' : 'text-ink-secondary',
-          index === activeIndex
-            ? 'bg-selected-surface'
-            : !option.disabled && 'hover:bg-surface-subtle',
-        ]"
-        role="option"
-        :aria-selected="option.value === modelValue"
-        :aria-disabled="option.disabled || undefined"
-        @mousedown.prevent="pick(option)"
+    <Teleport to="body">
+      <ul
+        v-if="open"
+        :id="listboxId"
+        :style="listStyle"
+        class="z-popover overflow-auto rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
+        role="listbox"
       >
-        <AppIcon
-          :icon="CheckIcon"
-          class="size-4 shrink-0 text-brand-600"
-          :class="option.value === modelValue ? 'opacity-100' : 'opacity-0'"
-          aria-hidden="true"
-        />
-        <span class="truncate">{{ option.label }}</span>
-      </li>
-      <li v-if="filtered.length === 0" class="px-3 py-2 text-ink-tertiary">No matches</li>
-    </ul>
+        <li v-if="loading" class="px-3 py-2 text-ink-tertiary">Searching…</li>
+        <li
+          v-for="(option, index) in filtered"
+          :id="`${listboxId}-option-${index}`"
+          :key="option.value"
+          class="flex items-center gap-2 px-3 py-1.5"
+          :class="[
+            option.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer',
+            option.value === modelValue ? 'font-medium text-brand-700' : 'text-ink-secondary',
+            index === activeIndex
+              ? 'bg-selected-surface'
+              : !option.disabled && 'hover:bg-surface-subtle',
+          ]"
+          role="option"
+          :aria-selected="option.value === modelValue"
+          :aria-disabled="option.disabled || undefined"
+          @mousedown.prevent="pick(option)"
+        >
+          <AppIcon
+            :icon="CheckIcon"
+            class="size-4 shrink-0 text-brand-600"
+            :class="option.value === modelValue ? 'opacity-100' : 'opacity-0'"
+            aria-hidden="true"
+          />
+          <span class="truncate">{{ option.label }}</span>
+        </li>
+        <li v-if="!loading && filtered.length === 0" class="px-3 py-2 text-ink-tertiary">{{ emptyText }}</li>
+      </ul>
+    </Teleport>
   </div>
 </template>
