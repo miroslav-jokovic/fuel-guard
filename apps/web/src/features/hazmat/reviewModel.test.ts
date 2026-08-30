@@ -59,3 +59,24 @@ describe("reviewModel — queue filter (UI)", () => {
     expect(filterReviewQueue(rows, { ...emptyQueueFilter(), search: "nomatch" })).toHaveLength(0);
   });
 });
+
+describe("the review queue searches by load number (H-U3)", () => {
+  const row = (over: Partial<HazmatLoadRow>): HazmatLoadRow =>
+    ({ id: "hz-1", declared_lines: [], vehicle_id: null, driver_id: null, ...over }) as HazmatLoadRow;
+
+  it("matches the dispatch load reference, which is how people name a load", () => {
+    const rows = [row({ id: "hz-1", load_ref: "41182" }), row({ id: "hz-2", load_ref: "41205" })];
+    expect(filterReviewQueue(rows, { ...emptyQueueFilter(), search: "41205" }).map((r) => r.id)).toEqual(["hz-2"]);
+  });
+
+  it("still matches a record id, so an existing deep link keeps working", () => {
+    const rows = [row({ id: "hz-abc", load_ref: "41182" }), row({ id: "hz-def", load_ref: "41205" })];
+    expect(filterReviewQueue(rows, { ...emptyQueueFilter(), search: "hz-def" }).map((r) => r.id)).toEqual(["hz-def"]);
+  });
+
+  it("does not crash on a record that was never linked to a load", () => {
+    const rows = [row({ id: "hz-1", load_ref: null })];
+    expect(filterReviewQueue(rows, { ...emptyQueueFilter(), search: "41182" })).toEqual([]);
+    expect(filterReviewQueue(rows, { ...emptyQueueFilter(), search: "" })).toHaveLength(1);
+  });
+});

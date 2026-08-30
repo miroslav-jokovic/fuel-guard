@@ -48,6 +48,10 @@ const driverLabel = (id: string | null): string =>
   (drivers.value ?? []).find((driver) => driver.id === id)?.full_name ?? "—";
 
 const columns: DataTableColumn[] = [
+  // H-U3: the load reference leads. A reviewer is being asked to clear a specific truckload, and
+  // every row used to open with "2 products" — the queue named the freight by a count and never by
+  // the number the rest of the business uses for it.
+  { key: "load_ref", label: "Load #", width: "md", cellClass: "font-medium text-ink" },
   { key: "products", label: "Products", width: "md" },
   { key: "vehicle_id", label: "Truck", width: "md", cellClass: "text-ink-secondary" },
   { key: "driver_id", label: "Driver", width: "lg", cellClass: "text-ink-secondary" },
@@ -62,7 +66,7 @@ const columns: DataTableColumn[] = [
 
     <FilterBar
       v-model:search="search"
-      search-placeholder="Search load or product…"
+      search-placeholder="Search load number or product…"
       :count="visible.length"
       count-label="loads"
     >
@@ -82,6 +86,10 @@ const columns: DataTableColumn[] = [
       :empty-text="emptyText"
       @retry="refetch"
     >
+      <template #cell-load_ref="{ row }">
+        <span v-if="row.load_ref">{{ row.load_ref }}</span>
+        <span v-else class="text-ink-tertiary" title="This record was never linked to a dispatch load">Unlinked</span>
+      </template>
       <template #cell-products="{ row }">{{ lineLabel(row) }}</template>
       <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
       <template #cell-driver_id="{ row }">{{ driverLabel(row.driver_id) }}</template>

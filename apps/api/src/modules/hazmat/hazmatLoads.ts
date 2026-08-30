@@ -49,11 +49,36 @@ export async function listLoads(
   query = query.order("created_at", { ascending: asc }).limit(q.limit + 1);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as Array<{ created_at: string }>;
+  const rows = (data ?? []) as unknown as Array<{ created_at: string; load_id?: string | null }>;
   const hasMore = rows.length > q.limit;
   const page = hasMore ? rows.slice(0, q.limit) : rows;
   const nextCursor = hasMore && page.length > 0 ? page[page.length - 1]!.created_at : null;
-  return { rows: page, nextCursor };
+  return { rows: await withLoadRefs(admin, orgId, page), nextCursor };
+}
+
+/**
+ * Attach the DISPATCH load's reference to each record (H-U3).
+ *
+ * The review queue is a work queue: a reviewer is being asked to clear a specific truckload, and
+ * until now every row said "2 products" and nothing else — no load number, so the one identifier the
+ * rest of the business uses to talk about that freight was the one thing missing. `hazmat_loads` has
+ * carried `load_id` since 0148; nothing read it back.
+ *
+ * One batched read, mirroring the dispatch board's own hazmat lookup in the opposite direction, and
+ * org-scoped in its own right because the service role bypasses RLS.
+ */
+async function withLoadRefs<T extends { load_id?: string | null }>(
+  admin: SupabaseClient, orgId: string, rows: T[],
+): Promise<Array<T & { load_ref: string | null }>> {
+  const ids = [...new Set(rows.map((r) => r.load_id).filter((id): id is string => typeof id === "string"))];
+  const refBy = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data } = await admin.from("loads").select("id, ref").eq("org_id", orgId).in("id", ids);
+    for (const l of (data ?? []) as Array<{ id: string; ref: string | null }>) {
+      if (l.ref) refBy.set(l.id, l.ref);
+    }
+  }
+  return rows.map((r) => ({ ...r, load_ref: r.load_id ? (refBy.get(r.load_id) ?? null) : null }));
 }
 
 /**
