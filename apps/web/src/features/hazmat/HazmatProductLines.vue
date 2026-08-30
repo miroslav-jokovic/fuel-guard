@@ -3,6 +3,7 @@ import { AppIcon } from "@silvicom/ui";
 import { PlusIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { HazmatProduct } from "@silvicom/shared";
 import { packageTypeSpec } from "@silvicom/shared";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
@@ -88,12 +89,9 @@ function applyGrossSuggestion(line: CalcLineForm) {
 <template>
   <BaseCard as="section">
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">2</span>
-        <div>
-          <h2 class="text-sm font-semibold text-ink">Regulated products</h2>
-          <p class="mt-0.5 text-sm text-ink-muted">Add every hazardous material declared on the load, as the BOL states it.</p>
-        </div>
+      <div>
+        <h2 class="text-sm font-semibold text-ink">Regulated products</h2>
+        <p class="mt-0.5 text-sm text-ink-muted">Add every hazardous material declared on the load, as the BOL states it.</p>
       </div>
       <BaseButton variant="soft" size="sm" @click="emit('addLine')">
         <AppIcon :icon="PlusIcon" class="size-4" aria-hidden="true" />

@@ -295,11 +295,34 @@ packet download becomes one shared token-authenticated composable.
 **Done when:** no `!` override on a shared primitive and no raw `<a href="/api/…">` remains in
 `apps/web/src`; the board reads "Needs review"; a test pins a mapped-label chip against title-casing.
 
-### H-U6 — Calculator and verdict composition
+### H-U6 — Calculator and verdict composition — **DONE 2026-08-30**
 Kill the 1/3/4 numbering or derive it from one place. Give the verdict a lead answer — the required
 display — with the audit sections behind progressive disclosure; fix the empty state's width.
 **Done when:** the required placards are the first and dominant thing in the results, and §3's
 precision list is intact with its tests passing.
+
+**What shipped:** the verdict reads in three moves instead of ten equal cards — THE ANSWER
+(eligibility, load shape, the diamonds at 112px), THE CHECK (§172.504(c) arithmetic and the lawful ID
+formats, deliberately not behind a click — "a verdict a dispatcher cannot check is a verdict they
+will not trust" is why that card exists), then findings/segregation and the long tail closed in
+`VerdictDetails`. The three threshold rows are derived rather than written three times; their state
+expressions had already drifted, with the 1,001 lb row reading the engine's `thresholdMet` while the
+other two recomputed the comparison inline. Step badges 1/3/4 are gone (the form is not a sequence,
+and its "2" lived in another file), the two hand-rolled notice banners became `AppCallout`, and the
+empty state no longer fills half the page to say nothing happened yet.
+
+**Found on the way — a live defect on the public marketing calculator.** `HazmatProductLines.vue`
+uses `<BaseCard as="section">` and has NEVER imported it, so "Regulated products" rendered as an
+unresolved `<basecard>` custom element with no background: the one section of the calculator that is
+not a card, on both the public and the internal page. `vue-tsc` does not resolve template components,
+so nothing caught it. A repo-wide scan of every `.vue` file found no second instance; the scan is
+worth keeping as part of H-U7.
+
+**Verified by:** a real end-to-end calculation against a locally-run API (UN1203, 40 drums, 12,000 lb
+on a dry van) rendered and screenshotted; mobile (390px) and dark theme checked in the same round
+with no horizontal overflow; the impeccable design detector returns clean; web suite 80 files / 715
+tests, `typecheck`, `lint`, `lint:ui-adoption`, `lint:filesize`, `lint:comment-claims`, web
+`lint:tokens`.
 
 ### H-U7 — The fitness check (D-H22)
 The gate, with a grandfather list that should be empty by the time it lands.
