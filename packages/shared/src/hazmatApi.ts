@@ -218,6 +218,10 @@ export interface HazmatLoadRow {
   special_permit_numbers: string[] | null;
   claimed_no_placards: boolean;
   supersedes_load_id: string | null;
+  /** The DISPATCH load this record belongs to (0148). Null for a record never linked to one. */
+  load_id?: string | null;
+  /** That load's human reference, attached by the list/detail read — never stored here. */
+  load_ref?: string | null;
   version: number;
   created_by: string | null;
   created_at: string;

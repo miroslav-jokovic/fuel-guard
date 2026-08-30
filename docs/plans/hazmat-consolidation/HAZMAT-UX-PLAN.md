@@ -299,13 +299,25 @@ longer exists; each now says what is true.
 `lint:comment-claims`, web `lint:tokens`; the redirect destinations are pinned by a new test, and
 reordering the route file was tried to confirm the assertion pins behaviour rather than file order.
 
-### H-U3 — The review queue stops being a mystery table (D-H16 as revised)
+### H-U3 — The review queue stops being a mystery table (D-H16 as revised) — **DONE 2026-08-30**
 The queue gains the load's identity — Load #, driver, truck — so a reviewer can recognise what they
 are being asked to clear. Today its columns are Products / Truck / Driver / Waiting / Created with no
 load reference at all, because it was built as a sibling of a board that no longer exists.
 **Done when:** a row names the dispatch load it belongs to; oldest-first ordering is preserved; the
 badge count still comes from `/hazmat/review-count`; the queue is reachable from the nav badge, the
 load's hazmat panel and the notification.
+
+**What shipped:** `listLoads` attaches the dispatch load's `ref` through one batched, org-scoped
+lookup — the mirror of the dispatch board's own hazmat batch read — and the queue leads with a
+**Load #** column. `hazmat_loads.load_id` has existed since 0148 and nothing ever read it back, so
+every row named the freight by a product COUNT and never by the number the rest of the business uses
+for it. Search matches the reference first, and a record that was never linked reads "Unlinked"
+rather than blank.
+
+**Also:** `hazmatLoads.ts` had no service test at all. It has one now, including `expectOrgScoped` —
+worth having because H-U3 adds a SECOND table to a read that runs under the service role, which
+bypasses RLS. Dropping the `.eq("org_id", …)` from the new lookup was tried: the test fails naming
+the unscoped query.
 
 ### H-U4 — Overlay primitives (D-H20, D-H21)
 `AppCombobox` teleports its list at `z-popover` with a `z-scrim` catcher and gains async options;

@@ -92,7 +92,9 @@ export function filterReviewQueue(loads: HazmatLoadRow[], f: QueueFilter): Hazma
     if (f.vehicleId && l.vehicle_id !== f.vehicleId) return false;
     if (f.driverId && l.driver_id !== f.driverId) return false;
     if (q) {
-      const hay = `${l.id} ${Array.isArray(l.declared_lines) ? JSON.stringify(l.declared_lines) : ""}`.toLowerCase();
+      // The load REFERENCE first — it is the identifier the rest of the business uses to talk about
+      // this freight, and searching a review queue by hazmat record UUID is not something anyone does.
+      const hay = `${l.load_ref ?? ""} ${l.id} ${Array.isArray(l.declared_lines) ? JSON.stringify(l.declared_lines) : ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
