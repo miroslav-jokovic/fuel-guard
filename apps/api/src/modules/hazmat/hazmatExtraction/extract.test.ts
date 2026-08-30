@@ -87,7 +87,7 @@ describe("computeExtractionFlags — the outcome table (step 6)", () => {
       evaluatedAt: "2026-07-31T00:00:00Z",
       vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
       tankState: "loaded",
-      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, isLimitedQuantity: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "non_bulk", packageCount: null }],
+      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, isLimitedQuantity: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "non_bulk", packageCount: null, marinePollutantConcentrationPct: null }],
       otherFreightAboard: null,
       claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
       portContext: { vesselConnected: null, imdgPapers: null },

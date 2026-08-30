@@ -64,13 +64,16 @@ export function isEnvironmentallyHazardousEntry(entry: { idPrefix?: string; idNu
 export interface MarinePollutantHit {
   hmtRef: string;
   psn: string;
-  severe: boolean;
+  /** Appendix B's "PP" column; null on the SP-441 route, where the pollutant is an unnamed component. */
+  severe: boolean | null;
   bulk: boolean;
+  /** The stated §171.8 concentration by weight, when the offeror gave one. */
+  concentrationPct: number | null;
 }
 
 /** A line that resolved to an HMT entry, whether or not it takes a placard. */
 export interface RecognizedLine {
-  line: { hmtRef: string; packagingKind?: string };
+  line: { hmtRef: string; packagingKind?: string; marinePollutantConcentrationPct?: number | null };
   entry: DsEntry;
 }
 
@@ -79,26 +82,69 @@ export interface RecognizedLine {
  * concentration test (10%, or 1% for a severe pollutant) is NOT evaluated because no input in this
  * product carries a concentration — the finding says so rather than the code assuming either way.
  */
+/**
+ * Is this HMT entry a marine pollutant, and how severe?
+ *
+ * ONE definition, exported, because there are now two callers — this rule and the products API that
+ * decides whether the calculator even asks about concentration. Two definitions of "is this a marine
+ * pollutant" would drift, and the one that drifted would be the one asking the user a question the
+ * engine then ignored.
+ *
+ * `severe` is a TRI-STATE. Appendix B's "PP" column says severe or not; the SP-441 route knows only
+ * that a pollutant is present, because the pollutant is a component nobody told us — so severity is
+ * `null`, and §171.8's threshold then takes the STRICTER 1% figure. A lower threshold makes more
+ * mixtures count as marine pollutants, which is the over-display direction.
+ */
+export function classifyMarinePollutantEntry(
+  entry: { psnPrinted?: string; psnAlternates?: string[]; idPrefix?: string; idNumber?: string },
+  marinePollutants: DsView["marinePollutants"],
+): { listed: boolean; severe: boolean | null } {
+  const names = [entry.psnPrinted, ...(entry.psnAlternates ?? [])]
+    .filter((n): n is string => typeof n === "string")
+    .map(norm);
+  const match = marinePollutants.find((m) => names.includes(m.nameNormalized));
+  if (match) return { listed: true, severe: match.severe === true };
+  if (isEnvironmentallyHazardousEntry(entry)) return { listed: true, severe: null };
+  return { listed: false, severe: false };
+}
+
+/**
+ * §171.8's concentration threshold for a solution or mixture, as a percent by weight.
+ *
+ * Ten percent for a listed material, one percent for a severe one — and one percent when severity is
+ * unknown, because that is the answer that classifies MORE loads as marine pollutants.
+ */
+export function concentrationThresholdPct(severe: boolean | null): number {
+  return severe === false ? 10 : 1;
+}
+
 export function findMarinePollutants(recognized: RecognizedLine[], ds: DsView, isTank: boolean): MarinePollutantHit[] {
   // NO early return on an empty appendix B. The SP-441 identity route does not consult it, and a
   // guard here would have silently switched that route off for every dataset cut before appendix B
   // was imported — the exact shape of failure this file exists to avoid.
   const hits: MarinePollutantHit[] = [];
   for (const r of recognized) {
-    const names = [r.entry.psnPrinted, ...(r.entry.psnAlternates ?? [])]
-      .filter((n): n is string => typeof n === "string")
-      .map(norm);
-    const match = ds.marinePollutants.find((m) => names.includes(m.nameNormalized));
-    const byIdentity = match ? false : isEnvironmentallyHazardousEntry(r.entry);
-    if (!match && !byIdentity) continue;
+    const { listed, severe } = classifyMarinePollutantEntry(r.entry, ds.marinePollutants);
+    if (!listed) continue;
+
+    /**
+     * §171.8's concentration test, now that there is an input for it (0.14.0).
+     *
+     * The clause is "when in a solution or mixture of one or more marine pollutants" — a NEAT listed
+     * material is a marine pollutant with no arithmetic at all. So a stated concentration BELOW the
+     * threshold is the only thing that can take a line out; a blank field still means "neat, or a
+     * mixture nobody measured", and both of those stay in. Fail-closed by construction: the input can
+     * only ever REMOVE a requirement when someone has actually stated the number.
+     */
+    const pct = r.line.marinePollutantConcentrationPct;
+    if (typeof pct === "number" && pct < concentrationThresholdPct(severe)) continue;
+
     hits.push({
       hmtRef: r.line.hmtRef,
       psn: r.entry.psnPrinted,
-      // Severity comes from appendix B's "PP" column. On the SP-441 route the pollutant is a
-      // component we were never told, so its severity is unknown — reported as not-severe, which
-      // only ever widens the §171.8 concentration threshold the finding already says we cannot test.
-      severe: match?.severe === true,
+      severe,
       bulk: r.line.packagingKind === "bulk" || isTank,
+      concentrationPct: typeof pct === "number" ? pct : null,
     });
   }
   return hits;
@@ -109,10 +155,26 @@ const CITE_322A: Citation[] = [{ cfr: "49 CFR 172.322(a)" }, { cfr: "49 CFR 172.
 const CITE_EXEMPT_NONBULK: Citation[] = [{ cfr: "49 CFR 171.4(c)(1)" }, { cfr: "49 CFR 172.322(a)" }];
 const CITE_D3: Citation[] = [{ cfr: "49 CFR 172.322(d)(3)" }];
 
-/** The concentration caveat rides on every marine-pollutant finding; §171.8 is not evaluable here. */
-const CONCENTRATION_NOTE =
-  "A solution or mixture is only a marine pollutant at or above 10% by weight (1% for a severe " +
-  "marine pollutant, §171.8) — this tool has no concentration input, so confirm it against the paper.";
+/**
+ * What the finding says about §171.8, which now depends on whether anyone answered.
+ *
+ * Before 0.14.0 this was a standing apology on every marine-pollutant finding — "this tool has no
+ * concentration input". It has one. When the number is stated the finding reports it; when it is not,
+ * the caveat is narrowed to the case it actually applies to, a solution or mixture, because a NEAT
+ * listed material is a marine pollutant with no arithmetic at all.
+ */
+function concentrationNote(hits: MarinePollutantHit[]): string {
+  const stated = hits.filter((h) => h.concentrationPct != null);
+  if (stated.length === hits.length && hits.length > 0) {
+    const worst = Math.min(...hits.map((h) => concentrationThresholdPct(h.severe)));
+    return `Stated at ${stated.map((h) => `${h.concentrationPct}%`).join(", ")} by weight, at or above the §171.8 threshold of ${worst}%.`;
+  }
+  return (
+    "If any of this is a solution or mixture rather than the material itself, it is only a marine " +
+    "pollutant at or above 10% by weight (1% for a severe marine pollutant, §171.8) — state the " +
+    "concentration to have that applied."
+  );
+}
 
 /**
  * Apply §172.322 to a resolved load. Mutates `placards.marks` and appends findings/trace the way the
@@ -172,7 +234,7 @@ export function applyMarinePollutantMark(args: {
           (anyPlacardOrLabel
             ? "The §172.322(d)(3) exception for an already-placarded vehicle does not apply, because part of this move is by vessel. "
             : "The §172.322(d)(3) exception does not apply, because this vehicle bears no subpart E label or subpart F placard. ") +
-          CONCENTRATION_NOTE,
+          concentrationNote(hits),
         citations: vessel === true ? [...CITE_322B, { cfr: "49 CFR 171.4(c)(1)" }] : [...CITE_322B, ...CITE_D3],
         evidence,
       });
@@ -184,7 +246,7 @@ export function applyMarinePollutantMark(args: {
         message:
           `${names} is a listed marine pollutant in bulk packaging, but this vehicle already bears a ` +
           `placard or label, so no MARINE POLLUTANT mark is required for this domestic move (§172.322(d)(3)). ` +
-          CONCENTRATION_NOTE,
+          concentrationNote(hits),
         citations: CITE_D3,
         evidence,
       });
@@ -198,7 +260,7 @@ export function applyMarinePollutantMark(args: {
           `${names} is a listed marine pollutant in bulk packaging. Whether the MARINE POLLUTANT mark is ` +
           `required turns on a fact this load has not stated: §172.322(d)(3) waives it for an ` +
           `already-placarded vehicle EXCEPT when any part of the transportation is by vessel. State whether ` +
-          `this move has a vessel leg. ` + CONCENTRATION_NOTE,
+          `this move has a vessel leg. ` + concentrationNote(hits),
         citations: [...CITE_D3, { cfr: "49 CFR 171.4(c)(1)" }],
         evidence,
       });
@@ -236,7 +298,7 @@ export function applyMarinePollutantMark(args: {
         `§171.4(c)(1)'s highway exception does not apply: the MARINE POLLUTANT mark goes on each package in ` +
         `association with its labels (§172.322(a)) and on each side and each end of the vehicle (§172.322(c)). ` +
         `The §172.322(d)(1)/(d)(2) small-package exceptions (5 L / 5 kg per inner packaging) are NET quantities ` +
-        `this tool does not collect — check them against the paper before omitting the mark. ` + CONCENTRATION_NOTE,
+        `this tool does not collect — check them against the paper before omitting the mark. ` + concentrationNote(hits),
       citations: [...CITE_322A, { cfr: "49 CFR 172.322(d)(1)" }],
       evidence: nbEvidence,
     });
@@ -251,7 +313,7 @@ export function applyMarinePollutantMark(args: {
       `${nbNames} is a listed marine pollutant in non-bulk packaging. On a highway-only move the ` +
       `marine-pollutant requirements do not apply to it at all (§171.4(c)(1)); if any part of the ` +
       `transportation is by vessel, the MARINE POLLUTANT mark is required on the packages and the vehicle ` +
-      `(§172.322(a), (c)). State whether this move has a vessel leg. ` + CONCENTRATION_NOTE,
+      `(§172.322(a), (c)). State whether this move has a vessel leg. ` + concentrationNote(hits),
     citations: [...CITE_EXEMPT_NONBULK, { cfr: "49 CFR 172.322(c)" }],
     evidence: nbEvidence,
   });

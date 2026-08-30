@@ -27,6 +27,8 @@ const gasoline: HazmatProduct = {
   symbols: [],
   label: "UN1203 · Gasoline · Class 3 · PG II",
   isFuelCommon: true,
+  isMarinePollutant: false,
+  marinePollutantSevere: null,
 };
 
 function formWith(overrides: Partial<CalcForm> = {}): CalcForm {

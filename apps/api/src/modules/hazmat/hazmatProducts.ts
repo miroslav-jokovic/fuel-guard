@@ -1,5 +1,6 @@
 import type { HmtEntry } from "@hazmat/data";
 import type { HazmatProduct } from "@silvicom/shared";
+import { classifyMarinePollutantEntry } from "@hazmat/engine";
 
 /**
  * HMT product lookup for the manual pickers (plan H5). Pure, dataset-driven search — the web app can't
@@ -48,7 +49,9 @@ function idDigits(q: string): string | null {
   return digits.length >= 1 && digits.length <= 4 ? digits : null;
 }
 
-function entryToProducts(entry: HmtEntry, isFuelCommon: boolean): HazmatProduct[] {
+function entryToProducts(entry: HmtEntry, isFuelCommon: boolean, marinePollutants: MarinePollutantRow[]): HazmatProduct[] {
+  // ONE definition of "is this a marine pollutant", shared with the engine rule that acts on it.
+  const mp = classifyMarinePollutantEntry(entry, marinePollutants);
   const idLabel = `${entry.idPrefix}${entry.idNumber}`;
   return entry.pgRows.map((row) => {
     const pg = row.pg;
@@ -67,6 +70,8 @@ function entryToProducts(entry: HmtEntry, isFuelCommon: boolean): HazmatProduct[
       symbols: entry.symbols,
       label: `${idLabel} · ${entry.psnPrinted}${classPart}${pgPart}`,
       isFuelCommon,
+      isMarinePollutant: mp.listed,
+      marinePollutantSevere: mp.listed ? mp.severe : null,
     } satisfies HazmatProduct;
   });
 }
@@ -90,7 +95,19 @@ function matchRank(entry: HmtEntry, q: string, digits: string | null): number | 
 export interface SearchProductsOptions {
   q?: string;
   limit: number;
+  /**
+   * Appendix B, so each result can say whether §171.8 concentration is worth asking about.
+   *
+   * REQUIRED, not optional. It shipped optional for one commit and the public calculator's route
+   * silently omitted it — every appendix-B product came back `isMarinePollutant: false` there while
+   * the authenticated route was correct, and nothing failed, because an omitted optional is a valid
+   * call. A test that genuinely does not care passes `[]`, which is a statement rather than a gap.
+   */
+  marinePollutants: MarinePollutantRow[];
 }
+
+/** The shape of an appendix-B row, as the dataset ships it. */
+export interface MarinePollutantRow { nameNormalized: string; severe?: boolean }
 
 /**
  * Search HMT entries for the picker. No/blank query → the curated fuel shortlist (display order).
@@ -98,13 +115,14 @@ export interface SearchProductsOptions {
  */
 export function searchProducts(entries: readonly HmtEntry[], opts: SearchProductsOptions): HazmatProduct[] {
   const q = opts.q ? norm(opts.q) : "";
+  const mps = opts.marinePollutants;
 
   if (!q) {
     const curated = entries
       .filter((e) => CURATED_SET.has(e.idNumber))
       .sort((a, b) => curatedRank(a.idNumber) - curatedRank(b.idNumber) || a.idPrefix.localeCompare(b.idPrefix));
     return curated
-      .flatMap((e) => entryToProducts(e, true))
+      .flatMap((e) => entryToProducts(e, true, mps))
       .slice(0, opts.limit);
   }
 
@@ -124,7 +142,7 @@ export function searchProducts(entries: readonly HmtEntry[], opts: SearchProduct
 
   const products: HazmatProduct[] = [];
   for (const { entry } of ranked) {
-    for (const p of entryToProducts(entry, CURATED_SET.has(entry.idNumber))) {
+    for (const p of entryToProducts(entry, CURATED_SET.has(entry.idNumber), mps)) {
       products.push(p);
       if (products.length >= opts.limit) return products;
     }

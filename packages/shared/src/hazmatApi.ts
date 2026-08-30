@@ -51,6 +51,21 @@ export interface HazmatProduct {
   label: string;
   /** true when this is one of the curated common-fuel rows (the no-query default set). */
   isFuelCommon: boolean;
+  /**
+   * On appendix B to §172.101, or one of the two UN3077/UN3082 entries SP 441 names (§172.322).
+   *
+   * The picker carries it so the form can ask about §171.8 concentration ONLY where the answer can
+   * change anything — roughly 132 of 2,479 HMT entries plus the two n.o.s. ones. Asking every line
+   * "is this a solution or mixture, and at what strength?" would be noise on the other 95%, and a
+   * question people learn to skip is worse than no question.
+   */
+  isMarinePollutant: boolean;
+  /**
+   * Appendix B's "PP" column: true severe, false listed-but-not-severe, null when the entry is a
+   * marine pollutant by SP-441 identity and the pollutant is a component nobody named. Null takes
+   * the stricter 1% threshold.
+   */
+  marinePollutantSevere: boolean | null;
 }
 
 export interface HazmatProductsResponse {

@@ -81,7 +81,7 @@ export function hazmatRouter(): Router {
     const parsed = hazmatProductsQuerySchema.safeParse(req.query);
     if (!parsed.success) { res.status(400).json(apiError("invalid_query", parsed.error.issues[0]?.message ?? "Invalid query")); return; }
     const dataset = loadDataset();
-    const products = searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit });
+    const products = searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit, marinePollutants: dataset.marinePollutants });
     const response: HazmatProductsResponse = { datasetVersion: dataset.version, products };
     res.json(response);
   }));

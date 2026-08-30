@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.13.0";
+export const ENGINE_VERSION = "0.14.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -43,6 +43,13 @@ export const lineSchema = z.object({
   ethanolPct: z.number().nullable().default(null),
   packagingKind: packagingKindSchema,
   packageCount: z.number().int().nullable().default(null),
+  /**
+   * §171.8: percent by weight of the marine-pollutant component, when the line is a SOLUTION OR
+   * MIXTURE. Null means the material itself, or a mixture nobody measured — both of which stay
+   * classified as a marine pollutant, so the field can only ever remove a requirement when someone
+   * actually states the number (0.14.0).
+   */
+  marinePollutantConcentrationPct: z.number().nullable().default(null),
 });
 export type HazmatLine = z.infer<typeof lineSchema>;
 

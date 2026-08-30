@@ -48,9 +48,22 @@ does not name, and a hazardous waste is not a marine pollutant by virtue of bein
 Both routes feed §172.203(l) as well, so the engine cannot demand the mark on the vehicle while
 staying silent about the words the shipping paper has to carry.
 
-**What we do NOT have is concentration.** No form in this product asks it and no BOL field carries it,
-so the 10%/1% test cannot be evaluated. The engine therefore treats a listed material as a marine
-pollutant and SAYS SO in the finding, rather than silently assuming either way.
+**Concentration — added 2026-08-30 (engine 0.14.0).** The §171.8 clause is "when in a SOLUTION OR
+MIXTURE of one or more marine pollutants", so a NEAT listed material is a marine pollutant with no
+arithmetic at all. The line therefore carries one optional field, `marinePollutantConcentrationPct`,
+and the logic is fail-closed by construction: **only a stated number below the threshold can take a
+line out.** A blank field means "the material itself, or a mixture nobody measured", and both stay
+classified. Treating a blank as zero — the obvious shortcut — fails eleven tests.
+
+The threshold is 10% listed, 1% severe, and **1% when severity is unknown** (the SP-441 route, where
+the pollutant is an unnamed component): the stricter figure classifies more mixtures as marine
+pollutants, which is the over-display direction.
+
+The question is asked **only on a product that is actually on appendix B** — `HazmatProduct` carries
+`isMarinePollutant` and `marinePollutantSevere`, set by the same `classifyMarinePollutantEntry` the
+engine rule uses, so the picker and the verdict cannot disagree about what counts. Roughly 132 of
+2,479 HMT entries plus the two n.o.s. ones; asking the other 95% would be noise, and a question that
+never matters is one people learn to skip.
 
 ## 2. The domestic highway rule is the opposite of the intuition (§171.4(c)(1))
 
@@ -142,7 +155,7 @@ names the exception in the finding instead of applying it — over-display, neve
 
 ## 6. Deliberately out of scope
 
-- The 10%/1% concentration test (§171.8) — no input carries concentration. Named in the finding.
+- ~~The 10%/1% concentration test (§171.8).~~ **Built 2026-08-30**, see §1.
 - §172.322(a)(1) — the technical-name-in-parentheses rule for G/n.o.s. entries. That is a shipping
   PAPER and package-marking rule; `bol/validate.ts` already owns the §172.203(l) half, and the
   §172.203(k) technical-name rule is already emitted there.

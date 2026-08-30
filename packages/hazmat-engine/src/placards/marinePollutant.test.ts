@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateLoad } from "../index.js";
+import { concentrationThresholdPct } from "./marinePollutant.js";
 import type { LoadInput } from "../types.js";
 
 /**
@@ -181,5 +182,55 @@ describe("§172.322 — what the finding refuses to assume", () => {
     const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN3082-ehs#III", packagingKind: "non_bulk" })], vehicle: VAN }, null));
     const f = v.eligibility.blocks.find((b) => b.ruleId === "marine_pollutant_vessel_unknown");
     expect(JSON.stringify(f?.evidence)).toContain('"severe":true');
+  });
+});
+
+/**
+ * §171.8's concentration test (0.14.0).
+ *
+ * ⚠ The clause is "when in a SOLUTION OR MIXTURE of one or more marine pollutants" — a neat listed
+ * material is a marine pollutant with no arithmetic at all. So the input is fail-closed by
+ * construction: a blank field means "neat, or a mixture nobody measured", and both stay classified.
+ * Only a STATED number below the threshold can take a line out, which is the one direction that
+ * removes a requirement and therefore the one that has to be deliberate.
+ */
+describe("§171.8 — the concentration test", () => {
+  const bulkUnplacarded = (pct: number | null) =>
+    evaluateLoad(load({ lines: [line({ hmtRef: "UN3082-ehs#III", marinePollutantConcentrationPct: pct })] }, false));
+
+  it("a stated concentration below the threshold is not a marine pollutant at all", () => {
+    // UN3082-ehs is severe in this dataset → 1%.
+    expect(marks(bulkUnplacarded(0.5))).not.toContain("MARINE_POLLUTANT");
+  });
+
+  it("a stated concentration at the threshold still is one", () => {
+    expect(marks(bulkUnplacarded(1))).toContain("MARINE_POLLUTANT");
+  });
+
+  it("a blank concentration keeps the line classified — neat, or simply unmeasured", () => {
+    expect(marks(bulkUnplacarded(null))).toContain("MARINE_POLLUTANT");
+  });
+
+  it("uses 10% for a listed material and 1% for a severe one", () => {
+    expect(concentrationThresholdPct(false)).toBe(10);
+    expect(concentrationThresholdPct(true)).toBe(1);
+    // Unknown severity takes the STRICTER figure: more mixtures count, which over-displays.
+    expect(concentrationThresholdPct(null)).toBe(1);
+  });
+
+  it("5% of a non-severe pollutant is out, while 5% of a severe one is in", () => {
+    const nonSevere = evaluateLoad(load({ lines: [line({ marinePollutantConcentrationPct: 5 })] }, false));
+    expect(marks(nonSevere)).not.toContain("MARINE_POLLUTANT"); // UN1993-flam, 10% threshold
+    const severe = evaluateLoad(load({ lines: [line({ hmtRef: "UN3082-ehs#III", marinePollutantConcentrationPct: 5 })] }, false));
+    expect(marks(severe)).toContain("MARINE_POLLUTANT");
+  });
+
+  it("reports the stated figure instead of apologising for having no input", () => {
+    const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN3082-ehs#III", marinePollutantConcentrationPct: 40 })] }, false));
+    const note = v.trace.find((t) => t.fired && t.ruleId === "marine_pollutant")?.note ?? "";
+    expect(note).toContain("MARINE POLLUTANT mark required");
+    const finding = (v.notices ?? []).find((f) => f.ruleId === "marine_pollutant_mark_required");
+    expect(finding?.message).toContain("40%");
+    expect(finding?.message).not.toContain("no concentration input");
   });
 });
