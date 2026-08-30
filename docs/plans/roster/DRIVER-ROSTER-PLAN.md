@@ -11,7 +11,8 @@ rather than in taste.** It also fixes the thing that made the ask reasonable in 
 the web has no per-section capability model, so recruiting UI got glued onto the driver page as a
 workaround, and that workaround is what makes the product feel like it has too many pages.
 
-Nothing here has shipped. Every step is unstarted.
+**Status: R0a shipped 2026-08-30 (PR #392, migration 0277).** Everything else is unstarted; §7 is
+the register and §1's measurements are the pre-R0a baseline, kept as measured.
 
 ---
 
