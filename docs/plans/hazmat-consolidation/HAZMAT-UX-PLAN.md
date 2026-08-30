@@ -413,9 +413,9 @@ as "no placards required" with nothing else to say.
 3. An early `if (appendixB.length === 0) return []` guard would have silently switched the SP-441
    route off for every dataset cut before appendix B was imported.
 
-**Also:** `evaluateLoad` keeps only conditional/violation findings, so an `info` finding never leaves
-the engine — `computeAdvisories`' comment claims otherwise. The rule's user-facing channels are the
-mark and the trace note; the info findings are written for whoever gives them a channel later.
+**Also:** `evaluateLoad` kept only conditional/violation findings, so an `info` finding never left the
+engine — `computeAdvisories`' comment claimed otherwise. **Fixed by H-NOT below**, which is now the
+channel these findings ride out on.
 The calculator gained the vessel-leg question, because the conditional this rule raises must be
 answerable. Engine 0.11.0 → **0.12.0**.
 
@@ -447,6 +447,37 @@ one. Pinned by a test instead (H-U5's `LoadStatusBadge.test.ts`).
 a doc comment describing the defect failed the gate during H-U4 and had to be reworded to appease it.
 It strips comments now, every count it produces is no longer inflated by documented markup, and
 `ProductPicker`'s comment says `<button role="option">` again.
+
+### H-NOT — the channel non-blocking findings never had — **DONE 2026-08-30**
+`Verdict.notices` (engine 0.13.0). `evaluateLoad` kept only conditional and violation findings, so
+**sixteen rules computed an explanation and it was dropped on the floor of that function**, while
+`computeAdvisories` in the API promised reviewers "conditional/warning/info" context it could never
+have received. Nothing failed: the findings were correct, every test passed, and the explanation
+simply never left. That is the hardest kind of gap to see, because the output looks complete.
+
+What was lost is precisely the reasoning behind a QUIET answer — why nothing is required below
+1,001 lb, why a residue line left the aggregate, why a Limited Quantity line is excepted from the
+subpart, why a marine pollutant needs no mark on an already-placarded vehicle. **The two early-exit
+gates were the sharpest case**: they compute a finding, test it for truthiness and returned WITHOUT
+it, so "this load declares no hazardous materials" and the cleaned-and-purged prohibition were
+decided and never said.
+
+**Found on the way:** the BOL half of the verdict had reached the calculator by no route at all.
+`verdict.bol` has existed since 0.8.0 and `VerdictPanel` never rendered it, and the four §172.6xx
+paper-level requirements (24-hour emergency phone, ER information, shipper's certification, HM entry
+identification) are not in `bol.lines` either — so they existed in the engine and appeared nowhere.
+They ride out in `notices` now, with their citations.
+
+**Shape:** `notices` is the other half of one split, not a second list — a finding is blocking or it
+is a notice, never both, and segregation is deliberately absent because `verdict.segregation` already
+carries it. Optional, so a verdict recorded before 0.13.0 still parses; `computeAdvisories` reads it
+with `?? []`. The panel splits them by what they answer: **Why this answer** beside the arithmetic,
+**What the shipping paper must say** as its own card.
+
+**Verified by:** 7 new engine tests (128 total), mutation-tested by emptying `notices` — two fail; the
+whole monorepo suite, typecheck, lint, and every gate; and a real sub-1,001 lb calculation through a
+locally-run API, which now states why no placard is required and lists five paper requirements that
+had never been on screen.
 
 ## 6. Open questions
 

@@ -128,12 +128,20 @@ function release(): void {
 const LOAD_COLUMNS_FOR_ANALYSIS =
   "declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id, driver_id, planned_pickup_at";
 
-/** Non-violation findings from a verdict — D3's `advisories` column content. Violations become
- *  flags (blocking); everything else (conditional/warning/info) is context a reviewer should see
- *  but is not blocked on. Kept as full Finding objects so citations survive into the run record. */
+/**
+ * Non-violation findings from a verdict — D3's `advisories` column content. Violations become flags
+ * (blocking); everything else is context a reviewer should see but is not blocked on. Kept as full
+ * Finding objects so citations survive into the run record.
+ *
+ * ⚠ This comment used to say "conditional/warning/info" and was WRONG for two of the three. It read
+ * only `eligibility.blocks`, which the engine populates with conditional and violation alone, so no
+ * `info` finding had ever reached a reviewer through this column — the engine dropped them before
+ * the API could see them. `verdict.notices` (engine 0.13.0) is the channel that was missing, and it
+ * is read here. A run recorded before 0.13.0 has no `notices`, hence the `?? []`.
+ */
 export function computeAdvisories(verdict: Verdict | null): unknown[] {
   if (!verdict) return [];
-  const all = [...verdict.eligibility.blocks, ...verdict.segregation];
+  const all = [...verdict.eligibility.blocks, ...verdict.segregation, ...(verdict.notices ?? [])];
   return all.filter((f) => f.tier !== "violation");
 }
 
