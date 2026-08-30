@@ -162,6 +162,10 @@ export {
   ConnectIcon                 as ConnectIcon,
   Radar01Icon                 as RadarIcon,
   ContainerTruck01Icon        as ReeferTruckIcon,
+  // The Maintenance SECTION. Its section glyph was Cog6ToothIcon, which Admin also wears — and a
+  // section icon renders ONLY in the collapsed rail, where there are no labels at all, so the two
+  // sat side by side as the same wordless cog. Same failure as U5/D-UI6, worse placement.
+  WrenchIcon                  as WrenchIcon,                  // all three variants rendered and compared
   ChartLineData01Icon         as ReportChartIcon,
 
   // Colour scheme (D-DS2b): three states, three glyphs — follow the system, pin light, pin dark.

@@ -22,11 +22,27 @@ function countMatches(source, pattern) {
   return [...source.matchAll(pattern)].length;
 }
 
+/**
+ * Comments are stripped before anything is counted.
+ *
+ * Every count below is a regex over raw text, so a comment that DESCRIBES markup was counted as
+ * markup. That is not hypothetical: on 2026-08-30 a doc comment in `ProductPicker.vue` explaining
+ * that the component used to render `<button role="option">` failed this gate, and the change had to
+ * be reworded to appease it. A gate that punishes documenting a defect is teaching the wrong lesson,
+ * and every count it produced was inflated by however many comments happened to quote a tag.
+ */
+function stripComments(source) {
+  return source
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, "$1");
+}
+
 function inspectFiles(files) {
   return files.map((path) => ({
     path,
     relativePath: relative(root, path),
-    source: readFileSync(path, "utf8"),
+    source: stripComments(readFileSync(path, "utf8")),
   }));
 }
 

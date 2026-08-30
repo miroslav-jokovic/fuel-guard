@@ -12,7 +12,7 @@ import { useHazmatProductsQuery } from "./useHazmatCalc";
  *
  * D-H20 (2026-08-30): this used to be a hand-rolled combobox, and every way it differed from the
  * primitive was a defect rather than a requirement — no keyboard support at all (↑/↓/Enter/Escape
- * were dead), button elements carrying role="option" inside a role="listbox", and a click-away catcher built
+ * were dead), `<button role="option">` inside a `role="listbox"`, and a click-away catcher built
  * from `AppButton`, whose `h-9` beat `inset-0` so the "full-screen" backdrop rendered as a visible
  * 36 px bar across the top of the viewport and click-away worked nowhere else. The genuinely
  * different requirement was only that the options come from a server search, which is now
