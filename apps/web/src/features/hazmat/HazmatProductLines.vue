@@ -217,7 +217,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
               Tick only what the shipping paper actually says — each one changes the answer, and the
               engine double-checks every claim rather than taking it on trust.
             </p>
-            <div class="space-y-1.5 pt-1">
+            <div class="flex flex-col gap-1 pt-1">
               <BaseCheckbox v-model="line.isResidueLine">Residue only — the packaging is empty but not cleaned</BaseCheckbox>
               <BaseCheckbox v-model="line.isLimitedQuantity">Marked “Limited Quantity” on the BOL</BaseCheckbox>
               <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible by the shipper</BaseCheckbox>
