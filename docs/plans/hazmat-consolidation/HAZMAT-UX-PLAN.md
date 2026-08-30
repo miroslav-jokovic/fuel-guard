@@ -479,6 +479,28 @@ whole monorepo suite, typecheck, lint, and every gate; and a real sub-1,001 lb c
 locally-run API, which now states why no placard is required and lists five paper requirements that
 had never been on screen.
 
+### H-REP — reproducibility states the decision, not just the bytes — **DONE 2026-08-30**
+H-NOT's `notices` field exposed a latent flaw: `reproduce.ts` canonicalises the WHOLE verdict, so any
+engine release adding a NON-DECISION field makes every earlier run report "the engine changed and its
+rules now produce a different verdict" — on a load whose placards and eligibility are untouched. A
+false alarm on the surface under the packet's provenance line, and a false alarm there is worse than
+none: it is the check a reviewer learns to skip.
+
+`identical` is untouched and stays strictly byte-exact — it is the audit primitive, and weakening it
+to make an inconvenient result go away is the one move not on the table. A third statement is ADDED:
+`decisionIdentical`, with its own sentence in the UI.
+
+**The comparison is SUBTRACTIVE**, and that was the whole design decision. It compares the entire
+verdict minus a named `NON_DECISION_FIELDS` list (the two version stamps, `notices`, `trace`), so a
+decision-bearing field added tomorrow is included for free. The tempting alternative — reuse
+`diffVerdicts`, which enumerates what to compare — was **built and tested and rejected**:
+`diffVerdicts` predates `placards.marks` and is blind to it, so it would have reported a MARINE
+POLLUTANT mark appearing as "the decision is unchanged". Substituting it makes three tests fail,
+which is the point.
+
+**Also found:** `reproduce.ts` had no test at all, for a service whose output is a compliance claim.
+It has twelve.
+
 ## 6. Open questions
 
 1. ~~Does D-H15 reverse D-H11?~~ **Answered by the owner 2026-08-30:** yes — one loads page, and the
