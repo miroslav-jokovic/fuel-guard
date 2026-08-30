@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.15.0";
+export const ENGINE_VERSION = "0.16.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })

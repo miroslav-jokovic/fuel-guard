@@ -77,6 +77,16 @@ export interface MarinePollutantHit {
   concentrationPct: number | null;
   /** §172.322(d)(1) is excepted for this line — see `smallPackageExcepted`. */
   smallPackageExcepted: boolean;
+  /**
+   * §172.322(d)(4): this line's Limited Quantity claim was VERIFIED and accepted, so its packages
+   * carry the §172.315 mark and need no MARINE POLLUTANT mark.
+   *
+   * ⚠ Verified, never claimed. `line.isLimitedQuantity` is the offeror's assertion and the engine
+   * REFUSES it routinely — wrong hazard class, no HMT column 8A, over the 30 kg/66 lb per-package
+   * cap. Keying this exception on the claim would let a refused LQ silently drop a marking
+   * requirement, which is fail-open on the one paragraph in this file that removes one.
+   */
+  lqExcepted: boolean;
 }
 
 /**
@@ -163,7 +173,22 @@ export function concentrationThresholdPct(severe: boolean | null): number {
   return severe === false ? 10 : 1;
 }
 
-export function findMarinePollutants(recognized: RecognizedLine[], ds: DsView, isTank: boolean): MarinePollutantHit[] {
+export function findMarinePollutants(
+  recognized: RecognizedLine[],
+  ds: DsView,
+  isTank: boolean,
+  /**
+   * The LINE OBJECTS whose LQ claim the engine accepted (§172.322(d)(4)).
+   *
+   * Matched by reference, not by `hmtRef`: `resolve.ts` pushes the same `line` object into both
+   * `recognized` and `resolved`, and two lines can carry the same product with only one of them
+   * declared a Limited Quantity — an `hmtRef` key would except both.
+   *
+   * Required rather than defaulted. An optional parameter is exactly how the public products route
+   * silently lost appendix B one release ago; here the same slip would silently drop a mark.
+   */
+  lqAcceptedLines: ReadonlySet<unknown>,
+): MarinePollutantHit[] {
   // NO early return on an empty appendix B. The SP-441 identity route does not consult it, and a
   // guard here would have silently switched that route off for every dataset cut before appendix B
   // was imported — the exact shape of failure this file exists to avoid.
@@ -194,6 +219,9 @@ export function findMarinePollutants(recognized: RecognizedLine[], ds: DsView, i
       // §172.322(d)(1) is a package-level exception, so it can only reach non-bulk lines: a bulk
       // packaging has no inner packaging, and §171.8 puts its floor above 450 L regardless.
       smallPackageExcepted: !bulk && smallPackageExcepted(r.line.marinePollutantPerPackage, isGasEntry(r.entry)),
+      // A verified LQ is non-bulk by definition (`verifyLqClaim` refuses bulk outright), so the
+      // `!bulk` guard here states that rather than adding to it.
+      lqExcepted: !bulk && lqAcceptedLines.has(r.line),
     });
   }
   return hits;
@@ -239,12 +267,14 @@ export function applyMarinePollutantMark(args: {
   recognized: RecognizedLine[];
   placards: PlacardOutput;
   anyPlacardOrLabel: boolean;
+  /** Line objects whose LQ claim was VERIFIED — see `MarinePollutantHit.lqExcepted`. */
+  lqAcceptedLines: ReadonlySet<unknown>;
   findings: Finding[];
   trace: TraceNode[];
 }): void {
-  const { load, ds, recognized, placards, anyPlacardOrLabel, findings, trace } = args;
+  const { load, ds, recognized, placards, anyPlacardOrLabel, lqAcceptedLines, findings, trace } = args;
   const isTank = load.vehicle.kind === "cargo_tank";
-  const hits = findMarinePollutants(recognized, ds, isTank);
+  const hits = findMarinePollutants(recognized, ds, isTank, lqAcceptedLines);
 
   if (hits.length === 0) {
     trace.push({ ruleId: "marine_pollutant", fired: false, inputs: { appendixBLoaded: ds.marinePollutants.length }, citations: [{ cfr: "49 CFR 172.322" }] });
@@ -328,7 +358,32 @@ export function applyMarinePollutantMark(args: {
   //     teaches people to ignore conditionals;
   //   · §172.322(c)'s VEHICLE marking falls away with them, because it is owed only where a package
   //     is "subject to the marking requirements of paragraph (a) or (b)".
-  const excepted = nonBulkHits.filter((h) => h.smallPackageExcepted);
+  // §172.322(d)(4): a package of limited quantity material marked per §172.315 needs no mark. Kept
+  // separate from (d)(1) rather than merged into one "excepted" bucket, because the two rest on
+  // different facts and a reviewer reading the record should see WHICH one carried the load.
+  const lqExceptedHits = nonBulkHits.filter((h) => h.lqExcepted);
+  if (lqExceptedHits.length > 0) {
+    const names = lqExceptedHits.map((h) => h.psn).join(", ");
+    findings.push({
+      ruleId: "marine_pollutant_lq_excepted",
+      tier: "info",
+      message:
+        `${names}: the Limited Quantity claim was verified, so these packages carry the §172.315 mark ` +
+        `and no MARINE POLLUTANT mark is required on them or on the vehicle (§172.322(d)(4)). This rests ` +
+        `on the ACCEPTED claim, not the declaration — a refused Limited Quantity leaves the mark required.`,
+      citations: [{ cfr: "49 CFR 172.322(d)(4)" }, { cfr: "49 CFR 172.315" }],
+      evidence: { lines: lqExceptedHits.map((h) => ({ hmtRef: h.hmtRef, psn: h.psn })) },
+    });
+    trace.push({
+      ruleId: "marine_pollutant_lq_excepted",
+      fired: true,
+      inputs: { excepted: lqExceptedHits.length, of: nonBulkHits.length },
+      citations: [{ cfr: "49 CFR 172.322(d)(4)" }],
+      note: `No MARINE POLLUTANT mark for ${names}: verified Limited Quantity, marked per §172.315 (§172.322(d)(4)).`,
+    });
+  }
+
+  const excepted = nonBulkHits.filter((h) => h.smallPackageExcepted && !h.lqExcepted);
   if (excepted.length > 0) {
     const names = excepted.map((h) => h.psn).join(", ");
     findings.push({
@@ -353,7 +408,7 @@ export function applyMarinePollutantMark(args: {
     });
   }
 
-  const nonBulkRemaining = nonBulkHits.filter((h) => !h.smallPackageExcepted);
+  const nonBulkRemaining = nonBulkHits.filter((h) => !h.smallPackageExcepted && !h.lqExcepted);
   if (nonBulkRemaining.length === 0) return;
   const nbNames = nonBulkRemaining.map((h) => h.psn).join(", ");
   const nbEvidence = { lines: nonBulkRemaining.map((h) => ({ hmtRef: h.hmtRef, psn: h.psn, severe: h.severe })) };
@@ -383,7 +438,8 @@ export function applyMarinePollutantMark(args: {
         `§171.4(c)(1)'s highway exception does not apply: the MARINE POLLUTANT mark goes on each package in ` +
         `association with its labels (§172.322(a)) and on each side and each end of the vehicle (§172.322(c)). ` +
         `If every package holds 5 L or less of liquid (5 kg or less of solid), §172.322(d)(1) lifts the mark — ` +
-        `state the net quantity per package to have that applied. ` + concentrationNote(hits),
+        `state the net quantity per package to have that applied; a verified Limited Quantity lifts it too ` +
+        `(§172.322(d)(4)). ` + concentrationNote(hits),
       citations: [...CITE_322A, { cfr: "49 CFR 172.322(d)(1)" }],
       evidence: nbEvidence,
     });
