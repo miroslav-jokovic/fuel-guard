@@ -109,8 +109,23 @@ watch(open, (isOpen) => {
 });
 onBeforeUnmount(() => bindReposition(false));
 
-function focus() {
-  if (props.disabled) return;
+/**
+ * Open the list. A DELIBERATE act — a click, an arrow key, or typing — never merely receiving focus.
+ *
+ * It used to be bound to `focusin` on the wrapper, and that made the list reopen by itself. Picking
+ * an option deliberately leaves focus on the input (`@mousedown.prevent` on the options is what stops
+ * focus moving), so the field is still the document's active element afterwards — and the moment
+ * anything hands focus back to the page, `focusin` fires again and the list springs open. Switching
+ * browser tabs and returning does it. So does alt-tabbing, or navigating away in the app and back:
+ * the browser restores focus to the last active element, and the component read that as "the user
+ * wants the list".
+ *
+ * Opening on focus is also what WAI-ARIA's combobox pattern does not ask for: the listbox opens on
+ * Down/Alt+Down, on typing, or on a click — not because the control was focused. Tabbing through a
+ * form now passes over a combobox without unfurling it, which is the behaviour the pattern intends.
+ */
+function openList() {
+  if (props.disabled || open.value) return;
   open.value = true;
   activeIndex.value = Math.max(
     0,
@@ -145,7 +160,9 @@ function onKeydown(event: KeyboardEvent) {
   if (props.disabled) return;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
-    open.value = true;
+    // Open on the FIRST arrow only. `openList` seeds `activeIndex` from the selected option, so
+    // calling it on every press would reset the cursor and then move one — leaving it stuck.
+    if (!open.value) openList();
     move(event.key === "ArrowDown" ? 1 : -1);
   } else if (event.key === "Home" && open.value) {
     event.preventDefault();
@@ -170,7 +187,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="root" class="relative" @focusout="blur" @focusin="focus">
+  <div ref="root" class="relative" @focusout="blur">
     <AppInput
       :id="id"
       :model-value="query"
@@ -187,6 +204,7 @@ function onKeydown(event: KeyboardEvent) {
       class="pr-9"
       @update:model-value="input"
       @keydown="onKeydown"
+      @click="openList"
     />
     <AppIcon
       :icon="ChevronUpDownIcon"
