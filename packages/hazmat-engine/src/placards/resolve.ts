@@ -5,6 +5,7 @@ import {
   effectiveClassKey,
   isExplosivesDivision,
   type DsView,
+  type DsEntry,
   toPlacardName,
   pgRowForRef,
 } from "./classify.js";
@@ -12,6 +13,17 @@ import { type Resolved, verifyLqClaim, withheld } from "./computeSupport.js";
 
 export interface PlacardResolution {
   resolved: Resolved[];
+  /**
+   * Every line that resolved to an HMT entry, INCLUDING the ones that take no placard.
+   *
+   * `resolved` deliberately drops a line whose class maps to no placard ("NONE" — a 6.2, a domestic
+   * Class 9), because the placard ladder has nothing further to do with it. That made it invisible to
+   * every rule downstream, and §172.322 is one: a bulk marine pollutant that takes NO placard is
+   * exactly the load the MARINE POLLUTANT mark exists for, because §172.322(d)(3) waives the mark only
+   * for a vehicle that already bears one. Keyed off `resolved`, the rule would have fired on every
+   * load except the one that needs it.
+   */
+  recognized: Array<{ line: LoadInput["lines"][number]; entry: DsEntry }>;
   table1Hits: { hmtRef: string; classOrDivision: string }[];
   explosivesHits: { hmtRef: string; classOrDivision: string }[];
   complete: boolean;
@@ -21,8 +33,9 @@ function incompleteResolution(
   resolved: Resolved[],
   table1Hits: { hmtRef: string; classOrDivision: string }[],
   explosivesHits: { hmtRef: string; classOrDivision: string }[],
+  recognized: Array<{ line: LoadInput["lines"][number]; entry: DsEntry }> = [],
 ): PlacardResolution {
-  return { resolved, table1Hits, explosivesHits, complete: false };
+  return { resolved, table1Hits, explosivesHits, recognized, complete: false };
 }
 
 /**
@@ -42,6 +55,7 @@ export function resolvePlacardLines(
   const resolved: Resolved[] = [];
   const table1Hits: { hmtRef: string; classOrDivision: string }[] = [];
   const explosivesHits: { hmtRef: string; classOrDivision: string }[] = [];
+  const recognized: Array<{ line: LoadInput["lines"][number]; entry: DsEntry }> = [];
 
   for (const line of load.lines) {
     const [entryId] = line.hmtRef.split("#");
@@ -49,8 +63,10 @@ export function resolvePlacardLines(
     if (!entry) {
       findings.push(withheld(`Line "${line.hmtRef}" does not resolve to a dataset entry`, { hmtRef: line.hmtRef }));
       trace.push({ ruleId: "resolve_line", fired: false, inputs: { hmtRef: line.hmtRef }, citations: [] });
-      return incompleteResolution(resolved, table1Hits, explosivesHits);
+      return incompleteResolution(resolved, table1Hits, explosivesHits, recognized);
     }
+    // Recorded BEFORE any placard decision — see `PlacardResolution.recognized`.
+    recognized.push({ line, entry });
     const key = effectiveClassKey(entry, line.reclassedCombustible);
     const matches = ds.placards.filter((p) => baseClass(p.classOrDivision) === key);
     // Divisions 6.1 and 5.2 appear in BOTH tables, separated only by a qualifier the class number does
@@ -60,7 +76,7 @@ export function resolvePlacardLines(
     if (!choice.ok) {
       findings.push(withheld(choice.reason, { hmtRef: line.hmtRef, key, matched: matches.length, cfr: choice.citation }));
       trace.push({ ruleId: "class_to_placard", fired: false, inputs: { key, matched: matches.length }, citations: [{ cfr: choice.citation }], note: choice.reason });
-      return incompleteResolution(resolved, table1Hits, explosivesHits);
+      return incompleteResolution(resolved, table1Hits, explosivesHits, recognized);
     }
     const spec = choice.spec;
     if (matches.length > 1) {
@@ -156,5 +172,5 @@ export function resolvePlacardLines(
     trace.push({ ruleId: "class_to_placard", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, placard, table: spec.table, lqAccepted }, citations: [{ cfr: `49 CFR ${spec.designRef ?? "172.504"}` }] });
   }
 
-  return { resolved, table1Hits, explosivesHits, complete: true };
+  return { resolved, table1Hits, explosivesHits, recognized, complete: true };
 }

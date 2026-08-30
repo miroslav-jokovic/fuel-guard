@@ -34,7 +34,17 @@ export interface DsEntry {
 }
 export interface DsPlacard { classOrDivision: string; table: 1 | 2; placardName: string; designRef: string | null; wordingOptions?: string[] }
 export interface DsErg { idNumber: string; guideNumber: string }
-export interface DsView { version: string; provisional: boolean; entries: DsEntry[]; placards: DsPlacard[]; erg: DsErg[] }
+/** Appendix B to §172.101 — the marine pollutant list, "PP" in the S.M.P. column meaning severe. */
+export interface DsMarinePollutant { nameNormalized: string; severe?: boolean }
+
+export interface DsView {
+  version: string;
+  provisional: boolean;
+  entries: DsEntry[];
+  placards: DsPlacard[];
+  erg: DsErg[];
+  marinePollutants: DsMarinePollutant[];
+}
 
 export function readDataset(load: LoadInput): DsView {
   const d = load.dataset as unknown as Partial<DsView>;
@@ -44,6 +54,9 @@ export function readDataset(load: LoadInput): DsView {
     entries: Array.isArray(d.entries) ? d.entries : [],
     placards: Array.isArray(d.placards) ? d.placards : [],
     erg: Array.isArray(d.erg) ? d.erg : [],
+    // Absent on a minimal dataset view, and on every dataset cut before Appendix B was imported —
+    // an empty list simply matches nothing, which is the same answer as "not a marine pollutant".
+    marinePollutants: Array.isArray(d.marinePollutants) ? d.marinePollutants : [],
   };
 }
 

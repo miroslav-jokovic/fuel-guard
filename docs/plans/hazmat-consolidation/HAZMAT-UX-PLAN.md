@@ -350,6 +350,42 @@ with no horizontal overflow; the impeccable design detector returns clean; web s
 tests, `typecheck`, `lint`, `lint:ui-adoption`, `lint:filesize`, `lint:comment-claims`, web
 `lint:tokens`.
 
+### H-MP — Marine pollutants, §172.322 (owner-reported gap) — **DONE 2026-08-30**
+Research first, verbatim from the eCFR versioner API:
+`docs/plans/hazmat-consolidation/MARINE-POLLUTANT-RESEARCH.md`. The engine's `marks` union had
+declared `"MARINE_POLLUTANT"` since it was written and never emitted it; the dataset had carried
+appendix B (554 entries, 178 severe) with one consumer, the §172.203(l) shipping-paper words.
+**Done when:** the mark fires exactly on the loads §172.322 requires it for, and on no others.
+
+**Two counterintuitive rules drive it**, and a from-memory implementation gets both wrong in the
+direction that trains people to ignore the mark. §171.4(c)(1) — on a highway-only move the
+marine-pollutant requirements do not apply to non-bulk packagings **at all**. §172.322(d)(3) — a
+domestic bulk marine pollutant on an **already-placarded** vehicle needs no mark, which is the
+ordinary tanker. The mark is required in one narrow band: bulk packaging on a vehicle bearing no
+subpart E label and no subpart F placard — precisely the load a placarding tool otherwise hands back
+as "no placards required" with nothing else to say.
+
+**Found on the way, three things the tests caught rather than the code:**
+1. `resolved` DROPS a line whose class takes no placard, and `compute` returns early when nothing is
+   placardable — so the load that needs the mark most was invisible to any rule keyed on it. The
+   resolution now carries a `recognized` list, and the rule runs on the early-exit path too.
+2. Appendix B lists SUBSTANCES: only **132 of 2,479** HMT entries match it by shipping name. UN3077 /
+   UN3082 are the other door and no name match can ever find them. They are recognised by identity on
+   SP 441's own words ("For marine pollutants transported under UN3077… or UN3082…"), UN-only and
+   name-checked so NA3082 "Hazardous waste" does not sweep in.
+3. An early `if (appendixB.length === 0) return []` guard would have silently switched the SP-441
+   route off for every dataset cut before appendix B was imported.
+
+**Also:** `evaluateLoad` keeps only conditional/violation findings, so an `info` finding never leaves
+the engine — `computeAdvisories`' comment claims otherwise. The rule's user-facing channels are the
+mark and the trace note; the info findings are written for whoever gives them a channel later.
+The calculator gained the vessel-leg question, because the conditional this rule raises must be
+answerable. Engine 0.11.0 → **0.12.0**.
+
+**Verified by:** 13 new engine tests (121 total), mutation-tested by breaking (d)(3) — 3 fail; and
+all five decision-table branches exercised against the REAL shipped dataset through a locally-run
+API, including a non-bulk aniline load with a vessel leg that takes no placard and does need the mark.
+
 ### H-U7 — The fitness check (D-H22)
 The gate, with a grandfather list that should be empty by the time it lands.
 **Done when:** it fails on a reintroduced override and passes on `main`.

@@ -21,6 +21,7 @@ import {
   EQUIPMENT_OPTIONS,
   OTHER_FREIGHT_OPTIONS,
   TANK_STATE_OPTIONS,
+  VESSEL_LEG_OPTIONS,
   type CalcForm,
   type CalcResult,
 } from "@/features/hazmat/useHazmatCalc";
@@ -290,7 +291,14 @@ function resetAll() {
           <h2 class="text-sm font-semibold text-ink">Trip context</h2>
           <p class="mt-0.5 text-sm text-ink-muted">Optional — facts about the run rather than the freight.</p>
         </div>
-        <div class="mt-4">
+        <div class="mt-4 space-y-4">
+          <FormField
+            v-slot="{ id }"
+            label="Does any part of this move go by vessel?"
+            hint="A marine pollutant is treated completely differently on a highway-only move than on one with a vessel leg — this is the question that decides it."
+          >
+            <ComboSelect :id="id" v-model="form.vesselLeg" :options="VESSEL_LEG_OPTIONS" />
+          </FormField>
           <FormField
             v-slot="{ id }"
             label="ID numbers still displayed from an earlier load today"
