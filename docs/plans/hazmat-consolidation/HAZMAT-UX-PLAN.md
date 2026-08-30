@@ -227,7 +227,8 @@ None of these is a layout concern and none of them should be touched by this wor
 | # | Decision | Rationale |
 | --- | --- | --- |
 | D-H15 | **`/hazmat` stops being a hub and becomes the placard calculator.** One nav item, landing on the only hazmat-only tool. | Three of the four hub cards are duplicates or redirects; a menu of four to reach one tool is the confusion the owner is describing. Amends D-H11, which kept the hub as the module's front door before the dispatch surfaces existed. |
-| D-H16 | **The review queue becomes a view of the dispatch loads board**, not a page: a "Needs hazmat review" filter with Truck/Driver/Waiting available as columns. `/hazmat/review` redirects to it. The nav badge points at the filtered board. | It is already the same table with different columns. D-H8 kept the route for testability; a redirect keeps that promise. |
+| D-H16 | ~~The review queue becomes a view of the dispatch loads board.~~ **REVISED by the owner 2026-08-30: the review queue STAYS a page.** It stops being a hub card and stops being a mystery table — it gains Load #, driver and truck so a reviewer can recognise the load, and is reached from the nav badge, the load's hazmat panel and the notification. | It is a task queue with a legal function, not a second loads board. `HAZMAT_REVIEW_ROLES` is a tighter role set than dispatch (separation of duties, D6) and the queue works oldest-first, which a general board does not. Folding it in would have made a dispatcher and a §172.704-trained reviewer share one surface. |
+| D-H24 | **The sidebar carries TWO hazmat entries** — Placard calculator and Hazmat review — not one hub. The badge sits on Review. | H-C4 cut five items to one because four DUPLICATED Loads, Trailers and Compliance; that reasoning retires the duplicates, not the surfaces. These two duplicate nothing, and routing both through a hub cost a click each and pointed the review badge at a menu instead of at the work. |
 | D-H17 | ~~Module-gate the hazmat board for orgs without Dispatch.~~ **SUPERSEDED by the owner 2026-08-30: there is ONE loads page. `/hazmat/loads` and `/hazmat/loads/new` are deleted outright.** Dispatch Loads carries the hazmat determination, which McLeod will supply once the TMS integration lands. | The module gate was hedging against a standalone HazmatGuard customer who does not exist. Hedging cost a whole second board, a second create path, and the orphan defect in §1.2. |
 | D-H23 | **The workspace gains the product declaration editor.** `PATCH /api/hazmat/loads/:id` already accepts `declaredLines`, is validated and audited, and has **no caller in `apps/web`**. | Without it, D-H17 removes the only surface where products can be declared — and the H-C1 flow the owner asked for is already a dead end: *Start hazmat record* creates `declaredLines: []`, the toast says "declare the products in the workspace", and the workspace renders them read-only. **This is a blocking functional gap, not a polish item.** |
 | D-H18 | **The workspace `/hazmat/loads/:id` stays** as the deep evidence surface (runs, documents, review, reproducibility) and is reached only from a load. | It is not a duplicate of anything; it is where the audit trail lives. |
@@ -267,7 +268,7 @@ query keys, so `HazmatPanel` stops rendering the state before the move it just m
 `lint`, `lint:comment-claims`, `lint:ui-adoption`, `lint:filesize`, web `lint:tokens`; the
 round-trip test was mutated to prove it fails.
 
-### H-U2 — One loads page (D-H15, D-H17, D-H19)
+### H-U2 — One loads page (D-H15, D-H17, D-H19, D-H24) — **DONE 2026-08-30**
 Delete `HazmatLoadsPage.vue`, `HazmatLoadFormPage.vue`, `loadFormModel.ts` and their routes and tests.
 `/hazmat` becomes the placard calculator; the Tank Equipment card goes with the hub. `/hazmat/loads`
 and `/hazmat/loads/new` redirect to the dispatch board. `useHazmatLoadsQuery` loses its only caller.
@@ -275,11 +276,36 @@ and `/hazmat/loads/new` redirect to the dispatch board. `useHazmatLoadsQuery` lo
 routes still resolve (as redirects) so notification links and `routeTable.test.ts` keep their promise;
 `lint:filesize`, `lint:ui-adoption`, `nav.test.ts`, `breadcrumbs.test.ts` green.
 
-### H-U3 — Review as a view of the one board (D-H16)
-The dispatch board gains the "Needs hazmat review" filter and the Truck / Driver / Waiting columns the
-review page had. `/hazmat/review` redirects; the nav badge repoints at the filtered board.
-**Done when:** the review flow is reachable from the board and from the notification; the badge count
-still comes from `/hazmat/review-count`; the review queue's oldest-first ordering survives the move.
+**What shipped:** `HazmatPage`, `HazmatLoadsPage`, `HazmatLoadFormPage` and `loadFormModel` deleted;
+`/hazmat` → the calculator, `/hazmat/loads` and `/hazmat/loads/new` → `/loads`; the workspace's
+breadcrumb parent is `/loads`; the sidebar's one hub item became the two of D-H24;
+`useHazmatLoadsQuery` and `useCreateHazmatLoad` removed with their last callers.
+
+**Found on the way — the deletion would have stranded three regulatory inputs.** The create form
+owned tank state, carrier relationship, planned pickup, DOT-SP permits and the shipper's
+no-placards claim, and `HazmatPanel.startRecord` hard-codes only two of them. `special_permit_numbers`
+is what raises the reviewer's §173.315 acknowledgement (`gate.requiresSpAttestation`),
+`claimed_no_placards` is the assertion the engine is asked to contradict, and `carrier_relationship`
+is the §172.506 fact deciding who placards the vehicle. `LoadDeclarationCard` moves all eight fields
+onto the workspace under the same draft-only PATCH gate as the products, so nothing was narrowed.
+
+**Also found:** the G2 breadcrumb gate caught `/dispatch/loads` being an alias redirect with no
+title of its own — the workspace's parent is `/loads`. And deleting the board removed the app's only
+depth-3 breadcrumb chain, so `breadcrumbs.ts`'s `MAX_DEPTH` comment, `breadcrumbs.test.ts`'s "the
+real three-level chain" and the design lab's deep-trail specimen were all describing an IA that no
+longer exists; each now says what is true.
+
+**Verified by:** web suite 79 files / 715 tests, `typecheck`, `lint:ui-adoption`, `lint:filesize`,
+`lint:comment-claims`, web `lint:tokens`; the redirect destinations are pinned by a new test, and
+reordering the route file was tried to confirm the assertion pins behaviour rather than file order.
+
+### H-U3 — The review queue stops being a mystery table (D-H16 as revised)
+The queue gains the load's identity — Load #, driver, truck — so a reviewer can recognise what they
+are being asked to clear. Today its columns are Products / Truck / Driver / Waiting / Created with no
+load reference at all, because it was built as a sibling of a board that no longer exists.
+**Done when:** a row names the dispatch load it belongs to; oldest-first ordering is preserved; the
+badge count still comes from `/hazmat/review-count`; the queue is reachable from the nav badge, the
+load's hazmat panel and the notification.
 
 ### H-U4 — Overlay primitives (D-H20, D-H21)
 `AppCombobox` teleports its list at `z-popover` with a `z-scrim` catcher and gains async options;

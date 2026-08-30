@@ -38,6 +38,8 @@ const PROBES = [
   // The pairs a specificity regression would break first: a static segment must beat a param.
   "/loads", "/loads/new", "/loads/ld_1",
   "/dispatch/loads", "/dispatch/loads/new", "/dispatch/loads/ld_1",
+  // D-H17 left `/hazmat`, `/hazmat/loads` and `/hazmat/loads/new` as REDIRECTS rather than deleting
+  // them: they live in notification links and bookmarks. They still have to resolve.
   "/hazmat", "/hazmat/calculator",
   "/hazmat/loads", "/hazmat/loads/new", "/hazmat/loads/hz_1",
   "/hazmat/review", "/hazmat/settings/equipment",
@@ -88,6 +90,36 @@ describe("the route table survives being split by area", () => {
 
   it("every probe matches a real route, so the snapshot cannot pass by resolving nothing", () => {
     for (const p of PROBES) expect(router.resolve(p).matched.length, p).toBeGreaterThan(0);
+  });
+
+  /**
+   * D-H17 deleted the hub, the hazmat loads board and its create form, and left REDIRECTS behind
+   * because those paths are in notification links and bookmarks. The snapshot above only records
+   * that a redirect RECORD matched — it cannot say where the redirect goes, which is the entire
+   * promise. Two of these carry a second guarantee worth stating out loud:
+   *
+   *  · `/hazmat/loads/new` must NOT resolve as the workspace with `id: "new"`. vue-router ranks a
+   *    static segment above a dynamic one, so it does not — but that is a ranking rule, and this is
+   *    the assertion that survives someone reordering the file.
+   *  · `/hazmat/loads/:id` is the workspace and must keep resolving, because it is where the hazmat
+   *    notification (`notificationRoute.ts`) sends the person who was told to look at a load.
+   */
+  it("the deleted hazmat surfaces redirect to the one loads page, not into the void (D-H17)", () => {
+    const target = (path: string): string => {
+      const record = router.getRoutes().find((r) => r.path === path);
+      return typeof record?.redirect === "string" ? record.redirect : String(record?.redirect ?? "");
+    };
+    expect(target("/hazmat")).toBe("/hazmat/calculator");
+    expect(target("/hazmat/loads")).toBe("/loads");
+    expect(target("/hazmat/loads/new")).toBe("/loads");
+    expect(target("/hazmat/settings/equipment")).toBe("/trailers");
+
+    // The create path is a redirect in its own right, never the workspace holding id="new".
+    expect(router.resolve("/hazmat/loads/new").name ?? "").not.toBe("hazmat-load-detail");
+    // …while a real record id still reaches the workspace.
+    const workspace = router.resolve("/hazmat/loads/hz_1");
+    expect(workspace.name).toBe("hazmat-load-detail");
+    expect(workspace.params).toEqual({ id: "hz_1" });
   });
 
   it("every declared path is probed, so a new route cannot slip in unpinned", () => {

@@ -79,7 +79,7 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/dispatch/loads/ld_1",
   },
   {
-    "name": "hazmat",
+    "name": "",
     "params": {},
     "url": "/hazmat",
   },
@@ -89,12 +89,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/hazmat/calculator",
   },
   {
-    "name": "hazmat-loads",
+    "name": "",
     "params": {},
     "url": "/hazmat/loads",
   },
   {
-    "name": "hazmat-load-new",
+    "name": "",
     "params": {},
     "url": "/hazmat/loads/new",
   },
@@ -666,17 +666,13 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "HazmatGuard",
-    },
-    "name": "hazmat",
+    "meta": {},
+    "name": "",
     "path": "/hazmat",
-    "redirect": null,
+    "redirect": "/hazmat/calculator",
   },
   {
     "meta": {
-      "parent": "/hazmat",
       "requiresAuth": true,
       "title": "Placard Calculator",
     },
@@ -685,18 +681,14 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/hazmat",
-      "requiresAuth": true,
-      "title": "Hazmat Loads",
-    },
-    "name": "hazmat-loads",
+    "meta": {},
+    "name": "",
     "path": "/hazmat/loads",
-    "redirect": null,
+    "redirect": "/loads",
   },
   {
     "meta": {
-      "parent": "/hazmat/loads",
+      "parent": "/loads",
       "requiresAuth": true,
       "title": "Hazmat Load",
     },
@@ -705,19 +697,13 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/hazmat/loads",
-      "requiresAuth": true,
-      "requiresManage": true,
-      "title": "New Hazmat Load",
-    },
-    "name": "hazmat-load-new",
+    "meta": {},
+    "name": "",
     "path": "/hazmat/loads/new",
-    "redirect": null,
+    "redirect": "/loads",
   },
   {
     "meta": {
-      "parent": "/hazmat",
       "requiresAuth": true,
       "title": "Hazmat Review",
     },

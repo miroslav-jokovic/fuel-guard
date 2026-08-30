@@ -36,10 +36,11 @@ export interface CrumbMeta {
 /**
  * How deep a trail may go before the walk gives up.
  *
- * The deepest real chain today is 3 (`/hazmat` → `/hazmat/loads` → `/hazmat/loads/:id`). Five leaves
- * room for one more level of nesting without touching this, and turns a future mistake into a
- * truncated trail rather than a hung render — a cap and the cycle guard below are two answers to the
- * same question, because a `parent` chain is data and data can be wrong.
+ * The deepest real chain today is 2 — it was 3 until D-H17 deleted the hazmat loads board, which
+ * owned the app's only `/hazmat` → `/hazmat/loads` → `/hazmat/loads/:id` trail. Five still leaves
+ * room for nesting to come back without touching this, and turns a future mistake into a truncated
+ * trail rather than a hung render — a cap and the cycle guard below are two answers to the same
+ * question, because a `parent` chain is data and data can be wrong.
  */
 const MAX_DEPTH = 5;
 
