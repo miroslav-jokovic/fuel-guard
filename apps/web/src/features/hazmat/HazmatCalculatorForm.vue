@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, AppCallout } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
@@ -156,12 +156,9 @@ function resetAll() {
     <form class="min-w-0 space-y-4" @submit.prevent="calculate">
       <!-- ── 1 · equipment: one question, two paths ─────────────────────────────────────────── -->
       <BaseCard as="section">
-        <div class="flex items-center gap-3">
-          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">1</span>
-          <div>
-            <h2 class="text-sm font-semibold text-ink">Equipment</h2>
-            <p class="mt-0.5 text-sm text-ink-muted">What the load rides on — this decides which rules apply.</p>
-          </div>
+        <div>
+          <h2 class="text-sm font-semibold text-ink">Equipment</h2>
+          <p class="mt-0.5 text-sm text-ink-muted">What the load rides on — this decides which rules apply.</p>
         </div>
 
         <!-- fleet users choose the path; the public calculator goes straight to the picker -->
@@ -254,12 +251,9 @@ function resetAll() {
             @click="equipmentOverride = true"
           >Change</BaseButton>
         </p>
-        <p
-          v-else-if="trailerTypeMissing"
-          class="mt-3 rounded-surface bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
-        >
+        <AppCallout v-else-if="trailerTypeMissing" tone="warning" class="mt-3">
           This trailer's type is not set — pick the equipment above, and set the type on the Trailers page so next time it is read rather than asked.
-        </p>
+        </AppCallout>
       </BaseCard>
 
       <HazmatProductLines
@@ -273,14 +267,11 @@ function resetAll() {
         @clear-product="(index) => (form.lines[index]!.product = null)"
       />
 
-      <!-- ── 3 · the rest of the load (H-MX) ────────────────────────────────────────────────── -->
+      <!-- ── the rest of the load (H-MX) ─────────────────────────────────────────────────────── -->
       <BaseCard as="section">
-        <div class="flex items-center gap-3">
-          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">3</span>
-          <div>
-            <h2 class="text-sm font-semibold text-ink">Rest of the load</h2>
-            <p class="mt-0.5 text-sm text-ink-muted">Whether anything besides these products rides on the truck.</p>
-          </div>
+        <div>
+          <h2 class="text-sm font-semibold text-ink">Rest of the load</h2>
+          <p class="mt-0.5 text-sm text-ink-muted">Whether anything besides these products rides on the truck.</p>
         </div>
         <div class="mt-4">
           <FormField
@@ -293,14 +284,11 @@ function resetAll() {
         </div>
       </BaseCard>
 
-      <!-- ── 4 · trip context ───────────────────────────────────────────────────────────────── -->
+      <!-- ── trip context ───────────────────────────────────────────────────────────────────── -->
       <BaseCard as="section">
-        <div class="flex items-center gap-3">
-          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">4</span>
-          <div>
-            <h2 class="text-sm font-semibold text-ink">Trip context</h2>
-            <p class="mt-0.5 text-sm text-ink-muted">Optional — facts about the run rather than the freight.</p>
-          </div>
+        <div>
+          <h2 class="text-sm font-semibold text-ink">Trip context</h2>
+          <p class="mt-0.5 text-sm text-ink-muted">Optional — facts about the run rather than the freight.</p>
         </div>
         <div class="mt-4">
           <FormField
@@ -322,20 +310,27 @@ function resetAll() {
       </div>
       <p v-if="!canCalculate" class="text-xs text-ink-muted">Choose the equipment and add at least one regulated product to calculate.</p>
 
-      <p v-if="calc.isError.value" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+      <AppCallout v-if="calc.isError.value" tone="danger">
         {{ calc.error.value instanceof Error ? calc.error.value.message : "Calculation failed." }}
-      </p>
+      </AppCallout>
     </form>
 
     <div class="min-w-0 lg:sticky lg:top-20 lg:self-start">
       <VerdictPanel v-if="result" :result="result" />
-      <BaseCard v-else class="text-center">
-        <div class="py-10">
-          <span class="mx-auto flex size-11 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
-            <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-6" aria-hidden="true" />
+      <!-- The empty state states what the next action produces; it does not fill the column to do it. -->
+      <BaseCard v-else>
+        <div class="flex items-start gap-3">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
+            <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-5" aria-hidden="true" />
           </span>
-          <p class="mt-3 text-sm font-medium text-ink">Results will appear here</p>
-          <p class="mx-auto mt-1 max-w-sm text-sm text-ink-muted">Complete the equipment and product details, then calculate to see placards, ID displays, the weight arithmetic, and citations.</p>
+          <div>
+            <p class="text-sm font-medium text-ink">Nothing calculated yet</p>
+            <p class="mt-1 text-sm text-ink-muted">
+              State the equipment and add at least one regulated product, then calculate. You get the
+              required placards, the ID displays, the weight arithmetic behind them, and a CFR citation
+              for every line of it.
+            </p>
+          </div>
         </div>
       </BaseCard>
     </div>
