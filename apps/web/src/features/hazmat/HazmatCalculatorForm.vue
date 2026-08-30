@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
-import { AppCard as BaseCard, AppCallout } from "@silvicom/ui";
+import { AppCard as BaseCard, AppCallout, AppTabs } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
@@ -68,7 +68,17 @@ const fleetEnabled = computed(() => props.fleet);
 const { data: trailers } = useHazmatTrailersQuery({ enabled: fleetEnabled });
 const selectedTrailerId = ref("");
 
-/** One question, two paths: state the trailer (fleet) or state the equipment (manual/public). */
+/**
+ * One question, two paths: state the trailer (fleet) or state the equipment (manual/public).
+ *
+ * `AppTabs`, not two hand-toggled buttons in a `role="group"`. The hand-rolled version announced a
+ * grouped control it could not drive — no `aria-pressed`, no roving tabindex, no arrow keys — which
+ * is the exact failure AppTabs was extracted to stop happening a seventh time.
+ */
+const SOURCE_TABS = [
+  { value: "fleet", label: "From my fleet" },
+  { value: "manual", label: "Other equipment" },
+];
 const sourceMode = ref<"fleet" | "manual">(props.fleet ? "fleet" : "manual");
 /** True while the user is deliberately overriding a trailer-derived equipment answer. */
 const equipmentOverride = ref(false);
@@ -163,26 +173,14 @@ function resetAll() {
         </div>
 
         <!-- fleet users choose the path; the public calculator goes straight to the picker -->
-        <div v-if="fleet" class="mt-4 inline-flex rounded-control bg-surface-subtle p-1 ring-1 ring-inset ring-edge" role="group" aria-label="Where the equipment comes from">
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
-            :class="sourceMode === 'fleet' ? 'bg-surface text-ink shadow-card ring-1 ring-inset ring-edge-subtle' : 'text-ink-muted hover:text-ink'"
-            @click="setSourceMode('fleet')"
-          >
-            From my fleet
-          </BaseButton>
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
-            :class="sourceMode === 'manual' ? 'bg-surface text-ink shadow-card ring-1 ring-inset ring-edge-subtle' : 'text-ink-muted hover:text-ink'"
-            @click="setSourceMode('manual')"
-          >
-            Other equipment
-          </BaseButton>
-        </div>
+        <AppTabs
+          v-if="fleet"
+          :model-value="sourceMode"
+          :tabs="SOURCE_TABS"
+          label="Where the equipment comes from"
+          class="mt-4"
+          @update:model-value="setSourceMode($event as 'fleet' | 'manual')"
+        />
 
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <!-- Fleet path: the trailer states the answer. Never mounted on the public page. -->
@@ -245,12 +243,7 @@ function resetAll() {
           class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control bg-surface-subtle px-3 py-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge"
         >
           <span>Read from the fleet: <strong class="font-semibold text-ink">{{ equipmentConfirmation }}</strong></span>
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            class="!h-auto !px-0 !text-xs !font-medium !text-brand-700 hover:!bg-transparent hover:!underline"
-            @click="equipmentOverride = true"
-          >Change</BaseButton>
+          <BaseButton variant="link" @click="equipmentOverride = true">Change</BaseButton>
         </p>
         <AppCallout v-else-if="trailerTypeMissing" tone="warning" class="mt-3">
           This trailer's type is not set — pick the equipment above, and set the type on the Trailers page so next time it is read rather than asked.

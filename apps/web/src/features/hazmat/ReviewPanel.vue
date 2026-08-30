@@ -13,6 +13,7 @@ import {
   deriveReviewItems,
   OVERRIDE_MIN_REASON,
   spAttestationText,
+  tierLabel,
   type ReviewTier,
 } from "./reviewModel";
 import { useClearLoad, useLoadDocumentsQuery, useRecordReview } from "./useHazmatReview";
@@ -87,7 +88,7 @@ async function reject() {
     <!-- flags to work, violations first -->
     <ul class="mt-3 space-y-2">
       <li v-for="item in items" :key="item.code" class="flex items-start gap-2 text-sm">
-        <span :class="[BADGE_BASE, toneClass(TONE[item.tier]), '!capitalize']">{{ item.tier }}</span>
+        <span :class="[BADGE_BASE, toneClass(TONE[item.tier])]">{{ tierLabel(item.tier) }}</span>
         <span class="text-ink">{{ item.label }}</span>
       </li>
       <li v-if="items.length === 0" class="text-sm text-ink-muted">No blocking flags — attest to clear.</li>
@@ -98,7 +99,7 @@ async function reject() {
       <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Advisories (non-blocking)</p>
       <ul class="mt-2 space-y-2">
         <li v-for="(a, i) in advisories" :key="i" class="flex items-start gap-2 text-sm">
-          <span :class="[BADGE_BASE, toneClass(advisoryTone(a.tier)), 'mt-0.5 shrink-0 !capitalize']">{{ a.tier }}</span>
+          <span :class="[BADGE_BASE, toneClass(advisoryTone(a.tier)), 'mt-0.5 shrink-0']">{{ tierLabel(a.tier) }}</span>
           <span class="text-ink">{{ a.message }}</span>
         </li>
       </ul>

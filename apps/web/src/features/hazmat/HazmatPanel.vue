@@ -14,6 +14,8 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { isAnalyzing } from "@/features/hazmat/useHazmatLoads";
+import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
+import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 
 interface HazmatPanelRecord {
   id: string;
@@ -89,6 +91,10 @@ const statusTone = computed(() => {
   return "brand"; // submitted / extracting — in motion
 });
 
+/** The mapped label, not the raw token behind a `capitalize` — "Residue — uncleaned", not "Residue uncleaned". */
+const tankStateLabel = (value: string): string =>
+  TANK_STATE_OPTIONS.find((o) => o.value === value)?.label ?? value.replace(/_/g, " ");
+
 function when(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -161,9 +167,9 @@ async function submitAndAnalyze() {
 }
 
 const workspaceTo = computed(() => (record.value ? `/hazmat/loads/${record.value.id}` : null));
-const packetHref = computed(() =>
-  record.value && record.value.latest_run_at ? `/api/hazmat/loads/${record.value.id}/packet` : null,
-);
+// A packet only exists once the engine has run; before that there is nothing to defend with.
+const hasPacket = computed(() => record.value != null && record.value.latest_run_at != null);
+const packet = useDefensePacket();
 const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "success" : "warning"));
 </script>
 
@@ -251,7 +257,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
           </dd>
         </div>
         <div><dt class="text-ink-tertiary">Analyzed at</dt><dd class="text-ink">{{ when(record.latest_run_at) }}</dd></div>
-        <div><dt class="text-ink-tertiary">Tank state</dt><dd class="capitalize text-ink">{{ record.tank_state.replace(/_/g, " ") }}</dd></div>
+        <div><dt class="text-ink-tertiary">Tank state</dt><dd class="text-ink">{{ tankStateLabel(record.tank_state) }}</dd></div>
         <div><dt class="text-ink-tertiary">Updated</dt><dd class="text-ink">{{ when(record.updated_at) }}</dd></div>
       </dl>
 
@@ -268,15 +274,15 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
         <BaseButton v-if="record.status === 'needs_review'" variant="soft" size="sm" to="/hazmat/review">
           Open review queue
         </BaseButton>
-        <a
-          v-if="packetHref"
-          :href="packetHref"
-          target="_blank"
-          rel="noopener"
-          class="text-sm font-medium text-link hover:text-link-hover"
+        <BaseButton
+          v-if="hasPacket"
+          variant="link"
+          class="text-sm font-medium"
+          :disabled="packet.loading.value"
+          @click="packet.download(record!.id)"
         >
-          Roadside packet (PDF)
-        </a>
+          {{ packet.loading.value ? "Preparing…" : "Roadside packet (PDF)" }}
+        </BaseButton>
       </div>
       <p v-if="record.status === 'draft'" class="mt-2 text-xs text-ink-muted">
         Declare the products in the workspace before analyzing — an empty declaration cannot clear.

@@ -18,6 +18,29 @@ export {
 import type { HazmatLoadRow } from "@silvicom/shared";
 
 export type ReviewTier = "violation" | "conditional" | "warning" | "info";
+
+/**
+ * The engine's finding tiers, said in words a reviewer reads.
+ *
+ * These exist because four badges used to render the RAW token behind a `!capitalize` — "conditional"
+ * became "Conditional", which is engine vocabulary, not a instruction to anybody. `badges.ts` removed
+ * `capitalize` from `BADGE_BASE` for exactly this reason and says a call-site `capitalize` "marks a
+ * vocabulary that has not been mapped yet". This is the mapping.
+ *
+ * `conditional` deliberately reads REVIEW rather than "Conditional": it is the tier that stops a load
+ * auto-clearing and sends it to a human, so the badge names the consequence rather than the mechanism.
+ */
+export const REVIEW_TIER_LABELS: Record<ReviewTier, string> = {
+  violation: "Violation",
+  conditional: "Review",
+  warning: "Warning",
+  info: "Info",
+};
+
+/** Unknown tiers keep their raw token rather than being hidden — an unmapped tier is a bug to see. */
+export function tierLabel(tier: string): string {
+  return REVIEW_TIER_LABELS[tier as ReviewTier] ?? tier;
+}
 export interface ReviewItem {
   code: string;
   label: string;
