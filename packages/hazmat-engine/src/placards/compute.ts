@@ -56,7 +56,8 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     // service, because §172.322(d)(3) waives the mark only for a vehicle that already bears a placard
     // or label. Returning here without asking was the difference between "nothing to display" and
     // "a mark on each side and each end".
-    applyMarinePollutantMark({ load, ds, recognized: resolution.recognized, placards, anyPlacardOrLabel: false, findings, trace });
+    // No line reached `resolved`, so no LQ claim was verified — §172.322(d)(4) cannot apply here.
+    applyMarinePollutantMark({ load, ds, recognized: resolution.recognized, placards, anyPlacardOrLabel: false, lqAcceptedLines: new Set(), findings, trace });
     return { placards, findings, trace }; // recognized, none placardable → no placards beyond any mark
   }
 
@@ -472,6 +473,9 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     recognized: resolution.recognized,
     placards,
     anyPlacardOrLabel: placards.required.length > 0,
+    // §172.322(d)(4) keys on the VERIFIED acceptance, never the offeror's claim. Matched by line
+    // object because `resolve.ts` pushes the same reference into `recognized` and `resolved`.
+    lqAcceptedLines: new Set(resolved.filter((r) => r.lqAccepted).map((r) => r.line)),
     findings,
     trace,
   });

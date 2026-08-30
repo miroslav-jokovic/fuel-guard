@@ -181,11 +181,18 @@ names the exception in the finding instead of applying it — over-display, neve
 - ~~The 10%/1% concentration test (§171.8).~~ **Built 2026-08-30**, see §1.
 - ~~The §172.322(d)(1)/(2) 5 L / 5 kg exceptions.~~ **(d)(1) built 2026-08-30**, see §3; (d)(2)
   deliberately not, because it is subsumed and declining it is the conservative direction.
-- **§172.322(d)(4) — still open.** A package of limited quantity material marked per §172.315 needs
-  no MARINE POLLUTANT mark. The engine cannot apply it yet: the exception must key on the VERIFIED
-  LQ acceptance (`Resolved.lqAccepted`), never on the offeror's unverified `isLimitedQuantity` claim,
-  and `recognized` — the list this rule reads, precisely because it includes lines that take no
-  placard — does not carry it. Using the claim would fail open. Current behaviour over-displays.
+- ~~§172.322(d)(4).~~ **Built 2026-08-30 (engine 0.16.0).** A package of limited quantity material
+  marked per §172.315 needs no MARINE POLLUTANT mark. It keys on the VERIFIED acceptance
+  (`Resolved.lqAccepted`) and never on the offeror's `isLimitedQuantity` claim — the engine refuses
+  that claim routinely (wrong hazard class, no HMT column 8A, over the 30 kg/66 lb cap), and a
+  refused Limited Quantity must leave the mark required. `compute.ts` passes the accepted LINE
+  OBJECTS, matched by reference rather than `hmtRef`, because two lines can carry the same product
+  with only one declared LQ and a ref key would except both.
+
+  ⚠ **Reach today:** `LATEST_DATASET_VERSION` is 2026.07.1, which predates HMT column 8A, so
+  `verifyLqClaim` refuses every claim and this exception cannot fire in production until 2026.08.0 is
+  attested and promoted. Verified live on the shipped dataset: an LQ claim on aniline is refused and
+  the mark stays.
 - §172.322(a)(1) — the technical-name-in-parentheses rule for G/n.o.s. entries. That is a shipping
   PAPER and package-marking rule; `bol/validate.ts` already owns the §172.203(l) half, and the
   §172.203(k) technical-name rule is already emitted there.

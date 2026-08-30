@@ -27,6 +27,9 @@ const DATASET = {
     { entryId: "UN3082-ehs", psnPrinted: "Environmentally hazardous substance, liquid, n.o.s.", hazardClass: "9", idPrefix: "UN", idNumber: "3082", pgRows: [{ pg: "III" }] },
     // Not on appendix B at all.
     { entryId: "UN1203-gasoline", psnPrinted: "Gasoline", hazardClass: "3", idPrefix: "UN", idNumber: "1203", pgRows: [{ pg: "II" }] },
+    // Carries HMT column 8A (`exceptionsRef`), so an LQ claim on it can be ACCEPTED — without one,
+    // `verifyLqClaim` refuses every claim and the (d)(4) exception could never be seen to fire.
+    { entryId: "UN2810-lq", psnPrinted: "Toxic liquid, organic, n.o.s.", hazardClass: "3", idPrefix: "UN", idNumber: "2810", pgRows: [{ pg: "III", exceptionsRef: "173.150" }] },
     // The SP-441 route: recognised by identity, never by an appendix B name match.
     { entryId: "UN3082-ehs-nos", psnPrinted: "Environmentally hazardous substance, liquid, n.o.s.", hazardClass: "9", idPrefix: "UN", idNumber: "3082", pgRows: [{ pg: "III" }] },
     // Shares the ID number, different entry — SP 441 does not name it.
@@ -40,6 +43,7 @@ const DATASET = {
   erg: [],
   marinePollutants: [
     { nameNormalized: "flammable liquid, n.o.s.", severe: false },
+    { nameNormalized: "toxic liquid, organic, n.o.s.", severe: false },
     { nameNormalized: "environmentally hazardous substance, liquid, n.o.s.", severe: true },
   ],
 };
@@ -298,10 +302,10 @@ describe("§172.322(d)(1) — what it must never excuse", () => {
   it("never sets the exception on a BULK line, which has no inner packaging and starts above 450 L", () => {
     const ds = { marinePollutants: [{ nameNormalized: "flammable liquid, n.o.s.", severe: false }] } as never;
     const bulkLine = { line: { hmtRef: "x", packagingKind: "bulk", marinePollutantPerPackage: perPackage(1, "L") }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
-    expect(findMarinePollutants([bulkLine], ds, false)[0]!.smallPackageExcepted).toBe(false);
+    expect(findMarinePollutants([bulkLine], ds, false, new Set())[0]!.smallPackageExcepted).toBe(false);
 
     const nonBulk = { line: { hmtRef: "x", packagingKind: "non_bulk", marinePollutantPerPackage: perPackage(1, "L") }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
-    expect(findMarinePollutants([nonBulk], ds, false)[0]!.smallPackageExcepted).toBe(true);
+    expect(findMarinePollutants([nonBulk], ds, false, new Set())[0]!.smallPackageExcepted).toBe(true);
   });
 
   it("a bulk marine pollutant is still marked, small per-package figure or not", () => {
@@ -317,5 +321,91 @@ describe("§172.322(d)(1) — what it must never excuse", () => {
   it("treats a missing figure as no exception, never as zero", () => {
     expect(smallPackageExcepted(null, false)).toBe(false);
     expect(smallPackageExcepted(undefined, false)).toBe(false);
+  });
+});
+
+/**
+ * §172.322(d)(4) — a package of limited quantity material marked per §172.315 needs no mark.
+ *
+ * ⚠ The whole risk here is the difference between a CLAIM and an ACCEPTANCE. `isLimitedQuantity` is
+ * the offeror's assertion and the engine refuses it routinely: wrong hazard class, no HMT column 8A,
+ * over the 30 kg/66 lb per-package cap. Keying this exception on the claim would let a refused
+ * Limited Quantity silently drop a marking requirement — fail-open, on the one paragraph in this file
+ * that removes one. So the refused case is tested first and is the reason the rule reads
+ * `Resolved.lqAccepted` rather than the line.
+ */
+describe("§172.322(d)(4) — the Limited Quantity exception", () => {
+  // UN1993-flam is Class 3 PG III in this dataset; a bare LQ claim has no column 8A behind it here,
+  // so the engine REFUSES it — which is exactly the case that must not lift the mark.
+  const vesselNonBulkLq = (over: Record<string, unknown> = {}) =>
+    evaluateLoad(load({
+      vehicle: VAN2,
+      lines: [line({ packagingKind: "non_bulk", isLimitedQuantity: true, grossWeightLb: 40, packageCount: 2, ...over })],
+    }, true));
+
+  it("a REFUSED Limited Quantity claim does not lift the mark", () => {
+    const v = vesselNonBulkLq();
+    // The refusal is on the record…
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("lq_claim_refused");
+    // …and the mark stands.
+    expect(marks(v)).toContain("MARINE_POLLUTANT");
+    expect((v.notices ?? []).map((f) => f.ruleId)).not.toContain("marine_pollutant_lq_excepted");
+  });
+
+  it("keys on the accepted line, not on any line that merely claimed", () => {
+    const v = vesselNonBulkLq();
+    // Nothing was accepted, so no §172.315 mark either — the two travel together.
+    expect(marks(v)).not.toContain("LIMITED_QUANTITY");
+  });
+
+  it("an ACCEPTED Limited Quantity lifts the mark, and the §172.315 mark takes its place", () => {
+    const v = evaluateLoad(load({
+      vehicle: VAN2,
+      // 40 lb over 2 packages = 20 lb each, inside the 66 lb LQ cap; column 8A is present.
+      lines: [line({ hmtRef: "UN2810-lq#III", packagingKind: "non_bulk", isLimitedQuantity: true, grossWeightLb: 40, packageCount: 2 })],
+    }, true));
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("lq_claim_refused");
+    expect(marks(v)).toContain("LIMITED_QUANTITY");
+    expect(marks(v)).not.toContain("MARINE_POLLUTANT");
+    expect((v.notices ?? []).map((f) => f.ruleId)).toContain("marine_pollutant_lq_excepted");
+  });
+
+  it("stops asking about the vessel leg once an accepted LQ has settled the answer", () => {
+    const v = evaluateLoad(load({
+      vehicle: VAN2,
+      lines: [line({ hmtRef: "UN2810-lq#III", packagingKind: "non_bulk", isLimitedQuantity: true, grossWeightLb: 40, packageCount: 2 })],
+    }, null));
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("marine_pollutant_vessel_unknown");
+    expect(marks(v)).not.toContain("MARINE_POLLUTANT");
+  });
+
+  it("a line with no LQ claim at all is unaffected", () => {
+    const v = evaluateLoad(load({ vehicle: VAN2, lines: [line({ packagingKind: "non_bulk" })] }, true));
+    expect(marks(v)).toContain("MARINE_POLLUTANT");
+    expect((v.notices ?? []).map((f) => f.ruleId)).not.toContain("marine_pollutant_lq_excepted");
+  });
+
+  /**
+   * Read off the FLAG, because the `!bulk` guard is defence in depth and nothing else would exercise
+   * it: `verifyLqClaim` already refuses bulk, and `lqExcepted` is only consulted in the non-bulk
+   * path. Deleting the guard changes no verdict today — and that is exactly why a test asserting on
+   * the verdict would have claimed a coverage it did not have.
+   */
+  it("never sets the LQ exception on a bulk line, even if one reached the accepted set", () => {
+    const ds = { marinePollutants: [{ nameNormalized: "flammable liquid, n.o.s.", severe: false }] } as never;
+    const bulkLine = { line: { hmtRef: "x", packagingKind: "bulk" }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
+    const accepted = new Set([(bulkLine as { line: unknown }).line]);
+    expect(findMarinePollutants([bulkLine], ds, false, accepted)[0]!.lqExcepted).toBe(false);
+  });
+
+  it("matches the accepted line by identity, so one claim cannot except its twin", () => {
+    // Two lines, same product, same hmtRef; only one is in the accepted set.
+    const ds = { marinePollutants: [{ nameNormalized: "flammable liquid, n.o.s.", severe: false }] } as never;
+    const shared = { hmtRef: "UN1993-flam#III", packagingKind: "non_bulk" };
+    const a = { line: { ...shared }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
+    const b = { line: { ...shared }, entry: { psnPrinted: "Flammable liquid, n.o.s." } } as never;
+    const accepted = new Set([(a as { line: unknown }).line]);
+    const hits = findMarinePollutants([a, b], ds, false, accepted);
+    expect(hits.map((h) => h.lqExcepted)).toEqual([true, false]);
   });
 });
