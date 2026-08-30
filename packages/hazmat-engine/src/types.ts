@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.12.0";
+export const ENGINE_VERSION = "0.13.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -205,6 +205,26 @@ export interface Verdict {
    *  Since 0.8.0 (M5.2) `eligible` is REACHABLE: every check clean + every provided input
    *  evaluated + dataset complete enough to check everything. */
   eligibility: { status: "eligible" | "blocked" | "not_checked"; blocks: Finding[] };
+  /**
+   * Everything the engine concluded that does NOT gate the load (0.13.0).
+   *
+   * `eligibility.blocks` carries only `conditional` and `violation`, because those are what decide
+   * eligibility. Until now `info` findings were simply DROPPED on the floor of `evaluateLoad` — so
+   * sixteen rules computed an explanation and threw it away, and `computeAdvisories` in the API
+   * promised reviewers "conditional/warning/info" context it could never have received.
+   *
+   * What was lost is precisely the reasoning behind a QUIET answer: why no placard is required below
+   * 1,001 lb, why a residue line left the aggregate, why a Limited Quantity line is excepted from the
+   * whole subpart, why a marine pollutant needs no mark on an already-placarded vehicle, and — from
+   * the two early-exit gates, which discarded their finding without even reaching the ladder — that
+   * the load declares no hazardous materials at all, or that a cleaned-and-purged tank must not be
+   * placarded. A verdict that says "nothing is required" and cannot say why is the one a reviewer has
+   * least reason to trust.
+   *
+   * Segregation findings are NOT duplicated here: they have their own array and the UI renders it.
+   * Optional so a verdict recorded before 0.13.0 still parses.
+   */
+  notices?: Finding[];
   segregation: Finding[];
   /** Since 0.8.0 (G2): the §172.202 basic descriptions the shipping paper must carry. */
   bol?: { lines: Array<{ hmtRef: string; basicDescription: string; additionalRequired: string[] }> };

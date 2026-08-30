@@ -45,10 +45,12 @@ export function evaluateLoad(input: LoadInput): Verdict {
   const trace: TraceNode[] = [];
   const version = load.dataset.version;
 
+  // Both early gates COMPUTE a finding and used to drop it, so the engine could decide "nothing is
+  // required here" and had no way to say why. It rides out in `notices` now (0.13.0).
   const noHm = noHazmatLinesGate(load);
   trace.push(noHm.trace);
   if (noHm.finding) {
-    return { engineVersion: ENGINE_VERSION, datasetVersion: version, placards: emptyPlacards(), eligibility: { status: "eligible", blocks: [] }, segregation: [], trace };
+    return { engineVersion: ENGINE_VERSION, datasetVersion: version, placards: emptyPlacards(), eligibility: { status: "eligible", blocks: [] }, notices: [noHm.finding], segregation: [], trace };
   }
 
   const cleaned = cleanedTankProhibitsGate(load);
@@ -56,7 +58,7 @@ export function evaluateLoad(input: LoadInput): Verdict {
   if (cleaned.finding) {
     const placards = emptyPlacards();
     for (const p of ALL_PLACARDS) placards.prohibited.push({ placard: p, because: cleaned.finding.citations });
-    return { engineVersion: ENGINE_VERSION, datasetVersion: version, placards, eligibility: { status: "eligible", blocks: [] }, segregation: [], trace };
+    return { engineVersion: ENGINE_VERSION, datasetVersion: version, placards, eligibility: { status: "eligible", blocks: [] }, notices: [cleaned.finding], segregation: [], trace };
   }
 
   const computed = computePlacards(load);
@@ -73,11 +75,16 @@ export function evaluateLoad(input: LoadInput): Verdict {
   const audit = auditProvidedInputs(load);
   trace.push(audit.trace);
 
+  const blocking = (f: Finding): boolean => f.tier === "conditional" || f.tier === "violation";
   const blocks: Finding[] = [
-    ...computed.findings.filter((f) => f.tier === "conditional" || f.tier === "violation"),
-    ...bol.findings.filter((f) => f.tier === "conditional" || f.tier === "violation"),
+    ...computed.findings.filter(blocking),
+    ...bol.findings.filter(blocking),
     ...audit.findings,
   ];
+  // The other half of the same split. Segregation is deliberately absent — `verdict.segregation`
+  // already carries every one of its findings, blocking or not, and duplicating them here would put
+  // the same sentence on screen twice.
+  const notices: Finding[] = [...computed.findings, ...bol.findings].filter((f) => !blocking(f));
 
   // M5.2 (G1/G3/G4): the eligibility DECISION. `eligible` is reachable now — but ONLY when every
   // check ran clean, the dataset was complete enough to check everything (G8), and no provided
@@ -96,6 +103,7 @@ export function evaluateLoad(input: LoadInput): Verdict {
     datasetVersion: version,
     placards: computed.placards,
     eligibility: { status: elig.status, blocks },
+    notices,
     segregation: seg.findings,
     bol: { lines: bol.lines },
     trace,

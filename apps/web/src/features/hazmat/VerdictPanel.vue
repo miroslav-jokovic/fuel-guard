@@ -43,6 +43,21 @@ function humanize(s: string): string {
   return s.replace(/_/g, " ");
 }
 
+/**
+ * The engine's non-blocking findings (engine 0.13.0), split by what they are about.
+ *
+ * These are new to the panel because they are new to the VERDICT: `info` findings used to be dropped
+ * inside `evaluateLoad`, so the reasoning behind a quiet answer — why nothing is required below
+ * 1,001 lb, why a residue line left the aggregate, why a marine pollutant needs no mark on an
+ * already-placarded vehicle — was computed and thrown away. The BOL half had never reached this panel
+ * by any route at all: `verdict.bol` exists and nothing rendered it.
+ *
+ * Split rather than listed, because the two answer different questions: one is what the PAPER must
+ * say, the other is why the TRUCK carries what it carries.
+ */
+const paperNotices = computed(() => (v.value.notices ?? []).filter((f) => f.ruleId.startsWith("bol_")));
+const reasoningNotices = computed(() => (v.value.notices ?? []).filter((f) => !f.ruleId.startsWith("bol_")));
+
 /** Everything past the answer and its arithmetic — only rendered when there is something in it. */
 const hasDetails = computed(
   () =>
@@ -197,7 +212,7 @@ const loadProfile = computed(() => {
     </BaseCard>
 
     <!-- ══ 2 · THE CHECK — the arithmetic and the lawful formats, never behind a click ═════════ -->
-    <BaseCard v-if="agg || v.placards.idDisplays.length">
+    <BaseCard v-if="agg || v.placards.idDisplays.length || reasoningNotices.length">
       <h3 class="text-sm font-semibold text-ink">How this was decided</h3>
 
       <template v-if="agg">
@@ -285,6 +300,31 @@ const loadProfile = computed(() => {
           marking requirement, never a placarding one.
         </p>
       </div>
+
+      <div v-if="reasoningNotices.length" :class="agg || v.placards.idDisplays.length ? 'mt-5 border-t border-edge pt-4' : 'mt-3'">
+        <h4 class="text-sm font-medium text-ink">Why this answer</h4>
+        <ul class="mt-2 space-y-2">
+          <li v-for="(f, i) in reasoningNotices" :key="i" class="text-sm text-ink-secondary">
+            {{ f.message }}
+            <div class="mt-0.5"><CitationText :citations="f.citations" /></div>
+          </li>
+        </ul>
+      </div>
+    </BaseCard>
+
+    <!-- ══ 2b · WHAT THE SHIPPING PAPER MUST SAY ════════════════════════════════════════════════ -->
+    <BaseCard v-if="paperNotices.length">
+      <h3 class="text-sm font-semibold text-ink">What the shipping paper must say</h3>
+      <p class="mt-1 text-xs text-ink-muted">
+        Derived from the declaration. Whether the printed paper actually says it is checked against the
+        scanned document, or by the reviewer.
+      </p>
+      <ul class="mt-3 space-y-2">
+        <li v-for="(f, i) in paperNotices" :key="i" class="text-sm text-ink-secondary">
+          {{ f.message }}
+          <div class="mt-0.5"><CitationText :citations="f.citations" /></div>
+        </li>
+      </ul>
     </BaseCard>
 
     <!-- ══ 3 · WHAT ELSE IS TRUE ════════════════════════════════════════════════════════════════ -->
