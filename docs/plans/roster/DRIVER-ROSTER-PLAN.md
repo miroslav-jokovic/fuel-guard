@@ -191,7 +191,7 @@ reaches the person who fixes it.
 
 ## 5. Steps
 
-### R0a — Split the `fleet` section into `roster` and `equipment` (D-ROS12; prerequisite for R0)
+### R0a — Split the `fleet` section into `roster` and `equipment` (D-ROS12; prerequisite for R0) — **DONE 2026-08-30 (PR #392, migration 0277)**
 
 The whole change is **16 real call sites**, one migration and one gate edit. Measured 2026-08-30 —
 the word "fleet" appears more often than that, but as a plain English noun (`HazmatCalculatorForm`'s
@@ -435,4 +435,47 @@ deep links. Those are answerable — but they must be answered, not assumed.
 
 ## 7. What shipped
 
-Nothing yet. This section is the register; each step writes its own entry here when it merges.
+### R0a — the section split — 2026-08-30, PR #392, migration 0277
+
+- `APP_SECTIONS` carries `roster` and `equipment` in place of `fleet`; 11 sections × 8 roles.
+  `safety_manager` is `roster: manage` + `equipment: view` — the ruling. `recruiter` drops to
+  `equipment: none`, a narrowing the old single section could not express.
+- 9 already-derived API call sites re-pointed at `roster`; 2 stale comments corrected. 5 web nav
+  entries now ask the question they mean.
+- `0277` re-issues `vehicles_write` / `trailers_write` to `rolesThatManage('equipment')`. This is a
+  **revocation** — `safety_manager` loses PostgREST write on both — and the header says so, with the
+  measurement that no product path reaches that capability today.
+- `check-section-policies.mjs` gained `TABLE_SECTIONS`, a per-table override consulted before the
+  module default, because the `roster` module legitimately spans both sections after the split. The
+  module was NOT split to match: module ownership answers "which code may write this" and section
+  membership answers "which role may act here", and bending the former to satisfy the latter would
+  have been the workaround D-ROS11 forbids.
+
+**Deviations, both deliberate and both recorded in the code:**
+
+1. The four hand-listed `requireRole("admin","fleet_manager")` roster mounts were **not** derived,
+   though this step said to derive them. `rolesThatManage("roster")` contains `safety_manager`, so
+   deriving would have silently widened credential issuing, driver-app invitation and the
+   irreversible `merge_driver`. They keep the narrow list and now carry the reason. A section grants
+   the section; an act that cannot be undone is granted by name.
+2. `canManageFleet` is **frozen**, not deleted — this step's original text said "deleted here", which
+   would have dragged R0's 50-site web migration into the same PR. Re-pointing it at `roster` was
+   also rejected: it would flip `session.canManage` true for a safety_manager across the whole web,
+   handing them edit buttons on Vehicles that 0277 simultaneously teaches the database to refuse.
+   Removal is R0's job and the comment above the helper names R0 as the remover.
+
+**A harness bug the new matrix caught on the way in**, worth knowing before writing the next one:
+`drivers` and `vehicles` carry audit triggers whose `audit_logs.actor_id` is a real FK, so a
+synthetic JWT `sub` with no `auth.users` row fails those writes **indistinguishably from an RLS
+refusal**. `trailers` has no such trigger and was the only table passing, which is how it surfaced.
+A matrix that asserts only refusals would have gone green on a revocation that never happened.
+
+**Verified by:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (all suites and matrices);
+`supabase/tests/equipment-section-split.test.mjs` 16/16, pinning both halves of the split against
+each other; `check-section-policies.mjs --self-test`, extended so a typo in the override map cannot
+go blind. Both new gates were **negative-tested**: reinstating `safety_manager` in 0277 drops the
+matrix to 14/16 and fails the policy gate through the override path.
+
+### The rest
+
+Unstarted. Each step writes its own entry here when it merges.
