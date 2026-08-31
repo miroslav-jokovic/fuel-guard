@@ -502,7 +502,7 @@ Prerequisites: R0 (without it, the same workaround reappears in a new place).
 gone; `?section=application`, `?section=employment`, `?section=screening` still resolve, redirecting
 to their new homes; the three inbound links point at the new destinations.
 
-### R8 — Retire what is now redundant
+### R8 — Retire what is now redundant — **DONE 2026-08-31 (PR #PENDING, no migration)**
 
 With R4–R7 landed, re-examine `CompliancePage`, `ScreeningReadinessPage` and `InquiryQueuePage`
 against the roster grid + saved views. Some are genuinely fleet-wide queues that a per-driver page
@@ -1270,3 +1270,41 @@ no gate.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`
 (including `--self-test`), and the full gate list.
+
+### R8 — nothing was redundant, and one page was unreachable — 2026-08-31, PR #PENDING, no migration
+
+**The per-page decision R8 asked for. Retire NONE of the three, and the evidence is what each one
+carries that a roster view cannot express:**
+
+| Page | Verdict | Why |
+| --- | --- | --- |
+| `CompliancePage` | **Keep** | Five surfaces the roster has no equivalent for: `QualificationSeedPanel`, `ExportHistory`, hazmat `CertManager`, the attention strip's fleet counts, and multi-driver binder selection. A saved view has no way to select ten drivers and export a §391.51 binder. |
+| `ScreeningReadinessPage` | **Keep** | A task, not a queue — the fleet-wide DOB import that makes screening possible at all (P0b). Nothing about it is a list of drivers. |
+| `InquiryQueuePage` | **Keep** | A queue over `employer_inquiries`, not over drivers: one driver can own several, ranked by the §391.23(c)(1) deadline. A list of drivers cannot express a list of inquiries. |
+
+**The redundancy R8 was written to worry about turned out to be real, and already gone.** Its concern
+was "some are a saved view wearing a page" — and the thing that WAS duplicated was not a page but a
+DEFINITION: `CompliancePage` and the roster each had their own idea of "needs attention" and "due in
+30 days". R4b promoted that vocabulary into `@silvicom/shared`, so the two surfaces now cannot
+disagree by construction. Two pages answering different questions with the same predicate is not
+duplication; it was two predicates that would have been.
+
+**A real defect found by sweeping instead of assuming.** `/settings/driver-performance` was
+**declared, admin-gated, and reachable only by typing the URL** — ten of the eleven `/settings/*`
+routes were listed in the Settings directory and this one was not. Now linked.
+
+**`routeReachability.test.ts` is the durable half**, because R8's answer decays: a page loses its
+last inbound link the moment a step like R7 moves work elsewhere, and the failure is silent — the
+route still resolves, the component still builds, and nobody notices for a year. It asserts every
+declared, non-redirect, non-parameterised route is referenced by path or by NAME somewhere outside
+the router.
+
+⚠ **Its first draft reported nine orphans and eight were its own fault** — five were redirects (which
+exist so an old bookmark keeps working, so having no in-app link is their entire purpose), and three
+were reached by `router.push({ name })` or from outside the app. Only one was real. That ratio is
+the argument for verifying a detector against the codebase before trusting it: a check with 89% false
+positives does not get read, it gets skipped. The corrected version was then proven able to fail by
+removing the Settings entry it had just earned.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`, and
+the full gate list.
