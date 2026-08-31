@@ -349,7 +349,7 @@ thing out of `features/`, do not allow-list the leak.** So the buffer moves to
 **Done when:** `useSpendFilters.test.ts` passes unchanged — including the one-tick collision case it
 exists to pin — with the buffer no longer inside the file it is testing; `lint:boundaries` green.
 
-#### R3b — `DataTable` column management (D-ROS3, D-ROS15) — **DONE 2026-08-30 (PR #PENDING, no migration)**
+#### R3b — `DataTable` column management (D-ROS3, D-ROS15) — **DONE 2026-08-30 (PR #398, no migration)**
 
 **What already exists and must not be rebuilt:** horizontal scroll (`DataTable.vue:366`,
 `overflow-x-auto`), and the pinned first column — which is real, works, and is **hand-rolled
@@ -697,7 +697,7 @@ caller rather than its owner.
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`.
 
-### R3b — column management — 2026-08-30, PR #PENDING, no migration
+### R3b — column management — 2026-08-30, PR #398, no migration
 
 `DataTable.vue` 453 → **375**. New: `DataTableCards.vue` (171), `ColumnPicker.vue` (122),
 `useTableColumns.ts` (121), `driverRosterColumns.ts` (58).
