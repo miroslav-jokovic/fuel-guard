@@ -474,6 +474,14 @@ Prerequisites: R0.
 telematics-owned row shows the claim warning before it is claimed; `resolveDriverUpdate`'s two flags
 are both surfaced to the user.
 
+**Split, because two thirds of the Done-when turned out to describe a LIVE DEFECT rather than a
+missing feature.** The roster's own edit drawer never called `resolveDriverUpdate` at all — see
+R6a. The layout change is R6b and is the smaller half.
+
+#### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #PENDING, no migration)**
+
+#### R6b — tabs become sections on one scroll
+
 ### R7 — Recruiting leaves the driver page (D-ROS6)
 
 `ApplicationInviteCard`, `DispositionSection`, `EmploymentHistorySection`, `EmployerInquirySection`,
@@ -1044,6 +1052,44 @@ before re-recording, and the fixture carries two different denominators (`8/17`,
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
+
+### R6a — the roster's edit becomes the audited one — 2026-08-31, PR #PENDING, no migration
+
+**This step began as "surface two flags" and turned out to be a live production defect.**
+
+`DriversPage`'s edit drawer called `useUpdateDriver`, which writes `drivers` **straight from the
+browser through PostgREST**. So `resolveDriverUpdate` never ran on the surface people actually use,
+and two things followed, both silent:
+
+- **The row was never claimed, so the sync overwrote the correction.** `samsaraDriverSync.ts:137-142`
+  carries a comment describing exactly this failure — "an admin who fixed a misspelled name or a
+  wrong phone on a telematics-sourced driver watched it revert on the next sync, silently and with
+  nothing logged" — and says "that is the failure the roster PATCH exists to prevent, **so the two
+  had to be fixed together**". The sync half landed. The caller half did not.
+- **A change to a §391.51-relevant field left no audit row.**
+
+**Measured on production, 2026-08-31: 282 of 287 live drivers were sync-owned** — 185 `samsara`,
+97 `efs`, 5 `manual`. This was the behaviour for essentially the entire roster.
+
+What shipped:
+
+- The drawer now uses `useUpdateDriverProfile` (`PATCH /api/roster/drivers/:id`), so every roster
+  edit runs `resolveDriverUpdate`, claims the row when it should, stamps the §391.51(c) date when it
+  should, and writes an audit row.
+- **The two flags now travel in the RESPONSE, not only into `audit_logs.meta`.** They were recorded
+  for an auditor and invisible to the person who caused them. D-ROS1 refused a cell-editor grid
+  because "a cell editor has nowhere to put that sentence"; a sentence with nowhere to come FROM is
+  the same gap from the other end. `describeDriverEdit` turns them into one, and returns null for an
+  ordinary edit so nothing is said when nothing happened.
+- **The claim warning appears BEFORE Save** (D-ROS4), and is true of the EDIT rather than of the
+  driver — a permanent banner on every synced row would be wallpaper. It reads
+  `wouldClaimFromTelematics` from `@silvicom/shared`, the same identity-field list the server uses,
+  so the warning and the save cannot disagree. It also says the part that matters: editing the field
+  back does not undo it.
+- `identity_source` joins `DRIVER_COLS`, because a form cannot say what an edit means without it.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+The manual-row branch of the warning was proven able to fail.
 
 ### The rest
 

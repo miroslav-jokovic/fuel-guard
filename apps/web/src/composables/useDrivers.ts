@@ -1,12 +1,21 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { EMPLOYED_DRIVER_STATUSES } from "@silvicom/shared";
-import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@silvicom/shared";
+import type {
+  Driver,
+  DriverDetail,
+  DriverInput,
+  DriverUpdateRequest,
+  DriverUpdateResponse,
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
+// `identity_source` is selected because the roster's edit form must be able to say what an edit
+// MEANS before Save: on a row this is not 'manual', changing a name or phone claims the driver away
+// from the sync permanently (D-ROS1/D-ROS4, R6a).
 const DRIVER_COLS =
-  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, app_username, app_access_enabled, created_at, updated_at, archived_at";
+  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, app_username, app_access_enabled, identity_source, created_at, updated_at, archived_at";
 
 const driversKey = ["drivers"] as const;
 
@@ -41,13 +50,15 @@ export function useDriverQuery(id: Ref<string>) {
 export function useUpdateDriverProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; input: DriverUpdateRequest }): Promise<DriverDetail> => {
-      const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${payload.id}`, {
+    mutationFn: async (payload: { id: string; input: DriverUpdateRequest }): Promise<DriverUpdateResponse> => {
+      const res = await apiFetch<DriverUpdateResponse>(`/api/roster/drivers/${payload.id}`, {
         method: "PATCH",
         body: payload.input,
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the driver.");
-      return res.data.driver;
+      // The WHOLE response, not just the row: the two flags are what let a caller say what the edit
+      // did (R6a). Returning only `driver` is how they stayed invisible for as long as they did.
+      return res.data;
     },
     onSuccess: (_driver, payload) => {
       void qc.invalidateQueries({ queryKey: ["roster", "driver", payload.id] });

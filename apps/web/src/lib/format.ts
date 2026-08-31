@@ -42,3 +42,28 @@ export function formatDateTime(iso: string | null | undefined): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * What a driver edit turned out to mean, as a sentence — or null when it meant only itself (R6a).
+ *
+ * The two flags `resolveDriverUpdate` returns are not confirmations that a save worked; they are
+ * consequences the person did not necessarily ask for. Claiming a row from telematics stops it being
+ * enriched, permanently; stamping a termination date starts the §391.51(c) retention clock. Both
+ * deserve a sentence, and D-ROS1 refused a cell-editor grid precisely because it had nowhere to put
+ * one.
+ *
+ * Returns null rather than "Saved." so a caller renders no second line for an ordinary edit.
+ */
+export function describeDriverEdit(result: {
+  claimedFromTelematics: boolean;
+  stampedTerminationDate: boolean;
+}): string | null {
+  const said: string[] = [];
+  if (result.claimedFromTelematics) {
+    said.push("This driver is now maintained here rather than by the sync.");
+  }
+  if (result.stampedTerminationDate) {
+    said.push("Today was recorded as their termination date.");
+  }
+  return said.length ? said.join(" ") : null;
+}
