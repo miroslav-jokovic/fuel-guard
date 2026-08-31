@@ -849,7 +849,7 @@ function so the vehicles page, the trailers page and any later surface cannot di
 
 ### Steps
 
-- **B1 — the list can answer the questions a list is asked — DONE 2026-08-31 (PR #NNN).** Unit
+- **B1 — the list can answer the questions a list is asked — DONE 2026-08-31 (PR #421).** Unit
   number and inspector name on every row, plus search over unit / decal / inspector and filters for
   status and result. The equipment is read in ONE batch through `roster`'s new
   `getEquipmentIdentities` — the subject is polymorphic across two tables so PostgREST has no join
@@ -857,7 +857,7 @@ function so the vehicles page, the trailers page and any later surface cannot di
   TypeScript over the resolved page, because searching a column in another module's table is not
   something one query can reach from here without a raw read the gates forbid; if that ever needs to
   be a database concern it becomes an RPC `roster` owns.
-- **B2 — the page follows the conventions — DONE 2026-08-31 (PR #NNN).** Create action in
+- **B2 — the page follows the conventions — DONE 2026-08-31 (PR #421).** Create action in
   `PageHeader`'s `#actions` behind `session.can("maintenance")`, a `NewInspectionModal` asking only
   which machine / who / what date, real `FilterSelect`s in `FilterBar`, and **no § in anything a
   person reads** (D-AVI15) — the citations moved into comments beside the code that implements them,
@@ -865,7 +865,7 @@ function so the vehicles page, the trailers page and any later surface cannot di
   "certify" became "complete", "component" became "part".
 - **B3 — the inspector register gets a surface** (closes §6 Q8). Without it B2's create cannot pick
   an inspector, so this is not optional.
-- **B4 — expiry on the vehicles and trailers pages — DONE 2026-08-31 (PR #NNN).** One
+- **B4 — expiry on the vehicles and trailers pages — DONE 2026-08-31 (PR #421).** One
   `InspectionExpiryCell` on both pages over `inspectionExpiry()` in `@silvicom/shared`, so the two
   screens cannot disagree about what "expiring" means. Reads the column A6 was already projecting
   and nothing had read. **No date reads as "Not recorded", never as overdue** — a truck that arrived
