@@ -22,7 +22,9 @@ import {
 } from "../inspections/inspections.js";
 import { inspectorFor } from "../inspections/inspectors.js";
 import { finalizeInspection } from "../inspections/finalize.js";
-import { buildPreviewInput, renderStoredReport } from "../inspections/reportDelivery.js";
+import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../inspections/reportDelivery.js";
+import { renderRegistrationSheet } from "../inspections/render/registrationSheet.js";
+import { getPrintProfile } from "../inspections/printProfiles.js";
 
 /**
  * `/api/maintenance/inspections` — the §396.17 draft lifecycle (plan step A4).
@@ -256,6 +258,63 @@ export function inspectionsRouter(): Router {
       res.setHeader("content-type", "application/pdf");
       res.setHeader("content-disposition", 'inline; filename="inspection-preview.pdf"');
       res.send(built.pdf);
+    }),
+  );
+
+  /**
+   * The values-only page for a pre-printed pad (D-AVI8). A different artefact for a different piece
+   * of paper — the filed report above is still served exactly as it was filed.
+   */
+  router.get(
+    "/:id/overlay.pdf",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const profileId = typeof req.query.profile === "string" ? req.query.profile : null;
+      const result = await renderOverlayReport(admin, req.auth!.orgId!, String(req.params.id ?? ""), profileId);
+      if ("code" in result) {
+        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
+    }),
+  );
+
+  return router;
+}
+
+/**
+ * The sheet a printer is measured with — not about any one inspection, so it is mounted beside them
+ * rather than under one.
+ */
+export function inspectionPrintingRouter(): Router {
+  const router = Router();
+  router.use(requireAuth);
+
+  router.get(
+    "/registration-sheet.pdf",
+    requireOrg,
+    requireRole(...rolesThatManage("maintenance")),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const profileId = typeof req.query.profile === "string" ? req.query.profile : null;
+      let offset = { x: 0, y: 0 };
+      if (profileId) {
+        const profile = await getPrintProfile(admin, req.auth!.orgId!, profileId);
+        if (profile && "code" in profile) {
+          res.status(500).json(apiError(profile.code, profile.error));
+          return;
+        }
+        // Printing the sheet WITH the current offset is how somebody checks a calibration rather
+        // than only setting one: the crosshairs should land dead centre if it is right.
+        if (profile) offset = { x: profile.offset_x_pt, y: profile.offset_y_pt };
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", 'inline; filename="registration-sheet.pdf"');
+      res.send(await renderRegistrationSheet(offset));
     }),
   );
 

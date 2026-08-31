@@ -912,9 +912,30 @@ connection has been missed — all four rows above are already written by finali
 today. The one thing genuinely absent is a per-unit VIEW, and that belongs to the truck-file plan
 rather than here: it is the same list this section already renders, filtered to one `subject_id`.
 
-- **B5 — A8 after all.** The owner ruled on 2026-08-31 that the truck copy is printed onto the
-  pre-printed pads, so the calibration is built: an offset store, a registration sheet to measure it
-  with, and the values-only render A5 already emits.
+- **B5 — A8, built — DONE 2026-08-31 (PR #NNN, migration 0283).** The owner reversed the earlier
+  ruling: the truck copy is printed onto the pre-printed pads, so the calibration exists.
+
+  `maintenance_print_profiles` stores an offset **per printer** — registration is a property of the
+  machine, not of a person or a session, so two people printing the same report get the same page
+  and a second printer can exist without making the first one's numbers wrong. Deliberately NOT on
+  `vehicle_inspections`: the offset describes the machine the paper went through, and putting it on
+  the report would make a re-print from another printer either wrong or a reason to edit a finalized
+  row (D-AVI4 forbids the second).
+
+  **The registration sheet is the point.** The alternative is asking somebody to print a report,
+  look at it and guess — which produces a second guess, and an office nudging a number until it
+  looks right has a calibration nobody can reproduce. The sheet prints crosshairs at four REAL cells
+  from the coordinate map, each labelled with the box it should sit in; lay it over a blank form and
+  the offset is a ruler measurement. **Four marks and not one**, because a single point cannot tell
+  a shift from a scale error — if the four differences disagree, the printer is scaling and no
+  offset will fix it, which the sheet says on its face.
+
+  Two things the tests caught. The arms were 9 pt and the leftmost target sits 25.5 pt from the
+  paper edge, inside the 4–6 mm most lasers cannot print — a clipped crosshair still looks like a
+  crosshair, so somebody would have measured a wrong number carefully. And the sheet's own
+  instructions pointed at a settings screen that did not exist; printer setup now lives on the print
+  menu, which is where somebody discovers they need it — nobody goes looking for a calibration
+  screen, they find a page printed two millimetres low.
 
 ---
 

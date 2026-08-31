@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DOCUMENTS_BUCKET, type InspectionSubjectType } from "@silvicom/shared";
 import { getEquipmentIdentity } from "../../roster/index.js";
+import { getPrintProfile } from "./printProfiles.js";
 import { carrierCityStateZip, getCarrierIdentity } from "../../org/index.js";
 import { renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
 import { getInspection } from "./inspections.js";
@@ -68,6 +69,23 @@ export async function buildPreviewInput(
   orgId: string,
   inspectionId: string,
 ): Promise<{ pdf: Buffer } | ServiceError> {
+  const built = await buildRenderInput(admin, orgId, inspectionId);
+  if ("code" in built) return built;
+  return { pdf: await renderInspectionReport(built.input, { draft: true }) };
+}
+
+/**
+ * Gather what a render needs, tolerantly.
+ *
+ * Deliberately more forgiving than finalize: the whole point of a preview is to SEE the page before
+ * it is signed, so a missing carrier address or an unqualified inspector shows up as a gap on the
+ * page rather than as an error instead of one. Finalize is where those become refusals.
+ */
+async function buildRenderInput(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectionId: string,
+): Promise<{ input: InspectionRenderInput; inspectedOn: string } | ServiceError> {
   const loaded = await getInspection(admin, orgId, inspectionId);
   if (loaded && "code" in loaded) return loaded;
   if (!loaded) return { error: "Inspection not found", code: "not_found" };
@@ -85,24 +103,55 @@ export async function buildPreviewInput(
   const inspectorOk = inspector !== null && !("code" in inspector);
   const method = (report.vehicle_identification_method ?? "vin") as InspectionRenderInput["identificationMethod"];
 
-  const input: InspectionRenderInput = {
-    subjectType,
-    unitNumber: equipmentOk ? equipment.unitNumber : null,
+  return {
     inspectedOn: report.inspected_on,
-    decalSerial: (report.decal_serial as string | null) ?? null,
-    inspectorName: inspectorOk ? inspector.full_name : "",
-    inspectorQualified: inspectorOk ? inspector.qualified : false,
-    carrierName: carrierOk ? carrier.name : "",
-    carrierAddress: carrierOk ? carrier.addressLine1 : null,
-    carrierCityStateZip: carrierOk ? carrierCityStateZip(carrier) : null,
-    identificationMethod: method,
-    identificationValue:
-      (report.vehicle_identification_value as string | null) ??
-      (equipmentOk ? (method === "plate" ? equipment.plate : equipment.vin) : null),
-    inspectionAgencyLocation: (report.inspection_agency_location as string | null) ?? null,
-    otherConditions: (report.other_conditions as string | null) ?? null,
-    items: items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
-    outcome: null,
+    input: {
+      subjectType,
+      unitNumber: equipmentOk ? equipment.unitNumber : null,
+      inspectedOn: report.inspected_on,
+      decalSerial: (report.decal_serial as string | null) ?? null,
+      inspectorName: inspectorOk ? inspector.full_name : "",
+      inspectorQualified: inspectorOk ? inspector.qualified : false,
+      carrierName: carrierOk ? carrier.name : "",
+      carrierAddress: carrierOk ? carrier.addressLine1 : null,
+      carrierCityStateZip: carrierOk ? carrierCityStateZip(carrier) : null,
+      identificationMethod: method,
+      identificationValue:
+        (report.vehicle_identification_value as string | null) ??
+        (equipmentOk ? (method === "plate" ? equipment.plate : equipment.vin) : null),
+      inspectionAgencyLocation: (report.inspection_agency_location as string | null) ?? null,
+      otherConditions: (report.other_conditions as string | null) ?? null,
+      items: items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
+      outcome: (report.outcome as "pass" | "fail" | null) ?? null,
+    },
   };
-  return { pdf: await renderInspectionReport(input, { draft: true }) };
+}
+
+/**
+ * The values-only render for a pre-printed pad (D-AVI8).
+ *
+ * Rendered fresh rather than served from `documents`, and that is not an inconsistency with the
+ * stored-bytes rule above: the FILED report is the evidence and is served exactly as filed. This is
+ * a different artefact for a different piece of paper — the same values, positioned for a form
+ * somebody else printed, through a calibration belonging to the printer rather than to the report.
+ */
+export async function renderOverlayReport(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectionId: string,
+  profileId: string | null,
+): Promise<DeliveredReport | ServiceError> {
+  const built = await buildRenderInput(admin, orgId, inspectionId);
+  if ("code" in built) return built;
+
+  let offset = { x: 0, y: 0 };
+  if (profileId) {
+    const profile = await getPrintProfile(admin, orgId, profileId);
+    if (profile && "code" in profile) return profile;
+    if (!profile) return { error: "That printer setup no longer exists", code: "not_found" };
+    offset = { x: profile.offset_x_pt, y: profile.offset_y_pt };
+  }
+
+  const pdf = await renderInspectionReport(built.input, { background: "none", offset });
+  return { pdf, filename: `annual-inspection-overlay-${built.inspectedOn}.pdf` };
 }

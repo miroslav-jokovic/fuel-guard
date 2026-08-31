@@ -6,8 +6,9 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { searchEntries } from "../../financial/index.js";
-import { inspectionsRouter } from "./inspections.js";
+import { inspectionsRouter, inspectionPrintingRouter } from "./inspections.js";
 import { inspectorsRouter } from "./inspectors.js";
+import { printProfilesRouter } from "./printProfiles.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -39,6 +40,10 @@ export function maintenanceRouter(): Router {
   // per-verb gates derived from the same matrix.
   router.use("/inspections", inspectionsRouter());
   router.use("/inspectors", inspectorsRouter());
+  // Printing onto the pre-printed pads (D-AVI8): the per-printer offsets, and the sheet they are
+  // measured with.
+  router.use("/print-profiles", printProfilesRouter());
+  router.use("/printing", inspectionPrintingRouter());
 
   router.get(
     "/spend",

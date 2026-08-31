@@ -337,6 +337,10 @@
       "module": "maintenance",
       "layer": "core"
     },
+    "maintenance_print_profiles": {
+      "module": "maintenance",
+      "layer": "infra"
+    },
     "mcleod_ap_vouchers": {
       "module": "mcleod",
       "layer": "raw"

@@ -257,6 +257,9 @@
   "maintenance_inspectors": [
     "apps/api/src/modules/maintenance/inspections/inspectors.ts"
   ],
+  "maintenance_print_profiles": [
+    "apps/api/src/modules/maintenance/inspections/printProfiles.ts"
+  ],
   "mcleod_ap_vouchers": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
