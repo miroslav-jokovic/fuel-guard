@@ -8,7 +8,7 @@ import type { DriverOverviewRow } from "@silvicom/shared";
 const row = (over: Partial<DriverOverviewRow>): DriverOverviewRow => ({
   driver_id: "d1", driver_name: "A", driver_status: "active",
   state: "incomplete", counts: { current: 10, expiring: 0, expired: 0, missing: 0 },
-  groups: [], attention: [], ...over,
+  groups: [], attention: [], requirements: [], ...over,
 });
 const att = (daysRemaining: number | null) => ({
   key: "medical_card", label: "Medical card", citation: "", group: "medical" as const,

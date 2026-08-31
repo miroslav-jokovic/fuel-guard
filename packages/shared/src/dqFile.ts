@@ -160,6 +160,62 @@ export function compareAttention(a: DqAttentionItem, b: DqAttentionItem): number
   return a.daysRemaining - b.daysRemaining;
 }
 
+/**
+ * The requirements the ROSTER shows as their own column (R4, D-ROS9).
+ *
+ * ── WHY THIS IS A PROJECTION AND NOT A SECOND CALCULATION ────────────────────────────────────────
+ * D-DQ6 and D-ROS9 both say the same thing from different ends: two sources of truth for a legal gate
+ * IS the defect. So the roster's CDL / medical / hazmat cells are a projection of the SAME
+ * `DqFileSummary` the driver page renders and the qualification queue ranks — never a read of
+ * `drivers.cdl_expires_at`, which is a display field even when McLeod is the one writing it.
+ *
+ * ── WHY IT COULD NOT COME FROM `attention` ───────────────────────────────────────────────────────
+ * The obvious route was the rollup's existing `attention` list, and it does not work: `dqAttention`
+ * filters to `state !== "current"`, because its job is a queue of things to DO. A roster column has
+ * to show a date for the driver whose CDL is perfectly fine — which is most of them — so the column
+ * would have been empty for exactly the drivers with nothing wrong. Measured on the real shape
+ * before building anything (2026-08-31).
+ *
+ * ⚠ These cells inherit §6 Q6 unchanged: a date synced from a TMS with no scan behind it reads
+ * `current`, because `buildDqFile` computes presence from the certification rather than the
+ * document. `documentId` is deliberately NOT projected here — surfacing it would be asserting a
+ * distinction the rest of the product does not yet make, and Q6 is its own step across the queue,
+ * these columns and the binder.
+ */
+export const DQ_ROSTER_COLUMN_KEYS = ["cdl", "medical_card", "endorsement_hazmat"] as const;
+export type DqRosterColumnKey = (typeof DQ_ROSTER_COLUMN_KEYS)[number];
+
+export interface DqRosterCell {
+  key: DqRosterColumnKey;
+  state: DqItemState;
+  /** The date it stops being good. Null when the item is missing, or records no expiry at all. */
+  goodUntil: string | null;
+  /** Negative when overdue; null when there is no date to count to. */
+  daysRemaining: number | null;
+  /** True when evidence exists but carries no expiry — a data defect, not an eternal licence. */
+  expiryUnknown: boolean;
+}
+
+/**
+ * The roster's cells for one driver's file. Items that do not APPLY (hazmat on a carrier without the
+ * module, a CDL requirement on a non-CDL driver) are absent rather than `missing` — the column reads
+ * "—", which is the truth, where "missing" would be an accusation.
+ */
+export function dqRosterCells(file: DqFileSummary, today: string): DqRosterCell[] {
+  const wanted = new Set<string>(DQ_ROSTER_COLUMN_KEYS);
+  return file.items
+    .filter((i) => wanted.has(i.spec.key))
+    .map((i) => ({
+      key: i.spec.key as DqRosterColumnKey,
+      state: i.state,
+      goodUntil: i.goodUntil,
+      // `day()` exactly as `dqAttention` does: the queue and these columns must not disagree
+      // about what today is when the caller passes a full ISO timestamp.
+      daysRemaining: i.goodUntil ? daysBetween(day(today), i.goodUntil) : null,
+      expiryUnknown: i.expiryUnknown,
+    }));
+}
+
 export interface DqGroupSummary {
   group: DqGroup;
   label: string;
@@ -198,6 +254,11 @@ export interface DriverOverviewRow {
   counts: Record<DqItemState, number>;
   groups: DqGroupSummary[];
   attention: DqAttentionItem[];
+  /**
+   * The roster's own columns (R4). Present for EVERY driver, including the ones with nothing wrong —
+   * which is why it cannot be derived from `attention`, and why it is carried separately.
+   */
+  requirements: DqRosterCell[];
 }
 
 export interface ComplianceOverviewResponse {

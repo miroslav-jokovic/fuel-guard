@@ -29,6 +29,7 @@ const driver = (over: Partial<DriverOverviewRow> = {}, items: DqAttentionItem[] 
   counts: { current: 0, expiring: 0, expired: 0, missing: 0 },
   groups: [],
   attention: items,
+  requirements: [],
   ...over,
 });
 

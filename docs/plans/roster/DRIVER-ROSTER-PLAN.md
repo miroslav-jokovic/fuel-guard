@@ -403,13 +403,33 @@ needs no row; saving, renaming and deleting a personal view works and is org-sco
 matrix; a PGlite matrix proves another org's user cannot read the rows — and models `auth.users`
 first, or the FK will fail the write indistinguishably from an RLS refusal (HANDOFF-2026-08-30 §3).
 
-### R4 — The four roster columns (D-ROS9)
+### R4 — The roster columns (D-ROS9)
 
-CDL expiry, medical expiry, hazmat endorsement expiry, and the file column. All four read from the
-existing `GET /api/compliance/overview` rollup — no new query and no second computation. Date cells
-show urgency tone from `lib/badges.ts` and open `RequirementDrawer` scoped to that requirement.
+CDL expiry, medical expiry, hazmat endorsement expiry, and the file column. All read from the
+existing `GET /api/compliance/overview` rollup — no new query and no second computation.
 
 Prerequisites: R1 (or the columns will render the disagreement), R2, R3.
+
+**Split in two, and two things in the original text turned out not to be buildable as written:**
+
+- **The rollup could not supply the dates.** `dqAttention` filters to `state !== "current"`, because
+  its job is a queue of things to DO — so the rollup carried no date for the driver whose CDL is
+  perfectly fine, which is most of them. Measured on the real shape before building (2026-08-31).
+  The fix is a projection of the same `DqFileSummary`, not a second calculation: **R4a**.
+- **"open `RequirementDrawer` scoped to that requirement" is the R5 boundary problem, early.**
+  `RequirementDrawer` lives in `features/compliance` and a `roster` component may not import it
+  (`lint:boundaries`) — the same violation §4 already records for R5's documents modal. The date
+  cells therefore **navigate** to `/drivers/:id?section=qualification`, which is D-ROS1 ("the grid
+  reads and navigates") and D-ROS5 ("`?section=` is a public surface") agreeing with each other.
+  A promoted drawer is a capability question, not a rider on a column.
+
+#### R4a — the three expiry columns — **DONE 2026-08-31 (PR #PENDING, no migration)**
+
+#### R4b — the rollup filters, and the built-in view catalogue they unblock
+
+The filters R3c-2 recorded as missing: expiry horizon and qualification state as query parameters,
+so `BUILT_IN_VIEWS` in `packages/shared/src/savedViewContract.ts` becomes expressible and lands as a
+data change. See that file's closing note for the three views and what each needs.
 
 **Done when:** the three dates and the qualification badge cannot disagree, because they derive from
 one rollup; a `lint:comment-claims`-valid comment on the column definition says so and names the
@@ -863,6 +883,45 @@ reasoning is repeated at the foot of `savedViewContract.ts`, where the next pers
 `lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:migrations`, `lint:upserts`,
 `lint:table-writers`, `check-rls`. The `lint:upserts` gate was checked directly against this router's
 upsert — removing one column from the payload fails it, so the call is covered rather than skipped.
+
+### R4a — the three expiry columns — 2026-08-31, PR #PENDING, no migration
+
+`dqRosterCells` + `DQ_ROSTER_COLUMN_KEYS` (shared), `requirements` on the rollup (api),
+`dqExpiryBadge` (web), three columns on the roster.
+
+- **They cannot disagree with the qualification badge beside them, by construction.** The cells are a
+  projection of the same `DqFileSummary` the driver page renders and the queue ranks — one
+  calculation, not three. Never `drivers.cdl_expires_at`, which stays a display field even when
+  McLeod writes it. Pinned by "counts days to expiry the same way the queue does, so the two cannot
+  disagree".
+- **A date that is fine renders as PLAIN TEXT; only a date needing a phone call is tinted.** Three
+  tinted columns × 20 rows is 60 pills, and a badge that appears everywhere means nothing — the same
+  argument `archivedBadge` records for returning null on a live row. The rule lives in `badges.ts`
+  as `urgent`, not in the template, because it is a vocabulary decision.
+- **A requirement that does not APPLY renders "—", never "Missing".** The projection omits
+  inapplicable items entirely, so a null cell means "not asked of this driver" — hazmat at a carrier
+  without the module. "Missing" is an accusation and would be the wrong one.
+- **The date cells navigate rather than edit** (see the step note above): D-ROS1 and D-ROS5 agreeing,
+  rather than promoting a `compliance` component to dodge `lint:boundaries`.
+
+**A gate asked a question and got an answer rather than an allow-list entry.**
+`complianceOverview.test.ts` pins the overview row's exact key set with the comment *"so a future
+field addition has to face the question"* — the question being whether a new field could leak a
+§382.401(a) testing record or a §391.23 investigation result to a dispatcher (D-DQ15). Adding
+`requirements` to the expected list would have answered nothing, so the shape is now asserted too:
+each cell carries only computed state and a date (no document id, no record row), and its key is
+checked against both `DQ_ROSTER_COLUMN_KEYS` and `isRestrictedQualificationKind`.
+
+**Deviation:** the R2 snapshots changed, and legitimately — three columns were added. The diff was
+read first to confirm it was purely additive, and the fixture was then extended so the new cells are
+actually exercised (current, expiring, expired, missing, and not-applicable) rather than re-recorded
+as a row of dashes. A first attempt at the plain-text-vs-tinted assertion did NOT discriminate — it
+checked for a warning colour, which a neutral pill would also lack — and was caught by deliberately
+inverting `urgent`. It now asserts on `rounded-detail`, which is what "this is a pill" means.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
+`lint:tests`, `lint:migrations`, `lint:upserts`, `lint:table-writers`.
 
 ### The rest
 

@@ -32,6 +32,9 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
           </svg></button></th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">CDL expires</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Medical expires</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Hazmat expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Phone</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Vehicles</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-24"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
@@ -56,6 +59,9 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
           <!--v-if-->
         </div>
       </td>
+      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
+      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
+      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
@@ -108,6 +114,9 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
           </svg></button></th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">CDL expires</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Medical expires</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Hazmat expires</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Phone</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Vehicles</th>
       <th scope="col" class="font-medium px-4 py-3 text-left min-w-24"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
@@ -131,6 +140,9 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
         <div class="inline-flex items-center gap-1.5" title="Username: mreyes"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">Active</span><span class="font-mono text-xs text-ink-muted">mreyes</span></div>
       </td>
       <td class="px-4 py-3 text-left"><a href="/compliance/d-1" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20">Due 12d</a></td>
+      <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="text-ink-secondary tabular-nums">Jan 1, 2030</a></td>
+      <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20">Sep 11, 2026</a></td>
+      <td class="px-4 py-3 text-left"><a href="/drivers/d-1?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20">Missing</a></td>
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">(555) 867-5309</td>
       <td class="px-4 py-3 text-left text-ink-secondary">T-118, T-902</td>
       <td class="px-4 py-3 text-left">
@@ -160,6 +172,9 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
         </div>
       </td>
       <td class="px-4 py-3 text-left"><a href="/compliance/d-2" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">OK</a></td>
+      <td class="px-4 py-3 text-left"><a href="/drivers/d-2?section=qualification" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20">Jan 1, 2026</a></td>
+      <td class="px-4 py-3 text-left"><a href="/drivers/d-2?section=qualification" class="text-ink-secondary tabular-nums">Jun 30, 2027</a></td>
+      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left">

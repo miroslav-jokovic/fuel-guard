@@ -3,12 +3,14 @@ import {
   buildDqFile,
   dqAttention,
   dqGroups,
+  dqRosterCells,
   type DqAttentionItem,
   type DqCertInput,
   type DqDocumentInput,
   type DqGroupSummary,
   type DqItemState,
   type DqRecordInput,
+  type DqRosterCell,
 } from "@silvicom/shared";
 
 /**
@@ -37,6 +39,12 @@ export interface DriverOverview {
   groups: DqGroupSummary[];
   /** Everything not `current`, worst first. The queue flattens these into one row each. */
   attention: DqAttentionItem[];
+  /**
+   * The roster's own columns (R4). Carried separately from `attention` because that list is a queue
+   * of things to DO — it filters out `current` — and a roster column has to show a date for the
+   * driver whose CDL is perfectly fine, which is most of them.
+   */
+  requirements: DqRosterCell[];
 }
 
 export interface ComplianceOverview {
@@ -166,6 +174,7 @@ export async function getComplianceOverview(
       counts: file.counts,
       groups: dqGroups(file),
       attention: dqAttention(file, today),
+      requirements: dqRosterCells(file, today),
     };
   });
 
