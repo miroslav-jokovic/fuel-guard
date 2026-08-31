@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0 and A1 shipped 2026-08-31 (PRs #410, #411). A2 is next.** D-AVI7 was **amended the same day**
+**Status: A0, A1 and A2 shipped 2026-08-31 (PRs #410, #411, #NNN). A3 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -296,7 +296,7 @@ made the first kind editable, which is the failure `inapplicable_not_na` now rej
 forcing `outcome` to `"pass"` fails 2 tests, and treating a missing answer as `na` fails 3 — so the
 two rules that carry the compliance weight are provably covered, not merely asserted to be.
 
-### A2 — The `technician` role (migration + matrix, one PR)
+### A2 — The `technician` role — **DONE 2026-08-31 (PR #NNN, migration 0279)**
 
 Prerequisite: none. Follow `supabase/migrations/0266_accountant_role.sql` exactly — the migration is
 the enum value and **nothing else**, because Postgres will not let a newly added enum value be used
@@ -312,6 +312,27 @@ in the transaction that adds it.
 **Done when:** `rolesThatManage('maintenance')` is `['admin','fleet_manager','technician']`,
 `rolesThatCanView('equipment')` includes it, `packages/shared/src/auth.test.ts` pins both, and
 `pnpm typecheck` is clean **with no `as` cast added to silence a role record**.
+
+**What shipped:** migration `0279_technician_role.sql` (the enum value and nothing else, per the
+0077/0210/0266 convention), the `USER_ROLES` entry and picker label, and the `SECTION_ACCESS` row —
+`maintenance: manage`, `equipment: view`, `none` in the other ten sections.
+
+**A measurement worth keeping: the role list is enumerated in exactly two files.** `constants.ts`
+holds the vocabulary and its labels, `auth.ts` holds the matrix, and every other consumer derives
+through `rolesThatManage` / `rolesThatCanView` / `sectionAccess`. Adding a ninth role broke **zero**
+`Record<UserRole, …>` sites and needed no cast anywhere. That is D-ROS12's design being paid back:
+before the split, a hand-written `canManageFleet` sat beside the matrix and disagreed with it.
+
+**The existing suite caught the one thing that changed by implication.**
+`rolesThatCanView('equipment')` failed on the new member — correctly, because that assertion exists
+to make a section widening visible. It was updated with the reason rather than just the value, and
+`rolesThatManage('equipment')` is pinned unchanged beside it so a read cannot quietly become a write
+later.
+
+**Verified by:** `pnpm typecheck` clean; `pnpm lint` clean (2 pre-existing warnings);
+`lint:migrations`, `lint:rls`, `lint:section-policies` pass — the last now reporting a **9 × 12**
+matrix parsed from `auth.ts`, which is the gate confirming it read the new role rather than skipping
+it; `pnpm test` — all suites and all 26 PGlite matrices pass, `rls` at 449.
 
 ### A3 — Schema (migration + PGlite matrix)
 
