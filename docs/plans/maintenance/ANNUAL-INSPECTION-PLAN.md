@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0, A1 and A2 shipped 2026-08-31 (PRs #410, #411, #412). A3 is next.** D-AVI7 was **amended the same day**
+**Status: A0–A3 shipped 2026-08-31 (PRs #410, #411, #412, #413). A4 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -334,7 +334,7 @@ later.
 matrix parsed from `auth.ts`, which is the gate confirming it read the new role rather than skipping
 it; `pnpm test` — all suites and all 26 PGlite matrices pass, `rls` at 449.
 
-### A3 — Schema (migration + PGlite matrix)
+### A3 — Schema — **DONE 2026-08-31 (PR #413, migration 0280)**
 
 Prerequisite: A2 (the policies name the role).
 
@@ -371,6 +371,36 @@ Prerequisite: A2 (the policies name the role).
 cross-org read returns zero rows; and `lint:rls`, `lint:migrations`, `lint:section-policies`,
 `lint:table-modules`, `lint:table-producers`, `lint:table-writers` all pass.
 
+**What shipped:** `0280_annual_inspections.sql` — `maintenance_inspectors`, `vehicle_inspections`,
+`vehicle_inspection_items`, their RLS derived from the maintenance section, the D-AVI4 immutability
+triggers and the draft/final shape constraint. Plus the manifest entries, a `RETENTION_FORBIDDEN`
+pin, and `supabase/tests/annual-inspections.test.mjs` at **36 assertions**.
+
+**Two things the matrix caught that nothing else would have.**
+
+1. **The migration was un-installable.** Postgres rejects a subquery in a trigger `WHEN` clause
+   outright, and the per-component immutability trigger used one. Well-formed SQL that simply
+   cannot be applied — no linter sees it, and CI would have found it only by running the same
+   matrix. The parent lookup moved into the function body, with the reason written above it.
+2. **A refused INSERT raises; a refused UPDATE affects zero rows.** The first draft asserted both
+   the same way and reported six failures against policies that were working perfectly. Conflating
+   the two signals is how a matrix "proves" a refusal that never happened, so `affected` and
+   `blocked` are now separate helpers with that written between them.
+
+**Mutation-tested, not asserted:** dropping the immutability trigger fails 2 assertions; widening
+the write policy to every org member fails 10.
+
+**One waiver added, deliberately, with its removal pinned.** `check-table-producers.mjs` requires a
+writer in the same PR as the migration — and A3/A4 are separate steps, so the three tables land one
+PR ahead of the service that writes them. Three waivers name step A4 and this file. **A4's Done-when
+now requires deleting all three**; if A4 has shipped and they are still there, that is the bug. The
+alternative was folding A4 into this PR, which the gate's own message prefers; it was not taken
+because a schema review and a route review are different readings, and the gate explicitly sanctions
+a waiver that names the plan that owes the producer (ARCHITECTURE.md §6 records six others).
+
+**Verified by:** the full CI gate list run locally (21 gates, extracted from `ci.yml` rather than
+guessed — the omission that turned #412 red once); `pnpm test` with all 27 matrices green.
+
 ### A4 — API: inspectors and the draft lifecycle (no PDF, no finalize)
 
 Prerequisites: A1, A3.
@@ -398,8 +428,9 @@ pre-set to `na` where `defaultNa` — so D-AVI5 is satisfiable and the form has 
 
 **Done when:** a `supabaseRecorder` test runs `expectOrgScoped` over every query with no exemptions;
 a door-gate test tables every role and asserts `technician` passes while `dispatcher`, `recruiter`
-and `driver` do not; and a PATCH against a final row is refused by the API **and** independently by
-the trigger (both asserted).
+and `driver` do not; a PATCH against a final row is refused by the API **and** independently by the
+trigger (both asserted); **and the three A3 waivers are deleted from `scripts/check-table-producers.mjs`
+— this step is not done while they are still there.**
 
 ### A5 — The renderer: stamp the template
 
