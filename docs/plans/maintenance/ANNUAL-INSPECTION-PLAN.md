@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0 shipped 2026-08-31 (PR #NNN). A1 is next.** §1's measurements are the pre-A0 baseline, taken
+**Status: A0 shipped 2026-08-31 (PR #410). A1 is next.** §1's measurements are the pre-A0 baseline, taken
 against production and `origin/main` at `ace8f80`. §7 is the register.
 
 Decision IDs are `D-AVI*`. Steps are `A0`–`A8`.
@@ -171,7 +171,7 @@ reason written down:
    stop and record it in §6; it never means work around it.
 4. One step per branch (`claude/<topic>`), PR to `main`, merge after CI. `main` is branch-protected;
    there is no other path.
-5. When a step ships, mark it **— DONE \<date\> (PR #NNN)** in place with a "What shipped" list and
+5. When a step ships, mark it **— DONE \<date\> (PR #410)** in place with a "What shipped" list and
    a "Verified by:" line naming the gates actually run. **This document is the memory between
    sessions; the chat is not.**
 
@@ -198,7 +198,7 @@ reason written down:
 
 ## 5. Steps
 
-### A0 — Governance and this document — **DONE 2026-08-31 (PR #NNN, no migration)**
+### A0 — Governance and this document — **DONE 2026-08-31 (PR #410, no migration)**
 
 Annual inspections are not in `docs/SILVICOM-360.md` §3, and that document says a feature not listed
 there "needs a D-S360 decision before its plan starts".
