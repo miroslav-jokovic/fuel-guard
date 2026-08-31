@@ -128,3 +128,32 @@ export async function createInspector(
   if (error || !data) return { error: "Could not create inspector", code: "insert_failed" };
   return { id: (data as { id: string }).id };
 }
+
+/**
+ * Retire an inspector, or bring one back.
+ *
+ * ── A RETIREMENT IS A DATE, NOT A DELETION ─────────────────────────────────────────────────────
+ * 0280's `on delete restrict` already makes deleting somebody who has signed a report impossible,
+ * and that is deliberate: §396.21(a)(1) requires the report to identify who performed the
+ * inspection, so a report whose inspector vanished no longer says what it must. §396.19 also wants
+ * the qualification evidence kept for employment plus one year, which needs the row to still exist.
+ *
+ * So `effective_to` is the whole mechanism. It closes the window in which this person could be
+ * chosen for a NEW inspection and changes nothing about the reports they already signed — those
+ * asserted a qualification that was current on the day, and still did.
+ */
+export async function setInspectorPeriod(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectorId: string,
+  effectiveTo: string | null,
+): Promise<{ ok: true } | ServiceError> {
+  const { error, count } = await admin
+    .from("maintenance_inspectors")
+    .update({ effective_to: effectiveTo }, { count: "exact" })
+    .eq("org_id", orgId)
+    .eq("id", inspectorId);
+  if (error) return { error: "Could not update the inspector", code: "update_failed" };
+  if (!count) return { error: "Inspector not found", code: "not_found" };
+  return { ok: true };
+}

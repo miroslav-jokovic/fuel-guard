@@ -98,14 +98,56 @@ export function useInspectionQuery(id: Ref<string>) {
   });
 }
 
-export function useInspectorsQuery() {
+export function useInspectorsQuery(includeRetired?: Ref<boolean>) {
   return useQuery({
-    queryKey: ["maintenance", "inspectors"] as const,
+    queryKey: ["maintenance", "inspectors", includeRetired ?? false] as const,
     queryFn: async (): Promise<Inspector[]> => {
-      const r = await apiFetch<{ inspectors: Inspector[] }>("/api/maintenance/inspectors");
+      const params = includeRetired?.value ? "?includeRetired=true" : "";
+      const r = await apiFetch<{ inspectors: Inspector[] }>(`/api/maintenance/inspectors${params}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load inspectors");
       return r.data.inspectors;
     },
+  });
+}
+
+export interface NewInspector {
+  fullName: string;
+  address?: string | null;
+  qualificationBasis: "state_federal_program" | "training_and_experience";
+  brakeQualified: boolean;
+  effectiveFrom: string;
+  notes?: string | null;
+}
+
+export function useCreateInspector() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewInspector): Promise<string> => {
+      const r = await apiFetch<{ id: string }>("/api/maintenance/inspectors", { method: "POST", body: input });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not add the inspector");
+      return r.data.id;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspectors"] }),
+  });
+}
+
+/**
+ * Retire an inspector, or bring one back.
+ *
+ * Never a delete — somebody who has signed a report cannot be removed, because the report has to
+ * name who performed it. Closing the period only stops them being chosen for a NEW inspection.
+ */
+export function useSetInspectorPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; effectiveTo: string | null }): Promise<void> => {
+      const r = await apiFetch(`/api/maintenance/inspectors/${input.id}`, {
+        method: "PATCH",
+        body: { effectiveTo: input.effectiveTo },
+      });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not update the inspector");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspectors"] }),
   });
 }
 

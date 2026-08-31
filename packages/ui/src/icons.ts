@@ -131,6 +131,10 @@ export {
   // items wearing the same icon, both visible at once in an expanded sidebar. `CheckListIcon` is
   // literally a checklist, which is what 56 components on a form is.
   CheckListIcon               as ChecklistIcon,
+  // The inspector register (B3). Distinct from `UserListIcon`, which the Applicants nav item wears —
+  // the note above records what happened the last time two live nav items shared a glyph. A
+  // qualification is what this list holds, so a certificate is what it looks like.
+  Certificate01Icon           as CertificateIcon,
   // Driver Qualification (U5/D-UI6). It shared `ClipboardDocumentCheckIcon` with Assignments —
   // one glyph on two unrelated nav items, both visible at once in an expanded sidebar. A §391.51
   // file is a licence and a medical card, so the licence glyph says what the section holds.
