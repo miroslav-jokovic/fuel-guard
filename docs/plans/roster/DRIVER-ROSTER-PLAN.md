@@ -478,7 +478,7 @@ are both surfaced to the user.
 missing feature.** The roster's own edit drawer never called `resolveDriverUpdate` at all — see
 R6a. The layout change is R6b and is the smaller half.
 
-#### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #405, no migration)**
 
 #### R6b — tabs become sections on one scroll
 
@@ -1053,7 +1053,7 @@ before re-recording, and the fixture carries two different denominators (`8/17`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
 
-### R6a — the roster's edit becomes the audited one — 2026-08-31, PR #PENDING, no migration
+### R6a — the roster's edit becomes the audited one — 2026-08-31, PR #405, no migration
 
 **This step began as "surface two flags" and turned out to be a live production defect.**
 
