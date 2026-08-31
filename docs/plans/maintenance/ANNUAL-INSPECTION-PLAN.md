@@ -16,7 +16,9 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0 shipped 2026-08-31 (PR #410). A1 is next.** §1's measurements are the pre-A0 baseline, taken
+**Status: A0 shipped 2026-08-31 (PR #410). A1 is next.** D-AVI7 was **amended the same day**
+(owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
+a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs. §1's measurements are the pre-A0 baseline, taken
 against production and `origin/main` at `ace8f80`. §7 is the register.
 
 Decision IDs are `D-AVI*`. Steps are `A0`–`A8`.
@@ -84,23 +86,36 @@ and they point the same way:
 
 ## 2. The findings that decide the shape
 
-### 2.1 There is no required form, and the one we use is copyrighted
+### 2.1 There is no required form — and the owner chose Keller's anyway
 
 §396.21 fixes the **contents** of the report, never its layout. FMCSA's own guidance is explicit:
 *"no specific form is required to be used to record the periodic inspection mandated by §396.17."*
-FMCSA even publishes an example report, which is public-domain federal work.
+FMCSA even publishes an example report, which is public-domain federal work. So a layout of our own
+would be legally sufficient, free of any third-party dependency, and immune to a Keller reissue.
 
-The Keller stock, by contrast, carries `Copyright 2022 J. J. Keller & Associates, Inc.` So:
+**The owner ruled against it on 2026-08-31 (D-AVI7).** The stored report is the Keller template with
+our values stamped onto it. The reasoning is not technical and this document should not pretend
+otherwise: the binder has looked like that page for years, an auditor and an office both recognise
+it, and a file where 2026 looks nothing like 2025 is a change with no upside for the person holding
+it. That is a legitimate reason and it outranks the tidier engineering answer.
 
-- Our own report layout is **legally sufficient** and free of any third-party dependency. It is the
-  stored evidence.
-- The item wording is authored from **Appendix A to Part 396** — public-domain federal text — not
-  transcribed from Keller's phrasing.
-- Printing onto purchased Keller stock stays available as an *overlay*: values at coordinates on an
-  otherwise blank page. No Keller artwork is reproduced, and none is committed to this repo.
+**What the ruling costs, recorded so nobody rediscovers it:**
 
-This is also the revision-safety argument. A coordinate map is pinned to form revision 1/22; if
-Keller reissues the stock, only one layout file moves and the record is unaffected.
+1. **Copyright.** The page carries `Copyright 2022 J. J. Keller & Associates, Inc.` Filling pads the
+   carrier bought is the pads' intended use; embedding the artwork in software that generates
+   unlimited copies is a different act. This is a commercial risk the owner accepted knowingly, not
+   an oversight — and it is the reason the alternative is kept alive as a flag rather than deleted
+   (see the `background` switch in A5).
+2. **A revision breaks the map, not the record.** The coordinate map is pinned to revision 1/22. If
+   Keller reissues, the map must be re-measured — but every report already filed keeps its **stored
+   bytes**, so no past filing changes. This is why A6 files the rendered PDF rather than
+   re-rendering on demand.
+3. **We need a blank.** The file this plan was measured from is a *filled* copy. See §6 Q5.
+
+The item catalogue is still authored from **Appendix A to Part 396** — public-domain federal text —
+rather than transcribed from Keller's phrasing. The catalogue is what the product reasons about;
+the template is where it prints. Keeping those two separate is what makes the `background` flag a
+one-line change rather than a rewrite.
 
 ### 2.2 §396.21(a) is a schema, not a checklist
 
@@ -148,8 +163,8 @@ reason written down:
 | **D-AVI4** | **Finalize is one-way; the row then becomes immutable.** No UPDATE/DELETE once `status='final'`; a correction is a **new** report carrying `supersedes_id`. | The evidence discipline of `certifications`/`documents` (`RETENTION_FORBIDDEN`): corrections are new rows. |
 | **D-AVI5** | Every applicable catalogue item must carry an explicit result before finalize. **No implicit blanks.** | §396.21(a)(5) — §2.2. |
 | **D-AVI6** | The §396.19 box is **derived from a current inspector qualification record** (`maintenance_inspectors`), which holds the basis under §396.19(b)(1)/(2), brake qualification under §396.25, and the evidence document. | §2.3. Regulation also requires that evidence be retained for employment + 1 year, which needs a row to hang on. |
-| **D-AVI7** | Two renderers over one payload: **`full`** (our layout — the stored evidence) and **`overlay`** (values only, positioned for Keller 14834 Rev. 1/22). The coordinate map is an isolated layout file; no Keller artwork is reproduced or committed. | §2.1 — copyright and revision-independence. |
-| **D-AVI8** | Overlay printing uses a **stored calibration profile** (org-scoped, per printer: layout key + x/y offset in points), set by printing a registration sheet and measuring it. | Printer margin and scaling drift is the entire precision risk of overlay printing. A `localStorage` offset would give two people two different results. |
+| **D-AVI7** | ~~Two renderers over one payload: `full` (our layout — the stored evidence) and `overlay` (values only). No Keller artwork is reproduced or committed.~~ **AMENDED 2026-08-31 (owner ruling): one renderer, one coordinate map, a `background` switch.** A blank Keller 14834 Rev. 1/22 is committed as a versioned asset; `background='template'` stamps the values onto it (the stored evidence, prints on plain paper), `background='none'` emits values only for printing onto pre-printed stock. | §2.1. The binder has looked like that page for years and an auditor recognises it. The costs — copyright, revision-pinning, needing a blank — are enumerated in §2.1 and were accepted, not missed. |
+| **D-AVI8** | Calibration applies **only to `background='none'`** — printing onto pre-printed stock. A stored profile (org-scoped, per printer: x/y offset in points) is set by printing a registration sheet and measuring it. `background='template'` needs no calibration: the artwork and the values are on the same page and drift together. | Printer margin and scaling drift is the entire precision risk of registering ink against paper someone else printed. A `localStorage` offset would give two people two different results. Under the amended D-AVI7 this is now an **optional** step — see A8. |
 | **D-AVI9** | The `certifications` row is the **source of truth** for the expiry; the `vehicles`/`trailers` column is a projection roster maintains, and finalize claims the row to `identity_source='manual'`. | §1.1 and §2.4. D-ARC3's CDL/medical ruling, applied before the dual source exists rather than after. |
 | **D-AVI10** | Maintenance **never writes** `documents`, `certifications`, `vehicles` or `trailers` directly. `evidence` and `roster` each gain one exported owner-interface function. | D-ARC3, machine-enforced by `check-table-writers.mjs` and `check-table-access.mjs`. |
 | **D-AVI11** | New role **`technician`**: `maintenance: manage`, `equipment: view`, everything else `none`. | The recruiter and accountant lesson applied on day one — minimal irreversible surface. ⚠ One-way door: Postgres has no `ALTER TYPE … DROP VALUE` (0266's header). |
@@ -303,22 +318,39 @@ a door-gate test tables every role and asserts `technician` passes while `dispat
 and `driver` do not; and a PATCH against a final row is refused by the API **and** independently by
 the trigger (both asserted).
 
-### A5 — The report renderer (`full` mode)
+### A5 — The renderer: stamp the template
 
-Prerequisites: A1, A4.
+Prerequisites: A1, A4, and §6 **Q5** answered (we need a blank template).
 
-`apps/api/src/modules/maintenance/inspections/render/report.ts`, drawing with `lib/pdfDraw.ts`
-(`newDrawing`, `title`, `field`, `table`, `rule`, `winAnsi`). Layout follows the FMCSA public
-example, not Keller's. It carries all six §396.21(a) elements, the three-column item grid with
-OK / Needs repair / Repaired date, the item-16 free text, the certification sentence quoting
-§396.21, a signature line, and a footer with the catalogue version, the renderer version and the
-**source payload digest** — the `applicationPdf/render.ts` precedent, since a document cannot
-contain its own hash.
+One renderer, one coordinate map, a `background` switch (D-AVI7 as amended).
 
-**Done when:** a golden test renders a fixture and asserts every §396.21(a)(1)–(6) element and every
-failing item's label appears; rendering is deterministic — the same payload and versions produce
-byte-identical output across two renders, asserted as a hash equality; `lint:filesize` and
-`lint:funcsize` pass with no grandfather entry added.
+- **The asset.** `render/assets/keller-14834-rev0122.pdf` — a **blank** template, committed with a
+  `SOURCE.md` beside it naming the revision, where it came from and the date. House precedent for a
+  committed PDF exists (`packages/hazmat-data/datasets/*.pdf`), but those are public-domain federal
+  documents and this one is not; §2.1 records the ruling that put it here.
+- **The map.** `render/layouts/keller14834Rev0122.ts` — every catalogue item key and every header
+  field to an `(x, y)` on the 612 × 846 page. From §1's measurements: OK columns at
+  `19.7 / 211.7 / 403.7`, needs-repair at `34.3 / 226.3 / 418.3`, repaired-date at
+  `50.8 / 242.8 / 434.8`; report number `(389, 101)`, fleet unit `(520, 101)`, date `(447, 129)`,
+  inspector `(441, 151)`, VIN `(324, 210)`, carrier block `(24, 163 / 187 / 211)`.
+- **The renderer.** `render/report.ts`, using **pdf-lib** — `PDFDocument.load` the template,
+  `drawText` at the mapped coordinates, flatten, save. This is the same library and the same
+  load-and-stamp shape `modules/evidence/dqBinder/merge.ts` already uses; do not reach for pdfkit
+  here, which cannot open an existing page.
+  - `background: 'template'` → the stored evidence, and what prints on plain paper.
+  - `background: 'none'` → an empty 612 × 846 page with the same values at the same coordinates,
+    for printing onto pre-printed stock (A8).
+- **Provenance.** A footer line carrying the catalogue version, the template revision, the renderer
+  version and the **source payload digest** — the `applicationPdf/render.ts` precedent, since a
+  document cannot contain its own hash. Place it in the form's own margin, never over the artwork.
+
+**Done when:** a golden test renders a fixture in both `background` modes and asserts every
+§396.21(a)(1)–(6) element and every failing item's label is present in the extracted text; a
+**bijection test** asserts the map and the catalogue cover each other exactly — every applicable
+catalogue item has a coordinate and every coordinate has an item, so a Keller revision fails the
+build instead of silently printing a blank cell; rendering is deterministic (same payload + same
+versions → byte-identical output across two renders, asserted as a hash equality); `lint:filesize`
+and `lint:funcsize` pass with no grandfather entry added.
 
 ### A6 — Finalize: derive, render, file, project
 
@@ -375,25 +407,24 @@ banner provably calls the shared `deriveInspectionOutcome` with no second implem
 `pnpm --filter web build && pnpm --filter web preview` — the vite **dev** server crashes in this
 repo and must not be used for the check.
 
-### A8 — Overlay print mode and calibration
+### A8 — Printing onto pre-printed stock — **OPTIONAL, build only if asked**
 
 Prerequisites: A5, A7, and §6 Q1 + Q2 answered.
 
-- `render/layouts/keller14834Rev0122.ts` — the coordinate map, from §1's measurements. Page box
-  `612 × 846`; header anchors report number `(389, 101)`, fleet unit `(520, 101)`, date `(447, 129)`,
-  inspector `(441, 151)`, VIN `(324, 210)`, carrier block `(24, 163 / 187 / 211)`. **No Keller
-  artwork is committed** — the overlay is a blank page with text at coordinates.
-- `render/overlay.ts` — draws values only, applying the calibration offset.
-- `supabase/migrations/0281_inspection_print_profiles.sql` — `maintenance_print_profiles`
+A5 already emits `background: 'none'`. This step is only the **calibration** that makes registering
+that ink against paper somebody else printed reliable — and under the amended D-AVI7 the office can
+print the stamped template on plain paper instead, which needs none of it. **Do not build this step
+speculatively.** It earns its place only if the office decides it still wants the carbonless set
+(most likely for the copy that rides in the truck under §396.17(c)).
+
+- `supabase/migrations/NNNN_inspection_print_profiles.sql` — `maintenance_print_profiles`
   (org-scoped: name, layout key, `offset_x_pt`, `offset_y_pt`), RLS derived from the maintenance
   section, manifests updated.
 - A **registration-sheet** endpoint printing crosshairs at four known points, so the offset is
   measured with a ruler instead of guessed.
 
-**Done when:** a totality test asserts the map and the catalogue are a **bijection** — every
-applicable catalogue item has a coordinate and every coordinate has an item, so a Keller revision
-fails the build instead of printing a blank cell; and a physical print onto real stock at the stored
-offset lands every mark inside its cell, recorded in §7 with the printer named.
+**Done when:** a physical print onto real stock at the stored offset lands every mark inside its
+cell — recorded in §7 with the printer named, because an offset is a fact about one printer.
 
 ### Deliberately out of scope — named, not silently dropped
 
@@ -431,6 +462,16 @@ The 2026-08-31 ruling chose the in-house technician. `maintenance_inspectors.use
 which already covers a name-only outside inspector.
 **Recommendation:** keep it nullable — it costs nothing, and the alternative is a migration the first
 time a truck is inspected at a dealer.
+
+**Q5 — Where does the blank template come from?** *(blocks A5)*
+The file this plan was measured against is a **filled** copy — unit 654, George Gacev, 57 marks. A5
+needs a clean 14834 Rev. 1/22: either the unfilled PDF Keller supplies with the pads, or a flat scan
+of a blank page. Stripping the annotations off the filled copy is not equivalent — `pdftotext` found
+57 marks against only 24 annotation objects, so some values are already flattened into the page's
+content stream and would print underneath ours.
+**Recommendation:** ask Miki for the unfilled PDF. If the pads ship without one, a 600 dpi flat scan
+is acceptable — record which it was in the asset's `SOURCE.md`, because a scan will not register
+against the pads as precisely as the original.
 
 ---
 
