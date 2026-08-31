@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A7 shipped 2026-08-31 (PRs #410–#417, #NNN; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
+**Status: A0–A7 shipped 2026-08-31 (PRs #410–#418; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -624,7 +624,7 @@ blocked finalize the office cannot satisfy is how a workaround gets invented.
 
 **Verified by:** the full 21-gate CI list; `pnpm test` all suites and 27 matrices.
 
-### A7 — Web: the list and the form — **DONE 2026-08-31 (PR #NNN, no migration)**
+### A7 — Web: the list and the form — **DONE 2026-08-31 (PR #418, no migration)**
 
 Prerequisites: A4, A5, A6.
 
