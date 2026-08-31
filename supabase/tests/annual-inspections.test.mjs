@@ -93,15 +93,15 @@ const INSPECTOR = (await one(
    values ($1,'George Gacev','training_and_experience',true,'2024-01-01') returning id`, [ORG])).id;
 
 /** Insert a report directly (service role), returning its id. */
-async function seedReport({ org = ORG, subject = VEHICLE, subjectType = "tractor", status = "draft", on = "2026-06-16", serial = null } = {}) {
+async function seedReport({ org = ORG, subject = VEHICLE, subjectType = "tractor", status = "draft", on = "2026-06-16", decalSerial = null } = {}) {
   const final = status === "final";
   const row = await one(
     `insert into vehicle_inspections
        (id, org_id, subject_type, subject_id, inspector_id, inspected_on, catalogue_version,
-        stock_serial, status, outcome, next_due_on, finalized_at)
+        decal_serial, status, outcome, next_due_on, finalized_at)
      values (gen_random_uuid(), $1, $2, $3, $4, $5, '1.0.0', $6, $7, $8, $9, $10)
      returning id`,
-    [org, subjectType, subject, INSPECTOR, on, serial, status,
+    [org, subjectType, subject, INSPECTOR, on, decalSerial, status,
      final ? "pass" : null, final ? "2027-06-16" : null, final ? new Date("2026-06-16T12:00:00Z") : null],
   );
   return row.id;
@@ -212,11 +212,11 @@ const FINAL = await seedReport({ status: "final" });
   ok("the same component cannot be answered twice on one report", typeof r.error === "string", JSON.stringify(r));
 }
 {
-  await db.query(`update vehicle_inspections set stock_serial = '610641628' where id = $1`, [DRAFT]);
-  const r = await asService(`update vehicle_inspections set stock_serial = '610641628' where id = $1`, [
-    await seedReport({ serial: null }),
+  await db.query(`update vehicle_inspections set decal_serial = '610641628' where id = $1`, [DRAFT]);
+  const r = await asService(`update vehicle_inspections set decal_serial = '610641628' where id = $1`, [
+    await seedReport({ decalSerial: null }),
   ]);
-  ok("one carbonless set cannot be recorded twice in an org (plan §6 Q1)", typeof r.error === "string", JSON.stringify(r));
+  ok("one §396.17(c)(2) decal cannot be recorded against two reports — a reused decal would put proof of an inspection on a truck that never had one", typeof r.error === "string", JSON.stringify(r));
 }
 
 // ── 3. The `technician` role, both directions (0279, D-AVI11) ───────────────────────────────────

@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A4 shipped 2026-08-31 (PRs #410–#414). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
+**Status: A0–A4 shipped 2026-08-31 (PRs #410–#414), plus migration 0281 closing §6 Q1 (the decal serial). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -347,11 +347,12 @@ Prerequisite: A2 (the policies name the role).
 - **`vehicle_inspections`** — `id` (client-generated, for idempotent replay), `org_id, subject_type
   check ('tractor','trailer'), subject_id, inspector_id → maintenance_inspectors, inspected_on date,
   catalogue_version text, vehicle_identification_method check ('vin','plate','other') + value,
-  inspection_agency_location, stock_serial, other_conditions, status check ('draft','final'),
+  inspection_agency_location, decal_serial (named `stock_serial` here until 0281 — §6 Q1),
+  other_conditions, status check ('draft','final'),
   outcome check ('pass','fail') null while draft, next_due_on date, supersedes_id →
   vehicle_inspections, certification_id → certifications, document_id → documents, finalized_at/by,
-  created_at/by`. Partial unique index on `(org_id, stock_serial) where stock_serial is not null` —
-  one carbonless set cannot be recorded twice.
+  created_at/by`. Partial unique index on `(org_id, decal_serial) where decal_serial is not null` —
+  one §396.17(c)(2) decal cannot be recorded against two reports.
 - **`vehicle_inspection_items`** — `id, org_id, inspection_id → vehicle_inspections on delete
   cascade, item_key, result check ('ok','needs_repair','na'), source check ('default','inspector')
   not null default 'default', repaired_at date, note`. Unique `(inspection_id, item_key)`.
@@ -611,12 +612,33 @@ cell — recorded in §7 with the printer named, because an offset is a fact abo
 
 ## 6. Open questions — answer before the step that needs them
 
-**Q1 — Is `610641628` pre-printed on the Keller stock, or typed?** *(blocks A3's unique index and A8)*
-It renders in the same bold serif as the pre-printed rules, and J.J. Keller serialises AVIR sets. If
-pre-printed it is a `stock_serial` — captured, unique per org, meaningful only in overlay mode. If
-typed, it is a carrier-assigned report number and we should generate it.
-**Recommendation:** model it as `stock_serial` (nullable, unique when present) and confirm against a
-blank pad before A8.
+~~**Q1 — Is `610641628` pre-printed on the Keller stock, or typed?**~~
+**ANSWERED 2026-08-31 (owner), in two parts — and the first part alone was misleading.**
+
+> "They type it on a PDF editor, it is blank by default."
+> "That number we are getting from the **sticker** that comes with the form."
+
+So it IS pre-printed, just not where A3 looked. It is the serial of the **§396.17(c)(2) decal** that
+ships with the report set, goes on the vehicle, and is transcribed onto the report so the two can be
+matched. A3 shipped the column as `stock_serial`; **migration 0281 renames it to `decal_serial`**,
+as a rename rather than an add-and-deprecate because production measured **0 rows**, twice.
+
+**This is the most operationally important field on the form, and A3 nearly modelled it as an index
+number.** §396.17(c) lets a carrier put either a copy of the report or a compliant decal on the
+vehicle. Silvicom uses the decal — so that sticker is often the ONLY on-vehicle proof a §396.17
+inspection ever happened, and this column is what turns the number an officer reads at a roadside
+into the report §396.21(b) obliges the carrier to produce.
+
+That makes the uniqueness an integrity rule rather than tidiness: one decal is one inspection, and
+the same serial on two reports is either a transcription error or **a decal reused on a second
+truck** — which would put a vehicle on the road wearing proof of an inspection it never had.
+
+It stays NULLABLE: a failed inspection gets no decal, and §396.21(a)'s six contents do not include
+one. Whether a PASS should require it is **Q7**, deliberately not decided by the migration.
+
+**The lesson, since this field has now been wrong twice:** the first answer ("they type it") was
+true and still produced the wrong model, because it answered *who enters it* when the question that
+mattered was *what it identifies*. Ask what a number points at before naming a column for it.
 
 ~~**Q2 — Overlay mark convention: `✔` / `X` / `NA`, or the literal `Ok` / `N/A` typed today?**~~
 **ANSWERED 2026-08-31 by measurement (§2.5), not by preference.** pdf-lib's standard fonts are
@@ -657,6 +679,23 @@ and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rat
 one — the inspector still has to leave it there.
 **Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
 before A7 puts those defaults in front of an inspector.
+
+**Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
+Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not
+decided.
+
+*The finalize rule.* If Silvicom's on-vehicle documentation is the decal, a passing inspection whose
+report carries no decal serial describes a truck with no proof aboard — and requiring the serial on
+a PASS would catch that while it is still fixable. Requiring it is wrong, though, if the office
+sometimes applies the decal later or keeps a report copy in the cab instead.
+**Recommendation:** ask whether the decal always goes on before the truck moves. If yes, refuse a
+PASS without a serial and say why. If not, warn on the report list rather than blocking — a blocked
+finalize the office cannot satisfy is a workaround waiting to be invented.
+
+*The stock question, out of scope but named.* Decals arrive as serialised consumables, so "which
+decals do we hold, which truck is wearing which, which were voided" is a real future surface — FMCSA
+cares that a decal on a vehicle corresponds to a real inspection. **Not in this plan**, recorded here
+only so nobody mistakes `decal_serial` for the whole idea.
 
 ---
 

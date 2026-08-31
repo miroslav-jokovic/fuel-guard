@@ -239,8 +239,18 @@ export const inspectionPatchSchema = z.object({
   vehicleIdentificationMethod: vehicleIdentificationMethodSchema.optional(),
   vehicleIdentificationValue: z.string().max(60).nullish(),
   inspectionAgencyLocation: z.string().max(200).nullish(),
-  /** The serial pre-printed on the carbonless set, when one is used. Plan §6 Q1. */
-  stockSerial: z.string().max(40).nullish(),
+  /**
+   * The serial on the §396.17(c)(2) decal issued with this inspection — the sticker that goes on the
+   * vehicle, transcribed onto the report so the two can be matched (0281; plan §6 Q1, answered).
+   *
+   * Often the ONLY on-vehicle proof a §396.17 inspection happened: §396.17(c) lets a carrier carry
+   * either a copy of the report or a compliant decal, and this number is what turns the sticker an
+   * officer reads at a roadside into the report §396.21(b) obliges the carrier to produce.
+   *
+   * Optional, because a FAILED inspection gets no decal and §396.21(a)'s six contents do not include
+   * one. Unique per organisation where present — one decal is one inspection.
+   */
+  decalSerial: z.string().max(40).nullish(),
   /** Keller's group 16 — free text, not a pass/fail component. */
   otherConditions: z.string().max(2000).nullish(),
   items: z.array(inspectionItemAnswerSchema).max(INSPECTION_ITEMS.length).optional(),
@@ -277,7 +287,7 @@ export const inspectionDtoSchema = z.object({
   vehicleIdentificationMethod: vehicleIdentificationMethodSchema,
   vehicleIdentificationValue: z.string().nullable(),
   inspectionAgencyLocation: z.string().nullable(),
-  stockSerial: z.string().nullable(),
+  decalSerial: z.string().nullable(),
   otherConditions: z.string().nullable(),
   status: inspectionStatusSchema,
   outcome: inspectionOutcomeSchema.nullable(),
