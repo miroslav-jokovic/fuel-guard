@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0 shipped 2026-08-31 (PR #410). A1 is next.** D-AVI7 was **amended the same day**
+**Status: A0 and A1 shipped 2026-08-31 (PRs #410, #NNN). A2 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -251,7 +251,7 @@ there "needs a D-S360 decision before its plan starts".
 **Done when:** SILVICOM-360 §3 carries the feature with a D-S360 id; ARCHITECTURE §4's maintenance
 row names the tables; a fresh session can execute §4's resume ritual from this file alone.
 
-### A1 — The catalogue and the contract (`packages/shared`; no DB, no API)
+### A1 — The catalogue and the contract — **DONE 2026-08-31 (PR #NNN, no migration)**
 
 - `packages/shared/src/annualInspectionCatalogue.ts` — `INSPECTION_CATALOGUE_VERSION` and the 15
   Appendix A groups with their sub-items, each
@@ -271,6 +271,30 @@ row names the tables; a fresh session can execute §4's resume ritual from this 
 **Done when:** `deriveInspectionOutcome` is unit-tested without a clock or a database; an item with
 no result is an **error**, not a default; the catalogue test proves no duplicate keys and a CFR
 citation on every item; `lint:shared-contracts` passes.
+
+**What shipped:** `annualInspectionCatalogue.ts` (56 components, 15 Appendix A groups,
+`INSPECTION_CATALOGUE_VERSION` 1.0.0) and `annualInspectionContract.ts`
+(`deriveInspectionOutcome`, `nextInspectionDueDate`, the request/response schemas), with 39 tests.
+
+**One deviation from the step as written.** The planned item shape was
+`{ key, group, label, cfr, appliesTo, defaultResult }`. Authoring it against the sample showed that
+`na` has **two different meanings** on this page and one field cannot hold both:
+
+- *A tractor has no rear impact guard.* A fact about the regulation. The form must **lock** it —
+  certifying that a part which does not exist is in place is a statement no one has standing to
+  make. Carried by `appliesTo`.
+- *This fleet's tractors run air brakes, so hydraulic brakes are `na`.* A fact about what Silvicom
+  bought. Editable, and a different unit would answer differently. Carried by `fleetDefault`.
+
+So the shape is `{ key, group, label, cfr, appliesTo, fleetDefault? }` with
+`defaultInspectionResult(item, subjectType)` deriving the opening answer. Collapsing them would have
+made the first kind editable, which is the failure `inapplicable_not_na` now rejects.
+
+**Verified by:** `pnpm typecheck` clean; `pnpm lint` clean (2 pre-existing warnings in
+`useSpendFilters.test.ts`); `lint:shared-contracts`, `lint:filesize`, `lint:comment-claims` pass;
+`pnpm test` — all suites and all 26 PGlite matrices pass. **Mutation-tested rather than assumed:**
+forcing `outcome` to `"pass"` fails 2 tests, and treating a missing answer as `na` fails 3 — so the
+two rules that carry the compliance weight are provably covered, not merely asserted to be.
 
 ### A2 — The `technician` role (migration + matrix, one PR)
 
@@ -541,6 +565,16 @@ content stream and would print underneath ours.
 **Recommendation:** ask Miki for the unfilled PDF. If the pads ship without one, a 600 dpi flat scan
 is acceptable — record which it was in the asset's `SOURCE.md`, because a scan will not register
 against the pads as precisely as the original.
+
+**Q6 — The trailer `fleetDefault` set is reasoned, not measured.** *(blocks A7's pre-fill, not A1)*
+A1's tractor defaults are transcribed from a real filled report and are pinned by a test naming unit
+654 and 2026-06-16. **There was no trailer sample**, so the trailer column was derived from
+applicability plus the tractor pattern — defensible, and still a different kind of fact from the
+tractor column beside it. The exposure is narrow by construction: `appliesTo` is regulation-derived
+and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rather than certifying
+one — the inspector still has to leave it there.
+**Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
+before A7 puts those defaults in front of an inspector.
 
 ---
 
