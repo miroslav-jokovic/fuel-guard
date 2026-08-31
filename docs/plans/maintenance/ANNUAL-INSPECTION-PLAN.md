@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A4 shipped 2026-08-31 (PRs #410–#414), plus migration 0281 closing §6 Q1 (the decal serial). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
+**Status: A0–A5 shipped 2026-08-31 (PRs #410–#416). §6 Q5 is closed — the blank template is committed. A6 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -463,7 +463,7 @@ dropping the `org_id` filter from the list query fails the `expectOrgScoped` ass
 `lint:table-writers` initially rejected the three new write sites, correctly — the write-site freeze
 means a new writer is a deliberate manifest edit, and these are the owner's own.
 
-### A5 — The renderer: stamp the template
+### A5 — The renderer: stamp the template — **DONE 2026-08-31 (PR #416, no migration)**
 
 Prerequisites: A1, A4, and §6 **Q5** answered (we need a blank template).
 
@@ -515,6 +515,38 @@ Plus: a golden test asserting every §396.21(a)(1)–(6) element and every faili
 in the rendered text; `draft: true` differs from the final **only** by the draft mark, asserted by
 rendering both and diffing the extracted text; `lint:filesize` and `lint:funcsize` pass with no
 grandfather entry added.
+
+
+**What shipped:** the blank template as a committed asset with a `SOURCE.md`, the coordinate map
+(`layouts/keller14834Rev0122.ts`), the renderer (`report.ts`) with its `background` and `draft`
+modes, and 24 tests across the four properties.
+
+**§6 Q5 is closed.** The owner rebuilt the form in Illustrator and exported a blank. Verified before
+using it: **612 × 846 pt, rotation 0, max drift 0.009 pt across 26 artwork anchors** against the
+original filled sample — so every coordinate measured in §2.5 transferred unchanged. The Illustrator
+round trip dropped the three AcroForm fields (`Form: none`), which turned out to be a simplification:
+the carrier block is stamped as text like everything else, and the fill-then-flatten step §2.5
+anticipated is not needed.
+
+**Two placement defects the first render exposed, both from inferring geometry instead of measuring
+it.** The map's column widths had been derived from where the item TEXT begins; scanning the blank at
+300 dpi for actual ruled lines found them at 18.1 / 32.9 / 47.9 / 71.9 (repeating at +191.8 and
++383.8):
+
+1. **REPAIRED DATE is 24 pt wide, not the 39 pt inferred.** No date fits at the body size — not even
+   `6/16/26` — so `shortDate` drops leading zeros and `fit()` shrinks. The worst case (`12/31/26`)
+   lands at **5.75 pt**, which sounds alarming until you measure the form: Keller's own
+   "NEEDS REPAIR / REPAIRED DATE" column headers are **4.5 pt** type. The column was drawn for a
+   cramped hand-written date and we print into it larger than the label above it. The test asserts
+   no date in the calendar is ever clipped, rather than asserting a size.
+2. **The free-text note printed straight through the printed label.** The eighteen write-lines run
+   501.7 → 767.6 at a 15.65 pt pitch; the map had started at 460, inside "List any other
+   condition(s)…". Wrapping is now by measured width rather than character count — `WWW` and `iii`
+   are the same length and nowhere near the same width in a 116 pt column.
+
+**Verified by:** the full 21-gate CI list; `pnpm test` all suites and 27 matrices; and a rendered
+page inspected at 200 dpi — header block, tick boxes, all 56 marks, a repaired defect with its date,
+an open defect, the wrapped note, and the DRAFT preview.
 
 ### A6 — Finalize: derive, render, file, project
 
@@ -660,15 +692,47 @@ which already covers a name-only outside inspector.
 **Recommendation:** keep it nullable — it costs nothing, and the alternative is a migration the first
 time a truck is inspected at a dealer.
 
-**Q5 — Where does the blank template come from?** *(blocks A5)*
-The file this plan was measured against is a **filled** copy — unit 654, George Gacev, 57 marks. A5
-needs a clean 14834 Rev. 1/22: either the unfilled PDF Keller supplies with the pads, or a flat scan
-of a blank page. Stripping the annotations off the filled copy is not equivalent — `pdftotext` found
-57 marks against only 24 annotation objects, so some values are already flattened into the page's
-content stream and would print underneath ours.
-**Recommendation:** ask Miki for the unfilled PDF. If the pads ship without one, a 600 dpi flat scan
-is acceptable — record which it was in the asset's `SOURCE.md`, because a scan will not register
-against the pads as precisely as the original.
+~~**Q5 — Where does the blank template come from?**~~
+**ANSWERED and CLOSED 2026-08-31 (owner).** Rebuilt in Adobe Illustrator 30.7 from the carrier's own
+form with every filled value removed, and committed at
+`apps/api/src/modules/maintenance/inspections/render/assets/keller-14834-rev0122.pdf` with a
+`SOURCE.md` recording its provenance. Verified before use: 612 × 846 pt, rotation 0, **max drift
+0.009 pt across 26 artwork anchors** against the original — so §2.5's coordinates transferred
+unchanged. The round trip dropped the three AcroForm fields, which simplified A5 rather than
+complicating it.
+
+**Q6 — The trailer `fleetDefault` set is reasoned, not measured.** *(blocks A7's pre-fill, not A1)*
+A1's tractor defaults are transcribed from a real filled report and are pinned by a test naming unit
+654 and 2026-06-16. **There was no trailer sample**, so the trailer column was derived from
+applicability plus the tractor pattern — defensible, and still a different kind of fact from the
+tractor column beside it. The exposure is narrow by construction: `appliesTo` is regulation-derived
+and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rather than certifying
+one — the inspector still has to leave it there.
+**Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
+before A7 puts those defaults in front of an inspector.
+
+**Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
+Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not
+decided.
+
+*The finalize rule.* If Silvicom's on-vehicle documentation is the decal, a passing inspection whose
+report carries no decal serial describes a truck with no proof aboard — and requiring the serial on
+a PASS would catch that while it is still fixable. Requiring it is wrong, though, if the office
+sometimes applies the decal later or keeps a report copy in the cab instead.
+**Recommendation:** ask whether the decal always goes on before the truck moves. If yes, refuse a
+PASS without a serial and say why. If not, warn on the report list rather than blocking — a blocked
+finalize the office cannot satisfy is a workaround waiting to be invented.
+
+*The stock question, out of scope but named.* Decals arrive as serialised consumables, so "which
+decals do we hold, which truck is wearing which, which were voided" is a real future surface — FMCSA
+cares that a decal on a vehicle corresponds to a real inspection. **Not in this plan**, recorded here
+only so nobody mistakes `decal_serial` for the whole idea.
+
+---
+
+## 7. What shipped
+
+*(Nothing yet. One dated subsection per PR, as steps land.)*
 
 **Q6 — The trailer `fleetDefault` set is reasoned, not measured.** *(blocks A7's pre-fill, not A1)*
 A1's tractor defaults are transcribed from a real filled report and are pinned by a test naming unit
