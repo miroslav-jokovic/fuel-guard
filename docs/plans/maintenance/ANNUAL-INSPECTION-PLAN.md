@@ -192,6 +192,9 @@ happened to type. That is what makes the placement test a measurement instead of
 | **D-AVI9** | The `certifications` row is the **source of truth** for the expiry; the `vehicles`/`trailers` column is a projection roster maintains, and finalize claims the row to `identity_source='manual'`. | §1.1 and §2.4. D-ARC3's CDL/medical ruling, applied before the dual source exists rather than after. |
 | **D-AVI10** | Maintenance **never writes** `documents`, `certifications`, `vehicles` or `trailers` directly. `evidence` and `roster` each gain one exported owner-interface function. | D-ARC3, machine-enforced by `check-table-writers.mjs` and `check-table-access.mjs`. |
 | **D-AVI11** | New role **`technician`**: `maintenance: manage`, `equipment: view`, everything else `none`. | The recruiter and accountant lesson applied on day one — minimal irreversible surface. ⚠ One-way door: Postgres has no `ALTER TYPE … DROP VALUE` (0266's header). |
+| **D-AVI15** | **Visible copy names the thing; the CFR reference lives in a comment.** Measured 2026-08-31: on every non-hazmat page in this product the citations are in comments, and hazmat is the exception because there the regulation IS the subject. | A person filling in a form is inspecting a truck, not reading Part 396. The citation is why the field exists, not what they are doing — and it still travels on the catalogue for the renderer and any audit export. |
+| **D-AVI16** | **One shared `inspectionExpiry()` and a 30-day warning**, read by the vehicles page, the trailers page and anything added later. No date reads as `unknown`, never as expired. | "Expiring" meaning two things on two screens is the failure a shared function prevents. And a truck with no inspection recorded has not failed one — missing and lapsed are different facts, and colouring the first red reports a compliance problem nobody established. |
+| **D-AVI17** | **The truck & trailer file adds a page, never a store.** Inspection history, the report PDF and the current expiry are all already written by finalize and queryable today. | Recorded because the connection is invisible: a future step that creates a table for inspection history, a second copy of the PDF, or its own expiry column has missed four rows that already exist. |
 | **D-AVI12** | Trailers are in scope from day one, on the **same 14834 template** with the `TRAILER` box stamped instead of `TRACTOR` (owner confirmed 2026-08-31). One asset, one coordinate map; the item sets and the list views are what separate. | §396.17 applies to them; the subject type, the expiry column and the document kind already exist; and the form's own `VEHICLE TYPE` row carries TRACTOR / TRAILER / TRUCK / BUS. Separating trucks from trailers is a catalogue and a view concern (D-AVI2), not a second template. |
 | **D-AVI13** | **The form is pre-filled; the PDF is not.** The web form opens with every item pre-set to the template default for that vehicle type, and the inspector checks or unchecks as they work. No PDF exists until finalize. Each item stores a `source` of `default` or `inspector`. | The owner's ruling, restated 2026-08-31 after the audit exposure was named: the defaults are a convenience for the person doing the work, and nothing is certified until they confirm. The `source` column costs nothing, changes no screen, and is the difference between a record that can answer "was this item actually looked at" and one that cannot. |
 | **D-AVI14** | **Print preview before finalize.** The same renderer, the same coordinate map, marked `DRAFT — NOT A CERTIFIED INSPECTION`, rendered on demand and **never stored**. | The inspector should see the page they are signing before they sign it. It must be the same code path as the final render, or the preview is a second implementation that can disagree with the thing it previews. |
@@ -877,6 +880,38 @@ function so the vehicles page, the trailers page and any later surface cannot di
   shifted, so most differences stayed correct and only boundaries between months of unequal length
   went wrong: 2026-01-31 → 2026-02-28 came out as **25 days instead of 28**. It is pinned now, along
   with the 30-day boundary itself and both leap-year cases.
+- **B3 — the inspector register gets a surface — DONE 2026-08-31 (PR #NNN)** (closes §6 Q8).
+  `/shop/inspectors`: who may inspect, how they qualify, whether that extends to brakes, and the
+  period they are active for. Retiring somebody sets `effective_to` and is **never a delete** —
+  0280's `on delete restrict` already forbids removing anybody who has signed a report, because the
+  report must name who performed it and the qualification evidence outlives the employment by a
+  year. Closing the period only stops them being offered for a NEW inspection.
+
+  This page is the reason the derived §396.19 assertion is trustworthy: the printed report says the
+  inspector meets the standard, the product decides that from a row rather than a tick box, and
+  until now the row was invisible to everybody relying on it.
+
+### The vehicle-file connection, written down (D-AVI17)
+
+The owner asked that this be planned rather than left implicit. It is already **built** — what was
+missing is the sentence saying so, which is how a connection becomes a rediscovery.
+
+A completed inspection writes three rows, and the future truck & trailer file needs no new storage
+to show any of them:
+
+| What the page wants to show | Where it already is | How it reads it |
+| --- | --- | --- |
+| Every inspection this unit has had | `vehicle_inspections`, append-only, newest first | `GET /api/maintenance/inspections?subjectId=<uuid>&subjectType=tractor` — the filter exists |
+| The report PDF for any of them | `documents`, `subject_type` `tractor`/`trailer`, `kind='annual_inspection'`, with its sha256 | `listDocuments` through `evidence`'s interface, the same call the driver file makes |
+| Whether the unit is currently inspected, and until when | `certifications`, auto-superseding, `kind='annual_inspection'` | `listCertifications` — current rows by default, the supersede chain with `includeHistory` |
+| The at-a-glance state on a list | `vehicles`/`trailers.dot_annual_inspection_expires_at` | `inspectionExpiry()` — already on both roster pages (B4) |
+
+**D-AVI17: the truck file adds a page, never a store.** If a future step finds itself creating a
+table to hold inspection history, or a second copy of the PDF, or its own expiry column, the
+connection has been missed — all four rows above are already written by finalize and are queryable
+today. The one thing genuinely absent is a per-unit VIEW, and that belongs to the truck-file plan
+rather than here: it is the same list this section already renders, filtered to one `subject_id`.
+
 - **B5 — A8 after all.** The owner ruled on 2026-08-31 that the truck copy is printed onto the
   pre-printed pads, so the calibration is built: an offset store, a registration sheet to measure it
   with, and the values-only render A5 already emits.

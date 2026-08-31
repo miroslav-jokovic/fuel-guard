@@ -56,7 +56,7 @@ const PROBES = [
   "/accounting", "/cpm", "/cost-schedule", "/billing", "/shop",
   // The §396.17 register and one report (A7). Written out as a pair for the same reason the
   // loads routes are: a static segment must keep beating a param.
-  "/shop/inspections", "/shop/inspections/insp_1",
+  "/shop/inspections", "/shop/inspections/insp_1", "/shop/inspectors",
   "/fuel-reconciliation", "/fuel-exceptions", "/import",
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",

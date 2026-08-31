@@ -276,6 +276,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/inspections/insp_1",
   },
   {
+    "name": "inspector-register",
+    "params": {},
+    "url": "/shop/inspectors",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -1086,6 +1091,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "annual-inspection",
     "path": "/shop/inspections/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Inspectors",
+    },
+    "name": "inspector-register",
+    "path": "/shop/inspectors",
     "redirect": null,
   },
   {

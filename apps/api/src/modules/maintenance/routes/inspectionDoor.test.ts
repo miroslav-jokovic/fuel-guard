@@ -186,6 +186,26 @@ describe("/api/maintenance/inspectors — the §396.19 register", () => {
     expect([401, 403]).not.toContain(res.status);
   });
 
+  it.each(MANAGERS)("passes the retire door for %s", async (token) => {
+    const res = await call(`/inspectors/${ID}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ effectiveTo: "2026-12-31" }),
+    });
+    expect([401, 403]).not.toContain(res.status);
+  });
+
+  // Retiring somebody closes the window in which they can be chosen for a new inspection. A reader
+  // of the file has no business doing that.
+  it.each([...VIEWERS, ...OUTSIDERS])("403 for %s retiring an inspector", async (token) => {
+    const res = await call(`/inspectors/${ID}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ effectiveTo: null }),
+    });
+    expect(res.status).toBe(403);
+  });
+
   it.each([...VIEWERS, ...OUTSIDERS])("403 for %s writing the register", async (token) => {
     const res = await call("/inspectors", {
       method: "POST",
