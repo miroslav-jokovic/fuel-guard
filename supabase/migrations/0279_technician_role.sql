@@ -1,0 +1,37 @@
+-- 0279 — the `technician` user_role enum value, and NOTHING ELSE.
+--
+-- Isolated per the 0077/0210/0266 convention: Postgres will not let a newly-added enum value be
+-- USED in the transaction that adds it, and every policy in this repo compares auth_role() as TEXT
+-- anyway — so this file is the value, and what a technician may DO lives entirely in the
+-- section-capability matrix (packages/shared/src/auth.ts), which ships in the same PR:
+-- `maintenance: manage`, `equipment: view`, everything else none (D-AVI11,
+-- docs/plans/maintenance/ANNUAL-INSPECTION-PLAN.md; the owner's 2026-08-31 ruling).
+--
+-- ── WHY A ROLE RATHER THAN `fleet_manager` ──────────────────────────────────────────────────────
+-- The person who performs the §396.17 annual inspection needs one section and one read. Handing
+-- them `fleet_manager` — the obvious shortcut, since that role already carries `maintenance:
+-- manage` — would also hand them fuel, dispatch, safety, hazmat, the whole driver roster, hiring
+-- and the settings console. That is the recruiter mistake (0210's header) and the accountant
+-- lesson (0266's), and this repo has now made it twice; the third time is a decision, not an
+-- accident. `equipment: view` and not `manage` for the same reason 0277 took writes off the safety
+-- manager: reading which tractor is unit 654 is not permission to change its plate.
+--
+-- ── WHAT IT DOES NOT GET, DELIBERATELY ──────────────────────────────────────────────────────────
+-- `roster: none`. An inspector inspects machines, and nothing about the annual inspection needs a
+-- driver's name, licence or medical card. `settings: none` on the R0 argument — maintaining
+-- equipment is not a reason to re-sync Samsara. No accounting or billing: the repair-spend ledger
+-- is the bookkeeper's surface, and 0266 already ruled that shop access and books access do not
+-- ride along with each other in either direction.
+--
+-- ── NO NEW POLICIES HERE ────────────────────────────────────────────────────────────────────────
+-- `vehicles_select` and `trailers_select` already grant SELECT to every member of the org with no
+-- role test (0004/0030), so `equipment: view` needs no SQL. The inspection tables this role writes
+-- do not exist yet; they arrive at plan step A3 with policies derived from
+-- rolesThatManage('maintenance') — which check-section-policies.mjs will verify against this
+-- matrix rather than against anyone's recollection of it.
+--
+-- ONE-WAY DOOR: Postgres has no ALTER TYPE ... DROP VALUE. This value cannot be removed without
+-- recreating the type and rewriting every column that uses it. The ACCESS it carries stays
+-- adjustable in the matrix; the value itself does not.
+
+alter type user_role add value if not exists 'technician';
