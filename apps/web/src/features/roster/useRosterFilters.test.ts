@@ -136,6 +136,31 @@ describe("useRosterFilters", () => {
     expect(f.active.value).toBe(false);
   });
 
+  it("carries the qualification filters, using the shared vocabulary", async () => {
+    const { f, router } = await mountFilters();
+    f.dqState.value = "expired";
+    await settle();
+    f.dqDue.value = "30";
+    await settle();
+    expect(router.currentRoute.value.query).toMatchObject({ dq: "expired", due: "30" });
+    expect(f.active.value).toBe(true);
+  });
+
+  it("reads the per-requirement narrowing a built-in view sets", async () => {
+    // No control sets `req` — a named view does, and a view IS a URL (D-ROS14).
+    const { f } = await mountFilters("/drivers?req=medical_card&due=30");
+    expect(f.dqRequirement.value).toBe("medical_card");
+    expect(f.dqDue.value).toBe("30");
+    expect(f.active.value).toBe(true);
+  });
+
+  it("clears the qualification filters along with everything else", async () => {
+    const { f, router } = await mountFilters("/drivers?dq=expired&due=30&req=cdl");
+    f.reset();
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
   it("does not count the column choice as a narrowed roster", async () => {
     // `hide` belongs to the reader's table, not to which drivers are on it (R3b).
     const { f } = await mountFilters("/drivers?hide=phone");

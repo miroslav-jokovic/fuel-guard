@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { mount } from "@vue/test-utils";
-import type { DriverOverviewRow } from "@silvicom/shared";
+import type { DqAttentionItem, DriverOverviewRow } from "@silvicom/shared";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
 
 /**
@@ -48,7 +48,7 @@ vi.mock("@/composables/useCompliance", () => ({
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ restrictedAccess: false, can: () => true, canView: () => true }) }));
 
-const attention = (over: Record<string, unknown> = {}) => ({
+const attention = (over: Partial<DqAttentionItem> = {}): DqAttentionItem => ({
   key: "cdl", label: "CDL", citation: "§391.11", group: "licence",
   state: "expiring", goodUntil: "2026-09-30", evidenceDate: null, daysRemaining: 10, ...over,
 });

@@ -3,7 +3,7 @@ import { onBeforeUnmount, ref, watch } from "vue";
 import { AppIcon, AppButton as BaseButton, AppInput } from "@silvicom/ui";
 import { BookmarkIcon, TrashIcon } from "@silvicom/ui/icons";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
-import type { SavedView } from "@silvicom/shared";
+import type { BuiltInView, SavedView } from "@silvicom/shared";
 
 /**
  * The reader's saved views for one table (D-ROS14, R3c-2), in `FilterBar`'s `#actions` slot.
@@ -21,6 +21,12 @@ import type { SavedView } from "@silvicom/shared";
  * means retyping its name exactly, and the failure mode is a near-duplicate rather than an error.
  */
 const props = defineProps<{
+  /**
+   * The carrier-standard views (D-ROS16) — shipped in `@silvicom/shared`, stored nowhere, identical
+   * for every org. Listed above the reader's own because they are what a new safety manager needs on
+   * their first morning, before they have saved anything.
+   */
+  builtIns: readonly BuiltInView[];
   views: SavedView[];
   /** The query string the table is showing right now — what Save would store. */
   currentQuery: string;
@@ -66,7 +72,7 @@ function onSave() {
   emit("save", name);
   open.value = false;
 }
-function onApply(view: SavedView) {
+function onApply(view: { query: string }) {
   emit("apply", view.query);
   open.value = false;
 }
@@ -95,6 +101,29 @@ function onApply(view: SavedView) {
           role="dialog"
           aria-label="Saved views"
         >
+          <div v-if="props.builtIns.length" class="space-y-1">
+            <p class="px-1.5 pb-1 text-2xs font-medium uppercase tracking-wide text-ink-tertiary">
+              Standard
+            </p>
+            <BaseButton
+              v-for="built in props.builtIns"
+              :key="built.name"
+              variant="ghost"
+              size="sm"
+              class="w-full justify-start truncate"
+              :title="built.description"
+              @click="onApply(built)"
+            >
+              {{ built.name }}
+            </BaseButton>
+          </div>
+
+          <p
+            v-if="props.builtIns.length && props.views.length"
+            class="mt-3 border-t border-edge-subtle px-1.5 pt-3 text-2xs font-medium uppercase tracking-wide text-ink-tertiary"
+          >
+            Yours
+          </p>
           <div v-if="props.views.length" class="space-y-1">
             <div
               v-for="view in props.views"
@@ -120,7 +149,7 @@ function onApply(view: SavedView) {
               </BaseButton>
             </div>
           </div>
-          <p v-else class="text-ink-muted">
+          <p v-else-if="!props.builtIns.length" class="text-ink-muted">
             No saved views yet. Filter the roster the way you want it, then name it here.
           </p>
 

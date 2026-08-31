@@ -3,7 +3,16 @@ import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
-import { DQ_EXPORT_MAX_DRIVERS, type DqAttentionItem, type DqItemState } from "@silvicom/shared";
+import {
+  DQ_EXPORT_MAX_DRIVERS,
+  dqDueFilterOptions,
+  dqSoonest,
+  dqStateFilterOptions,
+  matchesDqFilters,
+  type DriverOverviewRow,
+  type DqAttentionItem,
+  type DqItemState,
+} from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -82,6 +91,8 @@ interface FleetRow {
   state: "not_started" | "incomplete" | "complete";
   counts: Record<DqItemState, number>;
   attention: DqAttentionItem[];
+  /** Carried so this row satisfies the shared filter predicate; unused by this table's own controls. */
+  requirements: DriverOverviewRow["requirements"];
   /** Sort rank: the file's worst state. Expired files first, complete files last. */
   worst: number;
   /** Days until the most urgent dated item — negative when overdue, null when nothing is dated. */
@@ -92,7 +103,6 @@ const WORST_RANK = { expired: 0, missing: 1, expiring: 2, none: 3 } as const;
 
 const all = computed<FleetRow[]>(() =>
   (query.data.value?.drivers ?? []).map((d) => {
-    const dated = d.attention.filter((a) => a.daysRemaining !== null);
     return {
       id: d.driver_id,
       driver_name: d.driver_name,
@@ -100,6 +110,7 @@ const all = computed<FleetRow[]>(() =>
       state: d.state,
       counts: d.counts,
       attention: d.attention,
+      requirements: d.requirements,
       worst:
         d.counts.expired > 0
           ? WORST_RANK.expired
@@ -108,52 +119,21 @@ const all = computed<FleetRow[]>(() =>
             : d.counts.expiring > 0
               ? WORST_RANK.expiring
               : WORST_RANK.none,
-      soonest: dated.length ? Math.min(...dated.map((a) => a.daysRemaining as number)) : null,
+      soonest: dqSoonest(d),
     };
   }),
 );
 
-const stateOptions = [
-  { value: "", label: "All drivers" },
-  { value: "attention", label: "Needs attention" },
-  { value: "expired", label: "Has expired items" },
-  { value: "expiring", label: "Has items due soon" },
-  { value: "not_started", label: "File not started" },
-  { value: "complete", label: "File complete" },
-];
-const dueOptions = [
-  { value: "", label: "Due any time" },
-  { value: "overdue", label: "Overdue" },
-  { value: "7", label: "Due in 7 days" },
-  { value: "14", label: "Due in 14 days" },
-  { value: "30", label: "Due in 30 days" },
-];
+// The words and the values both live in `@silvicom/shared` (R4b): the roster shows the same two
+// filters, and a filter that means the same thing on two pages must say the same thing on both.
+const stateOptions = dqStateFilterOptions();
+const dueOptions = dqDueFilterOptions();
 
 const filtered = computed(() =>
   all.value.filter((r) => {
-    switch (stateFilter.value) {
-      case "attention":
-        if (r.attention.length === 0) return false;
-        break;
-      case "expired":
-        if (r.counts.expired === 0) return false;
-        break;
-      case "expiring":
-        if (r.counts.expiring === 0) return false;
-        break;
-      case "not_started":
-        if (r.state !== "not_started") return false;
-        break;
-      case "complete":
-        if (r.state !== "complete") return false;
-        break;
-    }
-    if (dueFilter.value === "overdue" && (r.soonest === null || r.soonest >= 0)) return false;
-    if (
-      (dueFilter.value === "7" || dueFilter.value === "14" || dueFilter.value === "30") &&
-      (r.soonest === null || r.soonest > Number(dueFilter.value))
-    )
-      return false;
+    // The vocabulary lives in `@silvicom/shared` (R4b): the roster applies the SAME predicate, and
+    // two copies of "is this driver behind on their §391.51 file" is exactly the drift D-DQ6 forbids.
+    if (!matchesDqFilters(r, { state: stateFilter.value, due: dueFilter.value })) return false;
     const t = search.value.trim().toLowerCase();
     if (t && !r.driver_name.toLowerCase().includes(t)) return false;
     return true;
