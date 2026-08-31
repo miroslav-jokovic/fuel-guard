@@ -54,6 +54,8 @@ const emit = defineEmits<{
   "manage-access": [driver: Driver];
   archive: [driver: Driver];
   restore: [driver: Driver];
+  /** The file cell opens ONE modal, owned by the page (D-ROS8) — never a dialog per row. */
+  documents: [driver: Driver];
 }>();
 
 const session = useSessionStore();
@@ -112,6 +114,14 @@ const requirementsByDriver = computed(() => {
 });
 const expiry = (driverId: string, key: DqRosterColumnKey) =>
   dqExpiryBadge(requirementsByDriver.value.get(driverId)?.get(key), formatDate);
+
+/**
+ * Scans filed, out of the requirements that apply (R5). Off the same rollup — no per-row fetch, and
+ * therefore no signed-URL round trip per driver on a 287-row roster.
+ */
+const documentCounts = computed(
+  () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d.documents])),
+);
 
 /**
  * Vehicles assigned to a driver (assignment is set from the Vehicles page). Indexed for the same
@@ -206,6 +216,19 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         :to="`/drivers/${row.id}?section=qualification`"
         :class="expiry(row.id, 'endorsement_hazmat')!.urgent ? [BADGE_BASE, toneClass(expiry(row.id, 'endorsement_hazmat')!.tone)] : 'text-ink-secondary tabular-nums'"
       >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
+      <span v-else class="text-ink-tertiary">—</span>
+    </template>
+    <template #cell-documents="{ row }">
+      <BaseButton
+        v-if="documentCounts.get(row.id)"
+        variant="ghost"
+        size="sm"
+        class="tabular-nums"
+        :title="`Open ${row.full_name}'s filed scans`"
+        @click="emit('documents', row)"
+      >
+        {{ documentCounts.get(row.id)!.onFile }}/{{ documentCounts.get(row.id)!.of }}
+      </BaseButton>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>

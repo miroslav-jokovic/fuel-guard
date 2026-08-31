@@ -453,10 +453,10 @@ Prerequisites: R4, and a placement that satisfies `lint:boundaries`.
 
 #### R5a — the placement, and the count — **DONE 2026-08-31 (PR #403, no migration)**
 
-#### R5b — the modal itself, and the roster's file cell
+#### R5b — the modal itself, and the roster's file cell — **DONE 2026-08-31 (PR #PENDING, no migration)**
 
 **Done when:** the audit print path still works from the preview; no two dialogs are ever open at
-once; a 200-driver roster issues one document-count query, asserted by `supabaseRecorder`.
+once; the roster issues NO extra query for the count — asserted as a constant, not a small number.
 
 ### R6 — The driver record page: tabs → sections, read → editable (D-ROS4, D-ROS5)
 
@@ -1008,6 +1008,38 @@ invented query parameter breaks it), as was the fleet table's characterisation s
   assertion: the count is two numbers, never document ids. Carrying ids would put a §382.401 record's
   id in front of a dispatcher — the leak that file exists to prevent — and would be 287 ids nobody on
   the roster reads.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
+`lint:tests`, `lint:table-writers`.
+
+### R5b — the folder, and the cell that opens it — 2026-08-31, PR #PENDING, no migration
+
+`components/DocumentsModal.vue`, the `File` column, one modal owned by the page.
+
+- **It swaps, it does not stack — and `DocumentPreview` is used completely unmodified.** Choosing a
+  scan removes the list from the DOM and opens the sanctioned viewer; closing the viewer returns to
+  the list. Exactly one panel exists at any moment. The viewer is not wrapped, re-implemented or
+  given a second parent, which is the only way to be sure the audit print path still works: printing
+  hides `body *` and reveals a single `.print-target`, and that is the product's actual job during a
+  DOT visit. Pinned by "NEVER renders two panels at once — the list is gone while a scan is open",
+  which was proven able to fail by letting the list stay open.
+- **The Done-when about "one document-count query" was replaced by a stronger one.** The count costs
+  ZERO queries, so the assertion is that the rollup issues the *same* number of reads for 50 drivers
+  as for one — a constant, because the failure being guarded against is per-driver growth. R5's
+  original worry about "200 signed-URL round trips" was about a design nobody had to build.
+- **The modal is subject-shaped, not driver-shaped.** Nothing in it knows what a driver is;
+  `documents.subject_type` already accepts `tractor` and `trailer`, and D-ROS10 says the equipment
+  rosters reuse this. The page supplies the label and the rows.
+- **Document kinds read from `DQ_KIND_LABELS`**, so a scan is called the same thing in the folder as
+  on the driver's qualification page — the rule that no `.vue` file carries its own vocabulary
+  applies to document kinds too.
+- **A failed load says so rather than showing an empty folder**, because "nothing filed" and "we
+  could not ask" are different facts and only one of them is a compliance finding.
+
+**Deviation:** the R2/R4a snapshots changed again, additively — one `File` column. The diff was read
+before re-recording, and the fixture carries two different denominators (`8/17`, `0/14`) so the
+"never 20" rule is exercised rather than asserted in a comment.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,

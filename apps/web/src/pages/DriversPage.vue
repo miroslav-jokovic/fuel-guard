@@ -23,6 +23,8 @@ import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
+import DocumentsModal from "@/components/DocumentsModal.vue";
+import { useDocumentsQuery } from "@/composables/useCompliance";
 import { useSavedViews } from "@/composables/useSavedViews";
 import { useTableColumns } from "@/composables/useTableColumns";
 import {
@@ -168,6 +170,16 @@ async function removeView(name: string) {
     toast.error("Could not delete the view", e instanceof Error ? e.message : undefined);
   }
 }
+
+/**
+ * The §391.51 folder (R5, D-ROS8). ONE modal owned by the page, never one per row — and the
+ * documents themselves are fetched only when a folder is opened, so the roster's own load is
+ * unchanged whatever the fleet size.
+ */
+const documentsDriver = ref<Driver | null>(null);
+const documentsSubject = ref("driver");
+const documentsDriverId = computed(() => documentsDriver.value?.id ?? null);
+const documentsQ = useDocumentsQuery(documentsSubject, documentsDriverId);
 
 const archiving = ref<Driver | null>(null);
 const archiveDriver = useArchiveDriver();
@@ -326,6 +338,7 @@ async function onSubmit(input: DriverInput) {
       @update:page="page = $event"
       @edit="openEdit"
       @manage-access="openAccess"
+      @documents="documentsDriver = $event"
       @archive="archiving = $event"
       @restore="setArchived($event, false)"
     />
@@ -422,6 +435,15 @@ async function onSubmit(input: DriverInput) {
         @cancel="drawerOpen = false"
       />
     </SlideOver>
+
+    <DocumentsModal
+      :open="documentsDriver !== null"
+      :subject-label="documentsDriver?.full_name ?? ''"
+      :documents="documentsQ.data.value ?? []"
+      :loading="documentsQ.isLoading.value"
+      :error="documentsQ.isError.value ? 'Could not load this driver\'s folder.' : null"
+      @close="documentsDriver = null"
+    />
 
     <DriverAccessModal :open="accessOpen" :driver="accessDriver" @close="accessOpen = false" />
 
