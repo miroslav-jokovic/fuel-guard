@@ -25,7 +25,9 @@ in this document, with the date.
 
 | Fact | Value | Where |
 | --- | --- | --- |
-| Distinct columns on `drivers` | **43** | migrations sweep |
+| Distinct columns on `drivers` | ~~43~~ → **58** | ~~migrations sweep~~ → **corrected 2026-08-30** against production `information_schema.columns`. The migrations sweep undercounted by 15; the live table is the authority. |
+| Drivers on the production roster | **287 live** (288 total, 185 with a Samsara id, **1** with an app login) | production, 2026-08-30 |
+| Office accounts that exist at all | **6 memberships in 2 orgs** — 5 `admin`, 1 `driver` | production, 2026-08-30 |
 | Fields `driverDetailSchema` adds beyond the list row | **25** | `rosterContract.ts:218-256` |
 | Fields the McLeod sweep writes to a driver row it owns | **15** | `mcleod/rosterFields.ts:29-73` |
 | Section UI currently mounted on the driver page | **~2,700 lines** across 5 tabs | `features/compliance`, `features/recruitment`, `features/roster` |
@@ -154,6 +156,10 @@ reaches the person who fixes it.
 | **D-ROS9** | **The expiry columns read from the qualification rollup, never from `drivers.*_expires_at` as truth**, and editing one opens the existing `RequirementDrawer`, which writes a certification. | D-DQ6 stands: two sources of truth for a legal gate is the defect. The `drivers.*` columns are display fields, including when McLeod is the one writing them. |
 | **D-ROS10** | **Vehicles and trailers reuse these components with their own catalogue, and are out of scope here.** | `documents.subject_type` and `certifications.subject_type` already accept `tractor` and `trailer` (`complianceContract.ts:17,65`), so the storage path generalises for free. What is missing is a §396.17 / registration / insurance catalogue — a separate plan, after the driver shape is proven. |
 | **D-ROS11** | **No step in this plan may ship a workaround.** If a step is blocked by a missing capability, the capability is built or the step stops and the blocker is written into §6 — it is never routed around. | This plan exists because three previous workarounds compounded into "the product has too many pages". See the root `CLAUDE.md` rule added with this document. |
+| **D-ROS13** | **`settings` is a section**, holding the sites that mean "may configure the product". Membership is exactly the deleted `canManageFleet` set. | Backfilled into this table 2026-08-30 — it was ruled and shipped in R0 but recorded only in §7, and a decision that lives only in a shipped-note is one the next reader re-litigates. |
+| **D-ROS14** | **A saved view IS a named URL.** The query string is the only description of what is on screen; a view record holds a name and that query string and nothing else. Applying a view is a navigation; sharing one is a link. | The alternative is a second description of the same state, which then has to be kept in step with the first. `useSpendFilters.ts:10-20` already made this ruling for the fuel-spend page and wrote down why ("state that dies on refresh cannot be linked"), and `?section=` is already a public surface under D-ROS5. A second mechanism would be a copy, and a copy is a workaround with a delay fuse (D-ROS11). |
+| **D-ROS15** | **A preference is device-local; an artefact the user authored is a row.** Column choice, sort and page live in the URL and fall back to `localStorage` per table. A *named* view is a row, because losing it loses work. | Derived from the two precedents rather than invented: `useColorScheme` and `useSidebarSections` are `localStorage` because only the browser ever asks and losing them costs one click; `notification_preferences` is a table because the API reads it. A named view is neither — it is content, and it has to survive a new laptop. |
+| **D-ROS16** | **The carrier-standard views ship as BUILT-IN definitions in `@silvicom/shared`**, per table, identical for every org and stored nowhere. Personal saved views sit on top of them and are private. | Measured 2026-08-30: production has 2 orgs and 6 memberships, 5 of them `admin` in one org — there is no `safety_manager`, `recruiter` or `dispatcher` account in existence. An org-sharing policy would be a schema column, an RLS clause and a role ruling built for a population that does not exist, while the views everyone actually needs ("medical expiring in 30 days") are the same for every carrier and derivable from the §391.51 catalogue the product already models. |
 | **D-ROS12** | **The `fleet` section splits into `roster` (the people) and `equipment` (the trucks and trailers).** `APP_SECTIONS` loses `fleet` and gains both; every derived gate re-derives; `vehicles_write` / `trailers_write` are re-issued to the narrower list. Owner ruling, 2026-08-30 (§6 Q1). | `fleet` answered two different questions with one word, and every workaround in §2.3 is downstream of that. A safety manager must maintain the §391.51 file (`roster: manage`) without gaining the truck list (`equipment: view`); a recruiter must read the roster without seeing equipment at all. Neither is expressible while the two live under one section — which is why the previous fix was a hand-written helper that disagreed with the matrix. |
 
 ---
@@ -316,17 +322,76 @@ a 200-driver roster.
 **Done when:** `DriversPage.vue` is under 450; `pnpm test` and `lint:filesize` green; the rendered
 table is byte-identical in a snapshot test.
 
-### R3 — Column management in `DataTable` (D-ROS3)
+### R3 — Column management and saved views (D-ROS3, D-ROS14/15/16)
 
-Column picker, per-user column visibility, saved views, and horizontal scroll that keeps the primary
-column pinned. This is the monday.com half worth taking, and it is what makes a 40-column roster
-usable rather than merely wide.
+**Split into three steps, for two reasons found by measurement on 2026-08-30:**
 
-Blocked on §6 Q3 (where a saved view is stored).
+1. **`DataTable.vue` is 454 lines against the 500-line budget** (`lint:filesize`, warns at 450).
+   A column picker, a pinned column and a view control do not fit in 46 lines. R3 begins with an
+   extraction for exactly the reason R2 did, and skipping it would be R2's problem again one file
+   over.
+2. **Two of the four things R3 was going to build already exist**, one of them three times. See
+   R3b. The step is smaller than it looked, and mostly about *promoting* what is there.
 
-**Done when:** column choice survives a reload; a saved view is shareable or explicitly not, per
-Q3's answer; the pinned primary column is keyboard-reachable; `DataTable`'s doc comment documents
-the new API the way it documents the existing one.
+#### R3a — Promote the URL-state buffer to `@/composables` — **DONE 2026-08-30 (PR #PENDING, no migration)**
+
+D-ROS14 makes the URL the description of a view, so every table needs to write several query
+parameters at once without losing any. That primitive exists — and only inside
+`features/reconcile/useSpendFilters.ts`, whose `pending` buffer was written to fix a real bug: two
+filters set in one tick both read the same pre-navigation `route.query` and the second `replace`
+silently dropped the first. The visible symptom was a date picker welded to the last 90 days.
+
+A `roster` surface may not import a `reconcile` internal (`lint:boundaries`), and
+`check-feature-boundaries.mjs` says in its own comment what to do about that: **promote the shared
+thing out of `features/`, do not allow-list the leak.** So the buffer moves to
+`@/composables/useQueryState.ts` and `useSpendFilters` becomes its first caller.
+
+**Done when:** `useSpendFilters.test.ts` passes unchanged — including the one-tick collision case it
+exists to pin — with the buffer no longer inside the file it is testing; `lint:boundaries` green.
+
+#### R3b — `DataTable` column management (D-ROS3, D-ROS15)
+
+**What already exists and must not be rebuilt:** horizontal scroll (`DataTable.vue:366`,
+`overflow-x-auto`), and the pinned first column — which is real, works, and is **hand-rolled
+identically on three pages** (`FuelLogPage`, `TransactionsPage`, `RejectionsPage`) as a copied pair
+of `sticky left-0 …` class strings on `headerClass`/`cellClass`. Two copies of a value is a
+workaround with a delay fuse (D-ROS11); three is a pattern the component should own. R3b promotes it
+to a prop and deletes the copies.
+
+**What is new:** a column picker, and the choice persisting per person per table.
+
+The opt-in is **one new prop, `tableId`** — never a new field on `DataTableColumn`. DataTable's own
+docblock already settled this shape for the status-column convention: *"49 column arrays already
+exist, and a flag none of them set would be a migration disguised as an option."* There are now 62
+consumers, so the argument is stronger, not weaker. Hideability is derived: the first column is the
+identifier and is always shown; everything else may be hidden.
+
+Column choice lives in the URL (`?cols=`), falling back to `localStorage` keyed by `tableId` when the
+URL is silent (D-ROS15) — which is what makes a saved view able to capture columns in R3c without any
+further plumbing. The picker goes in `FilterBar`'s existing `#actions` slot (design contract §5.5);
+no new toolbar layout.
+
+**Done when:** `DataTable.vue` is back under 450; the three hand-rolled pinned columns are deleted
+and those pages render unchanged (snapshot them first, as R2 did); column choice survives a reload
+and a link; the pinned column is keyboard-reachable; DataTable's docblock documents the new props
+the way it documents the existing ones.
+
+#### R3c — Saved views (D-ROS14/16)
+
+A view is a name plus a query string. Built-ins ship in `@silvicom/shared` and are stored nowhere;
+personal views are rows the signed-in user owns.
+
+- `packages/shared` — the built-in catalogue per table, and the contract for a saved view.
+- One migration: `saved_views` (module `org`, layer `core`), `primary key (user_id, table_id, name)`,
+  `org_id` FK + `forbid_org_change` trigger, RLS `org_id = auth_org_id() AND user_id = auth_user_id()`
+  — the `notification_preferences` shape, which is the nearest precedent and already passes every gate.
+- Writes through the API (`org` module); the web reads its own rows.
+- A "Views" control beside the column picker in `FilterBar`'s `#actions`.
+
+**Done when:** applying a view is a navigation and the URL afterwards IS the view; a built-in view
+needs no row; saving, renaming and deleting a personal view works and is org-scoped in the test
+matrix; a PGlite matrix proves another org's user cannot read the rows — and models `auth.users`
+first, or the FK will fail the write indistinguishably from an RLS refusal (HANDOFF-2026-08-30 §3).
 
 ### R4 — The four roster columns (D-ROS9)
 
@@ -424,8 +489,27 @@ Two consequences the ruling carries, both to be held in the implementation rathe
   Choosing (a) does not make that untrue; it decides where the date comes from, not what the file
   may claim. See Q6.
 
-**Q3 — Saved views: per user, per org, or both?** (blocks R3) Storage, sharing, and whether a view
-is a URL. A view that cannot be linked to is half a feature; a view stored per org needs a policy.
+~~**Q3 — Saved views: per user, per org, or both?** (blocked R3)~~
+**ANSWERED 2026-08-30 (owner): per user, plus built-in views.** Specified as **D-ROS14/15/16** and
+built as R3a–R3c. The three halves of the question came apart once each was measured:
+
+- **"Is a view a URL?" — yes, and that answers the sharing half too.** The URL already is the
+  linkable, forwardable, hand-editable description of a view (`useSpendFilters`, `?section=`). So a
+  saved view stores a *name and a query string*, and "share this view with Dave" is a link, not a
+  schema feature. What an org-shared *record* adds over that is discoverability, not sharing.
+- **"Per org?" — there is nobody to share with.** Production, measured 2026-08-30: **2 orgs, 6
+  memberships, 5 of them `admin` in one org, plus 1 driver.** No `safety_manager`, no `recruiter`,
+  no `dispatcher` exists. A `shared` flag needs a policy for who may create, edit and delete one,
+  and that policy would be written for a population that does not exist.
+- **But the need behind "per org" is real, and built-ins serve it without a policy.** What a carrier
+  actually wants on day one is "medical expiring in 30 days" / "no app login" / "unassigned" — the
+  same three views for every carrier, derivable from the §391.51 catalogue the product already
+  models. Those ship in `@silvicom/shared` (D-ROS16). Nobody rebuilds them, and nothing is stored.
+
+**Deliberately NOT built, and the trigger that would change it:** org-shared saved-view records. Ask
+again when a second non-admin role exists in a real org and a carrier asks for a view *list* their
+team shares — not before. The table is designed so adding `shared boolean` later is one column and
+one RLS clause, and the primary key is the only thing that would have to move.
 
 **Q4 — What exactly is in `DRIVER_INLINE_EDITABLE`?** (blocks R2's cell affordances)
 Candidates with no sync owner and no legal consequence: `employee_id`, `phone_alt`,
@@ -585,6 +669,33 @@ columns now have somewhere to go, and under D-ROS10 so do the vehicle and traile
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
+
+### R3a — the URL-state buffer becomes a capability — 2026-08-30, PR #PENDING, no migration
+
+`@/composables/useQueryState.ts` (78 lines). `useSpendFilters.ts` 161 → 127 and is now its first
+caller rather than its owner.
+
+- **This is the promotion `check-feature-boundaries.mjs` asks for, not a copy.** The buffer was
+  inside `features/reconcile`; the roster needs the same guarantee under D-ROS14 and may not import
+  it. The script's own comment says the fix is to promote the shared thing out of `features/` and
+  never to allow-list the leak, so that is what happened — `WEB_ALLOW` is still empty.
+- **The bug story moved with the code**, because it is the reason the buffer exists: `router.replace`
+  is asynchronous, two setters in one tick read the same pre-change query, and the second overwrites
+  the first. It shipped to production once and read as a broken date picker welded to 90 days.
+- **`useSpendFilters.test.ts` passes unchanged — all 12, including the one-tick collision case.**
+  That is the evidence the refactor is a refactor. `useQueryState.test.ts` then pins the same
+  guarantee in its GENERAL form (any two parameters, any two writers, one tick), because the hazard
+  was never about dates and the roster will hit it with columns.
+- Both guarantee tests were proven able to fail: removing the `pending` buffer fails "keeps every
+  parameter written in one tick" and "reads back a value before the router has settled", and nothing
+  else.
+- **Deliberately untouched:** the five single-parameter `router.replace({ query: { ...route.query, x
+  } })` sites (`DriverDetailPage`, `MessagesPage`, `AuditPage`, `IftaLedgerPage`,
+  `DispatchLoadDetailPage`). One parameter per tick cannot collide with itself, so they are correct
+  as written; converting them would be churn dressed as consistency.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`.
 
 ### The rest
 
