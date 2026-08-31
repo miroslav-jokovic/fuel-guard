@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0 and A1 shipped 2026-08-31 (PRs #410, #NNN). A2 is next.** D-AVI7 was **amended the same day**
+**Status: A0 and A1 shipped 2026-08-31 (PRs #410, #411). A2 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -251,7 +251,7 @@ there "needs a D-S360 decision before its plan starts".
 **Done when:** SILVICOM-360 §3 carries the feature with a D-S360 id; ARCHITECTURE §4's maintenance
 row names the tables; a fresh session can execute §4's resume ritual from this file alone.
 
-### A1 — The catalogue and the contract — **DONE 2026-08-31 (PR #NNN, no migration)**
+### A1 — The catalogue and the contract — **DONE 2026-08-31 (PR #411, no migration)**
 
 - `packages/shared/src/annualInspectionCatalogue.ts` — `INSPECTION_CATALOGUE_VERSION` and the 15
   Appendix A groups with their sub-items, each
