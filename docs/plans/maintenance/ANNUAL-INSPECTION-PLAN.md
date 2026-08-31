@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A4 shipped 2026-08-31 (PRs #410–#413, #NNN). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
+**Status: A0–A4 shipped 2026-08-31 (PRs #410–#414). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -401,7 +401,7 @@ a waiver that names the plan that owes the producer (ARCHITECTURE.md §6 records
 **Verified by:** the full CI gate list run locally (21 gates, extracted from `ci.yml` rather than
 guessed — the omission that turned #412 red once); `pnpm test` with all 27 matrices green.
 
-### A4 — API: inspectors and the draft lifecycle — **DONE 2026-08-31 (PR #NNN, no migration)**
+### A4 — API: inspectors and the draft lifecycle — **DONE 2026-08-31 (PR #414, no migration)**
 
 Prerequisites: A1, A3.
 
