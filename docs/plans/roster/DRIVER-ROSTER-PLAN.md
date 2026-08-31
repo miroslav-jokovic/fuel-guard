@@ -453,7 +453,7 @@ Prerequisites: R4, and a placement that satisfies `lint:boundaries`.
 
 #### R5a — the placement, and the count — **DONE 2026-08-31 (PR #403, no migration)**
 
-#### R5b — the modal itself, and the roster's file cell — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R5b — the modal itself, and the roster's file cell — **DONE 2026-08-31 (PR #404, no migration)**
 
 **Done when:** the audit print path still works from the preview; no two dialogs are ever open at
 once; the roster issues NO extra query for the count — asserted as a constant, not a small number.
@@ -1013,7 +1013,7 @@ invented query parameter breaks it), as was the fleet table's characterisation s
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
 
-### R5b — the folder, and the cell that opens it — 2026-08-31, PR #PENDING, no migration
+### R5b — the folder, and the cell that opens it — 2026-08-31, PR #404, no migration
 
 `components/DocumentsModal.vue`, the `File` column, one modal owned by the page.
 
