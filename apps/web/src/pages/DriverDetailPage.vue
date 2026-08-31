@@ -169,7 +169,7 @@ const fillColumns: DataTableColumn[] = [
     <PageHeader :title="driver?.full_name ?? 'Driver'" description="Profile, qualification file, hiring paperwork and fueling history">
       <template #actions>
         <BaseButton
-          v-if="section === 'qualification' && session.canManage"
+          v-if="section === 'qualification' && session.can('roster')"
           variant="ghost"
           :disabled="requestBinder.isPending.value"
           @click="exportWholeFile"
@@ -220,9 +220,12 @@ const fillColumns: DataTableColumn[] = [
       <SevenDayStatementSection :driver-id="id" />
     </template>
 
-    <!-- A vendor ledger, which is not employment. It stays on the driver page rather than moving to
-         Qualification because that section's write affordances gate on canManageFleet, which a
-         recruiter is not (PSP-PLAN P14). -->
+    <!-- A vendor ledger, which is not employment.
+         It sat here because Qualification's write affordances gated on `canManageFleet`, which a
+         recruiter is not (PSP-PLAN P14) — a LAYOUT decision made by a permission bug. R0 removed the
+         bug: those affordances now ask `can("roster")`, and a recruiter's own writes ask
+         `can("recruitment")`, so nothing about this placement is forced any more. Moving it to the
+         recruitment surface is step R7, where it becomes a choice rather than a workaround. -->
     <PspRecordsSection v-if="section === 'screening'" :driver-id="id" />
 
     <BaseCard v-if="section === 'profile' && driver">

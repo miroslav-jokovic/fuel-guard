@@ -133,7 +133,7 @@ const columns: DataTableColumn[] = [
     </template>
     <template #actions="{ row }">
       <KebabMenu
-        v-if="session.canManage && !row.restricted"
+        v-if="session.can('roster') && !row.restricted"
         :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
       >
         <BaseButton type="button" class="kebab-item" @click="emit('open', row.key)">

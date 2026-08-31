@@ -137,7 +137,7 @@ const integrity = computed(() => {
         confirm="Re-score the last 30 days with the current rules? Existing false flags will clear; your notes are kept."
       />
       <JobActionCard
-        v-if="session.canManage"
+        v-if="session.can('settings')"
         title="Sync idling events"
         kind="sync_idle"
         endpoint="/api/integrations/samsara/sync-idle"
@@ -148,7 +148,7 @@ const integrity = computed(() => {
         description="Pull the last 30 days of Samsara idling events and refresh the driver idle scorecard. 'Backfill last 120 days' seeds deeper history in 30-day slices. Also runs with 'Sync fleet identity'. Needs the token's Read Idling scope."
       />
       <JobActionCard
-        v-if="session.canManage"
+        v-if="session.can('settings')"
         title="Sync HOS duty status"
         kind="sync_hos"
         endpoint="/api/integrations/samsara/sync-hos"
@@ -159,7 +159,7 @@ const integrity = computed(() => {
         description="Pull driver Hours-of-Service duty status (Sleeper Berth / Off Duty / On Duty) from Samsara. Powers the rest-vs-work idle split on the Idling page. 'Sync HOS now' pulls a rolling 30 days; 'Backfill last 120 days' seeds history. Also runs on the scheduled sync. Needs the token's Read ELD Compliance scope."
       />
       <JobActionCard
-        v-if="session.canManage"
+        v-if="session.can('settings')"
         title="Sync driver scores"
         kind="sync_driver_scores"
         endpoint="/api/integrations/samsara/sync-driver-scores"

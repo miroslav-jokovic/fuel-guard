@@ -41,7 +41,7 @@ const statementsQ = useSevenDayStatementsQuery(computed(() => props.driverId));
 const record = useRecordSevenDayStatement();
 
 /** Recording one is a fleet lifecycle act — the same gate 0213 puts on a status change. */
-const canRecord = computed(() => session.canManage);
+const canRecord = computed(() => session.can("roster"));
 
 const open = ref(false);
 const statementDate = ref("");

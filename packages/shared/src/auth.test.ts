@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   emailDomain,
   isEmailDomainAllowed,
-  canManageFleet,
   canResolveAnomalies,
   isAdmin,
   isReadOnly,
@@ -50,13 +49,13 @@ describe("isEmailDomainAllowed (audit M2)", () => {
 });
 
 describe("role helpers", () => {
-  it("gates fleet management to admin + fleet_manager", () => {
-    expect(canManageFleet("admin")).toBe(true);
-    expect(canManageFleet("fleet_manager")).toBe(true);
-    expect(canManageFleet("driver")).toBe(false);
-    expect(canManageFleet("auditor")).toBe(false);
-    expect(canManageFleet(null)).toBe(false);
-  });
+  /**
+   * `canManageFleet` was DELETED by R0 (D-ROS7) and its test with it. It was `admin || fleet_manager`,
+   * hand-written beside a matrix that said something else, and `session.canManage` built the whole web
+   * on it — which is why a safety_manager held `roster: manage` and saw a read-only screen. Its members
+   * live on as `rolesThatManage("settings")`, asserted below, because ten of the fifty call sites
+   * genuinely meant "may configure the product" and had no section to say so in.
+   */
   it("identifies admin and read-only roles", () => {
     expect(isAdmin("admin")).toBe(true);
     expect(isReadOnly("auditor")).toBe(true);
@@ -216,6 +215,13 @@ describe("section capability matrix", () => {
     expect(rolesThatCanView("billing").sort()).toEqual(["accountant", "admin", "auditor"]);
     // maintenance: the shop is ops (admin + fleet_manager manage); the bookkeeper and the auditor read
     expect(rolesThatManage("maintenance").sort()).toEqual(["admin", "fleet_manager"]);
+    // `settings` (R0): the operations console. Its members are EXACTLY the deleted canManageFleet
+    // set, and that is the point — R0 said what the 50 web call sites meant without re-deciding who
+    // may do what. The auditor reads it for the audit-log card; safety_manager does not, because
+    // maintaining the §391.51 file is no reason to re-sync Samsara.
+    expect(rolesThatManage("settings").sort()).toEqual(["admin", "fleet_manager"]);
+    expect(rolesThatCanView("settings").sort()).toEqual(["admin", "auditor", "fleet_manager"]);
+    expect(sectionAccess("safety_manager", "settings")).toBe("none");
     expect(rolesThatCanView("maintenance").sort()).toEqual(["accountant", "admin", "auditor", "fleet_manager"]);
     // and the narrowing that matters: dispatch/fleet access never implies books access
     expect(sectionAccess("dispatcher", "accounting")).toBe("none");

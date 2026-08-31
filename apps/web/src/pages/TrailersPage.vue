@@ -162,7 +162,7 @@ async function onRetire(t: Trailer) {
       description="Trailers pulled from Samsara. Type (Reefer / Dry) is set by you with the buttons below — only reefers are checked against reefer (ULSR) fuel. Paired tractor is inferred from GPS co-location over the last 5 days; Status is the trailer's active/retired state."
     >
       <template #actions>
-        <template v-if="session.canManage">
+        <template v-if="session.can('equipment')">
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
           </BaseButton>
@@ -186,7 +186,7 @@ async function onRetire(t: Trailer) {
 
     <!-- Bulk action bar -->
     <div
-      v-if="session.canManage && selectedCount > 0"
+      v-if="session.can('equipment') && selectedCount > 0"
       class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
     >
       <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
@@ -221,7 +221,7 @@ async function onRetire(t: Trailer) {
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load trailers') : null"
       :retrying="isFetching"
       :sort="sort"
-      :selectable="session.canManage"
+      :selectable="session.can('equipment')"
       :selected="selected"
       :empty-text="
         (trailers ?? []).length === 0
@@ -250,7 +250,7 @@ async function onRetire(t: Trailer) {
       }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
-        <KebabMenu v-if="session.canManage">
+        <KebabMenu v-if="session.can('equipment')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
           <BaseButton class="kebab-item" @click="toggleReefer(row)">
             {{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}

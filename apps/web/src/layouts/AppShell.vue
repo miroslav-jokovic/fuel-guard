@@ -190,7 +190,7 @@ async function signOut() {
                     <SidebarProfileMenu
                       :email="session.email"
                       :role="session.role"
-                      :can-manage="session.canManage"
+                      :can-manage="session.can('settings')"
                       @sign-out="signOut"
                     />
                   </div>
@@ -296,7 +296,7 @@ async function signOut() {
               :email="session.email"
               :role="session.role"
               :collapsed="sidebarCollapsed"
-              :can-manage="session.canManage"
+              :can-manage="session.can('settings')"
               @sign-out="signOut"
             />
           </div>

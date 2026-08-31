@@ -132,7 +132,7 @@ const sourceLabel = (s: string): string =>
             a commercial vehicle<template v-if="driverQ.data.value?.hire_date">. Measured from the hire date</template>.
           </p>
         </div>
-        <BaseButton v-if="session.canManage" variant="primary" @click="openAdd">Add employer</BaseButton>
+        <BaseButton v-if="session.can('recruitment')" variant="primary" @click="openAdd">Add employer</BaseButton>
       </div>
 
       <!-- Two lists, two rules. Only the first carries a gap figure — see the note below it. -->
@@ -227,7 +227,7 @@ const sourceLabel = (s: string): string =>
           <span class="text-ink-muted">{{ sourceLabel(row.source) }}</span>
         </template>
         <template #actions="{ row }">
-          <KebabMenu v-if="session.canManage">
+          <KebabMenu v-if="session.can('recruitment')">
             <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
             <BaseButton class="kebab-item" @click="removeRow(row)">Remove</BaseButton>
           </KebabMenu>

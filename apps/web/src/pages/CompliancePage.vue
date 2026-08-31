@@ -101,7 +101,7 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
       description="Manage driver qualification files and resolve missing or expired credentials before dispatch."
     >
       <template #actions>
-        <BaseButton v-if="session.canManage" @click="carrierOpen = true">
+        <BaseButton v-if="session.can('roster')" @click="carrierOpen = true">
           <AppIcon :icon="ClipboardDocumentListIcon" class="size-4" aria-hidden="true" />
           Carrier records
         </BaseButton>
@@ -123,7 +123,7 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
     >
       <!-- U4/D-UI4: a callout, not a toast — this is true about the page while you look at it and
            survives every action on the page, which is the whole boundary between the two. -->
-      <AppCallout v-if="session.canManage && notStartedCount > 0 && !setupOpen" tone="brand">
+      <AppCallout v-if="session.can('roster') && notStartedCount > 0 && !setupOpen" tone="brand">
         {{ notStartedCount }} {{ notStartedCount === 1 ? "driver has" : "drivers have" }} no
         qualification file yet.
         <template #actions>

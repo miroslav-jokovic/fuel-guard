@@ -74,7 +74,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 async function clearException(row: DispatchException) {
-  if (!session.canManage || !row.load_id) return;
+  if (!session.can("dispatch") || !row.load_id) return;
   try {
     await resolveException.mutateAsync({
       loadId: row.load_id,
@@ -260,7 +260,7 @@ function removeFilter(key: string) {
 }
 
 function openNew() {
-  if (session.canManage) void router.push({ name: "load-new" });
+  if (session.can("dispatch")) void router.push({ name: "load-new" });
 }
 function openDetail(load: DispatchLoad) {
   void router.push({ name: "load-detail", params: { id: load.id } });
@@ -282,7 +282,7 @@ async function onFormSubmit(payload: LoadFormPayload) {
 
 
 async function bulkDo(action: "approve" | "release", ids: string[]) {
-  if (!session.canManage || !ids.length) return;
+  if (!session.can("dispatch") || !ids.length) return;
   try {
     const result = await bulk.mutateAsync({ ids, action });
     toast.success(`${result.succeeded} ${action === "approve" ? "approved" : "released"}${result.failed ? `, ${result.failed} could not be updated` : ""}`);
@@ -304,7 +304,7 @@ onUnmounted(() => {
   <div class="space-y-6">
     <PageHeader description="Create, review, approve and release loads. Nothing reaches a driver's phone until dispatch has completed the approval gate.">
       <template #actions>
-        <BaseButton v-if="session.canManage" variant="primary" @click="openNew">
+        <BaseButton v-if="session.can('dispatch')" variant="primary" @click="openNew">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New load
         </BaseButton>
       </template>
@@ -348,7 +348,7 @@ onUnmounted(() => {
     </FilterBar>
 
     <div
-      v-if="session.canManage && selected.size > 0"
+      v-if="session.can('dispatch') && selected.size > 0"
       class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
     >
       <span class="text-sm font-medium text-brand-800">{{ selected.size }} selected</span>
@@ -393,7 +393,7 @@ onUnmounted(() => {
       <template #cell-occurred_at="{ row }">{{ new Date(row.occurred_at).toLocaleString() }}</template>
       <template #actions="{ row }">
         <BaseButton
-          v-if="session.canManage && row.load_id"
+          v-if="session.can('dispatch') && row.load_id"
           variant="ghost"
           size="sm"
           :disabled="resolveException.isPending.value"
@@ -409,7 +409,7 @@ onUnmounted(() => {
       :columns="columns"
       :rows="pageRows"
       row-key="id"
-      :selectable="session.canManage"
+      :selectable="session.can('dispatch')"
       :selected="selected"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load the dispatch board') : null"

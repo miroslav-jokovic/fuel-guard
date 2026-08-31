@@ -318,7 +318,7 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
     />
 
     <DocumentDropCard
-      v-if="session.canManage"
+      v-if="session.can('roster')"
       :driver-id="driverId"
       :items="dropItems"
       @filed="onFiled"

@@ -2,7 +2,15 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
 import type { UserRole } from "@silvicom/shared";
-import { canManageFleet, canReadAllRestricted, canReadRestrictedKind, isAdmin, isReadOnly } from "@silvicom/shared";
+import {
+  canManageSection,
+  canViewSection,
+  canReadAllRestricted,
+  canReadRestrictedKind,
+  isAdmin,
+  isReadOnly,
+  type AppSection,
+} from "@silvicom/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
 import { clearStepUp } from "@/lib/stepUp";
@@ -52,7 +60,24 @@ export const useSessionStore = defineStore("session", () => {
 
   const isAuthenticated = computed(() => !!session.value);
   const hasOrg = computed(() => !!orgId.value); // false ⇒ "account pending" (audit B3)
-  const canManage = computed(() => canManageFleet(role.value));
+  /**
+   * ── THE CAPABILITY SURFACE (R0, D-ROS7) ────────────────────────────────────────────────────────
+   * `session.canManage` used to live here: ONE boolean, `canManageFleet` (admin || fleet_manager),
+   * standing in for the whole section × role matrix that the API and the database already model
+   * correctly. Fifty call sites across twenty components asked it, and they did not all mean the
+   * same thing — a fact nothing could express, so nothing did.
+   *
+   * What that cost is worth remembering, because it is the reason this file changed: a
+   * `safety_manager` held `fleet: manage` in the matrix and got a read-only screen; a `recruiter`
+   * held `recruitment: manage` and had recruiting write affordances hidden, which is why recruiting
+   * UI was placed on the driver page instead; an `accountant` held `accounting: manage` and the same
+   * boolean said no. Three sections modelled correctly everywhere except the surface people use.
+   *
+   * `can(section)` and `canView(section)` are thin on purpose — the matrix is the source of truth
+   * and this is a Vue-shaped door onto it, never a second opinion about it.
+   */
+  const can = (section: AppSection): boolean => canManageSection(role.value, section);
+  const canView = (section: AppSection): boolean => canViewSection(role.value, section);
   const admin = computed(() => isAdmin(role.value));
   const readOnly = computed(() => isReadOnly(role.value));
   /**
@@ -113,7 +138,8 @@ export const useSessionStore = defineStore("session", () => {
     role,
     isAuthenticated,
     hasOrg,
-    canManage,
+    can,
+    canView,
     admin,
     readOnly,
     restrictedAccess,

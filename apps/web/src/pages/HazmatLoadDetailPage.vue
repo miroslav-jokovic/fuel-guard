@@ -164,9 +164,9 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
         </div>
       </BaseCard>
 
-      <LoadDeclarationCard :load="load" :can-manage="session.canManage" />
+      <LoadDeclarationCard :load="load" :can-manage="session.can('hazmat')" />
 
-      <DeclaredProductsCard :load="load" :can-manage="session.canManage" />
+      <DeclaredProductsCard :load="load" :can-manage="session.can('hazmat')" />
 
       <!-- review + attestation (H7) — review-role users only; RLS is the real gate -->
       <ReviewPanel v-if="load.status === 'needs_review' && canReview && latestRun" :load="load" :run="latestRun" />

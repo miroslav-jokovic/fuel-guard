@@ -1,5 +1,27 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
+import type { AppSection } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
+
+/**
+ * Route meta, TYPED — added with R0 (D-ROS7).
+ *
+ * `requiresManage` used to be a bare `true` resolved against one global boolean, and `meta` was
+ * untyped, so neither the value nor its absence could be checked. It now names the SECTION the route
+ * requires, and typing it on `AppSection` means a misspelled or retired section name is a compile
+ * error rather than a route that silently admits everybody — which is the failure mode a permission
+ * check must never have.
+ */
+declare module "vue-router" {
+  interface RouteMeta {
+    requiresAuth?: boolean;
+    requiresAdmin?: boolean;
+    /** The section whose `manage` access this route needs. */
+    requiresManage?: AppSection;
+    requiresAuditAccess?: boolean;
+    title?: string;
+    parent?: string;
+  }
+}
 import { authRoutes } from "./routes/auth";
 import { coreRoutes } from "./routes/core";
 import { dispatchRoutes } from "./routes/dispatch";
@@ -81,7 +103,10 @@ router.beforeEach(async (to) => {
   if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
     return { name: "dashboard" };
   if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
-  if (to.meta.requiresManage && !session.canManage) return { name: "dashboard" };
+  // `requiresManage` NAMES a section since R0 — it used to be a bare `true` resolved against one
+  // global boolean, which is why /recruitment could never use it without bouncing the recruiter
+  // the section exists for.
+  if (to.meta.requiresManage && !session.can(to.meta.requiresManage)) return { name: "dashboard" };
   if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly))
     return { name: "dashboard" };
   return true;

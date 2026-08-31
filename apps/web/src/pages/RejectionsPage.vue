@@ -201,7 +201,7 @@ const columns: DataTableColumn[] = [
           Cards{{ cardList.length ? ` (${cardList.length})` : "" }}
         </BaseButton>
         <BaseButton
-          v-if="session.canManage"
+          v-if="session.can('fuel')"
           size="sm"
           :disabled="rescoring"
           title="Check each declined attempt against Samsara + card patterns"

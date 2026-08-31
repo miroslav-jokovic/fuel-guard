@@ -149,7 +149,7 @@ async function onRetire(v: Vehicle) {
   <div class="space-y-6">
     <PageHeader description="Fleet vehicles and their fuel parameters.">
       <template #actions>
-        <template v-if="session.canManage">
+        <template v-if="session.can('equipment')">
           <BaseButton
             title="Import vehicles from CSV — download a blank template, fill it in, and upload"
             @click="setupOpen = true"
@@ -177,7 +177,7 @@ async function onRetire(v: Vehicle) {
     </FilterBar>
 
     <!-- Bulk idle-reduction capability: select trucks, then set APU / Optimized-Idle on all of them at once. -->
-    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
+    <div v-if="session.can('equipment') && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
       <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
       <span class="text-xs text-brand-700">Set idle-reduction capability:</span>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: true }, 'Marked as having an APU')">Has APU</BaseButton>
@@ -192,7 +192,7 @@ async function onRetire(v: Vehicle) {
       :columns="columns"
       :rows="pageRows"
       row-key="id"
-      :selectable="session.canManage"
+      :selectable="session.can('equipment')"
       :selected="selected"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
@@ -245,7 +245,7 @@ async function onRetire(v: Vehicle) {
       </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
-        <KebabMenu v-if="session.canManage">
+        <KebabMenu v-if="session.can('equipment')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit vehicle</BaseButton>
           <BaseButton v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire vehicle</BaseButton>
         </KebabMenu>

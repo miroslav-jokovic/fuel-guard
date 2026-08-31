@@ -23,15 +23,19 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 
 const session = useSessionStore();
-const manageOrRead = session.canManage || session.readOnly;
+const manageOrRead = session.can("settings") || session.readOnly;
 
 // Configuration surfaces (org, users, tuning).
 const configCards = [
   { name: "Organization", to: "/settings/org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", show: session.admin },
   { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "Who gets emailed when high/critical anomalies are detected.", show: session.admin },
   { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
-  { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.canManage },
-  { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.canManage },
+  // `roster` and not `settings`: this console decides what DRIVERS see, its route requires the same
+  // section, and driverAppSettings.ts gates on rolesThatManage("roster"). The card, the route and the
+  // endpoint now ask one question — before R0 all three asked the same global boolean and agreed by
+  // accident rather than by construction.
+  { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.can("roster") },
+  { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.can("settings") },
   { name: "EFS integration", to: "/settings/efs-soap", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
   { name: "Card control", to: "/settings/card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", show: session.admin },
   { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },
@@ -69,7 +73,7 @@ const reportCards = [
     </SettingsSection>
 
     <SettingsSection
-      v-if="session.canManage"
+      v-if="session.can('settings')"
       title="Fleet readiness"
       description="Complete the fleet configuration required for reliable fuel and anomaly detection."
     >
