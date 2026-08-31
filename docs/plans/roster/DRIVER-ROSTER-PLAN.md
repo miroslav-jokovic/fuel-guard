@@ -381,6 +381,16 @@ the way it documents the existing ones.
 A view is a name plus a query string. Built-ins ship in `@silvicom/shared` and are stored nowhere;
 personal views are rows the signed-in user owns.
 
+**Split in two, because of a prerequisite this plan did not have.** Measured 2026-08-30: the
+roster's search, status, archived toggle, sort and page were **component refs, not URL parameters**.
+A saved view built on that could have captured the columns and nothing else — which is the "half a
+feature" §6 Q3 warned about, arrived at from the other direction. It also meant the one thing an
+office does with a filtered roster, send it to somebody, was impossible.
+
+##### R3c-1 — the roster's filters move into the URL — **DONE 2026-08-30 (PR #399, no migration)**
+
+##### R3c-2 — saved views themselves — one migration
+
 - `packages/shared` — the built-in catalogue per table, and the contract for a saved view.
 - One migration: `saved_views` (module `org`, layer `core`), `primary key (user_id, table_id, name)`,
   `org_id` FK + `forbid_org_change` trigger, RLS `org_id = auth_org_id() AND user_id = auth_user_id()`
@@ -750,6 +760,33 @@ caller rather than its owner.
 be reproduced in seven subsequent full runs (five web-only, one `pnpm -r test`, one whole `pnpm
 test`); it was run immediately after a heavy parallel sequence. Recorded rather than smoothed over —
 if CI shows it again, it is real.
+
+### R3c-1 — the roster becomes linkable — 2026-08-30, PR #399, no migration
+
+`features/roster/useRosterFilters.ts` (107). `DriversPage.vue` 348 → 334.
+
+- **`q`, `status`, `show`, `sort`, `dir`, `page` are now query parameters**, and every setter writes
+  `undefined` when a value returns to its default — so `/drivers` and `/drivers?show=live&page=1` are
+  never both reachable. A URL that spells out defaults invites the reader to think something has been
+  narrowed, and it makes "is this view customised" a comparison rather than a lookup.
+- **A filter change clears the page in the SAME patch.** It was a `watch` that set `page` after the
+  filters changed; that is two writes in one tick, which is the exact hazard `useQueryState` was
+  promoted to handle at R3a. Re-introducing it through the back door would have been a poor way to
+  use it. Sorting deliberately does NOT reset the page: unlike a filter, re-ordering leaves the row
+  you were looking at on the roster.
+- **Every read is normalised, because a linkable URL is one a person can type into.** `?page=-4`,
+  `?page=banana`, `?dir=sideways`, `?show=banana` and a `dir` with no `sort` all reach this module
+  from a forwarded link or a truncated paste, and each resolves to something sensible rather than to
+  an empty roster — which on a 287-driver fleet reads exactly like a carrier with no drivers.
+- **A "Clear filters" control was added, and it is not scope creep.** The roster can now be *arrived
+  at* narrowed, from a link or (next step) a saved view. A reader who lands on `?status=terminated`
+  with no way back cannot discover what the page normally shows. It uses `OdometerPage`'s existing
+  shape rather than a new one.
+- The R2 snapshot is untouched by all of it: the default view still renders exactly as before.
+
+**Verified by:** `typecheck`, `lint`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
+`lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:table-writers`,
+`pnpm test`. The page-reset rule and the URL-normalisation rules were each proven able to fail.
 
 ### The rest
 
