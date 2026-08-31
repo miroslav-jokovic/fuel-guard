@@ -304,7 +304,7 @@ sync. Whatever the direction, the surfaces must not be able to disagree: one fun
 view of the same requirement cannot diverge, printing a `RESULT` line; the hazmat gate's behaviour
 on a McLeod-mastered org is pinned by a test.
 
-### R2 — Extract `DriverRosterTable.vue` from `DriversPage.vue` — **DONE 2026-08-30 (PR #PENDING, no migration)**
+### R2 — Extract `DriverRosterTable.vue` from `DriversPage.vue` — **DONE 2026-08-30 (PR #396, no migration)**
 
 Mechanical, no behaviour change. `DriversPage` is at 493 of 500; nothing else in this plan can be
 added to it. The extracted table is also what Vehicles and Trailers reuse under D-ROS10.
@@ -558,7 +558,7 @@ settings 10.
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`,
 `lint:table-writers`.
 
-### R2 — the roster table leaves the page — 2026-08-30, PR #PENDING, no migration
+### R2 — the roster table leaves the page — 2026-08-30, PR #396, no migration
 
 `DriversPage.vue` 493 → **335 lines**; `features/roster/DriverRosterTable.vue` is 243. R4's four
 columns now have somewhere to go, and under D-ROS10 so do the vehicle and trailer rosters.
