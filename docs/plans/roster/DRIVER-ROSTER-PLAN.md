@@ -333,7 +333,7 @@ table is byte-identical in a snapshot test.
 2. **Two of the four things R3 was going to build already exist**, one of them three times. See
    R3b. The step is smaller than it looked, and mostly about *promoting* what is there.
 
-#### R3a — Promote the URL-state buffer to `@/composables` — **DONE 2026-08-30 (PR #PENDING, no migration)**
+#### R3a — Promote the URL-state buffer to `@/composables` — **DONE 2026-08-30 (PR #397, no migration)**
 
 D-ROS14 makes the URL the description of a view, so every table needs to write several query
 parameters at once without losing any. That primitive exists — and only inside
@@ -670,7 +670,7 @@ columns now have somewhere to go, and under D-ROS10 so do the vehicle and traile
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
 
-### R3a — the URL-state buffer becomes a capability — 2026-08-30, PR #PENDING, no migration
+### R3a — the URL-state buffer becomes a capability — 2026-08-30, PR #397, no migration
 
 `@/composables/useQueryState.ts` (78 lines). `useSpendFilters.ts` 161 → 127 and is now its first
 caller rather than its owner.
