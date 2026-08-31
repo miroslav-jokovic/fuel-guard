@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A3 shipped 2026-08-31 (PRs #410, #411, #412, #NNN). A4 is next.** D-AVI7 was **amended the same day**
+**Status: A0–A3 shipped 2026-08-31 (PRs #410, #411, #412, #413). A4 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -334,7 +334,7 @@ later.
 matrix parsed from `auth.ts`, which is the gate confirming it read the new role rather than skipping
 it; `pnpm test` — all suites and all 26 PGlite matrices pass, `rls` at 449.
 
-### A3 — Schema — **DONE 2026-08-31 (PR #NNN, migration 0280)**
+### A3 — Schema — **DONE 2026-08-31 (PR #413, migration 0280)**
 
 Prerequisite: A2 (the policies name the role).
 
