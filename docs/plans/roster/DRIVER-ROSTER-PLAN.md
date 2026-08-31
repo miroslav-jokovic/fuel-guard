@@ -482,7 +482,7 @@ R6a. The layout change is R6b and is the smaller half.
 
 #### R6b — tabs become sections on one scroll
 
-### R7 — Recruiting leaves the driver page (D-ROS6) — **DONE 2026-08-31 (PR #PENDING, no migration)**
+### R7 — Recruiting leaves the driver page (D-ROS6) — **DONE 2026-08-31 (PR #406, no migration)**
 
 ⚠ **R7 runs BEFORE R6b, and the plan's numbering had it the other way round.** `DriverDetailPage`'s
 own docblock records U6/D-UI7: those four recruiting sections WERE on one scroll — "roughly a
@@ -1121,7 +1121,7 @@ What shipped:
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 The manual-row branch of the warning was proven able to fail.
 
-### R7 — recruiting leaves — 2026-08-31, PR #PENDING, no migration
+### R7 — recruiting leaves — 2026-08-31, PR #406, no migration
 
 - **The step needed a destination that did not exist.** All five sections are per-driver and the
   recruitment surface was three LISTS, so "move recruiting off the driver page" had nowhere to move
