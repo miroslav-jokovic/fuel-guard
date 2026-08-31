@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { createRouter, createMemoryHistory } from "vue-router";
 import { ref } from "vue";
 import type { Driver, Vehicle } from "@silvicom/shared";
 import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 
 /**
  * R2's safety net (DRIVER-ROSTER-PLAN.md §5): the roster table moves out of `DriversPage.vue` into
@@ -157,42 +159,85 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const mountPage = () =>
-  mount(DriversPage, {
-    global: { plugins: [VueQueryPlugin], stubs: { RouterLink: RouterLinkStub } },
+/**
+ * A real router, because the column picker holds its choice in the URL (R3b) — but `RouterLink` stays
+ * STUBBED, so the rendered markup the snapshots pin is the same anchor it always was. The page needs
+ * `useRoute`/`useRouter` to work; it does not need real navigation to render a table.
+ */
+const mountPage = async () => {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/drivers", component: { template: "<div/>" } }],
   });
+  // Awaited: an unresolved route has no match, and the column picker's first `replace` throws on one.
+  await router.push("/drivers");
+  await router.isReady();
+  return mount(DriversPage, {
+    global: {
+      plugins: [VueQueryPlugin, router],
+      stubs: { RouterLink: RouterLinkStub },
+    },
+  });
+};
 
 /**
  * The "Show" filter is the second FilterSelect on the bar. Driven through its model rather than by
  * clicking the popover open: this file is pinning the TABLE, and a filter's internals changing
  * should not be able to fail an extraction test that has nothing to do with them.
  */
-const showArchived = async (w: ReturnType<typeof mountPage>) => {
+const showArchived = async (w: Awaited<ReturnType<typeof mountPage>>) => {
   const filters = w.findAllComponents(FilterSelect);
   await filters[1]!.vm.$emit("update:modelValue", "archived");
   await w.vm.$nextTick();
 };
 
 describe("DriversPage roster table", () => {
-  it("renders the roster table unchanged by the R2 extraction", () => {
-    const table = mountPage().find("table");
+  it("renders the roster table unchanged by the R2 extraction", async () => {
+    const table = (await mountPage()).find("table");
     expect(table.exists()).toBe(true);
     expect(table.html()).toMatchSnapshot();
   });
 
   it("renders the archived view unchanged by the R2 extraction", async () => {
-    const w = mountPage();
+    const w = await mountPage();
     await showArchived(w);
     expect(w.find("table").html()).toMatchSnapshot();
   });
 
+  /**
+   * R3b end to end: the picker lives in the toolbar and the table is a different component, so the
+   * two only agree through `useTableColumns`. Hiding a column has to reach the header, the cells,
+   * and the URL — a picker that ticks a box and changes nothing is the failure mode worth pinning.
+   */
+  it("hides a column from the table when the picker turns it off", async () => {
+    const w = await mountPage();
+    expect(w.find("table").text()).toContain("Phone");
+
+    const picker = w.findComponent(ColumnPicker);
+    picker.vm.columns.toggle("phone");
+    await flushPromises();
+
+    expect(w.find("table").text()).not.toContain("Phone");
+    expect(w.find("table").text()).not.toContain("(555) 867-5309");
+    // …and it is in the URL, which is what lets a saved view carry it in R3c (D-ROS14).
+    expect(w.vm.$route.query.hide).toBe("phone");
+  });
+
+  it("keeps the name column whatever the picker is asked to do", async () => {
+    const w = await mountPage();
+    const picker = w.findComponent(ColumnPicker);
+    picker.vm.columns.toggle("full_name");
+    await flushPromises();
+    expect(w.find("table").text()).toContain("Marcus Reyes");
+  });
+
   it("offers Archive on a live row and Restore on an archived one", async () => {
-    const w = mountPage();
+    const w = await mountPage();
     await w.find("td[class*=pl-2] button").trigger("click");
     expect(document.body.textContent).toContain("Archive…");
     expect(document.body.textContent).not.toContain("Restore to the roster");
 
-    const archived = mountPage();
+    const archived = await mountPage();
     await showArchived(archived);
     await archived.find("td[class*=pl-2] button").trigger("click");
     expect(document.body.textContent).toContain("Restore to the roster");

@@ -349,7 +349,7 @@ thing out of `features/`, do not allow-list the leak.** So the buffer moves to
 **Done when:** `useSpendFilters.test.ts` passes unchanged — including the one-tick collision case it
 exists to pin — with the buffer no longer inside the file it is testing; `lint:boundaries` green.
 
-#### R3b — `DataTable` column management (D-ROS3, D-ROS15)
+#### R3b — `DataTable` column management (D-ROS3, D-ROS15) — **DONE 2026-08-30 (PR #PENDING, no migration)**
 
 **What already exists and must not be rebuilt:** horizontal scroll (`DataTable.vue:366`,
 `overflow-x-auto`), and the pinned first column — which is real, works, and is **hand-rolled
@@ -696,6 +696,60 @@ caller rather than its owner.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`.
+
+### R3b — column management — 2026-08-30, PR #PENDING, no migration
+
+`DataTable.vue` 453 → **375**. New: `DataTableCards.vue` (171), `ColumnPicker.vue` (122),
+`useTableColumns.ts` (121), `driverRosterColumns.ts` (58).
+
+- **The extraction was proven, not asserted.** Two snapshots of what `DataTable` renders — the card
+  branch and the table branch, with slots, blanks, selection, expansion and footer — were recorded
+  against the 453-line file, then the card view moved out and they were re-run untouched. Recording
+  them *after* the move would have proved nothing, and the first attempt did exactly that before
+  being redone properly.
+- **The snapshot had to be normalised first, and the reason is a defect it found in itself.** The
+  card sort control's `listId` is `Math.random()` per mount, so the snapshot would have failed on its
+  second run — an intermittent CI failure built into the net meant to catch one. Comment whitespace
+  is normalised too; Vue strips comments from production builds, so their indentation is not
+  something a reader can see. `<!--v-if-->` markers survive, because a branch that stopped rendering
+  IS structure.
+- **The pinned lead column was a THREE-part hand-roll, not two.** Beyond the two class strings, each
+  of `FuelLogPage`, `TransactionsPage` and `RejectionsPage` also had to return `group` from
+  `row-class` — and each spelled that differently. Without it, `group-hover:bg-surface-subtle` never
+  fires and the pinned cell silently stops following its own row on hover: visible only with a mouse
+  over a scrolled table, which is to say never, in review. Now `pin-first-column`, and the three
+  copies are deleted. The test asserts the EXACT class strings that were removed, so the diff between
+  the deleted literals and the test file is the equivalence proof.
+- **The stored set is what is HIDDEN, and that is a legal decision, not a stylistic one.** R4 adds
+  CDL, medical and hazmat expiry columns to this table. Under a stored *visible*-list, every reader
+  who had ever opened the picker would silently not get them — the readers who customise most would
+  be the ones missing the columns a §391.51 file depends on. `useSidebarSections` had already learned
+  the same lesson for the opposite reason and written it down; this is that reasoning applied.
+- **A link's columns win for the visit and are not written to the reader's own default.** Following
+  somebody's link must not reshape your table forever. The corollary, stated in the composable: a
+  link that hides nothing lets the reader's own hidden columns stand — filters and sort change WHICH
+  rows you see, columns only change how you see them.
+- **Deviations, both found by gates and both real:**
+  - `lint:comment-claims` rejected a docblock whose quoted test title wrapped across two lines. The
+    title existed; the quotation did not survive the line break. Reflowed.
+  - `@typescript-eslint/no-explicit-any` rejected a shared `cellValue` helper. That was the gate
+    being right: `row[key]` is a property access, not a rule, and it did not deserve a shared module.
+    Only `isBlank` — what counts as an empty cell — is a decision the two branches must agree on, and
+    only that is shared. An earlier attempt to type the helper `unknown` while moving it broke five
+    pages that do arithmetic on a slot value, which is recorded in `dataTable.ts` as its own step.
+- **A capability built rather than a gap accepted:** the picker closes on Escape pressed *inside* the
+  panel, via a document listener while open. `FilterBar`'s popover — the same shape — does not: its
+  handler sits on the trigger, and the panel is teleported to `<body>`, so there is no ancestor to
+  bubble to. Left alone deliberately and noted in `ColumnPicker.vue`; it is one primitive's keyboard
+  contract and belongs to a step that owns popover behaviour.
+- **Not built, and not asked for:** column reordering. The plan says picker and visibility.
+
+**Verified by:** `typecheck`, `lint`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
+`lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:table-writers`, and
+`pnpm test` (all suites and matrices). ⚠ One `pnpm test` run failed at the unit stage and could not
+be reproduced in seven subsequent full runs (five web-only, one `pnpm -r test`, one whole `pnpm
+test`); it was run immediately after a heavy parallel sequence. Recorded rather than smoothed over —
+if CI shows it again, it is real.
 
 ### The rest
 

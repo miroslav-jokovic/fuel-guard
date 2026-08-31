@@ -19,6 +19,9 @@ import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
+import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
+import ColumnPicker from "@/components/ui/ColumnPicker.vue";
+import { useTableColumns } from "@/composables/useTableColumns";
 
 const PAGE_SIZE = 20;
 
@@ -78,6 +81,12 @@ async function linkDriver(sourceId: string) {
     await reconcile.preview();
   } else toast.error("Link failed", reconcile.error.value ?? undefined);
 }
+
+/**
+ * Which columns this reader keeps (R3b). The id is the table's, not the route's — the roster is one
+ * table wherever it is shown, and a preference keyed on a URL would reset the day the page moves.
+ */
+const rosterColumns = useTableColumns("roster.drivers", () => DRIVER_ROSTER_COLUMNS);
 
 const search = ref("");
 const statusFilter = ref<string>("");
@@ -206,10 +215,14 @@ async function onSubmit(input: DriverInput) {
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
       </template>
+      <template #actions>
+        <ColumnPicker :columns="rosterColumns" />
+      </template>
     </FilterBar>
 
     <DriverRosterTable
       :rows="pageRows"
+      :columns="rosterColumns.visible.value"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
       :retrying="isFetching"

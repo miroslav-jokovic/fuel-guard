@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import type { SortState } from "@/lib/sort";
-import { cellValue, isBlank } from "@/components/ui/dataTable";
+import { isBlank } from "@/components/ui/dataTable";
 
 /**
  * The narrow-screen half of `DataTable` — one card per row, no table.
@@ -18,8 +18,8 @@ import { cellValue, isBlank } from "@/components/ui/dataTable";
  * path never touches. The parent still decides WHICH branch renders; this file only renders one.
  *
  * The parent forwards every slot verbatim, so a `#cell-<key>` written for the table reaches the card
- * too — that is what keeps the two branches showing the same thing, and it is pinned by "renders the
- * narrow card list unchanged" in `DataTable.test.ts`.
+ * too — that is what keeps the two branches showing the same thing. Pinned by
+ * "renders the narrow card list unchanged" in `DataTable.test.ts`.
  */
 const props = defineProps<{
   columns: DataTableColumn[];
@@ -35,6 +35,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ sort: [key: string]; "toggle-row": [row: Row] }>();
 
+const cellValue = (row: Row, key: string) => row[key];
 const isSelected = (row: Row) => props.selected?.has(props.keyOf(row)) ?? false;
 const isExpanded = (row: Row) => props.expanded?.has(props.keyOf(row)) ?? false;
 

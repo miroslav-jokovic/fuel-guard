@@ -8,7 +8,7 @@ import TableSkeleton from "@/components/TableSkeleton.vue";
 import DataTableCards from "@/components/ui/DataTableCards.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import type { SortState } from "@/lib/sort";
-import { cellValue, isBlank } from "@/components/ui/dataTable";
+import { isBlank } from "@/components/ui/dataTable";
 
 /**
  * The one data table. Column-definition driven so alignment, selection,
@@ -239,6 +239,7 @@ const skeletonCols = computed(
   () => props.columns.length + (props.selectable ? 1 : 0) + (hasActions.value ? 1 : 0),
 );
 
+const cellValue = (row: Row, key: string) => row[key];
 const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
 
 /* ── narrow screens get cards, not a table ────────────────────────────────────────────────────────
