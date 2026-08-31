@@ -815,7 +815,17 @@ if CI shows it again, it is real.
   column picker's storage key and the saved-view row get it. Spelled twice they would agree until a
   rename, and the symptom would be a reader's views quietly emptying rather than an error.
 
-**Two gates caught real things, and both changed the code rather than the claim:**
+**Three gates caught real things, and all three changed the code rather than the claim:**
+
+- **`testServerTeardown.test.ts`** — no `apps/api` suite may shut a test server down by hand; they all
+  go through `closeTestServer`, because undici pools keep-alive sockets to 127.0.0.1 and a plain
+  shutdown waits on them until the hook times out (`apps/api` red about one run in four under
+  contention). The new route test hand-rolled it. ⚠ **And this is the trap worth carrying forward:
+  that scan enumerates files with `git ls-files`, so it could not see the new test while it was
+  still UNTRACKED — it passed locally and failed in CI.** The same shape as the stale-`dist`
+  typecheck trap: `git add` before trusting a full local run. Its sibling assertion is a plain-text
+  regex, so the banned call cannot be named in a comment either — the same footgun
+  `lint:ui-adoption` has.
 
 - **`routeGates.test.ts`** — every `/api` mount must carry a role gate or be pinned with an argument.
   The saved-views router deliberately has none, so it is now pinned with the reason: a view grants

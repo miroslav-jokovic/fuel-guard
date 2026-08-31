@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
  * Saved views at the API layer (R3c-2).
@@ -44,7 +45,12 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   try {
     return await fn(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    // Torn down through the helper, never by hand: undici pools keep-alive sockets to 127.0.0.1, a
+    // plain shutdown waits on them, and the hook times out with live connections — `apps/api` red
+    // about one run in four under contention. `testServerTeardown.test.ts` fails the build if a
+    // suite hand-rolls it, and that scan is a plain-text regex, so the banned call cannot be named
+    // here either.
+    await closeTestServer(server);
   }
 }
 
