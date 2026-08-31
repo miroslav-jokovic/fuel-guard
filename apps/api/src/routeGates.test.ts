@@ -27,6 +27,15 @@ const AUTH_ONLY_MOUNTS = new Map<string, string>([
   ["/api/public/hazmat", "the public M7 calculator — anonymous by product design; stateless, no tenant data"],
   ["/api/webhooks", "provider-signed (Samsara HMAC, Twilio signature) — authenticated, just not by a user role"],
   ["/api/tms", "the on-prem agent — authenticated by the org ingest token (hash-matched), a machine credential with no role to check"],
+  // R3c-2. Deliberate, and the argument is that there is no capability here to gate. A saved view is
+  // a NAME plus a query string belonging to the caller: it grants nothing, reveals nothing, and
+  // names no data the reader could not already reach — applying one is a navigation, and the page it
+  // navigates to enforces its own permissions exactly as it does for a pasted link. What isolates
+  // the rows is that every query filters on BOTH org_id and user_id (asserted in savedViews.test.ts,
+  // "lists only the caller's own views, for the table asked for"), plus the RLS policy 0278 puts on
+  // the table for PostgREST. A section gate here would invent a capability nobody needs: a recruiter
+  // who may read the roster may certainly name a view of it.
+  ["/api/saved-views", "a bookmark belonging to the caller — grants nothing and reveals nothing; isolated by org_id + user_id on every query and by 0278's RLS"],
 ]);
 
 /** Discover mounts from app.ts source — same detector routeAuth.test.ts uses, same reason. */

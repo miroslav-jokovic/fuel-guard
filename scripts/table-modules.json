@@ -357,6 +357,10 @@
       "module": "mcleod",
       "layer": "raw"
     },
+    "mcleod_office_lines": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
     "mcleod_settlements": {
       "module": "mcleod",
       "layer": "raw"
@@ -445,6 +449,10 @@
       "module": "samsara",
       "layer": "raw"
     },
+    "saved_views": {
+      "module": "org",
+      "layer": "core"
+    },
     "scoring_attempts": {
       "module": "anomalies",
       "layer": "derived"
@@ -500,10 +508,6 @@
     "weather_cache": {
       "module": "idle",
       "layer": "infra"
-    },
-    "mcleod_office_lines": {
-      "module": "mcleod",
-      "layer": "raw"
     }
   }
 }

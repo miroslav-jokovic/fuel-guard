@@ -2,6 +2,7 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver, useArchiveDriver } from "@/composables/useDrivers";
@@ -21,7 +22,10 @@ import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
+import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
+import { useSavedViews } from "@/composables/useSavedViews";
 import { useTableColumns } from "@/composables/useTableColumns";
+import { SAVED_VIEW_TABLES } from "@silvicom/shared";
 import {
   useRosterFilters,
   ROSTER_PAGE_SIZE,
@@ -86,10 +90,19 @@ async function linkDriver(sourceId: string) {
 }
 
 /**
- * Which columns this reader keeps (R3b). The id is the table's, not the route's — the roster is one
- * table wherever it is shown, and a preference keyed on a URL would reset the day the page moves.
+ * The id this table is known by, in the one place it is spelled (`SAVED_VIEW_TABLES`).
+ *
+ * Both readers below take it from here: the column picker stores a preference under it, and a saved
+ * view is a row keyed on it. Spelled twice, they would agree until somebody renamed one — and the
+ * symptom would be a reader's saved views quietly emptying rather than an error.
+ *
+ * It is the TABLE's id, not the route's: the roster is one table wherever it is shown, and a
+ * preference keyed on a URL would reset the day the page moves.
  */
-const rosterColumns = useTableColumns("roster.drivers", () => DRIVER_ROSTER_COLUMNS);
+const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
+
+/** Which columns this reader keeps (R3b). */
+const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
 
 /**
  * Search, status, the archived toggle, sort and page — all in the URL (R3c), so this view can be
@@ -104,6 +117,42 @@ const rosterColumns = useTableColumns("roster.drivers", () => DRIVER_ROSTER_COLU
  */
 const { search, status: statusFilter, view, showArchived, sort, onSort, page, active, reset } =
   useRosterFilters();
+
+/**
+ * Saved views (R3c-2). A view is a name and this page's query string, so applying one is a
+ * NAVIGATION and the URL afterwards IS the view — the same URL a colleague would receive as a link.
+ * There is no second code path that "applies" a view, which is what stops the two drifting apart.
+ */
+const savedViews = useSavedViews(ROSTER_TABLE);
+const route = useRoute();
+const router = useRouter();
+
+/** What Save would store: everything in the URL, which is exactly what a link carries. */
+const currentQuery = computed(() => new URLSearchParams(route.query as Record<string, string>).toString());
+/** The name of the saved view this page is currently showing, when it is showing one. */
+const activeViewName = computed(
+  () => savedViews.views.value.find((v) => v.query === currentQuery.value)?.name ?? null,
+);
+
+function applyView(query: string) {
+  void router.replace({ path: route.path, query: Object.fromEntries(new URLSearchParams(query)) });
+}
+async function saveView(name: string) {
+  try {
+    await savedViews.save(name, currentQuery.value);
+    toast.success("View saved", `“${name}” now opens this roster.`);
+  } catch (e) {
+    toast.error("Could not save the view", e instanceof Error ? e.message : undefined);
+  }
+}
+async function removeView(name: string) {
+  try {
+    await savedViews.remove(name);
+    toast.success("View deleted");
+  } catch (e) {
+    toast.error("Could not delete the view", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const archiving = ref<Driver | null>(null);
 const archiveDriver = useArchiveDriver();
@@ -206,6 +255,15 @@ async function onSubmit(input: DriverInput) {
         <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a
              way back that does not require knowing which controls were set (OdometerPage's shape). -->
         <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
+        <SavedViewMenu
+          :views="savedViews.views.value"
+          :current-query="currentQuery"
+          :active-name="activeViewName"
+          :busy="savedViews.saving.value"
+          @apply="applyView"
+          @save="saveView"
+          @remove="removeView"
+        />
         <ColumnPicker :columns="rosterColumns" />
       </template>
     </FilterBar>

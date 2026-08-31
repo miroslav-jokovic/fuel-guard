@@ -345,6 +345,9 @@
   "samsara_ifta_jurisdiction_miles": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
+  "saved_views": [
+    "apps/api/src/modules/org/routes/savedViews.ts"
+  ],
   "scoring_attempts": [
     "apps/api/src/modules/anomalies/scoring/persist.ts"
   ],

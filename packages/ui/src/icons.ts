@@ -131,6 +131,7 @@ export {
   // file is a licence and a medical card, so the licence glyph says what the section holds.
   LicenseIcon                 as LicenseIcon,
   Table01Icon                 as TableCellsIcon,
+  Bookmark02Icon              as BookmarkIcon,             // saved views (R3c-2)
   AnalyticsUpIcon             as ChartBarIcon,                   // ⚠ verify (many chart variants)
   Analytics01Icon             as ChartBarSquareIcon,             // ⚠ verify
   ChartAverageIcon            as DocumentChartBarIcon,           // ⚠ verify

@@ -7,6 +7,7 @@ import type { Driver, Vehicle } from "@silvicom/shared";
 import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
+import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 
 /**
  * R2's safety net (DRIVER-ROSTER-PLAN.md §5): the roster table moves out of `DriversPage.vue` into
@@ -67,6 +68,20 @@ vi.mock("@/components/ui/PageHeader.vue", () => ({
     props: ["description"],
     template: `<header><slot name="actions" /></header>`,
   },
+}));
+const savedViews = vi.hoisted(() => ({
+  views: [] as { table_id: string; name: string; query: string; updated_at: string }[],
+  save: vi.fn(),
+  remove: vi.fn(),
+}));
+vi.mock("@/composables/useSavedViews", () => ({
+  useSavedViews: () => ({
+    views: { value: savedViews.views },
+    loading: { value: false },
+    saving: { value: false },
+    save: savedViews.save,
+    remove: savedViews.remove,
+  }),
 }));
 vi.mock("@/stores/toast", () => ({
   useToastStore: () => ({ success: vi.fn(), error: vi.fn() }),
@@ -259,6 +274,46 @@ describe("DriversPage roster table", () => {
 
     expect(w.find("table").text()).toContain("Marcus Reyes");
     expect(w.vm.$route.query).toEqual({});
+  });
+
+  /**
+   * R3c-2, and the whole point of D-ROS14: applying a view is a NAVIGATION. If this ever became "set
+   * the filters from the view", a saved view and the link that produced it would be two mechanisms
+   * that agree until they do not.
+   */
+  it("applies a saved view by navigating to its query", async () => {
+    savedViews.views = [
+      { table_id: "roster.drivers", name: "Terminated", query: "status=terminated", updated_at: "2026-08-30T00:00:00Z" },
+    ];
+    const w = await mountPage();
+    const menu = w.findComponent(SavedViewMenu);
+    menu.vm.$emit("apply", "status=terminated");
+    await flushPromises();
+
+    // The URL afterwards IS the view — identical to the link a colleague would have been sent.
+    expect(w.vm.$route.query).toEqual({ status: "terminated" });
+  });
+
+  it("saves the whole current URL, not just the filters it knows about", async () => {
+    savedViews.views = [];
+    // `hide` belongs to the column picker, `status` to the filters. A view carries both, because a
+    // view is the URL rather than a list of things somebody remembered to include.
+    const w = await mountPage("/drivers?status=inactive&hide=phone");
+    w.findComponent(SavedViewMenu).vm.$emit("save", "My view");
+    await flushPromises();
+
+    expect(savedViews.save).toHaveBeenCalledWith("My view", "status=inactive&hide=phone");
+  });
+
+  it("names the view it is currently showing, so saving again updates it", async () => {
+    savedViews.views = [
+      { table_id: "roster.drivers", name: "Terminated", query: "status=terminated", updated_at: "2026-08-30T00:00:00Z" },
+    ];
+    const w = await mountPage("/drivers?status=terminated");
+    expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("Terminated");
+
+    const plain = await mountPage();
+    expect(plain.findComponent(SavedViewMenu).props("activeName")).toBeNull();
   });
 
   it("offers Archive on a live row and Restore on an archived one", async () => {
