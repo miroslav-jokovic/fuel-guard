@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A6 shipped 2026-08-31 (PRs #410–#417; migrations 0279–0282). An inspection can now be certified end to end. A7 (the web form) is next.** D-AVI7 was **amended the same day**
+**Status: A0–A7 shipped 2026-08-31 (PRs #410–#418; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -624,7 +624,7 @@ blocked finalize the office cannot satisfy is how a workaround gets invented.
 
 **Verified by:** the full 21-gate CI list; `pnpm test` all suites and 27 matrices.
 
-### A7 — Web: the list and the form
+### A7 — Web: the list and the form — **DONE 2026-08-31 (PR #418, no migration)**
 
 Prerequisites: A4, A5, A6.
 
@@ -655,6 +655,46 @@ banner provably calls the shared `deriveInspectionOutcome` with no second implem
 `lint:ui-adoption` and `lint:filesize` pass; verified in a real browser via
 `pnpm --filter web build && pnpm --filter web preview` — the vite **dev** server crashes in this
 repo and must not be used for the check.
+
+
+**What shipped:** the vue-query layer, `InspectionItemRow.vue`, `AnnualInspectionsPage.vue` (tractor
+and trailer tabs), `AnnualInspectionFormPage.vue`, the two routes, the nav item, and a
+`ChecklistIcon` added to the shared inventory. 22 component tests.
+
+**The verdict is provably the shared function.** The tests do not assert "shows PASS" against a
+hand-written expectation — they compute the expectation with `deriveInspectionOutcome` and assert
+the page agrees, so the test fails the day the page grows its own opinion. Mutation-tested: forcing
+the banner to `"pass"` fails the unrepaired-defect case. A separate assertion walks every button on
+the page and refuses any label outside the answer controls, the preview and certify — there is no
+control anywhere that SETS the verdict, and the day one appears that test goes red.
+
+**Three UI facts found the hard way, recorded so the next surface does not rediscover them.**
+
+1. **Raw `<button>`, `<input>` AND `<select>` are all banned** in pages and features
+   (`lint:ui-adoption`). So the three-state control is `AppButton`s with `aria-pressed` inside a
+   `role="group"` rather than `AppRadioGroup` — the radio group stacks vertically and 56 components
+   would have become 168 rows, which stops being a form somebody can work down.
+2. **The PDF routes sit behind `requireAuth`, so `window.open` on them 401s.** `lib/api.ts` gained
+   `fetchObjectUrl`, which fetches with the session token and hands back a blob URL. The repo's other
+   pattern — an endpoint returning a signed storage URL (`statementSourceUrl`, the DQ export
+   download) — is right when the bytes are already an object in a bucket and cannot serve a DRAFT
+   preview that is deliberately never stored.
+3. **There is no `text-ink-primary` token.** The roles are `ink`, `ink-secondary`, `ink-tertiary`,
+   `ink-muted`, `ink-subtle`, and radii are `rounded-detail/control/surface/overlay/dialog`.
+
+**Two existing tests caught real mistakes**, which is the whole reason they exist: `meta.parent` is a
+PATH and I had written route names, and the route-table snapshot required the two new URLs be added
+to its probe list as a deliberate act. The snapshot diff is exactly the two routes, with
+`/shop/inspections` still beating `/shop/inspections/:id` on specificity.
+
+**Verified by:** the full 21-gate CI list; `pnpm test` all suites and 27 matrices; `pnpm --filter
+./apps/web build` clean; and a real browser against `vite preview` — the app boots, `/shop/inspections`
+resolves, and the auth guard redirects with no console error but the expected API-not-running one.
+
+**⚠ What the browser pass did NOT cover, stated rather than implied:** the logged-in view. That needs
+a Supabase session this session does not hold, so the form's rendering is covered by jsdom mounts of
+the real components against real catalogue data rather than by eye. The first person with a login
+should open a draft and look at it before the shop is told to use it.
 
 ### A8 — Printing onto pre-printed stock — **OPTIONAL, build only if asked**
 
