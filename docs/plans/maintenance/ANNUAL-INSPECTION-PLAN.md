@@ -16,7 +16,10 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A7 shipped 2026-08-31 (PRs #410–#418; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
+**Status: COMPLETE 2026-08-31.** A0–A7 shipped via PRs #410–#419 (migrations 0279–0282); **A8 was
+ruled against rather than deferred** — the office prints the stamped template twice on plain paper,
+so the calibration for printing onto pre-printed pads has no job. §7 is the register; §6 carries the
+two questions that remain open and what they would change. D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -706,24 +709,25 @@ a Supabase session this session does not hold, so the form's rendering is covere
 the real components against real catalogue data rather than by eye. The first person with a login
 should open a draft and look at it before the shop is told to use it.
 
-### A8 — Printing onto pre-printed stock — **OPTIONAL, build only if asked**
+### A8 — Printing onto pre-printed stock — **NOT BUILT (owner ruling, 2026-08-31)**
 
-Prerequisites: A5, A7, and §6 Q1 + Q2 answered.
+**Decided against, not deferred.** The office prints the stamped template twice on plain paper and
+that is the whole requirement: D-AVI7's render already carries every bit of Keller's artwork, so a
+second copy is one more Ctrl+P. §396.17(c) accepts either a report copy or a compliant decal as the
+on-vehicle documentation, and Silvicom uses the decal (§6 Q1) — so nothing about the truck copy
+needs ink landing on a pre-printed pad.
 
-A5 already emits `background: 'none'`. This step is only the **calibration** that makes registering
-that ink against paper somebody else printed reliable — and under the amended D-AVI7 the office can
-print the stamped template on plain paper instead, which needs none of it. **Do not build this step
-speculatively.** It earns its place only if the office decides it still wants the carbonless set
-(most likely for the copy that rides in the truck under §396.17(c)).
+What that avoids is not small: a migration, an owned table, a registration-sheet flow, a stored
+per-printer offset, and physical trial-and-error against the shop's actual printer — all of it
+maintained forever so that paper somebody else printed lines up with ink we print. The plan carried
+this step as OPTIONAL from the day D-AVI7 was amended and said "do not build this step
+speculatively"; this is that instruction being followed rather than a scope cut.
 
-- `supabase/migrations/NNNN_inspection_print_profiles.sql` — `maintenance_print_profiles`
-  (org-scoped: name, layout key, `offset_x_pt`, `offset_y_pt`), RLS derived from the maintenance
-  section, manifests updated.
-- A **registration-sheet** endpoint printing crosshairs at four known points, so the offset is
-  measured with a ruler instead of guessed.
+**The capability is not gone.** A5's renderer already accepts `background: 'none'` and emits the
+same values at the same coordinates on a blank page — it is covered by a test. Only the CALIBRATION
+was ever A8. If the office later decides the carbonless set is worth it, what is owed is the offset
+store and a way to measure it, against real feedback rather than a guess.
 
-**Done when:** a physical print onto real stock at the stored offset lands every mark inside its
-cell — recorded in §7 with the printer named, because an offset is a fact about one printer.
 
 ### Deliberately out of scope — named, not silently dropped
 
@@ -805,6 +809,24 @@ and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rat
 one — the inspector still has to leave it there.
 **Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
 before A7 puts those defaults in front of an inspector.
+
+**Q8 — There is no UI for adding an inspector, and no draft can be created without one.** *(blocks first use)*
+`POST /api/maintenance/inspectors` exists and is gated correctly; nothing in the web app reaches it,
+so the first inspector has to be created by an API call. This is the same class of thing the carrier
+address turned out to be — an endpoint with no surface — and it is the last thing standing between
+the feature and the shop using it.
+**Recommendation:** a small register under the maintenance section: list who may inspect, their
+§396.19 basis, whether they are brake-qualified (§396.25), and their effective dates. Perhaps 150
+lines, and it makes the §396.19 assertion visible to the person relying on it rather than implicit
+in a table nobody can see.
+
+**Q9 — Nobody has opened the form with a real session.** *(blocks trusting the first real inspection)*
+A7's components are covered by jsdom mounts against real catalogue data, and the browser pass covered
+boot, routing and the auth guard — but the logged-in view has not been looked at. That is a different
+kind of confidence from a passing test, and the first §396.17 report is the wrong place to discover
+the difference.
+**Recommendation:** somebody with a login opens a draft against a real tractor and works down all 56
+components before George is told to use it.
 
 **Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
 Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not

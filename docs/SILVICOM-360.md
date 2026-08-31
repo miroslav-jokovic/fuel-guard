@@ -53,6 +53,16 @@ later without the features above noticing.
 - **Idle & efficiency** — idle evidence pipeline, rollups, avoidability, driver performance scores.
 - **Card control** — EFS card writes through the capability registry, step-up approved.
 - **Roster** — drivers/vehicles/trailers, McLeod-synced identity with provenance.
+- **Annual vehicle inspection (§396.17)** — shipped 2026-08-31, the `maintenance` section's first
+  owned feature and the first caller of the EQUIPMENT half of the evidence store, which had accepted
+  a tractor or trailer subject since 0146/0127 without one. **D-S360-6: the inspection is a record,
+  not a form fill.** What §396.21 requires — inspector, carrier, date, vehicle, per-component
+  results, certification — is schema; pass/fail and the §396.19 inspector assertion are DERIVED and
+  there is no field anywhere in which either can be typed. The report stamps onto the carrier's own
+  J.J. Keller form, files into `documents` + `certifications`, and claims the equipment row so the
+  McLeod sweep cannot revert the expiry — so the **digital truck & trailer files** below are now
+  being built against content that already exists rather than against an empty store.
+  (ANNUAL-INSPECTION-PLAN.md, migrations 0279–0282.)
 - **DQF (partial)** — document store, derivatives, previews, qualification gate, DQ alerts,
   binder rendering (`dqBinder`). Retention/self-service phases remain (DQF-EXECUTION-PLAN).
 - **Recruiting & applications** — invitation → wizard → capture → packet PDF → disposition.
@@ -71,16 +81,6 @@ later without the features above noticing.
 - **Digital binders / DQ files** — complete the DQF execution plan on the shipped foundation.
 - **Digital truck & trailer files** — the "office axis" 0099/0100 shipped as dead columns;
   build the pages on the `roster` carve-out or drop the columns (D-ARC3 matrix decides it there).
-- **Annual vehicle inspection (§396.17)** — the maintenance section's first owned feature, built
-  ahead of its collector on the D-SEP8 argument. Today the report is typed onto a J.J. Keller PDF in
-  a PDF editor and printed; measured 2026-08-31, production holds **zero** inspection evidence —
-  0 of 406 equipment rows carry `dot_annual_inspection_expires_at`, and `documents`/`certifications`
-  have never had an equipment-subject row, although both have accepted one since 0146/0127.
-  **D-S360-6: the inspection is a record, not a form fill.** What §396.21 requires — inspector,
-  carrier, date, vehicle, per-component results, certification — becomes schema; pass/fail and the
-  §396.19 inspector assertion are DERIVED, never typed; the finished report files itself into
-  `documents` + `certifications` so the truck & trailer files above are built against content that
-  already exists. Plan: `docs/plans/maintenance/ANNUAL-INSPECTION-PLAN.md`.
 - **Applicant & hiring digitalisation** — unblocks the moment counsel returns; then A0/P1/P5.
 - **Training** — six authored Silvicom 360 content modules exist
   (`docs/plans/silvicom360/MODULE-01..06`) with no delivery system and, until now, no owner.
