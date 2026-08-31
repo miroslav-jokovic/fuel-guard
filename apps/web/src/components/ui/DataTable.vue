@@ -43,6 +43,9 @@ import { cellValue, isBlank } from "@/components/ui/dataTable";
  * Expandable rows: pass `expanded` (a Set of row keys) and an #expanded="{ row }" slot; each
  * expanded row renders a full-width detail row beneath it. The page owns the Set — the table
  * only renders.
+ * Pinned lead column: `pin-first-column` keeps the first data column in place while the rest scroll
+ * sideways, and puts `group` on every row so the pinned cell follows its row's hover. Do not
+ * hand-write `sticky left-0` on a column — that is what this replaced.
  */
 export interface DataTableColumn {
   key: string;
@@ -116,6 +119,21 @@ const props = withDefaults(
     embedded?: boolean;
     /** Row keys whose #expanded detail row is currently shown. */
     expanded?: Set<string>;
+    /**
+     * Keep the first column visible while the rest scroll sideways.
+     *
+     * Promoted at R3b. It was already real on three pages — `FuelLogPage`, `TransactionsPage` and
+     * `RejectionsPage` — as byte-identical copies of two class strings AND a `row-class` returning
+     * `group`, which each page spelled differently. The third part is the trap: without `group` on
+     * the row, `group-hover:bg-surface-subtle` never fires and the pinned cell silently stops
+     * following its own row on hover. Three coordinated pieces that had to agree across three files
+     * is what a prop is for (D-ROS11: a value copied is a workaround with a delay fuse).
+     *
+     * Pins the first DATA column. A table that also sets `selectable` puts its checkbox column at
+     * `left-0` as well, so the two would overlap; no caller does both, and the day one wants to,
+     * the offset is the change to make rather than a second class string.
+     */
+    pinFirstColumn?: boolean;
   }>(),
   {
     rowKey: "id",
@@ -132,6 +150,7 @@ const props = withDefaults(
     rowClass: undefined,
     embedded: false,
     expanded: undefined,
+    pinFirstColumn: false,
   },
 );
 
@@ -204,6 +223,17 @@ const cellCls = (col: DataTableColumn, i: number): string[] => [
   i === 0 && !props.selectable ? "pl-6" : "",
   i === props.columns.length - 1 && !hasActions.value ? "pr-6" : "",
 ];
+
+/**
+ * The pinned-column classes, in one place so the three pages that had them inline can stop agreeing
+ * with each other by hand. `z-sticky-lead` outranks the sticky header's `z-sticky` at the corner
+ * where both pin, and the cell repeats the surface colour because a transparent cell would let the
+ * scrolled columns show through underneath it.
+ */
+const PIN_HEADER = "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge";
+const PIN_CELL =
+  "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle";
+const pinCls = (i: number, which: string) => (props.pinFirstColumn && i === 0 ? which : "");
 
 const skeletonCols = computed(
   () => props.columns.length + (props.selectable ? 1 : 0) + (hasActions.value ? 1 : 0),
@@ -279,7 +309,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
                 :key="col.key"
                 scope="col"
                 class="font-medium"
-                :class="[...cellCls(col, i), col.width ? WIDTHS[col.width] : '', col.headerClass]"
+                :class="[...cellCls(col, i), col.width ? WIDTHS[col.width] : '', pinCls(i, PIN_HEADER), col.headerClass]"
               >
                 <button
                   v-if="col.sortable"
@@ -303,7 +333,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
             <template v-for="row in rows" :key="keyOf(row)">
             <tr
               class="hover:bg-surface-subtle"
-              :class="[isSelected(row) ? 'bg-brand-50/40' : '', rowClass?.(row)]"
+              :class="[isSelected(row) ? 'bg-brand-50/40' : '', pinFirstColumn ? 'group' : '', rowClass?.(row)]"
               @click="emit('row-click', row)"
             >
               <td v-if="selectable" class="w-10 pl-6 pr-2" :class="dense ? 'py-2' : 'py-3'" @click.stop>
@@ -318,7 +348,7 @@ const isWide = useMediaQuery("(min-width: 768px)");
               <td
                 v-for="(col, i) in columns"
                 :key="col.key"
-                :class="[...cellCls(col, i), col.cellClass]"
+                :class="[...cellCls(col, i), pinCls(i, PIN_CELL), col.cellClass]"
               >
                 <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col.key)">
                   <span v-if="isBlank(cellValue(row, col.key))" class="text-ink-tertiary">—</span>

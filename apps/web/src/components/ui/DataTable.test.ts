@@ -263,3 +263,59 @@ describe("DataTable rendering, pinned across the R3b extraction", () => {
     expect(stable(mountSnapshot(true).html())).toMatchSnapshot();
   });
 });
+
+/**
+ * The pinned lead column (R3b).
+ *
+ * These assert the EXACT class strings, which is unusual and is the point: the behaviour already
+ * existed on `FuelLogPage`, `TransactionsPage` and `RejectionsPage` as byte-identical copies, and
+ * the promotion is only safe if what the component emits is what those pages emitted. The literals
+ * below are the ones deleted from all three, so a diff between them and this file is the proof.
+ *
+ * `group` on the row is the part that was easiest to lose: each page spelled its `row-class`
+ * differently, and without `group` the pinned cell stops following its own row on hover — visible
+ * only when a mouse is over a scrolled table, which is to say never, in review.
+ */
+describe("DataTable pinned lead column", () => {
+  const PIN_HEADER = "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge";
+  const PIN_CELL =
+    "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle";
+
+  const mountPinned = (pin: boolean) =>
+    mount(DataTable, {
+      props: {
+        columns: [
+          { key: "unit", label: "Unit", width: "sm" },
+          { key: "driver", label: "Driver" },
+        ] as DataTableColumn[],
+        rows: [{ unit: "Unit 204", driver: "Marcus Reyes" }],
+        rowKey: "unit",
+        pinFirstColumn: pin,
+        rowClass: () => "cursor-pointer",
+      },
+      global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+    });
+
+  it("pins only the first column, with the classes the three pages hand-wrote", () => {
+    const w = mountPinned(true);
+    expect(headerClasses(w)[0]).toContain(PIN_HEADER);
+    expect(cellClasses(w)[0]).toContain(PIN_CELL);
+    // …and nothing else is pinned, or the whole table would stop scrolling.
+    expect(headerClasses(w)[1]).not.toContain("sticky left-0");
+    expect(cellClasses(w)[1]).not.toContain("sticky left-0");
+  });
+
+  it("puts `group` on every row, so the pinned cell follows its row on hover", () => {
+    const rowCls = mountPinned(true).find("tbody tr").attributes("class") ?? "";
+    expect(rowCls).toContain("group");
+    // The page's own row class survives alongside it rather than being replaced by it.
+    expect(rowCls).toContain("cursor-pointer");
+  });
+
+  it("changes nothing at all when it is not asked for", () => {
+    const w = mountPinned(false);
+    expect(headerClasses(w)[0]).not.toContain("sticky left-0");
+    expect(cellClasses(w)[0]).not.toContain("sticky left-0");
+    expect(w.find("tbody tr").attributes("class") ?? "").not.toContain("group");
+  });
+});

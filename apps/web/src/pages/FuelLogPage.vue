@@ -155,7 +155,8 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
 function onRowClick(row: FuelTransaction) {
   if (row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
 }
-const rowClass = (row: FuelTransaction) => ["group", row.has_anomaly ? "cursor-pointer" : ""].filter(Boolean).join(" ");
+// `group` is DataTable's, via `pin-first-column`; this only adds what is specific to a fill.
+const rowClass = (row: FuelTransaction) => (row.has_anomaly ? "cursor-pointer" : "");
 
 // Station-local (matches the EFS report), not the browser's timezone.
 const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
@@ -202,8 +203,7 @@ const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
     label: "Vehicle",
-    width: "md", headerClass: "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge",
-    cellClass: "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+    width: "md",
   },
   { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
   { key: "trailer", label: "Trailer", width: "md", cellClass: "text-ink-secondary" },
@@ -294,6 +294,7 @@ const columns: DataTableColumn[] = [
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load fuel log') : null"
       :retrying="isFetching"
       :sort="sort"
+      pin-first-column
       :row-class="rowClass"
       empty-text="No fill-ups match these filters."
       @sort="onSort"
