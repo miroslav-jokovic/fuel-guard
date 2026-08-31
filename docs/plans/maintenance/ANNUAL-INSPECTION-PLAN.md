@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A5 shipped 2026-08-31 (PRs #410–#414, #415, #NNN). §6 Q5 is closed — the blank template is committed. A6 is next.** D-AVI7 was **amended the same day**
+**Status: A0–A5 shipped 2026-08-31 (PRs #410–#416). §6 Q5 is closed — the blank template is committed. A6 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -463,7 +463,7 @@ dropping the `org_id` filter from the list query fails the `expectOrgScoped` ass
 `lint:table-writers` initially rejected the three new write sites, correctly — the write-site freeze
 means a new writer is a deliberate manifest edit, and these are the owner's own.
 
-### A5 — The renderer: stamp the template — **DONE 2026-08-31 (PR #NNN, no migration)**
+### A5 — The renderer: stamp the template — **DONE 2026-08-31 (PR #416, no migration)**
 
 Prerequisites: A1, A4, and §6 **Q5** answered (we need a blank template).
 
