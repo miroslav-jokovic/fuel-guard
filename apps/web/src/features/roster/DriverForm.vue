@@ -23,7 +23,6 @@ const form = reactive({
   employee_id: props.driver?.employee_id ?? "",
   phone: props.driver?.phone ?? "",
   status: props.driver?.status ?? "active",
-  samsara_driver_id: props.driver?.samsara_driver_id ?? "",
 });
 
 const errors = ref<Record<string, string>>({});

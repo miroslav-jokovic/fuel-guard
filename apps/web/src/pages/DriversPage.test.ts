@@ -44,6 +44,9 @@ const idleMutation = () => ({ isPending: ref(false), mutateAsync: vi.fn() });
  * mock returns the whole response rather than just the row — returning only the row is exactly how
  * the two flags stayed invisible in the real composable.
  */
+/** Create goes through `POST /api/roster/drivers` since R6a, so the row is born `manual`. */
+const createDriver = { isPending: ref(false), mutateAsync: vi.fn(async () => ({})) };
+
 const updateProfile = {
   isPending: ref(false),
   mutateAsync: vi.fn(async () => ({
@@ -55,7 +58,7 @@ const updateProfile = {
 
 vi.mock("@/composables/useDrivers", () => ({
   useDriversQuery: () => driversQuery,
-  useCreateDriver: () => idleMutation(),
+  useCreateDriver: () => createDriver,
   useUpdateDriverProfile: () => updateProfile,
   useArchiveDriver: () => idleMutation(),
 }));

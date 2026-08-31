@@ -76,8 +76,7 @@
     "apps/api/src/modules/roster/routes/drivers.ts",
     "apps/api/src/modules/samsara/hosSync.ts",
     "apps/api/src/modules/samsara/samsaraDriverSync.ts",
-    "apps/api/src/scripts/seedPspQaDrivers.ts",
-    "apps/web/src/composables/useDrivers.ts"
+    "apps/api/src/scripts/seedPspQaDrivers.ts"
   ],
   "efs_capability_promotions": [
     "apps/api/src/modules/efs/routes/promote.ts",

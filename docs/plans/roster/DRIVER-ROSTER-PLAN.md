@@ -1088,6 +1088,28 @@ What shipped:
   back does not undo it.
 - `identity_source` joins `DRIVER_COLS`, because a form cannot say what an edit means without it.
 
+**The sweep for the rest of the bug class, which found two more:**
+
+- **Creating a driver had the same defect, and worse.** `useCreateDriver` INSERTed from the browser,
+  and `drivers.identity_source` is `not null default 'samsara'` — so a driver typed in by hand was
+  born TELEMATICS-OWNED and the next sweep could overwrite the name somebody had just entered.
+  `POST /api/roster/drivers` writes `identity_source: 'manual'` explicitly, and its own comment says
+  why. Create now goes through it. Measured 2026-08-31: **no production row had been created this
+  way** — all 185 `samsara` rows carried a real sync link — so this was a trap rather than damage,
+  closed before it fired.
+- **`useUpdateDriver` was DELETED, not merely left uncalled.** A private door left standing is one
+  somebody walks through, and its name is the obvious one to autocomplete. `useDrivers.test.ts` is a
+  source scan pinning the whole class: `drivers` may be read from the browser and never written, the
+  two writes go through the roster API, and that export may not come back. Proven able to fail by
+  re-adding it.
+- **Both ratchets moved.** `scripts/table-writers.json` and `check-table-modules.mjs` each carried
+  `drivers <- apps/web/src/composables/useDrivers.ts`; both entries are gone and the grandfathered
+  writer count fell 63 → 62. The gate caught the stale entries itself, which is the ratchet working:
+  removing a writer is only finished when the register says so.
+- `samsara_driver_id` left `DriverForm`'s state. It had **no input bound to it** — dead state passed
+  through from the existing row — so nothing a person could set was lost; the API refuses
+  client-supplied telematics provenance and Reconcile is the sanctioned way to link.
+
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 The manual-row branch of the warning was proven able to fail.
 

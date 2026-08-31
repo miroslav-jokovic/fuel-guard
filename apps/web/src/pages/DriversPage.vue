@@ -54,8 +54,9 @@ const createDriver = useCreateDriver();
  * The AUDITED edit path (R6a), not the PostgREST one this drawer used until 2026-08-31.
  *
  * ── THE DEFECT THIS REPLACES ────────────────────────────────────────────────────────────────────
- * `useUpdateDriver` writes `drivers` straight from the browser, so `resolveDriverUpdate` never ran
- * for the surface people actually use. Two consequences, both silent: the row was never claimed, so
+ * Until 2026-08-31 this drawer called `useUpdateDriver`, which wrote `drivers` straight from the
+ * browser, so `resolveDriverUpdate` never ran for the surface people actually use. That composable
+ * is now deleted. Two consequences, both silent: the row was never claimed, so
  * `samsaraDriverSync` overwrote the office's correction on the next sweep — the exact failure its
  * own comment says "the roster PATCH exists to prevent", written on the assumption both halves had
  * landed — and a change to a §391.51-relevant field left no audit row at all.
