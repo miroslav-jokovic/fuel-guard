@@ -451,7 +451,7 @@ Prerequisites: R4, and a placement that satisfies `lint:boundaries`.
   carrier without the hazmat module — or a non-CDL driver — would read as permanently behind on
   requirements nobody asks of them. It is `n / items that apply to this driver`.
 
-#### R5a — the placement, and the count — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R5a — the placement, and the count — **DONE 2026-08-31 (PR #403, no migration)**
 
 #### R5b — the modal itself, and the roster's file cell
 
@@ -982,7 +982,7 @@ what a compliance screen reports without anyone deciding to.
 `lint:tests`, `lint:table-writers`. The built-in expressibility check was proven able to fail (an
 invented query parameter breaks it), as was the fleet table's characterisation suite.
 
-### R5a — the sanctioned viewer moves to where the contract always said it was — 2026-08-31, PR #PENDING, no migration
+### R5a — the sanctioned viewer moves to where the contract always said it was — 2026-08-31, PR #403, no migration
 
 - **`DocumentPreview.vue` moved from `features/compliance/` to `components/`, and this was not a new
   decision.** `docs/DESIGN-SYSTEM-CONTRACT.md` §1.2 has always listed it in the shared-components
