@@ -207,6 +207,13 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/recruitment/inquiries",
   },
   {
+    "name": "applicant-record",
+    "params": {
+      "id": "ap_1",
+    },
+    "url": "/recruitment/ap_1",
+  },
+  {
     "name": "driver-performance",
     "params": {},
     "url": "/driver-performance",
@@ -848,6 +855,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "recruitment",
     "path": "/recruitment",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/recruitment",
+      "requiresAuth": true,
+      "title": "Applicant record",
+    },
+    "name": "applicant-record",
+    "path": "/recruitment/:id",
     "redirect": null,
   },
   {

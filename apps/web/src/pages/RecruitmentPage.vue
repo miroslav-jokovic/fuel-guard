@@ -101,7 +101,9 @@ const columns: DataTableColumn[] = [
  * the invite card as well as the history. The tab it wanted now has its own name.
  */
 function openApplicant(id: string): void {
-  void router.push({ name: "driver-detail", params: { id }, query: { section: "application" } });
+  // R7: the applicant record is the recruitment surface's own page now, not a tab on the driver
+  // page. The old destination still resolves and redirects here, so nobody's bookmark broke.
+  void router.push({ name: "applicant-record", params: { id } });
 }
 
 /**

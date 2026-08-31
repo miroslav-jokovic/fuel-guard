@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed , watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
@@ -9,18 +9,18 @@ import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppTabs, type TabItem } from "@silvicom/ui";
-import { DRIVER_SECTIONS, resolveDriverSection, type DriverSection } from "./driverSections";
+import {
+  DRIVER_PAGE_SECTIONS,
+  relocatedSectionPath,
+  resolveDriverSection,
+  type DriverSection,
+} from "./driverSections";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
-import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
-import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
-import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
-import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
-import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -54,8 +54,25 @@ const id = computed(() => String(route.params.id ?? ""));
  * meant the history all along and is untouched.
  */
 type Section = DriverSection;
-const SECTIONS: TabItem[] = DRIVER_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
+const SECTIONS: TabItem[] = DRIVER_PAGE_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
 const section = computed<Section>(() => resolveDriverSection(route.query.section));
+
+/**
+ * The three sections whose content left for the recruitment surface at R7 (D-ROS6).
+ *
+ * They still RESOLVE — `?section=` is a public surface and those values are in bookmarks and binder
+ * references — so the page redirects rather than 404s or silently shows something else. `replace`,
+ * not `push`: an old link should not leave a dead entry in the reader's history for them to press
+ * Back into.
+ */
+watch(
+  [section, id],
+  ([s, driverId]: [DriverSection, string]) => {
+    const moved = driverId ? relocatedSectionPath(s, driverId) : null;
+    if (moved) void router.replace(moved);
+  },
+  { immediate: true },
+);
 function setSection(s: Section): void {
   void router.replace({ query: { ...route.query, section: s === "profile" ? undefined : s } });
 }
@@ -199,34 +216,11 @@ const fillColumns: DataTableColumn[] = [
 
     <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
 
-    <!-- The recruiter's act of asking. It PRODUCES the history in the next tab (H5, D-HIRE2), which
-         is why it reads first left-to-right rather than being filed under it. -->
-    <template v-if="section === 'application'">
-      <ApplicationInviteCard :driver-id="id" :driver-status="driver?.status ?? ''" />
-      <!-- 0238. The act that ENDS an application, beside the act that starts one — same tab because
-           U6 cut the tabs by who does the work, and the recruiter does both. It renders only for an
-           applicant; ending an employment is a termination, which is a different act entirely. -->
-      <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
-    </template>
-
-    <template v-if="section === 'employment'">
-      <EmploymentHistorySection :driver-id="id" />
-      <!-- The §391.23 investigation of the history above it (EMPLOYER-INQUIRY-PLAN E3). These two
-           stay together: they are one job, and separating a record from the investigation of that
-           record is what would actually cost a recruiter a click. -->
-      <EmployerInquirySection :driver-id="id" />
-      <!-- P7/D-PKT7. Under Employment rather than a seventh tab: U6 already flagged six as possibly
-           one too many, and this belongs with what the carrier did when it took the person on. -->
-      <SevenDayStatementSection :driver-id="id" />
-    </template>
-
-    <!-- A vendor ledger, which is not employment.
-         It sat here because Qualification's write affordances gated on `canManageFleet`, which a
-         recruiter is not (PSP-PLAN P14) — a LAYOUT decision made by a permission bug. R0 removed the
-         bug: those affordances now ask `can("roster")`, and a recruiter's own writes ask
-         `can("recruitment")`, so nothing about this placement is forced any more. Moving it to the
-         recruitment surface is step R7, where it becomes a choice rather than a workaround. -->
-    <PspRecordsSection v-if="section === 'screening'" :driver-id="id" />
+    <!-- §395.8(j)(2) — a record about EMPLOYMENT, not about hiring, so R7 left it behind when the
+         recruiting sections went. It sits under Profile until R6b gives it the "Employment & pay"
+         section it belongs in; parking it on the recruitment surface would have been filing an
+         hours-of-service record with the hiring paperwork because that is where it happened to be. -->
+    <SevenDayStatementSection v-if="section === 'profile'" :driver-id="id" />
 
     <BaseCard v-if="section === 'profile' && driver">
       <div class="flex items-center justify-between">
