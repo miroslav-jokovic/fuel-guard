@@ -144,7 +144,7 @@ const columns: DataTableColumn[] = [
       >
         <template #cell-name="{ row }">
           <RouterLink
-            :to="`/drivers/${row.driverId}?section=employment`"
+            :to="`/recruitment/${row.driverId}`"
             class="font-medium text-ink hover:underline"
           >
             {{ row.name }}

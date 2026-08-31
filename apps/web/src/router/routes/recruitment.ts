@@ -29,6 +29,15 @@ export const recruitmentRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Screening Readiness", parent: "/recruitment" },
   },
   {
+    // R7 (D-ROS6). The destination recruiting needed before it could leave the driver page: five
+    // per-driver sections had nowhere to go while this surface was three lists. `/drivers/:id`
+    // redirects `?section=application|employment|screening` here, and those values keep resolving.
+    path: "/recruitment/:id",
+    name: "applicant-record",
+    component: () => import("@/pages/ApplicantRecordPage.vue"),
+    meta: { requiresAuth: true, title: "Applicant record", parent: "/recruitment" },
+  },
+  {
     // E5 — the §391.23 queue, led by our §391.23(c)(1) deadline. Same omission as above, same day.
     path: "/recruitment/inquiries",
     name: "inquiry-queue",

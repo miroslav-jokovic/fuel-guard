@@ -29,12 +29,16 @@ import { useDriverQuery } from "@/composables/useDrivers";
 /**
  * PSP records on the driver page — the ones we bought on the portal, filed rather than re-bought.
  *
- * ── WHY THIS LIVES IN RECRUITMENT AND NOT IN THE QUALIFICATION SECTION ──────────────────────────
- * The record it writes IS a qualification record, and the requirement row is on the Qualification
- * tab. But that section's write affordances gate on `canManage` — `canManageFleet`, which a recruiter
- * does not hold — so the entry point would have been invisible to the exact role §391.53(a)(1)
- * describes as the one making the hiring decision. It sits beside the employment history the PSP
- * record corroborates instead, which is also where the person doing the screening already is.
+ * ── WHY THIS LIVES IN RECRUITMENT ───────────────────────────────────────────────────────────────
+ * It sits beside the employment history the PSP record corroborates, which is where the person
+ * doing the screening already is. That is now the whole reason.
+ *
+ * It used to be a workaround, and the note is worth keeping for one release: the placement was
+ * forced because the qualification section's write affordances gated on `canManageFleet`, which a
+ * recruiter does not hold — so the entry point would have been invisible to the exact role
+ * §391.53(a)(1) names as making the hiring decision. R0 deleted that boolean and those affordances
+ * now ask `can("roster")`, and R7 moved this page off the driver record entirely. The placement
+ * survived its own justification because it was independently right.
  *
  * ── WHAT THE TABLE SAYS, AND WHAT IT REFUSES TO SAY ─────────────────────────────────────────────
  * An imported PDF has been read by nobody, so there are no inspection or crash counts to show and

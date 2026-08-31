@@ -28,3 +28,27 @@ export function resolveDriverSection(raw: unknown): DriverSection {
   const s = String(raw ?? "");
   return VALUES.has(s) ? (s as DriverSection) : "profile";
 }
+
+/**
+ * Sections whose CONTENT moved to the recruitment surface at R7 (D-ROS6).
+ *
+ * ── WHY THE VALUES STAY IN THE VOCABULARY ────────────────────────────────────────────────────────
+ * `?section=` is a public surface. `application`, `employment` and `screening` are in bookmarks, in
+ * binder references, and in two links this codebase ships. Deleting them from `DRIVER_SECTIONS` so
+ * the driver page stops offering a tab would make `resolveDriverSection` fall back to `profile`, and
+ * an old link would land silently on the wrong thing — the exact failure `driverSections.test.ts`
+ * exists to prevent, which is why that file passes unchanged through R7.
+ *
+ * So the vocabulary is untouched and only the DESTINATION moves: the driver page redirects these
+ * three onward rather than rendering them. A reader following a two-year-old link arrives where the
+ * work now is, instead of at an empty tab or a page that quietly showed them something else.
+ */
+export const RELOCATED_DRIVER_SECTIONS = new Set<DriverSection>(["application", "employment", "screening"]);
+
+/** Where a relocated section's content now lives, or null when the section still lives here. */
+export function relocatedSectionPath(section: DriverSection, driverId: string): string | null {
+  return RELOCATED_DRIVER_SECTIONS.has(section) ? `/recruitment/${driverId}` : null;
+}
+
+/** The sections the driver page still RENDERS — the vocabulary minus what R7 moved. */
+export const DRIVER_PAGE_SECTIONS = DRIVER_SECTIONS.filter((s) => !RELOCATED_DRIVER_SECTIONS.has(s.value));

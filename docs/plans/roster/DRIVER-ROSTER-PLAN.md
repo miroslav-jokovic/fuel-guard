@@ -482,7 +482,15 @@ R6a. The layout change is R6b and is the smaller half.
 
 #### R6b — tabs become sections on one scroll
 
-### R7 — Recruiting leaves the driver page (D-ROS6)
+### R7 — Recruiting leaves the driver page (D-ROS6) — **DONE 2026-08-31 (PR #406, no migration)**
+
+⚠ **R7 runs BEFORE R6b, and the plan's numbering had it the other way round.** `DriverDetailPage`'s
+own docblock records U6/D-UI7: those four recruiting sections WERE on one scroll — "roughly a
+thousand lines of UI spanning §391.21's application, §391.21(b)(10)'s history, §391.23's
+investigation and a PSP vendor ledger" — and that was the defect tabs were introduced to fix. R6b's
+own section list (Identity & contact, Licence & medical, Employment & pay, Qualification file, Files,
+Fuel) contains no recruiting, so it already assumes this step has happened. Doing R6b first would
+have put that thousand lines straight back onto one scroll and reversed a recorded decision.
 
 `ApplicationInviteCard`, `DispositionSection`, `EmploymentHistorySection`, `EmployerInquirySection`,
 `PspRecordsSection` move to the recruitment surface. `SevenDayStatementSection` stays — it is a
@@ -1112,6 +1120,41 @@ What shipped:
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 The manual-row branch of the warning was proven able to fail.
+
+### R7 — recruiting leaves — 2026-08-31, PR #406, no migration
+
+- **The step needed a destination that did not exist.** All five sections are per-driver and the
+  recruitment surface was three LISTS, so "move recruiting off the driver page" had nowhere to move
+  to. `/recruitment/:id` (`ApplicantRecordPage`) is that destination — created rather than scattering
+  the sections into pages that answer a different question.
+- **They belong together here, having been right to split there.** U6 cut them across three tabs on
+  a page a dispatcher, a safety manager and a recruiter all open, where four regulations under one
+  noun is four things the reader must tell apart. Here there is one reader and one job, so the sum is
+  the point. The order is the order the work happens in: ask, record, investigate, file, decide.
+- **`?section=application|employment|screening` still RESOLVE.** The vocabulary is untouched — those
+  values are in bookmarks and binder references — and only the destination moved: the driver page
+  redirects (`replace`, so no dead history entry) instead of rendering. Dropping them from
+  `DRIVER_SECTIONS` would have made `resolveDriverSection` answer `profile` and landed an old link
+  silently on the wrong thing. `DRIVER_PAGE_SECTIONS` is the render list, derived from the same set,
+  and a test proves the page never offers a tab it would immediately redirect away from.
+- **`driverSections.test.ts` passes UNCHANGED, and that is checkable with a diff** — the new
+  behaviour is a separate file, so "unchanged" is not merely claimed.
+- **The route table gained a specificity pair.** `/recruitment/:id` sits beside
+  `/recruitment/screening` and `/recruitment/inquiries`; vue-router ranks static segments above
+  params, and `routeTable.test.ts` now probes it, so "should be immune to reordering" stays a tested
+  claim rather than a belief. The inquiry queue still resolves to `inquiry-queue`.
+- **All three inbound links repointed**, and a test caught the third: `InviteApplicantDrawer.test.ts`
+  pins where its recovery button sends the reader. The old URL still redirects, but a button this
+  product ships should point at the work rather than at a redirect.
+- **`PspRecordsSection`'s workaround comment is gone**, which was R7's own done-when. What replaced
+  it records that the placement outlived its justification: it was forced by `canManageFleet`, R0
+  deleted that boolean, and the placement turned out to be independently right.
+- **`SevenDayStatementSection` stayed**, per the step — §395.8(j)(2) is a record about employment,
+  not about hiring. It sits under Profile until R6b gives it "Employment & pay"; filing an
+  hours-of-service record with the hiring paperwork because that is where it happened to be would
+  have been the easy wrong answer.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 
 ### The rest
 

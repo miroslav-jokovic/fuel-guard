@@ -116,7 +116,10 @@ describe("inviting an applicant from the board", () => {
     await fillAndSubmit(w);
 
     expect(w.text()).toContain("Dana Reyes is on the applicant board");
-    expect(w.html()).toContain("/drivers/d-new?section=application");
+    // R7 moved the applicant record onto the recruitment surface. The OLD destination still
+    // resolves and redirects here, so nobody's bookmark broke — but a recovery button this drawer
+    // ships should point at where the work is, not at a redirect.
+    expect(w.html()).toContain("/recruitment/d-new");
     expect(w.text()).not.toContain("It is shown once");
   });
 
