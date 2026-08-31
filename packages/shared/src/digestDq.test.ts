@@ -6,7 +6,7 @@ import type { DriverOverviewRow } from "./dqFile.js";
 const row = (over: Partial<DriverOverviewRow>): DriverOverviewRow => ({
   driver_id: "d1", driver_name: "Marcus Reyes", driver_status: "active",
   state: "incomplete", counts: { current: 10, expiring: 0, expired: 0, missing: 0 },
-  groups: [], attention: [], requirements: [], ...over,
+  groups: [], attention: [], requirements: [], documents: { onFile: 0, of: 0 }, ...over,
 });
 
 describe("buildDqDigestSection", () => {

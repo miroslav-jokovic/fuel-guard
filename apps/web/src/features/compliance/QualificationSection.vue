@@ -28,7 +28,7 @@ import DocumentDropCard from "@/features/compliance/DocumentDropCard.vue";
 import ScreeningIdentityCard from "@/features/compliance/ScreeningIdentityCard.vue";
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
-import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
+import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
 import { useExportDocument } from "@/composables/useDqExports";
 

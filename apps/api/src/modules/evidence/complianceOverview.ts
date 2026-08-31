@@ -3,6 +3,7 @@ import {
   buildDqFile,
   dqAttention,
   dqGroups,
+  dqDocumentCount,
   dqRosterCells,
   type DqAttentionItem,
   type DqCertInput,
@@ -10,6 +11,7 @@ import {
   type DqGroupSummary,
   type DqItemState,
   type DqRecordInput,
+  type DqDocumentCount,
   type DqRosterCell,
 } from "@silvicom/shared";
 
@@ -45,6 +47,8 @@ export interface DriverOverview {
    * driver whose CDL is perfectly fine, which is most of them.
    */
   requirements: DqRosterCell[];
+  /** Scans filed, out of the items that apply to this driver (R5). No extra query — see the helper. */
+  documents: DqDocumentCount;
 }
 
 export interface ComplianceOverview {
@@ -175,6 +179,7 @@ export async function getComplianceOverview(
       groups: dqGroups(file),
       attention: dqAttention(file, today),
       requirements: dqRosterCells(file, today),
+      documents: dqDocumentCount(file),
     };
   });
 
