@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver } from "@silvicom/shared";
+import type { Driver, DqRosterColumnKey } from "@silvicom/shared";
 import { driverAppAccess } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
@@ -12,8 +12,8 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { formatPhone } from "@/lib/format";
-import { BADGE_BASE, appAccessBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
+import { formatPhone, formatDate } from "@/lib/format";
+import { BADGE_BASE, appAccessBadge, dqExpiryBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 import type { SortState } from "@/lib/sort";
 
 /**
@@ -97,6 +97,23 @@ const qualBadge = (driverId: string): { label: string; tone: string } | null => 
 };
 
 /**
+ * The three §391.51 expiry cells, off the same rollup the qualification badge reads (R4, D-ROS9).
+ *
+ * Indexed per driver per requirement ONCE. Three columns × 20 rows searching an array per render is
+ * the defect R2 removed from `qualBadge`, and adding it back three times over would have been a poor
+ * way to use the lesson.
+ */
+const requirementsByDriver = computed(() => {
+  const byDriver = new Map<string, Map<string, { state: string; goodUntil: string | null; expiryUnknown: boolean }>>();
+  for (const row of overviewQ.data.value?.drivers ?? []) {
+    byDriver.set(row.driver_id, new Map((row.requirements ?? []).map((r) => [r.key, r])));
+  }
+  return byDriver;
+});
+const expiry = (driverId: string, key: DqRosterColumnKey) =>
+  dqExpiryBadge(requirementsByDriver.value.get(driverId)?.get(key), formatDate);
+
+/**
  * Vehicles assigned to a driver (assignment is set from the Vehicles page). Indexed for the same
  * reason as the rollup above — a per-row `.filter()` over the whole vehicle list is the same O(n²).
  */
@@ -161,6 +178,34 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
       >
         {{ qualBadge(row.id)!.label }}
       </RouterLink>
+      <span v-else class="text-ink-tertiary">—</span>
+    </template>
+    <!-- The date cells NAVIGATE, they do not edit (D-ROS1). `?section=qualification` is a public
+         surface (D-ROS5) and the qualification section is where `RequirementDrawer` already lives —
+         a `roster` component may not import a `compliance` one (`lint:boundaries`), and the honest
+         answer to that is the sanctioned link rather than a promoted component. -->
+    <template #cell-cdl_expiry="{ row }">
+      <RouterLink
+        v-if="expiry(row.id, 'cdl')"
+        :to="`/drivers/${row.id}?section=qualification`"
+        :class="expiry(row.id, 'cdl')!.urgent ? [BADGE_BASE, toneClass(expiry(row.id, 'cdl')!.tone)] : 'text-ink-secondary tabular-nums'"
+      >{{ expiry(row.id, "cdl")!.label }}</RouterLink>
+      <span v-else class="text-ink-tertiary">—</span>
+    </template>
+    <template #cell-medical_expiry="{ row }">
+      <RouterLink
+        v-if="expiry(row.id, 'medical_card')"
+        :to="`/drivers/${row.id}?section=qualification`"
+        :class="expiry(row.id, 'medical_card')!.urgent ? [BADGE_BASE, toneClass(expiry(row.id, 'medical_card')!.tone)] : 'text-ink-secondary tabular-nums'"
+      >{{ expiry(row.id, "medical_card")!.label }}</RouterLink>
+      <span v-else class="text-ink-tertiary">—</span>
+    </template>
+    <template #cell-hazmat_expiry="{ row }">
+      <RouterLink
+        v-if="expiry(row.id, 'endorsement_hazmat')"
+        :to="`/drivers/${row.id}?section=qualification`"
+        :class="expiry(row.id, 'endorsement_hazmat')!.urgent ? [BADGE_BASE, toneClass(expiry(row.id, 'endorsement_hazmat')!.tone)] : 'text-ink-secondary tabular-nums'"
+      >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>

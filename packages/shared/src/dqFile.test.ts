@@ -6,6 +6,8 @@ import {
   buildDqFile,
   dqAttention,
   dqCapturableSpecs,
+  dqRosterCells,
+  DQ_ROSTER_COLUMN_KEYS,
   DQ_ITEMS,
   type DqCertInput,
   type DqDocumentInput,
@@ -352,5 +354,70 @@ describe("buildDqFile — D8 regulatory corrections", () => {
   it("the medical item cites the post-2022 (b)(6), not the pre-renumbering (b)(7)", () => {
     const spec = DQ_ITEMS.find((i) => i.key === "medical_card")!;
     expect(spec.citation).toContain("391.51(b)(6)");
+  });
+});
+
+/**
+ * The roster's three expiry columns (R4, D-ROS9).
+ *
+ * These exist because the roster must not read `drivers.cdl_expires_at`: two sources of truth for a
+ * legal gate IS the defect (D-DQ6). The cells are a projection of the same file the driver page
+ * renders, so a date on the roster and the same date on the driver's qualification section cannot
+ * disagree — there is no second calculation to drift.
+ */
+describe("dqRosterCells — the roster's expiry columns", () => {
+  const cellsFor = (o: Parameters<typeof build>[0] = {}) => {
+    const out = new Map(dqRosterCells(build(o), TODAY).map((c) => [c.key, c]));
+    return out;
+  };
+
+  it("carries a date for a driver whose requirement is perfectly current", () => {
+    // The whole reason these are not read off `attention`: that list filters `current` out, so the
+    // column would have been empty for exactly the drivers with nothing wrong.
+    const c = cellsFor({ certs: [cert({ kind: "cdl", expiresAt: "2030-01-01" })] }).get("cdl")!;
+    expect(c.state).toBe("current");
+    expect(c.goodUntil).toBe("2030-01-01");
+    expect(c.daysRemaining).toBeGreaterThan(0);
+  });
+
+  it("counts days to expiry the same way the queue does, so the two cannot disagree", () => {
+    const file = build({ certs: [cert({ kind: "cdl", expiresAt: "2026-08-20" })] });
+    const cell = dqRosterCells(file, TODAY).find((c) => c.key === "cdl")!;
+    const queued = dqAttention(file, TODAY).find((a) => a.key === "cdl");
+    expect(cell.daysRemaining).toBe(12);
+    // When the item IS in the queue, both surfaces must be counting to the same day.
+    if (queued) expect(queued.daysRemaining).toBe(cell.daysRemaining);
+  });
+
+  it("goes negative when a requirement has lapsed, rather than reading as absent", () => {
+    const c = cellsFor({ certs: [cert({ kind: "cdl", expiresAt: "2026-08-01" })] }).get("cdl")!;
+    expect(c.state).toBe("expired");
+    expect(c.daysRemaining).toBeLessThan(0);
+  });
+
+  it("reports a requirement with no evidence as missing, with no date to show", () => {
+    const c = cellsFor().get("cdl")!;
+    expect(c.state).toBe("missing");
+    expect(c.goodUntil).toBeNull();
+    expect(c.daysRemaining).toBeNull();
+  });
+
+  it("omits a requirement that does not APPLY, rather than calling it missing", () => {
+    // Hazmat on a carrier without the module. The column reads "—", which is the truth; "missing"
+    // would be an accusation about a requirement this carrier does not have.
+    expect(cellsFor({ includeHazmat: false }).has("endorsement_hazmat")).toBe(false);
+    expect(cellsFor({ includeHazmat: true }).has("endorsement_hazmat")).toBe(true);
+  });
+
+  it("flags evidence that records no expiry rather than treating it as an eternal licence", () => {
+    const c = cellsFor({ certs: [cert({ kind: "cdl", issuedAt: "2026-01-01", expiresAt: null })] }).get("cdl")!;
+    expect(c.expiryUnknown).toBe(true);
+  });
+
+  it("projects every key it declares, and nothing else", () => {
+    // A key added to the catalogue list without a column, or a column with no catalogue item, is the
+    // way these three quietly become two.
+    const keys = [...cellsFor({ includeHazmat: true }).keys()].sort();
+    expect(keys).toEqual([...DQ_ROSTER_COLUMN_KEYS].sort());
   });
 });

@@ -159,11 +159,39 @@ beforeEach(() => {
     { id: "v-1", unit_number: "T-118", assigned_driver_id: "d-1" } as unknown as Vehicle,
     { id: "v-2", unit_number: "T-902", assigned_driver_id: "d-1" } as unknown as Vehicle,
   ];
+  /**
+   * `requirements` covers every branch the three R4 expiry columns have, because a column that only
+   * ever renders one state is a column nobody has really looked at:
+   *   current  → plain text, because a tint on every row of three columns means nothing
+   *   expiring → tinted
+   *   missing  → "Missing", tinted: it blocks dispatch today
+   *   ABSENT   → "—", the requirement is not asked of this driver (hazmat without the module)
+   */
   overview.value = {
     drivers: [
       // Inside 30 days with nothing expired → the "Due 12d" override, not the plain state word.
-      { driver_id: "d-1", state: "incomplete", counts: { expired: 0 }, attention: [{ daysRemaining: 12 }] },
-      { driver_id: "d-2", state: "complete", counts: { expired: 0 }, attention: [] },
+      {
+        driver_id: "d-1",
+        state: "incomplete",
+        counts: { expired: 0 },
+        attention: [{ daysRemaining: 12 }],
+        requirements: [
+          { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false },
+          { key: "medical_card", state: "expiring", goodUntil: "2026-09-11", daysRemaining: 12, expiryUnknown: false },
+          { key: "endorsement_hazmat", state: "missing", goodUntil: null, daysRemaining: null, expiryUnknown: false },
+        ],
+      },
+      {
+        driver_id: "d-2",
+        state: "complete",
+        counts: { expired: 0 },
+        attention: [],
+        // No hazmat entry at all: this carrier does not ask it of this driver, so the cell reads "—".
+        requirements: [
+          { key: "cdl", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241, expiryUnknown: false },
+          { key: "medical_card", state: "current", goodUntil: "2027-06-30", daysRemaining: 304, expiryUnknown: false },
+        ],
+      },
       // d-3 is absent on purpose: rows the rollup does not return read as "—".
     ],
   };
@@ -224,6 +252,44 @@ describe("DriversPage roster table", () => {
    * two only agree through `useTableColumns`. Hiding a column has to reach the header, the cells,
    * and the URL — a picker that ticks a box and changes nothing is the failure mode worth pinning.
    */
+  /**
+   * R4, D-ROS9. The dates and the qualification badge beside them come from ONE rollup, so they
+   * cannot disagree. What is pinned here is the rendering rule the vocabulary decided: a date that
+   * is simply fine is plain text, because tinting all three columns on every row would make the tint
+   * mean nothing — and only the dates that need a phone call carry a tone.
+   */
+  it("renders a fine expiry as plain text and an urgent one as a tinted badge", async () => {
+    const w = await mountPage();
+    const cells = w.findAll("tbody tr")[0]!.findAll("td");
+    const cdl = cells.find((c) => c.text().includes("Jan"))!;
+    const medical = cells.find((c) => c.text().includes("Sep"))!;
+
+    // `rounded-detail` is BADGE_BASE — its presence is what "this is a pill" means. Asserting on the
+    // TONE instead would pass for a neutral pill too, which is the version of this test that did not
+    // discriminate.
+    expect(cdl.html()).not.toContain("rounded-detail");
+    expect(cdl.html()).toContain("tabular-nums");
+    expect(medical.html()).toContain("rounded-detail");
+    expect(medical.html()).toContain("bg-warning-50");
+  });
+
+  it("says Missing where a requirement is absent, and — where it is not asked at all", async () => {
+    const w = await mountPage();
+    const rows = w.findAll("tbody tr");
+    // d-1 has no hazmat endorsement on file: that blocks dispatch, so it is stated.
+    expect(rows[0]!.text()).toContain("Missing");
+    // d-2's carrier does not ask hazmat of them at all — an accusation would be wrong.
+    expect(rows[1]!.text()).not.toContain("Missing");
+  });
+
+  it("links an expiry to the driver's qualification section rather than editing in place", async () => {
+    // D-ROS1: the grid reads and navigates. D-ROS5: `?section=` is the public surface. A `roster`
+    // component may not import `compliance`'s RequirementDrawer, and the link is the sanctioned path.
+    const w = await mountPage();
+    const link = w.findAll("tbody tr")[0]!.findAll("a").find((a) => a.text().includes("Sep"))!;
+    expect(link.attributes("href")).toBe("/drivers/d-1?section=qualification");
+  });
+
   it("hides a column from the table when the picker turns it off", async () => {
     const w = await mountPage();
     expect(w.find("table").text()).toContain("Phone");

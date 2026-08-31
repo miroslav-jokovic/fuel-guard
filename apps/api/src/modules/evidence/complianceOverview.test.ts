@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { getComplianceOverview } from "./complianceOverview.js";
+import { DQ_ROSTER_COLUMN_KEYS, isRestrictedQualificationKind } from "@silvicom/shared";
 
 /**
  * The overview's driver read decides who owes a §391.51 file, and it runs on the SERVICE ROLE — RLS
@@ -59,8 +60,32 @@ describe("getComplianceOverview — the driver predicate", () => {
     // overview satisfies that by construction — it returns no evidence rows at all — and this pins
     // the shape so a future field addition has to face the question.
     expect(Object.keys(result.drivers[0]!).sort()).toEqual(
-      ["attention", "counts", "driver_id", "driver_name", "driver_status", "groups", "state"],
+      ["attention", "counts", "driver_id", "driver_name", "driver_status", "groups", "requirements", "state"],
     );
+  });
+
+  /**
+   * `requirements` is R4's addition, and this is the question the assertion above exists to force.
+   *
+   * Two things make it safe, and both are asserted rather than argued. It carries no evidence
+   * payload — no document id, no record row, nothing but computed state and a date. And its KEYS are
+   * a closed set of three, none of which is a restricted kind: a §382.401(a) testing record or a
+   * §391.23 investigation result cannot appear here even if one were added to the catalogue, because
+   * the projection filters to `DQ_ROSTER_COLUMN_KEYS`.
+   */
+  it("the roster requirements carry no evidence payload and no restricted kind (Phase G)", async () => {
+    const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D1" }]);
+    const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");
+    const cells = result.drivers[0]!.requirements;
+
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      expect(Object.keys(cell).sort()).toEqual(
+        ["daysRemaining", "expiryUnknown", "goodUntil", "key", "state"],
+      );
+      expect(DQ_ROSTER_COLUMN_KEYS).toContain(cell.key);
+      expect(isRestrictedQualificationKind(cell.key)).toBe(false);
+    }
   });
 
   it("a 60-day-out item is invisible at the default horizon and present at 91 (C2 — the assertion that would have caught the plan's own defect)", async () => {

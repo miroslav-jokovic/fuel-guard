@@ -42,6 +42,21 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
   },
   { key: "app_access", label: "App access", width: "md" },
   { key: "qualification", label: "Qualification", width: "lg" },
+  /**
+   * The three §391.51 expiry columns (R4, D-ROS9).
+   *
+   * They read the SAME `GET /api/compliance/overview` rollup the qualification badge above them
+   * reads — `DriverOverviewRow.requirements`, projected from the very file the driver's own page
+   * renders. So a date here, the badge beside it and the driver page cannot disagree: there is one
+   * calculation, not three. Never `drivers.cdl_expires_at`, which is a display field even when
+   * McLeod is the one writing it.
+   *
+   * Pinned by "counts days to expiry the same way the queue does, so the two cannot disagree" in
+   * packages/shared/src/dqFile.test.ts.
+   */
+  { key: "cdl_expiry", label: "CDL expires", width: "md" },
+  { key: "medical_expiry", label: "Medical expires", width: "md" },
+  { key: "hazmat_expiry", label: "Hazmat expires", width: "md" },
   {
     key: "phone",
     label: "Phone",

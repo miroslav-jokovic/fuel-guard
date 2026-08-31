@@ -110,6 +110,45 @@ export function dqItemBadge(state: string): DqBadge {
 }
 
 /**
+ * A roster expiry cell — CDL, medical card, hazmat endorsement (R4, D-ROS9).
+ *
+ * ── WHY `urgent` IS PART OF THE ANSWER AND NOT A TEMPLATE'S DECISION ─────────────────────────────
+ * A tinted pill on every row of every one of these three columns is 60 pills on a 20-row page, and
+ * a badge that appears everywhere stops meaning anything — the same argument `archivedBadge` records
+ * for returning null on a live row. So a date that is simply fine renders as PLAIN TEXT, and only a
+ * date that needs a phone call is tinted.
+ *
+ * That rule lives here rather than in the cell template because it is a vocabulary decision, and the
+ * design contract's rule is that no `.vue` file carries one. A caller reads `urgent` and renders;
+ * it never re-decides what counts as urgent.
+ *
+ * ── WHY "Missing" IS DANGER AND AN ABSENT REQUIREMENT IS NOTHING ────────────────────────────────
+ * A missing CDL blocks dispatch today, so it is not a quiet cell. But a requirement that does not
+ * APPLY — hazmat at a carrier without the module — must render as "—", never as "Missing": the
+ * projection omits it entirely (`dqRosterCells`), so a null cell here means "not asked of this
+ * driver", which is the truth rather than an accusation.
+ */
+export interface DqExpiryBadge extends DqBadge {
+  /** Render tinted when true; plain text when false. */
+  urgent: boolean;
+}
+
+export function dqExpiryBadge(
+  cell: { state: string; goodUntil: string | null; expiryUnknown: boolean } | undefined,
+  formatDay: (iso: string) => string,
+): DqExpiryBadge | null {
+  if (!cell) return null; // the requirement does not apply to this driver — the cell reads "—"
+  if (cell.state === "missing") return { label: "Missing", tone: "danger", urgent: true };
+  // Evidence on file that records no expiry is a data defect, not an eternal licence (D-DQ6).
+  if (cell.expiryUnknown) return { label: "No expiry on file", tone: "warning", urgent: true };
+  if (!cell.goodUntil) return null;
+  const label = formatDay(cell.goodUntil);
+  if (cell.state === "expired") return { label, tone: "danger", urgent: true };
+  if (cell.state === "expiring") return { label, tone: "warning", urgent: true };
+  return { label, tone: "neutral", urgent: false };
+}
+
+/**
  * Archived, or not (migration 0235).
  *
  * A one-value vocabulary, and it lives here for the same reason the five-value ones do: the rule is
