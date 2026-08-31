@@ -25,7 +25,14 @@ import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import { useSavedViews } from "@/composables/useSavedViews";
 import { useTableColumns } from "@/composables/useTableColumns";
-import { SAVED_VIEW_TABLES } from "@silvicom/shared";
+import {
+  SAVED_VIEW_TABLES,
+  builtInViewsFor,
+  matchesDqFilters,
+  dqStateFilterOptions,
+  dqDueFilterOptions,
+} from "@silvicom/shared";
+import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import {
   useRosterFilters,
   ROSTER_PAGE_SIZE,
@@ -100,6 +107,9 @@ async function linkDriver(sourceId: string) {
  * preference keyed on a URL would reset the day the page moves.
  */
 const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
+const ROSTER_BUILT_IN_VIEWS = builtInViewsFor(ROSTER_TABLE);
+const DQ_STATE_OPTIONS = dqStateFilterOptions();
+const DQ_DUE_OPTIONS = dqDueFilterOptions();
 
 /** Which columns this reader keeps (R3b). */
 const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
@@ -115,8 +125,10 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * anomaly into one attributed to nobody. Archiving hides a row from the list somebody scans; it does
  * not erase the person from records they appear in.
  */
-const { search, status: statusFilter, view, showArchived, sort, onSort, page, active, reset } =
-  useRosterFilters();
+const {
+  search, status: statusFilter, dqState, dqDue, dqRequirement,
+  view, showArchived, sort, onSort, page, active, reset,
+} = useRosterFilters();
 
 /**
  * Saved views (R3c-2). A view is a name and this page's query string, so applying one is a
@@ -131,7 +143,10 @@ const router = useRouter();
 const currentQuery = computed(() => new URLSearchParams(route.query as Record<string, string>).toString());
 /** The name of the saved view this page is currently showing, when it is showing one. */
 const activeViewName = computed(
-  () => savedViews.views.value.find((v) => v.query === currentQuery.value)?.name ?? null,
+  () =>
+    ROSTER_BUILT_IN_VIEWS.find((v) => v.query === currentQuery.value)?.name ??
+    savedViews.views.value.find((v) => v.query === currentQuery.value)?.name ??
+    null,
 );
 
 function applyView(query: string) {
@@ -180,11 +195,32 @@ const statusOptions = computed(() => [
   ...[...new Set((drivers.value ?? []).map((d) => d.status))].map((s) => ({ value: s, label: s })),
 ]);
 
+/**
+ * The qualification rollup, indexed for the filters (R4b).
+ *
+ * The roster table asks for this same query for its expiry columns; vue-query dedupes on the key, so
+ * this is one request, not two — and filtering by "has expired items" and reading the CDL date
+ * beside it therefore cannot disagree, because they are the same rows.
+ */
+const overviewQ = useComplianceOverviewQuery();
+const overviewRows = computed(
+  () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d])),
+);
+
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
+  const dq = { state: dqState.value, due: dqDue.value, req: dqRequirement.value };
+  const filteringDq = Boolean(dqState.value || dqDue.value || dqRequirement.value);
   return (drivers.value ?? []).filter((d) => {
     if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
+    if (filteringDq) {
+      const row = overviewRows.value.get(d.id);
+      // A driver the rollup does not return (an EFS stub, a terminated file) has no §391.51 picture
+      // to match against — so a qualification filter excludes them rather than admitting them
+      // silently as "nothing wrong".
+      if (!row || !matchesDqFilters(row, dq)) return false;
+    }
     if (!term) return true;
     return [d.full_name, d.employee_id, d.phone, d.samsara_username]
       .filter(Boolean)
@@ -250,12 +286,16 @@ async function onSubmit(input: DriverInput) {
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
+        <!-- The same two filters the compliance fleet table carries, same words, same predicate. -->
+        <FilterSelect v-model="dqState" label="File status" :options="DQ_STATE_OPTIONS" />
+        <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
       </template>
       <template #actions>
         <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a
              way back that does not require knowing which controls were set (OdometerPage's shape). -->
         <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
         <SavedViewMenu
+          :built-ins="ROSTER_BUILT_IN_VIEWS"
           :views="savedViews.views.value"
           :current-query="currentQuery"
           :active-name="activeViewName"

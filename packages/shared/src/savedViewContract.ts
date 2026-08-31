@@ -93,20 +93,64 @@ export const savedViewListResponseSchema = z.object({ views: z.array(savedViewSc
 export type SavedViewListResponse = z.infer<typeof savedViewListResponseSchema>;
 
 /**
- * ⚠ NO BUILT-IN VIEW CATALOGUE HERE, AND THAT IS THE DECISION — NOT AN OVERSIGHT.
+ * The carrier-standard views, shipped rather than stored (D-ROS16).
  *
- * D-ROS16 rules that the carrier-standard views ship in this package, stored nowhere. It says where
- * they live, not that they exist yet. Measured on 2026-08-30, the roster can filter on status, the
- * archived toggle, a search term, sort and column choice — and every candidate built-in is either a
- * duplicate of a control the toolbar already offers in one click ("Archived", "Terminated") or not
- * expressible at all. The three that are actually wanted each need a filter over the qualification
- * rollup that does not exist until R4:
+ * Held back deliberately at R3c-2 and landing now, because the reason they could not exist was
+ * specific: every one of them needs a filter over the qualification rollup, and the roster had none
+ * until R4b. Shipping an empty registry then would have been structure with no content, which this
+ * codebase treats as rot rather than slack.
  *
- *   "Medical expiring in 30 days"  needs a filter on the overview rollup's `attention` dates
- *   "CDL expiring in 30 days"      the same
- *   "Not qualified to dispatch"    needs a filter on the rollup's `state`
+ * ── WHY THESE THREE AND NOT A LONGER LIST ────────────────────────────────────────────────────────
+ * A built-in earns its place only if it is a COMBINATION a reader would otherwise have to assemble,
+ * and if it is the same combination at every carrier. "Archived" and "Terminated" are neither —
+ * they are one click on a control the toolbar already shows, and a built-in that duplicates a
+ * control teaches the reader that the menu is decoration. What is left is the safety manager's
+ * morning: who lapses soon, and who cannot be dispatched today.
  *
- * An empty registry shipped now would be structure with no content, and this codebase treats that as
- * rot rather than as slack — `check-feature-boundaries.mjs` says so about its own allow-lists. So the
- * catalogue arrives with R4, as a data change, beside the filters that make it expressible.
+ * ── WHY THEY ARE QUERY STRINGS AND NOT PREDICATES ────────────────────────────────────────────────
+ * A view IS a URL (D-ROS14). Writing these as code that sets filters would create the second
+ * mechanism that ruling exists to prevent — and it would mean a built-in could express something a
+ * link cannot, which is precisely how the two drift. If a built-in cannot be written as a query
+ * string, the answer is a missing query parameter, not a special case.
  */
+export interface BuiltInView {
+  name: string;
+  /** The query string, without its leading `?` — the same shape a saved row stores. */
+  query: string;
+  /** Why it exists, for the menu's title attribute. */
+  description: string;
+}
+
+export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
+  "roster.drivers": [
+    {
+      name: "Medical expiring in 30 days",
+      query: "req=medical_card&due=30&sort=full_name",
+      description: "Drivers whose §391.45 medical certificate lapses inside a month.",
+    },
+    {
+      name: "CDL expiring in 30 days",
+      query: "req=cdl&due=30&sort=full_name",
+      description: "Drivers whose commercial licence lapses inside a month.",
+    },
+    {
+      name: "Anything expiring in 30 days",
+      query: "due=30&sort=full_name",
+      description: "Any §391.51 requirement lapsing inside a month, whichever one it is.",
+    },
+    {
+      name: "Not qualified to dispatch",
+      query: "dq=expired&sort=full_name",
+      description: "Drivers with a lapsed requirement — the file does not support dispatching them today.",
+    },
+    {
+      name: "File not started",
+      query: "dq=not_started&sort=full_name",
+      description: "Drivers on the roster with no qualification evidence filed at all.",
+    },
+  ],
+};
+
+/** The built-ins for one table, or an empty list for a table that has none yet. */
+export const builtInViewsFor = (table: SavedViewTable): readonly BuiltInView[] =>
+  BUILT_IN_VIEWS[table] ?? [];

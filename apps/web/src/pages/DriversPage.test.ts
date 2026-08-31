@@ -173,7 +173,7 @@ beforeEach(() => {
       {
         driver_id: "d-1",
         state: "incomplete",
-        counts: { expired: 0 },
+        counts: { expired: 0, expiring: 1, missing: 1, current: 3 },
         attention: [{ daysRemaining: 12 }],
         requirements: [
           { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false },
@@ -184,8 +184,8 @@ beforeEach(() => {
       {
         driver_id: "d-2",
         state: "complete",
-        counts: { expired: 0 },
-        attention: [],
+        counts: { expired: 1, expiring: 0, missing: 0, current: 4 },
+        attention: [{ daysRemaining: -241 }],
         // No hazmat entry at all: this carrier does not ask it of this driver, so the cell reads "—".
         requirements: [
           { key: "cdl", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241, expiryUnknown: false },
@@ -288,6 +288,39 @@ describe("DriversPage roster table", () => {
     const w = await mountPage();
     const link = w.findAll("tbody tr")[0]!.findAll("a").find((a) => a.text().includes("Sep"))!;
     expect(link.attributes("href")).toBe("/drivers/d-1?section=qualification");
+  });
+
+  /**
+   * R4b. The roster filters on the SAME rollup its expiry columns read, using the SAME predicate the
+   * compliance fleet table uses — so "has expired items" here and there cannot mean two things.
+   */
+  it("filters the roster by qualification state from the URL", async () => {
+    // d-2's CDL is expired; d-1's worst item is a medical expiring in 12 days.
+    const w = await mountPage("/drivers?dq=expired");
+    const table = w.find("table").text();
+    expect(table).toContain("Ana Whitfield");
+    expect(table).not.toContain("Marcus Reyes");
+  });
+
+  it("narrows to ONE requirement when a built-in view asks for it", async () => {
+    // "Medical expiring in 30 days" must not list a driver whose CDL is the thing expiring.
+    const medical = await mountPage("/drivers?req=medical_card&due=30");
+    expect(medical.find("table").text()).toContain("Marcus Reyes");
+    expect(medical.find("table").text()).not.toContain("Ana Whitfield");
+  });
+
+  it("offers the standard views before the reader has saved anything", async () => {
+    savedViews.views = [];
+    const w = await mountPage();
+    const menu = w.findComponent(SavedViewMenu);
+    const builtIns = menu.props("builtIns") as readonly { name: string; query: string }[];
+    expect(builtIns.length).toBeGreaterThan(0);
+    expect(builtIns.map((v) => v.name)).toContain("Medical expiring in 30 days");
+  });
+
+  it("names the built-in view it is currently showing", async () => {
+    const w = await mountPage("/drivers?req=medical_card&due=30&sort=full_name");
+    expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("Medical expiring in 30 days");
   });
 
   it("hides a column from the table when the picker turns it off", async () => {

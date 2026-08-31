@@ -425,7 +425,7 @@ Prerequisites: R1 (or the columns will render the disagreement), R2, R3.
 
 #### R4a — the three expiry columns — **DONE 2026-08-31 (PR #401, no migration)**
 
-#### R4b — the rollup filters, and the built-in view catalogue they unblock
+#### R4b — the rollup filters, and the built-in view catalogue they unblock — **DONE 2026-08-31 (PR #402, no migration)**
 
 The filters R3c-2 recorded as missing: expiry horizon and qualification state as query parameters,
 so `BUILT_IN_VIEWS` in `packages/shared/src/savedViewContract.ts` becomes expressible and lands as a
@@ -540,6 +540,17 @@ built as R3a–R3c. The three halves of the question came apart once each was me
 again when a second non-admin role exists in a real org and a carrier asks for a view *list* their
 team shares — not before. The table is designed so adding `shared boolean` later is one column and
 one RLS clause, and the primary key is the only thing that would have to move.
+
+**Q7 — Is a LAPSED requirement "due"?** (found by R4b; blocks nothing, but the two answers are on
+screen together today)
+`buildAttentionStrip`'s tile counts `soonest >= 0 && soonest <= days` — future-dated only. The filter
+that same tile APPLIES excludes only `soonest > days`, so it also admits the overdue. The tile
+therefore reads "Due in 30 days: 2" and opens a list of 3.
+- **My reading:** the filter is right and the tile is wrong. An item that lapsed last week is the
+  most due thing on the list, and a count that excludes it under-reports the work. But it is a
+  compliance-screen number a safety manager may already be quoting, so it is a ruling rather than a
+  tidy-up. Both behaviours are preserved exactly and pinned by "disagrees with the attention tile
+  that sets it, for the overdue driver (recorded, not endorsed)" in `QualificationFleetTable.test.ts`.
 
 **Q4 — What exactly is in `DRIVER_INLINE_EDITABLE`?** (blocks R2's cell affordances)
 Candidates with no sync owner and no legal consequence: `employee_id`, `phone_alt`,
@@ -922,6 +933,42 @@ inverting `urgent`. It now asserts on `rounded-detail`, which is what "this is a
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:migrations`, `lint:upserts`, `lint:table-writers`.
+
+### R4b — the qualification filters, and the views they make real — 2026-08-31, PR #402, no migration
+
+`dqFleetFilter.ts` + `BUILT_IN_VIEWS` (shared), `dq` / `due` / `req` on the roster,
+`QualificationFleetTable` refactored onto the shared predicate.
+
+- **The vocabulary was promoted, not copied.** "Needs attention", "has expired items" and "due in 30
+  days" were written inline in `QualificationFleetTable.vue`, and R4 gives the roster the same
+  filters. A second copy is the drift D-DQ6 and D-ROS9 both name — the compliance page and the roster
+  would answer "is this driver behind on their §391.51 file" differently and neither would look wrong
+  on its own screen. `dqSoonest` was ALREADY duplicated twice before this (the fleet table's row
+  builder and `attentionStrip.ts`), which is how the disagreement below started.
+- **The LABELS moved too.** A filter that means the same thing on two pages must say the same thing
+  on both, or a reader reasonably concludes they are different filters.
+- **`QualificationFleetTable.vue` had no test at all**, so its semantics were pinned FIRST — nine
+  cases covering every branch of the switch — and the same nine pass unchanged against the shared
+  predicate. That is the proof the refactor is a refactor. The compliance surface is better tested
+  than it was found.
+- **The built-in views are real now, and two of them needed a filter that did not exist.**
+  `dq=expiring` means "some requirement is due soon", so calling it "Medical expiring in 30 days"
+  would have been a different claim from what the list shows. Rather than rename the view to fit the
+  filter, R4b added `req=<key>` — cheap, because R4a's `requirements` already carries per-key state
+  for every driver. Pinned by "asks about THAT requirement, not about any other one being due".
+- **Every built-in is asserted to be expressible AND to narrow something**: its query may only use
+  parameters this product reads, its values must be in the shared vocabularies, and it must not match
+  a driver with nothing wrong. A built-in that quietly linked to everybody would be worse than none.
+
+**A defect found and deliberately NOT fixed:** the attention tile and the filter it applies disagree
+about the overdue driver (§6 Q7). Both behaviours are preserved exactly as they were. Which side is
+right is a product ruling — is a lapsed item "due"? — and answering it inside a refactor would change
+what a compliance screen reports without anyone deciding to.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
+`lint:tests`, `lint:table-writers`. The built-in expressibility check was proven able to fail (an
+invented query parameter breaks it), as was the fleet table's characterisation suite.
 
 ### The rest
 

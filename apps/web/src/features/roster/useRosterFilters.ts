@@ -43,6 +43,18 @@ export const VIEW_OPTIONS = [
 export interface RosterFilters {
   search: WritableComputedRef<string>;
   status: WritableComputedRef<string>;
+  /** §391.51 file status — the SAME vocabulary the compliance fleet table uses (R4b). */
+  dqState: WritableComputedRef<string>;
+  /** Expiry horizon, same vocabulary again. */
+  dqDue: WritableComputedRef<string>;
+  /**
+   * Narrow the horizon to ONE requirement (`cdl`, `medical_card`, `endorsement_hazmat`).
+   *
+   * Set by the built-in views rather than by a control: "medical expiring in 30 days" is a named
+   * view, not a third dropdown on a toolbar that already has five. It is read here because a view
+   * IS a URL (D-ROS14) — there is nowhere else for it to live.
+   */
+  dqRequirement: WritableComputedRef<string>;
   /** `live` or `archived` — the value the "Show" control binds to. */
   view: WritableComputedRef<string>;
   showArchived: ComputedRef<boolean>;
@@ -68,6 +80,25 @@ export function useRosterFilters(): RosterFilters {
   const status = computed<string>({
     get: () => one("status") ?? "",
     set: (v) => setFiltering({ status: v || undefined }),
+  });
+
+  /**
+   * The qualification filters (R4b). The vocabulary is `@silvicom/shared`'s, not this file's — the
+   * roster and the compliance fleet table must not answer "is this driver behind on their file"
+   * differently, and a second copy of the predicate is how they would.
+   */
+  const dqState = computed<string>({
+    get: () => one("dq") ?? "",
+    set: (v) => setFiltering({ dq: v || undefined }),
+  });
+  const dqDue = computed<string>({
+    get: () => one("due") ?? "",
+    set: (v) => setFiltering({ due: v || undefined }),
+  });
+
+  const dqRequirement = computed<string>({
+    get: () => one("req") ?? "",
+    set: (v) => setFiltering({ req: v || undefined }),
   });
 
   const showArchived = computed(() => one("show") === "archived");
@@ -97,11 +128,17 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one("q") || one("status") || one("show") || one("sort")),
+    () => Boolean(one("q") || one("status") || one("show") || one("sort") || one("dq") || one("due") || one("req")),
   );
 
   const reset = (): void =>
-    set({ q: undefined, status: undefined, show: undefined, sort: undefined, dir: undefined, page: undefined });
+    set({
+      q: undefined, status: undefined, show: undefined, sort: undefined, dir: undefined,
+      dq: undefined, due: undefined, req: undefined, page: undefined,
+    });
 
-  return { search, status, view, showArchived, sort, onSort, page, active, reset };
+  return {
+    search, status, dqState, dqDue, dqRequirement,
+    view, showArchived, sort, onSort, page, active, reset,
+  };
 }
