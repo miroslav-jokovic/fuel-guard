@@ -11,9 +11,10 @@ rather than in taste.** It also fixes the thing that made the ask reasonable in 
 the web has no per-section capability model, so recruiting UI got glued onto the driver page as a
 workaround, and that workaround is what makes the product feel like it has too many pages.
 
-**Status: R0a shipped 2026-08-30 (PR #392, migration 0277); R1 in review (PR #393).** Everything
-else is unstarted; §7 is the register and §1's measurements are the pre-R0a baseline, kept as
-measured.
+**Status: R0a, R1 and R0 all shipped 2026-08-30 (PRs #392, #393, #394; migration 0277 applied to
+production). R2 is next.** Everything else is unstarted; §7 is the register, §1's measurements are
+the pre-R0a baseline kept as measured, and `HANDOFF-2026-08-30.md` beside this file carries the
+traps a fresh session would otherwise rediscover.
 
 ---
 
@@ -280,7 +281,7 @@ test; a PGlite matrix proves a `safety_manager` JWT can still write `drivers` an
 write `vehicles` or `trailers`, printing a `RESULT` line; `check-section-policies.mjs --self-test`
 passes with the per-table override in place; `pnpm lint` and `pnpm test` green.
 
-### R0 — Per-section capability in the web (prerequisite for R6, R7, R9)
+### R0 — Per-section capability in the web — **DONE 2026-08-30 (PR #394, no migration)**
 
 Delete `session.canManage`. Add `session.can(section)` and `session.canView(section)` derived from
 `canManageSection` / `canViewSection`. Change `requiresManage: true` route meta to name a section,
@@ -294,7 +295,7 @@ Prerequisite: R0a.
 recruiter sees recruiting write affordances without a hand-rolled check; `routes/recruitment.ts:4`'s
 ⚠ comment is deleted because it is no longer true.
 
-### R1 — McLeod driver dates reach `certifications` — **PR #393 open 2026-08-30 (no migration)**
+### R1 — McLeod driver dates reach `certifications` — **DONE 2026-08-30 (PR #393, no migration)**
 
 Resolve §2.2 in whichever direction §6 Q2 is answered, and land it before any org turns on roster
 sync. Whatever the direction, the surfaces must not be able to disagree: one function, two readers.
@@ -524,6 +525,38 @@ row carries `SYNC_NOTE` so the fix can find them.
 **Verified by:** `pnpm test` (all suites and matrices), `pnpm typecheck`, `pnpm lint`,
 `lint:boundaries`, `lint:table-writers`, `lint:table-producers`; 11 unit tests at the seam and 5
 wiring tests in `rosterIngest.test.ts`.
+
+### R0 — per-section capability in the web — 2026-08-30, PR #394, no migration
+
+`session.canManage` deleted. All 50 call sites now name the section whose **API gate they actually
+call** — each was read rather than pattern-matched, and two came back other than expected: the
+assignments end-shift is `dispatch` (a driver-shaped row on a dispatch board), and Data & sync gates
+on `admin, fleet_manager` at the API rather than `admin`, so mapping it to the `admin` section would
+have made the UI stricter than the API and removed a real capability.
+
+Distribution: dispatch 14, roster 10, equipment 8, safety 3, hazmat 2, recruitment 2, fuel 1,
+settings 10.
+
+- **`settings` is a new section (D-ROS13)**, holding the ten sites that meant "may configure the
+  product" — the Settings directory, Data & sync, the sidebar link, the dashboard export. Membership
+  is EXACTLY the deleted `canManageFleet` set, so no role's access changed: R0's job was to say what
+  the call sites meant, not to re-decide who may do what. The alternative was keeping a helper that
+  answers a question no section asks, which is how the matrix and the web drifted apart in the first
+  place.
+- **`requiresManage` names a section and `RouteMeta` is typed.** It was a bare `true` on untyped
+  meta; a misspelled section is now a compile error rather than a route that silently admits
+  everybody. That is what let `routes/recruitment.ts` delete its ⚠ workaround comment — the gate
+  those routes could never use now exists and says the right thing.
+- Two comments corrected rather than left to rot: `DriverDetailPage`'s record that PSP sits on the
+  driver page because of `canManageFleet` (a layout decision made by a permission bug — moving it is
+  R7, now a choice), and the Driver App settings card, which now gates on `roster` like its route and
+  its endpoint instead of agreeing with them by accident.
+- `routeTable.test.ts` did the job it exists for: six `true`s became six named sections, nothing
+  gained or lost a gate.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`,
+`lint:table-writers`.
 
 ### The rest
 
