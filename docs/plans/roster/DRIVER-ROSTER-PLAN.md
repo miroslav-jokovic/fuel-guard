@@ -1194,7 +1194,7 @@ record page rather than copying it, and that is a step with its own decision to 
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 
-### R6c — editing gets one home per field — 2026-08-31, PR #PENDING, no migration
+### R6c — editing gets one home per field — 2026-08-31, PR #408, no migration
 
 Answers §6 Q4 and Q8, which were the same question at two altitudes.
 
