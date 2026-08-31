@@ -502,7 +502,7 @@ Prerequisites: R0 (without it, the same workaround reappears in a new place).
 gone; `?section=application`, `?section=employment`, `?section=screening` still resolve, redirecting
 to their new homes; the three inbound links point at the new destinations.
 
-### R8 — Retire what is now redundant — **DONE 2026-08-31 (PR #PENDING, no migration)**
+### R8 — Retire what is now redundant — **DONE 2026-08-31 (PR #409, no migration)**
 
 With R4–R7 landed, re-examine `CompliancePage`, `ScreeningReadinessPage` and `InquiryQueuePage`
 against the roster grid + saved views. Some are genuinely fleet-wide queues that a per-driver page
@@ -1271,7 +1271,7 @@ no gate.
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`
 (including `--self-test`), and the full gate list.
 
-### R8 — nothing was redundant, and one page was unreachable — 2026-08-31, PR #PENDING, no migration
+### R8 — nothing was redundant, and one page was unreachable — 2026-08-31, PR #409, no migration
 
 **The per-page decision R8 asked for. Retire NONE of the three, and the evidence is what each one
 carries that a roster view cannot express:**
