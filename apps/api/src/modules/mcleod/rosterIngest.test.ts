@@ -294,6 +294,73 @@ describe("identity mode (M4)", () => {
   });
 });
 
+/**
+ * R1 — the sweep also files the licence and the medical card as EVIDENCE (D-ARC3; DRIVER-ROSTER-PLAN
+ * Q2, answered option (a) 2026-08-30).
+ *
+ * The invariant `recordSyncedCredentials` holds — write only on change — is unit-tested at its own
+ * seam in `evidence/syncedCredentials.test.ts`. What is asserted HERE is the wiring, and every case
+ * below is about the sweep NOT filing: the evidence write inherits the sweep's ownership decision
+ * rather than re-making it, so a row the office owns and a report-mode pass must both leave the
+ * append-only record untouched.
+ */
+describe("credentials become evidence (R1)", () => {
+  const mcleodDriver = {
+    external_id: "D0001", company_id: "TMS", cdl_number: "S123456789", cdl_state: "IL",
+    first_name: "Angel", last_name: "Cora", cdl_expires_at: "2031-04-02",
+    medical_card_expires_at: "2027-06-01",
+  } as const;
+  const withCerts = (drivers: unknown[], certifications: unknown[] = []) =>
+    createSupabaseRecorder({
+      tables: { drivers, certifications },
+      rpc: { insert_certification: [{ id: "cert-1", superseded_id: null }] },
+    });
+
+  it("files both credentials through evidence when it refreshed the row", async () => {
+    const rec = withCerts([driver({ mcleod_driver_id: "D0001" })]);
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.credentialsFiled).toBe(2);
+    const kinds = rec.rpcs().map((c) => (c.args as Record<string, unknown>).p_kind);
+    expect(kinds.sort()).toEqual(["cdl", "medical_card"]);
+    expect(r.credentialFailures).toEqual([]);
+  });
+
+  it("files nothing for a row the office owns — the stand-off covers the evidence record too", async () => {
+    // identity_source 'manual' is the office's escape hatch. The sweep already refuses to touch the
+    // columns; filing a certification anyway would be the same overreach through a different door.
+    const rec = withCerts([driver({ mcleod_driver_id: "D0001", identity_source: "manual" })]);
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.skippedOwned).toBe(1);
+    expect(r.credentialsFiled).toBe(0);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("files nothing in report mode, which is supposed to write nothing at all", async () => {
+    const rec = withCerts([driver({ mcleod_driver_id: "D0001" })]);
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "report");
+    expect(r.credentialsFiled).toBe(0);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("files nothing in link mode, where no identity fields are written either", async () => {
+    const rec = withCerts([driver()]);
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "link");
+    expect(r.credentialsFiled).toBe(0);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("does not strand the sweep when a credential cannot be filed", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { drivers: [driver({ mcleod_driver_id: "D0001" })], certifications: [] },
+      rpc: { insert_certification: { data: null, error: { message: "boom" } } },
+    });
+    const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
+    expect(r.updated).toBe(1); // the roster write still happened
+    expect(r.credentialsFiled).toBe(0);
+    expect(r.credentialFailures).toEqual(["D0001:cdl", "D0001:medical_card"]);
+  });
+});
+
 describe("create mode (M5)", () => {
   const newDriver = {
     external_id: "D9999", company_id: "TMS", cdl_number: "NEW123456",

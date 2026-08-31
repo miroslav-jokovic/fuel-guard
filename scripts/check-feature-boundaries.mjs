@@ -95,6 +95,13 @@ const API_ALLOW = new Set([
   // A fetched PSP report is filed into the DQ record through evidence's registerDocument —
   // the collector→core write, made through the owner's interface exactly as D-ARC3 asks.
   "psp -> evidence",
+  // The roster sweep files the licence and medical card McLeod reports as CERTIFICATIONS, not only
+  // as drivers.* columns — closing the dual-source defect ARCHITECTURE.md §3 calls the audit's
+  // sharpest finding, at the exact seam this sync would otherwise have widened (R1, Q2 option (a)).
+  // Narrow by construction: recordSyncedCredentials only, through evidence's index, and the owner
+  // holds the write-only-on-change invariant because insert_certification supersedes uncondition-
+  // ally and this sweep runs nightly against a table nothing may prune.
+  "mcleod -> evidence",
   // A rejected EFS row still needs its decline driver resolved against the canonical record.
   "efs -> fuel",
   // The transactions API re-ingests through the collector's entrypoints, and decline resolution

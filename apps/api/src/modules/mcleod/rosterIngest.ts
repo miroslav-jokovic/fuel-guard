@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
 import { deriveFullName } from "@silvicom/shared";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
+import { recordSyncedCredentials } from "../evidence/index.js";
 import {
   makeDriverMatcher,
   makeAssetMatcher,
@@ -93,6 +94,14 @@ export interface RosterIngestResult {
   /** create mode: unit numbers of NEW vehicles that still need a tank capacity before they can drive
    *  fuel detection — the same signal `samsaraVehicleSync` reports, for the same reason. */
   needsCompletion: string[];
+  /** drivers: certification rows filed into the evidence record this run (R1, Q2 option (a)).
+   *  Expected to be large on the first sweep and near ZERO afterwards — `recordSyncedCredentials`
+   *  writes only on change, so a number that stays high sweep after sweep is the bug, not the
+   *  feature: it means something is making these rows look different every time. */
+  credentialsFiled: number;
+  /** `externalId:kind` for credentials that could not be filed. Counted, never thrown — one bad
+   *  credential must not strand the rest of the roster mid-sweep. */
+  credentialFailures: string[];
 }
 
 const empty = (): RosterIngestResult => ({
@@ -107,6 +116,8 @@ const empty = (): RosterIngestResult => ({
   skippedOwned: 0,
   created: 0,
   needsCompletion: [],
+  credentialsFiled: 0,
+  credentialFailures: [],
 });
 
 /** Provenances whose identity McLeod may claim. See the header for why the other two are excluded. */
@@ -168,7 +179,7 @@ async function applyOutcome(
   candidateSource: (id: string) => string | null,
   insert: Record<string, unknown> | null,
   write: boolean,
-): Promise<void> {
+): Promise<string | null> {
   const { link, company } = LINK_COLUMNS[entity];
   switch (outcome.kind) {
     case "linked":
@@ -180,7 +191,7 @@ async function applyOutcome(
       // no field write. Reported so the operator can see the sync is deliberately standing off.
       if (patch && !CLAIMABLE.has(candidateSource(outcome.id) ?? "")) {
         out.skippedOwned++;
-        return;
+        return null;
       }
 
       // Report mode stops here: it has decided what it would do and counts it, and that is the whole
@@ -192,7 +203,7 @@ async function applyOutcome(
           out.upserted++;
         }
         if (patch) out.updated++;
-        return;
+        return null;
       }
 
       const body: Record<string, unknown> = already ? {} : { [link]: externalId, [company]: companyId ?? null };
@@ -202,7 +213,7 @@ async function applyOutcome(
         // in the product infers provenance from the presence of a link.
         body.identity_source = "mcleod";
       }
-      if (Object.keys(body).length === 0) return;
+      if (Object.keys(body).length === 0) return null;
 
       const { error } = await admin
         .from(entity)
@@ -214,44 +225,51 @@ async function applyOutcome(
       // see WHICH record is double-claimed, and one bad row must not strand the other 163.
       if (error) {
         out.ambiguous.push(externalId);
-        return;
+        return null;
       }
       if (!already) {
         out.linked++;
         out.upserted++;
       }
       if (patch) out.updated++;
-      return;
+      // The id is returned ONLY when a patch was actually applied. A row we stood off from, or a
+      // report-mode pass, must not have credentials filed against it — the sweep's own ownership
+      // rules decide whether McLeod is speaking for this driver, and the evidence write inherits
+      // that decision rather than re-deciding it.
+      return patch ? outcome.id : null;
     }
     case "ambiguous":
       out.ambiguous.push(externalId);
-      return;
+      return null;
     case "applicant":
       out.applicants.push(externalId);
-      return;
+      return null;
     case "unmatched":
       // Creation is the caller's decision, not this function's: in link and identity mode an unmatched
       // record is a REPORT, and only in create mode is it a row.
       if (insert) {
-        const { error } = await admin.from(entity).insert({
+        // `select("id").single()` so a newly created driver can have their credentials filed in the
+        // same pass — without it the first sweep would create the row and leave its CDL and medical
+        // card out of the evidence record until something changed, which for a new hire is never.
+        const { data: created, error } = await admin.from(entity).insert({
           org_id: orgId,
           [link]: externalId,
           [company]: companyId ?? null,
           identity_source: "mcleod",
           ...insert,
-        });
+        }).select("id").single<{ id: string }>();
         // 23505 means a row already claims this identity — the 0123/0239 unique indexes doing their
         // job against a re-run or a racing sweep. Report rather than fail the batch: one bad row must
         // not strand the other 163, and the operator needs to see WHICH record collided.
         if (error) {
           out.ambiguous.push(externalId);
-          return;
+          return null;
         }
         out.created++;
-        return;
+        return created?.id ?? null;
       }
       out.unmatched.push(externalId);
-      return;
+      return null;
   }
 }
 
@@ -286,7 +304,34 @@ export async function ingestDrivers(
     // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
     const insert =
       mode === "create" && name ? { ...patch, full_name: name, status: "active" } : null;
-    await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
+    const driverId = await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
+
+    /**
+     * The licence and the medical card also become EVIDENCE, not just columns (D-ARC3; Q2 answered
+     * option (a) on 2026-08-30). Writing them to `drivers.*` alone was the dual-source defect
+     * ARCHITECTURE.md §3 calls the audit's sharpest finding: `certifications` is the only table the
+     * qualification gate and `buildDqFile` read, so a roster showing a current medical card while the
+     * DQ file said `missing` was the guaranteed outcome of turning this sync on.
+     *
+     * Through `evidence`'s interface, never `.from("certifications")` here — the owner holds the
+     * write-only-on-change invariant, because `insert_certification` supersedes unconditionally and
+     * this loop runs nightly against an append-only table nothing may prune.
+     *
+     * `driverId` is null whenever the sweep did not actually speak for this row: report mode, a row
+     * the office owns, an ambiguous match. Filing is inherited from that decision, never re-made.
+     */
+    if (driverId) {
+      const filed = await recordSyncedCredentials(admin, orgId, driverId, {
+        cdlNumber: r.cdl_number,
+        cdlState: r.cdl_state,
+        cdlExpiresAt: r.cdl_expires_at,
+        medicalExpiresAt: r.medical_card_expires_at,
+      });
+      out.credentialsFiled += filed.written.length;
+      // Counted, not thrown. A credential that could not be filed must not strand the other 163
+      // drivers mid-sweep — the same rule the 23505 branches above follow, for the same reason.
+      for (const f of filed.failed) out.credentialFailures.push(`${r.external_id}:${f.kind}`);
+    }
   }
   return out;
 }

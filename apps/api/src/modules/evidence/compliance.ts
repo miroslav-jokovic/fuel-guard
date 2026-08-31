@@ -21,9 +21,16 @@ const err = (code: string, error: string): ServiceError => ({ error, code });
 const CERT_COLUMNS =
   "id, subject_type, subject_id, kind, qualifier, training_type, identifier, issuing_authority, issued_at, effective_from, expires_at, training_provider_name, training_certified, superseded_by, superseded_at, document_id, notes, created_at";
 
-/** Insert with automatic supersede — one RPC, one transaction (0127's insert_certification). */
+/**
+ * Insert with automatic supersede — one RPC, one transaction (0127's insert_certification).
+ *
+ * `userId` is nullable because not every filing has a person behind it: `recordSyncedCredentials`
+ * files a licence the McLeod sweep reported, and there is no user to name. `certifications.created_by`
+ * is nullable in 0127 for the same reason, so this signature now says what the column already said —
+ * rather than making a machine caller invent a user id or cast one away.
+ */
 export async function insertCertification(
-  admin: SupabaseClient, orgId: string, userId: string, req: CertificationCreateRequest,
+  admin: SupabaseClient, orgId: string, userId: string | null, req: CertificationCreateRequest,
 ): Promise<{ id: string; supersededId: string | null } | ServiceError> {
   const { data, error } = await admin.rpc("insert_certification", {
     p_id: req.id, p_org_id: orgId,
