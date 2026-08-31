@@ -423,7 +423,7 @@ Prerequisites: R1 (or the columns will render the disagreement), R2, R3.
   reads and navigates") and D-ROS5 ("`?section=` is a public surface") agreeing with each other.
   A promoted drawer is a capability question, not a rider on a column.
 
-#### R4a — the three expiry columns — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R4a — the three expiry columns — **DONE 2026-08-31 (PR #401, no migration)**
 
 #### R4b — the rollup filters, and the built-in view catalogue they unblock
 
@@ -884,7 +884,7 @@ reasoning is repeated at the foot of `savedViewContract.ts`, where the next pers
 `lint:table-writers`, `check-rls`. The `lint:upserts` gate was checked directly against this router's
 upsert — removing one column from the payload fails it, so the call is covered rather than skipped.
 
-### R4a — the three expiry columns — 2026-08-31, PR #PENDING, no migration
+### R4a — the three expiry columns — 2026-08-31, PR #401, no migration
 
 `dqRosterCells` + `DQ_ROSTER_COLUMN_KEYS` (shared), `requirements` on the rollup (api),
 `dqExpiryBadge` (web), three columns on the roster.
