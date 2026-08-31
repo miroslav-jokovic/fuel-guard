@@ -30,6 +30,7 @@ const driver = (over: Partial<DriverOverviewRow> = {}, items: DqAttentionItem[] 
   groups: [],
   attention: items,
   requirements: [],
+  documents: { onFile: 0, of: 0 },
   ...over,
 });
 

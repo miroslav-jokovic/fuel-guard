@@ -6,6 +6,7 @@ import {
   buildDqFile,
   dqAttention,
   dqCapturableSpecs,
+  dqDocumentCount,
   dqRosterCells,
   DQ_ROSTER_COLUMN_KEYS,
   DQ_ITEMS,
@@ -419,5 +420,55 @@ describe("dqRosterCells — the roster's expiry columns", () => {
     // way these three quietly become two.
     const keys = [...cellsFor({ includeHazmat: true }).keys()].sort();
     expect(keys).toEqual([...DQ_ROSTER_COLUMN_KEYS].sort());
+  });
+});
+
+/**
+ * How much of the file has a SCAN behind it (R5).
+ *
+ * The number the roster's file cell shows, and the reason R5 needs no new query: it is a fold over
+ * the items `buildDqFile` already resolved.
+ */
+describe("dqDocumentCount — scans on file", () => {
+  it("counts only items with a document, not items that merely have a date", () => {
+    // §6 Q6 in one assertion: a certification with an expiry but no scan is `current` and still
+    // contributes nothing here. A count states a fact; it does not rule on whether that is a defect.
+    const file = build({
+      certs: [
+        cert({ kind: "cdl", expiresAt: "2030-01-01", documentId: null }),
+        cert({ kind: "medical_card", expiresAt: "2030-01-01", documentId: "doc-1" }),
+      ],
+      documents: [{ id: "doc-1", kind: "medical_card" }],
+    });
+    expect(dqDocumentCount(file).onFile).toBe(1);
+  });
+
+  it("does not count a document id whose document is not in the register", () => {
+    // `buildDqFile` resolves the id against the documents actually filed, so a dangling reference —
+    // a scan deleted, or a row written by a sweep that never uploaded one — reads as no scan rather
+    // than as evidence. A count that trusted the id would overstate the file.
+    const file = build({
+      certs: [cert({ kind: "medical_card", expiresAt: "2030-01-01", documentId: "gone" })],
+      documents: [],
+    });
+    expect(dqDocumentCount(file).onFile).toBe(0);
+  });
+
+  it("counts against the driver's own checklist, not the catalogue's length", () => {
+    // A carrier without hazmat has fewer items to satisfy. Measuring them against a fixed 20 would
+    // report them permanently behind on requirements nobody asks of them.
+    const withHazmat = dqDocumentCount(build({ includeHazmat: true })).of;
+    const without = dqDocumentCount(build({ includeHazmat: false })).of;
+    expect(without).toBeLessThan(withHazmat);
+    expect(without).toBeGreaterThan(0);
+  });
+
+  it("is zero on an empty file, and never exceeds its own denominator", () => {
+    const empty = dqDocumentCount(build());
+    expect(empty.onFile).toBe(0);
+    expect(empty.of).toBeGreaterThan(0);
+
+    const some = dqDocumentCount(build({ certs: [cert({ kind: "cdl", documentId: "d" })] }));
+    expect(some.onFile).toBeLessThanOrEqual(some.of);
   });
 });

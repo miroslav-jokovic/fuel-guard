@@ -57,7 +57,7 @@ const row = (over: Partial<DriverOverviewRow>): DriverOverviewRow => ({
   driver_id: "d", driver_name: "Name", driver_status: "active",
   state: "incomplete",
   counts: { current: 5, expiring: 0, expired: 0, missing: 0 },
-  groups: [], attention: [], requirements: [], ...over,
+  groups: [], attention: [], requirements: [], documents: { onFile: 0, of: 0 }, ...over,
 });
 
 /** One driver per branch — no two match the same filter set. */

@@ -437,11 +437,23 @@ test that proves it.
 
 ### R5 — The documents modal (D-ROS8) — the "DQF folder" the ask asked for
 
-One driver, every scan, per-file download, `n/20` filed on the cell. Needs a `documentCount` on the
-overview response — not a per-row fetch, or the roster costs 200 signed-URL round trips on load.
-Opening a scan replaces the modal body; it never stacks.
+One driver, every scan, per-file download, the count filed on the cell. Opening a scan replaces the
+modal body; it never stacks.
 
 Prerequisites: R4, and a placement that satisfies `lint:boundaries`.
+
+**Split, because the prerequisite is a step of its own and two of the step's own notes were wrong:**
+
+- **The count needs NO new query and no `documentCount` column.** `buildDqFile` already resolves
+  `documentId` per item while computing the file, so the count is a fold over work the rollup has
+  done anyway. The warning about "200 signed-URL round trips" was about a design nobody has to build.
+- **The denominator is not 20.** `n/20` would measure every driver against the whole catalogue, so a
+  carrier without the hazmat module — or a non-CDL driver — would read as permanently behind on
+  requirements nobody asks of them. It is `n / items that apply to this driver`.
+
+#### R5a — the placement, and the count — **DONE 2026-08-31 (PR #403, no migration)**
+
+#### R5b — the modal itself, and the roster's file cell
 
 **Done when:** the audit print path still works from the preview; no two dialogs are ever open at
 once; a 200-driver roster issues one document-count query, asserted by `supabaseRecorder`.
@@ -969,6 +981,37 @@ what a compliance screen reports without anyone deciding to.
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`. The built-in expressibility check was proven able to fail (an
 invented query parameter breaks it), as was the fleet table's characterisation suite.
+
+### R5a — the sanctioned viewer moves to where the contract always said it was — 2026-08-31, PR #403, no migration
+
+- **`DocumentPreview.vue` moved from `features/compliance/` to `components/`, and this was not a new
+  decision.** `docs/DESIGN-SYSTEM-CONTRACT.md` §1.2 has always listed it in the shared-components
+  table — with "(features/compliance)" written beside it, admitting the file was somewhere the table
+  said it was not. R5 needs it from the roster and D-ROS10 will need it for tractors and trailers,
+  whose `subject_type` the storage path already accepts. `check-feature-boundaries.mjs` says in its
+  own comment what to do: promote the shared thing, never allow-list the leak.
+- **Nothing about the component changed.** It had no `compliance` imports to begin with — the
+  clearest sign it was never that feature's own — so the move is an import path and a docblock. Its
+  existing three tests pass unmoved, and the contract row now carries its real line count instead of
+  a parenthetical about its location.
+- **`documents: { onFile, of }` on the rollup**, derived from the file items. Zero new queries on a
+  287-driver roster.
+- **The count is of SCANS, and that is deliberate under §6 Q6.** An item can read `current` from a
+  synced date while contributing nothing here. A count states a fact without ruling that the file is
+  deficient, which is the question Q6 still owes an answer to. Pinned by "counts only items with a
+  document, not items that merely have a date".
+- **A dangling document id counts as no scan.** `buildDqFile` resolves the id against the documents
+  actually registered, so a reference to a deleted scan reads as absent rather than as evidence — a
+  count that trusted the id would overstate the file. Pinned by "does not count a document id whose
+  document is not in the register", which was found by a fixture that failed for exactly that reason.
+- **The leak question was answered again, not waived.** `complianceOverview.test.ts` gets a second
+  assertion: the count is two numbers, never document ids. Carrying ids would put a §382.401 record's
+  id in front of a dispatcher — the leak that file exists to prevent — and would be 287 ids nobody on
+  the roster reads.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
+`lint:tests`, `lint:table-writers`.
 
 ### The rest
 

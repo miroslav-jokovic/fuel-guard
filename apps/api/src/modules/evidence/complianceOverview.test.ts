@@ -60,7 +60,7 @@ describe("getComplianceOverview — the driver predicate", () => {
     // overview satisfies that by construction — it returns no evidence rows at all — and this pins
     // the shape so a future field addition has to face the question.
     expect(Object.keys(result.drivers[0]!).sort()).toEqual(
-      ["attention", "counts", "driver_id", "driver_name", "driver_status", "groups", "requirements", "state"],
+      ["attention", "counts", "documents", "driver_id", "driver_name", "driver_status", "groups", "requirements", "state"],
     );
   });
 
@@ -73,6 +73,19 @@ describe("getComplianceOverview — the driver predicate", () => {
    * §391.23 investigation result cannot appear here even if one were added to the catalogue, because
    * the projection filters to `DQ_ROSTER_COLUMN_KEYS`.
    */
+  it("the document count is two numbers, never the documents themselves (Phase G)", async () => {
+    // R5's file cell needs "how many scans", not "which scans". Carrying the ids here would put a
+    // §382.401 testing record's document id in front of a dispatcher, which is the exact leak the
+    // assertion above exists to prevent — and it would also be 287 ids nobody on the roster reads.
+    const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D1" }]);
+    const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");
+    const docs = result.drivers[0]!.documents;
+
+    expect(Object.keys(docs).sort()).toEqual(["of", "onFile"]);
+    expect(typeof docs.onFile).toBe("number");
+    expect(docs.of).toBeGreaterThan(0);
+  });
+
   it("the roster requirements carry no evidence payload and no restricted kind (Phase G)", async () => {
     const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D1" }]);
     const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");

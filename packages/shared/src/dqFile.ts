@@ -182,6 +182,39 @@ export function compareAttention(a: DqAttentionItem, b: DqAttentionItem): number
  * distinction the rest of the product does not yet make, and Q6 is its own step across the queue,
  * these columns and the binder.
  */
+/**
+ * How much of this driver's §391.51 file has an actual SCAN behind it (R5).
+ *
+ * ── WHY THIS IS DERIVED HERE AND NOT COUNTED IN THE DATABASE ─────────────────────────────────────
+ * R5's original note asked for a `documentCount` on the overview response and warned that a per-row
+ * fetch would cost a signed-URL round trip per driver. It needs neither: `buildDqFile` already
+ * resolves `documentId` per item while computing the file, so the count is a fold over work the
+ * rollup has done anyway. A 287-driver roster adds ZERO queries.
+ *
+ * ── AND WHY THE DENOMINATOR IS THE DRIVER'S OWN CHECKLIST ────────────────────────────────────────
+ * `of` is the number of items that APPLY to this driver, not the catalogue's length. A carrier
+ * without the hazmat module, or a non-CDL driver, has a shorter checklist — showing "8/20" against
+ * a fixed 20 would report them permanently behind on requirements nobody is asking them for.
+ *
+ * ⚠ This counts SCANS, and is therefore the one number on the roster that already distinguishes
+ * what §6 Q6 is about: an item can be `current` from a synced date while contributing nothing here.
+ * That is deliberate — it is a count, not a verdict, so it states a fact without asserting the file
+ * is deficient before that question has a ruling.
+ */
+export interface DqDocumentCount {
+  /** Items with a scan filed. */
+  onFile: number;
+  /** Items that apply to this driver at all. */
+  of: number;
+}
+
+export function dqDocumentCount(file: DqFileSummary): DqDocumentCount {
+  return {
+    onFile: file.items.filter((i) => i.documentId !== null).length,
+    of: file.items.length,
+  };
+}
+
 export const DQ_ROSTER_COLUMN_KEYS = ["cdl", "medical_card", "endorsement_hazmat"] as const;
 export type DqRosterColumnKey = (typeof DQ_ROSTER_COLUMN_KEYS)[number];
 
@@ -259,6 +292,8 @@ export interface DriverOverviewRow {
    * which is why it cannot be derived from `attention`, and why it is carried separately.
    */
   requirements: DqRosterCell[];
+  /** How much of the file has a scan behind it (R5) — a fold over work the rollup already did. */
+  documents: DqDocumentCount;
 }
 
 export interface ComplianceOverviewResponse {

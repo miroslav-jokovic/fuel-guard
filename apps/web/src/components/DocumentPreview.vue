@@ -13,6 +13,18 @@ import { formatDate } from "@/lib/format";
  * full-size. Mounted in `BaseModal size="xl"` because a medical card at drawer width is not
  * legible (B5).
  *
+ * ── WHY IT LIVES HERE RATHER THAN IN `features/compliance` (R5a, 2026-08-31) ────────────────────
+ * It was written inside that feature and the design contract §1.2 has ALWAYS listed it among the
+ * shared components — with "(features/compliance)" beside it, admitting the file was somewhere the
+ * table said it was not. R5 needs it from the roster (D-ROS8's documents modal) and D-ROS10 will
+ * need it for tractors and trailers, whose `subject_type` the storage path already accepts. A
+ * `roster` component may not import a `compliance` one (`lint:boundaries`), and
+ * `check-feature-boundaries.mjs` says in its own comment what to do about that: promote the shared
+ * thing out of `features/`, never allow-list the leak.
+ *
+ * Nothing about the component changed in the move — it had no compliance imports to begin with,
+ * which is the clearest sign it was never a feature's own.
+ *
  * What loads what: the table cell showed the 40 KB `thumb`; this modal shows `normalized`
  * (2000 px, legible down to a certificate number); the 25 MB ORIGINAL is fetched only by the
  * Download button, as a server-signed attachment — never rendered into the page.

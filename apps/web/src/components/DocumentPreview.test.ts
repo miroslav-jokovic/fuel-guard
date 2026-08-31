@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type { DocumentRow } from "@silvicom/shared";
-import DocumentPreview from "@/features/compliance/DocumentPreview.vue";
+import DocumentPreview from "@/components/DocumentPreview.vue";
 
 /**
  * B6 — the two branches the plan's done-when names: a PDF renders the browser's viewer in an
