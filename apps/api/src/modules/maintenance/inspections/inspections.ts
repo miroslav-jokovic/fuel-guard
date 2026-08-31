@@ -28,7 +28,7 @@ import type { ServiceError } from "./inspectors.js";
 const REPORT_COLUMNS =
   "id, org_id, subject_type, subject_id, inspector_id, inspected_on, catalogue_version, " +
   "vehicle_identification_method, vehicle_identification_value, inspection_agency_location, " +
-  "stock_serial, other_conditions, status, outcome, next_due_on, supersedes_id, certification_id, " +
+  "decal_serial, other_conditions, status, outcome, next_due_on, supersedes_id, certification_id, " +
   "document_id, finalized_at, created_at";
 
 interface ReportRow {
@@ -171,7 +171,7 @@ const HEADER_COLUMNS: Record<string, string> = {
   vehicleIdentificationMethod: "vehicle_identification_method",
   vehicleIdentificationValue: "vehicle_identification_value",
   inspectionAgencyLocation: "inspection_agency_location",
-  stockSerial: "stock_serial",
+  decalSerial: "decal_serial",
   otherConditions: "other_conditions",
 };
 
