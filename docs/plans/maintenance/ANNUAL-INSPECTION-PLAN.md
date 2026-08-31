@@ -880,7 +880,7 @@ function so the vehicles page, the trailers page and any later surface cannot di
   shifted, so most differences stayed correct and only boundaries between months of unequal length
   went wrong: 2026-01-31 → 2026-02-28 came out as **25 days instead of 28**. It is pinned now, along
   with the 30-day boundary itself and both leap-year cases.
-- **B3 — the inspector register gets a surface — DONE 2026-08-31 (PR #NNN)** (closes §6 Q8).
+- **B3 — the inspector register gets a surface — DONE 2026-08-31 (PR #422)** (closes §6 Q8).
   `/shop/inspectors`: who may inspect, how they qualify, whether that extends to brakes, and the
   period they are active for. Retiring somebody sets `effective_to` and is **never a delete** —
   0280's `on delete restrict` already forbids removing anybody who has signed a report, because the
