@@ -5,7 +5,12 @@ import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
-import { useDriversQuery, useCreateDriver, useUpdateDriver, useArchiveDriver } from "@/composables/useDrivers";
+import {
+  useDriversQuery,
+  useCreateDriver,
+  useUpdateDriverProfile,
+  useArchiveDriver,
+} from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -17,6 +22,7 @@ import { AppSelect } from "@silvicom/ui";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { sortRows } from "@/lib/sort";
+import { describeDriverEdit } from "@/lib/format";
 import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
@@ -44,7 +50,21 @@ import {
 const session = useSessionStore();
 const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
 const createDriver = useCreateDriver();
-const updateDriver = useUpdateDriver();
+/**
+ * The AUDITED edit path (R6a), not the PostgREST one this drawer used until 2026-08-31.
+ *
+ * ── THE DEFECT THIS REPLACES ────────────────────────────────────────────────────────────────────
+ * Until 2026-08-31 this drawer called `useUpdateDriver`, which wrote `drivers` straight from the
+ * browser, so `resolveDriverUpdate` never ran for the surface people actually use. That composable
+ * is now deleted. Two consequences, both silent: the row was never claimed, so
+ * `samsaraDriverSync` overwrote the office's correction on the next sweep — the exact failure its
+ * own comment says "the roster PATCH exists to prevent", written on the assumption both halves had
+ * landed — and a change to a §391.51-relevant field left no audit row at all.
+ *
+ * Measured on 2026-08-31: 282 of 287 live drivers were sync-owned (185 samsara, 97 efs), so this
+ * was the behaviour for essentially the whole roster.
+ */
+const updateDriver = useUpdateDriverProfile();
 
 const toast = useToastStore();
 const drawerOpen = ref(false);
@@ -257,10 +277,17 @@ function openEdit(d: Driver) {
 
 async function onSubmit(input: DriverInput) {
   try {
-    if (editing.value) await updateDriver.mutateAsync({ id: editing.value.id, input });
-    else await createDriver.mutateAsync(input);
+    if (!editing.value) {
+      await createDriver.mutateAsync(input);
+      drawerOpen.value = false;
+      toast.success("Driver created");
+      return;
+    }
+    const saved = await updateDriver.mutateAsync({ id: editing.value.id, input });
     drawerOpen.value = false;
-    toast.success(editing.value ? "Driver updated" : "Driver created");
+    // Say what the edit DID, not merely that it happened. Both facts change what the row means, and
+    // both were previously written to the audit log and to nowhere the person could see (R6a).
+    toast.success("Driver updated", describeDriverEdit(saved) ?? undefined);
   } catch (e) {
     toast.error("Could not save driver", e instanceof Error ? e.message : undefined);
   }

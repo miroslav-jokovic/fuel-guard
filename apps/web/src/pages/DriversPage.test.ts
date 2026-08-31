@@ -39,10 +39,27 @@ const driversQuery = {
 };
 const idleMutation = () => ({ isPending: ref(false), mutateAsync: vi.fn() });
 
+/**
+ * The AUDITED edit path (R6a). Its resolved answer is what the page turns into a sentence, so the
+ * mock returns the whole response rather than just the row — returning only the row is exactly how
+ * the two flags stayed invisible in the real composable.
+ */
+/** Create goes through `POST /api/roster/drivers` since R6a, so the row is born `manual`. */
+const createDriver = { isPending: ref(false), mutateAsync: vi.fn(async () => ({})) };
+
+const updateProfile = {
+  isPending: ref(false),
+  mutateAsync: vi.fn(async () => ({
+    driver: {},
+    claimedFromTelematics: false,
+    stampedTerminationDate: false,
+  })),
+};
+
 vi.mock("@/composables/useDrivers", () => ({
   useDriversQuery: () => driversQuery,
-  useCreateDriver: () => idleMutation(),
-  useUpdateDriver: () => idleMutation(),
+  useCreateDriver: () => createDriver,
+  useUpdateDriverProfile: () => updateProfile,
   useArchiveDriver: () => idleMutation(),
 }));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: vehicles }) }));

@@ -268,7 +268,14 @@ export function rosterDriversRouter(): Router {
         },
       });
 
-      res.json({ driver: data });
+      // Both flags travel to the CALLER as well as to the audit log (R6a). They are the two things
+      // an edit can be true of that change what the row MEANS rather than what it says, and until
+      // R6a they were recorded for an auditor and invisible to the person who caused them.
+      res.json({
+        driver: data,
+        claimedFromTelematics: resolved.claimedFromTelematics,
+        stampedTerminationDate: resolved.stampedTerminationDate,
+      });
     }),
   );
 

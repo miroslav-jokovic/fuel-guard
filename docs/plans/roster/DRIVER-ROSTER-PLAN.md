@@ -474,6 +474,14 @@ Prerequisites: R0.
 telematics-owned row shows the claim warning before it is claimed; `resolveDriverUpdate`'s two flags
 are both surfaced to the user.
 
+**Split, because two thirds of the Done-when turned out to describe a LIVE DEFECT rather than a
+missing feature.** The roster's own edit drawer never called `resolveDriverUpdate` at all — see
+R6a. The layout change is R6b and is the smaller half.
+
+#### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #405, no migration)**
+
+#### R6b — tabs become sections on one scroll
+
 ### R7 — Recruiting leaves the driver page (D-ROS6)
 
 `ApplicationInviteCard`, `DispositionSection`, `EmploymentHistorySection`, `EmployerInquirySection`,
@@ -1044,6 +1052,66 @@ before re-recording, and the fixture carries two different denominators (`8/17`,
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:table-writers`.
+
+### R6a — the roster's edit becomes the audited one — 2026-08-31, PR #405, no migration
+
+**This step began as "surface two flags" and turned out to be a live production defect.**
+
+`DriversPage`'s edit drawer called `useUpdateDriver`, which writes `drivers` **straight from the
+browser through PostgREST**. So `resolveDriverUpdate` never ran on the surface people actually use,
+and two things followed, both silent:
+
+- **The row was never claimed, so the sync overwrote the correction.** `samsaraDriverSync.ts:137-142`
+  carries a comment describing exactly this failure — "an admin who fixed a misspelled name or a
+  wrong phone on a telematics-sourced driver watched it revert on the next sync, silently and with
+  nothing logged" — and says "that is the failure the roster PATCH exists to prevent, **so the two
+  had to be fixed together**". The sync half landed. The caller half did not.
+- **A change to a §391.51-relevant field left no audit row.**
+
+**Measured on production, 2026-08-31: 282 of 287 live drivers were sync-owned** — 185 `samsara`,
+97 `efs`, 5 `manual`. This was the behaviour for essentially the entire roster.
+
+What shipped:
+
+- The drawer now uses `useUpdateDriverProfile` (`PATCH /api/roster/drivers/:id`), so every roster
+  edit runs `resolveDriverUpdate`, claims the row when it should, stamps the §391.51(c) date when it
+  should, and writes an audit row.
+- **The two flags now travel in the RESPONSE, not only into `audit_logs.meta`.** They were recorded
+  for an auditor and invisible to the person who caused them. D-ROS1 refused a cell-editor grid
+  because "a cell editor has nowhere to put that sentence"; a sentence with nowhere to come FROM is
+  the same gap from the other end. `describeDriverEdit` turns them into one, and returns null for an
+  ordinary edit so nothing is said when nothing happened.
+- **The claim warning appears BEFORE Save** (D-ROS4), and is true of the EDIT rather than of the
+  driver — a permanent banner on every synced row would be wallpaper. It reads
+  `wouldClaimFromTelematics` from `@silvicom/shared`, the same identity-field list the server uses,
+  so the warning and the save cannot disagree. It also says the part that matters: editing the field
+  back does not undo it.
+- `identity_source` joins `DRIVER_COLS`, because a form cannot say what an edit means without it.
+
+**The sweep for the rest of the bug class, which found two more:**
+
+- **Creating a driver had the same defect, and worse.** `useCreateDriver` INSERTed from the browser,
+  and `drivers.identity_source` is `not null default 'samsara'` — so a driver typed in by hand was
+  born TELEMATICS-OWNED and the next sweep could overwrite the name somebody had just entered.
+  `POST /api/roster/drivers` writes `identity_source: 'manual'` explicitly, and its own comment says
+  why. Create now goes through it. Measured 2026-08-31: **no production row had been created this
+  way** — all 185 `samsara` rows carried a real sync link — so this was a trap rather than damage,
+  closed before it fired.
+- **`useUpdateDriver` was DELETED, not merely left uncalled.** A private door left standing is one
+  somebody walks through, and its name is the obvious one to autocomplete. `useDrivers.test.ts` is a
+  source scan pinning the whole class: `drivers` may be read from the browser and never written, the
+  two writes go through the roster API, and that export may not come back. Proven able to fail by
+  re-adding it.
+- **Both ratchets moved.** `scripts/table-writers.json` and `check-table-modules.mjs` each carried
+  `drivers <- apps/web/src/composables/useDrivers.ts`; both entries are gone and the grandfathered
+  writer count fell 63 → 62. The gate caught the stale entries itself, which is the ratchet working:
+  removing a writer is only finished when the register says so.
+- `samsara_driver_id` left `DriverForm`'s state. It had **no input bound to it** — dead state passed
+  through from the existing row — so nothing a person could set was lost; the API refuses
+  client-supplied telematics provenance and Reconcile is the sanctioned way to link.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+The manual-row branch of the warning was proven able to fail.
 
 ### The rest
 

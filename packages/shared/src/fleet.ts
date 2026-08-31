@@ -338,4 +338,17 @@ export interface Driver {
    * the driver cannot be dispatched and is not meant to read why.
    */
   return_to_duty_required?: boolean;
+  /**
+   * Who owns this row's identity — `samsara`, `mcleod`, `efs`, or `manual` once the office has
+   * claimed it (`resolveDriverUpdate`).
+   *
+   * ⚠ **Optional on the type because it is optional on the WIRE, not in the database.** The column is
+   * NOT NULL; the five surfaces that use `useDriversQuery` as a name lookup select what they need.
+   *
+   * The roster list selects it because an edit form has to be able to say what the edit MEANS before
+   * Save: on a row this is not `manual`, changing a name or phone claims the driver away from the
+   * sync permanently (D-ROS1/D-ROS4). Read it as `driver.identity_source ?? "manual"` only where a
+   * missing value genuinely cannot occur.
+   */
+  identity_source?: string;
 }

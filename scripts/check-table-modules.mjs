@@ -61,7 +61,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "drivers <- apps/api/src/modules/samsara/hosSync.ts",
   "drivers <- apps/api/src/modules/samsara/samsaraDriverSync.ts",
   "drivers <- apps/api/src/scripts/seedPspQaDrivers.ts",
-  "drivers <- apps/web/src/composables/useDrivers.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/scoring/context.ts",
   "fuel_transactions <- apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",

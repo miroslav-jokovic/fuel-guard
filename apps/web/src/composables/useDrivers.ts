@@ -1,12 +1,21 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { EMPLOYED_DRIVER_STATUSES } from "@silvicom/shared";
-import type { Driver, DriverDetail, DriverInput, DriverUpdateRequest } from "@silvicom/shared";
+import type {
+  Driver,
+  DriverDetail,
+  DriverInput,
+  DriverUpdateRequest,
+  DriverUpdateResponse,
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
+// `identity_source` is selected because the roster's edit form must be able to say what an edit
+// MEANS before Save: on a row this is not 'manual', changing a name or phone claims the driver away
+// from the sync permanently (D-ROS1/D-ROS4, R6a).
 const DRIVER_COLS =
-  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, app_username, app_access_enabled, created_at, updated_at, archived_at";
+  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, app_username, app_access_enabled, identity_source, created_at, updated_at, archived_at";
 
 const driversKey = ["drivers"] as const;
 
@@ -29,11 +38,16 @@ export function useDriverQuery(id: Ref<string>) {
 /**
  * Edit one driver's master data through the ROSTER API, not through PostgREST.
  *
- * Deliberately not `useUpdateDriver` above. That one writes `drivers` straight from the browser on
- * the old five-field `driverInputSchema`; this one goes through `PATCH /api/roster/drivers/:id`,
- * which validates against `driverUpdateSchema`, runs `resolveDriverUpdate` (so an edit can claim a
- * telematics-owned row and stamp a termination date) and writes an audit row. Personal data —
- * date of birth is the first of it — takes the audited path.
+ * ⚠ There is deliberately NO browser-side driver update any more. `useUpdateDriver` existed until
+ * R6a and wrote `drivers` straight from the browser on the old five-field `driverInputSchema`, so
+ * `resolveDriverUpdate` never ran for the roster's own edit drawer: the row was never claimed, the
+ * sync overwrote the correction on its next sweep, and nothing was audited. It was deleted rather
+ * than merely stopped being called — a private door left standing is one somebody walks through.
+ *
+ * This goes through `PATCH /api/roster/drivers/:id`, which validates against `driverUpdateSchema`,
+ * runs `resolveDriverUpdate` (so an edit can claim a telematics-owned row and stamp a termination
+ * date) and writes an audit row. Personal data — date of birth is the first of it — takes the
+ * audited path.
  *
  * Invalidates BOTH caches: the roster detail this page reads, and the `drivers` list the roster
  * table reads, because a status or name edit shows up there.
@@ -41,13 +55,15 @@ export function useDriverQuery(id: Ref<string>) {
 export function useUpdateDriverProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; input: DriverUpdateRequest }): Promise<DriverDetail> => {
-      const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${payload.id}`, {
+    mutationFn: async (payload: { id: string; input: DriverUpdateRequest }): Promise<DriverUpdateResponse> => {
+      const res = await apiFetch<DriverUpdateResponse>(`/api/roster/drivers/${payload.id}`, {
         method: "PATCH",
         body: payload.input,
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the driver.");
-      return res.data.driver;
+      // The WHOLE response, not just the row: the two flags are what let a caller say what the edit
+      // did (R6a). Returning only `driver` is how they stayed invisible for as long as they did.
+      return res.data;
     },
     onSuccess: (_driver, payload) => {
       void qc.invalidateQueries({ queryKey: ["roster", "driver", payload.id] });
@@ -83,34 +99,32 @@ export function useDriversQuery() {
   });
 }
 
+/**
+ * Create a driver through the ROSTER API, not through PostgREST (R6a).
+ *
+ * ── WHY THE BROWSER MUST NOT INSERT THIS ROW ────────────────────────────────────────────────────
+ * `drivers.identity_source` is `not null default 'samsara'`. A browser INSERT that does not set it
+ * therefore creates a row the database marks as TELEMATICS-OWNED — so the very next
+ * `samsaraDriverSync` sweep treats the name and phone somebody just typed as enrichable and
+ * overwrites them. `POST /api/roster/drivers` writes `identity_source: 'manual'` explicitly, and its
+ * own comment says why: "this row is admin-owned, so telematics must not overwrite its identity
+ * fields on the next sync".
+ *
+ * Measured 2026-08-31: no production row had been created this way yet (all 185 `samsara` rows
+ * carried a real sync link), so this was a trap rather than damage. It is closed before it fires.
+ *
+ * It also means a new driver gets an audit row, which a direct insert never wrote.
+ */
 export function useCreateDriver() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: DriverInput): Promise<Driver> => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .insert(input)
-        .select(DRIVER_COLS)
-        .single();
-      if (error) throw new Error(error.message);
-      return data as Driver;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: driversKey }),
-  });
-}
-
-export function useUpdateDriver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; input: DriverInput }): Promise<Driver> => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .update(payload.input)
-        .eq("id", payload.id)
-        .select(DRIVER_COLS)
-        .single();
-      if (error) throw new Error(error.message);
-      return data as Driver;
+      const res = await apiFetch<{ driver: Driver }>("/api/roster/drivers", {
+        method: "POST",
+        body: input,
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the driver.");
+      return res.data.driver;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: driversKey }),
   });
@@ -137,8 +151,9 @@ export function useAssignDriver() {
 /**
  * Archive or un-archive a roster row (migration 0235).
  *
- * ── WHY THIS GOES THROUGH THE API AND NOT POSTGREST, UNLIKE ITS NEIGHBOURS ────────────────────
- * `useUpdateDriver` above writes `drivers` straight from the browser. This one cannot: 0235's
+ * ── WHY THIS GOES THROUGH THE API AND NOT POSTGREST ───────────────────────────────────────────
+ * It has no browser-writing neighbours left to be unlike — R6a moved create and edit onto the API
+ * too. Archiving could not have been one anyway: 0235's
  * `guard_driver_archive_writer` refuses `archived_at` to every JWT-bearing writer (DR011), so the
  * PostgREST path is closed by the database, on purpose. Hiding a person from the roster is an act
  * somebody should be able to ask "who did that, and when" about, and only the API writes the
