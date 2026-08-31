@@ -93,7 +93,7 @@ async function submit(): Promise<void> {
         </p>
       </div>
       <BaseButton
-        v-if="session.canManage && driver.date_of_birth && !editing"
+        v-if="session.can('roster') && driver.date_of_birth && !editing"
         variant="ghost"
         @click="editing = true"
       >
@@ -120,7 +120,7 @@ async function submit(): Promise<void> {
       </div>
     </dl>
 
-    <form v-if="showForm && session.canManage" class="mt-4 space-y-3" @submit.prevent="submit">
+    <form v-if="showForm && session.can('roster')" class="mt-4 space-y-3" @submit.prevent="submit">
       <FormField v-slot="{ id }" label="Date of birth" :error="error ?? undefined">
         <AppDateField :id="id" v-model="dob" :invalid="Boolean(error)" />
       </FormField>

@@ -44,7 +44,6 @@ import {
 import {
   canViewSection,
   canManageSection,
-  canManageFleet,
   isAdmin,
   moduleEnabled,
   type UserRole,
@@ -231,7 +230,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: Cog6ToothIcon,
       items: [
         // Settings = org config (admin + fleet_manager); Users = admin only. Department roles get neither.
-        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: canManageFleet(role) },
+        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: canViewSection(role, "settings") },
         { name: "Users", to: "/settings/users", icon: UsersIcon, show: isAdmin(role) },
       ],
     },

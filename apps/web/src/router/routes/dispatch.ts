@@ -18,7 +18,7 @@ export const dispatchRoutes: RouteRecordRaw[] = [
     path: "/loads/new",
     name: "load-new",
     component: () => import("@/pages/DispatchLoadsPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "New Load" },
+    meta: { requiresAuth: true, requiresManage: "dispatch", title: "New Load" },
   },
   {
     path: "/loads/:id",

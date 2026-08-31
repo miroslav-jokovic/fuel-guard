@@ -275,7 +275,7 @@ async function onSubmit(input: DriverInput) {
       description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page."
     >
       <template #actions>
-        <template v-if="session.canManage">
+        <template v-if="session.can('roster')">
           <BaseButton
             title="Fold duplicate / name-only drivers into their Samsara record"
             @click="openReconcile"
@@ -358,7 +358,7 @@ async function onSubmit(input: DriverInput) {
         <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
       </template>
       <template #actions="{ row }">
-        <KebabMenu v-if="session.canManage">
+        <KebabMenu v-if="session.can('roster')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit driver</BaseButton>
           <BaseButton class="kebab-item" @click="openAccess(row)">
             {{ row.user_id ? "Manage app login…" : "Create app login…" }}

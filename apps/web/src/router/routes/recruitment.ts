@@ -1,9 +1,14 @@
 import type { RouteRecordRaw } from "vue-router";
 
 /**
- * Recruiting. ⚠ These carry `requiresAuth` only — never `requiresManage`, which is `canManageFleet`
- * (admin + fleet_manager) and would bounce a recruiter to the dashboard. Pages self-gate their
- * actions via `rolesThatManage("recruitment")`.
+ * Recruiting.
+ *
+ * These carry `requiresAuth` only, and that is now a plain choice rather than a workaround. Until R0
+ * it read: "never `requiresManage`, which is `canManageFleet` (admin + fleet_manager) and would
+ * bounce a recruiter to the dashboard" — a warning that the one gate available said something these
+ * routes did not mean. `requiresManage` names a SECTION now, so `requiresManage: "recruitment"` is
+ * available and correct; it is simply not needed, because every page here is readable by the whole
+ * recruitment section and self-gates its writes.
  */
 export const recruitmentRoutes: RouteRecordRaw[] = [
   {

@@ -208,7 +208,7 @@ const columns: DataTableColumn[] = [
         <template #cell-load="{ row }">{{ loadLabel(row) }}</template>
         <template #actions="{ row }">
           <BaseButton
-            v-if="session.canManage && hasOpenSession(row)"
+            v-if="session.can('dispatch') && hasOpenSession(row)"
             variant="ghost"
             size="sm"
             :disabled="endShift.isPending.value"

@@ -169,7 +169,7 @@ function openReason(action: "reject" | "cancel") {
 }
 
 async function runTransition(action: LoadAction, reason?: string) {
-  if (!load.value || !session.canManage) return;
+  if (!load.value || !session.can("dispatch")) return;
   try {
     await transitionLoad.mutateAsync({ id: load.value.id, action, reason });
     toast.success(`${load.value.ref} updated`);
@@ -225,7 +225,7 @@ async function confirmAssign() {
 // ── edit ─────────────────────────────────────────────────────────────────────
 const editOpen = computed(() => route.query.edit === "1");
 function openEdit() {
-  if (session.canManage) void router.replace({ query: { ...route.query, edit: "1" } });
+  if (session.can("dispatch")) void router.replace({ query: { ...route.query, edit: "1" } });
 }
 function closeEdit() {
   const { edit: _edit, ...rest } = route.query;
@@ -247,7 +247,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
   <div class="space-y-6">
     <PageHeader description="One load — its plan, what the driver actually did, and every step that got it here.">
       <template #actions>
-        <BaseButton v-if="editable && session.canManage" variant="secondary" size="sm" @click="openEdit">Edit</BaseButton>
+        <BaseButton v-if="editable && session.can('dispatch')" variant="secondary" size="sm" @click="openEdit">Edit</BaseButton>
         <BaseButton variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
@@ -278,7 +278,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
             </p>
           </div>
 
-          <div v-if="session.canManage && !reasonFor" class="flex flex-wrap items-center gap-2">
+          <div v-if="session.can('dispatch') && !reasonFor" class="flex flex-wrap items-center gap-2">
             <BaseButton v-if="canCancel" variant="ghost" size="sm" :disabled="busy" @click="openReason('cancel')">Cancel load</BaseButton>
             <BaseButton v-if="canReject" variant="soft" size="sm" :disabled="busy" @click="openReason('reject')">Send back</BaseButton>
             <BaseButton v-if="canSubmit" variant="primary" size="sm" :disabled="busy" @click="runTransition('submit')">Submit for approval</BaseButton>
@@ -309,7 +309,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
           <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
         </dl>
 
-        <div v-if="canReassign && session.canManage" class="mt-3">
+        <div v-if="canReassign && session.can('dispatch')" class="mt-3">
           <BaseButton v-if="!assignOpen" variant="ghost" size="sm" @click="openAssign">Reassign…</BaseButton>
           <div v-else class="space-y-2">
             <FormField v-slot="{ id }" label="Driver">
@@ -351,7 +351,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
       </BaseCard>
 
       <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->
-      <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.canManage" />
+      <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.can('dispatch')" />
 
       <!-- Approval checklist -->
       <BaseCard v-if="checklist && (showApprove || canSubmit)">

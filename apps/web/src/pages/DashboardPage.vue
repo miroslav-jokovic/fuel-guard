@@ -262,7 +262,7 @@ const EXPORTS = [
       <div class="flex flex-wrap items-center gap-3">
         <DateRangeFilter v-model:from="from" v-model:to="to" />
 
-        <Menu v-if="session.canManage || session.readOnly" as="div" class="relative">
+        <Menu v-if="session.can('settings') || session.readOnly" as="div" class="relative">
           <MenuButton
             :disabled="exporting"
             class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"

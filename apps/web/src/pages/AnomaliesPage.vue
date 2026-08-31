@@ -73,7 +73,7 @@ const {
       <template #actions>
         <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         <BaseButton
-          v-if="session.canManage"
+          v-if="session.can('safety')"
           variant="ghost"
           size="sm"
           to="/settings/data"
@@ -108,7 +108,7 @@ const {
       :retrying="isFetching"
       empty-text="Nothing here — no alerts match these filters."
       :sort="sort"
-      :selectable="session.canManage"
+      :selectable="session.can('safety')"
       :selected="selectedIds"
       :row-class="(row) => isActionable(row) ? 'cursor-pointer' : 'cursor-pointer bg-surface-subtle/50 opacity-60'"
       @update:selected="setSelected"
@@ -130,7 +130,7 @@ const {
         <span :title="`Detected ${fmt(row.created_at)}`">{{ fmt(row.fueled_at ?? row.created_at) }}</span>
       </template>
       <template #actions="{ row }">
-        <KebabMenu v-if="session.canManage && isActionable(row)">
+        <KebabMenu v-if="session.can('safety') && isActionable(row)">
           <BaseButton class="kebab-item" @click="selectedRow = row">Review details</BaseButton>
           <BaseButton v-if="row.status === 'open'" class="kebab-item" @click="rowAction(row, 'investigating')">Start investigating</BaseButton>
           <BaseButton class="kebab-item" @click="rowAction(row, 'resolved', 'Resolved by reviewer', 'confirmed')">Resolve</BaseButton>

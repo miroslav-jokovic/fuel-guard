@@ -17,7 +17,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     path: "/settings",
     name: "settings",
     component: () => import("@/pages/SettingsPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Settings" },
+    meta: { requiresAuth: true, requiresManage: "settings", title: "Settings" },
   },
   {
     path: "/settings/users",
@@ -48,12 +48,14 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
-    // Driver-app control plane (hardening plan Phase 5, D-PM6): requiresManage = canManageFleet
+    // Driver-app control plane (hardening plan Phase 5, D-PM6). `roster` and not `settings`: this
+    // console decides what DRIVERS see, and its API half gates on rolesThatManage("roster")
+    // (driverAppSettings.ts) — the route now asks the same question the endpoint answers.
     // (admin + fleet_manager) — org-wide app policy is fleet management, not org administration.
     path: "/settings/driver-app",
     name: "driver-app-settings",
     component: () => import("@/pages/DriverAppSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Driver App", parent: "/settings" },
+    meta: { requiresAuth: true, requiresManage: "roster", title: "Driver App", parent: "/settings" },
   },
   {
     path: "/settings/fuel-planning",
@@ -70,7 +72,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     path: "/settings/data",
     name: "data-sync",
     component: () => import("@/pages/DataSyncPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Data & Sync", parent: "/settings" },
+    meta: { requiresAuth: true, requiresManage: "settings", title: "Data & Sync", parent: "/settings" },
   },
   {
     path: "/settings/efs-soap",
