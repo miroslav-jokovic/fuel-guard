@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A6 shipped 2026-08-31 (PRs #410–#416, #NNN; migrations 0279–0282). An inspection can now be certified end to end. A7 (the web form) is next.** D-AVI7 was **amended the same day**
+**Status: A0–A6 shipped 2026-08-31 (PRs #410–#417; migrations 0279–0282). An inspection can now be certified end to end. A7 (the web form) is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -548,7 +548,7 @@ it.** The map's column widths had been derived from where the item TEXT begins; 
 page inspected at 200 dpi — header block, tick boxes, all 56 marks, a repaired defect with its date,
 an open defect, the wrapped note, and the DRAFT preview.
 
-### A6 — Finalize: derive, render, file, project — **DONE 2026-08-31 (PR #NNN, migration 0282)**
+### A6 — Finalize: derive, render, file, project — **DONE 2026-08-31 (PR #417, migration 0282)**
 
 Prerequisites: A3, A5.
 
