@@ -53,7 +53,7 @@ export function isEmailDomainAllowed(email: string, allowedDomains: readonly str
 
 // ── Section-scoped capabilities ───────────────────────────────────────────────
 // The product areas the sidebar + routes are organized into. `admin` = org settings / user management.
-export const APP_SECTIONS = ["fuel", "dispatch", "safety", "hazmat", "fleet", "recruitment", "admin", "accounting", "billing", "maintenance"] as const;
+export const APP_SECTIONS = ["fuel", "dispatch", "safety", "hazmat", "roster", "equipment", "recruitment", "admin", "accounting", "billing", "maintenance"] as const;
 export type AppSection = (typeof APP_SECTIONS)[number];
 export type SectionAccess = "none" | "view" | "manage";
 
@@ -62,9 +62,26 @@ export type SectionAccess = "none" | "view" | "manage";
  * nav, the API's requireRole guards (via rolesThatManage/rolesThatCanView), and mirrored by the SQL section
  * helpers in the RLS migration — all three must stay in lockstep.
  *
- * Department roles: `dispatcher` manages Dispatch (reads Fuel + Fleet); `safety_manager` manages Safety +
- * Fleet (reads Fuel). `driver` is "none" here — the Dashboard + their own Fuel Log are ungated nav items,
- * not section-scoped surfaces.
+ * Department roles: `dispatcher` manages Dispatch (reads Fuel, Roster + Equipment); `safety_manager`
+ * manages Safety + Roster and READS Equipment (reads Fuel). `driver` is "none" here — the Dashboard +
+ * their own Fuel Log are ungated nav items, not section-scoped surfaces.
+ *
+ * ── `fleet` SPLIT into `roster` + `equipment`, 2026-08-30 (D-ROS12, DRIVER-ROSTER-PLAN §6 Q1) ────
+ * One word answered two questions — the people and the trucks — and nothing could be said about one
+ * without saying it about the other. The forcing case: a `safety_manager` owns the §391.51 driver
+ * qualification file and must edit driver rows, but has no business editing a tractor's plate. Under
+ * one `fleet` section that is not expressible, so the previous answer was a HAND-WRITTEN helper —
+ * `canManageFleet`, `admin || fleet_manager` — sitting beside a matrix that said something else. The
+ * helper won in the web and the matrix won in the API, and a safety_manager ended up with `manage` in
+ * the database and a read-only screen. A section that cannot express the rule produces a second rule
+ * somewhere else; that is the failure this split removes.
+ *
+ * The two sections are drawn on WHO THE ROW IS ABOUT, not on which page it is edited from:
+ *   • `roster`    — drivers, their assignments and their time off. A fact about a person.
+ *   • `equipment` — vehicles and trailers. A fact about a machine.
+ * `driver_vehicle_assignments` is the deliberate close call and it lands in `roster` (owner ruling,
+ * 2026-08-30): the assignment is performed from the Vehicles page, but the truck is the object of
+ * the sentence and the driver is the subject. See 0277's header.
  *
  * ── `recruitment`, added 2026-08-19, and why it is a section rather than a corner of Fleet ───────
  * Hiring paperwork has a DIFFERENT audience from the vehicle roster. Gating it on `fleet` — which is
@@ -84,19 +101,27 @@ export type SectionAccess = "none" | "view" | "manage";
  * policy needs to move with it.
  */
 const SECTION_ACCESS: Record<UserRole, Record<AppSection, SectionAccess>> = {
-  admin: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "manage", accounting: "manage", billing: "manage", maintenance: "manage" },
-  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "manage" },
-  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", hazmat: "manage", fleet: "view", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
-  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", hazmat: "manage", fleet: "manage", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
-  auditor: { fuel: "view", dispatch: "view", safety: "view", hazmat: "view", fleet: "view", recruitment: "view", admin: "none", accounting: "view", billing: "view", maintenance: "view" },
-  // `fleet: "view"` and not "manage" (RECRUITER-ROLE-SCOPE.md Option B). A recruiter needs to read the
-  // roster and open a driver's §391.51 file — routes/compliance.ts gates on rolesThatCanView("fleet")
-  // — but `fleet: "manage"` would also hand them vehicles, trailers and terminals through 17 existing
-  // policies, which is the very leak the `recruitment` section was introduced to close. The one write
-  // they genuinely need, creating and editing the applicant's driver row, is granted by NAME on the
-  // roster routes and in 0212's policy rather than by widening the section.
-  recruiter: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "view", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
-  driver: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  admin: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", roster: "manage", equipment: "manage", recruitment: "manage", admin: "manage", accounting: "manage", billing: "manage", maintenance: "manage" },
+  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", roster: "manage", equipment: "manage", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "manage" },
+  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", hazmat: "manage", roster: "view", equipment: "view", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  // `equipment: "view"` is THE point of D-ROS12. A safety manager maintains the §391.51 file, so they
+  // must write driver rows (`roster: manage`); a tractor's plate, VIN and registration are the fleet
+  // manager's record and were only ever reachable because one section covered both. The database side
+  // of this narrowing is 0277 — it drops this role from `vehicles_write` and `trailers_write`.
+  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", hazmat: "manage", roster: "manage", equipment: "view", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  auditor: { fuel: "view", dispatch: "view", safety: "view", hazmat: "view", roster: "view", equipment: "view", recruitment: "view", admin: "none", accounting: "view", billing: "view", maintenance: "view" },
+  // `roster: "view"` and not "manage" (RECRUITER-ROLE-SCOPE.md Option B). A recruiter needs to read the
+  // roster and open a driver's §391.51 file — routes/compliance.ts gates on rolesThatCanView("roster")
+  // — but `roster: "manage"` would hand them the whole roster's writes. The one write they genuinely
+  // need, creating and editing the applicant's driver row, is granted by NAME on the roster routes and
+  // in 0212's policy rather than by widening the section.
+  //
+  // `equipment: "none"` is a NARROWING taken with the split (D-ROS12). Under the old `fleet: "view"` a
+  // recruiter could read vehicles and trailers, which the RECRUITER-ROLE-SCOPE comment above called
+  // the leak it was closing while still leaving it open on the read side. Nobody hiring a driver needs
+  // the tractor list.
+  recruiter: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", roster: "view", equipment: "none", recruitment: "manage", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
+  driver: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", roster: "none", equipment: "none", recruitment: "none", admin: "none", accounting: "none", billing: "none", maintenance: "none" },
   // ── `accountant`, added 2026-08-27 (D-SEP7, SEPARATION-PROGRAM-PLAN; the 2026-08-27 owner ruling) ──
   // The money role, and deliberately ONLY the money role — the recruiter lesson (above) applied on
   // day one instead of after a leak: books access does not ride along with fleet or dispatch, and
@@ -105,7 +130,7 @@ const SECTION_ACCESS: Record<UserRole, Record<AppSection, SectionAccess>> = {
   // side of the same ledger (managing the shop is fleet_manager's job, not the bookkeeper's).
   // `fleet_manager` gets NO books access on the same argument in reverse — an org whose ops lead also
   // does the books expresses that as a second membership decision by the admin, not as a default.
-  accountant: { fuel: "view", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", recruitment: "none", admin: "none", accounting: "manage", billing: "manage", maintenance: "view" },
+  accountant: { fuel: "view", dispatch: "none", safety: "none", hazmat: "none", roster: "none", equipment: "none", recruitment: "none", admin: "none", accounting: "manage", billing: "manage", maintenance: "view" },
 };
 
 export const sectionAccess = (role: UserRole | null | undefined, section: AppSection): SectionAccess =>
@@ -130,6 +155,22 @@ export const rolesThatCanView = (section: AppSection): UserRole[] =>
 // ── Role capability helpers (single source of truth for UI + API gating) ──────
 export const isAdmin = (role: UserRole | null | undefined): boolean => role === "admin";
 
+/**
+ * ⚠ **FROZEN, AND ON ITS WAY OUT.** Removed by DRIVER-ROSTER-PLAN step **R0**, which is the step
+ * scoped to migrate the web; `lint:capabilities` (R9) fails the build if it is still here afterwards.
+ *
+ * This is the hand-written helper D-ROS12's header describes: it disagrees with the matrix, and it is
+ * the reason a `safety_manager` holds `roster: manage` in the database and gets a read-only screen.
+ * `session.canManage` (50 call sites) is built on it, so it cannot go until those sites each say
+ * which SECTION they meant — most of them mean `roster`, some mean `equipment`, and today they
+ * cannot tell you which because one word covered both.
+ *
+ * It was deliberately NOT re-pointed at `canManageSection(role, "roster")` when the section split
+ * landed. That looks tidier and is worse: it would flip `session.canManage` to true for a
+ * safety_manager across the ENTIRE web, Vehicles and Trailers pages included, handing them edit
+ * buttons that 0277 simultaneously teaches the database to refuse. Frozen, the split changes nothing
+ * about what the web renders; R0 changes it once, per section, on purpose.
+ */
 export const canManageFleet = (role: UserRole | null | undefined): boolean =>
   role === "admin" || role === "fleet_manager";
 
@@ -143,13 +184,13 @@ export const canManageFleet = (role: UserRole | null | undefined): boolean =>
  * `auth_driver_id()` (0083) resolves only `active` drivers — so a status edit silently ends somebody's
  * access to the driver app on their next request.
  *
- * Derived from the section matrix rather than hand-listed, so it cannot drift from `fleet: manage`.
+ * Derived from the section matrix rather than hand-listed, so it cannot drift from `roster: manage`.
  * The reverse direction matters as much as the forward one: a recruiter must not be able to move a
  * terminated driver back to `active` either, which is why this is about the FIELD and not about the
  * value `terminated`.
  */
 export const canWriteDriverLifecycle = (role: UserRole | null | undefined): boolean =>
-  canManageSection(role, "fleet");
+  canManageSection(role, "roster");
 
 /**
  * Who may ARCHIVE a driver — hide their row from the roster and the applicant board (migration 0235).
@@ -162,9 +203,9 @@ export const canWriteDriverLifecycle = (role: UserRole | null | undefined): bool
  *
  * So the rule follows the LIST, not the table: an **applicant** is the recruiter's to tidy away,
  * because the applicant board is the recruiter's surface (`rolesThatManage("recruitment")`). Anyone
- * else on the roster is the fleet's, because Fleet → Drivers is the fleet's. A recruiter archiving a
- * hired driver would be reaching across into somebody else's list; a fleet manager may do both,
- * because `fleet: manage` implies the whole roster.
+ * else on the roster is the roster section's own, because Fleet → Drivers is that section's list. A
+ * recruiter archiving a hired driver would be reaching across into somebody else's list; a fleet
+ * manager may do both, because `roster: manage` implies the whole roster.
  *
  * ⚠ **The database does not mirror this one, and deliberately.** 0235's `guard_driver_archive_writer`
  * refuses `archived_at` to EVERY JWT-bearing writer, recruiter and admin alike — archiving goes
@@ -177,7 +218,7 @@ export const canArchiveDriver = (
   role: UserRole | null | undefined,
   driverStatus: string | null | undefined,
 ): boolean =>
-  canManageSection(role, "fleet")
+  canManageSection(role, "roster")
   || (isApplicantStatus(driverStatus) && canManageSection(role, "recruitment"));
 
 /** Resolving anomalies is a Safety-section action, so safety_manager qualifies too. */

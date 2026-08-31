@@ -138,11 +138,12 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // scans behind both. Named for what it is rather than "Compliance", which said nothing, and
         // rather than "Safety", which is the section it already sits in. Keeps the existing Fleet
         // capability gate so the rename does not broaden access, and keeps /compliance so nobody's
-        // bookmark breaks.
+        // bookmark breaks. (That gate was `fleet` until the D-ROS12 split; it is `roster` now, which
+        // is the same set of roles — the §391.51 file is a fact about a person.)
         // ⚠ U5/D-UI6: it wore ClipboardDocumentCheckIcon, which Assignments also wears — one glyph on
         // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
         // licence and a medical card, so LicenseIcon says what it holds.
-        { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection(role, "fleet") },
+        { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection(role, "roster") },
         /**
          * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is
          * gone. H-C4 cut five items to one because four of them duplicated Loads, Trailers and
@@ -193,11 +194,17 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
     {
       label: "Fleet",
       icon: TruckIcon,
+      // ⚠ ONE nav group, TWO capabilities since the D-ROS12 split — and that is deliberate. "Fleet"
+      // is where an operator looks for both the people and the trucks, so the grouping stays; what
+      // changed is that each item now asks the question it actually means. A `recruiter` has
+      // `equipment: none` and therefore sees this group containing Drivers alone, which is exactly
+      // right and was not previously expressible.
       items: [
-        { name: "Vehicles", to: "/vehicles", icon: VehicleIcon, show: canViewSection(role, "fleet") },
-        { name: "Trailers", to: "/trailers", icon: TrailerIcon, show: canViewSection(role, "fleet") },
-        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection(role, "fleet") },
-        { name: "Odometer", to: "/odometer", icon: OdometerIcon, show: canViewSection(role, "fleet") },
+        { name: "Vehicles", to: "/vehicles", icon: VehicleIcon, show: canViewSection(role, "equipment") },
+        { name: "Trailers", to: "/trailers", icon: TrailerIcon, show: canViewSection(role, "equipment") },
+        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection(role, "roster") },
+        // A reading taken off a truck, corrected against a truck's history — equipment, not roster.
+        { name: "Odometer", to: "/odometer", icon: OdometerIcon, show: canViewSection(role, "equipment") },
       ],
     },
     {

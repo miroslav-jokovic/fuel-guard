@@ -13,7 +13,7 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  * DB, which proves nothing about the real one. What is pinned here is the boundary decided in
  * middleware, before any query runs.
  *
- * ⚠ The door is `rolesThatCanView("fleet")`; WRITING is `canWriteDriverLifecycle`, refused inside the
+ * ⚠ The door is `rolesThatCanView("roster")`; WRITING is `canWriteDriverLifecycle`, refused inside the
  * handler before the admin client is constructed. So a dispatcher reaches the handler and is turned
  * away there — asserted below, so the second gate never looks like dead code somebody deletes.
  *
