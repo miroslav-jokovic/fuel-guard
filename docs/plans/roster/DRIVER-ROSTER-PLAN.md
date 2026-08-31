@@ -11,8 +11,9 @@ rather than in taste.** It also fixes the thing that made the ask reasonable in 
 the web has no per-section capability model, so recruiting UI got glued onto the driver page as a
 workaround, and that workaround is what makes the product feel like it has too many pages.
 
-**Status: R0a shipped 2026-08-30 (PR #392, migration 0277).** Everything else is unstarted; §7 is
-the register and §1's measurements are the pre-R0a baseline, kept as measured.
+**Status: R0a shipped 2026-08-30 (PR #392, migration 0277); R1 in review (PR #393).** Everything
+else is unstarted; §7 is the register and §1's measurements are the pre-R0a baseline, kept as
+measured.
 
 ---
 
@@ -293,7 +294,7 @@ Prerequisite: R0a.
 recruiter sees recruiting write affordances without a hand-rolled check; `routes/recruitment.ts:4`'s
 ⚠ comment is deleted because it is no longer true.
 
-### R1 — McLeod driver dates reach `certifications` (highest priority; independent of all UI work)
+### R1 — McLeod driver dates reach `certifications` — **PR #393 open 2026-08-30 (no migration)**
 
 Resolve §2.2 in whichever direction §6 Q2 is answered, and land it before any org turns on roster
 sync. Whatever the direction, the surfaces must not be able to disagree: one function, two readers.
@@ -493,6 +494,36 @@ A matrix that asserts only refusals would have gone green on a revocation that n
 each other; `check-section-policies.mjs --self-test`, extended so a typo in the override map cannot
 go blind. Both new gates were **negative-tested**: reinstating `safety_manager` in 0277 drops the
 matrix to 14/16 and fails the policy gate through the override path.
+
+### R1 — TMS credentials become evidence — PR #393, 2026-08-30, no migration
+
+Answers Q2 with option (a). What the research changed about the framing: this is not a McLeod
+problem, it is **D-ARC3's dual-source finding** — `ARCHITECTURE.md` §3 calls it the audit's sharpest
+finding — and the sweep is what turns a dormant defect into a visible one, because it writes
+`drivers.cdl_expires_at` and `medical_card_expires_at` on every pass while `certifications` is the
+only table the gate and `buildDqFile` read.
+
+- `evidence.recordSyncedCredentials` — the owner's interface, on the `recordInferredTrailerPairing`
+  model (collector holds the vendor fetch, owner holds the invariant). New narrow boundary edge
+  `"mcleod -> evidence"`.
+- **The invariant is write-only-on-change**, and it is the reason this is a function rather than
+  three lines in the sweep: `insert_certification` supersedes unconditionally, so a nightly loop
+  would add ~120,000 rows a year to an append-only table pinned in `RETENTION_FORBIDDEN`, burying
+  the supersede chain an auditor came to read.
+- Filing **inherits** the sweep's ownership decision: `applyOutcome` returns a row id only when it
+  actually applied a patch, so an office-claimed row, an ambiguous match and a report-mode pass file
+  nothing. Four of the five wiring tests are that rule.
+- A failed filing is counted, never thrown — one bad credential must not strand the rest of the
+  roster mid-sweep.
+- `insertCertification`'s `userId` became `string | null`. 0127's `created_by` was always nullable;
+  the signature now says what the column said, rather than making a machine caller cast a user id.
+
+**Left open on purpose — Q6.** A row filed here reads `current` with no scan behind it. Every synced
+row carries `SYNC_NOTE` so the fix can find them.
+
+**Verified by:** `pnpm test` (all suites and matrices), `pnpm typecheck`, `pnpm lint`,
+`lint:boundaries`, `lint:table-writers`, `lint:table-producers`; 11 unit tests at the seam and 5
+wiring tests in `rosterIngest.test.ts`.
 
 ### The rest
 
