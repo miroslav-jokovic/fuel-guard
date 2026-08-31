@@ -32,15 +32,6 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
-  // ── 0280's three, added 2026-08-31, and they leave at the NEXT step ─────────────────────────────
-  // ANNUAL-INSPECTION-PLAN.md draws A3 (schema) and A4 (the draft lifecycle) as separate steps, so
-  // the migration lands one PR ahead of the service that writes it. These entries are that gap,
-  // named — not the "four tables with zero application code" this gate was written for, which had
-  // no plan, no step number and nobody who owed them. A4's Done-when requires deleting all three;
-  // if you are reading this and A4 has shipped, the removal was missed and that is the bug.
-  ["maintenance_inspectors", "plan step A4 owes the producer (ANNUAL-INSPECTION-PLAN.md §5 A4) — delete this entry there"],
-  ["vehicle_inspections", "plan step A4 owes the producer (ANNUAL-INSPECTION-PLAN.md §5 A4) — delete this entry there"],
-  ["vehicle_inspection_items", "plan step A4 owes the producer (ANNUAL-INSPECTION-PLAN.md §5 A4) — delete this entry there"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
