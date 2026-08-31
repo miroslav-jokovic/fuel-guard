@@ -197,3 +197,69 @@ describe("DataTable narrow-screen card view", () => {
     expect(mountNarrow({ error: "Could not load" }).findComponent({ name: "ErrorState" }).exists()).toBe(true);
   });
 });
+
+/**
+ * The extraction net for R3b (DRIVER-ROSTER-PLAN.md §5): the narrow-screen card branch moves out of
+ * `DataTable.vue` into `DataTableCards.vue`, because the component stood at 454 lines against a
+ * 500-line budget and column management does not fit in the 46 that were left.
+ *
+ * The behavioural tests above already cover what a card SHOWS. These pin what it RENDERS — including
+ * the slot forwarding, which is the part an extraction across a component boundary can quietly
+ * change. Taken before the move; they must survive it unchanged.
+ *
+ * Two things are normalised out first, and neither is structure:
+ *  - the card sort control's `listId`, which is `Math.random()` per mount. Left raw, this snapshot
+ *    would have failed on its SECOND run for a reason that has nothing to do with the extraction —
+ *    an intermittent CI failure built into the net meant to catch one.
+ *  - whitespace inside authored HTML comments, which moves when a block changes nesting depth.
+ *    Vue strips comments from production builds entirely, so their indentation is not something a
+ *    reader can ever see. `<!--v-if-->` markers survive intact, because a branch that stopped
+ *    rendering IS structure.
+ */
+const stable = (html: string): string =>
+  html
+    .replace(/dt-[a-z0-9]{6}-sort/g, "dt-test-sort")
+    .replace(/<!--([\s\S]*?)-->/g, (_m, body: string) => `<!--${body.replace(/\s+/g, " ").trim()}-->`);
+const SNAPSHOT_COLUMNS: DataTableColumn[] = [
+  { key: "unit", label: "Unit", sortable: true, width: "md", cellClass: "font-medium text-ink" },
+  { key: "driver", label: "Driver", width: "lg" },
+  { key: "gallons", label: "Gallons", numeric: true, sortable: true },
+  { key: "status", label: "Status", width: "sm" },
+];
+
+const mountSnapshot = (wide: boolean) => {
+  setViewport(wide);
+  return mount(DataTable, {
+    props: {
+      columns: SNAPSHOT_COLUMNS,
+      rows: [
+        { unit: "Unit 204", driver: "Marcus Reyes", gallons: 118.4, status: "ok" },
+        // Every blank branch on one row: heading keeps its value, the rest fall back to the dash.
+        { unit: "Unit 991", driver: "", gallons: null, status: null },
+      ],
+      rowKey: "unit",
+      selectable: true,
+      selected: new Set(["Unit 204"]),
+      sort: { key: "unit", dir: "asc" },
+      expanded: new Set(["Unit 204"]),
+    },
+    slots: {
+      // A custom cell slot, so the snapshot pins that slots reach the cards and not just the table.
+      "cell-status": '<span data-testid="status-slot">{{ params.row.status ?? "none" }}</span>',
+      actions: '<button type="button" data-testid="row-actions">Actions</button>',
+      expanded: '<div data-testid="expanded">detail</div>',
+      footer: '<div data-testid="footer">pagination</div>',
+    },
+    global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+  });
+};
+
+describe("DataTable rendering, pinned across the R3b extraction", () => {
+  it("renders the narrow card list unchanged", () => {
+    expect(stable(mountSnapshot(false).html())).toMatchSnapshot();
+  });
+
+  it("renders the wide table unchanged", () => {
+    expect(stable(mountSnapshot(true).html())).toMatchSnapshot();
+  });
+});
