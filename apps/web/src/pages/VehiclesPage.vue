@@ -16,6 +16,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -69,6 +70,7 @@ const columns: DataTableColumn[] = [
   { key: "assigned_driver_id", label: "Driver", width: "md", cellClass: "text-ink-secondary" },
   { key: "has_apu", label: "APU", sortable: true, width: "sm" },
   { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md" },
+  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md" },
   { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
 
@@ -233,6 +235,9 @@ async function onRetire(v: Vehicle) {
         <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
+      <template #cell-dot_annual_inspection_expires_at="{ row }">
+        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
+      </template>
       <template #cell-has_apu="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
         <span v-else-if="value === false" class="text-ink-tertiary">No</span>

@@ -39,6 +39,8 @@ const listSchema = z.object({
   subjectType: z.enum(["tractor", "trailer"]).optional(),
   subjectId: z.uuid().optional(),
   status: z.enum(["draft", "final"]).optional(),
+  outcome: z.enum(["pass", "fail"]).optional(),
+  q: z.string().max(120).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),

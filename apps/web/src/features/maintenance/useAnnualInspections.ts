@@ -21,6 +21,9 @@ export interface InspectionSummary {
   id: string;
   subject_type: InspectionSubjectType;
   subject_id: string;
+  /** Resolved by the API — `subject_id` is a uuid and nobody reads those. */
+  unit_number: string | null;
+  inspector_name: string | null;
   inspected_on: string;
   status: "draft" | "final";
   outcome: "pass" | "fail" | null;
@@ -51,6 +54,8 @@ export interface Inspector {
 export interface InspectionFilter {
   subjectType: InspectionSubjectType;
   status?: "draft" | "final";
+  outcome?: "pass" | "fail";
+  q?: string;
   page: number;
 }
 
@@ -68,6 +73,8 @@ export function useInspectionsQuery(filter: Ref<InspectionFilter>) {
         offset: String((f.page - 1) * PER_PAGE),
       });
       if (f.status) params.set("status", f.status);
+      if (f.outcome) params.set("outcome", f.outcome);
+      if (f.q) params.set("q", f.q);
       const r = await apiFetch<{ inspections: InspectionSummary[]; total: number }>(
         `/api/maintenance/inspections?${params}`,
       );
@@ -163,5 +170,34 @@ export function useFinalizeInspection(id: Ref<string>) {
       void qc.invalidateQueries({ queryKey: ["maintenance", "inspection", id] });
       void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] });
     },
+  });
+}
+
+export interface NewInspection {
+  subjectType: InspectionSubjectType;
+  subjectId: string;
+  inspectorId: string;
+  inspectedOn: string;
+}
+
+/**
+ * Start a draft.
+ *
+ * The id is generated HERE and sent with the request: the API keys its idempotency on it, so a
+ * double-click or a retried request lands on the same report instead of starting a second one.
+ */
+export function useCreateInspection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewInspection): Promise<string> => {
+      const id = crypto.randomUUID();
+      const r = await apiFetch<{ id: string }>("/api/maintenance/inspections", {
+        method: "POST",
+        body: { id, ...input },
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the inspection");
+      return r.data.id;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] }),
   });
 }
