@@ -480,7 +480,7 @@ R6a. The layout change is R6b and is the smaller half.
 
 #### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #405, no migration)**
 
-#### R6b — tabs become sections on one scroll
+#### R6b — tabs become sections on one scroll — **DONE 2026-08-31 (PR #PENDING, no migration)**
 
 ### R7 — Recruiting leaves the driver page (D-ROS6) — **DONE 2026-08-31 (PR #406, no migration)**
 
@@ -579,6 +579,16 @@ therefore reads "Due in 30 days: 2" and opens a list of 3.
   compliance-screen number a safety manager may already be quoting, so it is a ruling rather than a
   tidy-up. Both behaviours are preserved exactly and pinned by "disagrees with the attention tile
   that sets it, for the overdue driver (recorded, not endorsed)" in `QualificationFleetTable.test.ts`.
+
+**Q8 — Where does a driver get EDITED, now that the record page is one scroll?** (raised by R6b)
+D-ROS1 says "the record page writes", and R6a made the roster drawer audited, honest and
+claim-warning — so the product now has one good editor in the place D-ROS1 says is the wrong one.
+R6's prose wants editable sections on the record page, which would be a second editor unless the
+drawer's job MOVES rather than being copied.
+- **My reading:** move it. The drawer stays for the roster's quick status change; the record page
+  gains the field-level editing, and `DRIVER_INLINE_EDITABLE` (Q4) decides which fields the ROSTER
+  GRID may touch at all. Answer Q4 and Q8 together — they are the same question asked at two
+  altitudes, and answering either alone produces the duplication.
 
 **Q4 — What exactly is in `DRIVER_INLINE_EDITABLE`?** (blocks R2's cell affordances)
 Candidates with no sync owner and no legal consequence: `employee_id`, `phone_alt`,
@@ -1156,6 +1166,30 @@ The manual-row branch of the warning was proven able to fail.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 
-### The rest
+### R6b — one scroll, and `?section=` becomes an anchor — 2026-08-31, PR #PENDING, no migration
 
-Unstarted. Each step writes its own entry here when it merges.
+- **Three sections on one scroll, not six.** R6's prose described six blocks including the recruiting
+  ones; R7 took those to their own surface first, so what is left is who this person is, whether they
+  may be dispatched, and what they have burned — one reader's single question. Three tabs to answer
+  it was three clicks to see a whole that fits on a page.
+- **`?section=` scrolls instead of switching, and every value still resolves.** The vocabulary is the
+  one thing this change was not allowed to touch: `/compliance/:id` redirects into
+  `?section=qualification`, the binder cites it, and it is in bookmarks. `driverSections.test.ts`
+  passes unchanged, and the diff proves it.
+- **A test pins the shape, because a stray `v-if` would make it tabs again invisibly.** All three
+  anchors must be present on any load, including one that names a section. Proven able to fail by
+  putting a `v-if` back on the fuel block.
+- **Two things the layout change invalidated, both fixed rather than left:** the "Export this file"
+  button was gated on the qualification TAB being open — there are no tabs, and it exports the
+  §391.51 file whichever part of the page the reader has scrolled to; and the page description still
+  advertised "hiring paperwork", which left at R7.
+
+**Not built, and named rather than skipped quietly:** the six *editable-in-place* sections R6's prose
+describes (Identity & contact, Licence & medical, Employment & pay …). R6's three done-when clauses
+are all met — `driverSections.test.ts` unchanged (R7), the claim warning before Save and both
+`resolveDriverUpdate` flags surfaced (R6a) — and none of them asks for inline editors. Building six
+would be a SECOND editing mechanism beside the drawer R6a just made audited and honest, which is the
+duplication D-ROS11 exists to prevent. Doing it properly means moving the drawer's job onto the
+record page rather than copying it, and that is a step with its own decision to make: see §6 Q8.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed , watch } from "vue";
+import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
@@ -73,6 +73,39 @@ watch(
   },
   { immediate: true },
 );
+/**
+ * `?section=` is an ANCHOR, not a tab switch (R6b, D-ROS5).
+ *
+ * ── WHY THE TABS BECAME ONE SCROLL ──────────────────────────────────────────────────────────────
+ * Tabs were the right answer while this page carried six sections spanning four regulations and
+ * three different readers (U6/D-UI7). R7 moved the recruiting half to its own surface, and what is
+ * left — who this person is, whether they may be dispatched, and what they have burned — is one
+ * reader's single question about one driver. Three tabs to answer it is three clicks to see a whole
+ * that fits on a page.
+ *
+ * ── AND WHY THE QUERY STRING SURVIVED IT ────────────────────────────────────────────────────────
+ * Every existing value still resolves and still lands the reader in the right place; it scrolls
+ * instead of switching. `/compliance/:id` redirects into `?section=qualification`, the binder cites
+ * it, and it is in bookmarks — so the vocabulary is the one thing this change was not allowed to
+ * touch. `driverSections.test.ts` passes unchanged, which is how that is checkable rather than
+ * merely asserted.
+ */
+function scrollToSection(s: Section): void {
+  // `getElementById` rather than a template ref: these are plain markup sections, and an id is what
+  // the URL is naming.
+  const el = typeof document !== "undefined" ? document.getElementById(`section-${s}`) : null;
+  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+watch(
+  section,
+  (s) => {
+    // After render, or the anchor is not in the DOM yet on a cold load from a deep link.
+    void nextTick(() => scrollToSection(s));
+  },
+  { immediate: true },
+);
+
 function setSection(s: Section): void {
   void router.replace({ query: { ...route.query, section: s === "profile" ? undefined : s } });
 }
@@ -183,10 +216,15 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Profile, qualification file, hiring paperwork and fueling history">
+    <PageHeader
+      :title="driver?.full_name ?? 'Driver'"
+      description="Profile, qualification file and fueling history"
+    >
       <template #actions>
+        <!-- No longer gated on the qualification TAB being open: there are no tabs, and the button
+             exports the §391.51 file whichever part of the page the reader has scrolled to. -->
         <BaseButton
-          v-if="section === 'qualification' && session.can('roster')"
+          v-if="session.can('roster')"
           variant="ghost"
           :disabled="requestBinder.isPending.value"
           @click="exportWholeFile"
@@ -205,8 +243,9 @@ const fillColumns: DataTableColumn[] = [
       {{ RETURN_TO_DUTY_BLOCK.hire }}
     </AppCallout>
 
-    <!-- U4/D-UI4: the shared strip. ⚠ No `id-prefix` here: these panels are plain `v-if` blocks with
-         no id to point `aria-controls` at, and a dangling reference is worse than none. -->
+    <!-- U4/D-UI4's strip, now a JUMP NAV rather than a tab strip: every section is on the page and
+         this scrolls to one. ⚠ Still no `id-prefix` — `aria-controls` names a panel the strip
+         controls, and these sections are named by the URL rather than owned by the strip. -->
     <AppTabs
       :model-value="section"
       :tabs="SECTIONS"
@@ -214,15 +253,17 @@ const fillColumns: DataTableColumn[] = [
       @update:model-value="setSection($event as Section)"
     />
 
-    <QualificationSection v-if="section === 'qualification'" :driver-id="id" />
+    <section id="section-qualification" class="scroll-mt-6">
+      <QualificationSection :driver-id="id" />
+    </section>
 
     <!-- §395.8(j)(2) — a record about EMPLOYMENT, not about hiring, so R7 left it behind when the
          recruiting sections went. It sits under Profile until R6b gives it the "Employment & pay"
          section it belongs in; parking it on the recruitment surface would have been filing an
          hours-of-service record with the hiring paperwork because that is where it happened to be. -->
-    <SevenDayStatementSection v-if="section === 'profile'" :driver-id="id" />
+    <SevenDayStatementSection :driver-id="id" />
 
-    <BaseCard v-if="section === 'profile' && driver">
+    <BaseCard v-if="driver" id="section-profile" class="scroll-mt-6">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
@@ -237,13 +278,13 @@ const fillColumns: DataTableColumn[] = [
       </dl>
     </BaseCard>
 
-    <BaseCard v-if="section === 'fuel'">
+    <BaseCard id="section-fuel" class="scroll-mt-6">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
       <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
       <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
     </BaseCard>
 
-    <div v-if="section === 'fuel'" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
         <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
