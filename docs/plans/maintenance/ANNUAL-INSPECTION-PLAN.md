@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A5 shipped 2026-08-31 (PRs #410–#416). §6 Q5 is closed — the blank template is committed. A6 is next.** D-AVI7 was **amended the same day**
+**Status: A0–A6 shipped 2026-08-31 (PRs #410–#417; migrations 0279–0282). An inspection can now be certified end to end. A7 (the web form) is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -548,7 +548,7 @@ it.** The map's column widths had been derived from where the item TEXT begins; 
 page inspected at 200 dpi — header block, tick boxes, all 56 marks, a repaired defect with its date,
 an open defect, the wrapped note, and the DRAFT preview.
 
-### A6 — Finalize: derive, render, file, project
+### A6 — Finalize: derive, render, file, project — **DONE 2026-08-31 (PR #417, migration 0282)**
 
 Prerequisites: A3, A5.
 
@@ -578,6 +578,51 @@ Register both new writer paths in `scripts/table-writers.json` and the module ed
 a **simulated McLeod sweep run afterwards leaves the expiry unchanged** — §1.1's ruling asserted, not
 assumed. Finalizing twice is idempotent and does not produce a second document.
 `lint:table-writers` and `lint:boundaries` pass with the edges **declared, not waived**.
+
+
+**What shipped:** `finalize.ts` and `reportDelivery.ts` in `maintenance`, the three owner interfaces
+it needed, and `POST /:id/finalize`, `GET /:id/report.pdf`, `GET /:id/preview.pdf`. 119 tests across
+the module.
+
+**A missing capability, found by rendering a compliant report.** `organizations` carried `name` and
+`dot_number` and nothing else — no address. On paper the MOTOR CARRIER OPERATOR block was three
+AcroForm fields the office typed once and saved into the PDF, so the carrier's address lived in a
+FILE rather than in the product, and the Illustrator round trip that produced our blank dropped
+them. But §396.21(a)(2) requires the report to identify the carrier and §396.17(c)(2) requires the
+decal to name the address **where the report is maintained** — the officer's route from a sticker to
+a filing cabinet. So migration **0282** adds it (0152's precedent: it added `dot_number` to the same
+table for the DQ binder's cover), `org` gains a `getCarrierIdentity`/`setCarrierIdentity` interface
+and `/api/org/carrier` gated on `settings`, and **finalize refuses a report whose carrier block is
+incomplete, naming the missing fields.** Not scope creep: a report without it does not say what
+§396.21(a) requires.
+
+**The order is the design.** Everything that can refuse runs before anything that writes — a
+finalize failing halfway would leave a certification with no document, or a claimed equipment row
+behind a report still marked draft. Every refusal is asserted to write **nothing**, storage included.
+
+**Three owner interfaces, no reaching (D-AVI10).** `evidence` gained `fileGeneratedDocument`
+(generalised from recruiting's application PDF at its second caller — `registerDocument` hands back
+a signed UPLOAD url, which is useless to a caller that already holds the bytes) and now exports
+`insertCertification`; `roster` gained `getEquipmentIdentity` and `recordEquipmentInspectionExpiry`;
+`org` gained the carrier read. The three edges are **declared** in the boundary manifest with their
+reasons, not waived.
+
+**`check-table-access` caught a dynamic `.from()`.** The roster interface indexed a table name from
+a map — shorter, and invisible to every gate this repo has for ownership, layering and write sites.
+Rewritten as two literal branches: duplication a gate can read beats indirection it cannot.
+
+**The claim is proven from both ends.** Finalize writes `identity_source: 'manual'` alongside the
+expiry, and — new in this step — `rosterIngest.test.ts` now asserts the sweep stands off a claimed
+**vehicle**. That case was untested; only the driver equivalent existed, and a truck is what an
+inspection is about. Mutation-tested: dropping the claim fails the finalize assertion, and without
+it nothing would error — the column would take its date and the next nightly sweep would quietly
+replace it.
+
+**Deliberately NOT refused: a PASS with no decal serial.** That is §6 Q7 and turns on a fact nobody
+has established. Guessing "refuse" hands the office a rule it may not be able to satisfy, and a
+blocked finalize the office cannot satisfy is how a workaround gets invented.
+
+**Verified by:** the full 21-gate CI list; `pnpm test` all suites and 27 matrices.
 
 ### A7 — Web: the list and the form
 

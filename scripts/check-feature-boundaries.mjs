@@ -102,6 +102,20 @@ const API_ALLOW = new Set([
   // holds the write-only-on-change invariant because insert_certification supersedes uncondition-
   // ally and this sweep runs nightly against a table nothing may prune.
   "mcleod -> evidence",
+  // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
+  // maintenance owns the report; it owns none of what a report has to be made of. All three edges
+  // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:
+  //   · evidence — the rendered PDF is filed with `fileGeneratedDocument` and the expiry recorded
+  //     as a `certifications` row with `insertCertification`. These are the first callers of the
+  //     EQUIPMENT half of a store that has accepted a tractor or trailer subject since 0146/0127.
+  //   · roster   — reads unit number and VIN for §396.21(a)(4), and projects the expiry onto
+  //     `dot_annual_inspection_expires_at` WITH the identity claim that stops the McLeod sweep
+  //     replacing it (D-AVI9; the collector skips rows it does not own).
+  //   · org      — the carrier's name and address, which §396.21(a)(2) requires the report to carry
+  //     and §396.17(c)(2) requires the decal to name (0282).
+  "maintenance -> evidence",
+  "maintenance -> roster",
+  "maintenance -> org",
   // A rejected EFS row still needs its decline driver resolved against the canonical record.
   "efs -> fuel",
   // The transactions API re-ingests through the collector's entrypoints, and decline resolution

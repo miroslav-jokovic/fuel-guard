@@ -21,6 +21,8 @@ import {
   patchInspection,
 } from "../inspections/inspections.js";
 import { inspectorFor } from "../inspections/inspectors.js";
+import { finalizeInspection } from "../inspections/finalize.js";
+import { buildPreviewInput, renderStoredReport } from "../inspections/reportDelivery.js";
 
 /**
  * `/api/maintenance/inspections` — the §396.17 draft lifecycle (plan step A4).
@@ -174,5 +176,95 @@ export function inspectionsRouter(): Router {
     }),
   );
 
+  /**
+   * Certify the report (D-AVI3/D-AVI4). Every refusal is a 400 naming what to fix; a replay of an
+   * already-final report answers 200 with what was filed, because from the caller's side the first
+   * request succeeded.
+   */
+  router.post(
+    "/:id/finalize",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const result = await finalizeInspection(admin, orgId, id, req.auth!.userId);
+      if ("error" in result) {
+        const status = result.code === "not_found" ? 404 : REFUSALS.has(result.code) ? 400 : 500;
+        res.status(status).json({
+          error: { code: result.code, message: result.error },
+          ...("issues" in result && result.issues ? { issues: result.issues } : {}),
+        });
+        return;
+      }
+      if (result.finalized) {
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "maintenance.inspection_certified",
+          entity: "vehicle_inspections",
+          entityId: result.id,
+          meta: {
+            outcome: result.outcome,
+            nextDueOn: result.nextDueOn,
+            documentId: result.documentId,
+            certificationId: result.certificationId,
+          },
+        });
+      }
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The filed page. A final report serves its STORED bytes rather than re-rendering — the filed PDF
+   * is the evidence, and regenerating it on the way to a printer would hand out a document that had
+   * never been hashed into `documents.sha256`.
+   */
+  router.get(
+    "/:id/report.pdf",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await renderStoredReport(admin, req.auth!.orgId!, String(req.params.id ?? ""));
+      if ("code" in result) {
+        res.status(result.code === "not_found" ? 404 : 500).json(apiError(result.code, result.error));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
+    }),
+  );
+
+  /** D-AVI14 — the same renderer and the same map, marked DRAFT, never stored. */
+  router.get(
+    "/:id/preview.pdf",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const built = await buildPreviewInput(admin, req.auth!.orgId!, String(req.params.id ?? ""));
+      if ("code" in built) {
+        res.status(built.code === "not_found" ? 404 : 500).json(apiError(built.code, built.error));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", 'inline; filename="inspection-preview.pdf"');
+      res.send(built.pdf);
+    }),
+  );
+
   return router;
 }
+
+/** Refusals that mean "fix the report", not "the server broke". */
+const REFUSALS = new Set([
+  "already_final",
+  "incomplete_components",
+  "inspector_not_qualified",
+  "carrier_incomplete",
+  "equipment_missing",
+]);

@@ -131,6 +131,42 @@ describe("GET /api/maintenance/inspections — the read door", () => {
   });
 });
 
+describe("POST /api/maintenance/inspections/:id/finalize — certifying is a write", () => {
+  it("401 unauthenticated", async () => {
+    expect((await call(`/inspections/${ID}/finalize`, { method: "POST" })).status).toBe(401);
+  });
+
+  it.each(MANAGERS)("passes the door for %s", async (token) => {
+    const res = await call(`/inspections/${ID}/finalize`, { method: "POST", token });
+    expect([401, 403]).not.toContain(res.status);
+  });
+
+  // The line this file exists to hold: an auditor reads the file and does not sign it.
+  it.each([...VIEWERS, ...OUTSIDERS])("403 for %s", async (token) => {
+    expect((await call(`/inspections/${ID}/finalize`, { method: "POST", token })).status).toBe(403);
+  });
+});
+
+describe("the report and its preview are gated differently, on purpose", () => {
+  it.each([...MANAGERS, ...VIEWERS])("%s may read a filed report", async (token) => {
+    expect([401, 403]).not.toContain((await call(`/inspections/${ID}/report.pdf`, { token })).status);
+  });
+
+  it.each(OUTSIDERS)("403 for %s reading a filed report", async (token) => {
+    expect((await call(`/inspections/${ID}/report.pdf`, { token })).status).toBe(403);
+  });
+
+  // The preview is a DRAFT of something not yet certified, so it follows the write gate rather than
+  // the read one — an auditor has no business seeing a report the shop has not signed.
+  it.each(MANAGERS)("%s may preview a draft", async (token) => {
+    expect([401, 403]).not.toContain((await call(`/inspections/${ID}/preview.pdf`, { token })).status);
+  });
+
+  it.each(VIEWERS)("403 for %s previewing a draft", async (token) => {
+    expect((await call(`/inspections/${ID}/preview.pdf`, { token })).status).toBe(403);
+  });
+});
+
 describe("/api/maintenance/inspectors — the §396.19 register", () => {
   it("401 unauthenticated", async () => {
     expect((await call("/inspectors")).status).toBe(401);
