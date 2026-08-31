@@ -408,42 +408,6 @@ export function resolveDriverUpdate(
   return { patch, claimedFromTelematics, stampedTerminationDate, derivedFullName };
 }
 
-/**
- * What `PATCH /api/roster/drivers/:id` answers with (R6a).
- *
- * ── WHY THE FLAGS ARE IN THE RESPONSE AND NOT ONLY IN THE AUDIT LOG ─────────────────────────────
- * `resolveDriverUpdate` computes two facts an edit can be true of, and both change what the row
- * MEANS rather than merely what it says: the edit claimed the driver away from telematics, and the
- * edit started the §391.51(c) retention clock. Until R6a both were written to `audit_logs.meta` and
- * to nowhere else — recorded for an auditor, invisible to the person who caused them.
- *
- * D-ROS1 refused a cell-editor grid precisely because "a cell editor has nowhere to put that
- * sentence". A sentence with nowhere to come FROM is the same gap from the other end.
- */
-export const driverUpdateResponseSchema = z.object({
-  driver: driverDetailSchema,
-  /** The edit claimed a telematics-owned row for the office (identity_source → 'manual'). */
-  claimedFromTelematics: z.boolean(),
-  /** The edit stamped today as the termination date, because the caller sent none. */
-  stampedTerminationDate: z.boolean(),
-});
-export type DriverUpdateResponse = z.infer<typeof driverUpdateResponseSchema>;
-
-/**
- * Would this patch claim the row from telematics? Answerable BEFORE Save, from what the form knows.
- *
- * The same two inputs `resolveDriverUpdate` uses server-side, so the warning a person reads and the
- * flag the server returns cannot disagree — which they would the moment either side kept its own
- * list of identity fields.
- */
-export function wouldClaimFromTelematics(
-  changedFields: readonly string[],
-  identitySource: string | null | undefined,
-): boolean {
-  if (!identitySource || identitySource === "manual") return false;
-  return DRIVER_IDENTITY_FIELDS.some((f) => changedFields.includes(f));
-}
-
 // ── enroll for app access ─────────────────────────────────────────────────────
 
 /** `POST /api/roster/drivers/:id/invite` — invite THIS roster row to the driver app (plan §3.1). */

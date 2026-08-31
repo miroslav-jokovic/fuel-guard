@@ -512,7 +512,7 @@ enumerated**, and redirect rather than delete.
 **Done when:** every retired path 301s to its replacement; `notificationRoute.ts` still resolves
 every category it claims to; no bookmark 404s.
 
-### R9 — Gate the decisions (D-ROS2, D-ROS7, D-ROS11)
+### R9 — Gate the decisions (D-ROS2, D-ROS7, D-ROS11) — **DONE 2026-08-31 (PR #408, no migration)**
 
 A `lint:capabilities` script that fails on: `canManageFleet` used anywhere in `apps/web`; a
 `requiresManage` that does not name a section; a driver field edited inline that is not in
@@ -1193,3 +1193,80 @@ duplication D-ROS11 exists to prevent. Doing it properly means moving the drawer
 record page rather than copying it, and that is a step with its own decision to make: see §6 Q8.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+
+### R6c — editing gets one home per field — 2026-08-31, PR #408, no migration
+
+Answers §6 Q4 and Q8, which were the same question at two altitudes.
+
+- **`DRIVER_INLINE_EDITABLE` is derived and checked, not hand-listed.** The rule is "no sync owns it
+  and nothing legal turns on it", and the first half is a fact about `mcleod/rosterFields.ts` and
+  `samsaraDriverSync.ts` rather than about the shared package. So the list lives in
+  `@silvicom/shared` and `apps/api/src/driverFieldOwnership.test.ts` intersects it with McLeod's real
+  `driverPatch` OUTPUT — the function's keys, not a copy of them. Adding `cdl_number` to the list
+  fails three assertions at once.
+- **`DriverContactSection` on the record page** edits exactly those fields through the audited PATCH
+  (D-ROS1: "the record page writes"), sends only what CHANGED — an audit row reporting six edits for
+  one typed digit is how an audit log stops being read — and clears to `null` rather than `""`,
+  which in a nullable column reads as present and prints as nothing.
+- **The anti-duplication rule caught my own first draft.** `employee_id` was in both the drawer and
+  the inline list. The assertion is now permanent: the drawer and the record page may not both offer
+  a field, because a second editor for the same field is one with a different amount of honesty, and
+  which one a person used becomes a matter of where they happened to click.
+- **The driver page now READS through the roster API** rather than a browser `select("*")`. It needed
+  `DriverDetail` for the section, and R6a had already moved the writes — leaving the read on a raw
+  select would have meant asking for every column the page does not render.
+
+**Two gates redirected the work, both correctly:**
+
+- **`lint:boundaries`** refused the ownership test under `modules/roster/`, because it imports
+  `modules/mcleod`. It asserts two modules AGREEING, so it belongs to neither — it now sits at
+  `src/`, beside `routeAuth.test.ts` and `routeGates.test.ts`, which are there for the same reason.
+- **`lint:filesize`** put `rosterContract.ts` at 527. Split at a real seam rather than waived:
+  `driverEditMeaning.ts` holds what an edit MEANS (the response flags, the pre-save predicate, the
+  inline list); `rosterContract.ts` keeps what shape may cross the wire. One is read by a form
+  deciding whether to warn, the other by a route deciding whether to accept.
+
+**Deviation:** one `pnpm test` run failed against a stale `packages/shared/dist` after the split —
+the trap `HANDOFF-2026-08-30.md` §3 already records. `build:rn` then green. Recorded because the
+handoff says it costs a CI round trip, and it nearly did again.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+The changed-fields-only rule and the sync-overlap guards were each proven able to fail.
+
+### R9 — the capability decisions get a gate — 2026-08-31, PR #408, no migration
+
+⚠ **Shipped in the same PR as R6c, which deviates from one-step-per-branch.** R9's third detector
+enforces R6c's rule directly; the list and the gate that keeps it honest are one idea, and splitting
+them would have put a rule and its enforcement in different reviews.
+
+`scripts/check-capabilities.mjs`, `lint:capabilities`, and the CI step.
+
+- **Three detectors, all three self-tested.** `canManageFleet` used as an identifier anywhere in
+  `apps/web`; a `requiresManage` that does not NAME a section; a surface editing driver fields
+  without building them from `DRIVER_INLINE_EDITABLE`. `--self-test` fails the build if any detector
+  stops firing, per house convention.
+- **It PARSES rather than greps, and that is the interesting decision.** `canManageFleet` survives in
+  exactly three places — `session.ts`, `PspRecordsSection.vue` and `routes/recruitment.ts` — as
+  COMMENTS explaining why R0 deleted it. `lint:ui-adoption` is a plain text regex and the design
+  contract records the footgun that follows; here the same choice would have forbidden saying the
+  name, which would delete the reasoning the gate exists to protect. So comments are stripped first,
+  and the self-test asserts BOTH that the detector fires on real use and that it does not fire on a
+  comment.
+- **The sections vocabulary is read from `auth.ts`**, not restated in the script. A gate that carries
+  its own copy of the list it is checking is the defect it was written to prevent.
+- **`SANCTIONED_DRIVER_EDITORS` is shrink-only and names three files.** A fourth is a reviewed
+  decision that has to answer which fields it owns that the other three do not — which is R6c's rule,
+  enforced instead of remembered.
+- **The gate found a false positive on itself and was tightened:** `useDrivers.ts` DECLARES
+  `useUpdateDriverProfile`, and the first draft flagged the declaration as an unsanctioned editor.
+  Now it matches calls only, with a self-test case for the declaration.
+
+**A stale note corrected, not worked around:** the session memory said `.github/workflows` pushes are
+rejected for want of the `workflow` OAuth scope, and prescribed handing the YAML to the owner. That
+was verified rather than trusted — the CI step went in its own commit so it could be amended away
+cheaply — and **the push succeeded**. The scope has been granted since that note was written, so the
+CI half of R9's done-when is genuinely done rather than owed. A gate CI never invokes is worse than
+no gate.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`
+(including `--self-test`), and the full gate list.

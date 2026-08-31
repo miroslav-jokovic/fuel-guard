@@ -123,6 +123,7 @@ export * from "./applicantDisposition.js";
 export * from "./packetPlacements.js";
 export * from "./savedViewContract.js";
 export * from "./dqFleetFilter.js";
+export * from "./driverEditMeaning.js";
 export * from "./cardControlLedger.js";
 export * from "./efs/types.js";
 export * from "./efs/stepUp.js";

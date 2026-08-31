@@ -81,6 +81,13 @@ jobs:
       - name: Feature boundaries
         run: pnpm lint:boundaries
 
+      # Added 2026-08-31 (R9; D-ROS2/D-ROS7/D-ROS11). `canManageFleet` was one boolean standing in
+      # for an 11-section x 8-role matrix, and every workaround the roster plan removed was
+      # downstream of it. This keeps it deleted, keeps `requiresManage` naming a section, and stops
+      # a third driver-editing surface hand-picking its own fields.
+      - name: Capability decisions
+        run: pnpm lint:capabilities
+
       # Added 2026-08-26 (re-founding, docs/ARCHITECTURE.md §6). Four tables merged two days
       # earlier with zero application code; this would have failed that merge.
       - name: Every table has a producer
