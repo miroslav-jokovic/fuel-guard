@@ -19,9 +19,9 @@
  * Before that, a range typed backwards parsed fine and produced an empty report, which reads exactly
  * like a fleet that bought no fuel.
  */
-import { computed, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed } from "vue";
 import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
 
 /** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@silvicom/shared`. */
 export const DEFAULT_DAYS = 90;
@@ -30,11 +30,6 @@ export const DEFAULT_DAYS = 90;
 export const DEFAULT_GRAIN: SpendGrain = "week";
 
 const todayYmd = (): string => new Date().toISOString().slice(0, 10);
-
-const one = (v: unknown): string | undefined => {
-  const s = Array.isArray(v) ? v[0] : v;
-  return typeof s === "string" && s !== "" ? s : undefined;
-};
 
 export interface SpendFilters {
   from: string;
@@ -46,47 +41,18 @@ export interface SpendFilters {
 }
 
 export function useSpendFilters() {
-  const route = useRoute();
-  const router = useRouter();
-
   /**
-   * Patches applied since the last navigation settled.
-   *
-   * ── WHY THIS EXISTS: THE DATE RANGE WAS WELDED TO 90 DAYS ───────────────────────────────────────
-   * `router.replace` is ASYNCHRONOUS — `route.query` does not change until the navigation resolves.
-   * The date picker emits `update:from` and `update:to` back-to-back in one tick, so both setters read
-   * the SAME pre-change `route.query` and the second `replace` overwrote the first. `to` landed,
-   * `from` was dropped, and the getter fell back to the default. The visible symptom was a date picker
-   * welded to the last 90 days: every pick appeared to do nothing, because the only half that survived
-   * was the end date, which was already today.
-   *
-   * `setWindow` now moves both ends in ONE patch, which is the real fix. This buffer stays because the
-   * hazard was never specific to dates — any two filters written in one tick collided the same way,
-   * and a future caller should not have to know that.
+   * The URL is this page's state (see the header note). The one-tick collision that used to weld the
+   * date picker to 90 days is handled by `useQueryState`, promoted out of this file at R3a — the
+   * buffer was never specific to dates, and the roster needs the same guarantee under D-ROS14.
    */
-  const pending = ref<Record<string, string | undefined>>({});
-  /** The query as it will be once the router settles. Getters read this so the UI never lags a tick. */
-  const q = computed<Record<string, unknown>>(() => ({ ...route.query, ...pending.value }));
-
-  // `replace` throughout: adjusting a filter is not a navigation, and a reader pressing back expects to
-  // leave the page rather than walk their own filter history.
-  const set = (patch: Record<string, string | undefined>) => {
-    const merged = { ...pending.value, ...patch };
-    pending.value = merged;
-    void router
-      .replace({ query: { ...route.query, ...merged } })
-      // Cleared only if nothing else was written while this navigation was in flight; a later patch
-      // owns the buffer and must keep it until ITS navigation lands.
-      .finally(() => {
-        if (pending.value === merged) pending.value = {};
-      });
-  };
+  const { one, list, set } = useQueryState();
 
   /**
    * The window, normalised. Every other consumer on this page reads THIS and never the raw query, so a
    * hand-edited link cannot reach a database query, a chart, or the PDF export.
    */
-  const normalized = computed(() => normalizeWindow(one(q.value.from), one(q.value.to), todayYmd()));
+  const normalized = computed(() => normalizeWindow(one("from"), one("to"), todayYmd()));
 
   /**
    * Move both ends at once.
@@ -113,18 +79,18 @@ export function useSpendFilters() {
   const windowNotice = computed(() => describeFixes(normalized.value.fixes));
 
   const vehicleIds = computed<string[]>({
-    get: () => (one(q.value.trucks) ?? "").split(",").filter(Boolean),
+    get: () => list("trucks"),
     set: (v) => set({ trucks: v.length ? v.join(",") : undefined }),
   });
   const grain = computed<SpendGrain>({
     get: () => {
-      const v = one(q.value.grain);
+      const v = one("grain");
       return v === "day" || v === "month" ? v : DEFAULT_GRAIN;
     },
     set: (v) => set({ grain: v }),
   });
   const tab = computed<string>({
-    get: () => one(q.value.tab) ?? "",
+    get: () => one("tab") ?? "",
     set: (v) => set({ tab: v }),
   });
 
