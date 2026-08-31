@@ -387,7 +387,7 @@ A saved view built on that could have captured the columns and nothing else — 
 feature" §6 Q3 warned about, arrived at from the other direction. It also meant the one thing an
 office does with a filtered roster, send it to somebody, was impossible.
 
-##### R3c-1 — the roster's filters move into the URL — **DONE 2026-08-30 (PR #PENDING, no migration)**
+##### R3c-1 — the roster's filters move into the URL — **DONE 2026-08-30 (PR #399, no migration)**
 
 ##### R3c-2 — saved views themselves — one migration
 
@@ -761,7 +761,7 @@ be reproduced in seven subsequent full runs (five web-only, one `pnpm -r test`, 
 test`); it was run immediately after a heavy parallel sequence. Recorded rather than smoothed over —
 if CI shows it again, it is real.
 
-### R3c-1 — the roster becomes linkable — 2026-08-30, PR #PENDING, no migration
+### R3c-1 — the roster becomes linkable — 2026-08-30, PR #399, no migration
 
 `features/roster/useRosterFilters.ts` (107). `DriversPage.vue` 348 → 334.
 
