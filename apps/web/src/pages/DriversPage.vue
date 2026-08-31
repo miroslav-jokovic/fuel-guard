@@ -2,21 +2,13 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { RouterLink } from "vue-router";
 import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver, useArchiveDriver } from "@/composables/useDrivers";
-import { useComplianceOverviewQuery } from "@/composables/useCompliance";
-import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
-import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
-import KebabMenu from "@/components/KebabMenu.vue";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
-import TablePagination from "@/components/TablePagination.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -24,28 +16,14 @@ import { AppSelect } from "@silvicom/ui";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
-import { formatPhone } from "@/lib/format";
-import { BADGE_BASE, appAccessBadge, dqFileBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
-import { driverAppAccess } from "@silvicom/shared";
-
-// HOS badge lives in lib/badges.ts (D3); the "as of" tooltip stays here with its data.
-function hosAgo(iso: string | null): string {
-  if (!iso) return "";
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  return mins < 1
-    ? "as of just now"
-    : mins < 60
-      ? `as of ${mins} min ago`
-      : `as of ${Math.round(mins / 60)}h ago`;
-}
+import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 
 const PAGE_SIZE = 20;
 
 const session = useSessionStore();
 const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
-const { data: vehicles } = useVehiclesQuery();
 const createDriver = useCreateDriver();
 const updateDriver = useUpdateDriver();
 
@@ -64,26 +42,6 @@ function openAccess(d: Driver) {
 watch(drivers, (list) => {
   if (accessDriver.value) accessDriver.value = list?.find((d) => d.id === accessDriver.value!.id) ?? accessDriver.value;
 });
-const accessBadge = (d: Driver) => appAccessBadge(driverAppAccess(d.user_id, d.app_access_enabled));
-
-/**
- * The qualification column (D3): the roster finally answers "may this driver be dispatched" from
- * the SAME overview rollup the qualification page renders — never a second computation. A due date
- * inside 30 days outranks the plain state word, because "Due 12d" is the phone call to make today.
- * Rows the overview does not return (EFS stubs, terminated) read as "—".
- */
-const overviewQ = useComplianceOverviewQuery();
-const qualBadge = (driverId: string): { label: string; tone: string } | null => {
-  const row = (overviewQ.data.value?.drivers ?? []).find((d) => d.driver_id === driverId);
-  if (!row) return null;
-  const dated = row.attention.filter((a) => a.daysRemaining !== null && a.daysRemaining >= 0);
-  const soonest = dated.length ? Math.min(...dated.map((a) => a.daysRemaining as number)) : null;
-  if (row.state === "incomplete" && soonest !== null && soonest <= 30 && row.counts.expired === 0) {
-    return { label: `Due ${soonest}d`, tone: "warning" };
-  }
-  return dqFileBadge(row.state);
-};
-
 const saving = computed(() => createDriver.isPending.value || updateDriver.isPending.value);
 
 // ── Reconcile duplicate / name-only drivers with Samsara ──────────────────────────────────────────
@@ -189,64 +147,11 @@ function onSort(key: string) {
 }
 const sorted = computed(() => sortRows(filtered.value, sort.value));
 
-const columns: DataTableColumn[] = [
-  {
-    key: "full_name",
-    label: "Name",
-    sortable: true,
-    width: "xl",
-    cellClass: "font-medium text-ink",
-  },
-  {
-    key: "samsara_username",
-    label: "Driver ID",
-    sortable: true,
-    width: "md",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "current_hos_status", label: "HOS status", sortable: true, width: "md" },
-  {
-    key: "current_hos_vehicle",
-    label: "Current truck",
-    width: "md",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "current_location",
-    label: "Location",
-    sortable: true,
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "app_access", label: "App access", width: "md" },
-  { key: "qualification", label: "Qualification", width: "lg" },
-  {
-    key: "phone",
-    label: "Phone",
-    width: "lg",
-    cellClass: "text-ink-secondary tabular-nums",
-  },
-  {
-    key: "vehicles",
-    label: "Vehicles",
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "status", label: "Status", sortable: true, width: "sm" },
-];
-
 const page = ref(1);
 watch([search, statusFilter, showArchived], () => (page.value = 1));
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
-
-// Vehicles assigned to a driver (assignment is set from the Vehicles page).
-const assignedUnits = (driverId: string) =>
-  (vehicles.value ?? [])
-    .filter((v) => v.assigned_driver_id === driverId)
-    .map((v) => v.unit_number)
-    .join(", ") || "—";
 
 function openNew() {
   editing.value = null;
@@ -303,11 +208,8 @@ async function onSubmit(input: DriverInput) {
       </template>
     </FilterBar>
 
-    <DataTable
-      embedded
-      :columns="columns"
+    <DriverRosterTable
       :rows="pageRows"
-      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
       :retrying="isFetching"
@@ -315,77 +217,17 @@ async function onSubmit(input: DriverInput) {
       :empty-text="
         (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
       "
+      :page="page"
+      :page-size="PAGE_SIZE"
+      :total="filtered.length"
       @sort="onSort"
       @retry="refetch"
-    >
-      <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
-      <template #cell-phone="{ row }">{{ formatPhone(row.phone) }}</template>
-      <template #cell-current_hos_status="{ row }">
-        <span
-          v-if="row.current_hos_status"
-          :class="[BADGE_BASE, toneClass(hosStatusBadge(row.current_hos_status).tone)]"
-          :title="hosAgo(row.current_hos_at)"
-          >{{ hosStatusBadge(row.current_hos_status).label }}</span
-        >
-        <span v-else class="text-xs text-ink-tertiary">—</span>
-      </template>
-      <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
-      <template #cell-current_location="{ row }">{{ row.current_location || "—" }}</template>
-      <template #cell-app_access="{ row }">
-        <div
-          class="inline-flex items-center gap-1.5"
-          :title="row.app_username ? `Username: ${row.app_username}` : 'No app login yet — use the row menu to create one'"
-        >
-          <span :class="[BADGE_BASE, toneClass(accessBadge(row).tone)]">
-            {{ accessBadge(row).label }}
-          </span>
-          <span v-if="row.app_username" class="font-mono text-xs text-ink-muted">{{ row.app_username }}</span>
-        </div>
-      </template>
-      <template #cell-qualification="{ row }">
-        <RouterLink
-          v-if="qualBadge(row.id)"
-          :to="`/compliance/${row.id}`"
-          :class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
-        >
-          {{ qualBadge(row.id)!.label }}
-        </RouterLink>
-        <span v-else class="text-ink-tertiary">—</span>
-      </template>
-      <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
-      <template #cell-status="{ row }">
-        <StatusBadge :status="row.status" />
-        <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
-      </template>
-      <template #actions="{ row }">
-        <KebabMenu v-if="session.can('roster')">
-          <BaseButton class="kebab-item" @click="openEdit(row)">Edit driver</BaseButton>
-          <BaseButton class="kebab-item" @click="openAccess(row)">
-            {{ row.user_id ? "Manage app login…" : "Create app login…" }}
-          </BaseButton>
-          <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
-            >Open qualification file…</RouterLink
-          >
-          <!-- Never "Delete". `drivers` is in RETENTION_FORBIDDEN and 0235 refuses the DELETE for
-               everybody, service role included — §391.51 keeps the file for employment plus three
-               years. The word on the button matches what the database will actually do. -->
-          <BaseButton v-if="!row.archived_at" class="kebab-item" @click="archiving = row">
-            Archive…
-          </BaseButton>
-          <BaseButton v-else class="kebab-item" @click="setArchived(row, false)">
-            Restore to the roster
-          </BaseButton>
-        </KebabMenu>
-      </template>
-      <template #footer>
-        <TablePagination
-          :page="page"
-          :page-size="PAGE_SIZE"
-          :total="filtered.length"
-          @update:page="page = $event"
-        />
-      </template>
-    </DataTable>
+      @update:page="page = $event"
+      @edit="openEdit"
+      @manage-access="openAccess"
+      @archive="archiving = $event"
+      @restore="setArchived($event, false)"
+    />
     </DataWorkspace>
 
     <SlideOver

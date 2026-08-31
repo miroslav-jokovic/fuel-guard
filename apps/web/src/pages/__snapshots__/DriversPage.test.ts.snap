@@ -1,0 +1,181 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DriversPage roster table > renders the archived view unchanged by the R2 extraction 1`] = `
+"<table class="min-w-full text-sm whitespace-nowrap">
+  <thead class="bg-surface-subtle text-ink-muted shadow-sticky-edge sticky top-0 z-sticky">
+    <tr>
+      <!--v-if-->
+      <th scope="col" class="font-medium px-4 py-3 text-left pl-6 min-w-56"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Name <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Driver ID <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">HOS status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Current truck</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Location <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Phone</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Vehicles</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-24"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="w-12 pl-2 pr-6"><span class="sr-only">Actions</span></th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-edge-subtle">
+    <tr class="hover:bg-surface-subtle">
+      <!--v-if-->
+      <td class="px-4 py-3 text-left pl-6 font-medium text-ink">Gone Away</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left"><span class="text-xs text-ink-tertiary">—</span></td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left">
+        <div class="inline-flex items-center gap-1.5" title="No app login yet — use the row menu to create one"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge">—</span>
+          <!--v-if-->
+        </div>
+      </td>
+      <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
+      <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left">
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge capitalize">terminated</span><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge ml-2">Archived</span>
+      </td>
+      <td class="w-12 pl-2 pr-6 text-right py-2">
+        <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
+              <path d="M11.9967 12.5V12M11.9967 6.5V6M11.9967 18.5V18M12.9967 12.5C12.9967 11.9477 12.549 11.5 11.9967 11.5C11.4444 11.5 10.9967 11.9477 10.9967 12.5C10.9967 13.0523 11.4444 13.5 11.9967 13.5C12.549 13.5 12.9967 13.0523 12.9967 12.5ZM12.9967 6.5C12.9967 5.94772 12.549 5.5 11.9967 5.5C11.4444 5.5 10.9967 5.94772 10.9967 6.5C10.9967 7.05228 11.4444 7.5 11.9967 7.5C12.549 7.5 12.9967 7.05228 12.9967 6.5ZM12.9967 18.5C12.9967 17.9477 12.549 17.5 11.9967 17.5C11.4444 17.5 10.9967 17.9477 10.9967 18.5C10.9967 19.0523 11.4444 19.5 11.9967 19.5C12.549 19.5 12.9967 19.0523 12.9967 18.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            </svg></button>
+          <!--teleport start-->
+          <!--teleport end-->
+        </div>
+      </td>
+    </tr>
+    <!--v-if-->
+  </tbody>
+</table>"
+`;
+
+exports[`DriversPage roster table > renders the roster table unchanged by the R2 extraction 1`] = `
+"<table class="min-w-full text-sm whitespace-nowrap">
+  <thead class="bg-surface-subtle text-ink-muted shadow-sticky-edge sticky top-0 z-sticky">
+    <tr>
+      <!--v-if-->
+      <th scope="col" class="font-medium px-4 py-3 text-left pl-6 min-w-56"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Name <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Driver ID <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">HOS status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">Current truck</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Location <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-32">App access</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Qualification</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Phone</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Vehicles</th>
+      <th scope="col" class="font-medium px-4 py-3 text-left min-w-24"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Status <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary">
+            <path d="M7 4V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M17 19L17 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+          </svg></button></th>
+      <th scope="col" class="w-12 pl-2 pr-6"><span class="sr-only">Actions</span></th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-edge-subtle">
+    <tr class="hover:bg-surface-subtle">
+      <!--v-if-->
+      <td class="px-4 py-3 text-left pl-6 font-medium text-ink">Marcus Reyes</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">marcus</td>
+      <td class="px-4 py-3 text-left"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20" title="as of 3h ago">Driving</span></td>
+      <td class="px-4 py-3 text-left text-ink-secondary">T-118</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">Joliet, IL</td>
+      <td class="px-4 py-3 text-left">
+        <div class="inline-flex items-center gap-1.5" title="Username: mreyes"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">Active</span><span class="font-mono text-xs text-ink-muted">mreyes</span></div>
+      </td>
+      <td class="px-4 py-3 text-left"><a href="/compliance/d-1" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20">Due 12d</a></td>
+      <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">(555) 867-5309</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">T-118, T-902</td>
+      <td class="px-4 py-3 text-left">
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
+        <!--v-if-->
+      </td>
+      <td class="w-12 pl-2 pr-6 text-right py-2">
+        <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
+              <path d="M11.9967 12.5V12M11.9967 6.5V6M11.9967 18.5V18M12.9967 12.5C12.9967 11.9477 12.549 11.5 11.9967 11.5C11.4444 11.5 10.9967 11.9477 10.9967 12.5C10.9967 13.0523 11.4444 13.5 11.9967 13.5C12.549 13.5 12.9967 13.0523 12.9967 12.5ZM12.9967 6.5C12.9967 5.94772 12.549 5.5 11.9967 5.5C11.4444 5.5 10.9967 5.94772 10.9967 6.5C10.9967 7.05228 11.4444 7.5 11.9967 7.5C12.549 7.5 12.9967 7.05228 12.9967 6.5ZM12.9967 18.5C12.9967 17.9477 12.549 17.5 11.9967 17.5C11.4444 17.5 10.9967 17.9477 10.9967 18.5C10.9967 19.0523 11.4444 19.5 11.9967 19.5C12.549 19.5 12.9967 19.0523 12.9967 18.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            </svg></button>
+          <!--teleport start-->
+          <!--teleport end-->
+        </div>
+      </td>
+    </tr>
+    <!--v-if-->
+    <tr class="hover:bg-surface-subtle">
+      <!--v-if-->
+      <td class="px-4 py-3 text-left pl-6 font-medium text-ink">Ana Whitfield</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left"><span class="text-xs text-ink-tertiary">—</span></td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left">
+        <div class="inline-flex items-center gap-1.5" title="No app login yet — use the row menu to create one"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge">—</span>
+          <!--v-if-->
+        </div>
+      </td>
+      <td class="px-4 py-3 text-left"><a href="/compliance/d-2" class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20">OK</a></td>
+      <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
+      <td class="px-4 py-3 text-left text-ink-secondary">—</td>
+      <td class="px-4 py-3 text-left">
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge capitalize">inactive</span>
+        <!--v-if-->
+      </td>
+      <td class="w-12 pl-2 pr-6 text-right py-2">
+        <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
+              <path d="M11.9967 12.5V12M11.9967 6.5V6M11.9967 18.5V18M12.9967 12.5C12.9967 11.9477 12.549 11.5 11.9967 11.5C11.4444 11.5 10.9967 11.9477 10.9967 12.5C10.9967 13.0523 11.4444 13.5 11.9967 13.5C12.549 13.5 12.9967 13.0523 12.9967 12.5ZM12.9967 6.5C12.9967 5.94772 12.549 5.5 11.9967 5.5C11.4444 5.5 10.9967 5.94772 10.9967 6.5C10.9967 7.05228 11.4444 7.5 11.9967 7.5C12.549 7.5 12.9967 7.05228 12.9967 6.5ZM12.9967 18.5C12.9967 17.9477 12.549 17.5 11.9967 17.5C11.4444 17.5 10.9967 17.9477 10.9967 18.5C10.9967 19.0523 11.4444 19.5 11.9967 19.5C12.549 19.5 12.9967 19.0523 12.9967 18.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+            </svg></button>
+          <!--teleport start-->
+          <!--teleport end-->
+        </div>
+      </td>
+    </tr>
+    <!--v-if-->
+  </tbody>
+</table>"
+`;

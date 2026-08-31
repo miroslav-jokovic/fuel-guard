@@ -304,7 +304,7 @@ sync. Whatever the direction, the surfaces must not be able to disagree: one fun
 view of the same requirement cannot diverge, printing a `RESULT` line; the hazmat gate's behaviour
 on a McLeod-mastered org is pinned by a test.
 
-### R2 — Extract `DriverRosterTable.vue` from `DriversPage.vue`
+### R2 — Extract `DriverRosterTable.vue` from `DriversPage.vue` — **DONE 2026-08-30 (PR #396, no migration)**
 
 Mechanical, no behaviour change. `DriversPage` is at 493 of 500; nothing else in this plan can be
 added to it. The extracted table is also what Vehicles and Trailers reuse under D-ROS10.
@@ -557,6 +557,34 @@ settings 10.
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:comment-claims`, `lint:tests`,
 `lint:table-writers`.
+
+### R2 — the roster table leaves the page — 2026-08-30, PR #396, no migration
+
+`DriversPage.vue` 493 → **335 lines**; `features/roster/DriverRosterTable.vue` is 243. R4's four
+columns now have somewhere to go, and under D-ROS10 so do the vehicle and trailer rosters.
+
+- **The split is table vs. list state, not "move some code".** The component owns the columns, the
+  cells, the row menu and the two lookups the cells need; the page keeps search, filter, sort and
+  paging, because it owns the toolbar that drives them. Rows arrive already filtered, sorted and
+  sliced — two places deciding which twenty rows are on screen is exactly the bug an extraction is
+  meant to remove rather than introduce.
+- **Both per-row scans became a `Map`, not just the one the plan named.** `qualBadge()` did an O(n)
+  `.find()` over the rollup per row per render; `assignedUnits()` did an O(n) `.filter()` over the
+  whole vehicle list, for the same reason and with the same cost. Fixing one and leaving the other
+  would have left R4 adding three more columns beside a defect the step had already looked at.
+- **The snapshot was taken before the move, and did not change.** `DriversPage.test.ts` mounts the
+  page over a fixture built to be awkward — one driver with every field set, one with almost none,
+  one archived — and pins the rendered `<table>` for both the live and archived views. It was proven
+  able to fail (renaming one column header breaks both snapshots) before it was trusted. The row
+  menu teleports out of the table, so the Archive/Restore branch is pinned by its own assertion.
+- **No deviations.** The extraction moved code and comments verbatim; the only edits are the two
+  `Map` lookups and the props/emits seam. `lint:ui-adoption` was checked directly on the moved ⚠
+  comment that contains the word "button" — the gate matches the tag, not the noun, so the comment
+  stayed as written.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:filesize`,
+`lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
+`lint:tests`, `lint:table-writers`.
 
 ### The rest
 
