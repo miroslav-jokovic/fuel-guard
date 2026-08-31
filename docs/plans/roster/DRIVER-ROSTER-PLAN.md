@@ -1235,6 +1235,10 @@ The changed-fields-only rule and the sync-overlap guards were each proven able t
 
 ### R9 — the capability decisions get a gate — 2026-08-31, PR #408, no migration
 
+⚠ **Shipped in the same PR as R6c, which deviates from one-step-per-branch.** R9's third detector
+enforces R6c's rule directly; the list and the gate that keeps it honest are one idea, and splitting
+them would have put a rule and its enforcement in different reviews.
+
 `scripts/check-capabilities.mjs`, `lint:capabilities`, and the CI step.
 
 - **Three detectors, all three self-tested.** `canManageFleet` used as an identifier anywhere in
