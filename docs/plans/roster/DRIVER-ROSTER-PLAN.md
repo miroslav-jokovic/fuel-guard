@@ -1193,3 +1193,42 @@ duplication D-ROS11 exists to prevent. Doing it properly means moving the drawer
 record page rather than copying it, and that is a step with its own decision to make: see §6 Q8.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+
+### R6c — editing gets one home per field — 2026-08-31, PR #PENDING, no migration
+
+Answers §6 Q4 and Q8, which were the same question at two altitudes.
+
+- **`DRIVER_INLINE_EDITABLE` is derived and checked, not hand-listed.** The rule is "no sync owns it
+  and nothing legal turns on it", and the first half is a fact about `mcleod/rosterFields.ts` and
+  `samsaraDriverSync.ts` rather than about the shared package. So the list lives in
+  `@silvicom/shared` and `apps/api/src/driverFieldOwnership.test.ts` intersects it with McLeod's real
+  `driverPatch` OUTPUT — the function's keys, not a copy of them. Adding `cdl_number` to the list
+  fails three assertions at once.
+- **`DriverContactSection` on the record page** edits exactly those fields through the audited PATCH
+  (D-ROS1: "the record page writes"), sends only what CHANGED — an audit row reporting six edits for
+  one typed digit is how an audit log stops being read — and clears to `null` rather than `""`,
+  which in a nullable column reads as present and prints as nothing.
+- **The anti-duplication rule caught my own first draft.** `employee_id` was in both the drawer and
+  the inline list. The assertion is now permanent: the drawer and the record page may not both offer
+  a field, because a second editor for the same field is one with a different amount of honesty, and
+  which one a person used becomes a matter of where they happened to click.
+- **The driver page now READS through the roster API** rather than a browser `select("*")`. It needed
+  `DriverDetail` for the section, and R6a had already moved the writes — leaving the read on a raw
+  select would have meant asking for every column the page does not render.
+
+**Two gates redirected the work, both correctly:**
+
+- **`lint:boundaries`** refused the ownership test under `modules/roster/`, because it imports
+  `modules/mcleod`. It asserts two modules AGREEING, so it belongs to neither — it now sits at
+  `src/`, beside `routeAuth.test.ts` and `routeGates.test.ts`, which are there for the same reason.
+- **`lint:filesize`** put `rosterContract.ts` at 527. Split at a real seam rather than waived:
+  `driverEditMeaning.ts` holds what an edit MEANS (the response flags, the pre-save predicate, the
+  inline list); `rosterContract.ts` keeps what shape may cross the wire. One is read by a form
+  deciding whether to warn, the other by a route deciding whether to accept.
+
+**Deviation:** one `pnpm test` run failed against a stale `packages/shared/dist` after the split —
+the trap `HANDOFF-2026-08-30.md` §3 already records. `build:rn` then green. Recorded because the
+handoff says it costs a CI round trip, and it nearly did again.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
+The changed-fields-only rule and the sync-overlap guards were each proven able to fail.

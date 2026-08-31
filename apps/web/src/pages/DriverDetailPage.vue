@@ -3,7 +3,7 @@ import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import { RETURN_TO_DUTY_BLOCK, type Anomaly, type Driver, type FuelTransaction } from "@silvicom/shared";
+import { RETURN_TO_DUTY_BLOCK, type Anomaly, type FuelTransaction } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
@@ -21,6 +21,8 @@ import { viz, areaFill } from "@/features/dashboard/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
+import DriverContactSection from "@/features/roster/DriverContactSection.vue";
+import { useDriverQuery } from "@/composables/useDrivers";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -142,15 +144,16 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
   }
 }
 
-const { data: driver } = useQuery({
-  queryKey: ["driver-detail", id],
-  enabled: computed(() => Boolean(id.value)),
-  queryFn: async (): Promise<Driver | null> => {
-    const { data, error } = await supabase.from("drivers").select("*").eq("id", id.value).maybeSingle();
-    if (error) throw new Error(error.message);
-    return (data as Driver | null) ?? null;
-  },
-});
+/**
+ * The full profile, through the roster API rather than a browser `select("*")`.
+ *
+ * Two reasons, and the second is the one that mattered here. `DriverDetail` is the shape the editable
+ * section below needs — a raw select typed as `Driver` carries the columns but not the type, which is
+ * how a page ends up casting. And R6a moved the driver WRITES onto this API; leaving the read on a
+ * `select("*")` would mean the page asked for every column it does not render, including ones a
+ * future migration might add.
+ */
+const { data: driver } = useDriverQuery(id);
 
 const { data: txns } = useQuery({
   queryKey: ["driver-fills", id],
@@ -263,7 +266,15 @@ const fillColumns: DataTableColumn[] = [
          hours-of-service record with the hiring paperwork because that is where it happened to be. -->
     <SevenDayStatementSection :driver-id="id" />
 
-    <BaseCard v-if="driver" id="section-profile" class="scroll-mt-6">
+    <!-- D-ROS1's "the record page writes", scoped by D-ROS2: the fields no sync owns and nothing
+         legal turns on, editable in place. Everything dangerous stays in the roster's drawer, which
+         warns before it claims and reports what the edit meant (R6a) — no field is editable in two
+         places, which is the whole answer to §6 Q8. -->
+    <div id="section-profile" class="scroll-mt-6">
+      <DriverContactSection :driver="driver ?? null" />
+    </div>
+
+    <BaseCard v-if="driver">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
