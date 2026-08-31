@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A3 shipped 2026-08-31 (PRs #410, #411, #412, #413). A4 is next.** D-AVI7 was **amended the same day**
+**Status: A0–A4 shipped 2026-08-31 (PRs #410–#414). A5 is next, and A5 is BLOCKED on §6 Q5 — a blank 14834 template.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -401,7 +401,7 @@ a waiver that names the plan that owes the producer (ARCHITECTURE.md §6 records
 **Verified by:** the full CI gate list run locally (21 gates, extracted from `ci.yml` rather than
 guessed — the omission that turned #412 red once); `pnpm test` with all 27 matrices green.
 
-### A4 — API: inspectors and the draft lifecycle (no PDF, no finalize)
+### A4 — API: inspectors and the draft lifecycle — **DONE 2026-08-31 (PR #414, no migration)**
 
 Prerequisites: A1, A3.
 
@@ -431,6 +431,36 @@ a door-gate test tables every role and asserts `technician` passes while `dispat
 and `driver` do not; a PATCH against a final row is refused by the API **and** independently by the
 trigger (both asserted); **and the three A3 waivers are deleted from `scripts/check-table-producers.mjs`
 — this step is not done while they are still there.**
+
+**What shipped:** `modules/maintenance/inspections/{inspectors,inspections}.ts` and
+`routes/{inspectors,inspections}.ts`, mounted on the existing `maintenanceRouter()`. Six endpoints,
+55 tests. **The three waivers are gone** — `lint:table-producers` is back to the single pre-existing
+`import_rows` entry, and the three write sites are declared in `scripts/table-writers.json` under
+their owning module.
+
+**§396.19 is checked at the door, not discovered at finalize.** Creating a draft refuses an
+inspector who is not on the register, or whose qualification does not cover the day of the
+inspection — with their name and the date in the message. Finding that out at finalize would mean
+telling somebody the report they just filled in cannot be signed.
+
+**Two decisions inside the patch endpoint worth a reader's time.**
+
+- *Grouped UPDATEs, never an upsert.* The draft is seeded complete, so a patch is an UPDATE — which
+  is also what `lint:upserts` requires, since Postgres checks NOT NULL before conflict arbitration.
+  Components sharing an answer collapse into one statement, so "these three failed" is one round
+  trip rather than three. Pinned by a test asserting **two** statements for three components across
+  two answers.
+- *Every patch answers with the whole report as the database now holds it.* The groups are separate
+  statements, so a mid-way failure would leave some components moved and some not. Rather than
+  pretend otherwise, the client's state becomes DB truth on every save — a lost write shows up
+  immediately instead of living on in a form that believes it saved.
+
+**Mutation-tested:** gating the create on `canView` instead of `canManage` fails 2 door assertions;
+dropping the `org_id` filter from the list query fails the `expectOrgScoped` assertion.
+
+**Verified by:** the full 21-gate CI list run locally; `pnpm test` all suites and 27 matrices green.
+`lint:table-writers` initially rejected the three new write sites, correctly — the write-site freeze
+means a new writer is a deliberate manifest edit, and these are the owner's own.
 
 ### A5 — The renderer: stamp the template
 

@@ -253,6 +253,9 @@
     "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
+  "maintenance_inspectors": [
+    "apps/api/src/modules/maintenance/inspections/inspectors.ts"
+  ],
   "mcleod_ap_vouchers": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
@@ -378,6 +381,12 @@
   ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
+  ],
+  "vehicle_inspection_items": [
+    "apps/api/src/modules/maintenance/inspections/inspections.ts"
+  ],
+  "vehicle_inspections": [
+    "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],
   "vehicles": [
     "apps/api/src/modules/anomalies/scoring/learnVehicle.ts",

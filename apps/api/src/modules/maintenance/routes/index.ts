@@ -6,6 +6,8 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { searchEntries } from "../../financial/index.js";
+import { inspectionsRouter } from "./inspections.js";
+import { inspectorsRouter } from "./inspectors.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -31,6 +33,12 @@ export function maintenanceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
   const canView = requireRole(...rolesThatCanView("maintenance"));
+
+  // The §396.17 annual inspection (ANNUAL-INSPECTION-PLAN.md, step A4) — the module's first owned
+  // tables, mounted beside the repair-spend read it was born with. Each sub-router carries its own
+  // per-verb gates derived from the same matrix.
+  router.use("/inspections", inspectionsRouter());
+  router.use("/inspectors", inspectorsRouter());
 
   router.get(
     "/spend",
