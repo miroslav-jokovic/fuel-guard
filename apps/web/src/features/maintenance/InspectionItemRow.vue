@@ -61,9 +61,11 @@ const variantFor = (value: InspectionResult) => {
     class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-edge-subtle px-3 py-2 last:border-b-0"
     :class="result === 'needs_repair' && !repairedAt && 'bg-danger-50'"
   >
+    <!-- The item's CFR reference (`item.cfr`) is deliberately NOT rendered: on every non-hazmat page
+         in this product the citations live in comments, not on screen (D-AVI15). It still travels on
+         the catalogue, where the report renderer and any audit export can reach it. -->
     <div class="min-w-0 flex-1">
       <p class="truncate text-sm text-ink" :title="item.label">{{ item.label }}</p>
-      <p class="text-xs text-ink-tertiary">{{ item.cfr }}</p>
     </div>
 
     <AppBadge v-if="untouched && applicable" tone="neutral" class="shrink-0">default</AppBadge>

@@ -87,7 +87,7 @@ describe("the verdict is the shared function's, not the page's", () => {
     const its = items();
     const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
-    expect(mountPage(its).text()).toContain("PASS");
+    expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("agrees with it on an unrepaired defect", () => {
@@ -95,8 +95,8 @@ describe("the verdict is the shared function's, not the page's", () => {
     const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("fail");
     const text = mountPage(its).text();
-    expect(text).toContain("FAIL");
-    expect(text).toContain("1 defect");
+    expect(text).toContain("FAILED");
+    expect(text).toContain("1 part(s) need repair");
   });
 
   it("agrees with it once that defect carries a repair date", () => {
@@ -105,13 +105,13 @@ describe("the verdict is the shared function's, not the page's", () => {
     );
     const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
-    expect(mountPage(its).text()).toContain("PASS");
+    expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("says it is not ready when a component has no result, rather than guessing (D-AVI5)", () => {
     const its = items().slice(0, 40);
     expect(deriveInspectionOutcome(its, "tractor", "2026-06-16").ok).toBe(false);
-    expect(mountPage(its).text()).toContain("Not ready to certify");
+    expect(mountPage(its).text()).toContain("Not ready to complete");
   });
 
   it("offers no control that SETS the verdict — there is no such field anywhere", () => {
@@ -120,7 +120,7 @@ describe("the verdict is the shared function's, not the page's", () => {
     // "mark this report as passed", and the day one appears this fails.
     const labels = w.findAll("button").map((b) => b.text());
     for (const label of labels) {
-      expect(["OK", "Repair", "N/A", "Preview the printed page", "Certify this inspection"]).toContain(label);
+      expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection"]).toContain(label);
     }
   });
 });
@@ -130,7 +130,7 @@ describe("a certified report is read-only (D-AVI4)", () => {
 
   it("shows the filed verdict and says a correction is a new inspection", () => {
     const text = mountPage(items(), final).text();
-    expect(text).toContain("Certified PASS");
+    expect(text).toContain("PASSED");
     expect(text).toContain("cannot be edited");
   });
 
@@ -144,20 +144,20 @@ describe("a certified report is read-only (D-AVI4)", () => {
   it("offers the filed report rather than a certify button", () => {
     const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
     expect(labels).toContain("Print the filed report");
-    expect(labels).not.toContain("Certify this inspection");
+    expect(labels).not.toContain("Complete inspection");
   });
 });
 
 describe("what the inspector is told about the pre-fill (D-AVI13)", () => {
   it("counts the components still carrying the answer the form opened with", () => {
     const text = mountPage(items()).text();
-    expect(text).toMatch(/\d+ component\(s\) still on their default/);
+    expect(text).toMatch(/\d+ part\(s\) still on the opening answer/);
   });
 
   it("stops counting them as they are answered", () => {
     const touched: Row[] = items().map((i, n) => (n < 10 ? { ...i, source: "inspector" } : i));
-    const before = mountPage(items()).text().match(/(\d+) component\(s\) still on their default/)?.[1];
-    const after = mountPage(touched).text().match(/(\d+) component\(s\) still on their default/)?.[1];
+    const before = mountPage(items()).text().match(/(\d+) part\(s\) still on the opening answer/)?.[1];
+    const after = mountPage(touched).text().match(/(\d+) part\(s\) still on the opening answer/)?.[1];
     expect(Number(after)).toBe(Number(before) - 10);
   });
 });

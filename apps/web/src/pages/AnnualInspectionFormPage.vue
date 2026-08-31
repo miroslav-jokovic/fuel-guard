@@ -115,7 +115,7 @@ async function openPdf(kind: "report" | "preview") {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="49 CFR §396.17 annual vehicle inspection. Every component carries a result before this report can be certified." />
+    <PageHeader description="Every part below carries a result before this inspection can be completed." />
 
     <AppCallout v-if="isError" tone="danger">
       {{ error?.message ?? "Could not load this inspection." }}
@@ -128,20 +128,19 @@ async function openPdf(kind: "report" | "preview") {
       <!-- The verdict, derived. There is no control here that sets it. -->
       <AppCallout :tone="isFinal ? (report.outcome === 'pass' ? 'success' : 'danger') : outcome === 'pass' ? 'success' : 'caution'">
         <span v-if="isFinal">
-          Certified {{ report.outcome === "pass" ? "PASS" : "FAIL" }} —
-          {{ report.outcome === "pass" ? `next due ${report.next_due_on}` : "this vehicle did not pass" }}.
-          A certified report cannot be edited; a correction is a new inspection.
+          Completed — {{ report.outcome === "pass" ? "PASSED" : "FAILED" }}{{ report.outcome === "pass" ? `, next due ${report.next_due_on}` : "" }}.
+          A completed inspection cannot be edited; a correction is a new one.
         </span>
         <span v-else-if="derived && !derived.ok">
-          Not ready to certify: {{ derived.issues.map((i) => i.itemKeys.length).reduce((a, b) => a + b, 0) }}
-          component(s) need attention before this report says what §396.21(a)(5) requires.
+          Not ready to complete: {{ derived.issues.map((i) => i.itemKeys.length).reduce((a, b) => a + b, 0) }}
+          part(s) still need an answer.
         </span>
         <span v-else>
-          Would certify <strong>{{ outcome === "pass" ? "PASS" : "FAIL" }}</strong>.
+          Result so far: <strong>{{ outcome === "pass" ? "PASSED" : "FAILED" }}</strong>.
           <template v-if="openDefects.length">
-            {{ openDefects.length }} defect(s) with no repair date.
+            {{ openDefects.length }} part(s) need repair with no repair date.
           </template>
-          <template v-if="stillDefault"> · {{ stillDefault }} component(s) still on their default.</template>
+          <template v-if="stillDefault"> · {{ stillDefault }} part(s) still on the opening answer.</template>
         </span>
       </AppCallout>
 
@@ -153,7 +152,7 @@ async function openPdf(kind: "report" | "preview") {
           Print the filed report
         </BaseButton>
         <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="confirming = true">
-          Certify this inspection
+          Complete inspection
         </BaseButton>
         <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
       </div>
@@ -172,7 +171,6 @@ async function openPdf(kind: "report" | "preview") {
       <section v-for="group in groups" :key="group.number" class="rounded-surface ring-1 ring-edge-subtle">
         <h2 class="border-b border-edge-subtle bg-surface-subtle px-3 py-2 text-sm font-semibold text-ink">
           {{ group.number }}. {{ group.title }}
-          <span class="ml-1 font-normal text-ink-tertiary">{{ group.cfr }}</span>
         </h2>
         <InspectionItemRow
           v-for="item in group.items"
@@ -188,15 +186,17 @@ async function openPdf(kind: "report" | "preview") {
         />
       </section>
 
-      <BaseModal :open="confirming" title="Certify this inspection" @close="confirming = false">
+      <BaseModal :open="confirming" title="Complete this inspection" @close="confirming = false">
+        <!-- The certification this stands for is §396.21(a)(6); the wording stays in the office's
+             language because the page is not a citation (D-AVI15). -->
         <p class="text-sm text-ink-secondary">
-          This certifies that every component above was inspected and that
-          <strong>{{ outcome === "pass" ? "the vehicle passed" : "the vehicle did not pass" }}</strong>,
-          in accordance with 49 CFR Part 396. The report is filed against the vehicle and cannot be
-          edited afterwards — a correction is a new inspection.
+          This records that every part above was inspected and that
+          <strong>{{ outcome === "pass" ? "the vehicle passed" : "the vehicle did not pass" }}</strong>.
+          It is filed against the vehicle and cannot be edited afterwards — a correction is a new
+          inspection.
         </p>
         <p v-if="stillDefault" class="mt-3 text-sm text-caution-700">
-          {{ stillDefault }} component(s) still carry the answer the form opened with.
+          {{ stillDefault }} part(s) still carry the answer the form opened with.
         </p>
         <template #footer>
           <BaseButton variant="secondary" @click="confirming = false">Cancel</BaseButton>
@@ -205,7 +205,7 @@ async function openPdf(kind: "report" | "preview") {
             :disabled="finalize.isPending.value"
             @click="() => finalize.mutate(undefined, { onSuccess: () => (confirming = false) })"
           >
-            Certify
+            Complete
           </BaseButton>
         </template>
       </BaseModal>

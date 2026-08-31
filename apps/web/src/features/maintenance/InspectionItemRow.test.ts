@@ -69,6 +69,15 @@ describe("an inapplicable component is locked, not merely defaulted", () => {
 });
 
 describe("what the row tells the inspector about itself", () => {
+  it("shows the component's name and NOT its CFR reference (D-AVI15)", () => {
+    // The citation still travels on the catalogue for the renderer and any audit export; it is not
+    // something the person doing the inspection is reading.
+    const w = mountRow();
+    expect(w.text()).toContain(inspectionItem("brake.hose")!.label);
+    expect(w.text()).not.toContain("App. A");
+    expect(w.text()).not.toContain("§");
+  });
+
   it("says when an answer is still the one the form opened with (D-AVI13)", () => {
     expect(mountRow({ source: "default" }).text()).toContain("default");
     expect(mountRow({ source: "inspector" }).text()).not.toContain("default");

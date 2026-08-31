@@ -299,3 +299,63 @@ export const inspectionDtoSchema = z.object({
   items: z.array(inspectionItemDtoSchema),
 });
 export type InspectionDto = z.infer<typeof inspectionDtoSchema>;
+
+// ── the roster's view of an inspection (D-AVI16) ─────────────────────────────────────────────────
+
+/**
+ * How far ahead counts as "expiring" for a vehicle's annual inspection.
+ *
+ * One number, one place. `DQ_ALERT_THRESHOLDS` is `[90, 60, 30, 14, 0]` for driver credentials
+ * because those are chased over months; equipment gets the single 30-day mark the owner asked for
+ * (2026-08-31). What matters is not the number but that the vehicles page, the trailers page and
+ * anything added later read it from here — "expiring" meaning two different things on two screens is
+ * the failure this constant exists to prevent.
+ */
+export const INSPECTION_EXPIRY_WARNING_DAYS = 30;
+
+export const INSPECTION_EXPIRY_STATES = ["valid", "expiring", "expired", "unknown"] as const;
+export type InspectionExpiryState = (typeof INSPECTION_EXPIRY_STATES)[number];
+
+export interface InspectionExpiry {
+  state: InspectionExpiryState;
+  /** Negative once overdue. Null when no inspection has been recorded. */
+  daysRemaining: number | null;
+  expiresOn: string | null;
+}
+
+/**
+ * What a piece of equipment's annual inspection status is on a given day.
+ *
+ * `today` is a parameter and not a clock read, for the reason `buildDqFile` gives: the question an
+ * auditor asks is "what did this say on the day of the incident", which a function that reads the
+ * wall clock cannot answer. It also makes this testable without freezing time.
+ *
+ * `unknown` rather than `expired` when there is no date. An empty column means nobody has recorded
+ * an inspection here — which may be a truck that arrived last week — and colouring that as overdue
+ * tells the office a compliance failure it has not actually established. Missing and lapsed are
+ * different facts and the roster shows them differently.
+ */
+export function inspectionExpiry(expiresOn: string | null | undefined, today: string): InspectionExpiry {
+  if (!expiresOn) return { state: "unknown", daysRemaining: null, expiresOn: null };
+  const days = daysBetween(today, expiresOn);
+  if (days < 0) return { state: "expired", daysRemaining: days, expiresOn };
+  if (days <= INSPECTION_EXPIRY_WARNING_DAYS) return { state: "expiring", daysRemaining: days, expiresOn };
+  return { state: "valid", daysRemaining: days, expiresOn };
+}
+
+/**
+ * Whole days from `from` to `to`, both `YYYY-MM-DD`. UTC midnight, so no timezone can shift it.
+ *
+ * ⚠ The `- 1` on the month is not decoration. `Date.UTC` takes a ZERO-indexed month, so spreading a
+ * parsed date straight in reads June as July — and because both ends shift, the difference stays
+ * right in most cases and goes wrong only across month boundaries of unequal length. The first
+ * draft of this function had exactly that bug and every obvious test passed: 2026-01-31 to
+ * 2026-02-28 came out as 25 days instead of 28.
+ */
+function daysBetween(from: string, to: string): number {
+  const at = (iso: string): number => {
+    const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((at(to) - at(from)) / 86_400_000);
+}

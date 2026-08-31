@@ -20,6 +20,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -89,6 +90,7 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
   { key: "assigned_vehicle_id", label: "Paired tractor", cellClass: "text-ink-secondary" },
+  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
   { key: "status", label: "Status", sortable: true },
 ];
 
@@ -248,6 +250,9 @@ async function onRetire(t: Trailer) {
       <template #cell-assigned_vehicle_id="{ row }">{{
         vehUnit(row.assigned_vehicle_id)
       }}</template>
+      <template #cell-dot_annual_inspection_expires_at="{ row }">
+        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
+      </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('equipment')">

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { INSPECTION_ITEMS, defaultInspectionItems } from "./annualInspectionCatalogue.js";
 import {
+  INSPECTION_EXPIRY_WARNING_DAYS,
   deriveInspectionOutcome,
+  inspectionExpiry,
   inspectionCreateSchema,
   inspectionDateSchema,
   nextInspectionDueDate,
@@ -193,5 +195,55 @@ describe("inspectionCreateSchema", () => {
   it("requires a client-generated id, so a retried submit cannot create a second report", () => {
     const { id: _drop, ...withoutId } = valid;
     expect(inspectionCreateSchema.safeParse(withoutId).success).toBe(false);
+  });
+});
+
+describe("inspectionExpiry — what the roster shows about a truck (D-AVI16)", () => {
+  const ON = "2026-06-16";
+
+  it("is valid while there is more than the warning window left", () => {
+    const r = inspectionExpiry("2027-06-16", ON);
+    expect(r.state).toBe("valid");
+    expect(r.daysRemaining).toBe(365);
+  });
+
+  it("warns from exactly 30 days out, not 29", () => {
+    // The boundary is the whole point of a threshold, and off-by-one here means a truck the office
+    // was told about on day 30 is silently not flagged.
+    expect(inspectionExpiry("2026-07-16", ON).state).toBe("expiring"); // 30 days
+    expect(inspectionExpiry("2026-07-17", ON).state).toBe("valid"); // 31
+    expect(INSPECTION_EXPIRY_WARNING_DAYS).toBe(30);
+  });
+
+  it("is expired the day AFTER it lapses, and counts how overdue", () => {
+    expect(inspectionExpiry(ON, ON).state).toBe("expiring"); // due today is not yet overdue
+    const r = inspectionExpiry("2026-06-15", ON);
+    expect(r.state).toBe("expired");
+    expect(r.daysRemaining).toBe(-1);
+  });
+
+  it("says UNKNOWN with no date rather than expired", () => {
+    // A truck that arrived last week has no inspection on file. Colouring that as overdue tells the
+    // office a compliance failure nobody has established — missing and lapsed are different facts.
+    for (const empty of [null, undefined, ""]) {
+      expect(inspectionExpiry(empty, ON).state, String(empty)).toBe("unknown");
+    }
+    expect(inspectionExpiry(null, ON).daysRemaining).toBeNull();
+  });
+
+  it("counts days correctly across months of unequal length", () => {
+    // The bug the first draft shipped: Date.UTC takes a ZERO-indexed month, so a straight spread
+    // read June as July. Both ends shifted, so most differences stayed right and only boundaries
+    // like this one went wrong — 25 days instead of 28.
+    expect(inspectionExpiry("2026-02-28", "2026-01-31").daysRemaining).toBe(28);
+    expect(inspectionExpiry("2029-03-01", "2029-02-28").daysRemaining).toBe(1);
+    expect(inspectionExpiry("2028-03-01", "2028-02-28").daysRemaining).toBe(2); // leap year
+  });
+
+  it("reads the same on any day of the year, because `today` is a parameter not a clock", () => {
+    // Same pair of dates, evaluated as if from three different days — no wall-clock dependency.
+    expect(inspectionExpiry("2027-01-01", "2026-12-02").state).toBe("expiring");
+    expect(inspectionExpiry("2027-01-01", "2026-11-01").state).toBe("valid");
+    expect(inspectionExpiry("2027-01-01", "2027-01-02").state).toBe("expired");
   });
 });

@@ -825,6 +825,64 @@ only so nobody mistakes `decal_serial` for the whole idea.
 
 ---
 
+## 8. Second pass — what the first one got wrong (B1–B5, opened 2026-08-31)
+
+The owner used A7's page and found four things. None is a polish item; the first makes the page
+unusable, and the second is a house convention I did not check for before writing copy.
+
+| # | Finding | Why it happened |
+| --- | --- | --- |
+| 1 | **No way to create an inspection.** The list and the form exist; nothing opens a new one. | A7's plan text described a list and a form and I built exactly that. A page whose only content is a list of things you cannot create is not a feature. |
+| 2 | **CFR citations in visible copy, and no filters.** | Measured after the fact: on every non-hazmat page in this product the § references live in HTML comments, never on screen — hazmat is the exception because the regulation IS its subject. And `FilterBar` was rendered with a count and no filters, which is the shell of the convention without the content. |
+| 3 | **The connection to vehicle documents is real but unplanned.** | A6 files into `documents` with `subject_type` tractor/trailer, so the content exists — but nothing says how the future truck-file page reads it, which is how a connection becomes a rediscovery. |
+| 4 | **No expiry visible where the fleet is read.** History exists (append-only, `supersedes_id`); nobody can see it per vehicle, and the roster pages show no expiry and no warning. | A6 projects `dot_annual_inspection_expires_at` onto the equipment row for exactly this and then nothing read it. A projection nothing reads is the same as no projection. |
+
+**D-AVI15 — the office's language, not the regulation's.** Visible copy names the thing an inspector
+would call it; the CFR reference lives in a comment beside the code that implements it. The
+regulation is why the field exists, not what the reader is doing. Hazmat is the standing exception
+and stays one.
+
+**D-AVI16 — a warning at 30 days.** `DQ_ALERT_THRESHOLDS` is `[90, 60, 30, 14, 0]` for driver
+credentials; equipment gets the single 30-day mark the owner asked for, computed by one shared
+function so the vehicles page, the trailers page and any later surface cannot disagree about what
+"expiring" means.
+
+### Steps
+
+- **B1 — the list can answer the questions a list is asked — DONE 2026-08-31 (PR #421).** Unit
+  number and inspector name on every row, plus search over unit / decal / inspector and filters for
+  status and result. The equipment is read in ONE batch through `roster`'s new
+  `getEquipmentIdentities` — the subject is polymorphic across two tables so PostgREST has no join
+  to offer, and 50 rows must not become 50 queries (pinned by a test). Search is applied in
+  TypeScript over the resolved page, because searching a column in another module's table is not
+  something one query can reach from here without a raw read the gates forbid; if that ever needs to
+  be a database concern it becomes an RPC `roster` owns.
+- **B2 — the page follows the conventions — DONE 2026-08-31 (PR #421).** Create action in
+  `PageHeader`'s `#actions` behind `session.can("maintenance")`, a `NewInspectionModal` asking only
+  which machine / who / what date, real `FilterSelect`s in `FilterBar`, and **no § in anything a
+  person reads** (D-AVI15) — the citations moved into comments beside the code that implements them,
+  and a test asserts the item row renders no `§` and no `App. A`. The form's copy went with it:
+  "certify" became "complete", "component" became "part".
+- **B3 — the inspector register gets a surface** (closes §6 Q8). Without it B2's create cannot pick
+  an inspector, so this is not optional.
+- **B4 — expiry on the vehicles and trailers pages — DONE 2026-08-31 (PR #421).** One
+  `InspectionExpiryCell` on both pages over `inspectionExpiry()` in `@silvicom/shared`, so the two
+  screens cannot disagree about what "expiring" means. Reads the column A6 was already projecting
+  and nothing had read. **No date reads as "Not recorded", never as overdue** — a truck that arrived
+  last week has no inspection on file, and colouring that red reports a compliance failure nobody
+  established.
+
+  ⚠ **A real bug, caught by writing the test rather than by review.** `daysBetween` spread a parsed
+  date straight into `Date.UTC`, which takes a ZERO-indexed month — so June read as July. Both ends
+  shifted, so most differences stayed correct and only boundaries between months of unequal length
+  went wrong: 2026-01-31 → 2026-02-28 came out as **25 days instead of 28**. It is pinned now, along
+  with the 30-day boundary itself and both leap-year cases.
+- **B5 — A8 after all.** The owner ruled on 2026-08-31 that the truck copy is printed onto the
+  pre-printed pads, so the calibration is built: an offset store, a registration sheet to measure it
+  with, and the values-only render A5 already emits.
+
+---
+
 ## 7. What shipped
 
 *(Nothing yet. One dated subsection per PR, as steps land.)*

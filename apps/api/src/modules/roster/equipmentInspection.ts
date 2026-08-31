@@ -45,6 +45,33 @@ export async function getEquipmentIdentity(
 }
 
 /**
+ * The same identity for a page full of them.
+ *
+ * The inspection list shows a unit number per row and `subject_id` is a uuid, which is not something
+ * anybody can read. PostgREST cannot join it — the subject is polymorphic across two tables (the
+ * `documents` precedent) — so the caller reads the ids it has and maps them here, once, rather than
+ * once per row.
+ */
+export async function getEquipmentIdentities(
+  admin: SupabaseClient,
+  orgId: string,
+  subjectType: InspectionSubjectType,
+  ids: readonly string[],
+): Promise<Map<string, EquipmentIdentity> | EquipmentError> {
+  if (ids.length === 0) return new Map();
+  const unique = [...new Set(ids)];
+  const { data, error } =
+    subjectType === "tractor"
+      ? await admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("id", unique)
+      : await admin.from("trailers").select("id, unit_number, vin, plate").eq("org_id", orgId).in("id", unique);
+  if (error) return { error: "Could not load the equipment records", code: "db_error" };
+  const rows = (data ?? []) as Array<{ id: string; unit_number: string; vin: string | null; plate: string | null }>;
+  return new Map(
+    rows.map((r) => [r.id, { id: r.id, unitNumber: r.unit_number, vin: r.vin, plate: r.plate }] as const),
+  );
+}
+
+/**
  * Project a finalized inspection's expiry onto the equipment row, and CLAIM the row while doing it.
  *
  * ── THE CLAIM IS THE WHOLE POINT, AND IT IS EASY TO GET WRONG ──────────────────────────────────

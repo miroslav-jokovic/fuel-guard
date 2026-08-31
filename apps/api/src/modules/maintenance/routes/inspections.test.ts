@@ -73,6 +73,8 @@ const draftReport = (status: "draft" | "final" = "draft") => ({
   inspector_id: INSPECTOR,
   inspected_on: "2026-06-16",
   catalogue_version: "1.0.0",
+  // The serial off the §396.17(c)(2) decal, because the list is searched by it.
+  decal_serial: "610641628",
   status,
   outcome: status === "final" ? "pass" : null,
 });
@@ -250,6 +252,73 @@ describe("patching a draft", () => {
     const reads = rec.forTable("vehicle_inspections").filter((q) => !q.write);
     // One read to check the status, one to answer with what the database now holds.
     expect(reads.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("the list answers what a list is asked (B1)", () => {
+  const listRec = () =>
+    createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: [draftReport(), { ...draftReport(), id: "other", subject_id: "22222222-2222-4222-8222-99999999999a" }],
+        maintenance_inspectors: [QUALIFIED_INSPECTOR],
+        vehicles: [
+          { id: VEHICLE, unit_number: "654", vin: "3AKJHHDR7RSUX1186", plate: "IL 1234" },
+          { id: "22222222-2222-4222-8222-99999999999a", unit_number: "789", vin: null, plate: null },
+        ],
+      },
+    });
+
+  it("resolves the unit number and the inspector's name — a uuid is not readable", async () => {
+    rec = listRec();
+    const body = await withServer(async (base) => {
+      const r = await fetch(`${base}/api/maintenance/inspections`);
+      return (await r.json()) as { inspections: Array<{ unit_number: string | null; inspector_name: string | null }> };
+    });
+    expect(body.inspections.map((i) => i.unit_number).sort()).toEqual(["654", "789"]);
+    expect(body.inspections[0]!.inspector_name).toBe("George Gacev");
+  });
+
+  it("reads the equipment in ONE batch, not once per row", async () => {
+    rec = listRec();
+    await withServer(async (base) => fetch(`${base}/api/maintenance/inspections`));
+    // Two reports, two vehicles, one read — the property that stops a 50-row page issuing 50 queries.
+    expect(rec.forTable("vehicles")).toHaveLength(1);
+    expect(rec.forTable("maintenance_inspectors")).toHaveLength(1);
+  });
+
+  it("searches by unit number, and counts what the reader is looking at", async () => {
+    rec = listRec();
+    const body = await withServer(async (base) => {
+      const r = await fetch(`${base}/api/maintenance/inspections?q=789`);
+      return (await r.json()) as { inspections: unknown[]; total: number };
+    });
+    expect(body.inspections).toHaveLength(1);
+    // Not the unfiltered total — reporting that beside a filtered list tells somebody a search found
+    // nothing when it found one.
+    expect(body.total).toBe(1);
+  });
+
+  it("searches by decal serial and by inspector, because those are the other two things known", async () => {
+    for (const q of ["610641628", "gacev"]) {
+      rec = listRec();
+      const body = await withServer(async (base) => {
+        const r = await fetch(`${base}/api/maintenance/inspections?q=${q}`);
+        return (await r.json()) as { inspections: unknown[] };
+      });
+      expect(body.inspections.length, q).toBeGreaterThan(0);
+    }
+  });
+
+  it("filters by outcome", async () => {
+    rec = listRec();
+    await withServer(async (base) => fetch(`${base}/api/maintenance/inspections?outcome=fail`));
+    expect(rec.queries[0]!.filters()).toContainEqual({ col: "outcome", val: "fail" });
+  });
+
+  it("org-scopes the equipment and inspector reads too, not only its own table", async () => {
+    rec = listRec();
+    await withServer(async (base) => fetch(`${base}/api/maintenance/inspections`));
+    expectOrgScoped(rec, ORG);
   });
 });
 
