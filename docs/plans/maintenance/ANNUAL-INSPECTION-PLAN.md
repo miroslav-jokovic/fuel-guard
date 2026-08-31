@@ -591,8 +591,18 @@ FILE rather than in the product, and the Illustrator round trip that produced ou
 them. But §396.21(a)(2) requires the report to identify the carrier and §396.17(c)(2) requires the
 decal to name the address **where the report is maintained** — the officer's route from a sticker to
 a filing cabinet. So migration **0282** adds it (0152's precedent: it added `dot_number` to the same
-table for the DQ binder's cover), `org` gains a `getCarrierIdentity`/`setCarrierIdentity` interface
-and `/api/org/carrier` gated on `settings`, and **finalize refuses a report whose carrier block is
+table for the DQ binder's cover) and **finalize refuses a report whose carrier block is
+incomplete, naming the missing fields.**
+
+**⚠ A6 shipped a second writer, corrected the same day.** It also added `setCarrierIdentity` and a
+`PATCH /api/org/carrier` route so the address could be entered — without checking whether the
+product already had somewhere to edit the carrier. It did: `/settings/org` has written `name` and
+`dot_number` for a year through `useOrgSettings` and `orgSettingsFormSchema`, and the address is
+`dot_number`'s exact sibling. Two endpoints writing the same columns is a second source of truth,
+and a form saving half its fields one way and half the other is worse than either consistent
+option. The route and the setter were deleted, the four columns joined their siblings on the
+existing path, and `org` kept only `getCarrierIdentity` — the read `maintenance` genuinely needs
+and cannot get another way.
 incomplete, naming the missing fields.** Not scope creep: a report without it does not say what
 §396.21(a) requires.
 

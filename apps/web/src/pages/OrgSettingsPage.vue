@@ -17,6 +17,10 @@ const save = useSaveOrgSettings();
 const form = reactive({
   name: "",
   dotNumber: "",
+  addressLine1: "",
+  city: "",
+  state: "",
+  postalCode: "",
   allowedDomains: "",
   open24_7: false,
   start: "05:00",
@@ -32,6 +36,10 @@ watch(
     if (!o) return;
     form.name = o.name;
     form.dotNumber = o.dot_number ?? "";
+    form.addressLine1 = o.address_line1 ?? "";
+    form.city = o.city ?? "";
+    form.state = o.state ?? "";
+    form.postalCode = o.postal_code ?? "";
     form.allowedDomains = (o.allowed_domains ?? []).join(", ");
     const oStart = o.operating_hours?.start ?? "05:00";
     const oEnd = o.operating_hours?.end ?? "20:00";
@@ -60,6 +68,10 @@ async function onSave() {
   const result = orgSettingsFormSchema.safeParse({
     name: form.name,
     dot_number: form.dotNumber.trim(),
+    address_line1: form.addressLine1.trim(),
+    city: form.city.trim(),
+    state: form.state.trim(),
+    postal_code: form.postalCode.trim(),
     allowed_domains: domains,
     // 24/7 is encoded as start === end (the off-hours rule then never fires).
     operating_hours: form.open24_7
@@ -112,6 +124,27 @@ async function onSave() {
             :invalid="Boolean(fieldErr.dot_number)"
           />
         </FormField>
+        <FormField
+          v-slot="{ id }"
+          class="mt-4"
+          label="Street address"
+          hint="Printed on the §396.17 annual inspection report, and on the decal that goes on the vehicle — §396.17(c)(2) makes it how a roadside officer finds the report behind a sticker."
+          :error="fieldErr.address_line1"
+        >
+          <BaseInput :id="id" v-model="form.addressLine1" placeholder="1301 Armitage Ave" :invalid="Boolean(fieldErr.address_line1)" />
+        </FormField>
+        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField v-slot="{ id }" label="City" :error="fieldErr.city">
+            <BaseInput :id="id" v-model="form.city" placeholder="Melrose Park" :invalid="Boolean(fieldErr.city)" />
+          </FormField>
+          <FormField v-slot="{ id }" label="State" :error="fieldErr.state">
+            <BaseInput :id="id" v-model="form.state" placeholder="IL" :invalid="Boolean(fieldErr.state)" />
+          </FormField>
+          <FormField v-slot="{ id }" label="ZIP" :error="fieldErr.postal_code">
+            <BaseInput :id="id" v-model="form.postalCode" placeholder="60160" :invalid="Boolean(fieldErr.postal_code)" />
+          </FormField>
+        </div>
+
         <FormField
           v-slot="{ id }"
           class="mt-4"

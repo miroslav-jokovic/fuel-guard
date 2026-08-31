@@ -25,7 +25,7 @@ import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
 import { billingRouter } from "./modules/billing/index.js";
 import { maintenanceRouter } from "./modules/maintenance/index.js";
-import { auditRouter, carrierRouter } from "./modules/org/index.js";
+import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { tmsRosterMasterRouter } from "./modules/mcleod/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
@@ -250,7 +250,6 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/ifta", iftaRouter());
   mountFinanceRouters(app);
   app.use("/api/audit", auditRouter());
-  app.use("/api/org/carrier", carrierRouter());
   app.use("/api/integrations", integrationsRouter());
   // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
   app.use("/api/integrations", tmsRosterMasterRouter());

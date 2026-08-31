@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
 const COLS =
-  "id, name, dot_number, allowed_domains, operating_hours, notification_emails, notifications_enabled";
+  "id, name, dot_number, address_line1, city, state, postal_code, allowed_domains, operating_hours, notification_emails, notifications_enabled";
 
 export function useOrgSettingsQuery() {
   return useQuery({
@@ -30,6 +30,12 @@ export function useSaveOrgSettings() {
           // Empty means "not recorded", and null is how the column says that — an empty string would
           // print as a blank USDOT line on every binder cover rather than as an honest absence.
           dot_number: form.dot_number ? form.dot_number : null,
+          // Same rule, same reason: empty means "not recorded", and the annual inspection says so by
+          // refusing to certify rather than printing a blank carrier block (0282, §396.21(a)(2)).
+          address_line1: form.address_line1 ? form.address_line1 : null,
+          city: form.city ? form.city : null,
+          state: form.state ? form.state : null,
+          postal_code: form.postal_code ? form.postal_code : null,
           operating_hours: form.operating_hours,
           notification_emails: form.notification_emails,
           notifications_enabled: form.notifications_enabled,

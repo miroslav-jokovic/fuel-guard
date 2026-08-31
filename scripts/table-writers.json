@@ -313,7 +313,6 @@
     "apps/admin-api/src/lib/orgs.ts"
   ],
   "organizations": [
-    "apps/api/src/modules/org/carrierIdentity.ts",
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
   ],

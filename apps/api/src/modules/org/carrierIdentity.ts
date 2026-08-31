@@ -71,32 +71,16 @@ export function carrierCityStateZip(carrier: CarrierIdentity): string | null {
   return `${carrier.city ?? ""} ${carrier.state ?? ""} , ${carrier.postalCode ?? ""}`.trim();
 }
 
-export interface CarrierIdentityInput {
-  addressLine1?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
-  dotNumber?: string | null;
-}
-
 /**
- * Set the carrier's address. Deliberately does NOT touch `name` — an organisation's name is its
- * identity across the whole product, and renaming it from a compliance settings form is a different
- * decision from correcting a ZIP code.
+ * ── THERE IS NO SETTER HERE, AND THAT IS THE SECOND ANSWER TO THIS QUESTION ────────────────────
+ * A6 shipped one, along with a `PATCH /api/org/carrier` route, without checking whether the product
+ * already had somewhere to edit the carrier. It did: `/settings/org` has written `name` and
+ * `dot_number` for a year, through `useOrgSettings` and `orgSettingsFormSchema`. The address is
+ * `dot_number`'s exact sibling — same table, same reader, same reason it is recorded — so a second
+ * endpoint writing the same columns was a second source of truth, and a form that saved half its
+ * fields one way and half the other would have been worse than either.
+ *
+ * So the write went where its siblings already live and this file kept only the READ, which is the
+ * part `maintenance` genuinely needs and cannot get any other way (D-ARC3: readers outside the owner
+ * go through the owner's interface).
  */
-export async function setCarrierIdentity(
-  admin: SupabaseClient,
-  orgId: string,
-  input: CarrierIdentityInput,
-): Promise<{ ok: true } | CarrierIdentityError> {
-  const patch: Record<string, unknown> = {};
-  if ("addressLine1" in input) patch.address_line1 = input.addressLine1 ?? null;
-  if ("city" in input) patch.city = input.city ?? null;
-  if ("state" in input) patch.state = input.state ?? null;
-  if ("postalCode" in input) patch.postal_code = input.postalCode ?? null;
-  if ("dotNumber" in input) patch.dot_number = input.dotNumber ?? null;
-  if (Object.keys(patch).length === 0) return { ok: true };
-  const { error } = await admin.from("organizations").update(patch).eq("id", orgId);
-  if (error) return { error: "Could not save the carrier record", code: "update_failed" };
-  return { ok: true };
-}
