@@ -18,7 +18,10 @@ signing. That is the difference between a faster PDF editor and a compliance rec
 
 **Status: A0 shipped 2026-08-31 (PR #410). A1 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
-a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs. §1's measurements are the pre-A0 baseline, taken
+a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
+§2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
+were added the same day: the form opens pre-filled, the PDF does not exist until finalize, and the
+inspector can preview the page before signing it. §1's measurements are the pre-A0 baseline, taken
 against production and `origin/main` at `ace8f80`. §7 is the register.
 
 Decision IDs are `D-AVI*`. Steps are `A0`–`A8`.
@@ -151,6 +154,27 @@ reason written down:
 | `certifications` (`kind='annual_inspection'`) | `evidence` | *Is this unit currently inspected, and until when?* Append-only, auto-superseding, already the mechanism §391 uses. |
 | `vehicles`/`trailers.dot_annual_inspection_expires_at` | `roster` | *A list column, fast to read.* A **projection**, per D-ARC3's ruling that `certifications` is the source and the denormalised column is the copy. |
 
+### 2.5 Precision, measured — the stamping spike (2026-08-31)
+
+D-AVI7 makes the render a registration problem, so it was measured rather than assumed. The spike
+loaded the sample with **pdf-lib 1.17.1** (already a dependency), stamped values at converted
+coordinates, and rendered the result at 400 dpi against the original marks. Everything below is an
+observation, not a plan.
+
+| Finding | Value | Why it matters |
+| --- | --- | --- |
+| MediaBox = CropBox, rotation 0 | `(0, 0, 612, 846)` both | No box offset and no rotation to unwind. The conversion is the clean case. |
+| Origin conversion | pdftotext measures **top-down**, pdf-lib draws **bottom-up** | `y_pdf = 846 − y_top`. Getting this backwards is the whole class of "everything is mirrored" bug. |
+| Baseline conversion | `y_baseline = H − yMax + 0.207 × size` | `H − yMax` alone lands the text one descender **too low** — verified visually, then corrected. `0.207` is Helvetica's AFM descender. With it, the stamped mark sits exactly on the original. |
+| The sample's own typeface | **Helvetica ≈ 8 pt** | Mean width delta between poppler's boxes and `widthOfTextAtSize(…, 8)` across all 57 marks: **−0.014 pt**. Our output is indistinguishable from what the office produces today. |
+| ✔ / ✓ / ✗ | **pdf-lib throws**: `WinAnsi cannot encode "✔" (0x2714)` | The standard fonts are WinAnsi — see `lib/pdfDraw.ts`'s `winAnsi()` header for the same compromise. Marks are the literal text `Ok` / `X` / `N/A`, which is what the office types anyway. **Resolves Q2.** |
+| Repaired-date cell | ~35.2 pt wide; `06/16/2026` at 8 pt is **40.03 pt** | A four-digit year **overflows into the item text**. `06/16/26` is 31.14 pt and fits. Every mapped field carries a `maxWidth`; the renderer shrinks to fit down to a floor and a test asserts no overflow. |
+| Template internals | 3 AcroForm text fields, 9 annotations, 57 marks | The carrier/address/city fields are real form fields — fill them then `form.flatten()`, or a viewer can edit the carrier name on a filed report. And 57 marks against 24 annotation objects means most values are flattened into the content stream: **Q5 stands, we need a genuine blank.** |
+
+The consequence for A5 is that the coordinate map is expressed as **cells with a `maxWidth`**, not as
+bare points, and the renderer computes the baseline from the cell rather than from where anyone
+happened to type. That is what makes the placement test a measurement instead of an eyeball.
+
 ---
 
 ## 3. Decisions
@@ -168,7 +192,9 @@ reason written down:
 | **D-AVI9** | The `certifications` row is the **source of truth** for the expiry; the `vehicles`/`trailers` column is a projection roster maintains, and finalize claims the row to `identity_source='manual'`. | §1.1 and §2.4. D-ARC3's CDL/medical ruling, applied before the dual source exists rather than after. |
 | **D-AVI10** | Maintenance **never writes** `documents`, `certifications`, `vehicles` or `trailers` directly. `evidence` and `roster` each gain one exported owner-interface function. | D-ARC3, machine-enforced by `check-table-writers.mjs` and `check-table-access.mjs`. |
 | **D-AVI11** | New role **`technician`**: `maintenance: manage`, `equipment: view`, everything else `none`. | The recruiter and accountant lesson applied on day one — minimal irreversible surface. ⚠ One-way door: Postgres has no `ALTER TYPE … DROP VALUE` (0266's header). |
-| **D-AVI12** | Trailers are in scope from day one. | §396.17 applies to them, and the subject type, the expiry column and the document kind already exist. Excluding them would guarantee a second half-feature later. |
+| **D-AVI12** | Trailers are in scope from day one, on the **same 14834 template** with the `TRAILER` box stamped instead of `TRACTOR` (owner confirmed 2026-08-31). One asset, one coordinate map; the item sets and the list views are what separate. | §396.17 applies to them; the subject type, the expiry column and the document kind already exist; and the form's own `VEHICLE TYPE` row carries TRACTOR / TRAILER / TRUCK / BUS. Separating trucks from trailers is a catalogue and a view concern (D-AVI2), not a second template. |
+| **D-AVI13** | **The form is pre-filled; the PDF is not.** The web form opens with every item pre-set to the template default for that vehicle type, and the inspector checks or unchecks as they work. No PDF exists until finalize. Each item stores a `source` of `default` or `inspector`. | The owner's ruling, restated 2026-08-31 after the audit exposure was named: the defaults are a convenience for the person doing the work, and nothing is certified until they confirm. The `source` column costs nothing, changes no screen, and is the difference between a record that can answer "was this item actually looked at" and one that cannot. |
+| **D-AVI14** | **Print preview before finalize.** The same renderer, the same coordinate map, marked `DRAFT — NOT A CERTIFIED INSPECTION`, rendered on demand and **never stored**. | The inspector should see the page they are signing before they sign it. It must be the same code path as the final render, or the preview is a second implementation that can disagree with the thing it previews. |
 
 ---
 
@@ -228,8 +254,15 @@ row names the tables; a fresh session can execute §4's resume ritual from this 
 ### A1 — The catalogue and the contract (`packages/shared`; no DB, no API)
 
 - `packages/shared/src/annualInspectionCatalogue.ts` — `INSPECTION_CATALOGUE_VERSION` and the 15
-  Appendix A groups with their sub-items, each `{ key, group, label, cfr, appliesTo, defaultNa }`.
-  Item keys are stable and never reused (`brake.service_brakes`, `rear_impact_guard.present`, …).
+  Appendix A groups with their sub-items, each
+  `{ key, group, label, cfr, appliesTo, defaultResult }`. Item keys are stable and never reused
+  (`brake.service_brakes`, `rear_impact_guard.present`, …).
+- `defaultResult` per vehicle type is what D-AVI13 opens the form with, transcribed from the
+  sample: on a tractor, `na` for electric/hydraulic/vacuum brakes, pintle hooks, drawbar tongue,
+  saddle-mounts, bus exhaust, intermodal securement, adjustable axle, speed-restricted tires, lock
+  rings, welds, motorcoach seats and rear impact guard; `ok` for the rest. Trailers invert the
+  coupling/steering groups against the rear-impact-guard one. **This is form state, never report
+  state** — nothing reaches a PDF until finalize.
 - `packages/shared/src/annualInspectionContract.ts` — zod schemas for the draft, patch and finalize
   requests and the response DTOs, plus the **pure** `deriveInspectionOutcome(items, catalogue)`
   (D-AVI3) and `nextDueDate(inspectedOn)`.
@@ -275,8 +308,10 @@ Prerequisite: A2 (the policies name the role).
   created_at/by`. Partial unique index on `(org_id, stock_serial) where stock_serial is not null` —
   one carbonless set cannot be recorded twice.
 - **`vehicle_inspection_items`** — `id, org_id, inspection_id → vehicle_inspections on delete
-  cascade, item_key, result check ('ok','needs_repair','na'), repaired_at date, note`. Unique
-  `(inspection_id, item_key)`.
+  cascade, item_key, result check ('ok','needs_repair','na'), source check ('default','inspector')
+  not null default 'default', repaired_at date, note`. Unique `(inspection_id, item_key)`.
+  `source` is D-AVI13's one-column cost: the form opens pre-filled, and this is what lets the record
+  distinguish an item the inspector touched from one that carried its default through.
 - RLS on all three, role lists **derived** from the maintenance section (see §4's gate note).
 - D-AVI4 immutability: a `before update` trigger rejecting any change to a row whose `status` is
   already `final`, other than the `supersedes_id` back-reference.
@@ -304,6 +339,9 @@ GET  /api/maintenance/inspectors          POST  /api/maintenance/inspectors
 GET  /api/maintenance/inspections         POST  /api/maintenance/inspections      (client uuid)
 GET  /api/maintenance/inspections/:id     PATCH /api/maintenance/inspections/:id  (draft only)
 ```
+
+A5 adds `GET /api/maintenance/inspections/:id/preview.pdf` (D-AVI14, draft-only, never stored) and
+A6 adds `POST /api/maintenance/inspections/:id/finalize` plus `GET …/report.pdf`.
 
 Idioms from `maintenance/routes/index.ts`: `requireAuth` on the router, `requireOrg`,
 `requireRole(...rolesThatManage('maintenance'))` on writes and `...rolesThatCanView` on reads,
@@ -340,17 +378,36 @@ One renderer, one coordinate map, a `background` switch (D-AVI7 as amended).
   - `background: 'template'` → the stored evidence, and what prints on plain paper.
   - `background: 'none'` → an empty 612 × 846 page with the same values at the same coordinates,
     for printing onto pre-printed stock (A8).
+  - `draft: true` → the preview of D-AVI14: identical placement, plus a `DRAFT — NOT A CERTIFIED
+    INSPECTION` mark. Rendered on demand, never stored, never filed.
+- **The measured constants** (§2.5), which belong in the map's header and not in anyone's memory:
+  baseline is `y = 846 − yTop + 0.207 × size`; the body face is Helvetica at 8 pt; marks are the
+  literal `Ok` / `X` / `N/A` because WinAnsi cannot encode a tick; repair dates render `MM/DD/YY`
+  because a four-digit year overflows its cell by 4.8 pt.
+- **The three AcroForm fields** (carrier, address, city/state/zip) are filled from the organisation
+  record and then `form.flatten()`ed, so a filed report cannot be edited in a viewer.
+- **The `VEHICLE TYPE` row** is stamped from the subject: `TRACTOR` or `TRAILER` (D-AVI12).
 - **Provenance.** A footer line carrying the catalogue version, the template revision, the renderer
   version and the **source payload digest** — the `applicationPdf/render.ts` precedent, since a
   document cannot contain its own hash. Place it in the form's own margin, never over the artwork.
 
-**Done when:** a golden test renders a fixture in both `background` modes and asserts every
-§396.21(a)(1)–(6) element and every failing item's label is present in the extracted text; a
-**bijection test** asserts the map and the catalogue cover each other exactly — every applicable
-catalogue item has a coordinate and every coordinate has an item, so a Keller revision fails the
-build instead of silently printing a blank cell; rendering is deterministic (same payload + same
-versions → byte-identical output across two renders, asserted as a hash equality); `lint:filesize`
-and `lint:funcsize` pass with no grandfather entry added.
+**Done when — four machine-checked properties, none of them an eyeball:**
+
+1. **Bijection.** The map and the catalogue cover each other exactly: every applicable catalogue item
+   has a cell, every cell has an item. A Keller revision then fails the build instead of silently
+   printing a blank cell.
+2. **Fit.** For every field, `font.widthOfTextAtSize(value, size) <= cell.maxWidth` across a fixture
+   set that includes the longest realistic value of each kind — the longest inspector name, a
+   repair date, a full VIN. This is the test that would have caught the 4.8 pt date overflow §2.5
+   found by measuring rather than by looking.
+3. **No collision.** No two cells in the map overlap, asserted over the rectangles.
+4. **Determinism.** The same payload and the same catalogue/template/renderer versions produce
+   byte-identical output across two renders, asserted as a hash equality.
+
+Plus: a golden test asserting every §396.21(a)(1)–(6) element and every failing item's label appears
+in the rendered text; `draft: true` differs from the final **only** by the draft mark, asserted by
+rendering both and diffing the extracted text; `lint:filesize` and `lint:funcsize` pass with no
+grandfather entry added.
 
 ### A6 — Finalize: derive, render, file, project
 
@@ -393,13 +450,21 @@ Prerequisites: A4, A5, A6.
   mutations invalidating the list key), `InspectionItemRow.vue`, `InspectionGroup.vue`,
   `InspectorPicker.vue`. Pages `AnnualInspectionsPage.vue` (the `MaintenanceSpendPage.vue` shape:
   `PageHeader` + `FilterBar` + `DataTable` + `TablePagination`) and `AnnualInspectionFormPage.vue`.
-- The form uses the `DriverForm.vue` idiom. Per item a three-state OK / Repair / N/A control; the
-  repaired-date field appears only on `needs_repair`. A sticky summary ("48 of 61 set · 2 open
-  defects") and a **derived, non-editable** pass/fail banner reading the same shared function the
+- The form uses the `DriverForm.vue` idiom. Per item a three-state OK / Repair / N/A control,
+  **opening on the catalogue's `defaultResult` for that vehicle type** (D-AVI13); the repaired-date
+  field appears only on `needs_repair`. A sticky summary ("2 open defects · 9 items still on their
+  default") and a **derived, non-editable** pass/fail banner reading the same shared function the
   API uses. Draft autosave; finalize behind a confirm dialog that states in words what is being
   certified.
-- Print opens `GET …/report.pdf?mode=full`. **Not** print-CSS: the app's only `@media print` block
-  (`style.css:258`) exists for modals and is the wrong tool for a filed document.
+- **Trucks and trailers are separated in the view, not just in the data** (D-AVI12): the list has a
+  tractor tab and a trailer tab, and the form renders only the items that apply to the subject —
+  a tractor's form never shows a rear impact guard, a trailer's never shows a fifth wheel.
+- **Print preview** (D-AVI14): a Preview action opens `…/preview.pdf` — the real page, the real
+  coordinates, marked DRAFT — so the inspector sees what they are signing before they sign it.
+- Print opens `GET …/report.pdf`, which serves the **stored** bytes for a finalized report rather
+  than re-rendering — a filed document is not regenerated on the way to a printer. **Not**
+  print-CSS: the app's only `@media print` block (`style.css:258`) exists for modals and is the
+  wrong tool here.
 
 **Done when:** an inspector can complete a report end to end using the keyboard alone; the pass/fail
 banner provably calls the shared `deriveInspectionOutcome` with no second implementation;
@@ -447,10 +512,14 @@ typed, it is a carrier-assigned report number and we should generate it.
 **Recommendation:** model it as `stock_serial` (nullable, unique when present) and confirm against a
 blank pad before A8.
 
-**Q2 — Overlay mark convention: `✔` / `X` / `NA` per the form's own instruction line, or the literal
-`Ok` / `N/A` typed today?** *(blocks A8)*
-**Recommendation:** the form's instruction line, with the convention as a field on the layout file so
-it is a one-line change either way.
+~~**Q2 — Overlay mark convention: `✔` / `X` / `NA`, or the literal `Ok` / `N/A` typed today?**~~
+**ANSWERED 2026-08-31 by measurement (§2.5), not by preference.** pdf-lib's standard fonts are
+WinAnsi and **throw** on `✔` (0x2714), `✓` (0x2713) and `✗` (0x2717) — the same constraint
+`lib/pdfDraw.ts`'s `winAnsi()` header documents. A tick mark would need either an embedded Unicode
+font (a font binary and its licence in the repo, for three glyphs) or a hand-drawn vector path. The
+office already types `Ok` / `N/A`, so the convention is the literal text `Ok` / `X` / `N/A`, which
+costs nothing and matches every previous year's page. The convention stays a field on the layout
+file in case a future template needs a drawn glyph.
 
 **Q3 — Capture odometer and engine hours at inspection?** *(blocks A3 if yes)*
 Not required by §396.21 and not on the form, so it is scope widening — but it is the natural join to
