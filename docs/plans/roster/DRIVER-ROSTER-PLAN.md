@@ -425,7 +425,7 @@ Prerequisites: R1 (or the columns will render the disagreement), R2, R3.
 
 #### R4a — the three expiry columns — **DONE 2026-08-31 (PR #401, no migration)**
 
-#### R4b — the rollup filters, and the built-in view catalogue they unblock — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R4b — the rollup filters, and the built-in view catalogue they unblock — **DONE 2026-08-31 (PR #402, no migration)**
 
 The filters R3c-2 recorded as missing: expiry horizon and qualification state as query parameters,
 so `BUILT_IN_VIEWS` in `packages/shared/src/savedViewContract.ts` becomes expressible and lands as a
@@ -934,7 +934,7 @@ inverting `urgent`. It now asserts on `rounded-detail`, which is what "this is a
 `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`,
 `lint:tests`, `lint:migrations`, `lint:upserts`, `lint:table-writers`.
 
-### R4b — the qualification filters, and the views they make real — 2026-08-31, PR #PENDING, no migration
+### R4b — the qualification filters, and the views they make real — 2026-08-31, PR #402, no migration
 
 `dqFleetFilter.ts` + `BUILT_IN_VIEWS` (shared), `dq` / `due` / `req` on the roster,
 `QualificationFleetTable` refactored onto the shared predicate.
