@@ -389,7 +389,7 @@ office does with a filtered roster, send it to somebody, was impossible.
 
 ##### R3c-1 — the roster's filters move into the URL — **DONE 2026-08-30 (PR #399, no migration)**
 
-##### R3c-2 — saved views themselves — **DONE 2026-08-30 (PR #PENDING, migration 0278)**
+##### R3c-2 — saved views themselves — **DONE 2026-08-30 (PR #400, migration 0278)**
 
 - `packages/shared` — the built-in catalogue per table, and the contract for a saved view.
 - One migration: `saved_views` (module `org`, layer `core`), `primary key (user_id, table_id, name)`,
@@ -788,7 +788,7 @@ if CI shows it again, it is real.
 `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:table-writers`,
 `pnpm test`. The page-reset rule and the URL-normalisation rules were each proven able to fail.
 
-### R3c-2 — saved views — 2026-08-30, PR #PENDING, **migration 0278**
+### R3c-2 — saved views — 2026-08-30, PR #400, **migration 0278**
 
 `savedViewContract.ts` (shared), `0278_saved_views.sql`, `savedViews.ts` + tests (api),
 `useSavedViews.ts` + `SavedViewMenu.vue` (web), `supabase/tests/saved-views.test.mjs` (15 cases).
