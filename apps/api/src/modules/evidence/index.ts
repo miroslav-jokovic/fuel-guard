@@ -18,6 +18,10 @@
  * says the `drivers.cdl_*` columns become a projection of it at the roster carve-out.
  */
 export { registerDocument, listDocuments } from "./compliance.js";
+// The TMS-sourced licence and medical card, filed as evidence rather than only as roster columns —
+// D-ARC3's dual-source finding closed at the seam the McLeod sweep would otherwise have widened.
+export { recordSyncedCredentials, SYNC_NOTE } from "./syncedCredentials.js";
+export type { SyncedCredentialInput, SyncedCredentialResult } from "./syncedCredentials.js";
 export { getComplianceOverview } from "./complianceOverview.js";
 export { deriveDocument, DERIVER_VERSION } from "./documentDerivatives.js";
 export { buildBinder } from "./dqBinder/index.js";
