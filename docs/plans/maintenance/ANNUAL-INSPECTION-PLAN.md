@@ -912,7 +912,7 @@ connection has been missed — all four rows above are already written by finali
 today. The one thing genuinely absent is a per-unit VIEW, and that belongs to the truck-file plan
 rather than here: it is the same list this section already renders, filtered to one `subject_id`.
 
-- **B5 — A8, built — DONE 2026-08-31 (PR #NNN, migration 0283).** The owner reversed the earlier
+- **B5 — A8, built — DONE 2026-08-31 (PR #423, migration 0283).** The owner reversed the earlier
   ruling: the truck copy is printed onto the pre-printed pads, so the calibration exists.
 
   `maintenance_print_profiles` stores an offset **per printer** — registration is a property of the
