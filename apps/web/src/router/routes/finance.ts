@@ -42,12 +42,12 @@ export const financeRoutes: RouteRecordRaw[] = [
     path: "/shop/inspections",
     name: "annual-inspections",
     component: () => import("@/pages/AnnualInspectionsPage.vue"),
-    meta: { requiresAuth: true, title: "Annual inspections", parent: "shop" },
+    meta: { requiresAuth: true, title: "Annual inspections", parent: "/shop" },
   },
   {
     path: "/shop/inspections/:id",
     name: "annual-inspection",
     component: () => import("@/pages/AnnualInspectionFormPage.vue"),
-    meta: { requiresAuth: true, title: "Annual inspection", parent: "annual-inspections" },
+    meta: { requiresAuth: true, title: "Annual inspection", parent: "/shop/inspections" },
   },
 ];
