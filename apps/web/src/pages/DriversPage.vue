@@ -15,15 +15,18 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppSelect } from "@silvicom/ui";
 import DriverForm from "@/features/roster/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { useDriverReconcile } from "@/features/roster/useDriverReconcile";
 import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
 import DriverRosterTable from "@/features/roster/DriverRosterTable.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import { useTableColumns } from "@/composables/useTableColumns";
-
-const PAGE_SIZE = 20;
+import {
+  useRosterFilters,
+  ROSTER_PAGE_SIZE,
+  VIEW_OPTIONS,
+} from "@/features/roster/useRosterFilters";
 
 const session = useSessionStore();
 const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
@@ -88,29 +91,19 @@ async function linkDriver(sourceId: string) {
  */
 const rosterColumns = useTableColumns("roster.drivers", () => DRIVER_ROSTER_COLUMNS);
 
-const search = ref("");
-const statusFilter = ref<string>("");
-
 /**
- * Archived drivers leave THIS list and nothing else (migration 0235).
+ * Search, status, the archived toggle, sort and page — all in the URL (R3c), so this view can be
+ * sent to somebody and named as a saved view.
  *
- * ⚠ The filter is here rather than in `useDriversQuery`, and that is the decision. Five other
- * surfaces read that same query as a name lookup — anomaly detail, assignment history, hazmat load
- * detail, dashboard readiness, driver-app settings — and an archived driver whose name stopped
- * resolving would turn a historical anomaly into one attributed to nobody. Archiving hides a row
- * from the list somebody scans; it does not erase the person from records they appear in.
+ * ⚠ Archived drivers leave THIS list and nothing else (migration 0235). The filter is here rather
+ * than in `useDriversQuery`, and that is the decision. Five other surfaces read that same query as a
+ * name lookup — anomaly detail, assignment history, hazmat load detail, dashboard readiness,
+ * driver-app settings — and an archived driver whose name stopped resolving would turn a historical
+ * anomaly into one attributed to nobody. Archiving hides a row from the list somebody scans; it does
+ * not erase the person from records they appear in.
  */
-const showArchived = ref(false);
-const VIEW_OPTIONS = [
-  { value: "live", label: "On the roster" },
-  { value: "archived", label: "Archived" },
-];
-const view = computed({
-  get: () => (showArchived.value ? "archived" : "live"),
-  set: (v: string) => {
-    showArchived.value = v === "archived";
-  },
-});
+const { search, status: statusFilter, view, showArchived, sort, onSort, page, active, reset } =
+  useRosterFilters();
 
 const archiving = ref<Driver | null>(null);
 const archiveDriver = useArchiveDriver();
@@ -150,16 +143,10 @@ const filtered = computed(() => {
   });
 });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
 const sorted = computed(() => sortRows(filtered.value, sort.value));
 
-const page = ref(1);
-watch([search, statusFilter, showArchived], () => (page.value = 1));
 const pageRows = computed(() =>
-  sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+  sorted.value.slice((page.value - 1) * ROSTER_PAGE_SIZE, page.value * ROSTER_PAGE_SIZE),
 );
 
 function openNew() {
@@ -216,6 +203,9 @@ async function onSubmit(input: DriverInput) {
         <FilterSelect v-model="view" label="Show" :options="VIEW_OPTIONS" />
       </template>
       <template #actions>
+        <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a
+             way back that does not require knowing which controls were set (OdometerPage's shape). -->
+        <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
         <ColumnPicker :columns="rosterColumns" />
       </template>
     </FilterBar>
@@ -231,7 +221,7 @@ async function onSubmit(input: DriverInput) {
         (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
       "
       :page="page"
-      :page-size="PAGE_SIZE"
+      :page-size="ROSTER_PAGE_SIZE"
       :total="filtered.length"
       @sort="onSort"
       @retry="refetch"

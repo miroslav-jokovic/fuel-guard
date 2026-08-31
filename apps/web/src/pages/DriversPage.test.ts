@@ -164,13 +164,13 @@ afterEach(() => {
  * STUBBED, so the rendered markup the snapshots pin is the same anchor it always was. The page needs
  * `useRoute`/`useRouter` to work; it does not need real navigation to render a table.
  */
-const mountPage = async () => {
+const mountPage = async (at = "/drivers") => {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: "/drivers", component: { template: "<div/>" } }],
   });
   // Awaited: an unresolved route has no match, and the column picker's first `replace` throws on one.
-  await router.push("/drivers");
+  await router.push(at);
   await router.isReady();
   return mount(DriversPage, {
     global: {
@@ -229,6 +229,36 @@ describe("DriversPage roster table", () => {
     picker.vm.columns.toggle("full_name");
     await flushPromises();
     expect(w.find("table").text()).toContain("Marcus Reyes");
+  });
+
+  /**
+   * R3c: the filters live in the URL, so the page has to be arrivable in a narrowed state — that is
+   * the whole mechanism a saved view is built on, and the only way to check it is to arrive.
+   */
+  it("opens already filtered when the link says so", async () => {
+    const w = await mountPage("/drivers?status=inactive");
+    const table = w.find("table").text();
+    expect(table).toContain("Ana Whitfield");
+    expect(table).not.toContain("Marcus Reyes");
+  });
+
+  it("opens on the archived roster when the link says so", async () => {
+    const w = await mountPage("/drivers?show=archived");
+    expect(w.find("table").text()).toContain("Gone Away");
+  });
+
+  it("shows Clear filters only on a narrowed roster, and it puts everyone back", async () => {
+    const plain = await mountPage();
+    expect(plain.text()).not.toContain("Clear filters");
+
+    const w = await mountPage("/drivers?status=inactive");
+    expect(w.text()).toContain("Clear filters");
+    const clear = w.findAll("button").find((b) => b.text() === "Clear filters")!;
+    await clear.trigger("click");
+    await flushPromises();
+
+    expect(w.find("table").text()).toContain("Marcus Reyes");
+    expect(w.vm.$route.query).toEqual({});
   });
 
   it("offers Archive on a live row and Restore on an archived one", async () => {
