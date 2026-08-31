@@ -86,6 +86,24 @@ describe("getComplianceOverview — the driver predicate", () => {
     expect(docs.of).toBeGreaterThan(0);
   });
 
+  it("costs the same four reads whatever the fleet size — the file count adds none (R5)", async () => {
+    // R5's own note warned that a document count would cost "200 signed-URL round trips on load".
+    // It costs nothing: `buildDqFile` already resolves `documentId` per item, so the count is a fold
+    // over work this function has done anyway. Asserted as a CONSTANT rather than a small number,
+    // because the failure being guarded against is per-driver growth.
+    const many = Array.from({ length: 50 }, (_, i) => ({
+      id: `d${i}`, full_name: `Driver ${i}`, status: "active", cdl_number: "D1",
+    }));
+    const one = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D1" }]);
+    const fifty = makeRecorder(many);
+
+    const small = await getComplianceOverview(one.client, ORG, "2026-08-19");
+    const large = await getComplianceOverview(fifty.client, ORG, "2026-08-19");
+
+    expect(large.drivers.length).toBeGreaterThan(small.drivers.length);
+    expect(fifty.queries.length).toBe(one.queries.length);
+  });
+
   it("the roster requirements carry no evidence payload and no restricted kind (Phase G)", async () => {
     const rec = makeRecorder([{ id: "d1", full_name: "A Driver", status: "active", cdl_number: "D1" }]);
     const result = await getComplianceOverview(rec.client, ORG, "2026-08-19");

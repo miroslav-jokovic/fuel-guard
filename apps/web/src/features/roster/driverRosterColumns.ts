@@ -54,6 +54,12 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    * Pinned by "counts days to expiry the same way the queue does, so the two cannot disagree" in
    * packages/shared/src/dqFile.test.ts.
    */
+  /**
+   * The §391.51 folder (R5, D-ROS8). Reads `documents` off the same rollup as everything else —
+   * scans filed out of the requirements that APPLY to this driver, never out of the catalogue's
+   * full length, which would report a non-hazmat carrier as permanently behind.
+   */
+  { key: "documents", label: "File", width: "sm" },
   { key: "cdl_expiry", label: "CDL expires", width: "md" },
   { key: "medical_expiry", label: "Medical expires", width: "md" },
   { key: "hazmat_expiry", label: "Hazmat expires", width: "md" },

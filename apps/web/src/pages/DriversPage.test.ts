@@ -8,6 +8,7 @@ import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
+import DocumentsModal from "@/components/DocumentsModal.vue";
 
 /**
  * R2's safety net (DRIVER-ROSTER-PLAN.md §5): the roster table moves out of `DriversPage.vue` into
@@ -47,6 +48,10 @@ vi.mock("@/composables/useDrivers", () => ({
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: vehicles }) }));
 vi.mock("@/composables/useCompliance", () => ({
   useComplianceOverviewQuery: () => ({ data: overview }),
+  // R5: the folder's contents are fetched only when a folder is opened, so the roster's own load is
+  // unchanged. Stubbed empty — what this file pins is the count on the cell and which driver's
+  // folder opens, not the folder's contents (that is `DocumentsModal.test.ts`).
+  useDocumentsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
 }));
 vi.mock("@/features/roster/useDriverReconcile", () => ({
   useDriverReconcile: () => ({
@@ -175,6 +180,7 @@ beforeEach(() => {
         state: "incomplete",
         counts: { expired: 0, expiring: 1, missing: 1, current: 3 },
         attention: [{ daysRemaining: 12 }],
+        documents: { onFile: 8, of: 17 },
         requirements: [
           { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false },
           { key: "medical_card", state: "expiring", goodUntil: "2026-09-11", daysRemaining: 12, expiryUnknown: false },
@@ -186,6 +192,7 @@ beforeEach(() => {
         state: "complete",
         counts: { expired: 1, expiring: 0, missing: 0, current: 4 },
         attention: [{ daysRemaining: -241 }],
+        documents: { onFile: 0, of: 14 },
         // No hazmat entry at all: this carrier does not ask it of this driver, so the cell reads "—".
         requirements: [
           { key: "cdl", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241, expiryUnknown: false },
@@ -218,7 +225,16 @@ const mountPage = async (at = "/drivers") => {
   return mount(DriversPage, {
     global: {
       plugins: [VueQueryPlugin, router],
-      stubs: { RouterLink: RouterLinkStub },
+      stubs: {
+        RouterLink: RouterLinkStub,
+        // HeadlessUI's `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts` and
+        // `DocumentsModal.test.ts` both record. Stubbed with `v-if` on `open`, which is the only
+        // part of it this file asserts on; the modals' own behaviour is tested where they live.
+        BaseModal: {
+          props: ["open", "title", "description", "size", "printable"],
+          template: `<div v-if="open" role="dialog"><slot /><slot name="footer" /></div>`,
+        },
+      },
     },
   });
 };
@@ -321,6 +337,32 @@ describe("DriversPage roster table", () => {
   it("names the built-in view it is currently showing", async () => {
     const w = await mountPage("/drivers?req=medical_card&due=30&sort=full_name");
     expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("Medical expiring in 30 days");
+  });
+
+  /**
+   * R5, D-ROS8. The file cell is a count off the same rollup — no per-row fetch — and it opens ONE
+   * modal owned by the page, never a dialog per row.
+   */
+  it("shows scans filed out of the requirements that apply to that driver", async () => {
+    const w = await mountPage();
+    const rows = w.findAll("tbody tr");
+    expect(rows[0]!.text()).toContain("8/17");
+    // Not "0/20": measuring against the whole catalogue would report a carrier without the hazmat
+    // module as permanently behind on requirements nobody asks of them.
+    expect(rows[1]!.text()).toContain("0/14");
+  });
+
+  it("opens the folder for the driver whose cell was clicked, and only one", async () => {
+    const w = await mountPage();
+    const cell = w.findAll("tbody tr")[0]!.findAll("button").find((b) => b.text() === "8/17")!;
+    await cell.trigger("click");
+    await flushPromises();
+
+    const modal = w.findComponent(DocumentsModal);
+    expect(modal.props("open")).toBe(true);
+    expect(modal.props("subjectLabel")).toBe("Marcus Reyes");
+    // One modal on the page, not one per row.
+    expect(w.findAllComponents(DocumentsModal)).toHaveLength(1);
   });
 
   it("hides a column from the table when the picker turns it off", async () => {
