@@ -512,7 +512,7 @@ enumerated**, and redirect rather than delete.
 **Done when:** every retired path 301s to its replacement; `notificationRoute.ts` still resolves
 every category it claims to; no bookmark 404s.
 
-### R9 — Gate the decisions (D-ROS2, D-ROS7, D-ROS11)
+### R9 — Gate the decisions (D-ROS2, D-ROS7, D-ROS11) — **DONE 2026-08-31 (PR #408, no migration)**
 
 A `lint:capabilities` script that fails on: `canManageFleet` used anywhere in `apps/web`; a
 `requiresManage` that does not name a section; a driver field edited inline that is not in
@@ -1232,3 +1232,37 @@ handoff says it costs a CI round trip, and it nearly did again.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 The changed-fields-only rule and the sync-overlap guards were each proven able to fail.
+
+### R9 — the capability decisions get a gate — 2026-08-31, PR #408, no migration
+
+`scripts/check-capabilities.mjs`, `lint:capabilities`, and the CI step.
+
+- **Three detectors, all three self-tested.** `canManageFleet` used as an identifier anywhere in
+  `apps/web`; a `requiresManage` that does not NAME a section; a surface editing driver fields
+  without building them from `DRIVER_INLINE_EDITABLE`. `--self-test` fails the build if any detector
+  stops firing, per house convention.
+- **It PARSES rather than greps, and that is the interesting decision.** `canManageFleet` survives in
+  exactly three places — `session.ts`, `PspRecordsSection.vue` and `routes/recruitment.ts` — as
+  COMMENTS explaining why R0 deleted it. `lint:ui-adoption` is a plain text regex and the design
+  contract records the footgun that follows; here the same choice would have forbidden saying the
+  name, which would delete the reasoning the gate exists to protect. So comments are stripped first,
+  and the self-test asserts BOTH that the detector fires on real use and that it does not fire on a
+  comment.
+- **The sections vocabulary is read from `auth.ts`**, not restated in the script. A gate that carries
+  its own copy of the list it is checking is the defect it was written to prevent.
+- **`SANCTIONED_DRIVER_EDITORS` is shrink-only and names three files.** A fourth is a reviewed
+  decision that has to answer which fields it owns that the other three do not — which is R6c's rule,
+  enforced instead of remembered.
+- **The gate found a false positive on itself and was tightened:** `useDrivers.ts` DECLARES
+  `useUpdateDriverProfile`, and the first draft flagged the declaration as an unsanctioned editor.
+  Now it matches calls only, with a self-test case for the declaration.
+
+**A stale note corrected, not worked around:** the session memory said `.github/workflows` pushes are
+rejected for want of the `workflow` OAuth scope, and prescribed handing the YAML to the owner. That
+was verified rather than trusted — the CI step went in its own commit so it could be amended away
+cheaply — and **the push succeeded**. The scope has been granted since that note was written, so the
+CI half of R9's done-when is genuinely done rather than owed. A gate CI never invokes is worse than
+no gate.
+
+**Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`
+(including `--self-test`), and the full gate list.

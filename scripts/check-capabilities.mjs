@@ -24,7 +24,7 @@
  *
  * Run:  node scripts/check-capabilities.mjs [--self-test]
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
