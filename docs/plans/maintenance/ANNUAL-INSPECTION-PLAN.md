@@ -16,7 +16,7 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0, A1 and A2 shipped 2026-08-31 (PRs #410, #411, #NNN). A3 is next.** D-AVI7 was **amended the same day**
+**Status: A0, A1 and A2 shipped 2026-08-31 (PRs #410, #411, #412). A3 is next.** D-AVI7 was **amended the same day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -296,7 +296,7 @@ made the first kind editable, which is the failure `inapplicable_not_na` now rej
 forcing `outcome` to `"pass"` fails 2 tests, and treating a missing answer as `na` fails 3 — so the
 two rules that carry the compliance weight are provably covered, not merely asserted to be.
 
-### A2 — The `technician` role — **DONE 2026-08-31 (PR #NNN, migration 0279)**
+### A2 — The `technician` role — **DONE 2026-08-31 (PR #412, migration 0279)**
 
 Prerequisite: none. Follow `supabase/migrations/0266_accountant_role.sql` exactly — the migration is
 the enum value and **nothing else**, because Postgres will not let a newly added enum value be used
