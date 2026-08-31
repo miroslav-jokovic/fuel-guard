@@ -36,6 +36,7 @@ import {
   TruckStopIcon,
   UserGroupIcon,
   UserListIcon,
+  ChecklistIcon,
   WrenchIcon,
   UsersIcon,
   VehicleIcon,
@@ -223,6 +224,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: WrenchIcon,
       items: [
         { name: "Repair spend", to: "/shop", icon: GaugeIcon, show: canViewSection(role, "maintenance") },
+        { name: "Annual inspections", to: "/shop/inspections", icon: ChecklistIcon, show: canViewSection(role, "maintenance") },
       ],
     },
     {

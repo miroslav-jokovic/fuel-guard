@@ -126,6 +126,11 @@ export {
   // literally the glyph the local name describes.
   ClipboardListIcon           as ClipboardDocumentListIcon,
   TaskDone01Icon              as ClipboardDocumentCheckIcon,
+  // The §396.17 annual inspection register (A7). A distinct glyph on purpose: the note above
+  // records what happened when Assignments and Driver Qualification shared one — two unrelated nav
+  // items wearing the same icon, both visible at once in an expanded sidebar. `CheckListIcon` is
+  // literally a checklist, which is what 56 components on a form is.
+  CheckListIcon               as ChecklistIcon,
   // Driver Qualification (U5/D-UI6). It shared `ClipboardDocumentCheckIcon` with Assignments —
   // one glyph on two unrelated nav items, both visible at once in an expanded sidebar. A §391.51
   // file is a licence and a medical card, so the licence glyph says what the section holds.
