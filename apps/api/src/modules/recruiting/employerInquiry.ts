@@ -306,7 +306,7 @@ export async function recordInquiryOutcome(
  * reply registered as `other` would be a reply anyone in the section could open.
  *
  * Deliberately not the generic `/api/compliance/documents` endpoint, which gates on
- * `rolesThatManage("fleet")` — a recruiter has `fleet: view`, so the role that sent the letter could
+ * `rolesThatManage("roster")` — a recruiter has `roster: view`, so the role that sent the letter could
  * not file the answer to it. The same reasoning as the PSP import's own register step.
  */
 export async function registerInquiryDocument(

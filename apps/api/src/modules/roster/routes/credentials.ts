@@ -45,6 +45,12 @@ function sendCredentialError(res: Response, e: unknown): boolean {
 
 export function rosterCredentialsRouter(): Router {
   const router = Router();
+  // ⚠ DELIBERATELY NARROWER than `rolesThatManage("roster")`, which also contains `safety_manager`
+  // since the D-ROS12 split. Issuing, resetting and revoking a driver's app login is account
+  // provisioning, not roster maintenance: it mints a credential that is handed to a person once and
+  // cannot be un-handed. A section grants the section; an act this consequential is granted by NAME,
+  // the same shape 0212 uses in the other direction to grant a recruiter one write the section does
+  // not. Widening this to the section would have been a silent side effect of a rename.
   router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager"));
 
   // Create the login: generates the password, returns it ONCE.

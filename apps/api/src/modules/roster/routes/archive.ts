@@ -43,7 +43,7 @@ export function rosterArchiveRouter(): Router {
 
   // View-level gate at the door; the act-level gate is `canArchiveDriver` below, which needs the
   // driver's status and so cannot be a middleware.
-  const canSeeRoster = requireRole(...rolesThatCanView("fleet"), ...rolesThatCanView("recruitment"));
+  const canSeeRoster = requireRole(...rolesThatCanView("roster"), ...rolesThatCanView("recruitment"));
 
   /**
    * Archive (`POST /:id/archive`) and un-archive (`POST /:id/unarchive`) are one handler: they differ

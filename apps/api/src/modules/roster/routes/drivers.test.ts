@@ -74,7 +74,7 @@ const call = (path: string, init: RequestInit & { token?: string } = {}) => {
   });
 };
 
-describe("GET /api/roster/drivers — read gate (fleet: view)", () => {
+describe("GET /api/roster/drivers — read gate (roster: view)", () => {
   it("401 unauthenticated", async () => {
     expect((await call("/")).status).toBe(401);
   });
@@ -95,7 +95,7 @@ describe("GET /api/roster/drivers — read gate (fleet: view)", () => {
   });
 });
 
-describe("POST /api/roster/drivers — write gate (fleet: manage ∪ recruitment: manage)", () => {
+describe("POST /api/roster/drivers — write gate (roster: manage ∪ recruitment: manage)", () => {
   const body = JSON.stringify({ full_name: "Test Driver" });
 
   it("401 unauthenticated", async () => {
@@ -109,8 +109,10 @@ describe("POST /api/roster/drivers — write gate (fleet: manage ∪ recruitment
   /**
    * The recruiter is here, and it is the one route where the two manage-sets are unioned. An
    * applicant IS a `drivers` row, so a recruiter cannot work without this — and granting them
-   * `fleet: manage` to get it would also hand over vehicles and trailers, which is the leak the
-   * `recruitment` section exists to close (RECRUITER-ROLE-SCOPE.md §2, Option B).
+   * `roster: manage` to get it would hand over every driver write, which is the leak the
+   * `recruitment` section exists to close (RECRUITER-ROLE-SCOPE.md §2, Option B). Since the
+   * D-ROS12 split the equipment half is no longer even reachable this way — a recruiter is
+   * `equipment: none` — so what stays narrow here is the roster, on its own argument.
    */
   it.each(["admin", "fleet", "safety", "recruiter"])("passes the gate for %s", async (token) => {
     const res = await call("/", { method: "POST", body, token });
@@ -123,7 +125,7 @@ describe("POST /api/roster/drivers — write gate (fleet: manage ∪ recruitment
   });
 });
 
-describe("GET /api/roster/drivers/:id — detail gate (fleet: view)", () => {
+describe("GET /api/roster/drivers/:id — detail gate (roster: view)", () => {
   const path = "/11111111-1111-1111-1111-111111111111";
 
   it("401 unauthenticated", async () => {

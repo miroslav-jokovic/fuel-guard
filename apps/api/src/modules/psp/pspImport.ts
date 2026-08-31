@@ -21,7 +21,7 @@ import { registerDocument } from "../evidence/index.js";
  * Both endpoints exist and between them they could write the same two rows. Three things would be
  * lost, and each is the kind of thing that is only ever noticed afterwards:
  *
- *  1. The compliance router gates on `rolesThatManage("fleet")`, and a recruiter has `fleet: view`.
+ *  1. The compliance router gates on `rolesThatManage("roster")`, and a recruiter has `roster: view`.
  *     The role the recruitment section was created for could not file the evidence it is responsible
  *     for — and widening the compliance router to fix that would hand the whole document surface to
  *     a role deliberately kept out of it.

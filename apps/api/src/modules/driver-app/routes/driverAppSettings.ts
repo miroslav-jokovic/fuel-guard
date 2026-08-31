@@ -43,8 +43,8 @@ export function driverAppSettingsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const settingsView = requireRole(...rolesThatCanView("fleet"));
-  const settingsManage = requireRole(...rolesThatManage("fleet"));
+  const settingsView = requireRole(...rolesThatCanView("roster"));
+  const settingsManage = requireRole(...rolesThatManage("roster"));
   const overridesView = requireRole(...rolesThatCanView("dispatch"));
   const overridesManage = requireRole(...rolesThatManage("dispatch"));
 

@@ -49,6 +49,32 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   (`lint:comment-claims`).
 - `*.generated.ts` files come from `pnpm gen:rules` — edit the YAML source, never the output.
 
+## No workarounds (judgement, not a gate — held to the same standard as the gates above)
+
+A workaround is any change that gets the immediate task working by routing *around* a missing or
+wrong capability instead of fixing it: a hand-written role list beside a derived matrix, a component
+placed on the wrong page because the right page's permission check says no, a second source of truth
+because the first one is inconvenient to reach, a value copied instead of derived.
+
+Each one is individually cheap and locally defensible. That is the problem — they are only visible
+in aggregate, and by then the product reads as "overcomplicated for no reason". Worked example, so
+this is not an abstraction: `session.canManage` is one global boolean standing in for the whole
+section × role matrix the API and the database already model correctly. Because a recruiter fails it,
+recruiting UI was placed on the driver page; because that page then held four regulations, it grew
+six tabs; because six tabs hide gaps, the whole surface felt wrong. Three reasonable local decisions,
+one unusable result. (`docs/plans/roster/DRIVER-ROSTER-PLAN.md` §2.3 has the measurements.)
+
+So, when the honest fix is out of scope:
+
+- **Stop and say so.** Name the missing capability and what it would cost. Do not ship the detour.
+- **Write the blocker into the plan's open-questions section**, with the candidate answers and a
+  recommendation. A blocker recorded is work; a blocker routed around is debt nobody can find.
+- **Never leave a workaround unlabelled.** If the owner rules that one ships anyway, the comment
+  above it says it is a workaround, what it works around, and what removes it — in this repo's
+  register, not as a TODO.
+- **Deriving beats restating.** If a fact exists in a matrix, a contract or a catalogue, read it
+  from there. A copy is a workaround with a delay fuse.
+
 ## Conventions
 
 - Comments explain WHY, long-form, citing decision IDs (D-DQ6, F-H2), audit dates, and incidents.
