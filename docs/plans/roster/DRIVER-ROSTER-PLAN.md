@@ -480,7 +480,7 @@ R6a. The layout change is R6b and is the smaller half.
 
 #### R6a — the roster's edit becomes the audited one — **DONE 2026-08-31 (PR #405, no migration)**
 
-#### R6b — tabs become sections on one scroll — **DONE 2026-08-31 (PR #PENDING, no migration)**
+#### R6b — tabs become sections on one scroll — **DONE 2026-08-31 (PR #407, no migration)**
 
 ### R7 — Recruiting leaves the driver page (D-ROS6) — **DONE 2026-08-31 (PR #406, no migration)**
 
@@ -1166,7 +1166,7 @@ The manual-row branch of the warning was proven able to fail.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, and the full gate list.
 
-### R6b — one scroll, and `?section=` becomes an anchor — 2026-08-31, PR #PENDING, no migration
+### R6b — one scroll, and `?section=` becomes an anchor — 2026-08-31, PR #407, no migration
 
 - **Three sections on one scroll, not six.** R6's prose described six blocks including the recruiting
   ones; R7 took those to their own surface first, so what is left is who this person is, whether they
