@@ -16,7 +16,9 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A7 shipped 2026-08-31 (PRs #410–#418; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
+**Status: COMPLETE 2026-08-31, after a second pass.** A0–A7 shipped via PRs #410–#419 (migrations 0279–0282). The owner then used the page and found four things — §8 records them and the B1–B5 steps that answered them, including **A8, which was ruled against and then reversed**: the truck copy IS printed onto the pre-printed pads, so the calibration was built after all (PR #423, migration 0283). §6 carries what remains open, and §7 is the register.**
+
+D-AVI7 was **amended on the first day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
