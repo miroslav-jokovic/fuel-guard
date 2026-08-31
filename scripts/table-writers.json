@@ -30,6 +30,7 @@
   "documents": [
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",
+    "apps/api/src/modules/evidence/generatedDocuments.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
     "apps/api/src/modules/recruiting/applicationPdf/file.ts"
   ],
@@ -312,6 +313,7 @@
     "apps/admin-api/src/lib/orgs.ts"
   ],
   "organizations": [
+    "apps/api/src/modules/org/carrierIdentity.ts",
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
   ],
@@ -372,6 +374,7 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "trailers": [
+    "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/roster/trailerPairing.ts",
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
@@ -386,12 +389,14 @@
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],
   "vehicle_inspections": [
+    "apps/api/src/modules/maintenance/inspections/finalize.ts",
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],
   "vehicles": [
     "apps/api/src/modules/anomalies/scoring/learnVehicle.ts",
     "apps/api/src/modules/anomalies/scoring/persist.ts",
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
+    "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",

@@ -28,3 +28,7 @@ export { rosterArchiveRouter } from "./routes/archive.js";
 export { rosterCredentialsRouter } from "./routes/credentials.js";
 export { rosterSevenDayRouter } from "./routes/sevenDay.js";
 export { recordInferredTrailerPairing } from "./trailerPairing.js";
+// The equipment half of the §396.17 inspection — `maintenance` reads identity and projects the
+// expiry through here, because `vehicles` and `trailers` are this module's tables (D-AVI9/D-AVI10).
+export { getEquipmentIdentity, recordEquipmentInspectionExpiry } from "./equipmentInspection.js";
+export type { EquipmentIdentity } from "./equipmentInspection.js";

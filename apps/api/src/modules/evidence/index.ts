@@ -18,6 +18,13 @@
  * says the `drivers.cdl_*` columns become a projection of it at the roster carve-out.
  */
 export { registerDocument, listDocuments } from "./compliance.js";
+// Filing a document the SERVER rendered — the browser-upload path above cannot serve a caller that
+// already holds the bytes. Generalised from recruiting's application PDF at its second caller.
+export { fileGeneratedDocument } from "./generatedDocuments.js";
+export type { FiledDocument, GeneratedDocumentInput } from "./generatedDocuments.js";
+// The certification write, exported so an owner outside this module can file the compliance FACT a
+// document backs — `maintenance` files the §396.17 expiry this way (D-AVI9/D-AVI10).
+export { insertCertification } from "./compliance.js";
 // The TMS-sourced licence and medical card, filed as evidence rather than only as roster columns —
 // D-ARC3's dual-source finding closed at the seam the McLeod sweep would otherwise have widened.
 export { recordSyncedCredentials, SYNC_NOTE } from "./syncedCredentials.js";
