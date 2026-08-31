@@ -171,7 +171,7 @@ reason written down:
    stop and record it in §6; it never means work around it.
 4. One step per branch (`claude/<topic>`), PR to `main`, merge after CI. `main` is branch-protected;
    there is no other path.
-5. When a step ships, mark it **— DONE \<date\> (PR #410)** in place with a "What shipped" list and
+5. When a step ships, mark it **— DONE \<date\> (PR #NNN)** in place with a "What shipped" list and
    a "Verified by:" line naming the gates actually run. **This document is the memory between
    sessions; the chat is not.**
 
