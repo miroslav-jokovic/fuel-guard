@@ -17,6 +17,7 @@ import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
+import { savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter } from "./modules/insights/index.js";
@@ -197,6 +198,89 @@ function mountFinanceRouters(app: express.Express): void {
   app.use("/api/maintenance", maintenanceRouter());
 }
 
+/**
+ * Every `/api/*` router, mounted in one place.
+ *
+ * Split out of `createApp` at R3c-2, because adding the saved-views router took that function to
+ * 201 lines against the 200-line budget (`lint:funcsize`), and the gate's own instruction is to
+ * split into an orchestrator plus stage helpers. Squeezing back under by deleting a comment would
+ * have left the NEXT router to hit the same wall with no headroom at all.
+ *
+ * ⚠ The mounts must stay in THIS FILE's source. `routeAuth.test.ts` discovers every mounted router
+ * by reading app.ts and matching `app.use("/api/…", …Router())`, and that fitness function is the
+ * only thing standing between a new router and a route with no authentication. Moving these lines
+ * to another module would make it silently stop covering them.
+ */
+function mountApiRouters(app: Express, env: Env): void {
+  // Deploy truth (ship-pipeline D0.3). Public by design — see routes/version.ts.
+  app.use("/api/version", versionRouter());
+  app.use("/api/invites", invitesRouter());
+  // Phase 6: the notification centre. Written for this prefix all along ("Mounted under
+  // /api/me/notifications" in its header) but never wired — the whole API was dead code until
+  // this line. Mounted in the plain `path, xRouter()` shape every other router uses: the auth
+  // fitness test discovers mounts from this file's source, and a mount with middleware spliced in
+  // between was invisible to it (the router now applies requireAuth itself). Before /api/me so the
+  // longer prefix wins.
+  app.use("/api/me/notifications", notificationsRouter());
+  app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
+  app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
+  app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
+  app.use("/api/members", membersRouter());
+  // A bookmark belonging to the caller — no role gate; see the router's header.
+  app.use("/api/saved-views", savedViewsRouter());
+  app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
+  // Step-up password re-verification (audit P0-4). Behind requireAuth internally; shares the
+  // /api/auth strictLimiter above, which is the right budget for a password oracle.
+  app.use("/api/auth", authStepUpRouter());
+  app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
+  app.use("/api/recruitment", recruitmentRouter()); // applicants, releases, PSP records, and the hire
+  // ⚠ ORDER IS LOAD-BEARING between these two. `rosterCredentialsRouter` carries a ROUTER-LEVEL
+  // `requireRole("admin", "fleet_manager")` (credentials.ts:48), and an Express sub-router's `use`
+  // middleware runs for EVERY request that reaches its mount path — including ones matching none of
+  // its routes. Mounted first, it 403s a recruiter's archive request before the archive router is
+  // ever consulted. Archiving must therefore be mounted ABOVE it. Caught by
+  // `archive.test.ts`'s "passes the door for recruiter", which failed for exactly this reason.
+  app.use("/api/roster/drivers", rosterArchiveRouter()); // archive/un-archive a roster row (0235)
+  // Mounted above credentials for the same reason archive is — see the note there.
+  app.use("/api/roster/drivers", rosterSevenDayRouter()); // §395.8(j)(2) statements (0236)
+  app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
+  app.use("/api/transactions", transactionsRouter());
+  app.use("/api/anomalies", anomaliesRouter());
+  app.use("/api/reports", reportsRouter());
+  app.use("/api/ifta", iftaRouter());
+  mountFinanceRouters(app);
+  app.use("/api/audit", auditRouter());
+  app.use("/api/integrations", integrationsRouter());
+  // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
+  app.use("/api/integrations", tmsRosterMasterRouter());
+  app.use("/api/fueling", fuelingRouter());
+  // Reads, then writes, then the two admin-only diagnostics. Four routers on one prefix (the
+  // rosterDriversRouter precedent), each starting with its own `router.use(requireAuth)` so
+  // routeAuth.test.ts discovers "the mounted /api routers" from this line and fails CI if any one forgets it.
+  // The write router is mounted after the read one so its `cardWriteLimit()` only ever sees the paths
+  // it is meant to meter — a GET never touches the durable counter.
+  // ⚠ ONE LINE, deliberately: routeAuth.test.ts discovers mounts with `app\.use\("(\/api\/…)"…Router\(\)\)`
+  // and cannot see a call broken across lines. A mount it cannot see is a router whose `requireAuth`
+  // nothing checks — the single failure that fitness function exists to make impossible.
+  // ⚠ SETTINGS FIRST. fuelCardsRouter declares `GET /:id`, which matches the literal path "settings"
+  // and would answer 404 for a card id that was never a card id. Order is the fix; a test asserts it.
+  // fuelCardCapabilityRouter is the generated one and serves EVERY card write, one route per
+  // capability in the registry (Step 3.7 deleted the hand-written control router; its history read
+  // moved into fuelCardsRouter, where a GET belongs).
+  // ⚠ fuelCardUnitMileageRouter joins settings AHEAD of fuelCardsRouter, for the same reason:
+  // `GET /:id` matches the literal path "unit-mileage" and would answer 404 for a card id that
+  // never was one. Its POST is safe anywhere, but the pair belongs together.
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardUnitMileageRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
+  app.use("/api/ai", aiRouter());
+  app.use("/api/jobs", jobsRouter());
+  app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
+  mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
+  app.use("/api/hazmat", hazmatRouter());
+  app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
+  app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
+  app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
+}
+
 export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });
@@ -294,71 +378,8 @@ export function createApp(env: Env): Express {
     });
   });
 
-  // Deploy truth (ship-pipeline D0.3). Public by design — see routes/version.ts.
-  app.use("/api/version", versionRouter());
-  app.use("/api/invites", invitesRouter());
-  // Phase 6: the notification centre. Written for this prefix all along ("Mounted under
-  // /api/me/notifications" in its header) but never wired — the whole API was dead code until
-  // this line. Mounted in the plain `path, xRouter()` shape every other router uses: the auth
-  // fitness test discovers mounts from this file's source, and a mount with middleware spliced in
-  // between was invisible to it (the router now applies requireAuth itself). Before /api/me so the
-  // longer prefix wins.
-  app.use("/api/me/notifications", notificationsRouter());
-  app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
-  app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
-  app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
-  app.use("/api/members", membersRouter());
-  app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
-  // Step-up password re-verification (audit P0-4). Behind requireAuth internally; shares the
-  // /api/auth strictLimiter above, which is the right budget for a password oracle.
-  app.use("/api/auth", authStepUpRouter());
-  app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
-  app.use("/api/recruitment", recruitmentRouter()); // applicants, releases, PSP records, and the hire
-  // ⚠ ORDER IS LOAD-BEARING between these two. `rosterCredentialsRouter` carries a ROUTER-LEVEL
-  // `requireRole("admin", "fleet_manager")` (credentials.ts:48), and an Express sub-router's `use`
-  // middleware runs for EVERY request that reaches its mount path — including ones matching none of
-  // its routes. Mounted first, it 403s a recruiter's archive request before the archive router is
-  // ever consulted. Archiving must therefore be mounted ABOVE it. Caught by
-  // `archive.test.ts`'s "passes the door for recruiter", which failed for exactly this reason.
-  app.use("/api/roster/drivers", rosterArchiveRouter()); // archive/un-archive a roster row (0235)
-  // Mounted above credentials for the same reason archive is — see the note there.
-  app.use("/api/roster/drivers", rosterSevenDayRouter()); // §395.8(j)(2) statements (0236)
-  app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
-  app.use("/api/transactions", transactionsRouter());
-  app.use("/api/anomalies", anomaliesRouter());
-  app.use("/api/reports", reportsRouter());
-  app.use("/api/ifta", iftaRouter());
-  mountFinanceRouters(app);
-  app.use("/api/audit", auditRouter());
-  app.use("/api/integrations", integrationsRouter());
-  // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
-  app.use("/api/integrations", tmsRosterMasterRouter());
-  app.use("/api/fueling", fuelingRouter());
-  // Reads, then writes, then the two admin-only diagnostics. Four routers on one prefix (the
-  // rosterDriversRouter precedent), each starting with its own `router.use(requireAuth)` so
-  // routeAuth.test.ts discovers "the mounted /api routers" from this line and fails CI if any one forgets it.
-  // The write router is mounted after the read one so its `cardWriteLimit()` only ever sees the paths
-  // it is meant to meter — a GET never touches the durable counter.
-  // ⚠ ONE LINE, deliberately: routeAuth.test.ts discovers mounts with `app\.use\("(\/api\/…)"…Router\(\)\)`
-  // and cannot see a call broken across lines. A mount it cannot see is a router whose `requireAuth`
-  // nothing checks — the single failure that fitness function exists to make impossible.
-  // ⚠ SETTINGS FIRST. fuelCardsRouter declares `GET /:id`, which matches the literal path "settings"
-  // and would answer 404 for a card id that was never a card id. Order is the fix; a test asserts it.
-  // fuelCardCapabilityRouter is the generated one and serves EVERY card write, one route per
-  // capability in the registry (Step 3.7 deleted the hand-written control router; its history read
-  // moved into fuelCardsRouter, where a GET belongs).
-  // ⚠ fuelCardUnitMileageRouter joins settings AHEAD of fuelCardsRouter, for the same reason:
-  // `GET /:id` matches the literal path "unit-mileage" and would answer 404 for a card id that
-  // never was one. Its POST is safe anywhere, but the pair belongs together.
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardUnitMileageRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
-  app.use("/api/ai", aiRouter());
-  app.use("/api/jobs", jobsRouter());
-  app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
-  mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
-  app.use("/api/hazmat", hazmatRouter());
-  app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
-  app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
-  app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
+  mountApiRouters(app, env);
+
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
   // Only when the build output exists, so API-only/dev runs and tests are unaffected.

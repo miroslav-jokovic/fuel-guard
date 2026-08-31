@@ -389,7 +389,7 @@ office does with a filtered roster, send it to somebody, was impossible.
 
 ##### R3c-1 — the roster's filters move into the URL — **DONE 2026-08-30 (PR #399, no migration)**
 
-##### R3c-2 — saved views themselves — one migration
+##### R3c-2 — saved views themselves — **DONE 2026-08-30 (PR #PENDING, migration 0278)**
 
 - `packages/shared` — the built-in catalogue per table, and the contract for a saved view.
 - One migration: `saved_views` (module `org`, layer `core`), `primary key (user_id, table_id, name)`,
@@ -787,6 +787,72 @@ if CI shows it again, it is real.
 **Verified by:** `typecheck`, `lint`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
 `lint:ui-adoption`, `lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:table-writers`,
 `pnpm test`. The page-reset rule and the URL-normalisation rules were each proven able to fail.
+
+### R3c-2 — saved views — 2026-08-30, PR #PENDING, **migration 0278**
+
+`savedViewContract.ts` (shared), `0278_saved_views.sql`, `savedViews.ts` + tests (api),
+`useSavedViews.ts` + `SavedViewMenu.vue` (web), `supabase/tests/saved-views.test.mjs` (15 cases).
+
+- **Applying a view is a navigation, and there is no other code path.** The menu emits a query
+  string; the page replaces the route with it. The URL afterwards IS the view — byte-identical to the
+  link a colleague would have been sent. Anything else would be two mechanisms that agree until they
+  do not. Pinned by "applies a saved view by navigating to its query".
+- **A view saves the WHOLE URL**, not the filters the page happens to know about — so the column
+  choice (`hide`, R3b) travels with it for free, and a filter added at R4 will too, with no change
+  here. Pinned by "saves the whole current URL, not just the filters it knows about".
+- **The primary key is `(user_id, table_id, name)`**, so saving over a name replaces it — which is
+  what "save" means to the person doing it — and there is no rename endpoint to leave a half-done
+  state. The database enforces it rather than the endpoint remembering to.
+- **The matrix's load-bearing case is the one easy to leave out: an ADMIN of the same org reads
+  nothing.** Every other table in this product answers an org-wide read with yes; this one and
+  `notification_events` are the two that must answer no, and a matrix proving only cross-ORG
+  isolation would pass just as happily on a policy that had dropped the `user_id` half.
+- **The API layer needed its own test, and it is not redundant with the matrix.** The API reads with
+  the service role, which BYPASSES RLS — so for anything through this router the handlers' own
+  filters are the only isolation. Removing `.eq("user_id")` fails `savedViews.test.ts` and nothing
+  else; it would not have failed the matrix.
+- **The table id is spelled once.** `SAVED_VIEW_TABLES` in `@silvicom/shared` is where both the
+  column picker's storage key and the saved-view row get it. Spelled twice they would agree until a
+  rename, and the symptom would be a reader's views quietly emptying rather than an error.
+
+**Two gates caught real things, and both changed the code rather than the claim:**
+
+- **`routeGates.test.ts`** — every `/api` mount must carry a role gate or be pinned with an argument.
+  The saved-views router deliberately has none, so it is now pinned with the reason: a view grants
+  nothing and reveals nothing, applying one is a navigation into a page that enforces its own
+  permissions, and a section gate would invent a capability nobody needs — a recruiter who may read
+  the roster may certainly name a view of it.
+- **`lint:funcsize`** — mounting the router took `createApp` to **201 lines against a 200 budget**.
+  It had been sitting at 199. The gate's own instruction is to split into an orchestrator plus stage
+  helpers, so the 50 router mounts moved into `mountApiRouters()`. Deleting a comment to squeeze back
+  under would have left the NEXT router to hit the same wall with no headroom at all. ⚠ The mounts
+  stay in `app.ts`'s own source on purpose: `routeAuth.test.ts` discovers routers by reading that
+  file, and moving them to another module would silently stop it covering them. Verified after the
+  move — 36 routers discovered, `/api/saved-views` among them.
+
+**Deliberately NOT built, and this is the one to read before R4:** the built-in view catalogue.
+D-ROS16 says where the carrier-standard views live; it does not say they exist yet. Measured
+2026-08-30, the roster can filter on status, the archived toggle, a search term, sort and columns —
+and every candidate built-in is either a duplicate of a control the toolbar already offers in one
+click ("Archived", "Terminated") or not expressible at all. The three actually wanted each need a
+filter over the qualification rollup that does not exist until R4:
+
+| Built-in | Needs |
+| --- | --- |
+| Medical expiring in 30 days | a filter on the overview rollup's `attention` dates |
+| CDL expiring in 30 days | the same |
+| Not qualified to dispatch | a filter on the rollup's `state` |
+
+An empty registry shipped now would be structure with no content, and this codebase treats that as
+rot rather than slack — `check-feature-boundaries.mjs` says exactly that about its own allow-lists.
+So the catalogue lands with R4 as a data change, beside the filters that make it expressible. The
+reasoning is repeated at the foot of `savedViewContract.ts`, where the next person will look.
+
+**Verified by:** `pnpm test` (all suites and every matrix, including the new `saved-views` one at
+15/15), `typecheck`, `lint`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`, `lint:ui-adoption`,
+`lint:tokens`, `lint:comment-claims`, `lint:tests`, `lint:migrations`, `lint:upserts`,
+`lint:table-writers`, `check-rls`. The `lint:upserts` gate was checked directly against this router's
+upsert — removing one column from the payload fails it, so the call is covered rather than skipped.
 
 ### The rest
 

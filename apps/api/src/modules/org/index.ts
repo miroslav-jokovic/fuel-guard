@@ -2,7 +2,7 @@
  * org — identity and platform machinery, seventeenth and last planned module of the re-founding
  * (carved 2026-08-27, docs/ARCHITECTURE.md §3).
  *
- * Owns `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`,
+ * Owns `organizations`, `memberships`, `invites`, `org_modules`, `org_integrations`, `saved_views`,
  * `integration_credentials`, `org_usage_month`, `audit_logs` (append-only), `jobs`, and
  * `migration_markers`. The surface: invite/member routes with delivery, the audit-log route,
  * the job-queue bookkeeping every scheduler leans on (start/finish/heartbeat/reclaim — the
@@ -13,6 +13,7 @@
  */
 export { invitesRouter, deliverInvite } from "./routes/invites.js";
 export { membersRouter } from "./routes/members.js";
+export { savedViewsRouter } from "./routes/savedViews.js";
 export { auditRouter } from "./routes/audit.js";
 export { jobsRouter } from "./routes/jobs.js";
 export * from "./jobs.js";
