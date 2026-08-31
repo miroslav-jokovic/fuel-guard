@@ -83,8 +83,7 @@ const columns: DataTableColumn[] = [
     key: "unit",
     label: "Unit",
     sortable: true,
-    width: "sm", headerClass: "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge",
-    cellClass: "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+    width: "sm",
   },
   { key: "tran_date", label: "Tran Date", sortable: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "tran_time", label: "Time", width: "sm", cellClass: "text-ink-secondary" },
@@ -142,7 +141,7 @@ const columns: DataTableColumn[] = [
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load transactions') : null"
       :retrying="isFetching"
       :sort="sort"
-      :row-class="() => 'group'"
+      pin-first-column
       empty-text="No transactions match — upload an EFS Transaction report from the Import page, or adjust filters."
       @sort="onSort"
       @retry="refetch"

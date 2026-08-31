@@ -149,8 +149,7 @@ const columns: DataTableColumn[] = [
     key: "unit",
     label: "Unit",
     sortable: true,
-    width: "sm", headerClass: "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge",
-    cellClass: "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+    width: "sm",
   },
   { key: "suspicion_level", label: "Risk", sortable: true, width: "sm" },
   { key: "declined_at", label: "Date / Time", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
@@ -220,7 +219,8 @@ const columns: DataTableColumn[] = [
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load rejections') : null"
       :retrying="isFetching"
       :sort="sort"
-      :row-class="() => 'group cursor-pointer'"
+      pin-first-column
+      :row-class="() => 'cursor-pointer'"
       empty-text="No declined transactions match — upload an EFS Reject report from the Import page, or adjust filters."
       @sort="onSort"
       @retry="refetch"

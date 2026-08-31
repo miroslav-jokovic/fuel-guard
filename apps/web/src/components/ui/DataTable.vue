@@ -5,8 +5,10 @@ import { computed, useSlots } from "vue";
 import { useMediaQuery } from "@vueuse/core";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import TableSkeleton from "@/components/TableSkeleton.vue";
+import DataTableCards from "@/components/ui/DataTableCards.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import type { SortState } from "@/lib/sort";
+import { isBlank } from "@/components/ui/dataTable";
 
 /**
  * The one data table. Column-definition driven so alignment, selection,
@@ -41,6 +43,9 @@ import type { SortState } from "@/lib/sort";
  * Expandable rows: pass `expanded` (a Set of row keys) and an #expanded="{ row }" slot; each
  * expanded row renders a full-width detail row beneath it. The page owns the Set — the table
  * only renders.
+ * Pinned lead column: `pin-first-column` keeps the first data column in place while the rest scroll
+ * sideways, and puts `group` on every row so the pinned cell follows its row's hover. Do not
+ * hand-write `sticky left-0` on a column — that is what this replaced.
  */
 export interface DataTableColumn {
   key: string;
@@ -114,6 +119,21 @@ const props = withDefaults(
     embedded?: boolean;
     /** Row keys whose #expanded detail row is currently shown. */
     expanded?: Set<string>;
+    /**
+     * Keep the first column visible while the rest scroll sideways.
+     *
+     * Promoted at R3b. It was already real on three pages — `FuelLogPage`, `TransactionsPage` and
+     * `RejectionsPage` — as byte-identical copies of two class strings AND a `row-class` returning
+     * `group`, which each page spelled differently. The third part is the trap: without `group` on
+     * the row, `group-hover:bg-surface-subtle` never fires and the pinned cell silently stops
+     * following its own row on hover. Three coordinated pieces that had to agree across three files
+     * is what a prop is for (D-ROS11: a value copied is a workaround with a delay fuse).
+     *
+     * Pins the first DATA column. A table that also sets `selectable` puts its checkbox column at
+     * `left-0` as well, so the two would overlap; no caller does both, and the day one wants to,
+     * the offset is the change to make rather than a second class string.
+     */
+    pinFirstColumn?: boolean;
   }>(),
   {
     rowKey: "id",
@@ -130,6 +150,7 @@ const props = withDefaults(
     rowClass: undefined,
     embedded: false,
     expanded: undefined,
+    pinFirstColumn: false,
   },
 );
 
@@ -203,19 +224,28 @@ const cellCls = (col: DataTableColumn, i: number): string[] => [
   i === props.columns.length - 1 && !hasActions.value ? "pr-6" : "",
 ];
 
+/**
+ * The pinned-column classes, in one place so the three pages that had them inline can stop agreeing
+ * with each other by hand. `z-sticky-lead` outranks the sticky header's `z-sticky` at the corner
+ * where both pin, and the cell repeats the surface colour because a transparent cell would let the
+ * scrolled columns show through underneath it.
+ */
+const PIN_HEADER = "sticky left-0 z-sticky-lead bg-surface-subtle border-r border-edge";
+const PIN_CELL =
+  "sticky left-0 z-raised border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle";
+const pinCls = (i: number, which: string) => (props.pinFirstColumn && i === 0 ? which : "");
+
 const skeletonCols = computed(
   () => props.columns.length + (props.selectable ? 1 : 0) + (hasActions.value ? 1 : 0),
 );
 
-const cellValue = (row: Row, col: DataTableColumn) => row[col.key];
-const isBlank = (v: unknown) => v == null || v === "";
-
+const cellValue = (row: Row, key: string) => row[key];
 const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
 
 /* ── narrow screens get cards, not a table ────────────────────────────────────────────────────────
  * A seven-column table on a 375px phone is a horizontal scroll with two columns visible, which is
- * not a table any more — it is a puzzle. Below `md` each row becomes a card: the first column is the
- * heading, the rest are label/value pairs.
+ * not a table any more — it is a puzzle. Below `md` each row becomes a card, rendered by
+ * `DataTableCards.vue` (extracted at R3b so column management fits in this file's budget).
  *
  * Rendered through a media query rather than `hidden md:block` on two copies of the markup, because
  * duplicating means every row exists twice in the DOM. `display: none` does keep the hidden copy out
@@ -224,44 +254,6 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
  */
 const isWide = useMediaQuery("(min-width: 768px)");
 
-/** The first column is the card's heading; the others become its body. */
-const headingColumn = computed(() => props.columns[0]);
-/**
- * The card's shape, decided from what a person actually scans on a phone.
- *
- * The heading row carries the identifier and — pulled out of the list — the STATUS, because status
- * is the one field someone is looking for when they scan a list of fills or loads. Left in the
- * label/value grid it read as just another row, which is what made the first version feel flat.
- *
- * A column counts as status when its key says so. That is a convention rather than a new flag on
- * `DataTableColumn`: 49 column arrays already exist, and a flag none of them set would be a
- * migration disguised as an option.
- */
-const STATUS_KEYS = /^(status|state|result|outcome|severity|disposition)$/;
-const statusColumn = computed(() => props.columns.find((col) => STATUS_KEYS.test(col.key)));
-const bodyColumns = computed(() =>
-  props.columns.slice(1).filter((col) => col.key !== statusColumn.value?.key),
-);
-
-/** Quantities read as a block on their own row; words read better in a two-column grid. */
-const numericBodyColumns = computed(() => bodyColumns.value.filter((c) => c.numeric));
-const textBodyColumns = computed(() => bodyColumns.value.filter((c) => !c.numeric));
-
-/**
- * Sorting is a header affordance, and cards have no headers — so without this it would simply
- * disappear below 768px. Losing the ability to order a list is a functional regression, not a
- * responsive trade-off, so the sortable columns come back as an explicit control.
- */
-const sortableColumns = computed(() => props.columns.filter((col) => col.sortable));
-
-/** A stable id so the card view's sort control can label itself without colliding across tables. */
-const listId = `dt-${Math.random().toString(36).slice(2, 8)}`;
-
-/** The select picks the COLUMN; the arrow beside it flips direction, matching the header's toggle. */
-function onCardSort(key: string) {
-  if (!key) return;
-  emit("sort", key);
-}
 </script>
 
 <template>
@@ -271,96 +263,26 @@ function onCardSort(key: string) {
     <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-ink-muted">
       <slot name="empty">{{ emptyText }}</slot>
     </div>
-    <template v-else-if="!isWide">
-      <!-- Narrow: one card per row. Same slots, same data, no table. -->
-      <div v-if="sortableColumns.length" class="flex items-center gap-2 border-b border-edge-subtle px-4 py-2.5">
-        <label class="text-2xs font-medium uppercase tracking-wide text-ink-muted" :for="`${listId}-sort`">
-          Sort
-        </label>
-        <select
-          :id="`${listId}-sort`"
-          class="min-w-0 flex-1 rounded-control bg-surface px-2 py-1.5 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control"
-          :value="sort?.key ?? ''"
-          @change="onCardSort(($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">Default order</option>
-          <option v-for="col in sortableColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
-        </select>
-        <button
-          v-if="sort?.key"
-          type="button"
-          class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control"
-          :aria-label="sort.dir === 'asc' ? 'Sorted ascending, switch to descending' : 'Sorted descending, switch to ascending'"
-          @click="emit('sort', sort.key)"
-        >
-          {{ sort.dir === "asc" ? "↑" : "↓" }}
-        </button>
-      </div>
-
-      <ul class="divide-y divide-edge-subtle">
-        <li v-for="row in rows" :key="keyOf(row)" class="px-4 py-3.5">
-          <div class="flex items-start gap-3">
-            <input
-              v-if="selectable"
-              type="checkbox"
-              class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600"
-              :checked="isSelected(row)"
-              :aria-label="`Select ${String(cellValue(row, headingColumn!) ?? 'row')}`"
-              @change="toggleRow(row)"
-            />
-            <div class="min-w-0 flex-1">
-              <!-- Identifier and status share the top line: the two things a scan is looking for. -->
-              <div class="flex items-center gap-2">
-                <div class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-                  <slot :name="`cell-${headingColumn!.key}`" :row="row" :value="cellValue(row, headingColumn!)">
-                    {{ isBlank(cellValue(row, headingColumn!)) ? "—" : cellValue(row, headingColumn!) }}
-                  </slot>
-                </div>
-                <div v-if="statusColumn" class="shrink-0">
-                  <slot :name="`cell-${statusColumn.key}`" :row="row" :value="cellValue(row, statusColumn)">
-                    {{ isBlank(cellValue(row, statusColumn)) ? "—" : cellValue(row, statusColumn) }}
-                  </slot>
-                </div>
-              </div>
-
-              <!-- Quantities first, as a row of stacked label-over-value blocks: on a phone they are
-                   compared against each other, and a two-column grid puts them too far apart. -->
-              <div v-if="numericBodyColumns.length" class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
-                <div v-for="col in numericBodyColumns" :key="col.key" class="min-w-0">
-                  <div class="text-2xs uppercase tracking-wide text-ink-muted">{{ col.label }}</div>
-                  <div class="mt-0.5 text-sm font-medium tabular-nums text-ink">
-                    <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col)">
-                      {{ isBlank(cellValue(row, col)) ? "—" : cellValue(row, col) }}
-                    </slot>
-                  </div>
-                </div>
-              </div>
-
-              <dl
-                v-if="textBodyColumns.length"
-                class="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t border-edge-subtle pt-2.5"
-              >
-                <template v-for="col in textBodyColumns" :key="col.key">
-                  <dt class="truncate text-2xs uppercase tracking-wide text-ink-muted">{{ col.label }}</dt>
-                  <dd class="min-w-0 text-sm text-ink-secondary">
-                    <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col)">
-                      {{ isBlank(cellValue(row, col)) ? "—" : cellValue(row, col) }}
-                    </slot>
-                  </dd>
-                </template>
-              </dl>
-              <div v-if="isExpanded(row)" class="mt-2.5">
-                <slot name="expanded" :row="row" />
-              </div>
-            </div>
-            <div v-if="hasActions" class="shrink-0">
-              <slot name="actions" :row="row" />
-            </div>
-          </div>
-        </li>
-      </ul>
-      <slot name="footer" />
-    </template>
+    <DataTableCards
+      v-else-if="!isWide"
+      :columns="columns"
+      :rows="rows"
+      :key-of="keyOf"
+      :selectable="selectable"
+      :selected="selected"
+      :sort="sort"
+      :expanded="expanded"
+      :has-actions="hasActions"
+      @sort="emit('sort', $event)"
+      @toggle-row="toggleRow"
+    >
+      <!-- Every slot verbatim, so a `#cell-<key>` written for the table reaches the card unchanged.
+           Forwarding by name rather than listing them is the only form that survives a page adding
+           a cell slot the table never hears about. -->
+      <template v-for="(_, name) in $slots" #[name]="slotProps">
+        <slot :name="name" v-bind="slotProps ?? {}" />
+      </template>
+    </DataTableCards>
 
     <template v-else>
       <div class="overflow-x-auto" :class="stickyHeader ? 'max-h-[70vh] overflow-y-auto' : ''">
@@ -388,7 +310,7 @@ function onCardSort(key: string) {
                 :key="col.key"
                 scope="col"
                 class="font-medium"
-                :class="[...cellCls(col, i), col.width ? WIDTHS[col.width] : '', col.headerClass]"
+                :class="[...cellCls(col, i), col.width ? WIDTHS[col.width] : '', pinCls(i, PIN_HEADER), col.headerClass]"
               >
                 <button
                   v-if="col.sortable"
@@ -412,7 +334,7 @@ function onCardSort(key: string) {
             <template v-for="row in rows" :key="keyOf(row)">
             <tr
               class="hover:bg-surface-subtle"
-              :class="[isSelected(row) ? 'bg-brand-50/40' : '', rowClass?.(row)]"
+              :class="[isSelected(row) ? 'bg-brand-50/40' : '', pinFirstColumn ? 'group' : '', rowClass?.(row)]"
               @click="emit('row-click', row)"
             >
               <td v-if="selectable" class="w-10 pl-6 pr-2" :class="dense ? 'py-2' : 'py-3'" @click.stop>
@@ -427,11 +349,11 @@ function onCardSort(key: string) {
               <td
                 v-for="(col, i) in columns"
                 :key="col.key"
-                :class="[...cellCls(col, i), col.cellClass]"
+                :class="[...cellCls(col, i), pinCls(i, PIN_CELL), col.cellClass]"
               >
-                <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col)">
-                  <span v-if="isBlank(cellValue(row, col))" class="text-ink-tertiary">—</span>
-                  <template v-else>{{ cellValue(row, col) }}</template>
+                <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col.key)">
+                  <span v-if="isBlank(cellValue(row, col.key))" class="text-ink-tertiary">—</span>
+                  <template v-else>{{ cellValue(row, col.key) }}</template>
                 </slot>
               </td>
               <td v-if="hasActions" class="w-12 pl-2 pr-6 text-right" :class="dense ? 'py-1.5' : 'py-2'" @click.stop>

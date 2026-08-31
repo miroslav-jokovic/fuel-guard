@@ -33,6 +33,8 @@ import type { SortState } from "@/lib/sort";
 const props = defineProps<{
   /** The current page of rows — already filtered, sorted and sliced by the page. */
   rows: Driver[];
+  /** The columns the reader kept, from `useTableColumns` — never the whole catalogue. */
+  columns: DataTableColumn[];
   loading: boolean;
   error: string | null;
   retrying: boolean;
@@ -111,57 +113,12 @@ const unitsByDriver = computed(() => {
 });
 const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.join(", ") || "—";
 
-const columns: DataTableColumn[] = [
-  {
-    key: "full_name",
-    label: "Name",
-    sortable: true,
-    width: "xl",
-    cellClass: "font-medium text-ink",
-  },
-  {
-    key: "samsara_username",
-    label: "Driver ID",
-    sortable: true,
-    width: "md",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "current_hos_status", label: "HOS status", sortable: true, width: "md" },
-  {
-    key: "current_hos_vehicle",
-    label: "Current truck",
-    width: "md",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "current_location",
-    label: "Location",
-    sortable: true,
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "app_access", label: "App access", width: "md" },
-  { key: "qualification", label: "Qualification", width: "lg" },
-  {
-    key: "phone",
-    label: "Phone",
-    width: "lg",
-    cellClass: "text-ink-secondary tabular-nums",
-  },
-  {
-    key: "vehicles",
-    label: "Vehicles",
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-  { key: "status", label: "Status", sortable: true, width: "sm" },
-];
 </script>
 
 <template>
   <DataTable
     embedded
-    :columns="columns"
+    :columns="props.columns"
     :rows="props.rows"
     row-key="id"
     :loading="props.loading"

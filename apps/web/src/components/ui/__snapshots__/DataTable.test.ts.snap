@@ -1,0 +1,109 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DataTable rendering, pinned across the R3b extraction > renders the narrow card list unchanged 1`] = `
+"<div class="rounded-surface overflow-hidden bg-surface shadow-card ring-1 ring-edge-subtle">
+  <!--Narrow: one card per row. Same slots, same data, no table.-->
+  <div class="flex items-center gap-2 border-b border-edge-subtle px-4 py-2.5"><label class="text-2xs font-medium uppercase tracking-wide text-ink-muted" for="dt-test-sort"> Sort </label><select id="dt-test-sort" class="min-w-0 flex-1 rounded-control bg-surface px-2 py-1.5 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control" value="unit">
+      <option value="">Default order</option>
+      <option value="unit">Unit</option>
+      <option value="gallons">Gallons</option>
+    </select><button type="button" class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control" aria-label="Sorted ascending, switch to descending">↑</button></div>
+  <ul class="divide-y divide-edge-subtle">
+    <li class="px-4 py-3.5">
+      <div class="flex items-start gap-3"><input type="checkbox" class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select Unit 204">
+        <div class="min-w-0 flex-1">
+          <!--Identifier and status share the top line: the two things a scan is looking for.-->
+          <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Unit 204</div>
+            <div class="shrink-0"><span data-testid="status-slot">ok</span></div>
+          </div>
+          <!--Quantities first, as a row of stacked label-over-value blocks: on a phone they are compared against each other, and a two-column grid puts them too far apart.-->
+          <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
+            <div class="min-w-0">
+              <div class="text-2xs uppercase tracking-wide text-ink-muted">Gallons</div>
+              <div class="mt-0.5 text-sm font-medium tabular-nums text-ink">118.4</div>
+            </div>
+          </div>
+          <dl class="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t border-edge-subtle pt-2.5">
+            <dt class="truncate text-2xs uppercase tracking-wide text-ink-muted">Driver</dt>
+            <dd class="min-w-0 text-sm text-ink-secondary">Marcus Reyes</dd>
+          </dl>
+          <div class="mt-2.5">
+            <div data-testid="expanded">detail</div>
+          </div>
+        </div>
+        <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
+      </div>
+    </li>
+    <li class="px-4 py-3.5">
+      <div class="flex items-start gap-3"><input type="checkbox" class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600" aria-label="Select Unit 991">
+        <div class="min-w-0 flex-1">
+          <!--Identifier and status share the top line: the two things a scan is looking for.-->
+          <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Unit 991</div>
+            <div class="shrink-0"><span data-testid="status-slot">none</span></div>
+          </div>
+          <!--Quantities first, as a row of stacked label-over-value blocks: on a phone they are compared against each other, and a two-column grid puts them too far apart.-->
+          <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
+            <div class="min-w-0">
+              <div class="text-2xs uppercase tracking-wide text-ink-muted">Gallons</div>
+              <div class="mt-0.5 text-sm font-medium tabular-nums text-ink">—</div>
+            </div>
+          </div>
+          <dl class="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t border-edge-subtle pt-2.5">
+            <dt class="truncate text-2xs uppercase tracking-wide text-ink-muted">Driver</dt>
+            <dd class="min-w-0 text-sm text-ink-secondary">—</dd>
+          </dl>
+          <!--v-if-->
+        </div>
+        <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
+      </div>
+    </li>
+  </ul>
+  <div data-testid="footer">pagination</div>
+</div>"
+`;
+
+exports[`DataTable rendering, pinned across the R3b extraction > renders the wide table unchanged 1`] = `
+"<div class="rounded-surface overflow-hidden bg-surface shadow-card ring-1 ring-edge-subtle">
+  <div class="overflow-x-auto max-h-[70vh] overflow-y-auto">
+    <table class="min-w-full text-sm whitespace-nowrap">
+      <thead class="bg-surface-subtle text-ink-muted shadow-sticky-edge sticky top-0 z-sticky">
+        <tr>
+          <th scope="col" class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select all rows"></th>
+          <th scope="col" class="font-medium px-4 py-3 text-left min-w-32"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Unit <app-icon-stub icon="path,[object Object]" strokewidth="1.5" class="size-3.5 text-ink-muted"></app-icon-stub></button></th>
+          <th scope="col" class="font-medium px-4 py-3 text-left min-w-44">Driver</th>
+          <th scope="col" class="font-medium px-4 py-3 text-right tabular-nums"><button type="button" class="group inline-flex items-center gap-1 hover:text-ink-secondary">Gallons <app-icon-stub icon="path,[object Object],path,[object Object],path,[object Object],path,[object Object]" strokewidth="1.5" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary"></app-icon-stub></button></th>
+          <th scope="col" class="font-medium px-4 py-3 text-left min-w-24">Status</th>
+          <th scope="col" class="w-12 pl-2 pr-6"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-edge-subtle">
+        <tr class="hover:bg-surface-subtle bg-brand-50/40">
+          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select row Unit 204"></td>
+          <td class="px-4 py-3 text-left font-medium text-ink">Unit 204</td>
+          <td class="px-4 py-3 text-left">Marcus Reyes</td>
+          <td class="px-4 py-3 text-right tabular-nums">118.4</td>
+          <td class="px-4 py-3 text-left"><span data-testid="status-slot">ok</span></td>
+          <td class="w-12 pl-2 pr-6 text-right py-2"><button type="button" data-testid="row-actions">Actions</button></td>
+        </tr>
+        <tr class="bg-surface-subtle/60">
+          <td colspan="6" class="px-6 py-3">
+            <div data-testid="expanded">detail</div>
+          </td>
+        </tr>
+        <tr class="hover:bg-surface-subtle">
+          <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select row Unit 991"></td>
+          <td class="px-4 py-3 text-left font-medium text-ink">Unit 991</td>
+          <td class="px-4 py-3 text-left"><span class="text-ink-tertiary">—</span></td>
+          <td class="px-4 py-3 text-right tabular-nums"><span class="text-ink-tertiary">—</span></td>
+          <td class="px-4 py-3 text-left"><span data-testid="status-slot">none</span></td>
+          <td class="w-12 pl-2 pr-6 text-right py-2"><button type="button" data-testid="row-actions">Actions</button></td>
+        </tr>
+        <!--v-if-->
+      </tbody>
+    </table>
+  </div>
+  <div data-testid="footer">pagination</div>
+</div>"
+`;
