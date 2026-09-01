@@ -11,9 +11,14 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import SlideOver from "@/components/SlideOver.vue";
-import NewInspectionForm from "@/features/maintenance/NewInspectionForm.vue";
-import { useInspectionsQuery } from "@/features/maintenance/useAnnualInspections";
+import KebabMenu from "@/components/KebabMenu.vue";
+import NewInspectionDrawer from "@/features/maintenance/NewInspectionDrawer.vue";
+import { useToastStore } from "@/stores/toast";
+import {
+  useDiscardInspection,
+  useInspectionsQuery,
+  type InspectionSummary,
+} from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -29,6 +34,15 @@ import { useSessionStore } from "@/stores/session";
  * comments beside the code that implements them, which is where this one is: the annual inspection
  * is 49 CFR §396.17, the report contents are §396.21(a), and the fourteen-month retention is
  * §396.21(b). Hazmat is the exception because there the regulation IS the subject.
+ *
+ * ── AN UNFINISHED INSPECTION IS A ROW WITH SOMEWHERE TO GO ─────────────────────────────────────
+ * A draft is somebody halfway down a truck with fifty-six parts to answer for, and the two things
+ * they need from this list are to carry on and to throw it away. Both were reachable only by opening
+ * the report first, which meant the list showed the state ("In progress") and offered nothing to do
+ * about it. They are row actions now (contract §5.6), destructive last.
+ *
+ * Discard is offered for a DRAFT only, and the API refuses a completed one by name — a filed report
+ * is a record, and the way to fix one is to supersede it from inside (D-AVI4).
  */
 
 const router = useRouter();
@@ -88,6 +102,30 @@ function onCreated(id: string) {
   creating.value = false;
   void router.push({ name: "annual-inspection", params: { id } });
 }
+
+const toast = useToastStore();
+const discard = useDiscardInspection();
+
+function openReport(row: InspectionSummary) {
+  void router.push({ name: "annual-inspection", params: { id: row.id } });
+}
+
+async function discardDraft(row: InspectionSummary) {
+  if (
+    !confirm(
+      `Discard the inspection of unit ${row.unit_number ?? "—"}? Nothing has been filed yet, and it` +
+        " cannot be recovered.",
+    )
+  ) {
+    return;
+  }
+  try {
+    await discard.mutateAsync(row.id);
+    toast.success("Inspection discarded");
+  } catch (e) {
+    toast.error("Could not discard the inspection", e instanceof Error ? e.message : undefined);
+  }
+}
 </script>
 
 <template>
@@ -133,6 +171,20 @@ function onCreated(id: string) {
       </template>
       <template #cell-next_due_on="{ row }">{{ row.next_due_on ?? "—" }}</template>
       <template #cell-decal_serial="{ row }">{{ row.decal_serial ?? "—" }}</template>
+      <template #actions="{ row }">
+        <KebabMenu v-if="session.can('maintenance')">
+          <BaseButton class="kebab-item" @click="openReport(row)">
+            {{ row.status === "draft" ? "Continue inspection" : "Open report" }}
+          </BaseButton>
+          <BaseButton
+            v-if="row.status === 'draft'"
+            class="kebab-item kebab-item-danger"
+            @click="discardDraft(row)"
+          >
+            Discard
+          </BaseButton>
+        </KebabMenu>
+      </template>
       <template #empty>
         No {{ subjectType === "tractor" ? "tractor" : "trailer" }} inspections yet.
       </template>
@@ -142,8 +194,6 @@ function onCreated(id: string) {
     </DataTable>
     </DataWorkspace>
 
-    <SlideOver :open="creating" title="New inspection" @close="creating = false">
-      <NewInspectionForm @created="onCreated" @cancel="creating = false" />
-    </SlideOver>
+    <NewInspectionDrawer :open="creating" @created="onCreated" @close="creating = false" />
   </div>
 </template>

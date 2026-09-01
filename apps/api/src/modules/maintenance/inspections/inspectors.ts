@@ -158,3 +158,45 @@ export async function setInspectorPeriod(
   if (!count) return { error: "Inspector not found", code: "not_found" };
   return { ok: true };
 }
+
+/**
+ * Take somebody off the register — only ever somebody who has inspected nothing.
+ *
+ * ── WHY A DELETE EXISTS BESIDE A RETIREMENT THAT IS DELIBERATELY NOT ONE ───────────────────────
+ * The two answer different questions, and until now one control was being asked to answer both. A
+ * person who inspected trucks for two years and has left is a RETIREMENT: their reports name them,
+ * §396.19 wants the qualification evidence for a year past the employment, and the row has to
+ * survive to carry both. A name typed wrongly five minutes ago is neither. Retiring that one leaves
+ * a person on the register who never existed, and a register carrying people who never existed is
+ * worse evidence than one row shorter — the point of B3 was that the assertion be checkable.
+ *
+ * ── THE BOUNDARY IS POSTGRES'S TO DRAW, NOT THIS FUNCTION'S ────────────────────────────────────
+ * The delete is ATTEMPTED and 0280's `on delete restrict` decides it. If any report names them the
+ * constraint refuses (SQLSTATE 23503) and the refusal is translated into the sentence that sends
+ * the reader to Retire. Counting reports first and branching on the count would be the same
+ * question answered twice — and the second answer can be stale by the time it is acted on, which is
+ * exactly the race a foreign key exists to not have.
+ */
+export async function deleteInspector(
+  admin: SupabaseClient,
+  orgId: string,
+  inspectorId: string,
+): Promise<{ ok: true } | ServiceError> {
+  const { error, count } = await admin
+    .from("maintenance_inspectors")
+    .delete({ count: "exact" })
+    .eq("org_id", orgId)
+    .eq("id", inspectorId);
+  if (error) {
+    if ((error as { code?: string }).code === "23503") {
+      return {
+        code: "has_inspections",
+        error:
+          "This person has performed inspections, so their record has to stay on file. Retire them instead.",
+      };
+    }
+    return traced("deleteInspector", "delete_failed", "Could not remove the inspector", error);
+  }
+  if (!count) return { error: "Inspector not found", code: "not_found" };
+  return { ok: true };
+}

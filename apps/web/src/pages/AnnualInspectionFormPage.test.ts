@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { defaultInspectionItems, deriveInspectionOutcome, INSPECTION_ITEMS } from "@silvicom/shared";
 
 /**
@@ -84,6 +85,7 @@ const inspection = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  setActivePinia(createPinia());
   state.finalize.mutate.mockClear();
   state.correct.mutateAsync.mockClear();
   state.discard.mutateAsync.mockClear();
@@ -92,7 +94,7 @@ beforeEach(() => {
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
   return mount(AnnualInspectionFormPage, {
-    global: { stubs: { PageHeader: true, SlideOver: true, AppDateField: true, PrintInspectionForm: true } },
+    global: { stubs: { PageHeader: true, AppDateField: true, PrintInspectionDrawer: true } },
   });
 };
 
