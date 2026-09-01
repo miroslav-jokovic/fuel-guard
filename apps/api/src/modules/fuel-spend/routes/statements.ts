@@ -4,7 +4,7 @@ import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import type { StatementWord } from "@silvicom/shared";
+import { rolesThatCanView, rolesThatManage, type StatementWord } from "@silvicom/shared";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "../fuelStatementIngest.js";
 import { runFuelReconciliation } from "../fuelReconRun.js";
 
@@ -12,6 +12,8 @@ import { runFuelReconciliation } from "../fuelReconRun.js";
  *  split (2026-08-27): fuel_statements, fuel_recon_runs and the statement bucket are this
  *  module's tables, so their routes live with the owner. Mounted on the shared /api/fueling
  *  router; paths are unchanged. */
+/** Gates derived from `SECTION_ACCESS`, never listed — FUEL-T2/D-FUI12; the argument is in
+ *  routes/exceptions.ts. Recording a statement or a reconciliation stays with the manage set. */
 export function registerStatementRoutes(router: Router): void {
   // Record a weekly Pilot direct-bill statement. The browser decodes the PDF (only it has pdfjs) and
   // sends the positioned WORDS plus the original bytes; the server re-parses and refuses anything that
@@ -19,7 +21,7 @@ export function registerStatementRoutes(router: Router): void {
   router.post(
     "/statements",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatManage("fuel")),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -56,7 +58,7 @@ export function registerStatementRoutes(router: Router): void {
   router.post(
     "/recon-runs",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatManage("fuel")),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -106,7 +108,7 @@ export function registerStatementRoutes(router: Router): void {
   router.get(
     "/recon-runs",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
