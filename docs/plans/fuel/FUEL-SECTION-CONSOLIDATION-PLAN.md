@@ -174,7 +174,7 @@ file" is not answerable anywhere in the product.
 - **A7 · Coverage and freshness are stated on two pages only** — Fuel Spend's coverage line and IFTA's
   health gate. Both are the right pattern and both argue for themselves in their own headers.
 
-### 0.3 The one-line thesis
+### 0.6 The one-line thesis
 
 **The capabilities are built and mostly good; the section is organised by where data came from rather
 than by what somebody is trying to do — and underneath that, three of its surfaces are not carrying
