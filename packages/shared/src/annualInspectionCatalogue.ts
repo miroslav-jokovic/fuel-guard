@@ -57,10 +57,19 @@ export interface InspectionItem {
   readonly label: string;
   readonly cfr: string;
   /**
-   * The subject types on which this component can be inspected AT ALL. An item outside this list is
-   * `na` by construction and the form must not offer another answer — a tractor has no rear impact
-   * guard, and no inspector should be able to certify that it does. This is a fact about the
-   * regulation, not about the fleet; contrast `fleetDefault`.
+   * The subject types this component normally exists on, which is what the form OPENS with.
+   *
+   * ── IT DEFAULTS, IT NO LONGER LOCKS (owner ruling, 2026-08-31) ─────────────────────────────────
+   * This used to disable the control: a tractor's rear impact guard could not be set to anything but
+   * `na`, on the argument that certifying an absent part is a statement nobody has standing to make.
+   * The argument is sound and the owner overruled it on how the paper actually works — **truck and
+   * trailer use the same form and the same decal, and the only difference is the unit number and
+   * which boxes are marked.** A product that refuses a mark the form permits has invented a rule the
+   * office does not have, and the edge cases are real: a converter dolly carries a fifth wheel, a
+   * straight truck carries both a body and a rear guard.
+   *
+   * The printed result is unchanged for every ordinary inspection, because the default already puts
+   * `N/A` in the box. What changes is that an inspector can disagree with it.
    */
   readonly appliesTo: readonly InspectionSubjectType[];
   /**
@@ -199,11 +208,10 @@ export function inspectionItem(key: string): InspectionItem | undefined {
 }
 
 /**
- * Can this component be answered as anything other than `na` on this kind of equipment?
+ * Does this component normally exist on this kind of equipment?
  *
- * The form must LOCK a false one rather than merely defaulting it: certifying that a tractor's rear
- * impact guard is in place is a statement about a part that does not exist, and the regulation gives
- * no one the standing to make it. `fleetDefault` is the editable kind of `na`; this is not.
+ * Read by `defaultInspectionResult` to decide the opening answer. It does NOT gate the control any
+ * more — see `appliesTo` above for the owner's ruling and why the printed page is unaffected.
  */
 export function isInspectionItemApplicable(
   item: InspectionItem,

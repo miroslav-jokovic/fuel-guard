@@ -64,7 +64,6 @@ const derived = computed(() => {
   if (!items.value.length) return null;
   return deriveInspectionOutcome(
     items.value.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
-    subjectType.value,
     report.value?.inspected_on ?? "1970-01-01",
   );
 });
@@ -251,7 +250,6 @@ async function openPdf(kind: "report" | "preview") {
           v-for="item in group.items"
           :key="item.key"
           :item="item"
-          :subject-type="subjectType"
           :result="byKey.get(item.key)?.result ?? 'na'"
           :source="byKey.get(item.key)?.source ?? 'default'"
           :repaired-at="byKey.get(item.key)?.repairedAt ?? null"

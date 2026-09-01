@@ -117,7 +117,6 @@ export async function finalizeInspection(
   // ── refuse, in the order a person would want to hear about it ────────────────────────────────
   const derived = deriveInspectionOutcome(
     items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
-    subjectType,
     report.inspected_on,
   );
   if (!derived.ok) {

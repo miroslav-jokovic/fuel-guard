@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { INSPECTION_RESULTS, inspectionItem, type InspectionSubjectType } from "@silvicom/shared";
+import { INSPECTION_RESULTS, inspectionItem } from "@silvicom/shared";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 
 /**
@@ -14,7 +14,6 @@ const mountRow = (over: Record<string, unknown> = {}) =>
   mount(InspectionItemRow, {
     props: {
       item: inspectionItem("brake.hose")!,
-      subjectType: "tractor" as InspectionSubjectType,
       result: "ok",
       source: "default",
       repairedAt: null,
@@ -46,25 +45,23 @@ describe("the three-state control", () => {
   });
 });
 
-describe("an inapplicable component is locked, not merely defaulted", () => {
-  it("disables everything but N/A on a part the equipment cannot have", () => {
-    // A tractor has no rear impact guard. Certifying that an absent part is in place is a statement
-    // nobody has standing to make — so the control refuses it rather than defaulting away from it.
+describe("every row is answerable — the form is the same for both (owner ruling, 2026-08-31)", () => {
+  it("leaves a part the equipment does not normally carry fully markable", () => {
+    // This used to disable everything but N/A. Truck and trailer share one form and one decal, and
+    // the difference is the unit number and which boxes are marked — so refusing a mark the paper
+    // permits would be a rule the office does not have. A converter dolly carries a fifth wheel.
     const w = mountRow({ item: inspectionItem("rear_impact_guard.present")!, result: "na" });
-    const disabled = w.findAll("button").map((b) => b.attributes("disabled") !== undefined);
-    expect(disabled).toEqual([true, true, false]);
+    expect(w.findAll("button").map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
   });
 
-  it("leaves a FLEET default fully editable — that na is a fact about this fleet, not the rules", () => {
-    // Silvicom's tractors run air brakes, so hydraulic brakes open as `na`. A different unit could
-    // answer otherwise, and the form must let it.
+  it("leaves a fleet default markable too — that na is about this fleet, not the rules", () => {
     const w = mountRow({ item: inspectionItem("brake.hydraulic")!, result: "na" });
     expect(w.findAll("button").map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
   });
 
-  it("unlocks the guard on a trailer, where the part exists", () => {
-    const w = mountRow({ item: inspectionItem("rear_impact_guard.present")!, subjectType: "trailer", result: "ok" });
-    expect(w.findAll("button").map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
+  it("still disables everything once the inspection is completed (D-AVI4)", () => {
+    const w = mountRow({ disabled: true });
+    expect(w.findAll("button").every((b) => b.attributes("disabled") !== undefined)).toBe(true);
   });
 });
 
@@ -81,11 +78,6 @@ describe("what the row tells the inspector about itself", () => {
   it("says when an answer is still the one the form opened with (D-AVI13)", () => {
     expect(mountRow({ source: "default" }).text()).toContain("default");
     expect(mountRow({ source: "inspector" }).text()).not.toContain("default");
-  });
-
-  it("does not label a locked row as a default — there was never a choice to make", () => {
-    const w = mountRow({ item: inspectionItem("rear_impact_guard.present")!, result: "na", source: "default" });
-    expect(w.text()).not.toContain("default");
   });
 
   it("offers a repair date only for a defect, because a date anywhere else is a data-entry error", () => {

@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppButton as BaseButton, AppDateField, AppBadge } from "@silvicom/ui";
-import {
-  INSPECTION_RESULTS,
-  isInspectionItemApplicable,
-  type InspectionItem,
-  type InspectionResult,
-  type InspectionSubjectType,
-} from "@silvicom/shared";
+import { INSPECTION_RESULTS, type InspectionItem, type InspectionResult } from "@silvicom/shared";
 
 /**
  * One of the 56 components, as a row (plan step A7).
@@ -28,7 +22,6 @@ import {
 
 const props = defineProps<{
   item: InspectionItem;
-  subjectType: InspectionSubjectType;
   result: InspectionResult;
   source: "default" | "inspector";
   repairedAt: string | null;
@@ -40,7 +33,6 @@ const emit = defineEmits<{
   "set-repaired": [value: string | null];
 }>();
 
-const applicable = computed(() => isInspectionItemApplicable(props.item, props.subjectType));
 const untouched = computed(() => props.source === "default");
 
 const LABELS: Record<InspectionResult, string> = {
@@ -68,7 +60,7 @@ const variantFor = (value: InspectionResult) => {
       <p class="truncate text-sm text-ink" :title="item.label">{{ item.label }}</p>
     </div>
 
-    <AppBadge v-if="untouched && applicable" tone="neutral" class="shrink-0">default</AppBadge>
+    <AppBadge v-if="untouched" tone="neutral" class="shrink-0">default</AppBadge>
 
     <div
       role="group"
@@ -80,7 +72,7 @@ const variantFor = (value: InspectionResult) => {
         :key="value"
         size="sm"
         :variant="variantFor(value)"
-        :disabled="disabled || (!applicable && value !== 'na')"
+        :disabled="disabled"
         :aria-pressed="result === value"
         @click="emit('set', value)"
       >

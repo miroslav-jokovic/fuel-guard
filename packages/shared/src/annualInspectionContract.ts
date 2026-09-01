@@ -4,9 +4,7 @@ import {
   INSPECTION_RESULTS,
   INSPECTION_SUBJECT_TYPES,
   inspectionItem,
-  isInspectionItemApplicable,
   type InspectionResult,
-  type InspectionSubjectType,
 } from "./annualInspectionCatalogue.js";
 
 /**
@@ -124,7 +122,6 @@ export type InspectionIssue =
   | { code: "missing_result"; itemKeys: string[] }
   | { code: "unknown_item"; itemKeys: string[] }
   | { code: "duplicate_item"; itemKeys: string[] }
-  | { code: "inapplicable_not_na"; itemKeys: string[] }
   | { code: "repair_date_without_defect"; itemKeys: string[] }
   | { code: "repair_date_before_inspection"; itemKeys: string[] };
 
@@ -145,10 +142,13 @@ export type InspectionDerivation =
  * Called by the finalize route before anything is written, by the browser to render the banner, and
  * by the renderer to choose what to stamp. One implementation, three callers — a second one would
  * be a second answer to a regulatory question.
+ *
+ * It takes no subject type: since applicability defaults rather than locks (owner ruling,
+ * 2026-08-31 — truck and trailer share one form and differ only in the marks), whether a component
+ * passed does not depend on what it is bolted to. Every catalogue item must still be answered.
  */
 export function deriveInspectionOutcome(
   answers: readonly InspectionItemAnswer[],
-  subjectType: InspectionSubjectType,
   inspectedOn: string,
 ): InspectionDerivation {
   const issues: InspectionIssue[] = [];
@@ -159,7 +159,6 @@ export function deriveInspectionOutcome(
   const seen = new Set<string>();
   const duplicates: string[] = [];
   const unknown: string[] = [];
-  const inapplicable: string[] = [];
   const strayRepairDate: string[] = [];
   const earlyRepairDate: string[] = [];
   const openDefects: string[] = [];
@@ -173,11 +172,6 @@ export function deriveInspectionOutcome(
     if (!item) {
       unknown.push(a.key);
       continue;
-    }
-    // An item that cannot exist on this equipment may only be `na`. See the catalogue's
-    // `isInspectionItemApplicable` for why this is locked rather than merely defaulted.
-    if (!isInspectionItemApplicable(item, subjectType) && a.result !== "na") {
-      inapplicable.push(a.key);
     }
     const repairedAt = a.repairedAt ?? null;
     if (repairedAt !== null && a.result !== "needs_repair") strayRepairDate.push(a.key);
@@ -198,7 +192,6 @@ export function deriveInspectionOutcome(
   push("missing_result", missing);
   push("unknown_item", unknown);
   push("duplicate_item", duplicates);
-  push("inapplicable_not_na", inapplicable);
   push("repair_date_without_defect", strayRepairDate);
   push("repair_date_before_inspection", earlyRepairDate);
 

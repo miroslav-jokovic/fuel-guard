@@ -55,27 +55,31 @@ describe("annual inspection catalogue", () => {
     }
   });
 
-  describe("applicability is a statement about the regulation, not the fleet", () => {
-    it("locks a tractor's rear impact guard to na — the part does not exist to certify", () => {
+  describe("applicability DEFAULTS the answer, it does not lock it (owner ruling, 2026-08-31)", () => {
+    it("opens a tractor's rear impact guard on na and a trailer's on ok", () => {
       const guard = inspectionItem("rear_impact_guard.present")!;
-      expect(isInspectionItemApplicable(guard, "tractor")).toBe(false);
       expect(defaultInspectionResult(guard, "tractor")).toBe("na");
-      expect(isInspectionItemApplicable(guard, "trailer")).toBe(true);
       expect(defaultInspectionResult(guard, "trailer")).toBe("ok");
     });
 
-    it("locks a fifth wheel to the tractor and steering to the power unit", () => {
-      expect(isInspectionItemApplicable(inspectionItem("coupling.fifth_wheel")!, "trailer")).toBe(false);
-      expect(isInspectionItemApplicable(inspectionItem("steering.wheel_free_play")!, "trailer")).toBe(false);
-      expect(isInspectionItemApplicable(inspectionItem("windshield.glazing")!, "trailer")).toBe(false);
+    it("opens the power-unit items na on a trailer — the same form, different marks", () => {
+      // Truck and trailer share one form and one decal; the difference is the unit number and which
+      // boxes are marked. So these OPEN as N/A rather than being unanswerable.
+      for (const key of ["coupling.fifth_wheel", "steering.wheel_free_play", "windshield.glazing"]) {
+        expect(defaultInspectionResult(inspectionItem(key)!, "trailer"), key).toBe("na");
+      }
     });
 
-    it("locks motorcoach seats on both — a trucking carrier operates neither", () => {
+    it("opens motorcoach seats na on both — a trucking carrier operates neither", () => {
       const seats = inspectionItem("motorcoach_seats.secure")!;
       for (const subject of INSPECTION_SUBJECT_TYPES) {
-        expect(isInspectionItemApplicable(seats, subject), subject).toBe(false);
         expect(defaultInspectionResult(seats, subject), subject).toBe("na");
       }
+    });
+
+    it("still records which items normally exist where, because the default reads it", () => {
+      expect(isInspectionItemApplicable(inspectionItem("coupling.fifth_wheel")!, "tractor")).toBe(true);
+      expect(isInspectionItemApplicable(inspectionItem("coupling.fifth_wheel")!, "trailer")).toBe(false);
     });
   });
 

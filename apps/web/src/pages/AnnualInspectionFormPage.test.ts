@@ -99,14 +99,14 @@ const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
 describe("the verdict is the shared function's, not the page's", () => {
   it("agrees with deriveInspectionOutcome on a clean report", () => {
     const its = items();
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
     expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("agrees with it on an unrepaired defect", () => {
     const its = items({ "brake.hose": "needs_repair" });
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("fail");
     const text = mountPage(its).text();
     expect(text).toContain("FAILED");
@@ -117,14 +117,14 @@ describe("the verdict is the shared function's, not the page's", () => {
     const its = items().map((i) =>
       i.key === "brake.hose" ? { ...i, result: "needs_repair" as const, repairedAt: "2026-06-17" } : i,
     );
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
     expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("says it is not ready when a component has no result, rather than guessing (D-AVI5)", () => {
     const its = items().slice(0, 40);
-    expect(deriveInspectionOutcome(its, "tractor", "2026-06-16").ok).toBe(false);
+    expect(deriveInspectionOutcome(its, "2026-06-16").ok).toBe(false);
     expect(mountPage(its).text()).toContain("Not ready to complete");
   });
 
