@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCallout, AppSelect, AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCallout,
+  AppCombobox as ComboSelect,
+  AppSelect,
+  AppDateField,
+  AppFormField as FormField,
+} from "@silvicom/ui";
 import type { InspectionSubjectType } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
@@ -85,8 +92,12 @@ async function onSubmit() {
             @update:model-value="subjectId = ''"
           />
         </FormField>
+        <!-- A combobox and not a select: production carries 195 tractors and 211 trailers, and a
+             native dropdown of two hundred units is not something anybody scrolls. This is what
+             `DispatchLoadFormPage` uses to pick a truck, a trailer or a driver. `AppSelect` stays
+             above it, where the vocabulary is two closed options. -->
         <FormField v-slot="{ id }" label="Unit">
-          <AppSelect :id="id" v-model="subjectId" :options="equipmentOptions" placeholder="Choose a unit" />
+          <ComboSelect :id="id" v-model="subjectId" :options="equipmentOptions" placeholder="Search units…" />
         </FormField>
       </div>
     </section>
@@ -96,7 +107,7 @@ async function onSubmit() {
       <p class="mt-1 text-sm text-ink-muted">Only people whose qualification covers this date.</p>
       <div class="mt-4 space-y-4">
         <FormField v-slot="{ id }" label="Inspector">
-          <AppSelect :id="id" v-model="inspectorId" :options="inspectorOptions" placeholder="Choose an inspector" />
+          <ComboSelect :id="id" v-model="inspectorId" :options="inspectorOptions" placeholder="Search inspectors…" />
         </FormField>
         <FormField v-slot="{ id }" label="Date inspected">
           <AppDateField :id="id" v-model="inspectedOn" />

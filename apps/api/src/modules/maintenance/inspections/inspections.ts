@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { traced } from "./serviceError.js";
 import {
   INSPECTION_CATALOGUE_VERSION,
   defaultInspectionItems,
@@ -70,7 +71,7 @@ export async function createInspectionDraft(
     .eq("org_id", orgId)
     .eq("id", input.id)
     .maybeSingle();
-  if (existing.error) return { error: "Could not create inspection", code: "db_error" };
+  if (existing.error) return traced("createInspectionDraft.replayCheck", "db_error", "Could not start the inspection", existing.error);
   if (existing.data) return { id: input.id, replayed: true };
 
   const { error } = await admin.from("vehicle_inspections").insert({
@@ -83,7 +84,7 @@ export async function createInspectionDraft(
     catalogue_version: INSPECTION_CATALOGUE_VERSION,
     created_by: createdBy,
   });
-  if (error) return { error: "Could not create inspection", code: "insert_failed" };
+  if (error) return traced("createInspectionDraft", "insert_failed", "Could not start the inspection", error);
 
   const seeded = defaultInspectionItems(input.subjectType).map((item) => ({
     org_id: orgId,
@@ -93,7 +94,7 @@ export async function createInspectionDraft(
     source: "default" as const,
   }));
   const itemsErr = await admin.from("vehicle_inspection_items").insert(seeded);
-  if (itemsErr.error) return { error: "Could not seed inspection components", code: "insert_failed" };
+  if (itemsErr.error) return traced("createInspectionDraft.seedItems", "insert_failed", "Could not set up the inspection's parts", itemsErr.error);
   return { id: input.id, replayed: false };
 }
 
@@ -108,7 +109,7 @@ export async function getInspection(
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
-  if (error) return { error: "Could not load inspection", code: "db_error" };
+  if (error) return traced("getInspection", "db_error", "Could not load the inspection", error);
   if (!data) return null;
 
   const items = await admin
@@ -117,7 +118,7 @@ export async function getInspection(
     .eq("org_id", orgId)
     .eq("inspection_id", id)
     .order("item_key", { ascending: true });
-  if (items.error) return { error: "Could not load inspection components", code: "db_error" };
+  if (items.error) return traced("getInspection.items", "db_error", "Could not load the inspection's parts", items.error);
 
   return {
     report: data as unknown as ReportRow,
@@ -196,7 +197,7 @@ export async function listInspections(
   const { data, error, count } = await query
     .order("inspected_on", { ascending: false })
     .range(offset, offset + limit - 1);
-  if (error) return { error: "Could not list inspections", code: "db_error" };
+  if (error) return traced("listInspections", "db_error", "Could not load inspections", error);
 
   const reports = (data ?? []) as unknown as ReportRow[];
   const inspectors = await inspectorNames(admin, orgId, reports.map((r) => r.inspector_id));
@@ -251,7 +252,7 @@ async function inspectorNames(
     .select("id, full_name")
     .eq("org_id", orgId)
     .in("id", unique);
-  if (error) return { error: "Could not load inspectors", code: "db_error" };
+  if (error) return traced("inspectorNames", "db_error", "Could not load inspectors", error);
   return new Map((data as Array<{ id: string; full_name: string }>).map((r) => [r.id, r.full_name]));
 }
 
@@ -296,7 +297,7 @@ export async function patchInspection(
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
-  if (current.error) return { error: "Could not load inspection", code: "db_error" };
+  if (current.error) return traced("patchInspection.load", "db_error", "Could not load the inspection", current.error);
   if (!current.data) return { error: "Inspection not found", code: "not_found" };
   if ((current.data as { status: string }).status === "final") {
     return {
@@ -315,7 +316,7 @@ export async function patchInspection(
       .update(header)
       .eq("org_id", orgId)
       .eq("id", id);
-    if (error) return { error: "Could not update inspection", code: "update_failed" };
+    if (error) return traced("patchInspection.header", "update_failed", "Could not save the inspection", error);
   }
 
   for (const [, group] of groupItems(patch.items ?? [])) {
@@ -332,7 +333,7 @@ export async function patchInspection(
       .eq("org_id", orgId)
       .eq("inspection_id", id)
       .in("item_key", group.keys);
-    if (error) return { error: "Could not update inspection components", code: "update_failed" };
+    if (error) return traced("patchInspection.items", "update_failed", "Could not save those parts", error);
   }
   return { ok: true };
 }

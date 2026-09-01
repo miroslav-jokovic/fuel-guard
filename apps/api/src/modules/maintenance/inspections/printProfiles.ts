@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { traced } from "./serviceError.js";
 import type { ServiceError } from "./inspectors.js";
 
 /**
@@ -30,7 +31,7 @@ export async function listPrintProfiles(
     .select(COLUMNS)
     .eq("org_id", orgId)
     .order("name", { ascending: true });
-  if (error) return { error: "Could not load the print profiles", code: "db_error" };
+  if (error) return traced("listPrintProfiles", "db_error", "Could not load the printer setups", error);
   return (data ?? []).map(toProfile);
 }
 
@@ -45,7 +46,7 @@ export async function getPrintProfile(
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
-  if (error) return { error: "Could not load the print profile", code: "db_error" };
+  if (error) return traced("getPrintProfile", "db_error", "Could not load the printer setup", error);
   return data ? toProfile(data) : null;
 }
 
@@ -74,7 +75,7 @@ export async function upsertPrintProfile(
       )
       .eq("org_id", orgId)
       .eq("id", id);
-    if (error) return { error: "Could not save the print profile", code: "update_failed" };
+    if (error) return traced("upsertPrintProfile.update", "update_failed", "Could not save the printer setup", error);
     if (!count) return { error: "Print profile not found", code: "not_found" };
     return { id };
   }
@@ -90,7 +91,7 @@ export async function upsertPrintProfile(
     })
     .select("id")
     .single();
-  if (error || !data) return { error: "Could not create the print profile", code: "insert_failed" };
+  if (error || !data) return traced("upsertPrintProfile.insert", "insert_failed", "Could not save the printer setup", error);
   return { id: (data as { id: string }).id };
 }
 

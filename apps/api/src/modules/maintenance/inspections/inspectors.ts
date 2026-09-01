@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { traced } from "./serviceError.js";
 import type { InspectorQualificationBasis } from "@silvicom/shared";
 
 /**
@@ -64,7 +65,7 @@ export async function listInspectors(
     .select(COLUMNS)
     .eq("org_id", orgId)
     .order("full_name", { ascending: true });
-  if (error) return { error: "Could not load inspectors", code: "db_error" };
+  if (error) return traced("listInspectors", "db_error", "Could not load inspectors", error);
   const rows = (data ?? []) as InspectorRow[];
   return rows
     .map((r) => ({ ...r, qualified: isQualifiedOn(r, opts.asOf) }))
@@ -84,7 +85,7 @@ export async function inspectorFor(
     .eq("org_id", orgId)
     .eq("id", inspectorId)
     .maybeSingle();
-  if (error) return { error: "Could not load inspector", code: "db_error" };
+  if (error) return traced("inspectorFor", "db_error", "Could not load the inspector", error);
   if (!data) return null;
   const row = data as InspectorRow;
   return { ...row, qualified: isQualifiedOn(row, onDate) };
@@ -125,7 +126,7 @@ export async function createInspector(
     })
     .select("id")
     .single();
-  if (error || !data) return { error: "Could not create inspector", code: "insert_failed" };
+  if (error || !data) return traced("createInspector", "insert_failed", "Could not add the inspector", error);
   return { id: (data as { id: string }).id };
 }
 
@@ -153,7 +154,7 @@ export async function setInspectorPeriod(
     .update({ effective_to: effectiveTo }, { count: "exact" })
     .eq("org_id", orgId)
     .eq("id", inspectorId);
-  if (error) return { error: "Could not update the inspector", code: "update_failed" };
+  if (error) return traced("setInspectorPeriod", "update_failed", "Could not update the inspector", error);
   if (!count) return { error: "Inspector not found", code: "not_found" };
   return { ok: true };
 }
