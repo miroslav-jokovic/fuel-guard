@@ -36,6 +36,7 @@ const items = (over: Record<string, string> = {}): Row[] =>
   }));
 
 const state = vi.hoisted(() => ({
+  admin: { value: true },
   data: { value: null as unknown },
   patch: { mutate: vi.fn(), isPending: { value: false } },
   finalize: { mutate: vi.fn(), isPending: { value: false }, error: { value: null } },
@@ -61,7 +62,10 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   useDiscardInspection: () => state.discard,
 }));
 vi.mock("@/lib/api", () => ({ fetchObjectUrl: vi.fn(async () => "blob:x") }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
+// `admin` is a REF the tests move, because the delete control is the one thing on this page gated on
+// the role rather than the section — a technician certifies inspections, they do not destroy the
+// record of one (D-AVI29).
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, admin: state.admin.value }) }));
 // The page names the carrier on the in-house option of the "performed by" control, which is a real
 // vue-query hook — stubbed here rather than plumbing a QueryClient through a test about verdicts.
 vi.mock("@/composables/useOrgSettings", () => ({
@@ -94,12 +98,15 @@ beforeEach(() => {
   state.finalize.mutate.mockClear();
   state.correct.mutateAsync.mockClear();
   state.discard.mutateAsync.mockClear();
+  state.admin.value = true;
 });
 
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
   return mount(AnnualInspectionFormPage, {
-    global: { stubs: { PageHeader: true, AppDateField: true, PrintInspectionDrawer: true } },
+    global: {
+      stubs: { PageHeader: true, AppDateField: true, PrintInspectionDrawer: true, DeleteInspectionDrawer: true },
+    },
   });
 };
 
@@ -143,7 +150,7 @@ describe("the verdict is the shared function's, not the page's", () => {
     for (const label of labels) {
       expect([
         "OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print",
-        "Record a correction", "Discard",
+        "Record a correction", "Discard", "Delete this record",
       ]).toContain(label);
     }
   });
@@ -222,6 +229,27 @@ describe("a certified report is read-only (D-AVI4)", () => {
     // it was reported on 2026-09-01. Preview is what you look at BEFORE certifying (D-AVI14).
     const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
     expect(labels).not.toContain("Preview the printed page");
+  });
+});
+
+describe("destroying the record is admin-only and separate from Discard (D-AVI29)", () => {
+  it("offers it to an admin, on a draft and on a filed report alike", () => {
+    const filed = { status: "final", outcome: "pass", next_due_on: "2027-06-16", document_id: "doc-1" };
+    for (const over of [{}, filed]) {
+      const labels = mountPage(items(), over).findAll("button").map((b) => b.text());
+      expect(labels, JSON.stringify(over)).toContain("Delete this record");
+    }
+  });
+
+  it("does NOT offer it to somebody who can only manage maintenance", () => {
+    // `can("maintenance")` is still true here — a technician certifies inspections. What they must
+    // not have is the control that destroys the record of one. If this ever starts passing because
+    // the button moved to `session.can`, the API still refuses, and the office gets a 403 instead of
+    // a hidden button.
+    state.admin.value = false;
+    const labels = mountPage(items()).findAll("button").map((b) => b.text());
+    expect(labels).not.toContain("Delete this record");
+    expect(labels).toContain("Discard");
   });
 });
 

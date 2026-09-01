@@ -8,6 +8,8 @@ import {
   rolesThatManage,
   type InspectionCreateRequest,
   type InspectionPatchRequest,
+  inspectionDeleteRequestSchema,
+  type InspectionDeleteRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -25,6 +27,7 @@ import { listInspections } from "../inspections/inspectionList.js";
 import { inspectorFor } from "../inspections/inspectors.js";
 import { finalizeInspection } from "../inspections/finalize.js";
 import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../inspections/reportDelivery.js";
+import { deleteInspectionRecord } from "../inspections/deleteRecord.js";
 import { renderRegistrationSheet } from "../inspections/render/registrationSheet.js";
 import { RENDERER_VERSION } from "../inspections/render/report.js";
 import { getPrintProfile } from "../inspections/printProfiles.js";
@@ -338,6 +341,41 @@ export function inspectionsRouter(): Router {
         meta: {},
       });
       res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Destroy a report and everything it created (D-AVI29) — a SEPARATE verb from the discard above.
+   *
+   * ── WHY NOT A FLAG ON `DELETE /:id` ────────────────────────────────────────────────────────────
+   * "Throw away a draft nobody has certified" and "destroy a §396.21 record" are different acts with
+   * different consequences, and a `?force=true` on one route is how the second gets done by somebody
+   * who meant the first. Two routes, two role gates, and the destructive one has to be asked for by
+   * name.
+   *
+   * `requireRole("admin")` rather than `canManage`: a technician certifies inspections, they do not
+   * destroy the record of one. The reason is validated by the contract before this handler runs, and
+   * `deleteInspectionRecord` writes the audit row itself — BEFORE it deletes anything — because an
+   * audit written here would only describe the deletes that succeeded.
+   */
+  router.post(
+    "/:id/delete-record",
+    requireOrg,
+    requireRole("admin"),
+    validateBody(inspectionDeleteRequestSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const body = res.locals.body as InspectionDeleteRequest;
+      const result = await deleteInspectionRecord(admin, req.auth!.orgId!, String(req.params.id ?? ""), {
+        reason: body.reason,
+        actorId: req.auth!.userId,
+      });
+      if ("code" in result) {
+        const status = result.code === "not_found" ? 404 : result.code === "reason_required" ? 400 : 500;
+        res.status(status).json(apiError(result.code, result.error));
+        return;
+      }
+      res.json({ ok: true, ...result });
     }),
   );
 

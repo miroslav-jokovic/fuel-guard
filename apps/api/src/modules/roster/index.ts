@@ -31,4 +31,7 @@ export { recordInferredTrailerPairing } from "./trailerPairing.js";
 // The equipment half of the §396.17 inspection — `maintenance` reads identity and projects the
 // expiry through here, because `vehicles` and `trailers` are this module's tables (D-AVI9/D-AVI10).
 export { getEquipmentIdentities, getEquipmentIdentity, recordEquipmentInspectionExpiry } from "./equipmentInspection.js";
+// The other end of the projection: read the claim before finalize takes it, give it back when the
+// report that took it is deleted (0285, D-AVI29).
+export { readEquipmentIdentitySource, releaseEquipmentInspectionClaim } from "./equipmentInspection.js";
 export type { EquipmentIdentity } from "./equipmentInspection.js";

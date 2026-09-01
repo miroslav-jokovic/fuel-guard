@@ -287,6 +287,44 @@ export function useCreateInspection() {
   });
 }
 
+/**
+ * Destroying a report and everything it created (D-AVI29).
+ *
+ * A POST rather than a DELETE, and to a route of its own rather than a flag on the discard endpoint:
+ * "throw away a draft" and "destroy a §396.21 record" are different acts, and a shared route with a
+ * force flag is how the second gets done by somebody who meant the first. The list and the report
+ * itself are both invalidated because the row is simply gone.
+ */
+export interface DeletedRecord {
+  id: string;
+  itemsDeleted: number;
+  certificationDeleted: boolean;
+  documentDeleted: boolean;
+  expiresOn: string | null;
+  identitySourceRestored: string | null;
+}
+
+export function useDeleteInspectionRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }): Promise<DeletedRecord> => {
+      const r = await apiFetch<DeletedRecord>(`/api/maintenance/inspections/${id}/delete-record`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not delete the record");
+      return r.data;
+    },
+    onSuccess: (_d, vars) => {
+      void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] });
+      void qc.removeQueries({ queryKey: ["maintenance", "inspection", vars.id] });
+      // The truck's expiry moved, so the roster surfaces that read it are stale too.
+      void qc.invalidateQueries({ queryKey: ["vehicles"] });
+      void qc.invalidateQueries({ queryKey: ["trailers"] });
+    },
+  });
+}
+
 export interface PrintProfile {
   id: string;
   name: string;

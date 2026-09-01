@@ -9,7 +9,7 @@ import {
   type InspectionSubjectType,
 } from "@silvicom/shared";
 import { fileGeneratedDocument, insertCertification } from "../../evidence/index.js";
-import { getEquipmentIdentity, recordEquipmentInspectionExpiry } from "../../roster/index.js";
+import { getEquipmentIdentity, readEquipmentIdentitySource, recordEquipmentInspectionExpiry } from "../../roster/index.js";
 import { carrierCityStateZip, getCarrierIdentity } from "../../org/index.js";
 import { RENDERER_VERSION, renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
 import { TEMPLATE_REVISION } from "./render/layouts/keller14834Rev0122.js";
@@ -215,7 +215,16 @@ export async function finalizeInspection(
 
   // The projection, and the claim that stops the McLeod sweep replacing it (D-AVI9). Only for a
   // PASS — projecting a failed inspection's date would say the truck is good until next year.
+  //
+  // What the row was owned by is read BEFORE the claim is taken and recorded on the report (0285),
+  // so deleting the report can give it back. Read it after, and 'manual' is all there is to see.
+  let identitySourceBefore: string | null = null;
   if (derived.outcome === "pass") {
+    const before = await readEquipmentIdentitySource(admin, orgId, subjectType, report.subject_id);
+    // A failure to READ is not a reason to refuse a certification — the claim is still taken, and a
+    // null here degrades exactly like a pre-0285 report: the delete path leaves identity_source alone
+    // rather than guessing. Losing the undo is survivable; refusing the filing is not.
+    if (typeof before === "string") identitySourceBefore = before;
     const projected = await recordEquipmentInspectionExpiry(admin, orgId, subjectType, report.subject_id, nextDueOn);
     if ("code" in projected) return { error: projected.error, code: projected.code };
   }
@@ -236,6 +245,8 @@ export async function finalizeInspection(
       // like different documents with nothing anywhere saying why — see 0284.
       renderer_version: RENDERER_VERSION,
       template_revision: TEMPLATE_REVISION,
+      // What the truck was owned by before this report claimed it (0285, D-AVI29).
+      equipment_identity_source_before: identitySourceBefore,
       // `catalogue_version` is DELIBERATELY not written here. It is pinned when the draft is created
       // and describes the checklist the inspector actually worked down; stamping the current version
       // at finalize would make a report claim a checklist it was never taken under, which is the one

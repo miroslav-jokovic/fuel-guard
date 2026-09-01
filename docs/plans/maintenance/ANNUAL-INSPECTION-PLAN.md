@@ -1318,6 +1318,60 @@ reasoning are in `CLEANUP-TEST-INSPECTION-183.sql`, including why `identity_sour
 the Samsara sweep skips forever). No product path to delete a certified report was built, and none
 should be: that hole would be worse than the cleanup it serves.
 
+### B13 — a record can be destroyed, on purpose, by an admin, with a reason — DONE 2026-09-01
+
+Asked for directly: *"we should have hard delete option for inspections anyway, for example if truck
+is sold or any other reason we should be able to delete this."*
+
+**D-AVI29 — the hole in the evidence model, cut deliberately, by the owner.**
+
+This plan has said the opposite twice. `discardDraft` refuses a completed report by name — *"a
+completed inspection is a record and cannot be deleted. Record a correction instead"* — 0280's
+trigger freezes it, `vehicle_inspections` is pinned in `RETENTION_FORBIDDEN`, and §396.21(b) asks a
+carrier to keep the report for fourteen months. None of that reasoning has changed.
+
+What changed is that the rule has no answer for the case the owner actually has: a truck leaves the
+fleet, or a report was created against the wrong unit, and there is nothing to *correct* because
+there is nothing that should exist. The alternative to building this was raw SQL against production
+every time — which is what happened on 2026-09-01 for one test report, and which has no org scoping,
+no audit row, and no chance of getting the equipment projection right. A capability the office needs,
+routed around instead of built, is the definition this repo already uses for a workaround.
+
+So it exists, and it is built to be the safest way to do the thing rather than the easiest:
+
+| guard | why not the looser option |
+| --- | --- |
+| `requireRole("admin")` | not `rolesThatManage("maintenance")` — a technician certifies inspections, they do not destroy the record of one |
+| a required reason, min 3 chars, refused server-side and client-side by the SAME predicate | it is the only part of a deleted record that survives; a blank box is how "why did this vanish" gets answered with nothing |
+| the audit row written **first** | written after, it could only describe the deletes that succeeded — and a half-failure would leave no account at all. `audit_logs` is itself in `RETENTION_FORBIDDEN`, so it outlives everything it describes |
+| `POST /:id/delete-record`, a route of its own | a `?force=true` on the discard endpoint is how the destructive act gets done by somebody who meant the harmless one |
+| a drawer, not `window.confirm` | it has to carry the list of what goes, take a reason, and make somebody type the unit number back |
+
+**The evidence tables are deleted through their OWNER, and the gate insisted.** The first pass
+deleted from `documents` and `certifications` inside `maintenance`, and `check-table-access.mjs`
+refused it: *"outside its owner evidence — move the code, call an owner interface, or grandfather
+it."* So `evidence/retract.ts` exists — one named door for the single deletion
+`RETENTION_FORBIDDEN` has always permitted, which until now existed only as a sentence in a comment.
+It removes the storage object BEFORE the row, because a row whose object is gone is a broken link
+somebody can find and an object whose row is gone is unreachable by every reader in the system.
+
+**Giving the equipment claim back is the part that would have shipped broken.** Finalize sets
+`identity_source = 'manual'` so the McLeod sweep leaves the office's expiry alone (D-AVI9/D-ARC3).
+Undo the date and not the claim and the truck is stranded — the sweep stops maintaining its
+*identity*, not just its inspection date. Found by measuring production during the 183 cleanup: 197
+vehicles `'samsara'`, exactly one `'manual'`, and that one was the inspected truck. The value is not
+recoverable afterwards, so migration **0285** has the report record what it displaced, and the delete
+restores it — but only when no other final report still holds the claim, and only to a value that
+report actually recorded. A NULL means "filed before 0285": `identity_source` is then left alone
+rather than guessed at, because writing the column default would restate one fleet's plumbing as if
+it were a fact about that row.
+
+Deleting one report of several recomputes the expiry from the newest surviving PASS rather than
+assuming null.
+
+**0285 shipped as its own merge**, ahead of every reader — the first change to follow the rule #431
+added after two of these columns took the inspections page down.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was
