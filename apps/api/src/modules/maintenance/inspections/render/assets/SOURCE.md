@@ -10,6 +10,29 @@ inspection values onto.
 | AcroForm | **none** — the original's three text fields (carrier / address / city-state-zip) did not survive the Illustrator round trip, so the renderer stamps that block as text like every other field |
 | Verified | Max drift **0.009 pt** across 26 artwork anchors compared against the original filled sample, 2026-08-31. The coordinate map derived from that sample therefore transfers unchanged |
 
+## Two things this file does NOT carry, and one of them is Keller's doing
+
+**The section headings are drawn in zero ink.** All sixteen — `1. BRAKE SYSTEM` and its siblings —
+are painted at `0 0 0 0 scn` over a 0.48 pt red hairline, so they are white on white on plain paper.
+That is not damage: the carrier's own untouched report (`535968 8-26`) does exactly the same, because
+the pad Keller ships is pre-printed with the coloured heading band and the PDF is designed to be
+filled and printed ONTO it. Confirmed by scanning both files at 300 dpi — fifteen hairlines, one per
+printed column-section, each with the heading knocked out of it.
+
+The renderer therefore draws the headings itself, in black, and **only on the plain-paper path**
+(`background: "template"`). The overlay path prints onto a real pad that already has them. See
+D-AVI22 and `GROUP_HEADINGS` in `../layouts/keller14834Rev0122.ts`.
+
+**`1. BRAKE SYSTEM` is missing from this file entirely** — not merely knocked out, absent. It exists
+in the carrier's good report and did not survive the Illustrator round trip that produced this
+blank. It costs nothing now that the renderer supplies all sixteen from the catalogue, and it is
+recorded here because it is the one respect in which this blank is genuinely damaged rather than
+merely designed for stock we do not use.
+
+**The `OK` column header is also missing** from all three column groups (the ruled box survives, its
+label did not). Cosmetic, not yet restored, and named here so the next person does not re-diagnose
+it.
+
 ## Why this file is here at all
 
 `docs/plans/maintenance/ANNUAL-INSPECTION-PLAN.md` §2.1 records the ruling and what it costs. In

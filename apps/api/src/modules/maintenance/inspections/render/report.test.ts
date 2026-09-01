@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
+import { inflateSync } from "node:zlib";
 import { defaultInspectionItems } from "@silvicom/shared";
 import { RENDERER_VERSION, renderDigest, renderInspectionReport, type InspectionRenderInput } from "./report.js";
 
@@ -45,6 +46,67 @@ describe("rendering onto the Keller template", () => {
     expect(withoutTemplate.subarray(0, 5).toString()).toBe("%PDF-");
     // Same values, no artwork — so it must be dramatically smaller and still a valid page.
     expect(withoutTemplate.byteLength).toBeLessThan(withTemplate.byteLength / 10);
+  });
+
+  /**
+   * Reading the drawn content back out of the PDF.
+   *
+   * Two layers to get through, and both of them are why a defect like this survives review: pdf-lib
+   * DEFLATES its content streams, and it writes every string as HEX rather than as literal text. So
+   * neither the operators nor the words are in the raw bytes. Inflating and decoding lets these
+   * tests assert what was PAINTED rather than that a file of roughly the right size appeared —
+   * which is the only kind of assertion that could catch a heading drawn in white on white.
+   */
+  const painted = (pdf: Buffer): string => {
+    const raw = pdf.toString("latin1");
+    let out = "";
+    const re = /stream\r?\n/g;
+    for (let m = re.exec(raw); m; m = re.exec(raw)) {
+      const start = m.index + m[0].length;
+      const end = raw.indexOf("endstream", start);
+      if (end < 0) continue;
+      const chunk = Buffer.from(raw.slice(start, end), "latin1");
+      try {
+        out += inflateSync(chunk).toString("latin1");
+      } catch {
+        out += chunk.toString("latin1");
+      }
+    }
+    // `<48656C6C6F> Tj` → `Hello`, appended so a plain `toContain` can read the page's words.
+    return (
+      out +
+      "\n" +
+      [...out.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)]
+        .map((m) => Buffer.from(m[1]!, "hex").toString("latin1"))
+        .join("\n")
+    );
+  };
+
+  it("prints the section headings on plain paper, because Keller's own page knocks them out", async () => {
+    // D-AVI22: the form draws them at zero ink over a hairline for a pre-printed pad. Print that on
+    // plain paper and the office gets a table of items with nothing naming the sections — which is
+    // exactly what was reported.
+    const pdf = await renderInspectionReport(BASE);
+    for (const heading of ["1. BRAKE SYSTEM", "11. WHEELS AND RIMS", "16. OTHER"]) {
+      expect(painted(pdf), heading).toContain(heading);
+    }
+  });
+
+  it("does NOT print them onto a pre-printed pad, which already carries them", async () => {
+    // The overlay lands on a real Keller pad. Drawing the headings there would print each one on
+    // top of the one already on the paper (D-AVI8).
+    const overlay = await renderInspectionReport(BASE, { background: "none" });
+    expect(painted(overlay)).not.toContain("1. BRAKE SYSTEM");
+  });
+
+  it("stamps every value in black, on the draft as well as the filing", async () => {
+    // The preview used to stamp red, and the office read that as the product printing in red. The
+    // DRAFT watermark is the signal; the ink is not, because a preview whose ink differs from the
+    // filing is not previewing the filing (D-AVI22).
+    const draft = await renderInspectionReport(BASE, { draft: true });
+    expect(painted(draft)).toContain("DRAFT - NOT A CERTIFIED INSPECTION");
+    expect(painted(draft)).not.toContain("0.72 0.11 0.11 rg");
+    expect(painted(draft)).toContain("0 0 0 rg");
   });
 
   it("is deterministic — the same report renders byte-identically", async () => {

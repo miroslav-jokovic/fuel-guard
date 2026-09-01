@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { INSPECTION_ITEMS } from "@silvicom/shared";
+import { INSPECTION_GROUPS, INSPECTION_ITEMS } from "@silvicom/shared";
 import {
   CHECKBOX_CELLS,
+  GROUP_HEADINGS,
   HEADER_CELLS,
+  HEADING_SIZE,
   MAPPED_ITEM_COUNT,
   OTHER_CONDITIONS_LINES,
   PAGE_HEIGHT,
@@ -22,10 +24,18 @@ import {
  * §2.5 caught only by measuring. So the acceptance criteria are measurements.
  */
 
-const font = await (async () => {
+const { font, bold } = await (async () => {
   const doc = await PDFDocument.create();
-  return doc.embedFont(StandardFonts.Helvetica);
+  return {
+    font: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+  };
 })();
+
+/** Which printed column a cell is in — the three groups start at 18 / 210 / 402. */
+const COLUMN_STARTS = [18, 210, 402];
+const columnOf = (x: number) =>
+  COLUMN_STARTS.findIndex((start, i) => x >= start && x < (COLUMN_STARTS[i + 1] ?? 594));
 
 describe("1. bijection — the map and the catalogue cover each other exactly", () => {
   it("has a cell for every catalogue component", () => {
@@ -128,6 +138,63 @@ describe("2. fit — every realistic value fits the box it is printed into", () 
     // What the hint steers away from, and why the component warns above ~47 characters: a full
     // street address bottoms out at the floor and still runs past the cell.
     expect(fits("PETERBILT OF CHICAGO, 1301 ARMITAGE AVE MELROSE PARK IL 60160")).toBe(false);
+  });
+});
+
+describe("2b. the section headings the form knocks out (D-AVI22)", () => {
+  /**
+   * Keller draws these at zero ink over a hairline because its pad is pre-printed with a coloured
+   * band; on plain paper they are white on white, which is what the office was looking at. The
+   * renderer supplies them, so what has to stay true is that there is one per section, that each
+   * lands in its own printed column, and that none of them sits on top of an item row.
+   */
+  it("covers all sixteen of the form's sections exactly once", () => {
+    const numbers = GROUP_HEADINGS.map((h) => h.number);
+    expect(numbers).toEqual([...Array(16)].map((_, i) => i + 1));
+    expect(new Set(numbers).size).toBe(16);
+  });
+
+  it("names every catalogue group, and only leaves 16 to the form's own OTHER box", () => {
+    // If a group is ever added to the catalogue without a heading position, this fails rather than
+    // printing a column of items under nothing — which is the defect that started this.
+    for (const group of INSPECTION_GROUPS) {
+      expect(GROUP_HEADINGS.find((h) => h.number === group.number), group.title).toBeTruthy();
+    }
+    expect(INSPECTION_GROUPS.find((g) => g.number === 16)).toBeUndefined();
+  });
+
+  it("puts each heading inside the printed column its items are in", () => {
+    // A heading in the wrong column would read as a section that has migrated across the page.
+    for (const heading of GROUP_HEADINGS) {
+      const column = columnOf(heading.x);
+      expect(column, `heading ${heading.number}`).toBeGreaterThanOrEqual(0);
+      for (const item of INSPECTION_ITEMS.filter((i) => i.group === heading.number)) {
+        expect(columnOf(cellsFor(item.key)!.ok.x), `${item.key} vs heading ${heading.number}`).toBe(column);
+      }
+    }
+  });
+
+  it("sits on its own rule, above the first item it introduces", () => {
+    for (const heading of GROUP_HEADINGS) {
+      // The baseline is below the rule it is knocked out of — 3.16 pt, the offset every measured
+      // heading shares. A heading above its rule would print into the row before it.
+      expect(heading.y, `heading ${heading.number}`).toBeGreaterThan(heading.rule);
+      expect(heading.y - heading.rule).toBeLessThan(5);
+
+      const first = INSPECTION_ITEMS.filter((i) => i.group === heading.number)
+        .map((i) => cellsFor(i.key)!.ok.y)
+        .sort((a, b) => a - b)[0];
+      if (first !== undefined) expect(heading.y, `heading ${heading.number}`).toBeLessThan(first);
+    }
+  });
+
+  it("fits its longest title inside the column, at the size Keller sets them", () => {
+    // "11. WHEELS AND RIMS" is the longest; the column is 192 pt wide.
+    const longest = GROUP_HEADINGS.map((h) => {
+      const title = (INSPECTION_GROUPS.find((g) => g.number === h.number)?.title ?? "Other").toUpperCase();
+      return `${h.number}. ${title}`;
+    }).sort((a, b) => b.length - a.length)[0]!;
+    expect(bold.widthOfTextAtSize(longest, HEADING_SIZE)).toBeLessThanOrEqual(192);
   });
 });
 
