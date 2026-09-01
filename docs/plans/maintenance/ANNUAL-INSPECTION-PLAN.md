@@ -893,6 +893,28 @@ function so the vehicles page, the trailers page and any later surface cannot di
   inspector meets the standard, the product decides that from a row rather than a tick box, and
   until now the row was invisible to everybody relying on it.
 
+### B6 — the components were wrong too (2026-08-31, PR #NNN)
+
+The owner's second look found that B2/B3/B5 used the wrong overlay and the wrong page shell. Four
+violations, all of them knowable from call sites before a line was written — which is the same
+mistake as the CFR citations, made again in the same week.
+
+| What shipped | What the repo does | Why it matters |
+| --- | --- | --- |
+| Three `BaseModal`s for forms | **`SlideOver`** — used by ten pages, including the `VehiclesPage` "New vehicle" drawer this is a direct analogue of. `BaseModal` was used by essentially nothing but my files | The contract states the boundary outright: *a drawer keeps the list visible beside a form; a modal takes the middle of the screen for content that needs WIDTH*. A three-field form needs no width |
+| Form markup inside the overlay | An extracted `*Form.vue` emitting `submit`/`cancel`, with the PAGE owning the drawer — `VehicleForm`, `DriverForm`, `TrailerForm` | The form is testable and reusable on its own; the overlay is the page's concern |
+| A bespoke confirm dialog | **`window.confirm`** — five call sites, including "Retire vehicle" and "Delete cost schedule" | *"Never build a bespoke overlay in a feature folder."* What is being certified stays on the page, where it can be read |
+| `FilterBar` + `DataTable` as separate cards | **`DataWorkspace`** wrapping both `embedded` — eleven pages | Two cards where the repo draws one workspace |
+
+Also: the item groups were a hand-rolled `rounded-surface ring-1` panel with an `h2`; they are
+`BaseCard as="section" padding="none"` with an `h3` at `text-base` — the card-section size, not the
+drawer's `text-sm`.
+
+**The lesson, since this is twice.** Both times the answer was in call sites and both times I wrote
+first and checked after. A new surface in this repo starts by reading the two or three pages that
+already do the same job — the contract is the explanation, the call sites are the answer, and
+`gates-outrank-the-design-contract` says which wins when they disagree.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was

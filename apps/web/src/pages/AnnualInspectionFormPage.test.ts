@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { defaultInspectionItems, deriveInspectionOutcome, INSPECTION_ITEMS } from "@silvicom/shared";
@@ -76,10 +76,12 @@ const inspection = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+beforeEach(() => state.finalize.mutate.mockClear());
+
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
   return mount(AnnualInspectionFormPage, {
-    global: { stubs: { PageHeader: true, BaseModal: true, AppDateField: true, PrintInspectionModal: true } },
+    global: { stubs: { PageHeader: true, SlideOver: true, AppDateField: true, PrintInspectionForm: true } },
   });
 };
 
@@ -123,6 +125,36 @@ describe("the verdict is the shared function's, not the page's", () => {
     for (const label of labels) {
       expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print"]).toContain(label);
     }
+  });
+});
+
+describe("completing is irreversible, so it is confirmed the way this app confirms things", () => {
+  it("does NOT finalize when the confirmation is declined", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const w = mountPage(items());
+    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(state.finalize.mutate).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("finalizes when it is accepted, and says what is being recorded", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items());
+    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(state.finalize.mutate).toHaveBeenCalled();
+    // The sentence has to carry the verdict and the fact that it cannot be undone — a bare
+    // "Are you sure?" tells somebody nothing they did not already know.
+    const asked = spy.mock.calls[0]![0] as string;
+    expect(asked).toContain("PASSED");
+    expect(asked).toContain("cannot be edited");
+    spy.mockRestore();
+  });
+
+  it("warns in the confirmation when parts still carry their opening answer", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    mountPage(items()).findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(spy.mock.calls[0]![0] as string).toMatch(/\d+ part\(s\) still carry/);
+    spy.mockRestore();
   });
 });
 
