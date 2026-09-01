@@ -52,8 +52,19 @@ watch(
   },
 );
 
+/**
+ * With no unit number there is nothing to type back, and the field becomes UNSATISFIABLE — which is
+ * exactly what shipped on 2026-09-01: the detail route did not resolve `unit_number`, the drawer got
+ * an empty string, and the office typed the truck number over and over against a comparison that
+ * could never be true. The data bug is fixed at the source; this makes the failure LOUD instead of
+ * silent if it ever returns, because a confirmation nobody can satisfy is worse than no
+ * confirmation.
+ */
+const expected = computed(() => props.unitNumber.trim());
+const cannotConfirm = computed(() => expected.value.length === 0);
+
 /** Trimmed on both sides: a trailing space is a typo, not a refusal to confirm. */
-const matches = computed(() => typed.value.trim() === props.unitNumber.trim() && props.unitNumber.trim().length > 0);
+const matches = computed(() => !cannotConfirm.value && typed.value.trim() === expected.value);
 const showMismatch = computed(() => typed.value.length > 0 && !matches.value);
 /** The same rule the server applies, so the button and the API agree about what a reason is. */
 const reasonOk = computed(() => reason.value.trim().length >= 3);
@@ -100,22 +111,29 @@ async function confirmDelete() {
         <BaseInput :id="id" v-model="reason" placeholder="e.g. created against the wrong unit" />
       </FormField>
 
-      <FormField
-        v-slot="{ id }"
-        :label="`Type ${unitNumber} to confirm`"
-        hint="The unit this report is about."
-      >
-        <BaseInput :id="id" v-model="typed" :invalid="showMismatch" autocomplete="off" />
-      </FormField>
-      <p v-if="showMismatch" class="-mt-4 text-sm text-danger-600" role="alert">
-        That is not {{ unitNumber }}.
-      </p>
+      <AppCallout v-if="cannotConfirm" tone="danger">
+        This report does not know which unit it is about, so there is nothing to type back and it
+        cannot be confirmed here. That is a fault in the app, not in your data — report it.
+      </AppCallout>
+
+      <template v-else>
+        <FormField
+          v-slot="{ id }"
+          :label="`Type ${expected} to confirm`"
+          hint="The unit this report is about."
+        >
+          <BaseInput :id="id" v-model="typed" :invalid="showMismatch" autocomplete="off" />
+        </FormField>
+        <p v-if="showMismatch" class="-mt-4 text-sm text-danger-600" role="alert">
+          That is not {{ expected }}.
+        </p>
+      </template>
     </div>
 
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="danger" :disabled="blocked" @click="confirmDelete">
+        <BaseButton v-if="!cannotConfirm" variant="danger" :disabled="blocked" @click="confirmDelete">
           {{ remove.isPending.value ? "Deleting…" : "Delete this record" }}
         </BaseButton>
       </div>

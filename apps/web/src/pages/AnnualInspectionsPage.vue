@@ -12,6 +12,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import NewInspectionDrawer from "@/features/maintenance/NewInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -43,6 +44,16 @@ import { useSessionStore } from "@/stores/session";
  *
  * Discard is offered for a DRAFT only, and the API refuses a completed one by name — a filed report
  * is a record, and the way to fix one is to supersede it from inside (D-AVI4).
+ *
+ * ── AND ONE ROW ACTION THAT IS NOT DISCARD ─────────────────────────────────────────────────────
+ * "Delete record" (D-AVI29) is the admin-only act that destroys a report and everything it filed,
+ * and it sits here for the reason the list exists: cleaning up is a job you do FROM the list, and
+ * having to open each report first is what made Discard unreachable in the first place.
+ *
+ * It is NOT a `confirm()` like Discard. Discarding a draft throws away work nobody has certified;
+ * this removes a filed §396.21 record, its certification and its PDF, and hands the truck's
+ * inspection date back. That needs a reason and a typed unit number, so it opens the SAME drawer the
+ * report page uses — one component, so the two surfaces cannot ask for it differently.
  */
 
 const router = useRouter();
@@ -105,6 +116,19 @@ function onCreated(id: string) {
 
 const toast = useToastStore();
 const discard = useDiscardInspection();
+
+/**
+ * The row being deleted, held while the drawer is open.
+ *
+ * The row rather than its id: the drawer needs the unit number to make somebody type it back, and
+ * re-deriving that from the table after the list refreshes is how it ends up blank.
+ */
+const deleting = ref<InspectionSummary | null>(null);
+
+function onDeleted() {
+  deleting.value = null;
+  toast.success("Record deleted");
+}
 
 function openReport(row: InspectionSummary) {
   void router.push({ name: "annual-inspection", params: { id: row.id } });
@@ -183,6 +207,12 @@ async function discardDraft(row: InspectionSummary) {
           >
             Discard
           </BaseButton>
+          <!-- Destructive last, and last of the destructive ones: this is the only action here that
+               can remove a CERTIFIED report. Admin, not `can("maintenance")` — a technician
+               certifies inspections, they do not destroy the record of one. -->
+          <BaseButton v-if="session.admin" class="kebab-item kebab-item-danger" @click="deleting = row">
+            Delete record
+          </BaseButton>
         </KebabMenu>
       </template>
       <template #empty>
@@ -193,6 +223,16 @@ async function discardDraft(row: InspectionSummary) {
       </template>
     </DataTable>
     </DataWorkspace>
+
+    <DeleteInspectionDrawer
+      v-if="deleting"
+      :open="true"
+      :inspection-id="deleting.id"
+      :unit-number="deleting.unit_number ?? ''"
+      :status="deleting.status"
+      @close="deleting = null"
+      @deleted="onDeleted"
+    />
 
     <NewInspectionDrawer :open="creating" @created="onCreated" @close="creating = false" />
   </div>
