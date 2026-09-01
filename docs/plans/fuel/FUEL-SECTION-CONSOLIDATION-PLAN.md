@@ -694,6 +694,36 @@ file the worker already has.
 
 **Verified by.** `pnpm test`, `pnpm typecheck`, `pnpm lint`, route-table snapshot unchanged.
 
+#### — DONE 2026-09-01 (PR #445, `claude/fuel-import-copy-and-dead-page`)
+
+**What shipped.**
+- `apps/web/src/pages/FuelEventsPage.vue` deleted. The `/fuel-events` redirect stays, per §3's rule
+  that old paths are kept forever — and it is still load-bearing: the Samsara fuel-drop notification
+  email links to it (`fuelEventsWebhook.ts`).
+- Two now-stale entries removed from `GRANDFATHERED_ACCESS` in `scripts/check-table-access.mjs`
+  (`declined_transactions` and `fuel_events` ← the deleted page). That ratchet is shrink-only and it
+  fires on a dead entry, so the removal was not optional — proved by re-adding one entry and watching
+  `lint:table-access` report *"stale grandfather entry (access site moved or died — ratchet down)"*.
+- The Import page's EFS tab now opens with **"You do not normally need this"** and names its actual
+  job — a gap, or a period predating the feed. The page header changed with it.
+
+**Measured while doing it, and it is stronger than §0.2 fact 7 stated.** Fact 7 said the manual upload
+"is now a backfill path, not the primary one". Production says it was never any path at all
+(2026-09-01, `supabase db query --linked`): **all 28,484 `efs_transactions` rows carry
+`imports.source = 'efs_feed'`** — zero manual uploads, ever — with the newest row an hour old
+(2026-09-01 22:49 UTC) and 6,932 in the trailing 7 days. The acquisition cadences the new copy
+describes are `EFS_SOAP_REJECTED_POLL_MINUTES` (5) and `EFS_SOAP_POSTED_POLL_MINUTES` (15) in
+`efsSoapPoller.ts`.
+
+**Verified by:** `pnpm test` (all suites incl. every PGlite matrix), `pnpm typecheck`, `pnpm lint`,
+`pnpm build`, and the CI gate list run individually — `lint:table-access` and `lint:boundaries`
+included, since those are the two the deletion moves. The route-table snapshot is unchanged, which is
+the point: no route moved.
+
+**Not done, deliberately.** No test was added for the new copy. C1's verification is the gate list
+above, a mounted-page assertion on wording is brittle, and the reasoning is recorded in place as a
+template comment in this repo's register instead.
+
 ---
 
 ### C2 · Fuel Log absorbs Transactions and Rejections
