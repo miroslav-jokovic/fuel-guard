@@ -372,6 +372,7 @@ async function openPdf(kind: "report" | "preview") {
         :open="deleting"
         :inspection-id="id"
         :unit-number="report.unit_number ?? ''"
+        :subject-type="report.subject_type"
         :status="report.status"
         @close="deleting = false"
         @deleted="onDeleted"
