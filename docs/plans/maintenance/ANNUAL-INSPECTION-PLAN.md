@@ -915,6 +915,48 @@ first and checked after. A new surface in this repo starts by reading the two or
 already do the same job — the contract is the explanation, the call sites are the answer, and
 `gates-outrank-the-design-contract` says which wins when they disagree.
 
+### B7 — the production-readiness audit (2026-08-31, PR #NNN)
+
+The owner asked for the feature to be inspected for gaps, assumptions and blockers rather than
+declared finished. Six findings; four fixed here, two are questions only they can answer.
+
+**Fixed.**
+
+1. **`supersedes_id` was never written by anything — D-AVI4's escape hatch did not exist.** The rule
+   freezing a completed report is justified by *"a correction is a NEW report carrying
+   `supersedes_id`"*. The column shipped in 0280 and nothing wrote it, so for a week an inspector
+   who spotted a mistake could start an unrelated inspection and nothing tied it to the one it
+   replaced. **An immutability rule whose escape hatch does not exist is a dead end, not
+   immutability.** `POST /:id/correct` now starts the superseding draft, seeded from the superseded
+   answers — one wrong mark is one edit, not fifty-six — and each seeded row keeps its original
+   `source` so a component a person actually set does not become a default again.
+2. **A draft could never be abandoned.** No route, no policy, so a mis-started inspection sat in the
+   list as "In progress" for ever. `DELETE /:id` discards a draft. It refuses a completed one **by
+   name**, and that guard is load-bearing: there is no DELETE policy, but the API reads with the
+   service role and bypasses RLS, so this function is the only thing between a mis-typed id and a
+   deleted §396.21 record. A trigger is deliberately NOT added — `org_id` cascades from
+   `organizations`, so a raising BEFORE DELETE would make deleting an organisation impossible.
+3. **`finalize` restamped `catalogue_version`.** A report could claim a checklist it was never
+   worked down, which is the one thing D-AVI1's versioning exists to prevent. It is pinned at draft
+   creation; a draft whose version has moved is now refused by name rather than derived against
+   today's list, which would report "no result" for a row the form never showed.
+4. **Every service swallowed the database's error.** Eighteen call sites answered a failed query
+   with a sentence naming the operation and threw the cause away — which is why "adding an inspector
+   does not work" left no row, no audit entry and no log line. `lib/http.ts`'s `dbErrorResponse`
+   already had the shape; these services now use it, so a failure carries a reference somebody can
+   grep for.
+
+**Still open, and both are the owner's to answer** — §6 Q6 (the trailer defaults are reasoned, not
+measured) and §6 Q7 (whether a PASS should require a decal serial).
+
+**What could not be reproduced.** The reported "adding an inspector is not working" was chased with
+evidence rather than guesses and none of the obvious causes hold: all five routes answer 401
+unauthenticated so they exist; the four tables are live with 0283 applied; `verify:live` puts
+Railway on the current `main`; the deployed JS bundle contains the register page and both drawers;
+the exact insert payload succeeds against a real PGlite database with the full schema and the
+`created_by` FK; and the form's submit path is covered by four passing tests. What remains needs a
+session, so the tracing above exists to make the next attempt legible.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was

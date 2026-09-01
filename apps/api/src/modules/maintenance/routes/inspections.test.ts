@@ -322,6 +322,94 @@ describe("the list answers what a list is asked (B1)", () => {
   });
 });
 
+describe("correcting a completed inspection — D-AVI4's other half", () => {
+  const NEW_ID = "44444444-4444-4444-8444-444444444444";
+  const correct = (base: string, id = NEW_ID) =>
+    fetch(`${base}/api/maintenance/inspections/${REPORT}/correct`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+
+  it("starts a new report that POINTS AT the one it replaces", async () => {
+    // A FUNCTION fixture, because the correction reads two different ids from one table: the report
+    // being superseded must exist, and the id of the new one must not. A static fixture answers both
+    // reads with the same row and the idempotency check then "finds" a report that was never made.
+    rec = createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: (q) =>
+          q.filters().some((f) => f.val === NEW_ID) ? [] : [draftReport("final")],
+        vehicle_inspection_items: [
+          { item_key: "brake.hose", result: "ok", source: "inspector", repaired_at: null, note: null },
+        ],
+      },
+    });
+    const status = await withServer(async (base) => (await correct(base)).status);
+    expect(status).toBe(201);
+    const [row] = rec.writtenRows("vehicle_inspections");
+    // Without this link a correction is just an unrelated inspection, which is what shipped for a
+    // week while the column existed and nothing wrote it.
+    expect(row).toMatchObject({ id: NEW_ID, supersedes_id: REPORT, subject_id: VEHICLE });
+    expect(row!.status).toBeUndefined();
+  });
+
+  it("seeds the previous answers, keeping which of them a person actually set", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: (q) =>
+          q.filters().some((f) => f.val === NEW_ID) ? [] : [draftReport("final")],
+        vehicle_inspection_items: [
+          { item_key: "brake.hose", result: "needs_repair", source: "inspector", repaired_at: "2026-06-17", note: "n" },
+          { item_key: "brake.tubing", result: "ok", source: "default", repaired_at: null, note: null },
+        ],
+      },
+    });
+    await withServer(async (base) => correct(base));
+    const seeded = rec.writtenRows("vehicle_inspection_items");
+    expect(seeded).toHaveLength(2);
+    // Somebody fixing one mark should not walk 56 rows again — and a component the first inspector
+    // actually set must not silently become a default.
+    expect(seeded.find((r) => r.item_key === "brake.hose")).toMatchObject({
+      result: "needs_repair", source: "inspector", repaired_at: "2026-06-17",
+    });
+    expect(seeded.find((r) => r.item_key === "brake.tubing")!.source).toBe("default");
+  });
+
+  it("refuses to 'correct' a draft — that one is still editable", async () => {
+    rec = createSupabaseRecorder({ tables: { vehicle_inspections: [draftReport()] } });
+    const status = await withServer(async (base) => (await correct(base)).status);
+    expect(status).toBe(409);
+    expect(rec.writes()).toHaveLength(0);
+  });
+});
+
+describe("discarding a draft", () => {
+  const discard = (base: string) =>
+    fetch(`${base}/api/maintenance/inspections/${REPORT}`, { method: "DELETE" });
+
+  it("removes a draft", async () => {
+    rec = createSupabaseRecorder({ tables: { vehicle_inspections: [draftReport()] } });
+    const status = await withServer(async (base) => (await discard(base)).status);
+    expect(status).toBe(200);
+    const del = rec.forTable("vehicle_inspections").find((q) => q.write?.method === "delete");
+    // Belt and braces on one statement: the guard read said draft, and the delete says so too.
+    expect(del!.filters()).toContainEqual({ col: "status", val: "draft" });
+  });
+
+  it("REFUSES to delete a completed inspection, and writes nothing", async () => {
+    // The API is the only thing between a mis-typed id and a deleted §396.21 record: there is no
+    // DELETE policy, but the service role bypasses RLS.
+    rec = createSupabaseRecorder({ tables: { vehicle_inspections: [draftReport("final")] } });
+    const res = await withServer(async (base) => {
+      const r = await discard(base);
+      return { status: r.status, body: (await r.json()) as { error?: { code?: string } } };
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error?.code).toBe("already_final");
+    expect(rec.writes()).toHaveLength(0);
+  });
+});
+
 describe("reading", () => {
   it("org-scopes the list and its filters", async () => {
     rec = createSupabaseRecorder({ tables: { vehicle_inspections: [draftReport()] } });

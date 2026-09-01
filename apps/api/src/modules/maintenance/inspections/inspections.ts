@@ -356,3 +356,118 @@ function groupItems(items: NonNullable<InspectionPatchRequest["items"]>): Map<st
   }
   return groups;
 }
+
+/**
+ * Correct a completed inspection by starting the report that supersedes it (D-AVI4).
+ *
+ * ── THE HALF OF D-AVI4 THAT WAS MISSING ────────────────────────────────────────────────────────
+ * A finalized report is frozen, and the justification for freezing it was always "a correction is a
+ * NEW report carrying `supersedes_id`". The column shipped in 0280 and **nothing ever wrote it**, so
+ * for a week the rule was half true: an inspector who noticed a mistake could start an unrelated
+ * inspection, and nothing tied it to the one it replaced. An immutability rule whose escape hatch
+ * does not exist is not immutability, it is a dead end.
+ *
+ * The new draft is seeded from the SUPERSEDED report's answers rather than from the catalogue
+ * defaults. Somebody correcting one wrong mark should not have to walk 56 rows again — and the ones
+ * they do not touch are genuinely what the previous inspection found, which is the honest starting
+ * point. Every seeded row keeps its original `source`, so a component the first inspector actually
+ * set does not silently become a default again.
+ */
+export async function createCorrection(
+  admin: SupabaseClient,
+  orgId: string,
+  supersedesId: string,
+  newId: string,
+  createdBy: string | null,
+): Promise<{ id: string } | ServiceError> {
+  const loaded = await getInspection(admin, orgId, supersedesId);
+  if (loaded && "code" in loaded) return loaded;
+  if (!loaded) return { error: "Inspection not found", code: "not_found" };
+  if (loaded.report.status !== "final") {
+    return { error: "That inspection is still in progress — edit it rather than correcting it.", code: "not_final" };
+  }
+
+  const existing = await admin
+    .from("vehicle_inspections")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("id", newId)
+    .maybeSingle();
+  if (existing.error) return traced("createCorrection.replayCheck", "db_error", "Could not start the correction", existing.error);
+  if (existing.data) return { id: newId };
+
+  const prior = loaded.report;
+  const { error } = await admin.from("vehicle_inspections").insert({
+    id: newId,
+    org_id: orgId,
+    subject_type: prior.subject_type,
+    subject_id: prior.subject_id,
+    inspector_id: prior.inspector_id,
+    // Today, not the superseded date: this is a new inspection of the vehicle, and back-dating it to
+    // the report it replaces would put two inspections on one day and make the expiry ambiguous.
+    inspected_on: new Date().toISOString().slice(0, 10),
+    catalogue_version: INSPECTION_CATALOGUE_VERSION,
+    vehicle_identification_method: prior.vehicle_identification_method ?? "vin",
+    vehicle_identification_value: prior.vehicle_identification_value ?? null,
+    supersedes_id: supersedesId,
+    created_by: createdBy,
+  });
+  if (error) return traced("createCorrection", "insert_failed", "Could not start the correction", error);
+
+  const seeded = loaded.items.map((i) => ({
+    org_id: orgId,
+    inspection_id: newId,
+    item_key: i.key,
+    result: i.result,
+    source: i.source,
+    repaired_at: i.repairedAt,
+    note: i.note,
+  }));
+  const itemsErr = await admin.from("vehicle_inspection_items").insert(seeded);
+  if (itemsErr.error) return traced("createCorrection.seedItems", "insert_failed", "Could not copy the previous answers", itemsErr.error);
+  return { id: newId };
+}
+
+/**
+ * Discard a draft.
+ *
+ * ── DRAFTS ONLY, AND THE GUARD IS HERE BECAUSE RLS CANNOT BE ───────────────────────────────────
+ * `vehicle_inspections` has no DELETE policy, which stops a client — but the API reads with the
+ * service role and bypasses RLS, so this function is the only thing between a mis-typed id and a
+ * deleted §396.21 record. A finalized report is evidence and is pinned in `RETENTION_FORBIDDEN`;
+ * the same argument that keeps `documents` and `certifications` deletable only as an explicit,
+ * audited service-role act applies here, and a route is not that.
+ *
+ * A trigger would be the belt to this braces, and is deliberately NOT added: `org_id` cascades from
+ * `organizations`, so a BEFORE DELETE that raised would make deleting an organisation impossible —
+ * the same reason the other evidence tables rely on policy and discipline rather than a trigger.
+ */
+export async function discardDraft(
+  admin: SupabaseClient,
+  orgId: string,
+  id: string,
+): Promise<{ ok: true } | ServiceError> {
+  const current = await admin
+    .from("vehicle_inspections")
+    .select("id, status")
+    .eq("org_id", orgId)
+    .eq("id", id)
+    .maybeSingle();
+  if (current.error) return traced("discardDraft.load", "db_error", "Could not load the inspection", current.error);
+  if (!current.data) return { error: "Inspection not found", code: "not_found" };
+  if ((current.data as { status: string }).status === "final") {
+    return {
+      error: "A completed inspection is a record and cannot be deleted. Record a correction instead.",
+      code: "already_final",
+    };
+  }
+  // Items go with it through 0280's `on delete cascade`.
+  const { error } = await admin
+    .from("vehicle_inspections")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("id", id)
+    .eq("status", "draft");
+  if (error) return traced("discardDraft", "delete_failed", "Could not discard the inspection", error);
+  return { ok: true };
+}

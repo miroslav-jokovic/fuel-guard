@@ -38,9 +38,14 @@ const state = vi.hoisted(() => ({
   data: { value: null as unknown },
   patch: { mutate: vi.fn(), isPending: { value: false } },
   finalize: { mutate: vi.fn(), isPending: { value: false }, error: { value: null } },
+  correct: { mutateAsync: vi.fn(async () => "insp_2"), isPending: { value: false } },
+  discard: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
 }));
 
-vi.mock("vue-router", () => ({ useRoute: () => ({ params: { id: "insp_1" } }) }));
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ params: { id: "insp_1" } }),
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   useInspectionQuery: () => ({
     data: state.data,
@@ -51,6 +56,8 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   }),
   usePatchInspection: () => state.patch,
   useFinalizeInspection: () => state.finalize,
+  useCorrectInspection: () => state.correct,
+  useDiscardInspection: () => state.discard,
 }));
 vi.mock("@/lib/api", () => ({ fetchObjectUrl: vi.fn(async () => "blob:x") }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
@@ -76,7 +83,11 @@ const inspection = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-beforeEach(() => state.finalize.mutate.mockClear());
+beforeEach(() => {
+  state.finalize.mutate.mockClear();
+  state.correct.mutateAsync.mockClear();
+  state.discard.mutateAsync.mockClear();
+});
 
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
@@ -123,7 +134,10 @@ describe("the verdict is the shared function's, not the page's", () => {
     // "mark this report as passed", and the day one appears this fails.
     const labels = w.findAll("button").map((b) => b.text());
     for (const label of labels) {
-      expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print"]).toContain(label);
+      expect([
+        "OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print",
+        "Record a correction", "Discard",
+      ]).toContain(label);
     }
   });
 });
@@ -174,10 +188,43 @@ describe("a certified report is read-only (D-AVI4)", () => {
     expect(answers.every((b) => b.attributes("disabled") !== undefined)).toBe(true);
   });
 
+  it("offers a CORRECTION, because a completed report cannot be edited (D-AVI4)", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items(), final);
+    await w.findAll("button").find((b) => b.text() === "Record a correction")!.trigger("click");
+    // Without this the immutability rule has no escape hatch and the column that records the link
+    // is never written — which is exactly what shipped for a week.
+    expect(state.correct.mutateAsync).toHaveBeenCalledWith("insp_1");
+    spy.mockRestore();
+  });
+
+  it("does not offer to discard a completed inspection", () => {
+    const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
+    expect(labels).not.toContain("Discard");
+  });
+
   it("offers printing rather than a complete button", () => {
     const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
     expect(labels).toContain("Print");
     expect(labels).not.toContain("Complete inspection");
+  });
+});
+
+describe("a draft can be abandoned", () => {
+  it("discards on confirmation, and only while it is a draft", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items());
+    await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    expect(state.discard.mutateAsync).toHaveBeenCalledWith("insp_1");
+    spy.mockRestore();
+  });
+
+  it("does nothing when the confirmation is declined", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const w = mountPage(items());
+    await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    expect(state.discard.mutateAsync).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

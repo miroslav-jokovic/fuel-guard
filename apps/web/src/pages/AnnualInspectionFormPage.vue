@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   INSPECTION_GROUPS,
   INSPECTION_ITEMS,
@@ -17,6 +17,8 @@ import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionForm from "@/features/maintenance/PrintInspectionForm.vue";
 import { useSessionStore } from "@/stores/session";
 import {
+  useCorrectInspection,
+  useDiscardInspection,
   useFinalizeInspection,
   useInspectionQuery,
   usePatchInspection,
@@ -40,12 +42,15 @@ import { fetchObjectUrl } from "@/lib/api";
  */
 
 const route = useRoute();
+const router = useRouter();
 const session = useSessionStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch } = useInspectionQuery(id);
 const patch = usePatchInspection(id);
 const finalize = useFinalizeInspection(id);
+const correct = useCorrectInspection();
+const discard = useDiscardInspection();
 
 const report = computed(() => data.value?.inspection ?? null);
 const items = computed(() => data.value?.items ?? []);
@@ -114,6 +119,38 @@ const printing = ref(false);
  * What is being certified stays ON THE PAGE, where it can be read properly: the derived verdict
  * banner and the count of parts still on their opening answer are both above this button.
  */
+/**
+ * A completed report cannot be edited, so a mistake is fixed by superseding it (D-AVI4). The new
+ * draft opens seeded with what the previous one found, so one wrong mark is one edit.
+ */
+async function startCorrection() {
+  if (
+    !window.confirm(
+      "Start a correction? The completed inspection stays on file exactly as it is, and the new one" +
+        " will replace it — opening with the answers it recorded so you only change what was wrong.",
+    )
+  ) {
+    return;
+  }
+  try {
+    const newId = await correct.mutateAsync(id.value);
+    await router.push({ name: "annual-inspection", params: { id: newId } });
+  } catch (e) {
+    openError.value = e instanceof Error ? e.message : "Could not start the correction";
+  }
+}
+
+/** Only a draft. The API refuses a completed one by name — nothing here relies on this check alone. */
+async function discardDraft() {
+  if (!window.confirm("Discard this inspection? Nothing has been filed yet, and it cannot be recovered.")) return;
+  try {
+    await discard.mutateAsync(id.value);
+    await router.push({ name: "annual-inspections" });
+  } catch (e) {
+    openError.value = e instanceof Error ? e.message : "Could not discard the inspection";
+  }
+}
+
 function completeInspection() {
   const verdict = outcome.value === "pass" ? "PASSED" : "DID NOT PASS";
   const stale = stillDefault.value
@@ -174,6 +211,12 @@ async function openPdf(kind: "report" | "preview") {
       </AppCallout>
 
       <div class="flex flex-wrap items-center gap-2">
+        <BaseButton v-if="isFinal && session.can('maintenance')" variant="secondary" @click="startCorrection">
+          Record a correction
+        </BaseButton>
+        <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
+          Discard
+        </BaseButton>
         <BaseButton variant="secondary" @click="() => openPdf('preview')">
           Preview the printed page
         </BaseButton>
