@@ -801,15 +801,27 @@ form with every filled value removed, and committed at
 unchanged. The round trip dropped the three AcroForm fields, which simplified A5 rather than
 complicating it.
 
-**Q6 — The trailer `fleetDefault` set is reasoned, not measured.** *(blocks A7's pre-fill, not A1)*
-A1's tractor defaults are transcribed from a real filled report and are pinned by a test naming unit
-654 and 2026-06-16. **There was no trailer sample**, so the trailer column was derived from
-applicability plus the tractor pattern — defensible, and still a different kind of fact from the
-tractor column beside it. The exposure is narrow by construction: `appliesTo` is regulation-derived
-and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rather than certifying
-one — the inspector still has to leave it there.
-**Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
-before A7 puts those defaults in front of an inspector.
+~~**Q6 — The trailer default set is reasoned, not measured.**~~
+**ANSWERED and CLOSED 2026-08-31 — the owner had provided the second form at the start and I had
+not looked.** `535968 8-26 - uploaded.pdf` is a filled TRAILER report, sitting beside the tractor
+one in the same folder the whole time.
+
+Both default columns are now transcribed from real filled forms — tractor 654 (2026-06-16) and
+trailer 535968 (2026-08) — mapped onto catalogue keys by script rather than by eye. They differ on
+exactly **eighteen** components, pinned by a test.
+
+**The reasoning was wrong on seven of them, and in the same direction.** This is a REEFER fleet: a
+trailer has an engine and a fuel tank, so the office marks `exhaust.no_leaks_at_cab`,
+`exhaust.no_burn_risk`, all three `fuel.*`, `brake.air_compressor` and
+`brake.tractor_protection_valve` as **Ok**. Inferring from "which parts does a trailer have" said
+`N/A` for every one. Coupling went the other way — `drawbar_eye` and `safety_devices` are `N/A` on
+this trailer where reasoning said `Ok`.
+
+So `appliesTo` and `fleetDefault` are gone, replaced by a measured `defaults: { tractor, trailer }`.
+The lesson is not that the inference was careless — it is that **the evidence was already in the
+folder** and the question should have been "is there another form?" before it was "what would a
+trailer have?".
+
 
 **Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
 Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not

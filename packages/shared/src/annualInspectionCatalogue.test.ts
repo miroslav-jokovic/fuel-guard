@@ -7,7 +7,6 @@ import {
   defaultInspectionItems,
   defaultInspectionResult,
   inspectionItem,
-  isInspectionItemApplicable,
 } from "./annualInspectionCatalogue.js";
 
 describe("annual inspection catalogue", () => {
@@ -43,60 +42,67 @@ describe("annual inspection catalogue", () => {
     }
   });
 
-  it("a fleetDefault is only ever declared for a subject the item applies to", () => {
-    // Otherwise the catalogue would carry an editable default for something that is locked `na`,
-    // which reads as a decision and is in fact dead data.
-    for (const item of INSPECTION_ITEMS) {
-      for (const subject of INSPECTION_SUBJECT_TYPES) {
-        if (item.fleetDefault?.[subject] !== undefined) {
-          expect(isInspectionItemApplicable(item, subject), `${item.key}/${subject}`).toBe(true);
-        }
-      }
-    }
-  });
-
-  describe("applicability DEFAULTS the answer, it does not lock it (owner ruling, 2026-08-31)", () => {
-    it("opens a tractor's rear impact guard on na and a trailer's on ok", () => {
-      const guard = inspectionItem("rear_impact_guard.present")!;
-      expect(defaultInspectionResult(guard, "tractor")).toBe("na");
-      expect(defaultInspectionResult(guard, "trailer")).toBe("ok");
-    });
-
-    it("opens the power-unit items na on a trailer — the same form, different marks", () => {
-      // Truck and trailer share one form and one decal; the difference is the unit number and which
-      // boxes are marked. So these OPEN as N/A rather than being unanswerable.
-      for (const key of ["coupling.fifth_wheel", "steering.wheel_free_play", "windshield.glazing"]) {
-        expect(defaultInspectionResult(inspectionItem(key)!, "trailer"), key).toBe("na");
+  describe("the sample the tractor column was transcribed from", () => {
+    it("matches unit 654's report of 2026-06-16, mark for mark", () => {
+      // Pinned against the real page rather than my transcription of it: if a default moves, this
+      // says which one and against what.
+      const sample: Record<string, string> = {
+        "brake.electric": "na", "brake.hydraulic": "na", "brake.vacuum": "na",
+        "coupling.fifth_wheel": "ok", "coupling.pintle_hooks": "na", "coupling.saddle_mounts": "na",
+        "exhaust.bus_discharge": "na", "safe_loading.intermodal_securement": "na",
+        "frame.adjustable_axle": "na", "tires.speed_restricted": "na",
+        "wheels.lock_or_side_ring": "na", "wheels.welds": "na",
+        "motorcoach_seats.secure": "na", "rear_impact_guard.present": "na",
+        "windshield.glazing": "ok", "wipers.operable": "ok", "tires.steer_axle": "ok",
+      };
+      for (const [key, expected] of Object.entries(sample)) {
+        expect(defaultInspectionResult(inspectionItem(key)!, "tractor"), key).toBe(expected);
       }
     });
 
-    it("opens motorcoach seats na on both — a trucking carrier operates neither", () => {
-      const seats = inspectionItem("motorcoach_seats.secure")!;
-      for (const subject of INSPECTION_SUBJECT_TYPES) {
-        expect(defaultInspectionResult(seats, subject), subject).toBe("na");
+    it("matches trailer 535968's report of 2026-08 on the steering group", () => {
+      for (const item of INSPECTION_ITEMS.filter((i) => i.group === 7)) {
+        expect(defaultInspectionResult(item, "trailer"), item.key).toBe("na");
+        expect(defaultInspectionResult(item, "tractor"), item.key).toBe("ok");
       }
-    });
-
-    it("still records which items normally exist where, because the default reads it", () => {
-      expect(isInspectionItemApplicable(inspectionItem("coupling.fifth_wheel")!, "tractor")).toBe(true);
-      expect(isInspectionItemApplicable(inspectionItem("coupling.fifth_wheel")!, "trailer")).toBe(false);
     });
   });
 
-  describe("fleetDefault is the editable kind of na", () => {
-    it("opens hydraulic and vacuum brakes na on air-braked equipment, but leaves them editable", () => {
-      for (const key of ["brake.hydraulic", "brake.vacuum", "brake.electric"]) {
-        const item = inspectionItem(key)!;
-        expect(defaultInspectionResult(item, "tractor"), key).toBe("na");
-        // Editable: a future unit with hydraulic brakes must be answerable.
-        expect(isInspectionItemApplicable(item, "tractor"), key).toBe(true);
+  describe("both default columns are transcribed from real filled forms", () => {
+    it("gives every component an answer for both kinds of equipment", () => {
+      for (const item of INSPECTION_ITEMS) {
+        expect(item.defaults.tractor, item.key).toMatch(/^(ok|needs_repair|na)$/);
+        expect(item.defaults.trailer, item.key).toMatch(/^(ok|needs_repair|na)$/);
       }
     });
 
-    it("opens sliding subframes na on a tractor and ok on a trailer", () => {
-      const axle = inspectionItem("frame.adjustable_axle")!;
-      expect(defaultInspectionResult(axle, "tractor")).toBe("na");
-      expect(defaultInspectionResult(axle, "trailer")).toBe("ok");
+    it("differs on exactly the eighteen components the two forms differ on", () => {
+      // Tractor 654 (2026-06-16) vs trailer 535968 (2026-08). If this number moves, somebody has
+      // changed a default by hand rather than by measuring another form.
+      const differing = INSPECTION_ITEMS.filter((i) => i.defaults.tractor !== i.defaults.trailer);
+      expect(differing).toHaveLength(18);
+    });
+
+    it("keeps the reefer surprises that reasoning would have got wrong", () => {
+      // This is a REEFER fleet: a trailer has an engine and a fuel tank, so the office marks these
+      // Ok. An earlier version inferred the trailer column from which parts a trailer "has" and was
+      // wrong on all of them — the plan carried it as §6 Q6 until the second form turned up.
+      for (const key of [
+        "exhaust.no_leaks_at_cab", "exhaust.no_burn_risk",
+        "fuel.no_visible_leak", "fuel.filler_cap", "fuel.tank_secure",
+        "brake.air_compressor", "brake.tractor_protection_valve",
+      ]) {
+        expect(inspectionItem(key)!.defaults.trailer, key).toBe("ok");
+      }
+    });
+
+    it("and the ones that go the other way", () => {
+      for (const key of ["coupling.drawbar_eye", "coupling.safety_devices", "coupling.fifth_wheel"]) {
+        expect(inspectionItem(key)!.defaults.trailer, key).toBe("na");
+      }
+      expect(inspectionItem("rear_impact_guard.present")!.defaults.trailer).toBe("ok");
+      expect(inspectionItem("frame.adjustable_axle")!.defaults.trailer).toBe("ok");
+      expect(inspectionItem("tires.steer_axle")!.defaults.trailer).toBe("na");
     });
   });
 

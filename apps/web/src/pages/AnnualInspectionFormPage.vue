@@ -5,10 +5,7 @@ import {
   INSPECTION_GROUPS,
   INSPECTION_ITEMS,
   deriveInspectionOutcome,
-  inspectionItem,
-  isInspectionItemApplicable,
   type InspectionResult,
-  type InspectionSubjectType,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -54,7 +51,6 @@ const discard = useDiscardInspection();
 
 const report = computed(() => data.value?.inspection ?? null);
 const items = computed(() => data.value?.items ?? []);
-const subjectType = computed<InspectionSubjectType>(() => report.value?.subject_type ?? "tractor");
 const isFinal = computed(() => report.value?.status === "final");
 
 const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
@@ -69,14 +65,14 @@ const derived = computed(() => {
 });
 const outcome = computed(() => (derived.value?.ok ? derived.value.outcome : null));
 const openDefects = computed(() => (derived.value?.ok ? derived.value.openDefects : []));
-const stillDefault = computed(
-  () => items.value.filter((i) => i.source === "default" && isApplicable(i.key)).length,
-);
-
-function isApplicable(key: string): boolean {
-  const item = inspectionItem(key);
-  return item ? isInspectionItemApplicable(item, subjectType.value) : false;
-}
+/**
+ * How many components still carry the answer the form opened with (D-AVI13).
+ *
+ * Every component counts now, not just the "applicable" ones: both default columns are transcribed
+ * from real filled forms, so an `N/A` a trailer opens on is as much a recorded answer as an `Ok` —
+ * and it is exactly the kind nobody looks at twice, which is why the count says so.
+ */
+const stillDefault = computed(() => items.value.filter((i) => i.source === "default").length);
 
 const groups = computed(() =>
   INSPECTION_GROUPS.map((g) => ({
