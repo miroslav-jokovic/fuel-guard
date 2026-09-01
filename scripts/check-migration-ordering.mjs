@@ -174,7 +174,16 @@ if (!base) {
   process.exit(1);
 }
 
-const changed = git(["diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"]).split("\n").filter(Boolean);
+/**
+ * Committed changes AND the working tree, because a gate that only sees commits gives a FALSE PASS
+ * to the person most likely to run it: someone who has just written the migration and the reader
+ * together and wants to know before they commit. `git diff <base>` (no HEAD) already spans the tree;
+ * a brand-new migration is untracked, so it has to be asked for separately.
+ */
+const changed = [
+  ...git(["diff", "--name-only", "--diff-filter=ACMR", base]).split("\n"),
+  ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
+].filter(Boolean);
 const addedMigrations = changed.filter((p) => /^supabase\/migrations\/\d+.*\.sql$/.test(p));
 
 if (addedMigrations.length === 0) {

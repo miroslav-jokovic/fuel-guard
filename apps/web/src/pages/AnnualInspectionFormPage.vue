@@ -72,6 +72,12 @@ const isFinal = computed(() => report.value?.status === "final");
  * Null `renderer_version` means the report was filed before 0284 recorded one, which is older than
  * any version we could name rather than equal to the current one.
  */
+const filedDrawingIsStale = computed(() => {
+  if (!isFinal.value || !report.value) return false;
+  const current = data.value?.currentRendererVersion;
+  return !!current && report.value.renderer_version !== current;
+});
+
 /**
  * Destroying the record (D-AVI29) — admin only, and separate from Discard.
  *
@@ -87,12 +93,6 @@ function onDeleted() {
   toast.success("Record deleted");
   void router.push({ name: "annual-inspections" });
 }
-
-const filedDrawingIsStale = computed(() => {
-  if (!isFinal.value || !report.value) return false;
-  const current = data.value?.currentRendererVersion;
-  return !!current && report.value.renderer_version !== current;
-});
 
 const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
 
