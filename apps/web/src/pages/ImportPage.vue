@@ -165,7 +165,9 @@ async function onRepair() {
 
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
-    <PageHeader>Upload your fleet's reports and daily fuel prices.</PageHeader>
+    <PageHeader>
+      Backfill a period the automatic feeds did not carry, and load daily fuel prices.
+    </PageHeader>
 
     <div class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm">
       <BaseButton
@@ -181,6 +183,25 @@ async function onRepair() {
     </div>
 
     <div v-show="activeTab === 'efs'" class="space-y-6">
+      <!--
+        C1, FUEL-SECTION-CONSOLIDATION-PLAN §0.2 fact 7. This tab used to open with "Upload your EFS
+        reports", which read as the way fuel data gets in. It has not been that for a long time:
+        `startEfsSoapPoller` acquires the rejected feed every 5 minutes and the posted feed every 15
+        (apps/api/src/schedulers.ts), and production says so without qualification — measured
+        2026-09-01, ALL 28,484 `efs_transactions` rows carry `imports.source = 'efs_feed'`, and not
+        one has ever arrived through this page.
+
+        Telling somebody to upload a file the worker already fetched is not a small copy problem: it
+        is the page teaching a manual habit for an automated pipeline, and then the duplicate-detection
+        note below reassuring them it was harmless. So the tab now says what it is FOR — a gap, or a
+        period predating the feed — and leaves the routine path alone.
+      -->
+      <p class="text-sm text-ink-muted">
+        <strong>You do not normally need this.</strong> EFS reports arrive on their own — declines are
+        collected every few minutes and posted fills every quarter of an hour, and each new fill is
+        scored as it lands. Use this tab for a <strong>gap</strong>: a period the feed never carried, or
+        one that predates it.
+      </p>
       <p class="text-sm text-ink-muted">
         Upload EFS <strong>Transaction</strong> and <strong>Reject</strong> reports (.xlsx or .csv) — drop both
         at once and review them together. Fuel lines (diesel/gasoline) are imported; DEF, scales and fees are skipped.
