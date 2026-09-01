@@ -14,6 +14,8 @@ import { AppButton as BaseButton, AppCallout, AppBadge } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseModal from "@/components/ui/BaseModal.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
+import PrintInspectionModal from "@/features/maintenance/PrintInspectionModal.vue";
+import { useSessionStore } from "@/stores/session";
 import {
   useFinalizeInspection,
   useInspectionQuery,
@@ -38,6 +40,7 @@ import { fetchObjectUrl } from "@/lib/api";
  */
 
 const route = useRoute();
+const session = useSessionStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch } = useInspectionQuery(id);
@@ -100,6 +103,7 @@ const refusal = computed(() => finalize.error.value);
  * behind `requireAuth`, and a plain `window.open` on an API path carries no Authorization header.
  */
 const openError = ref<string | null>(null);
+const printing = ref(false);
 async function openPdf(kind: "report" | "preview") {
   openError.value = null;
   try {
@@ -148,8 +152,8 @@ async function openPdf(kind: "report" | "preview") {
         <BaseButton variant="secondary" @click="() => openPdf('preview')">
           Preview the printed page
         </BaseButton>
-        <BaseButton v-if="isFinal" variant="secondary" @click="() => openPdf('report')">
-          Print the filed report
+        <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
+          Print
         </BaseButton>
         <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="confirming = true">
           Complete inspection
@@ -185,6 +189,13 @@ async function openPdf(kind: "report" | "preview") {
           @set-repaired="(v) => setRepaired(item.key, v)"
         />
       </section>
+
+      <PrintInspectionModal
+        v-if="printing"
+        :inspection-id="id"
+        :can-manage="session.can('maintenance')"
+        @close="printing = false"
+      />
 
       <BaseModal :open="confirming" title="Complete this inspection" @close="confirming = false">
         <!-- The certification this stands for is §396.21(a)(6); the wording stays in the office's

@@ -16,7 +16,9 @@ inspector typed, it *derives* what may lawfully be certified. Pass/fail, item ap
 §396.19 inspector box are all computed from data the platform holds, never typed by the person
 signing. That is the difference between a faster PDF editor and a compliance record.
 
-**Status: A0–A7 shipped 2026-08-31 (PRs #410–#418; migrations 0279–0282). The feature is usable end to end. Only A8 remains, and A8 is OPTIONAL.** D-AVI7 was **amended the same day**
+**Status: COMPLETE 2026-08-31, after a second pass.** A0–A7 shipped via PRs #410–#419 (migrations 0279–0282). The owner then used the page and found four things — §8 records them and the B1–B5 steps that answered them, including **A8, which was ruled against and then reversed**: the truck copy IS printed onto the pre-printed pads, so the calibration was built after all (PR #423, migration 0283). §6 carries what remains open, and §7 is the register.**
+
+D-AVI7 was **amended on the first day**
 (owner ruling, §3) — the stored report is the Keller template with our values stamped onto it, not
 a layout of our own. §2.1 carries the argument that was overturned and what the ruling costs, and
 §2.5 carries the stamping spike that measured whether it can be done precisely. D-AVI13 and D-AVI14
@@ -912,9 +914,30 @@ connection has been missed — all four rows above are already written by finali
 today. The one thing genuinely absent is a per-unit VIEW, and that belongs to the truck-file plan
 rather than here: it is the same list this section already renders, filtered to one `subject_id`.
 
-- **B5 — A8 after all.** The owner ruled on 2026-08-31 that the truck copy is printed onto the
-  pre-printed pads, so the calibration is built: an offset store, a registration sheet to measure it
-  with, and the values-only render A5 already emits.
+- **B5 — A8, built — DONE 2026-08-31 (PR #423, migration 0283).** The owner reversed the earlier
+  ruling: the truck copy is printed onto the pre-printed pads, so the calibration exists.
+
+  `maintenance_print_profiles` stores an offset **per printer** — registration is a property of the
+  machine, not of a person or a session, so two people printing the same report get the same page
+  and a second printer can exist without making the first one's numbers wrong. Deliberately NOT on
+  `vehicle_inspections`: the offset describes the machine the paper went through, and putting it on
+  the report would make a re-print from another printer either wrong or a reason to edit a finalized
+  row (D-AVI4 forbids the second).
+
+  **The registration sheet is the point.** The alternative is asking somebody to print a report,
+  look at it and guess — which produces a second guess, and an office nudging a number until it
+  looks right has a calibration nobody can reproduce. The sheet prints crosshairs at four REAL cells
+  from the coordinate map, each labelled with the box it should sit in; lay it over a blank form and
+  the offset is a ruler measurement. **Four marks and not one**, because a single point cannot tell
+  a shift from a scale error — if the four differences disagree, the printer is scaling and no
+  offset will fix it, which the sheet says on its face.
+
+  Two things the tests caught. The arms were 9 pt and the leftmost target sits 25.5 pt from the
+  paper edge, inside the 4–6 mm most lasers cannot print — a clipped crosshair still looks like a
+  crosshair, so somebody would have measured a wrong number carefully. And the sheet's own
+  instructions pointed at a settings screen that did not exist; printer setup now lives on the print
+  menu, which is where somebody discovers they need it — nobody goes looking for a calibration
+  screen, they find a page printed two millimetres low.
 
 ---
 

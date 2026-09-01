@@ -282,5 +282,34 @@ ok("a report cannot be walked into another tenant by an update (0161's invariant
      typeof r.error === "string", JSON.stringify(r));
 }
 
+// ── 7. Printer calibration (0283, D-AVI8) ───────────────────────────────────────────────────────
+{
+  const NEW_PROFILE = `insert into maintenance_print_profiles (org_id, name, offset_x_pt, offset_y_pt)
+                       values ($1, 'Shop laser', 1.5, -2.25)`;
+  ok("technician saves a printer offset", (await affected("technician", NEW_PROFILE, [ORG])) === 1);
+  ok("auditor cannot", await blocked("auditor", NEW_PROFILE, [ORG]));
+  ok("dispatcher cannot even read the profiles",
+     (await counted("dispatcher", `select count(*) n from maintenance_print_profiles`)) === 0);
+}
+{
+  await db.query(`insert into maintenance_print_profiles (org_id, name, offset_x_pt, offset_y_pt)
+                  values ($1, 'Front office', 0, 0)`, [ORG]);
+  const r = await asService(`insert into maintenance_print_profiles (org_id, name) values ($1, 'Front office')`, [ORG]);
+  ok("two printers in one org cannot share a name — that is how you pick the wrong one",
+     typeof r.error === "string", JSON.stringify(r));
+}
+{
+  // A real misfeed is millimetres. An inch is already past anything worth correcting, and the bound
+  // turns a typo into a refusal rather than a page printed off the paper.
+  const r = await asService(
+    `insert into maintenance_print_profiles (org_id, name, offset_x_pt) values ($1, 'Typo', 400)`, [ORG]);
+  ok("an offset beyond an inch is refused", typeof r.error === "string", JSON.stringify(r));
+}
+{
+  const r = await asService(
+    `update maintenance_print_profiles set org_id = $1 where name = 'Front office'`, [OTHER_ORG]);
+  ok("a printer cannot be walked into another tenant (0161's invariant)", typeof r.error === "string");
+}
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

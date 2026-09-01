@@ -243,3 +243,44 @@ export function useCreateInspection() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] }),
   });
 }
+
+export interface PrintProfile {
+  id: string;
+  name: string;
+  offset_x_pt: number;
+  offset_y_pt: number;
+  notes: string | null;
+}
+
+export function usePrintProfilesQuery() {
+  return useQuery({
+    queryKey: ["maintenance", "print-profiles"] as const,
+    queryFn: async (): Promise<PrintProfile[]> => {
+      const r = await apiFetch<{ profiles: PrintProfile[] }>("/api/maintenance/print-profiles");
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load printer setups");
+      return r.data.profiles;
+    },
+  });
+}
+
+export interface PrintProfileInput {
+  name: string;
+  offsetXPt: number;
+  offsetYPt: number;
+  notes?: string | null;
+}
+
+export function useSavePrintProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PrintProfileInput & { id?: string }): Promise<void> => {
+      const { id, ...body } = input;
+      const r = await apiFetch(id ? `/api/maintenance/print-profiles/${id}` : "/api/maintenance/print-profiles", {
+        method: id ? "PATCH" : "POST",
+        body,
+      });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save the printer setup");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "print-profiles"] }),
+  });
+}

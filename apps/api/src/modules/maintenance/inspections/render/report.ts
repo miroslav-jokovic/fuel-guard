@@ -88,6 +88,14 @@ export interface RenderOptions {
   background?: "template" | "none";
   /** D-AVI14's preview: identical placement, plus a mark saying it certifies nothing. */
   draft?: boolean;
+  /**
+   * Registration offset in points, for printing onto a pre-printed pad (D-AVI8). Positive is right
+   * and down; a printer laying ink low is corrected with a NEGATIVE y.
+   *
+   * Applied to the whole page rather than per field, because a misfeed shifts everything by the
+   * same amount — a per-field correction would be describing a bent form rather than a printer.
+   */
+  offset?: { x: number; y: number };
 }
 
 /**
@@ -114,7 +122,7 @@ interface Stamper {
   mark(cell: Cell): void;
 }
 
-function stamperFor(page: PDFPage, font: PDFFont, color = INK): Stamper {
+function stamperFor(page: PDFPage, font: PDFFont, color = INK, offset = { x: 0, y: 0 }): Stamper {
   /** Shrink until it fits, never past `MIN_SIZE` — below that it is illegible on paper anyway. */
   const fit = (value: string, cell: Cell, start: number): number => {
     let size = start;
@@ -126,10 +134,16 @@ function stamperFor(page: PDFPage, font: PDFFont, color = INK): Stamper {
       if (value === null || value === undefined || value === "") return;
       const safe = winAnsi(value);
       const used = fit(safe, cell, size);
-      page.drawText(safe, { x: cell.x, y: baselineOf(cell, used), size: used, font, color });
+      page.drawText(safe, { x: cell.x + offset.x, y: baselineOf(cell, used) + offset.y, size: used, font, color });
     },
     mark(cell) {
-      page.drawText("X", { x: cell.x, y: baselineOf(cell, MARK_SIZE), size: MARK_SIZE, font, color });
+      page.drawText("X", {
+        x: cell.x + offset.x,
+        y: baselineOf(cell, MARK_SIZE) + offset.y,
+        size: MARK_SIZE,
+        font,
+        color,
+      });
     },
   };
 }
@@ -237,7 +251,11 @@ export async function renderInspectionReport(
   }
 
   const font = await doc.embedFont(StandardFonts.Helvetica);
-  const s = stamperFor(page, font, opts.draft ? DRAFT_INK : INK);
+  // The offset is a property of the printer, so it moves the VALUES and never the template. On
+  // `background: 'template'` the artwork and the ink are on the same page and drift together, which
+  // is why calibration only ever applies to the values-only render.
+  const offset = background === "none" ? (opts.offset ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
+  const s = stamperFor(page, font, opts.draft ? DRAFT_INK : INK, offset);
   drawHeader(s, input);
   drawItems(s, input.items);
   drawOtherConditions(s, font, input.otherConditions);

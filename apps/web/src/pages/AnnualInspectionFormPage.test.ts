@@ -53,6 +53,7 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   useFinalizeInspection: () => state.finalize,
 }));
 vi.mock("@/lib/api", () => ({ fetchObjectUrl: vi.fn(async () => "blob:x") }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
 
 const AnnualInspectionFormPage = (await import("@/pages/AnnualInspectionFormPage.vue")).default;
 
@@ -78,7 +79,7 @@ const inspection = (over: Record<string, unknown> = {}) => ({
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
   return mount(AnnualInspectionFormPage, {
-    global: { stubs: { PageHeader: true, BaseModal: true, AppDateField: true } },
+    global: { stubs: { PageHeader: true, BaseModal: true, AppDateField: true, PrintInspectionModal: true } },
   });
 };
 
@@ -120,7 +121,7 @@ describe("the verdict is the shared function's, not the page's", () => {
     // "mark this report as passed", and the day one appears this fails.
     const labels = w.findAll("button").map((b) => b.text());
     for (const label of labels) {
-      expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection"]).toContain(label);
+      expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print"]).toContain(label);
     }
   });
 });
@@ -141,9 +142,9 @@ describe("a certified report is read-only (D-AVI4)", () => {
     expect(answers.every((b) => b.attributes("disabled") !== undefined)).toBe(true);
   });
 
-  it("offers the filed report rather than a certify button", () => {
+  it("offers printing rather than a complete button", () => {
     const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
-    expect(labels).toContain("Print the filed report");
+    expect(labels).toContain("Print");
     expect(labels).not.toContain("Complete inspection");
   });
 });
