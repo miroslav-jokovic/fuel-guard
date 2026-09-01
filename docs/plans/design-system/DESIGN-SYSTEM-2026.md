@@ -734,6 +734,57 @@ a half-blue, half-gold product is worse than either.
 
 ---
 
+### D-DS17 — A date field is a component of ours, not a browser's. (2026-08-31)
+
+**The complaint.** *"date picker component we have to use our standard one that we are using in this
+project."* The honest answer at the time was that there wasn't one: `AppDateField` and
+`AppDateTimeField` were a line each — `AppInput` with `type="date"` / `type="datetime-local"` — so
+the control, its calendar, its type, its focus ring and its idea of a valid date all belonged to the
+browser. Twenty-five surfaces, three engines, three different pickers; Safari's is a stepper with no
+calendar in it at all.
+
+**What made this findable rather than a matter of taste.** The design system had already decided.
+`packages/tokens/src/epilogue.css` carries a full `--dp-*` block mapping VueDatePicker onto the
+tokens, sized — its own comment — *"to match BaseInput / rounded-control controls"*, including
+`--dp-input-padding`. That block was written for a picker used as an INPUT and nothing had ever used
+it that way: `DateRangeFilter` replaces the trigger entirely, so it touches none of it. The
+2026-08-11 UI audit recorded the same gap twice (§6.1 *"both native date/datetime inputs and a custom
+Vue date-range picker without a shared DateField contract"*, §6.3 prescribing one `DateField` /
+`DateTimeField` with typing, calendar, Escape, arrows, focus return, min/max and clear).
+
+**The decision.** One internal `DatePickerBase.vue` on VueDatePicker; `AppDateField` and
+`AppDateTimeField` are its two shapes. Props and wire format are unchanged — `yyyy-MM-dd` and
+`yyyy-MM-dd'T'HH:mm`, the strings the native inputs produced — so all twenty-five call sites moved
+without being edited. **A new component used only on the surface that complained would have been the
+workaround**: it would have made those pages the odd ones out, which is the thing being fixed.
+
+The `#dp-input` slot is used rather than the library's own input, because the field has to be
+indistinguishable from an `AppInput` beside it and v14 exposes no way to set the input's classes;
+the `--dp-*` variables cannot express a `ring`. Everything under the input — calendar, keyboard
+model, parsing — stays the library's.
+
+**Two live defects found on the way, both silent, both shipped.** The package was bumped to v14 and
+neither its CSS nor its API rename was followed:
+
+| What | Consequence |
+| --- | --- |
+| The theme block targets `.dp__theme_light` / `.dp__main` / `.dp__menu`; v14 emits `.dp--theme-light` / `.dp--main` / `.dp--menu`. Every `--dp-*` custom property survived the rename | **The whole block stopped matching.** Every calendar in the product — the `DateRangeFilter` on roughly ten pages — has been rendering in the library's default palette since the bump |
+| `DateRangeFilter` passes `:enable-time-picker="false"`; v14 moved it into `time-config` | Vue accepts an unknown prop as a plain HTML attribute rather than refusing it, so it landed on the root `<div>` and did nothing |
+
+Neither errored, neither failed a build, and neither is visible in a diff. **A CSS selector that
+stops matching and a prop that becomes an attribute are the two quietest failures in a Vue app**, and
+a version bump produces both at once. Found by dumping rendered markup while building the new field,
+not by reading. If `epilogue.css` grows a third vendor block, it needs a test asserting the class
+names against the installed package.
+
+**Deliberately not done: locale-aware display.** The audit asks for it and this ships a fixed
+`MM/dd/yyyy` instead, because the display format is also the PARSER — `text-input` reads back what
+`format` writes, and a locale format with no matching parser makes typing fail silently, which is
+the failure the audit's "supports typing" line is about. It is a real improvement and it needs both
+halves.
+
+---
+
 ## 2. Sequence
 
 Each phase is independently shippable and independently revertable. **One PR per decision** —
@@ -822,6 +873,7 @@ Listed so a fresh session can scope a PR without searching.
 | D-DS11 | 4 files importing `@headlessui/vue`, `apps/web/package.json` |
 | D-DS12 | `docs/DESIGN-SYSTEM-CONTRACT.md`, delete `docs/DESIGN-SYSTEM.md`, `apps/web/CLAUDE.md` |
 | D-DS13 | `apps/web/package.json`, `apps/web/src/dev/DesignSystemLabPage.vue`, `apps/web/CLAUDE.md` |
+| D-DS17 | new `packages/ui/src/components/DatePickerBase.vue` + its test, `AppDateField.vue`, `AppDateTimeField.vue`, `packages/ui/package.json`, `packages/tokens/src/epilogue.css` (+ regenerated `tokens.generated.css`), `apps/web/src/components/DateRangeFilter.vue`, 3 tests that drove `input[type="date"]` |
 
 ---
 

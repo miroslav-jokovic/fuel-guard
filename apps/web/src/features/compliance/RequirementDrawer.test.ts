@@ -53,7 +53,11 @@ describe("RequirementDrawer — §172.704(d) fields (D7)", () => {
     await setByPlaceholder(w, "Who delivered it", "SafeHaul Training LLC");
     await setByPlaceholder(w, "Street, city, state", "12 Depot Rd, Joliet, IL");
     await setByPlaceholder(w, "Course name, manual, module…", "Function-specific module 3, 2026 manual");
-    await w.find('input[type="date"]').setValue("2026-01-15"); // Issued — satisfies `ready`
+    // Driven through the component rather than by typing into the input: the date field is a real
+    // picker now (D-DS17), so its input holds a formatted `MM/dd/yyyy` display value while the wire
+    // value stays ISO. What this test is about is the request BODY, so it sets the wire value.
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-01-15"); // Issued — satisfies `ready`
+    await w.vm.$nextTick();
     const notes = w.findAll('input[placeholder="Optional"]').at(-1)!;
     await notes.setValue("Renewal due with the 2029 cycle");
 

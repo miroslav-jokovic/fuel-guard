@@ -80,7 +80,10 @@ describe("hiring an applicant", () => {
   it("posts the driver and the hire date, and nothing else", async () => {
     const w = mountDrawer();
     await settle(w);
-    await w.find('input[type="date"]').setValue("2026-09-01");
+    // The wire value, set on the component: the picker's input shows `09/01/2026` (D-DS17) and this
+    // test is about what reaches the API.
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-09-01");
+    await w.vm.$nextTick();
     await w.findAll("button").find((b) => b.text() === "Hire")!.trigger("click");
     await settle(w);
 

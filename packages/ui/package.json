@@ -34,7 +34,8 @@
     "vue-tsc": "3.3.6"
   },
   "dependencies": {
+    "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/vue": "1.0.7",
-    "@hugeicons/core-free-icons": "4.2.3"
+    "@vuepic/vue-datepicker": "14.0.0"
   }
 }
