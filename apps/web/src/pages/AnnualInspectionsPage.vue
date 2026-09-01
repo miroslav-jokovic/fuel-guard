@@ -229,6 +229,7 @@ async function discardDraft(row: InspectionSummary) {
       :open="true"
       :inspection-id="deleting.id"
       :unit-number="deleting.unit_number ?? ''"
+      :subject-type="deleting.subject_type"
       :status="deleting.status"
       @close="deleting = null"
       @deleted="onDeleted"
