@@ -290,6 +290,56 @@ export type InspectionItemDto = z.infer<typeof inspectionItemDtoSchema>;
  * part of a deleted §396.17 report that survives, so the schema refuses the request without it
  * rather than leaving the audit row to carry an empty string.
  */
+/**
+ * How a report identifies its equipment — §396.21(a)(4), and the box the form ticks.
+ *
+ * ── WHY THIS IS DERIVED AND NOT DEFAULTED TO 'vin' ─────────────────────────────────────────────
+ * It used to default to `'vin'` at draft creation and nothing ever revised it, so the printed page
+ * ticked **VIN** and printed nothing whenever the roster had no VIN — a positive claim about an
+ * identifier that does not exist, which is worse than a blank box.
+ *
+ * It surfaced on 2026-09-01 when the roster held **0 of 211 trailer VINs**. That turned out to be a
+ * data gap rather than a form problem: McLeod carries a 17-character serial for 228 of 235 active
+ * trailers, the collector already selected it, and the roster sweep had simply never run in write
+ * mode. It has now — trailer VINs went 0 → 200 the same day.
+ *
+ * This function is what remains true afterwards. Measured after that sweep: **11 of 211 trailers and
+ * 8 of 199 vehicles still carry neither a VIN nor a plate** — unmatched units, and equipment McLeod
+ * has no serial for. They are identified by the one thing every row has, which is what the form's
+ * `OTHER` box is for: §396.21(a)(4) names the **company number** as an acceptable identification in
+ * its own right. The order below is the form's own, most specific first.
+ *
+ * Pure, and in `shared`, because the creator writes it and the renderer falls back through the same
+ * order: two implementations of "which box is ticked" is how the tick and the value disagree.
+ */
+export interface EquipmentIdentifiers {
+  vin?: string | null;
+  plate?: string | null;
+  unitNumber?: string | null;
+}
+
+export interface ChosenIdentification {
+  method: VehicleIdentificationMethod;
+  value: string | null;
+}
+
+export function chooseVehicleIdentification(equipment: EquipmentIdentifiers): ChosenIdentification {
+  const clean = (v: string | null | undefined) => {
+    const t = (v ?? "").trim();
+    return t.length > 0 ? t : null;
+  };
+  const vin = clean(equipment.vin);
+  if (vin) return { method: "vin", value: vin };
+  const plate = clean(equipment.plate);
+  if (plate) return { method: "plate", value: plate };
+  const unit = clean(equipment.unitNumber);
+  if (unit) return { method: "other", value: unit };
+  // Nothing to identify it with. `other` with no value leaves the row honestly blank rather than
+  // ticking a box the page cannot support — finalize is where a report that identifies nothing
+  // should be refused, not here.
+  return { method: "other", value: null };
+}
+
 export const inspectionDeleteRequestSchema = z.object({
   reason: z.string().trim().min(3, "Say why this record is being deleted."),
 });

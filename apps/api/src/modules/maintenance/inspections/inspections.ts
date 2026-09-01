@@ -7,6 +7,7 @@ import {
   type InspectionItemDto,
   type InspectionPatchRequest,
   type InspectionSubjectType,
+  chooseVehicleIdentification,
 } from "@silvicom/shared";
 import { getEquipmentIdentity } from "../../roster/index.js";
 import type { ServiceError } from "./inspectors.js";
@@ -100,6 +101,26 @@ export async function createInspectionDraft(
   if (existing.error) return traced("createInspectionDraft.replayCheck", "db_error", "Could not start the inspection", existing.error);
   if (existing.data) return { id: input.id, replayed: true };
 
+  /**
+   * Read ONCE, before the row exists, because two different answers depend on it.
+   *
+   * A reefer's checklist is not a dry van's — it has an engine and a fuel tank — so the seed below
+   * needs it. And §396.21(a)(4)'s identification has to be chosen from what the roster actually
+   * carries rather than defaulted to `'vin'`: defaulting ticked the VIN box on a page that then
+   * printed nothing. It surfaced when 0 of 211 trailers had a VIN; the McLeod roster sweep has since
+   * filled 200, and 11 trailers plus 8 vehicles still carry neither VIN nor plate (2026-09-01).
+   *
+   * An equipment row we cannot read is NOT a refusal here — A4 is deliberately tolerant and finalize
+   * is where a report that identifies nothing gets stopped. It degrades to `other` with no value,
+   * which leaves the row honestly blank instead of asserting an identifier.
+   */
+  const equipment = await getEquipmentIdentity(admin, orgId, input.subjectType, input.subjectId);
+  const known = equipment && !("code" in equipment) ? equipment : null;
+  const isReefer = known ? known.isReefer : null;
+  const identification = known
+    ? chooseVehicleIdentification(known)
+    : { method: "other" as const, value: null };
+
   const { error } = await admin.from("vehicle_inspections").insert({
     id: input.id,
     org_id: orgId,
@@ -110,6 +131,10 @@ export async function createInspectionDraft(
     decal_serial: input.decalSerial ?? null,
     inspection_agency_location: input.inspectionAgencyLocation ?? null,
     catalogue_version: INSPECTION_CATALOGUE_VERSION,
+    // §396.21(a)(4), chosen from what the roster ACTUALLY has rather than defaulted to 'vin' — see
+    // `chooseVehicleIdentification`, and the trailer with no VIN that made it visible.
+    vehicle_identification_method: identification.method,
+    vehicle_identification_value: identification.value,
     created_by: createdBy,
   });
   if (error) {
@@ -117,11 +142,6 @@ export async function createInspectionDraft(
     if (duplicate) return duplicate;
     return traced("createInspectionDraft", "insert_failed", "Could not start the inspection", error);
   }
-
-  // A reefer's checklist is not a dry van's: it has an engine and a fuel tank. Read once at seed
-  // time so the form opens right, rather than making the inspector correct five rows every time.
-  const equipment = await getEquipmentIdentity(admin, orgId, input.subjectType, input.subjectId);
-  const isReefer = equipment && !("code" in equipment) ? equipment.isReefer : null;
 
   const seeded = defaultInspectionItems(input.subjectType, isReefer).map((item) => ({
     org_id: orgId,
