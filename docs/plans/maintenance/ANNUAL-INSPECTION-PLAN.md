@@ -893,7 +893,7 @@ function so the vehicles page, the trailers page and any later surface cannot di
   inspector meets the standard, the product decides that from a row rather than a tick box, and
   until now the row was invisible to everybody relying on it.
 
-### B6 — the components were wrong too (2026-08-31, PR #NNN)
+### B6 — the components were wrong too — DONE 2026-08-31 (PR #424)
 
 The owner's second look found that B2/B3/B5 used the wrong overlay and the wrong page shell. Four
 violations, all of them knowable from call sites before a line was written — which is the same
