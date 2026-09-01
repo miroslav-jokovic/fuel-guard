@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import {
   INSPECTION_CATALOGUE_VERSION,
-  INSPECTION_GROUPS,
   type InspectionItemAnswer,
   type InspectionOutcome,
   type InspectionSubjectType,
@@ -14,14 +13,10 @@ import {
 import { winAnsi } from "../../../../lib/pdfDraw.js";
 import {
   CHECKBOX_CELLS,
-  GROUP_HEADINGS,
   HEADER_CELLS,
   HEADER_SIZES,
-  HEADING_SIZE,
-  HELVETICA_DESCENT_RATIO,
   IDENTIFICATION_BOX,
   OTHER_CONDITIONS_LINES,
-  OTHER_GROUP_TITLE,
   PAGE_HEIGHT,
   PAGE_WIDTH,
   TEMPLATE_REVISION,
@@ -29,7 +24,16 @@ import {
   baselineOf,
   cellsFor,
   type Cell,
+  type TickBox,
 } from "./layouts/keller14834Rev0122.js";
+import {
+  drawHeadingBands,
+  drawIdentificationTick,
+  drawLegendMarks,
+  drawOkColumnHeaders,
+  drawTick,
+  embedArtworkFonts,
+} from "./templateArtwork.js";
 
 /**
  * Stamping the §396.17 report onto J.J. Keller form 14834 (plan step A5, D-AVI7/D-AVI14).
@@ -57,8 +61,27 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = join(HERE, "assets", "keller-14834-rev0122.pdf");
 
-/** Bump when the drawing changes in a way that alters bytes for the same input. */
-export const RENDERER_VERSION = "1.0.0";
+/**
+ * Bump when the drawing changes in a way that alters bytes for the same input.
+ *
+ * ── 2.0.0, 2026-09-01: THE PAGE CHANGED AND 1.0.0 DID NOT SAY SO ───────────────────────────────
+ * 1.0.0 covered two materially different pages. On 2026-08-31 the renderer gained the section
+ * headings, moved the header block to bold at the sizes the office types, and changed the ink from
+ * red to black — and the version stayed at 1.0.0, so `renderDigest` went on asserting that a report
+ * filed before that change and a preview drawn after it came from "the same renderer". They did not
+ * look alike. The one report filed under the old drawing (2026-09-01 04:01 UTC, half an hour before
+ * the change landed) is exactly the divergence the office reported as "the preview has the section
+ * names and the print does not": a final report serves its STORED bytes and never re-renders, which
+ * is right, but nothing recorded that those bytes predated the drawing.
+ *
+ * So: bump when the drawing moves, and let the digest tell the two apart. Reports already filed keep
+ * their bytes; a page that needs the new drawing is superseded and re-filed through the correction
+ * path (A9), never re-rendered underneath its own hash.
+ *
+ * 2.0.0 also restores the four pieces of artwork the template export lost — see
+ * `templateArtwork.ts` — and puts three tick boxes back inside the boxes they belong to.
+ */
+export const RENDERER_VERSION = "2.0.0";
 
 /**
  * Pure black, on every path including the draft preview (D-AVI22).
@@ -137,7 +160,8 @@ function headerDate(iso: string): string {
 
 interface Stamper {
   text(cell: Cell, value: string | null | undefined, size?: number, weight?: "regular" | "bold"): void;
-  mark(cell: Cell): void;
+  /** A tick box is artwork, not a text cell — `drawTick` centres the X in the box's own rectangle. */
+  mark(box: TickBox): void;
 }
 
 function stamperFor(
@@ -167,14 +191,8 @@ function stamperFor(
         color,
       });
     },
-    mark(cell) {
-      page.drawText("X", {
-        x: cell.x + offset.x,
-        y: baselineOf(cell, MARK_SIZE) + offset.y,
-        size: MARK_SIZE,
-        font,
-        color,
-      });
+    mark(box) {
+      drawTick(page, font, box, offset);
     },
   };
 }
@@ -204,45 +222,6 @@ function drawHeader(s: Stamper, input: InspectionRenderInput): void {
   if (input.inspectorQualified) s.mark(CHECKBOX_CELLS.qualifiedYes);
   s.mark(CHECKBOX_CELLS[IDENTIFICATION_BOX[input.identificationMethod]]);
   s.mark(CHECKBOX_CELLS[VEHICLE_TYPE_BOX[input.subjectType]]);
-}
-
-/**
- * The sixteen section headings, in black, knocked into Keller's red hairline (D-AVI22).
- *
- * Keller draws them in zero ink over that hairline because the pad it ships is pre-printed with a
- * coloured band; on plain paper they are white on white and the office sees a table of items with
- * nothing naming the sections. Drawn here instead, in the same place, at the same 8.64 pt, from the
- * catalogue rather than from a list of strings — so a heading cannot go missing the way
- * `1. BRAKE SYSTEM` did in the damaged export, and cannot disagree with the items beneath it.
- *
- * The white rectangle is the knockout: it clears the hairline behind the text only, so the rule
- * still runs across the rest of the column exactly as Keller drew it, and the heading interrupts it
- * the way it does on the printed pad.
- */
-function drawGroupHeadings(page: PDFPage, bold: PDFFont, offset: { x: number; y: number }): void {
-  const titleOf = (n: number) =>
-    (INSPECTION_GROUPS.find((g) => g.number === n)?.title ?? OTHER_GROUP_TITLE).toUpperCase();
-
-  for (const heading of GROUP_HEADINGS) {
-    const text = `${heading.number}. ${titleOf(heading.number)}`;
-    const width = bold.widthOfTextAtSize(text, HEADING_SIZE);
-    const x = heading.x + offset.x;
-
-    page.drawRectangle({
-      x: x - 1.5,
-      y: PAGE_HEIGHT - heading.rule - 1.5 + offset.y,
-      width: width + 3,
-      height: 3,
-      color: rgb(1, 1, 1),
-    });
-    page.drawText(text, {
-      x,
-      y: PAGE_HEIGHT - heading.y + HELVETICA_DESCENT_RATIO * HEADING_SIZE + offset.y,
-      size: HEADING_SIZE,
-      font: bold,
-      color: INK,
-    });
-  }
 }
 
 function drawItems(s: Stamper, items: readonly InspectionItemAnswer[]): void {
@@ -336,10 +315,19 @@ export async function renderInspectionReport(
   // is why calibration only ever applies to the values-only render.
   const offset = background === "none" ? (opts.offset ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
   const s = stamperFor(page, font, bold, INK, offset);
+
+  // The artwork our copy of the template lost, and ONLY on plain paper: the overlay goes onto a real
+  // pre-printed Keller pad that carries all of it, so drawing it there would double-print the page
+  // (D-AVI22, D-AVI8). Drawn before the values so a mark can never end up underneath a band.
+  if (background === "template") {
+    const artwork = await embedArtworkFonts(doc, bold);
+    drawHeadingBands(page, bold, offset);
+    drawOkColumnHeaders(page, bold, offset);
+    drawLegendMarks(page, artwork, offset);
+    drawIdentificationTick(page, artwork, offset);
+  }
+
   drawHeader(s, input);
-  // Only on plain paper. A pre-printed Keller pad already carries these, and drawing them onto one
-  // would print every heading twice (D-AVI22, D-AVI8).
-  if (background === "template") drawGroupHeadings(page, bold, offset);
   drawItems(s, input.items);
   drawOtherConditions(s, font, input.otherConditions);
 

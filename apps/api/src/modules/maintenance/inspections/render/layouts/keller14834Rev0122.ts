@@ -29,6 +29,36 @@ export const PAGE_HEIGHT = 846;
 
 export const TEMPLATE_REVISION = "jjkeller-14834-rev-1-22";
 
+
+/**
+ * What the blank in `assets/` ACTUALLY CARRIES — the switch the artwork restoration hangs off.
+ *
+ * The renderer used to decide this by believing a comment. That is how a heading came to be drawn
+ * in black on a page whose original has it in white on red: the belief ("Keller knocks the headings
+ * out for its own pad") was wrong, nothing could contradict it, and the output was defensible only
+ * against the belief.
+ *
+ * So it is a declared fact instead, and `../assets.test.ts` reads the PDF and fails the build when
+ * the file and this table stop agreeing. Swap in a clean export and the test tells you which lines
+ * to flip; flip them and the renderer stops drawing what the page already has, rather than
+ * double-printing it.
+ *
+ * Every `false` below is a loss measured in the file itself, not a preference — see
+ * `keller14834Rev0122Artwork.ts` for what each one costs and where the replacement is measured.
+ */
+export const TEMPLATE_SUPPLIES = {
+  /** The sixteen coloured bands the section headings are knocked out of. */
+  headingBands: false,
+  /** The heading text itself. Fifteen survive, painted white; `1. BRAKE SYSTEM` does not exist. */
+  headingTitles: false,
+  /** The `OK` label above the first ruled column, in all three groups. */
+  okColumnHeader: false,
+  /** The ✓ inside `VEHICLE IDENTIFICATION (✓ AND COMPLETE)`. */
+  identificationTick: false,
+  /** The ✓ / X / NA marks on the INSTRUCTIONS legend. */
+  legendMarks: false,
+} as const;
+
 export interface Cell {
   /** Left edge, in PDF points from the left of the page. */
   readonly x: number;
@@ -248,83 +278,59 @@ export const HEADER_SIZES = {
 } as const satisfies Record<keyof typeof HEADER_CELLS, number>;
 
 /**
- * The sixteen section headings — which Keller's PDF draws in WHITE and we therefore have to draw
- * ourselves (D-AVI22).
+ * The tick boxes — each one the artwork's OWN rectangle, not a guess at where it looks like it is.
  *
- * ── THE FORM IS NOT MISSING THEM; IT IS KNOCKING THEM OUT ──────────────────────────────────────
- * Reported as "we are missing section titles in template, we have items but no section titles", and
- * the first guess — that the Illustrator round trip dropped them — was wrong in an instructive way.
- * The text is present in both our blank and the carrier's own good form, drawn at `0 0 0 0 scn`
- * (CMYK zero ink) over a 0.48 pt red rule. Measured at 300 dpi: fifteen rules, each spanning one
- * printed column, each with the heading knocked out of it as white-on-colour.
+ * ── THREE OF THESE WERE PRINTING ON TOP OF THE LABEL, 2026-09-01 ───────────────────────────────
+ * The earlier positions were inferred rather than read, and the only assertion on them — "gives
+ * every tick box its own position" in `../layout.test.ts` — checked that no two of them collided
+ * with EACH OTHER, which every wrong answer also satisfies. The page draws its nine boxes as plain
+ * `re` operators, so they can simply be read out:
  *
- * That is a design for PRE-PRINTED STOCK. The pad Keller ships already carries the coloured heading
- * bands; the PDF is meant to be filled and printed onto it, so it leaves them as a knockout and the
- * ink is never laid down. Print that PDF on plain paper and the headings are white on white — which
- * is exactly what the office was looking at, and it is equally true of the carrier's own untouched
- * file. `1. BRAKE SYSTEM` was additionally absent from the damaged `654` export, which is what made
- * the fault look like a template problem rather than a printing one.
+ * | box | artwork (x, y, 5.5 × 5.5) | was stamped at | drift |
+ * | --- | --- | --- | --- |
+ * | §396.19 YES | 316.75, 652.442 | 318.9 | 2.2 pt right, 1.5 low |
+ * | LIC. PLATE NO. | 451.75, 638.302 | 470.0 | **18.3 pt right — on the word "LIC."** |
+ * | VIN | 523.75, 638.302 | 524.3 | 0.6 right, 1.5 low |
+ * | OTHER | 552.75, 638.302 | 574.0 | **21.3 pt right — inside the word "OTHER"** |
+ * | TRACTOR | 71.25, 614.302 | 70.9 | 0.4 left, 1.5 low |
+ * | TRAILER | 123.25, 614.302 | 128.0 | **4.8 pt right — on the word "TRAILER"** |
  *
- * So the renderer supplies them, and only on the PLAIN-PAPER path — `background: "template"`. The
- * overlay path prints onto a real Keller pad that already has them, and drawing them there would
- * double-print every heading (D-AVI8).
+ * So a plate-identified report and an other-identified report each printed their only vehicle-ID
+ * mark across a printed label with all three boxes left empty, and EVERY trailer report struck out
+ * the word it was meant to be ticking. Rendered and read at 300 dpi before and after.
  *
- * `y` is the text baseline, top-down, as everywhere else in this file; `rule` is the red hairline's
- * centre, which the heading is knocked out of. Both are measured: the rule centres by scanning the
- * carrier's filled report at 300 dpi for red runs, the baselines from the `Tm` operators that place
- * the white text (twelve of sixteen read directly, the remaining four sitting at their rule + 3.16
- * pt, which is the offset the other twelve all share).
- */
-export interface HeadingCell {
-  readonly number: number;
-  readonly x: number;
-  readonly y: number;
-  readonly rule: number;
-}
-export const GROUP_HEADINGS: readonly HeadingCell[] = [
-  { number: 1, x: 78, y: 286.29, rule: 283.08 },
-  { number: 2, x: 78, y: 471.3, rule: 468.12 },
-  { number: 3, x: 78, y: 558.3, rule: 555.24 },
-  { number: 4, x: 78, y: 681.3, rule: 678.12 },
-  { number: 5, x: 78, y: 741.28, rule: 738.12 },
-  { number: 6, x: 270, y: 286.29, rule: 283.08 },
-  { number: 7, x: 270, y: 370.27, rule: 367.08 },
-  { number: 8, x: 270, y: 525.28, rule: 522.12 },
-  { number: 9, x: 270, y: 589.36, rule: 586.2 },
-  { number: 10, x: 270, y: 662.32, rule: 659.16 },
-  { number: 11, x: 270, y: 713.27, rule: 710.16 },
-  { number: 12, x: 459, y: 286.29, rule: 283.08 },
-  { number: 13, x: 459, y: 332.28, rule: 329.16 },
-  { number: 14, x: 459, y: 368.27, rule: 365.16 },
-  { number: 15, x: 459, y: 404.26, rule: 401.16 },
-  { number: 16, x: 459, y: 451.36, rule: 448.2 },
-] as const;
-
-/**
- * Group 16 is the form's own "OTHER" box and has no catalogue entry — `INSPECTION_GROUPS` stops at
- * 15 because the first fifteen are Appendix A's component groups and the sixteenth is a free-text
- * field. The heading still has to print, so its title lives here, with the form it belongs to.
- */
-export const OTHER_GROUP_TITLE = "Other";
-
-/** Keller sets the headings at 8.64 pt — derived from four of them independently, all agreeing. */
-export const HEADING_SIZE = 8.64;
-
-/**
- * The tick boxes, each a small `X` at the box's own position from the sample.
+ * Pinned now by "puts every tick box on the rectangle the template actually draws" and "keeps the
+ * drawn X inside the 5.5 pt box, horizontally and vertically", both in `../layout.test.ts`.
+ *
+ * The remaining three boxes on the same rows — TRUCK 171.25, BUS 213.25 and the (OTHER) vehicle
+ * type at 71.25, 602.442 — are recorded here rather than in code because §396.17 subjects are
+ * tractors and trailers only (D-AVI12); a fleet that grows a bus needs the catalogue changed, not
+ * a coordinate.
  *
  * `qualifiedYes` is the §396.19 assertion, and the renderer stamps it ONLY from the inspector's
- * register row rather than from an argument — see render.ts. A boolean parameter here is exactly how
- * a derived legal claim turns back into a typed one.
+ * register row rather than from an argument — see report.ts. A boolean parameter here is exactly
+ * how a derived legal claim turns back into a typed one.
  */
+export const CHECKBOX_SIZE = 5.5;
+
+export interface TickBox {
+  /** Left edge, in points from the left of the page. */
+  readonly x: number;
+  /** Top-down distance to the box's TOP edge — the box, not a baseline. */
+  readonly y: number;
+}
+
+const boxAt = (x: number, pdfBottom: number): TickBox => ({ x, y: PAGE_HEIGHT - pdfBottom - CHECKBOX_SIZE });
+
 export const CHECKBOX_CELLS = {
-  qualifiedYes: { x: 318.9, y: 194.5, maxWidth: 8 },
-  identificationPlate: { x: 470.0, y: 210.3, maxWidth: 8 },
-  identificationVin: { x: 524.3, y: 210.3, maxWidth: 8 },
-  identificationOther: { x: 574.0, y: 210.3, maxWidth: 8 },
-  vehicleTypeTractor: { x: 70.9, y: 235.0, maxWidth: 8 },
-  vehicleTypeTrailer: { x: 128.0, y: 235.0, maxWidth: 8 },
-} as const satisfies Record<string, Cell>;
+  qualifiedYes: boxAt(316.75, 652.442),
+  identificationPlate: boxAt(451.75, 638.302),
+  identificationVin: boxAt(523.75, 638.302),
+  identificationOther: boxAt(552.75, 638.302),
+  vehicleTypeTractor: boxAt(71.25, 614.302),
+  vehicleTypeTrailer: boxAt(123.25, 614.302),
+} as const satisfies Record<string, TickBox>;
+
 
 /** Which tick box a subject type lights up (D-AVI12 — one template, both kinds of equipment). */
 export const VEHICLE_TYPE_BOX: Record<InspectionSubjectType, keyof typeof CHECKBOX_CELLS> = {
