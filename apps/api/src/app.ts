@@ -43,6 +43,7 @@ import { fuelCardWriteProbeRouter } from "./modules/efs/routes/writeProbe.js";
 import { fuelCardsRouter } from "./modules/efs/routes/read.js";
 import { fuelCardVendorRateLimitKey, skipFuelCardVendorRateLimit } from "./modules/efs/routes/vendorRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
+import { samsaraWebhookBootWarning } from "./modules/samsara/index.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { jobsRouter } from "./modules/org/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
@@ -278,6 +279,10 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
+  // A receiver that fails closed is indistinguishable from one nobody is calling — both are silence.
+  // Say it at boot instead of leaving it to be measured six months later (SAMSARA-COLLECTION-PLAN S1).
+  const samsaraWebhookWarning = samsaraWebhookBootWarning(env);
+  if (samsaraWebhookWarning) console.warn(samsaraWebhookWarning);
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }
 

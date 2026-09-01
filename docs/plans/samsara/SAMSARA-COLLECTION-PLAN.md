@@ -276,6 +276,43 @@ today; S3 stops the hole growing; S4 closes the one that exists.
 **Verified by.** Receiver tests already exist for signature verification; add one asserting an unset
 secret warns rather than passing silently.
 
+#### — CODE HALF SHIPPED 2026-09-01. The step stays OPEN: nothing has been received yet.
+
+**What shipped** (PR #444, `claude/samsara-webhook-visibility`) is only the half that was a defect in
+this repository. Both live defects — the vendor URL and the unset secret — are a Samsara console
+setting and a Railway variable, and neither is a code change; they remain owner actions (handoff §4.1
+items 2 and 3). What WAS ours is that neither was visible from inside the product: `fuel_events` sat
+at 0 rows for six months and no surface distinguished *no siphoning happened* from *nothing can reach
+us*. So:
+
+- `SAMSARA_WEBHOOK_PATH` is now one exported constant — the string the settings card prints for an
+  operator to paste — and `apps/api/src/routes/webhooks.test.ts` asserts the app actually routes it
+  (401, fail-closed) while the prefix the vendor was given (`/api/webhooks`) still 404s. A future
+  re-mount now breaks a test rather than the integration.
+- `samsaraWebhookBootWarning(env)` logs at mount when `SAMSARA_WEBHOOK_SECRET` is unset, naming the
+  path and the 401. An `optional()` secret used to boot clean and reject everything silently.
+- `GET /api/integrations/samsara/webhook` reports secret-configured / all-time event count / last
+  event / the exact URL to configure. The count is **all-time, not windowed** (D-SAM7): a windowed
+  zero reads as a quiet week. The gate is derived — `rolesThatCanView("settings")`, not a hand-listed
+  role set; this file's older `requireRole("admin")` writes are FUEL-T2's surface and were left alone.
+- A "Fuel-drop webhook" card on Settings → Data & sync renders the three states.
+
+**Verified by:** `samsaraWebhookBootWarning > warns when the secret is unset, naming the path the
+receiver is mounted at`; `readSamsaraWebhookStatus > reports a receiver that has never received
+anything, and is org-scoped` (`expectOrgScoped`); `the Samsara webhook receiver > is routed at the
+path we publish, and refuses an unsigned delivery there`; `DataSyncPage — the fuel-drop webhook card >
+distinguishes 'configured but nothing has ever arrived' from a quiet week`. Each was proved able to
+fail by mutating its subject (wrong published path; a boot warning that returns null; a dropped
+`org_id` filter; the never-received branch removed). Gates: `pnpm test`, `pnpm typecheck`, `pnpm
+lint`, and the ~19 CI gates run individually — all green.
+
+**What remains before S1 is DONE**, and none of it is code:
+1. Correct the `Fleetguardweb` webhook URL in the Samsara console to the path the card prints.
+2. Subscribe it to the sudden fuel-level drop alert instead of the five `RouteStop*` events (Q-SAM2).
+3. Set `SAMSARA_WEBHOOK_SECRET` in Railway.
+Then a test event from the console should move the card off "no event has ever arrived", which is the
+Done-when above.
+
 ### S2 · The stats tier moves to the delta feed
 
 **Prerequisites:** S1 (independent, but S1 is faster and de-risks the webhook half of D-SAM2).
