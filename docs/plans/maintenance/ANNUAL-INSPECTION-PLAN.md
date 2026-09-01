@@ -1271,6 +1271,53 @@ It is the page the owner printed.
 **Not done, deliberately:** the one stale filing was not re-filed. Superseding it is the office's
 call under A9's correction path, not a migration's.
 
+### B12 — a certified report has ONE page, and the preview was the second one — DONE 2026-09-01
+
+Asked by the owner, and it is the right question: *"i don't understand why preview and production
+print are not using same look and template, that is strange? Because i don't see how this is even
+possible, maybe we should set things differently."*
+
+**They do use the same template.** One renderer, one asset, one coordinate map — there has never been
+a second of any of them. What differs is not WHAT draws the page but WHEN:
+
+| | |
+|---|---|
+| **Preview** | drawn on demand, from the answers in the database, by whatever code is deployed right now |
+| **Print, on a certified report** | the exact bytes written to storage at the moment it was certified, served back unchanged |
+
+So when the drawing moves — as it did on 2026-08-31 (headings, bold header block, black ink) and
+again on 2026-09-01 (the artwork the export had lost) — a report certified before the change keeps
+its own page forever while a preview of it shows the new one. Nothing is wrong with either page.
+
+**Storing the bytes is not negotiable and is not the defect.** `documents.sha256` is a claim about
+specific bytes and §390.32(c) wants a filed document reproducible. Re-rendering on demand would mean
+every filed inspection silently changes the day the catalogue, template or renderer moves — an
+auditor pulling a 2024 report would be handed a 2026 page. A6 files the PDF for exactly this reason.
+
+**D-AVI28 — the preview is a DRAFT control, and offering it on a certified report was the mistake.**
+
+D-AVI14 built the preview so the office can see what will print *before* they certify. After
+certifying, the page exists; there is nothing left to preview. But the button stayed on the screen,
+one gap away from **Print**, so a completed report offered two versions of itself and invited the
+comparison that produced this question. The answer to that comparison is "the code moved between
+them", which is not a thing the office should ever have to know.
+
+So the preview is now shown only while `status = 'draft'`. A certified report has one page and one
+button, and the two cannot be held side by side. Pinned by "does NOT offer a preview of a report that
+is already filed" in `AnnualInspectionFormPage.test.ts`.
+
+The D-AVI27 caution stays, reworded: it is still worth saying that a filing was drawn on an earlier
+version of the form, for somebody comparing two PRINTOUTS. It is no longer explaining away two
+buttons on one screen.
+
+**The test filing was removed rather than reconciled.** The one certified report — unit `183 - SOLD`,
+a truck the fleet has already sold — was test data drawn by renderer 1.0.0. Deleting it is an
+explicit audited service-role act, which is what RETENTION_FORBIDDEN permits; the SQL and its
+reasoning are in `CLEANUP-TEST-INSPECTION-183.sql`, including why `identity_source` goes back to
+`samsara` (finalize sets `manual` per D-ARC3, and leaving it would make this the one vehicle of 198
+the Samsara sweep skips forever). No product path to delete a certified report was built, and none
+should be: that hole would be worse than the cleanup it serves.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was
