@@ -328,4 +328,5 @@ const REFUSALS = new Set([
   "inspector_not_qualified",
   "carrier_incomplete",
   "equipment_missing",
+  "catalogue_changed",
 ]);

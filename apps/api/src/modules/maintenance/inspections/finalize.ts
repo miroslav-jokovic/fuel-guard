@@ -50,7 +50,8 @@ export interface FinalizeRefusal {
     | "incomplete_components"
     | "inspector_not_qualified"
     | "carrier_incomplete"
-    | "equipment_missing";
+    | "equipment_missing"
+    | "catalogue_changed";
   error: string;
   /** Present for `incomplete_components`, so the form can point at the rows. */
   issues?: InspectionIssue[];
@@ -94,6 +95,24 @@ export async function finalizeInspection(
   }
 
   const subjectType = report.subject_type as InspectionSubjectType;
+
+  /**
+   * The checklist moved while this draft was open.
+   *
+   * Only one catalogue version ships in code at a time, so an older draft cannot be derived against
+   * the list it was started with — and deriving it against the CURRENT list is worse than refusing:
+   * a component added since would come back as "no result" for a row the form never showed, which is
+   * an error nobody can act on. Refusing names the real situation instead.
+   *
+   * Narrow by construction: the catalogue only moves when Appendix A does, and a draft older than
+   * that is a draft somebody abandoned.
+   */
+  if (report.catalogue_version !== INSPECTION_CATALOGUE_VERSION) {
+    return refuse(
+      "catalogue_changed",
+      `This inspection was started against an earlier version of the checklist (${report.catalogue_version}, now ${INSPECTION_CATALOGUE_VERSION}). Start a new one so every part is answered against the list in use.`,
+    );
+  }
 
   // ── refuse, in the order a person would want to hear about it ────────────────────────────────
   const derived = deriveInspectionOutcome(
@@ -211,7 +230,10 @@ export async function finalizeInspection(
       certification_id: certification.id,
       finalized_at: new Date().toISOString(),
       finalized_by: finalizedBy,
-      catalogue_version: INSPECTION_CATALOGUE_VERSION,
+      // `catalogue_version` is DELIBERATELY not written here. It is pinned when the draft is created
+      // and describes the checklist the inspector actually worked down; stamping the current version
+      // at finalize would make a report claim a checklist it was never taken under, which is the one
+      // thing D-AVI1's versioning exists to prevent.
     })
     .eq("org_id", orgId)
     .eq("id", inspectionId)
