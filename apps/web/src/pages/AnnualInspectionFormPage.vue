@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   INSPECTION_GROUPS,
   INSPECTION_ITEMS,
   deriveInspectionOutcome,
-  inspectionItem,
-  isInspectionItemApplicable,
   type InspectionResult,
-  type InspectionSubjectType,
 } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppBadge } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseModal from "@/components/ui/BaseModal.vue";
+import SlideOver from "@/components/SlideOver.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
-import PrintInspectionModal from "@/features/maintenance/PrintInspectionModal.vue";
+import PrintInspectionForm from "@/features/maintenance/PrintInspectionForm.vue";
 import { useSessionStore } from "@/stores/session";
 import {
+  useCorrectInspection,
+  useDiscardInspection,
   useFinalizeInspection,
   useInspectionQuery,
   usePatchInspection,
@@ -40,16 +39,18 @@ import { fetchObjectUrl } from "@/lib/api";
  */
 
 const route = useRoute();
+const router = useRouter();
 const session = useSessionStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch } = useInspectionQuery(id);
 const patch = usePatchInspection(id);
 const finalize = useFinalizeInspection(id);
+const correct = useCorrectInspection();
+const discard = useDiscardInspection();
 
 const report = computed(() => data.value?.inspection ?? null);
 const items = computed(() => data.value?.items ?? []);
-const subjectType = computed<InspectionSubjectType>(() => report.value?.subject_type ?? "tractor");
 const isFinal = computed(() => report.value?.status === "final");
 
 const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
@@ -59,20 +60,19 @@ const derived = computed(() => {
   if (!items.value.length) return null;
   return deriveInspectionOutcome(
     items.value.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
-    subjectType.value,
     report.value?.inspected_on ?? "1970-01-01",
   );
 });
 const outcome = computed(() => (derived.value?.ok ? derived.value.outcome : null));
 const openDefects = computed(() => (derived.value?.ok ? derived.value.openDefects : []));
-const stillDefault = computed(
-  () => items.value.filter((i) => i.source === "default" && isApplicable(i.key)).length,
-);
-
-function isApplicable(key: string): boolean {
-  const item = inspectionItem(key);
-  return item ? isInspectionItemApplicable(item, subjectType.value) : false;
-}
+/**
+ * How many components still carry the answer the form opened with (D-AVI13).
+ *
+ * Every component counts now, not just the "applicable" ones: both default columns are transcribed
+ * from real filled forms, so an `N/A` a trailer opens on is as much a recorded answer as an `Ok` —
+ * and it is exactly the kind nobody looks at twice, which is why the count says so.
+ */
+const stillDefault = computed(() => items.value.filter((i) => i.source === "default").length);
 
 const groups = computed(() =>
   INSPECTION_GROUPS.map((g) => ({
@@ -93,7 +93,6 @@ function setRepaired(key: string, value: string | null) {
 const otherConditions = ref("");
 watch(report, (r) => { if (r) otherConditions.value = r.other_conditions ?? ""; }, { immediate: true });
 
-const confirming = ref(false);
 const refusal = computed(() => finalize.error.value);
 
 /**
@@ -104,6 +103,64 @@ const refusal = computed(() => finalize.error.value);
  */
 const openError = ref<string | null>(null);
 const printing = ref(false);
+
+/**
+ * Completing an inspection is irreversible and this is how the product asks about irreversible
+ * things — `window.confirm`, the same as retiring a vehicle or deleting a cost schedule. The
+ * alternative was a bespoke dialog, and `DESIGN-SYSTEM-CONTRACT.md` §3 is explicit that a centred
+ * modal is for content needing WIDTH; a sentence is not that, and "never build a bespoke overlay in
+ * a feature folder" covers the rest.
+ *
+ * What is being certified stays ON THE PAGE, where it can be read properly: the derived verdict
+ * banner and the count of parts still on their opening answer are both above this button.
+ */
+/**
+ * A completed report cannot be edited, so a mistake is fixed by superseding it (D-AVI4). The new
+ * draft opens seeded with what the previous one found, so one wrong mark is one edit.
+ */
+async function startCorrection() {
+  if (
+    !window.confirm(
+      "Start a correction? The completed inspection stays on file exactly as it is, and the new one" +
+        " will replace it — opening with the answers it recorded so you only change what was wrong.",
+    )
+  ) {
+    return;
+  }
+  try {
+    const newId = await correct.mutateAsync(id.value);
+    await router.push({ name: "annual-inspection", params: { id: newId } });
+  } catch (e) {
+    openError.value = e instanceof Error ? e.message : "Could not start the correction";
+  }
+}
+
+/** Only a draft. The API refuses a completed one by name — nothing here relies on this check alone. */
+async function discardDraft() {
+  if (!window.confirm("Discard this inspection? Nothing has been filed yet, and it cannot be recovered.")) return;
+  try {
+    await discard.mutateAsync(id.value);
+    await router.push({ name: "annual-inspections" });
+  } catch (e) {
+    openError.value = e instanceof Error ? e.message : "Could not discard the inspection";
+  }
+}
+
+function completeInspection() {
+  const verdict = outcome.value === "pass" ? "PASSED" : "DID NOT PASS";
+  const stale = stillDefault.value
+    ? ` ${stillDefault.value} part(s) still carry the answer the form opened with.`
+    : "";
+  if (
+    !window.confirm(
+      `Record that every part was inspected and this vehicle ${verdict}?${stale}` +
+        " It is filed against the vehicle and cannot be edited afterwards — a correction is a new inspection.",
+    )
+  ) {
+    return;
+  }
+  finalize.mutate();
+}
 async function openPdf(kind: "report" | "preview") {
   openError.value = null;
   try {
@@ -149,13 +206,19 @@ async function openPdf(kind: "report" | "preview") {
       </AppCallout>
 
       <div class="flex flex-wrap items-center gap-2">
+        <BaseButton v-if="isFinal && session.can('maintenance')" variant="secondary" @click="startCorrection">
+          Record a correction
+        </BaseButton>
+        <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
+          Discard
+        </BaseButton>
         <BaseButton variant="secondary" @click="() => openPdf('preview')">
           Preview the printed page
         </BaseButton>
         <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
           Print
         </BaseButton>
-        <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="confirming = true">
+        <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="completeInspection">
           Complete inspection
         </BaseButton>
         <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
@@ -172,15 +235,17 @@ async function openPdf(kind: "report" | "preview") {
         </ul>
       </AppCallout>
 
-      <section v-for="group in groups" :key="group.number" class="rounded-surface ring-1 ring-edge-subtle">
-        <h2 class="border-b border-edge-subtle bg-surface-subtle px-3 py-2 text-sm font-semibold text-ink">
+      <!-- `BaseCard` rather than a hand-rolled panel: a bordered surface with a heading is exactly
+           what it is, and the contract's rule against bespoke chrome applies to a page as much as to
+           an overlay. Heading is `text-base` — the card-section size — not the drawer's `text-sm`. -->
+      <BaseCard v-for="group in groups" :key="group.number" as="section" padding="none">
+        <h3 class="border-b border-edge-subtle px-4 py-3 text-base font-semibold text-ink">
           {{ group.number }}. {{ group.title }}
-        </h2>
+        </h3>
         <InspectionItemRow
           v-for="item in group.items"
           :key="item.key"
           :item="item"
-          :subject-type="subjectType"
           :result="byKey.get(item.key)?.result ?? 'na'"
           :source="byKey.get(item.key)?.source ?? 'default'"
           :repaired-at="byKey.get(item.key)?.repairedAt ?? null"
@@ -188,38 +253,17 @@ async function openPdf(kind: "report" | "preview") {
           @set="(r) => setResult(item.key, r)"
           @set-repaired="(v) => setRepaired(item.key, v)"
         />
-      </section>
+      </BaseCard>
 
-      <PrintInspectionModal
-        v-if="printing"
-        :inspection-id="id"
-        :can-manage="session.can('maintenance')"
-        @close="printing = false"
-      />
+      <SlideOver :open="printing" title="Print inspection" @close="printing = false">
+        <PrintInspectionForm
+          :inspection-id="id"
+          :can-manage="session.can('maintenance')"
+          @cancel="printing = false"
+        />
+      </SlideOver>
 
-      <BaseModal :open="confirming" title="Complete this inspection" @close="confirming = false">
-        <!-- The certification this stands for is §396.21(a)(6); the wording stays in the office's
-             language because the page is not a citation (D-AVI15). -->
-        <p class="text-sm text-ink-secondary">
-          This records that every part above was inspected and that
-          <strong>{{ outcome === "pass" ? "the vehicle passed" : "the vehicle did not pass" }}</strong>.
-          It is filed against the vehicle and cannot be edited afterwards — a correction is a new
-          inspection.
-        </p>
-        <p v-if="stillDefault" class="mt-3 text-sm text-caution-700">
-          {{ stillDefault }} part(s) still carry the answer the form opened with.
-        </p>
-        <template #footer>
-          <BaseButton variant="secondary" @click="confirming = false">Cancel</BaseButton>
-          <BaseButton
-            variant="primary"
-            :disabled="finalize.isPending.value"
-            @click="() => finalize.mutate(undefined, { onSuccess: () => (confirming = false) })"
-          >
-            Complete
-          </BaseButton>
-        </template>
-      </BaseModal>
+
     </template>
   </div>
 </template>

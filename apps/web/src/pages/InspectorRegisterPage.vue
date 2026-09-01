@@ -3,11 +3,13 @@ import { computed, ref } from "vue";
 import { AppBadge, AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import NewInspectorModal from "@/features/maintenance/NewInspectorModal.vue";
+import SlideOver from "@/components/SlideOver.vue";
+import InspectorForm from "@/features/maintenance/InspectorForm.vue";
 import {
   useInspectorsQuery,
   useSetInspectorPeriod,
@@ -101,7 +103,9 @@ function reinstate(i: Inspector) {
       started until somebody is here.
     </AppCallout>
 
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search by name…"
       :count="rows.length"
@@ -122,6 +126,7 @@ function reinstate(i: Inspector) {
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       :loading="isLoading || isFetching"
@@ -149,7 +154,10 @@ function reinstate(i: Inspector) {
       </template>
       <template #empty>Nobody matches those filters.</template>
     </DataTable>
+    </DataWorkspace>
 
-    <NewInspectorModal v-if="adding" @close="adding = false" @created="adding = false" />
+    <SlideOver :open="adding" title="Add inspector" @close="adding = false">
+      <InspectorForm @created="adding = false" @cancel="adding = false" />
+    </SlideOver>
   </div>
 </template>

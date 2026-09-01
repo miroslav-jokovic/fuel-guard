@@ -184,7 +184,7 @@ happened to type. That is what makes the placement test a measurement instead of
 | # | Decision | Rationale |
 | --- | --- | --- |
 | **D-AVI1** | The item catalogue is authored from **49 CFR Part 396 Appendix A**, lives in `packages/shared/src/annualInspectionCatalogue.ts`, and is **versioned** (`INSPECTION_CATALOGUE_VERSION`). Every report stores the version it was taken under. | Appendix A is public domain; Keller's phrasing is not (§2.1). Versioning means a 2026 report renders as inspected after the catalogue changes — the `DERIVER_VERSION` / hazmat-data precedent. |
-| **D-AVI2** | Item applicability is **data on the catalogue** (`appliesTo: ('tractor'\|'trailer')[]`, `defaultNa`), never a branch in the form. | Motorcoach seats never apply to this fleet; rear impact guards apply to trailers, fifth wheels to tractors. Deriving beats restating. |
+| **D-AVI2** | ~~Item applicability LOCKS the answer.~~ **AMENDED 2026-08-31 (owner): it DEFAULTS the answer and locks nothing.** `appliesTo` decides what a row opens on; every row stays markable on every kind of equipment. | The original argument — certifying an absent part is a statement nobody has standing to make — is sound and was overruled on how the paper works: **truck and trailer use the same form and the same decal, and the only difference is the unit number and which boxes are marked.** Refusing a mark the form permits invents a rule the office does not have, and the edge cases are real (a converter dolly carries a fifth wheel; a straight truck carries a body *and* a rear guard). The printed page is unchanged for an ordinary inspection, because the default already puts `N/A` in the box — what changes is that an inspector can disagree with it. |
 | **D-AVI3** | **Pass is derived, never typed.** `outcome = 'pass'` iff every applicable item is `ok`, `na`, or `needs_repair` **with** a `repaired_at`. Otherwise `fail`. | §2.3. A human typing "pass" beside an open defect is a false certification, and the form's own certification line asserts the opposite. |
 | **D-AVI4** | **Finalize is one-way; the row then becomes immutable.** No UPDATE/DELETE once `status='final'`; a correction is a **new** report carrying `supersedes_id`. | The evidence discipline of `certifications`/`documents` (`RETENTION_FORBIDDEN`): corrections are new rows. |
 | **D-AVI5** | Every applicable catalogue item must carry an explicit result before finalize. **No implicit blanks.** | §396.21(a)(5) — §2.2. |
@@ -801,15 +801,41 @@ form with every filled value removed, and committed at
 unchanged. The round trip dropped the three AcroForm fields, which simplified A5 rather than
 complicating it.
 
-**Q6 — The trailer `fleetDefault` set is reasoned, not measured.** *(blocks A7's pre-fill, not A1)*
-A1's tractor defaults are transcribed from a real filled report and are pinned by a test naming unit
-654 and 2026-06-16. **There was no trailer sample**, so the trailer column was derived from
-applicability plus the tractor pattern — defensible, and still a different kind of fact from the
-tractor column beside it. The exposure is narrow by construction: `appliesTo` is regulation-derived
-and unaffected, so a wrong `fleetDefault` opens the form on the wrong answer rather than certifying
-one — the inspector still has to leave it there.
-**Recommendation:** get one filled trailer report from Miki and pin the trailer column the same way,
-before A7 puts those defaults in front of an inspector.
+~~**Q6 — The trailer default set is reasoned, not measured.**~~
+**ANSWERED and CLOSED 2026-08-31 — the owner had provided the second form at the start and I had
+not looked.** `535968 8-26 - uploaded.pdf` is a filled TRAILER report, sitting beside the tractor
+one in the same folder the whole time.
+
+Both default columns are now transcribed from real filled forms — tractor 654 (2026-06-16) and
+trailer 535968 (2026-08) — mapped onto catalogue keys by script rather than by eye. They differ on
+exactly **eighteen** components, pinned by a test.
+
+**The reasoning was wrong on seven of them, and in the same direction.** This is a REEFER fleet: a
+trailer has an engine and a fuel tank, so the office marks `exhaust.no_leaks_at_cab`,
+`exhaust.no_burn_risk`, all three `fuel.*`, `brake.air_compressor` and
+`brake.tractor_protection_valve` as **Ok**. Inferring from "which parts does a trailer have" said
+`N/A` for every one. Coupling went the other way — `drawbar_eye` and `safety_devices` are `N/A` on
+this trailer where reasoning said `Ok`.
+
+So `appliesTo` and `fleetDefault` are gone, replaced by a measured `defaults: { tractor, trailer }`.
+The lesson is not that the inference was careless — it is that **the evidence was already in the
+folder** and the question should have been "is there another form?" before it was "what would a
+trailer have?".
+
+
+**Q10 — The dry-van default column is DERIVED, not measured.** *(affects 165 of 211 trailers)*
+The trailer sample is a **reefer** — it marks exhaust and fuel `Ok`, which only a reefer has. The
+owner's rule is 46 reefers and everything else a dry van, and the roster says exactly that:
+`trailers.is_reefer` measured 2026-08-31 is 46 true, 165 false, **never null**. So the column a
+trailer reads is a fact the product already holds, and the seed reads it.
+
+What is NOT measured is the dry-van column itself. It is derived from the reefer one by setting the
+five engine-and-fuel components to `N/A`, and that is labelled rather than hidden because the last
+inferred column was wrong on seven items (Q6). The derivation is a much smaller claim than that one
+was — a dry van has no engine and no fuel tank, which is what "dry van" means — but it is still a
+claim.
+**Recommendation:** one filled DRY VAN report settles it in a minute, the same way the trailer form
+settled Q6. Until then this is the only part of either checklist that did not come off paper.
 
 **Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
 Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not
@@ -892,6 +918,70 @@ function so the vehicles page, the trailers page and any later surface cannot di
   This page is the reason the derived §396.19 assertion is trustworthy: the printed report says the
   inspector meets the standard, the product decides that from a row rather than a tick box, and
   until now the row was invisible to everybody relying on it.
+
+### B6 — the components were wrong too — DONE 2026-08-31 (PR #424)
+
+The owner's second look found that B2/B3/B5 used the wrong overlay and the wrong page shell. Four
+violations, all of them knowable from call sites before a line was written — which is the same
+mistake as the CFR citations, made again in the same week.
+
+| What shipped | What the repo does | Why it matters |
+| --- | --- | --- |
+| Three `BaseModal`s for forms | **`SlideOver`** — used by ten pages, including the `VehiclesPage` "New vehicle" drawer this is a direct analogue of. `BaseModal` was used by essentially nothing but my files | The contract states the boundary outright: *a drawer keeps the list visible beside a form; a modal takes the middle of the screen for content that needs WIDTH*. A three-field form needs no width |
+| Form markup inside the overlay | An extracted `*Form.vue` emitting `submit`/`cancel`, with the PAGE owning the drawer — `VehicleForm`, `DriverForm`, `TrailerForm` | The form is testable and reusable on its own; the overlay is the page's concern |
+| A bespoke confirm dialog | **`window.confirm`** — five call sites, including "Retire vehicle" and "Delete cost schedule" | *"Never build a bespoke overlay in a feature folder."* What is being certified stays on the page, where it can be read |
+| `FilterBar` + `DataTable` as separate cards | **`DataWorkspace`** wrapping both `embedded` — eleven pages | Two cards where the repo draws one workspace |
+
+Also: the item groups were a hand-rolled `rounded-surface ring-1` panel with an `h2`; they are
+`BaseCard as="section" padding="none"` with an `h3` at `text-base` — the card-section size, not the
+drawer's `text-sm`.
+
+**The lesson, since this is twice.** Both times the answer was in call sites and both times I wrote
+first and checked after. A new surface in this repo starts by reading the two or three pages that
+already do the same job — the contract is the explanation, the call sites are the answer, and
+`gates-outrank-the-design-contract` says which wins when they disagree.
+
+### B7 — the production-readiness audit — DONE 2026-08-31 (PR #424)
+
+The owner asked for the feature to be inspected for gaps, assumptions and blockers rather than
+declared finished. Six findings; four fixed here, two are questions only they can answer.
+
+**Fixed.**
+
+1. **`supersedes_id` was never written by anything — D-AVI4's escape hatch did not exist.** The rule
+   freezing a completed report is justified by *"a correction is a NEW report carrying
+   `supersedes_id`"*. The column shipped in 0280 and nothing wrote it, so for a week an inspector
+   who spotted a mistake could start an unrelated inspection and nothing tied it to the one it
+   replaced. **An immutability rule whose escape hatch does not exist is a dead end, not
+   immutability.** `POST /:id/correct` now starts the superseding draft, seeded from the superseded
+   answers — one wrong mark is one edit, not fifty-six — and each seeded row keeps its original
+   `source` so a component a person actually set does not become a default again.
+2. **A draft could never be abandoned.** No route, no policy, so a mis-started inspection sat in the
+   list as "In progress" for ever. `DELETE /:id` discards a draft. It refuses a completed one **by
+   name**, and that guard is load-bearing: there is no DELETE policy, but the API reads with the
+   service role and bypasses RLS, so this function is the only thing between a mis-typed id and a
+   deleted §396.21 record. A trigger is deliberately NOT added — `org_id` cascades from
+   `organizations`, so a raising BEFORE DELETE would make deleting an organisation impossible.
+3. **`finalize` restamped `catalogue_version`.** A report could claim a checklist it was never
+   worked down, which is the one thing D-AVI1's versioning exists to prevent. It is pinned at draft
+   creation; a draft whose version has moved is now refused by name rather than derived against
+   today's list, which would report "no result" for a row the form never showed.
+4. **Every service swallowed the database's error.** Eighteen call sites answered a failed query
+   with a sentence naming the operation and threw the cause away — which is why "adding an inspector
+   does not work" left no row, no audit entry and no log line. `lib/http.ts`'s `dbErrorResponse`
+   already had the shape; these services now use it, so a failure carries a reference somebody can
+   grep for.
+
+**Still open, and both are the owner's to answer** — §6 Q6 (the trailer defaults are reasoned, not
+measured) and §6 Q7 (whether a PASS should require a decal serial).
+
+**What could not be reproduced.** The reported "adding an inspector is not working" was chased with
+evidence rather than guesses and none of the obvious causes hold: all five routes answer 401
+unauthenticated so they exist; the four tables are live with 0283 applied; `verify:live` puts
+Railway on the current `main`; the deployed JS bundle contains the register page and both drawers;
+the exact insert payload succeeds against a real PGlite database with the full schema and the
+`created_by` FK; and the form's submit path is covered by four passing tests. What remains needs a
+session, so the tracing above exists to make the next attempt legible.
 
 ### The vehicle-file connection, written down (D-AVI17)
 

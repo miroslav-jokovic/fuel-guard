@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { defaultInspectionItems, deriveInspectionOutcome, INSPECTION_ITEMS } from "@silvicom/shared";
@@ -38,9 +38,14 @@ const state = vi.hoisted(() => ({
   data: { value: null as unknown },
   patch: { mutate: vi.fn(), isPending: { value: false } },
   finalize: { mutate: vi.fn(), isPending: { value: false }, error: { value: null } },
+  correct: { mutateAsync: vi.fn(async () => "insp_2"), isPending: { value: false } },
+  discard: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
 }));
 
-vi.mock("vue-router", () => ({ useRoute: () => ({ params: { id: "insp_1" } }) }));
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ params: { id: "insp_1" } }),
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   useInspectionQuery: () => ({
     data: state.data,
@@ -51,6 +56,8 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   }),
   usePatchInspection: () => state.patch,
   useFinalizeInspection: () => state.finalize,
+  useCorrectInspection: () => state.correct,
+  useDiscardInspection: () => state.discard,
 }));
 vi.mock("@/lib/api", () => ({ fetchObjectUrl: vi.fn(async () => "blob:x") }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
@@ -76,24 +83,30 @@ const inspection = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+beforeEach(() => {
+  state.finalize.mutate.mockClear();
+  state.correct.mutateAsync.mockClear();
+  state.discard.mutateAsync.mockClear();
+});
+
 const mountPage = (its: Row[], over: Record<string, unknown> = {}) => {
   state.data.value = { inspection: inspection(over), items: its };
   return mount(AnnualInspectionFormPage, {
-    global: { stubs: { PageHeader: true, BaseModal: true, AppDateField: true, PrintInspectionModal: true } },
+    global: { stubs: { PageHeader: true, SlideOver: true, AppDateField: true, PrintInspectionForm: true } },
   });
 };
 
 describe("the verdict is the shared function's, not the page's", () => {
   it("agrees with deriveInspectionOutcome on a clean report", () => {
     const its = items();
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
     expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("agrees with it on an unrepaired defect", () => {
     const its = items({ "brake.hose": "needs_repair" });
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("fail");
     const text = mountPage(its).text();
     expect(text).toContain("FAILED");
@@ -104,14 +117,14 @@ describe("the verdict is the shared function's, not the page's", () => {
     const its = items().map((i) =>
       i.key === "brake.hose" ? { ...i, result: "needs_repair" as const, repairedAt: "2026-06-17" } : i,
     );
-    const expected = deriveInspectionOutcome(its, "tractor", "2026-06-16");
+    const expected = deriveInspectionOutcome(its, "2026-06-16");
     expect(expected.ok && expected.outcome).toBe("pass");
     expect(mountPage(its).text()).toContain("PASSED");
   });
 
   it("says it is not ready when a component has no result, rather than guessing (D-AVI5)", () => {
     const its = items().slice(0, 40);
-    expect(deriveInspectionOutcome(its, "tractor", "2026-06-16").ok).toBe(false);
+    expect(deriveInspectionOutcome(its, "2026-06-16").ok).toBe(false);
     expect(mountPage(its).text()).toContain("Not ready to complete");
   });
 
@@ -121,8 +134,41 @@ describe("the verdict is the shared function's, not the page's", () => {
     // "mark this report as passed", and the day one appears this fails.
     const labels = w.findAll("button").map((b) => b.text());
     for (const label of labels) {
-      expect(["OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print"]).toContain(label);
+      expect([
+        "OK", "Repair", "N/A", "Preview the printed page", "Complete inspection", "Print",
+        "Record a correction", "Discard",
+      ]).toContain(label);
     }
+  });
+});
+
+describe("completing is irreversible, so it is confirmed the way this app confirms things", () => {
+  it("does NOT finalize when the confirmation is declined", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const w = mountPage(items());
+    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(state.finalize.mutate).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("finalizes when it is accepted, and says what is being recorded", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items());
+    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(state.finalize.mutate).toHaveBeenCalled();
+    // The sentence has to carry the verdict and the fact that it cannot be undone — a bare
+    // "Are you sure?" tells somebody nothing they did not already know.
+    const asked = spy.mock.calls[0]![0] as string;
+    expect(asked).toContain("PASSED");
+    expect(asked).toContain("cannot be edited");
+    spy.mockRestore();
+  });
+
+  it("warns in the confirmation when parts still carry their opening answer", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    mountPage(items()).findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    expect(spy.mock.calls[0]![0] as string).toMatch(/\d+ part\(s\) still carry/);
+    spy.mockRestore();
   });
 });
 
@@ -142,10 +188,43 @@ describe("a certified report is read-only (D-AVI4)", () => {
     expect(answers.every((b) => b.attributes("disabled") !== undefined)).toBe(true);
   });
 
+  it("offers a CORRECTION, because a completed report cannot be edited (D-AVI4)", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items(), final);
+    await w.findAll("button").find((b) => b.text() === "Record a correction")!.trigger("click");
+    // Without this the immutability rule has no escape hatch and the column that records the link
+    // is never written — which is exactly what shipped for a week.
+    expect(state.correct.mutateAsync).toHaveBeenCalledWith("insp_1");
+    spy.mockRestore();
+  });
+
+  it("does not offer to discard a completed inspection", () => {
+    const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
+    expect(labels).not.toContain("Discard");
+  });
+
   it("offers printing rather than a complete button", () => {
     const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
     expect(labels).toContain("Print");
     expect(labels).not.toContain("Complete inspection");
+  });
+});
+
+describe("a draft can be abandoned", () => {
+  it("discards on confirmation, and only while it is a draft", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const w = mountPage(items());
+    await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    expect(state.discard.mutateAsync).toHaveBeenCalledWith("insp_1");
+    spy.mockRestore();
+  });
+
+  it("does nothing when the confirmation is declined", async () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const w = mountPage(items());
+    await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    expect(state.discard.mutateAsync).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

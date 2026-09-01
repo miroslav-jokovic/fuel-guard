@@ -23,6 +23,15 @@ export interface EquipmentIdentity {
   unitNumber: string;
   vin: string | null;
   plate: string | null;
+  /**
+   * Trailers only; null for a tractor and for a trailer whose type nobody has recorded.
+   *
+   * The inspection seeds a different checklist for a reefer, because a reefer has an engine and a
+   * fuel tank and a dry van does not — 46 of 211 trailers are reefers and 152 carry no type at all
+   * (measured 2026-08-31), so this is the difference between a form that opens right and one that
+   * pre-marks an inspection of parts that are not there.
+   */
+  isReefer: boolean | null;
 }
 
 export type EquipmentError = { error: string; code: string };
@@ -37,11 +46,23 @@ export async function getEquipmentIdentity(
   const { data, error } =
     subjectType === "tractor"
       ? await admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).eq("id", subjectId).maybeSingle()
-      : await admin.from("trailers").select("id, unit_number, vin, plate").eq("org_id", orgId).eq("id", subjectId).maybeSingle();
+      : await admin.from("trailers").select("id, unit_number, vin, plate, is_reefer").eq("org_id", orgId).eq("id", subjectId).maybeSingle();
   if (error) return { error: "Could not load the equipment record", code: "db_error" };
   if (!data) return null;
-  const row = data as { id: string; unit_number: string; vin: string | null; plate: string | null };
-  return { id: row.id, unitNumber: row.unit_number, vin: row.vin, plate: row.plate };
+  const row = data as {
+    id: string;
+    unit_number: string;
+    vin: string | null;
+    plate: string | null;
+    is_reefer?: boolean | null;
+  };
+  return {
+    id: row.id,
+    unitNumber: row.unit_number,
+    vin: row.vin,
+    plate: row.plate,
+    isReefer: subjectType === "trailer" ? (row.is_reefer ?? null) : null,
+  };
 }
 
 /**
@@ -67,7 +88,9 @@ export async function getEquipmentIdentities(
   if (error) return { error: "Could not load the equipment records", code: "db_error" };
   const rows = (data ?? []) as Array<{ id: string; unit_number: string; vin: string | null; plate: string | null }>;
   return new Map(
-    rows.map((r) => [r.id, { id: r.id, unitNumber: r.unit_number, vin: r.vin, plate: r.plate }] as const),
+    rows.map(
+      (r) => [r.id, { id: r.id, unitNumber: r.unit_number, vin: r.vin, plate: r.plate, isReefer: null }] as const,
+    ),
   );
 }
 

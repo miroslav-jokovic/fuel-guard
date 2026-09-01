@@ -214,6 +214,23 @@ describe("what it refuses, and that it writes nothing when it does", () => {
     await expectRefusal("equipment_missing");
   });
 
+  it("refuses a draft started against an older checklist, rather than deriving it against today's", async () => {
+    // A component added since the draft was seeded would come back as "no result" for a row the
+    // form never showed — an error nobody can act on. Refusing names the real situation.
+    rec = seed({ vehicle_inspections: [draft({ catalogue_version: "0.9.0" })] });
+    const result = await finalizeInspection(rec.client, ORG, REPORT, USER);
+    expect("code" in result && result.code).toBe("catalogue_changed");
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  it("never restamps the version the draft was taken under (D-AVI1)", async () => {
+    rec = seed();
+    await finalizeInspection(rec.client, ORG, REPORT, USER);
+    const update = rec.forTable("vehicle_inspections").find((q) => q.write?.method === "update");
+    // Writing it here would make a report claim a checklist it was never worked down.
+    expect(update!.write!.payload).not.toHaveProperty("catalogue_version");
+  });
+
   it("does NOT refuse a pass with no decal serial — that is §6 Q7, unanswered", async () => {
     rec = seed({ vehicle_inspections: [draft({ decal_serial: null })] });
     const result = await finalizeInspection(rec.client, ORG, REPORT, USER);

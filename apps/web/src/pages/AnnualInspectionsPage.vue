@@ -5,12 +5,14 @@ import { AppTabs, AppBadge, AppButton as BaseButton, AppIcon } from "@silvicom/u
 import { PlusIcon } from "@silvicom/ui/icons";
 import type { InspectionSubjectType } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import NewInspectionModal from "@/features/maintenance/NewInspectionModal.vue";
+import SlideOver from "@/components/SlideOver.vue";
+import NewInspectionForm from "@/features/maintenance/NewInspectionForm.vue";
 import { useInspectionsQuery } from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
 
@@ -100,7 +102,9 @@ function onCreated(id: string) {
 
     <AppTabs v-model="subjectType" :tabs="tabs" label="Equipment type" />
 
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search unit, decal or inspector…"
       :count="total"
@@ -113,6 +117,7 @@ function onCreated(id: string) {
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       :loading="isLoading || isFetching"
@@ -135,7 +140,10 @@ function onCreated(id: string) {
         <TablePagination :page="page" :total="total" :per-page="50" @update:page="(p: number) => (page = p)" />
       </template>
     </DataTable>
+    </DataWorkspace>
 
-    <NewInspectionModal v-if="creating" @close="creating = false" @created="onCreated" />
+    <SlideOver :open="creating" title="New inspection" @close="creating = false">
+      <NewInspectionForm @created="onCreated" @cancel="creating = false" />
+    </SlideOver>
   </div>
 </template>

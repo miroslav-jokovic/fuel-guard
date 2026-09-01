@@ -15,7 +15,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
+  createCorrection,
   createInspectionDraft,
+  discardDraft,
   getInspection,
   listInspections,
   patchInspection,
@@ -36,6 +38,8 @@ import { getPrintProfile } from "../inspections/printProfiles.js";
  * There is no finalize verb yet. Until A6 exists a report cannot leave `draft`, which is the honest
  * state of this feature rather than a gap — nothing here can produce a certification.
  */
+
+const correctSchema = z.object({ id: z.uuid() });
 
 const listSchema = z.object({
   subjectType: z.enum(["tractor", "trailer"]).optional(),
@@ -262,6 +266,68 @@ export function inspectionsRouter(): Router {
   );
 
   /**
+   * Start the report that supersedes a completed one (D-AVI4).
+   *
+   * The other half of immutability: a finalized report cannot be edited, and this is how it gets
+   * corrected. The new draft is seeded from the superseded answers, so somebody fixing one mark does
+   * not walk fifty-six rows again.
+   */
+  router.post(
+    "/:id/correct",
+    requireOrg,
+    canManage,
+    validateBody(correctSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const supersedesId = String(req.params.id ?? "");
+      const { id } = res.locals.body as { id: string };
+      const result = await createCorrection(admin, orgId, supersedesId, id, req.auth!.userId);
+      if ("code" in result) {
+        const status = result.code === "not_found" ? 404 : result.code === "not_final" ? 409 : 500;
+        res.status(status).json(apiError(result.code, result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "maintenance.inspection_correction_started",
+        entity: "vehicle_inspections",
+        entityId: result.id,
+        meta: { supersedes: supersedesId },
+      });
+      res.status(201).json({ ok: true, id: result.id });
+    }),
+  );
+
+  /** Discard a draft. A completed inspection is a record and is refused by name. */
+  router.delete(
+    "/:id",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const result = await discardDraft(admin, orgId, id);
+      if ("code" in result) {
+        const status = result.code === "not_found" ? 404 : result.code === "already_final" ? 409 : 500;
+        res.status(status).json(apiError(result.code, result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "maintenance.inspection_discarded",
+        entity: "vehicle_inspections",
+        entityId: id,
+        meta: {},
+      });
+      res.json({ ok: true });
+    }),
+  );
+
+  /**
    * The values-only page for a pre-printed pad (D-AVI8). A different artefact for a different piece
    * of paper — the filed report above is still served exactly as it was filed.
    */
@@ -328,4 +394,5 @@ const REFUSALS = new Set([
   "inspector_not_qualified",
   "carrier_incomplete",
   "equipment_missing",
+  "catalogue_changed",
 ]);

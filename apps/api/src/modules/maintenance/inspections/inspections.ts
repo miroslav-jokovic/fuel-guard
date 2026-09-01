@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { traced } from "./serviceError.js";
 import {
   INSPECTION_CATALOGUE_VERSION,
   defaultInspectionItems,
@@ -7,7 +8,7 @@ import {
   type InspectionPatchRequest,
   type InspectionSubjectType,
 } from "@silvicom/shared";
-import { getEquipmentIdentities } from "../../roster/index.js";
+import { getEquipmentIdentities, getEquipmentIdentity } from "../../roster/index.js";
 import type { ServiceError } from "./inspectors.js";
 
 /**
@@ -70,7 +71,7 @@ export async function createInspectionDraft(
     .eq("org_id", orgId)
     .eq("id", input.id)
     .maybeSingle();
-  if (existing.error) return { error: "Could not create inspection", code: "db_error" };
+  if (existing.error) return traced("createInspectionDraft.replayCheck", "db_error", "Could not start the inspection", existing.error);
   if (existing.data) return { id: input.id, replayed: true };
 
   const { error } = await admin.from("vehicle_inspections").insert({
@@ -83,9 +84,14 @@ export async function createInspectionDraft(
     catalogue_version: INSPECTION_CATALOGUE_VERSION,
     created_by: createdBy,
   });
-  if (error) return { error: "Could not create inspection", code: "insert_failed" };
+  if (error) return traced("createInspectionDraft", "insert_failed", "Could not start the inspection", error);
 
-  const seeded = defaultInspectionItems(input.subjectType).map((item) => ({
+  // A reefer's checklist is not a dry van's: it has an engine and a fuel tank. Read once at seed
+  // time so the form opens right, rather than making the inspector correct five rows every time.
+  const equipment = await getEquipmentIdentity(admin, orgId, input.subjectType, input.subjectId);
+  const isReefer = equipment && !("code" in equipment) ? equipment.isReefer : null;
+
+  const seeded = defaultInspectionItems(input.subjectType, isReefer).map((item) => ({
     org_id: orgId,
     inspection_id: input.id,
     item_key: item.key,
@@ -93,7 +99,7 @@ export async function createInspectionDraft(
     source: "default" as const,
   }));
   const itemsErr = await admin.from("vehicle_inspection_items").insert(seeded);
-  if (itemsErr.error) return { error: "Could not seed inspection components", code: "insert_failed" };
+  if (itemsErr.error) return traced("createInspectionDraft.seedItems", "insert_failed", "Could not set up the inspection's parts", itemsErr.error);
   return { id: input.id, replayed: false };
 }
 
@@ -108,7 +114,7 @@ export async function getInspection(
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
-  if (error) return { error: "Could not load inspection", code: "db_error" };
+  if (error) return traced("getInspection", "db_error", "Could not load the inspection", error);
   if (!data) return null;
 
   const items = await admin
@@ -117,7 +123,7 @@ export async function getInspection(
     .eq("org_id", orgId)
     .eq("inspection_id", id)
     .order("item_key", { ascending: true });
-  if (items.error) return { error: "Could not load inspection components", code: "db_error" };
+  if (items.error) return traced("getInspection.items", "db_error", "Could not load the inspection's parts", items.error);
 
   return {
     report: data as unknown as ReportRow,
@@ -196,7 +202,7 @@ export async function listInspections(
   const { data, error, count } = await query
     .order("inspected_on", { ascending: false })
     .range(offset, offset + limit - 1);
-  if (error) return { error: "Could not list inspections", code: "db_error" };
+  if (error) return traced("listInspections", "db_error", "Could not load inspections", error);
 
   const reports = (data ?? []) as unknown as ReportRow[];
   const inspectors = await inspectorNames(admin, orgId, reports.map((r) => r.inspector_id));
@@ -251,7 +257,7 @@ async function inspectorNames(
     .select("id, full_name")
     .eq("org_id", orgId)
     .in("id", unique);
-  if (error) return { error: "Could not load inspectors", code: "db_error" };
+  if (error) return traced("inspectorNames", "db_error", "Could not load inspectors", error);
   return new Map((data as Array<{ id: string; full_name: string }>).map((r) => [r.id, r.full_name]));
 }
 
@@ -296,7 +302,7 @@ export async function patchInspection(
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
-  if (current.error) return { error: "Could not load inspection", code: "db_error" };
+  if (current.error) return traced("patchInspection.load", "db_error", "Could not load the inspection", current.error);
   if (!current.data) return { error: "Inspection not found", code: "not_found" };
   if ((current.data as { status: string }).status === "final") {
     return {
@@ -315,7 +321,7 @@ export async function patchInspection(
       .update(header)
       .eq("org_id", orgId)
       .eq("id", id);
-    if (error) return { error: "Could not update inspection", code: "update_failed" };
+    if (error) return traced("patchInspection.header", "update_failed", "Could not save the inspection", error);
   }
 
   for (const [, group] of groupItems(patch.items ?? [])) {
@@ -332,7 +338,7 @@ export async function patchInspection(
       .eq("org_id", orgId)
       .eq("inspection_id", id)
       .in("item_key", group.keys);
-    if (error) return { error: "Could not update inspection components", code: "update_failed" };
+    if (error) return traced("patchInspection.items", "update_failed", "Could not save those parts", error);
   }
   return { ok: true };
 }
@@ -354,4 +360,119 @@ function groupItems(items: NonNullable<InspectionPatchRequest["items"]>): Map<st
     else groups.set(key, { result: item.result, repairedAt: item.repairedAt, note: item.note, keys: [item.key] });
   }
   return groups;
+}
+
+/**
+ * Correct a completed inspection by starting the report that supersedes it (D-AVI4).
+ *
+ * ── THE HALF OF D-AVI4 THAT WAS MISSING ────────────────────────────────────────────────────────
+ * A finalized report is frozen, and the justification for freezing it was always "a correction is a
+ * NEW report carrying `supersedes_id`". The column shipped in 0280 and **nothing ever wrote it**, so
+ * for a week the rule was half true: an inspector who noticed a mistake could start an unrelated
+ * inspection, and nothing tied it to the one it replaced. An immutability rule whose escape hatch
+ * does not exist is not immutability, it is a dead end.
+ *
+ * The new draft is seeded from the SUPERSEDED report's answers rather than from the catalogue
+ * defaults. Somebody correcting one wrong mark should not have to walk 56 rows again — and the ones
+ * they do not touch are genuinely what the previous inspection found, which is the honest starting
+ * point. Every seeded row keeps its original `source`, so a component the first inspector actually
+ * set does not silently become a default again.
+ */
+export async function createCorrection(
+  admin: SupabaseClient,
+  orgId: string,
+  supersedesId: string,
+  newId: string,
+  createdBy: string | null,
+): Promise<{ id: string } | ServiceError> {
+  const loaded = await getInspection(admin, orgId, supersedesId);
+  if (loaded && "code" in loaded) return loaded;
+  if (!loaded) return { error: "Inspection not found", code: "not_found" };
+  if (loaded.report.status !== "final") {
+    return { error: "That inspection is still in progress — edit it rather than correcting it.", code: "not_final" };
+  }
+
+  const existing = await admin
+    .from("vehicle_inspections")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("id", newId)
+    .maybeSingle();
+  if (existing.error) return traced("createCorrection.replayCheck", "db_error", "Could not start the correction", existing.error);
+  if (existing.data) return { id: newId };
+
+  const prior = loaded.report;
+  const { error } = await admin.from("vehicle_inspections").insert({
+    id: newId,
+    org_id: orgId,
+    subject_type: prior.subject_type,
+    subject_id: prior.subject_id,
+    inspector_id: prior.inspector_id,
+    // Today, not the superseded date: this is a new inspection of the vehicle, and back-dating it to
+    // the report it replaces would put two inspections on one day and make the expiry ambiguous.
+    inspected_on: new Date().toISOString().slice(0, 10),
+    catalogue_version: INSPECTION_CATALOGUE_VERSION,
+    vehicle_identification_method: prior.vehicle_identification_method ?? "vin",
+    vehicle_identification_value: prior.vehicle_identification_value ?? null,
+    supersedes_id: supersedesId,
+    created_by: createdBy,
+  });
+  if (error) return traced("createCorrection", "insert_failed", "Could not start the correction", error);
+
+  const seeded = loaded.items.map((i) => ({
+    org_id: orgId,
+    inspection_id: newId,
+    item_key: i.key,
+    result: i.result,
+    source: i.source,
+    repaired_at: i.repairedAt,
+    note: i.note,
+  }));
+  const itemsErr = await admin.from("vehicle_inspection_items").insert(seeded);
+  if (itemsErr.error) return traced("createCorrection.seedItems", "insert_failed", "Could not copy the previous answers", itemsErr.error);
+  return { id: newId };
+}
+
+/**
+ * Discard a draft.
+ *
+ * ── DRAFTS ONLY, AND THE GUARD IS HERE BECAUSE RLS CANNOT BE ───────────────────────────────────
+ * `vehicle_inspections` has no DELETE policy, which stops a client — but the API reads with the
+ * service role and bypasses RLS, so this function is the only thing between a mis-typed id and a
+ * deleted §396.21 record. A finalized report is evidence and is pinned in `RETENTION_FORBIDDEN`;
+ * the same argument that keeps `documents` and `certifications` deletable only as an explicit,
+ * audited service-role act applies here, and a route is not that.
+ *
+ * A trigger would be the belt to this braces, and is deliberately NOT added: `org_id` cascades from
+ * `organizations`, so a BEFORE DELETE that raised would make deleting an organisation impossible —
+ * the same reason the other evidence tables rely on policy and discipline rather than a trigger.
+ */
+export async function discardDraft(
+  admin: SupabaseClient,
+  orgId: string,
+  id: string,
+): Promise<{ ok: true } | ServiceError> {
+  const current = await admin
+    .from("vehicle_inspections")
+    .select("id, status")
+    .eq("org_id", orgId)
+    .eq("id", id)
+    .maybeSingle();
+  if (current.error) return traced("discardDraft.load", "db_error", "Could not load the inspection", current.error);
+  if (!current.data) return { error: "Inspection not found", code: "not_found" };
+  if ((current.data as { status: string }).status === "final") {
+    return {
+      error: "A completed inspection is a record and cannot be deleted. Record a correction instead.",
+      code: "already_final",
+    };
+  }
+  // Items go with it through 0280's `on delete cascade`.
+  const { error } = await admin
+    .from("vehicle_inspections")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("id", id)
+    .eq("status", "draft");
+  if (error) return traced("discardDraft", "delete_failed", "Could not discard the inspection", error);
+  return { ok: true };
 }

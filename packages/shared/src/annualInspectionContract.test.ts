@@ -21,7 +21,7 @@ const issueCodes = (r: ReturnType<typeof deriveInspectionOutcome>): string[] =>
 
 describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type", () => {
   it("passes a vehicle whose every component is ok or na", () => {
-    const r = deriveInspectionOutcome(passing(), "tractor", ON);
+    const r = deriveInspectionOutcome(passing(), ON);
     expect(r.ok && r.outcome).toBe("pass");
     expect(r.ok && r.openDefects).toEqual([]);
   });
@@ -30,7 +30,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
     const answers = passing().map((a) =>
       a.key === "brake.hose" ? { ...a, result: "needs_repair" as const } : a,
     );
-    const r = deriveInspectionOutcome(answers, "tractor", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok && r.outcome).toBe("fail");
     expect(r.ok && r.openDefects).toEqual(["brake.hose"]);
   });
@@ -39,7 +39,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
     const answers = passing().map((a) =>
       a.key === "brake.hose" ? { ...a, result: "needs_repair" as const, repairedAt: "2026-06-17" } : a,
     );
-    const r = deriveInspectionOutcome(answers, "tractor", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok && r.outcome).toBe("pass");
     expect(r.ok && r.repairedDefects).toEqual(["brake.hose"]);
     expect(r.ok && r.openDefects).toEqual([]);
@@ -49,7 +49,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
     const answers = passing().map((a) =>
       a.key === "wheels.fasteners" ? { ...a, result: "needs_repair" as const, repairedAt: ON } : a,
     );
-    const r = deriveInspectionOutcome(answers, "tractor", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok && r.outcome).toBe("pass");
   });
 
@@ -57,7 +57,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
     const answers = passing().map((a) =>
       a.key === "brake.hose" ? { ...a, result: "needs_repair" as const, repairedAt: "2026-06-15" } : a,
     );
-    expect(issueCodes(deriveInspectionOutcome(answers, "tractor", ON)))
+    expect(issueCodes(deriveInspectionOutcome(answers, ON)))
       .toContain("repair_date_before_inspection");
   });
 
@@ -65,7 +65,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
     const answers = passing().map((a) =>
       a.key === "brake.hose" ? { ...a, repairedAt: "2026-06-17" } : a,
     );
-    expect(issueCodes(deriveInspectionOutcome(answers, "tractor", ON)))
+    expect(issueCodes(deriveInspectionOutcome(answers, ON)))
       .toContain("repair_date_without_defect");
   });
 });
@@ -73,7 +73,7 @@ describe("deriveInspectionOutcome — D-AVI3, the certification nobody can type"
 describe("deriveInspectionOutcome — D-AVI5, a blank is not a result", () => {
   it("refuses a payload missing one component, and names the component", () => {
     const answers = passing().filter((a) => a.key !== "tires.steer_axle");
-    const r = deriveInspectionOutcome(answers, "tractor", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok).toBe(false);
     expect(r.ok === false && r.issues).toContainEqual({
       code: "missing_result",
@@ -82,7 +82,7 @@ describe("deriveInspectionOutcome — D-AVI5, a blank is not a result", () => {
   });
 
   it("refuses an empty payload rather than treating silence as na", () => {
-    const r = deriveInspectionOutcome([], "tractor", ON);
+    const r = deriveInspectionOutcome([], ON);
     expect(r.ok).toBe(false);
     const missing = r.ok === false && r.issues.find((i) => i.code === "missing_result");
     expect(missing && missing.itemKeys).toHaveLength(INSPECTION_ITEMS.length);
@@ -90,28 +90,32 @@ describe("deriveInspectionOutcome — D-AVI5, a blank is not a result", () => {
 
   it("refuses an item the catalogue does not know", () => {
     const answers = [...passing(), { key: "brake.warp_core", result: "ok" as const }];
-    expect(issueCodes(deriveInspectionOutcome(answers, "tractor", ON))).toContain("unknown_item");
+    expect(issueCodes(deriveInspectionOutcome(answers, ON))).toContain("unknown_item");
   });
 
   it("refuses the same component answered twice", () => {
     const answers = [...passing(), { key: "brake.hose", result: "needs_repair" as const }];
-    expect(issueCodes(deriveInspectionOutcome(answers, "tractor", ON))).toContain("duplicate_item");
+    expect(issueCodes(deriveInspectionOutcome(answers, ON))).toContain("duplicate_item");
   });
 
-  it("refuses to certify a part the equipment cannot have", () => {
-    // A tractor's rear impact guard marked `ok` is a statement about something that is not there.
+  it("ALLOWS a mark on a part the equipment does not normally carry (owner ruling, 2026-08-31)", () => {
+    // This used to be refused, on the argument that certifying an absent part is a statement nobody
+    // has standing to make. The owner overruled it on how the paper works: truck and trailer share
+    // one form and one decal, and the only difference is the unit number and which boxes are marked.
+    // A converter dolly carries a fifth wheel; a straight truck carries a body AND a rear guard.
+    // The default still puts N/A in the box, so the ordinary printed page is unchanged.
     const answers = passing().map((a) =>
       a.key === "rear_impact_guard.present" ? { ...a, result: "ok" as const } : a,
     );
-    expect(issueCodes(deriveInspectionOutcome(answers, "tractor", ON)))
-      .toContain("inapplicable_not_na");
+    const r = deriveInspectionOutcome(answers, ON);
+    expect(r.ok && r.outcome).toBe("pass");
   });
 
   it("reports every problem at once, so the inspector fixes the form in one pass", () => {
     const answers = passing()
       .filter((a) => a.key !== "brake.hose")
       .concat([{ key: "not.a.component", result: "ok" }]);
-    const codes = issueCodes(deriveInspectionOutcome(answers, "tractor", ON));
+    const codes = issueCodes(deriveInspectionOutcome(answers, ON));
     expect(codes).toContain("missing_result");
     expect(codes).toContain("unknown_item");
   });
@@ -120,7 +124,7 @@ describe("deriveInspectionOutcome — D-AVI5, a blank is not a result", () => {
 describe("deriveInspectionOutcome — trailers are a different vehicle, not a flag", () => {
   it("passes a trailer whose rear impact guard is ok", () => {
     const answers = defaultInspectionItems("trailer").map((s) => ({ key: s.key, result: s.result }));
-    const r = deriveInspectionOutcome(answers, "trailer", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok && r.outcome).toBe("pass");
   });
 
@@ -130,7 +134,7 @@ describe("deriveInspectionOutcome — trailers are a different vehicle, not a fl
         ? { key: s.key, result: "needs_repair" as const }
         : { key: s.key, result: s.result },
     );
-    const r = deriveInspectionOutcome(answers, "trailer", ON);
+    const r = deriveInspectionOutcome(answers, ON);
     expect(r.ok && r.outcome).toBe("fail");
     expect(r.ok && r.openDefects).toEqual(["rear_impact_guard.present"]);
   });

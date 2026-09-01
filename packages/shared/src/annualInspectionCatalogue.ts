@@ -57,31 +57,39 @@ export interface InspectionItem {
   readonly label: string;
   readonly cfr: string;
   /**
-   * The subject types on which this component can be inspected AT ALL. An item outside this list is
-   * `na` by construction and the form must not offer another answer — a tractor has no rear impact
-   * guard, and no inspector should be able to certify that it does. This is a fact about the
-   * regulation, not about the fleet; contrast `fleetDefault`.
-   */
-  readonly appliesTo: readonly InspectionSubjectType[];
-  /**
-   * The opening answer for an item that DOES apply — the fleet's standard specification, not a
-   * regulatory statement (D-AVI13). Absent means `ok`.
+   * What the form opens this component on, per kind of equipment — **measured, not reasoned**.
    *
-   * The distinction matters and is easy to lose: this fleet's tractors run air brakes, so items
-   * 1(i)–(k) open as `na` because of what Silvicom bought, whereas item 14 is `na` because a
-   * tractor is not a motorcoach. The first is editable and a different truck could answer
-   * differently; the second is not.
+   * ── BOTH COLUMNS COME FROM REAL FILLED REPORTS ─────────────────────────────────────────────────
+   * Tractor 654 (2026-06-16) and trailer 535968 (2026-08) — the two the office produced before any
+   * of this was built. They differ on eighteen components and the surprises are the point: this is
+   * a REEFER fleet, so a trailer's exhaust, fuel system, air compressor and tractor protection valve
+   * are all marked `Ok`, where reasoning from "which parts a trailer has" would have said `N/A` and
+   * been wrong. Coupling and steering go the other way.
+   *
+   * That is why this is transcribed rather than derived. An earlier version inferred the trailer
+   * column from where a part normally lives and was wrong on seven items; the plan carried it as
+   * §6 Q6 — "reasoned, not measured" — until the second form turned up.
+   *
+   * ── AND WHY A TRAILER HAS TWO COLUMNS ──────────────────────────────────────────────────────────
+   * The sample is a REEFER, and the fleet is not: 46 reefers, 13 dry vans and 152 trailers with no
+   * type recorded, out of 211 (measured 2026-08-31). Applying the measured column to a dry van would
+   * open its exhaust and fuel system on `Ok` — an inspection of an engine and a tank it does not
+   * have.
+   *
+   * So `trailerReefer` is MEASURED and `trailerDry` is DERIVED from it, by setting the five
+   * engine-and-fuel components to `N/A`. That derivation is labelled rather than hidden, because
+   * the last time a column was inferred it was wrong on seven items (§6 Q6) — and it is exactly the
+   * kind of thing a filled dry-van report would settle in a minute (§6 Q10).
+   *
+   * Truck and trailer share one form and one decal (owner, 2026-08-31): the difference IS this
+   * table, plus the unit number. Nothing is locked — an inspector can change any of it.
    */
-  readonly fleetDefault?: Partial<Record<InspectionSubjectType, InspectionResult>>;
+  readonly defaults: {
+    readonly tractor: InspectionResult;
+    readonly trailerReefer: InspectionResult;
+    readonly trailerDry: InspectionResult;
+  };
 }
-
-const BOTH = INSPECTION_SUBJECT_TYPES;
-const TRACTOR = ["tractor"] as const;
-const TRAILER = ["trailer"] as const;
-/** Neither — on the page, and `na` on every vehicle a trucking carrier operates. */
-const NEITHER = [] as const;
-const NA_BOTH = { tractor: "na", trailer: "na" } as const;
-const NA_TRACTOR = { tractor: "na" } as const;
 
 export const INSPECTION_GROUPS: readonly InspectionGroup[] = [
   { number: 1, title: "Brake system", cfr: "App. A ¶1" },
@@ -107,84 +115,84 @@ export const INSPECTION_GROUPS: readonly InspectionGroup[] = [
  */
 export const INSPECTION_ITEMS: readonly InspectionItem[] = [
   // 1 — Brake system. (i)–(k) are `na` on this fleet's air-braked equipment, not in general.
-  { key: "brake.service_brakes", group: 1, label: "Service brakes", cfr: "App. A ¶1(a)", appliesTo: BOTH },
-  { key: "brake.parking_system", group: 1, label: "Parking brake system", cfr: "App. A ¶1(b)", appliesTo: BOTH },
-  { key: "brake.drums_rotors", group: 1, label: "Brake drums or rotors", cfr: "App. A ¶1(c)", appliesTo: BOTH },
-  { key: "brake.hose", group: 1, label: "Brake hose", cfr: "App. A ¶1(d)", appliesTo: BOTH },
-  { key: "brake.tubing", group: 1, label: "Brake tubing", cfr: "App. A ¶1(e)", appliesTo: BOTH },
-  { key: "brake.low_pressure_warning", group: 1, label: "Low pressure warning device", cfr: "App. A ¶1(f)", appliesTo: BOTH },
-  { key: "brake.tractor_protection_valve", group: 1, label: "Tractor protection valve", cfr: "App. A ¶1(g)", appliesTo: TRACTOR },
-  { key: "brake.air_compressor", group: 1, label: "Air compressor", cfr: "App. A ¶1(h)", appliesTo: BOTH },
-  { key: "brake.electric", group: 1, label: "Electric brakes", cfr: "App. A ¶1(i)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "brake.hydraulic", group: 1, label: "Hydraulic brakes", cfr: "App. A ¶1(j)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "brake.vacuum", group: 1, label: "Vacuum systems", cfr: "App. A ¶1(k)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "brake.antilock", group: 1, label: "Antilock brake system", cfr: "App. A ¶1(l)", appliesTo: BOTH },
-  { key: "brake.automatic_adjusters", group: 1, label: "Automatic brake adjusters", cfr: "App. A ¶1(m)", appliesTo: BOTH },
+  { key: "brake.service_brakes", group: 1, label: "Service brakes", cfr: "App. A ¶1(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.parking_system", group: 1, label: "Parking brake system", cfr: "App. A ¶1(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.drums_rotors", group: 1, label: "Brake drums or rotors", cfr: "App. A ¶1(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.hose", group: 1, label: "Brake hose", cfr: "App. A ¶1(d)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.tubing", group: 1, label: "Brake tubing", cfr: "App. A ¶1(e)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.low_pressure_warning", group: 1, label: "Low pressure warning device", cfr: "App. A ¶1(f)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.tractor_protection_valve", group: 1, label: "Tractor protection valve", cfr: "App. A ¶1(g)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.air_compressor", group: 1, label: "Air compressor", cfr: "App. A ¶1(h)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.electric", group: 1, label: "Electric brakes", cfr: "App. A ¶1(i)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "brake.hydraulic", group: 1, label: "Hydraulic brakes", cfr: "App. A ¶1(j)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "brake.vacuum", group: 1, label: "Vacuum systems", cfr: "App. A ¶1(k)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "brake.antilock", group: 1, label: "Antilock brake system", cfr: "App. A ¶1(l)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "brake.automatic_adjusters", group: 1, label: "Automatic brake adjusters", cfr: "App. A ¶1(m)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
 
   // 2 — Coupling devices. The fifth wheel is the tractor's half, the kingpin side rides the trailer.
-  { key: "coupling.fifth_wheel", group: 2, label: "Fifth wheels", cfr: "App. A ¶2(a)", appliesTo: TRACTOR },
-  { key: "coupling.pintle_hooks", group: 2, label: "Pintle hooks", cfr: "App. A ¶2(b)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "coupling.drawbar_eye", group: 2, label: "Drawbar/towbar eye", cfr: "App. A ¶2(c)", appliesTo: BOTH },
-  { key: "coupling.drawbar_tongue", group: 2, label: "Drawbar/towbar tongue", cfr: "App. A ¶2(d)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "coupling.safety_devices", group: 2, label: "Safety devices", cfr: "App. A ¶2(e)", appliesTo: BOTH },
-  { key: "coupling.saddle_mounts", group: 2, label: "Saddle-mounts", cfr: "App. A ¶2(f)", appliesTo: BOTH, fleetDefault: NA_BOTH },
+  { key: "coupling.fifth_wheel", group: 2, label: "Fifth wheels", cfr: "App. A ¶2(a)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "coupling.pintle_hooks", group: 2, label: "Pintle hooks", cfr: "App. A ¶2(b)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "coupling.drawbar_eye", group: 2, label: "Drawbar/towbar eye", cfr: "App. A ¶2(c)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "coupling.drawbar_tongue", group: 2, label: "Drawbar/towbar tongue", cfr: "App. A ¶2(d)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "coupling.safety_devices", group: 2, label: "Safety devices", cfr: "App. A ¶2(e)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "coupling.saddle_mounts", group: 2, label: "Saddle-mounts", cfr: "App. A ¶2(f)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
 
   // 3 — Exhaust. A trailer has no engine; the whole group is the power unit's.
-  { key: "exhaust.no_leaks_at_cab", group: 3, label: "No leaks forward of or directly below the driver/sleeper compartment", cfr: "App. A ¶3(a)", appliesTo: TRACTOR },
-  { key: "exhaust.bus_discharge", group: 3, label: "Bus: no leaking or discharging in violation of standard", cfr: "App. A ¶3(b)", appliesTo: TRACTOR, fleetDefault: NA_TRACTOR },
-  { key: "exhaust.no_burn_risk", group: 3, label: "Unlikely to burn, char or damage wiring, fuel supply or any combustible part", cfr: "App. A ¶3(c)", appliesTo: TRACTOR },
+  { key: "exhaust.no_leaks_at_cab", group: 3, label: "No leaks forward of or directly below the driver/sleeper compartment", cfr: "App. A ¶3(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "na" } },
+  { key: "exhaust.bus_discharge", group: 3, label: "Bus: no leaking or discharging in violation of standard", cfr: "App. A ¶3(b)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "exhaust.no_burn_risk", group: 3, label: "Unlikely to burn, char or damage wiring, fuel supply or any combustible part", cfr: "App. A ¶3(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "na" } },
 
   // 4 — Fuel system. Reefer tanks are inspected as part of the trailer's own equipment, not here.
-  { key: "fuel.no_visible_leak", group: 4, label: "No visible leak", cfr: "App. A ¶4(a)", appliesTo: TRACTOR },
-  { key: "fuel.filler_cap", group: 4, label: "Fuel tank filler cap", cfr: "App. A ¶4(b)", appliesTo: TRACTOR },
-  { key: "fuel.tank_secure", group: 4, label: "Fuel tank securely attached", cfr: "App. A ¶4(c)", appliesTo: TRACTOR },
+  { key: "fuel.no_visible_leak", group: 4, label: "No visible leak", cfr: "App. A ¶4(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "na" } },
+  { key: "fuel.filler_cap", group: 4, label: "Fuel tank filler cap", cfr: "App. A ¶4(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "na" } },
+  { key: "fuel.tank_secure", group: 4, label: "Fuel tank securely attached", cfr: "App. A ¶4(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "na" } },
 
   // 5 — Lighting. One line on the form, one component here.
-  { key: "lighting.all_operable", group: 5, label: "All required lights and reflectors operable", cfr: "App. A ¶5 / §393.9", appliesTo: BOTH },
+  { key: "lighting.all_operable", group: 5, label: "All required lights and reflectors operable", cfr: "App. A ¶5 / §393.9", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
 
   // 6 — Safe loading.
-  { key: "safe_loading.parts_secured", group: 6, label: "Vehicle parts, load, dunnage, spare tire etc. secured", cfr: "App. A ¶6(a)", appliesTo: BOTH },
-  { key: "safe_loading.front_end_structure", group: 6, label: "Front end structure", cfr: "App. A ¶6(b)", appliesTo: BOTH },
-  { key: "safe_loading.intermodal_securement", group: 6, label: "Intermodal container securement devices", cfr: "App. A ¶6(c)", appliesTo: TRAILER, fleetDefault: { trailer: "na" } },
+  { key: "safe_loading.parts_secured", group: 6, label: "Vehicle parts, load, dunnage, spare tire etc. secured", cfr: "App. A ¶6(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "safe_loading.front_end_structure", group: 6, label: "Front end structure", cfr: "App. A ¶6(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "safe_loading.intermodal_securement", group: 6, label: "Intermodal container securement devices", cfr: "App. A ¶6(c)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
 
   // 7 — Steering. Entirely the power unit's; a trailer is steered by the tractor.
-  { key: "steering.wheel_free_play", group: 7, label: "Steering wheel free play", cfr: "App. A ¶7(a)", appliesTo: TRACTOR },
-  { key: "steering.column", group: 7, label: "Steering column", cfr: "App. A ¶7(b)", appliesTo: TRACTOR },
-  { key: "steering.front_axle_beam", group: 7, label: "Front axle beam and all other steering components", cfr: "App. A ¶7(c)", appliesTo: TRACTOR },
-  { key: "steering.gear_box", group: 7, label: "Steering gear box", cfr: "App. A ¶7(d)", appliesTo: TRACTOR },
-  { key: "steering.pitman_arm", group: 7, label: "Pitman arm", cfr: "App. A ¶7(e)", appliesTo: TRACTOR },
-  { key: "steering.power_steering", group: 7, label: "Power steering", cfr: "App. A ¶7(f)", appliesTo: TRACTOR },
-  { key: "steering.ball_socket_joints", group: 7, label: "Ball and socket joints", cfr: "App. A ¶7(g)", appliesTo: TRACTOR },
-  { key: "steering.tie_rods_drag_links", group: 7, label: "Tie rods and drag links", cfr: "App. A ¶7(h)", appliesTo: TRACTOR },
-  { key: "steering.nuts", group: 7, label: "Nuts", cfr: "App. A ¶7(i)", appliesTo: TRACTOR },
-  { key: "steering.system", group: 7, label: "Steering system", cfr: "App. A ¶7(j)", appliesTo: TRACTOR },
+  { key: "steering.wheel_free_play", group: 7, label: "Steering wheel free play", cfr: "App. A ¶7(a)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.column", group: 7, label: "Steering column", cfr: "App. A ¶7(b)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.front_axle_beam", group: 7, label: "Front axle beam and all other steering components", cfr: "App. A ¶7(c)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.gear_box", group: 7, label: "Steering gear box", cfr: "App. A ¶7(d)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.pitman_arm", group: 7, label: "Pitman arm", cfr: "App. A ¶7(e)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.power_steering", group: 7, label: "Power steering", cfr: "App. A ¶7(f)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.ball_socket_joints", group: 7, label: "Ball and socket joints", cfr: "App. A ¶7(g)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.tie_rods_drag_links", group: 7, label: "Tie rods and drag links", cfr: "App. A ¶7(h)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.nuts", group: 7, label: "Nuts", cfr: "App. A ¶7(i)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "steering.system", group: 7, label: "Steering system", cfr: "App. A ¶7(j)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
 
   // 8 — Suspension.
-  { key: "suspension.axle_positioning", group: 8, label: "Axle positioning parts", cfr: "App. A ¶8(a)", appliesTo: BOTH },
-  { key: "suspension.spring_assembly", group: 8, label: "Spring assembly", cfr: "App. A ¶8(b)", appliesTo: BOTH },
-  { key: "suspension.torque_radius_tracking", group: 8, label: "Torque, radius or tracking components", cfr: "App. A ¶8(c)", appliesTo: BOTH },
+  { key: "suspension.axle_positioning", group: 8, label: "Axle positioning parts", cfr: "App. A ¶8(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "suspension.spring_assembly", group: 8, label: "Spring assembly", cfr: "App. A ¶8(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "suspension.torque_radius_tracking", group: 8, label: "Torque, radius or tracking components", cfr: "App. A ¶8(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
 
   // 9 — Frame. Sliding subframes are a trailer feature; a tractor answers `na`.
-  { key: "frame.members", group: 9, label: "Frame members", cfr: "App. A ¶9(a)", appliesTo: BOTH },
-  { key: "frame.tire_wheel_clearance", group: 9, label: "Tire and wheel clearance", cfr: "App. A ¶9(b)", appliesTo: BOTH },
-  { key: "frame.adjustable_axle", group: 9, label: "Adjustable axle assemblies (sliding subframes)", cfr: "App. A ¶9(c)", appliesTo: BOTH, fleetDefault: NA_TRACTOR },
+  { key: "frame.members", group: 9, label: "Frame members", cfr: "App. A ¶9(a)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "frame.tire_wheel_clearance", group: 9, label: "Tire and wheel clearance", cfr: "App. A ¶9(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "frame.adjustable_axle", group: 9, label: "Adjustable axle assemblies (sliding subframes)", cfr: "App. A ¶9(c)", defaults: { tractor: "na", trailerReefer: "ok", trailerDry: "ok" } },
 
   // 10 — Tires. §393.75(b)/(c): 4/32" on a steering axle, 2/32" everywhere else.
-  { key: "tires.steer_axle", group: 10, label: "Steer-axle tires", cfr: "App. A ¶10(a) / §393.75(b)", appliesTo: TRACTOR },
-  { key: "tires.all_other", group: 10, label: "All other tires", cfr: "App. A ¶10(b) / §393.75(c)", appliesTo: BOTH },
-  { key: "tires.speed_restricted", group: 10, label: "Speed-restricted tires", cfr: "App. A ¶10(c)", appliesTo: BOTH, fleetDefault: NA_BOTH },
+  { key: "tires.steer_axle", group: 10, label: "Steer-axle tires", cfr: "App. A ¶10(a) / §393.75(b)", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "tires.all_other", group: 10, label: "All other tires", cfr: "App. A ¶10(b) / §393.75(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "tires.speed_restricted", group: 10, label: "Speed-restricted tires", cfr: "App. A ¶10(c)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
 
   // 11 — Wheels and rims. Lock rings and welded repairs are `na` on this fleet's wheels.
-  { key: "wheels.lock_or_side_ring", group: 11, label: "Lock or side ring", cfr: "App. A ¶11(a)", appliesTo: BOTH, fleetDefault: NA_BOTH },
-  { key: "wheels.wheels_and_rims", group: 11, label: "Wheels and rims", cfr: "App. A ¶11(b)", appliesTo: BOTH },
-  { key: "wheels.fasteners", group: 11, label: "Fasteners", cfr: "App. A ¶11(c)", appliesTo: BOTH },
-  { key: "wheels.welds", group: 11, label: "Welds", cfr: "App. A ¶11(d)", appliesTo: BOTH, fleetDefault: NA_BOTH },
+  { key: "wheels.lock_or_side_ring", group: 11, label: "Lock or side ring", cfr: "App. A ¶11(a)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "wheels.wheels_and_rims", group: 11, label: "Wheels and rims", cfr: "App. A ¶11(b)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "wheels.fasteners", group: 11, label: "Fasteners", cfr: "App. A ¶11(c)", defaults: { tractor: "ok", trailerReefer: "ok", trailerDry: "ok" } },
+  { key: "wheels.welds", group: 11, label: "Welds", cfr: "App. A ¶11(d)", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
 
   // 12–15 — the single-component groups.
-  { key: "windshield.glazing", group: 12, label: "No cracks, discoloration or obstructions (see §393.60 for exceptions)", cfr: "App. A ¶12 / §393.60", appliesTo: TRACTOR },
-  { key: "wipers.operable", group: 13, label: "No missing, damaged or inoperable wipers", cfr: "App. A ¶13 / §393.78", appliesTo: TRACTOR },
-  { key: "motorcoach_seats.secure", group: 14, label: "Seats securely fastened to the vehicle structure", cfr: "App. A ¶14", appliesTo: NEITHER },
-  { key: "rear_impact_guard.present", group: 15, label: "In place, securely attached, proper size and placement (see §393.86)", cfr: "App. A ¶15 / §393.86", appliesTo: TRAILER },
+  { key: "windshield.glazing", group: 12, label: "No cracks, discoloration or obstructions (see §393.60 for exceptions)", cfr: "App. A ¶12 / §393.60", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "wipers.operable", group: 13, label: "No missing, damaged or inoperable wipers", cfr: "App. A ¶13 / §393.78", defaults: { tractor: "ok", trailerReefer: "na", trailerDry: "na" } },
+  { key: "motorcoach_seats.secure", group: 14, label: "Seats securely fastened to the vehicle structure", cfr: "App. A ¶14", defaults: { tractor: "na", trailerReefer: "na", trailerDry: "na" } },
+  { key: "rear_impact_guard.present", group: 15, label: "In place, securely attached, proper size and placement (see §393.86)", cfr: "App. A ¶15 / §393.86", defaults: { tractor: "na", trailerReefer: "ok", trailerDry: "ok" } },
 ] as const;
 
 /** How many components a complete report answers, for both the UI's counter and the A5 bijection. */
@@ -199,34 +207,37 @@ export function inspectionItem(key: string): InspectionItem | undefined {
 }
 
 /**
- * Can this component be answered as anything other than `na` on this kind of equipment?
+ * Which column a piece of equipment reads.
  *
- * The form must LOCK a false one rather than merely defaulting it: certifying that a tractor's rear
- * impact guard is in place is a statement about a part that does not exist, and the regulation gives
- * no one the standing to make it. `fleetDefault` is the editable kind of `na`; this is not.
+ * **Only a KNOWN reefer reads the reefer column.** The owner's rule is that the fleet is 46 reefers
+ * and everything else is a dry van, which the roster already says exactly: measured 2026-08-31,
+ * `trailers.is_reefer` is 46 true, 165 false and **never null**. So there is no third state to
+ * fall back for, and treating an absent flag as "dry van" matches both the rule and the data.
+ *
+ * (`trailer_type` is unset on 152 rows, which is why an earlier version of this thought the type was
+ * unknown. `is_reefer` is the column that carries the fact, and it is complete.)
  */
-export function isInspectionItemApplicable(
-  item: InspectionItem,
-  subjectType: InspectionSubjectType,
-): boolean {
-  return item.appliesTo.includes(subjectType);
+export function columnFor(subjectType: InspectionSubjectType, isReefer?: boolean | null): keyof InspectionItem["defaults"] {
+  if (subjectType === "tractor") return "tractor";
+  return isReefer === true ? "trailerReefer" : "trailerDry";
 }
 
-/** The answer the form opens on (D-AVI13). Inapplicable ⇒ `na`; otherwise the fleet's standard. */
+/** The answer the form opens on (D-AVI13) — off the measured column for that kind of equipment. */
 export function defaultInspectionResult(
   item: InspectionItem,
   subjectType: InspectionSubjectType,
+  isReefer?: boolean | null,
 ): InspectionResult {
-  if (!isInspectionItemApplicable(item, subjectType)) return "na";
-  return item.fleetDefault?.[subjectType] ?? "ok";
+  return item.defaults[columnFor(subjectType, isReefer)];
 }
 
 /** Every item with the answer the form opens on — what A4 seeds a draft's item rows from. */
 export function defaultInspectionItems(
   subjectType: InspectionSubjectType,
+  isReefer?: boolean | null,
 ): { key: string; result: InspectionResult }[] {
   return INSPECTION_ITEMS.map((item) => ({
     key: item.key,
-    result: defaultInspectionResult(item, subjectType),
+    result: defaultInspectionResult(item, subjectType, isReefer),
   }));
 }

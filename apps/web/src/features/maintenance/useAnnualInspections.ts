@@ -284,3 +284,37 @@ export function useSavePrintProfile() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "print-profiles"] }),
   });
 }
+
+/**
+ * Start the report that supersedes a completed one (D-AVI4).
+ *
+ * The id is generated here and sent, so a double-click lands on the same correction instead of
+ * starting two.
+ */
+export function useCorrectInspection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (supersedesId: string): Promise<string> => {
+      const id = crypto.randomUUID();
+      const r = await apiFetch<{ id: string }>(`/api/maintenance/inspections/${supersedesId}/correct`, {
+        method: "POST",
+        body: { id },
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the correction");
+      return r.data.id;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] }),
+  });
+}
+
+/** Discard a draft. A completed inspection is refused by the API, by name. */
+export function useDiscardInspection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const r = await apiFetch(`/api/maintenance/inspections/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not discard the inspection");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspections"] }),
+  });
+}
