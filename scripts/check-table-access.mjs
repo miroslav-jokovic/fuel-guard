@@ -50,7 +50,6 @@ const GRANDFATHERED_ACCESS = new Set([
   "declined_transactions <- apps/api/src/modules/insights/askData.ts",
   "declined_transactions <- apps/web/src/features/dashboard/useDashboard.ts",
   "declined_transactions <- apps/web/src/features/reports/useEfsData.ts",
-  "declined_transactions <- apps/web/src/pages/FuelEventsPage.vue",
   "efs_cards <- apps/api/src/modules/fuel/declineDriverResolution.ts",
   "efs_cards <- apps/api/src/scripts/runConfigScan.ts",
   "efs_transactions <- apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
@@ -59,7 +58,6 @@ const GRANDFATHERED_ACCESS = new Set([
   "efs_transactions <- apps/web/src/features/reports/useEfsData.ts",
   "fuel_events <- apps/api/src/modules/org/digest.ts",
   "fuel_events <- apps/api/src/modules/insights/askData.ts",
-  "fuel_events <- apps/web/src/pages/FuelEventsPage.vue",
   "fuel_prices <- apps/api/src/modules/routing/fuelPlanning.ts",
   // exposed by the posted-prices carve-out (P1.5): fuel_price_days is fuel's derivation over the
   // collected board — the read moves behind a posted-prices interface with the P6.1 burn-down.
