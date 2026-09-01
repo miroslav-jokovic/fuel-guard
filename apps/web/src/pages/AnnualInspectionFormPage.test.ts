@@ -215,6 +215,14 @@ describe("a certified report is read-only (D-AVI4)", () => {
     expect(labels).toContain("Print");
     expect(labels).not.toContain("Complete inspection");
   });
+
+  it("does NOT offer a preview of a report that is already filed", () => {
+    // A preview is drawn now; a filed report serves the bytes it was certified with. Offering both
+    // put two different-looking pages one button apart and read as a broken template — which is how
+    // it was reported on 2026-09-01. Preview is what you look at BEFORE certifying (D-AVI14).
+    const labels = mountPage(items(), final).findAll("button").map((b) => b.text());
+    expect(labels).not.toContain("Preview the printed page");
+  });
 });
 
 describe("a draft can be abandoned", () => {

@@ -57,16 +57,19 @@ const items = computed(() => data.value?.items ?? []);
 const isFinal = computed(() => report.value?.status === "final");
 
 /**
- * The filed page and the preview are two different drawings.
+ * Whether this filing was drawn by an older version of the form.
  *
- * A completed report serves the BYTES IT WAS FILED WITH and is never re-rendered — that is what
- * keeps it reproducible against its own hash, and it is not going to change. The consequence is that
- * once the form's drawing moves, the preview button and the print button on the same completed
- * report hand out visibly different pages. The office met this as "the preview has the section names
- * and the print does not", with nothing on screen to explain it.
+ * A completed report serves the BYTES IT WAS FILED WITH and is never re-rendered — that is what keeps
+ * it reproducible against its own `documents.sha256`, and it is not going to change. So once the
+ * drawing moves, a report certified before it keeps its old page forever.
  *
- * So the screen explains it. Null `renderer_version` means the report was filed before 0284 recorded
- * one, which is older than any version we could name rather than equal to the current one.
+ * The screen used to offer a live preview beside that filed page, which made the two visibly
+ * disagree and read as a bug in the template; the preview is now a draft-only control and the two
+ * cannot be held side by side. This flag is what remains useful: it says so on the page, for
+ * somebody comparing two PRINTOUTS rather than two buttons.
+ *
+ * Null `renderer_version` means the report was filed before 0284 recorded one, which is older than
+ * any version we could name rather than equal to the current one.
  */
 const filedDrawingIsStale = computed(() => {
   if (!isFinal.value || !report.value) return false;
@@ -256,10 +259,10 @@ async function openPdf(kind: "report" | "preview") {
            and it has to be readable at the moment somebody is choosing between the two buttons
            underneath it. -->
       <AppCallout v-if="filedDrawingIsStale" tone="caution">
-        This report was filed on an earlier version of the printed form, so <strong>Print</strong>
-        and <strong>Preview the printed page</strong> will not look the same. The filed copy is the
-        evidence and is served exactly as it was certified — it is not re-drawn. To put the current
-        form on paper, record a correction, which files a new report.
+        This report was filed on an earlier version of the printed form, so it will not look like one
+        completed today. The filed copy is the evidence and prints exactly as it was certified — it is
+        never re-drawn. To put the current form on paper, record a correction, which files a new
+        report.
       </AppCallout>
 
       <div class="flex flex-wrap items-center gap-2">
@@ -269,7 +272,15 @@ async function openPdf(kind: "report" | "preview") {
         <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
           Discard
         </BaseButton>
-        <BaseButton variant="secondary" @click="() => openPdf('preview')">
+        <!-- ── NOT ON A CERTIFIED REPORT, AND THAT IS THE POINT ──────────────────────────────
+             A preview is drawn NOW; a certified report serves the bytes it was FILED with and is
+             never re-rendered. Same renderer, same template, same coordinate map — different
+             moment. So the day the drawing changes, an older filing and a fresh preview of it are
+             two different-looking pages, and offering both on one screen invites a comparison
+             whose answer is "the code moved", which is not something the office should have to
+             know. Preview exists so they can see what will print BEFORE they certify (D-AVI14).
+             After that the page exists and there is exactly one of it. -->
+        <BaseButton v-if="!isFinal" variant="secondary" @click="() => openPdf('preview')">
           Preview the printed page
         </BaseButton>
         <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
