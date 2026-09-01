@@ -151,6 +151,25 @@ export function useSetInspectorPeriod() {
   });
 }
 
+/**
+ * Take somebody off the register.
+ *
+ * The counterpart to `useSetInspectorPeriod`, not a replacement for it: this one only ever succeeds
+ * for a row no report points at. Anyone who has inspected anything is refused by the API with a 409
+ * whose message names Retire as the answer, and that message is what the caller shows — the
+ * boundary is the database's foreign key, so restating it here would be a second, staler copy.
+ */
+export function useDeleteInspector() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const r = await apiFetch(`/api/maintenance/inspectors/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not remove the inspector");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["maintenance", "inspectors"] }),
+  });
+}
+
 export interface PatchPayload {
   inspectorId?: string;
   inspectedOn?: string;

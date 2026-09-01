@@ -9,9 +9,9 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import SlideOver from "@/components/SlideOver.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
-import PrintInspectionForm from "@/features/maintenance/PrintInspectionForm.vue";
+import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
+import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import {
   useCorrectInspection,
@@ -41,6 +41,7 @@ import { fetchObjectUrl } from "@/lib/api";
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
+const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch } = useInspectionQuery(id);
@@ -95,13 +96,6 @@ watch(report, (r) => { if (r) otherConditions.value = r.other_conditions ?? ""; 
 
 const refusal = computed(() => finalize.error.value);
 
-/**
- * Open the printed page in a new tab.
- *
- * Fetched with the session token and opened as a blob rather than navigated to: these routes sit
- * behind `requireAuth`, and a plain `window.open` on an API path carries no Authorization header.
- */
-const openError = ref<string | null>(null);
 const printing = ref(false);
 
 /**
@@ -131,7 +125,7 @@ async function startCorrection() {
     const newId = await correct.mutateAsync(id.value);
     await router.push({ name: "annual-inspection", params: { id: newId } });
   } catch (e) {
-    openError.value = e instanceof Error ? e.message : "Could not start the correction";
+    toast.error("Could not start the correction", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -140,9 +134,10 @@ async function discardDraft() {
   if (!window.confirm("Discard this inspection? Nothing has been filed yet, and it cannot be recovered.")) return;
   try {
     await discard.mutateAsync(id.value);
+    toast.success("Inspection discarded");
     await router.push({ name: "annual-inspections" });
   } catch (e) {
-    openError.value = e instanceof Error ? e.message : "Could not discard the inspection";
+    toast.error("Could not discard the inspection", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -161,15 +156,20 @@ function completeInspection() {
   }
   finalize.mutate();
 }
+/**
+ * Open the printed page in a new tab.
+ *
+ * Fetched with the session token and opened as a blob rather than navigated to: these routes sit
+ * behind `requireAuth`, and a plain `window.open` on an API path carries no Authorization header.
+ */
 async function openPdf(kind: "report" | "preview") {
-  openError.value = null;
   try {
     const url = await fetchObjectUrl(`/api/maintenance/inspections/${id.value}/${kind}.pdf`);
     window.open(url, "_blank", "noopener");
     // Revoked on a delay rather than immediately: the new tab has to have loaded it first.
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (e) {
-    openError.value = e instanceof Error ? e.message : "Could not open the document";
+    toast.error("Could not open the document", e instanceof Error ? e.message : undefined);
   }
 }
 </script>
@@ -224,8 +224,11 @@ async function openPdf(kind: "report" | "preview") {
         <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
       </div>
 
-      <AppCallout v-if="openError" tone="danger">{{ openError }}</AppCallout>
-
+      <!-- The one refusal that is NOT a toast, and the reason is the list under it. §5.8's rule is
+           about mutation FEEDBACK — "saved", "could not save" — and a toast is the right shape for a
+           sentence that expires. This one names the components that still need an answer, which is a
+           worklist: it has to stay on screen next to the rows it is talking about, and it has to
+           survive the four seconds a toast lives for. -->
       <AppCallout v-if="refusal" tone="danger">
         {{ refusal.message }}
         <ul v-if="refusal.issues?.length" class="mt-2 list-disc pl-5 text-sm">
@@ -255,13 +258,12 @@ async function openPdf(kind: "report" | "preview") {
         />
       </BaseCard>
 
-      <SlideOver :open="printing" title="Print inspection" @close="printing = false">
-        <PrintInspectionForm
-          :inspection-id="id"
-          :can-manage="session.can('maintenance')"
-          @cancel="printing = false"
-        />
-      </SlideOver>
+      <PrintInspectionDrawer
+        :open="printing"
+        :inspection-id="id"
+        :can-manage="session.can('maintenance')"
+        @close="printing = false"
+      />
 
 
     </template>

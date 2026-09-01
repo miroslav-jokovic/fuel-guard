@@ -6,7 +6,13 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { createInspector, listInspectors, setInspectorPeriod, type InspectorInput } from "../inspections/inspectors.js";
+import {
+  createInspector,
+  deleteInspector,
+  listInspectors,
+  setInspectorPeriod,
+  type InspectorInput,
+} from "../inspections/inspectors.js";
 
 /**
  * `/api/maintenance/inspectors` — the §396.19 register (plan step A4, D-AVI6).
@@ -100,6 +106,9 @@ export function inspectorsRouter(): Router {
    * Not a delete: 0280's `on delete restrict` forbids removing anybody who has signed a report, and
    * that is the point — a report must name who performed it, and the qualification evidence outlives
    * the employment by a year.
+   *
+   * The DELETE below is not a softening of that. It is the other case entirely — a row that has
+   * never been on a report — and it is the same constraint that tells the two apart.
    */
   router.patch(
     "/:id",
@@ -123,6 +132,39 @@ export function inspectorsRouter(): Router {
         entity: "maintenance_inspectors",
         entityId: id,
         meta: { effectiveTo },
+      });
+      res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Remove somebody who has inspected nothing — the mistyped row, not the person who left.
+   *
+   * The service attempts the delete and lets 0280's `on delete restrict` decide; a 409 here means a
+   * report names them, and the body says so in the words the drawer shows.
+   */
+  router.delete(
+    "/:id",
+    requireOrg,
+    requireRole(...rolesThatManage("maintenance")),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const result = await deleteInspector(admin, orgId, id);
+      if ("code" in result) {
+        const status =
+          result.code === "not_found" ? 404 : result.code === "has_inspections" ? 409 : 500;
+        res.status(status).json(apiError(result.code, result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "maintenance.inspector_deleted",
+        entity: "maintenance_inspectors",
+        entityId: id,
+        meta: {},
       });
       res.json({ ok: true });
     }),

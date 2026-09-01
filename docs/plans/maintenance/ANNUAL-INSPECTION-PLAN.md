@@ -983,6 +983,69 @@ the exact insert payload succeeds against a real PGlite database with the full s
 `created_by` FK; and the form's submit path is covered by four passing tests. What remains needs a
 session, so the tracing above exists to make the next attempt legible.
 
+### B8 — the drawers, the row actions, and one dropdown control — DONE 2026-08-31 (PR #TBD)
+
+The owner's third look at the same surface. Five findings, and the honest summary is that **B6's own
+lesson did not take**: B6 said *"a new surface starts by reading the two or three pages that already
+do the same job"*, corrected the overlay and the page shell, and left the INSIDE of those overlays
+un-checked against the same call sites. Everything below was knowable from `apps/web/CLAUDE.md`,
+which states four of the five rules outright.
+
+| What shipped | The rule | Where the rule is written |
+| --- | --- | --- |
+| Cancel/Save as the last element of a scrolling drawer body | Actions belong in `SlideOver`'s `#footer` | `apps/web/CLAUDE.md` "Non-negotiables"; contract §6.2; checklist #9 |
+| Drawers at the default `size="md"` | `size="lg"` when the drawer holds a real form | contract §6.2 |
+| Failures rendered as an inline `AppCallout` under the fields | *"Mutation feedback is a toast, never an inline banner"* | `apps/web/CLAUDE.md`; contract §5.8; checklist #10 |
+| An `actions` COLUMN on the register with an inline ghost button; no row actions at all on the list | `#actions` slot → `KebabMenu` with `.kebab-item`, destructive last | contract §5.6; checklist #6 |
+| `AppSelect` beside `ComboSelect` in one three-field drawer | *"`FilterSelect` (toolbars) vs `ComboSelect` (forms)"* | `apps/web/CLAUDE.md` "Non-negotiables" |
+
+**D-AVI18 — one dropdown control per surface, chosen by SURFACE and not by list length.** The
+project's rule splits on where the control lives — `FilterSelect` in a toolbar, `ComboSelect` in a
+form — and the reasoning behind it is visible in `NewInspectionDrawer`, which was the one place in
+the product where you could see both answers at once: `AppSelect` is a bare native `<select>`, so
+its panel is drawn by the operating system, in the OS's type at the OS's metrics with the OS's focus
+ring, directly above two tokened popovers. Equipment type has two options and Unit has two hundred;
+the list length is why one of them searches, not why they should look like different products.
+
+The three drawers are now self-contained (`InspectorDrawer`, `NewInspectionDrawer`,
+`PrintInspectionDrawer` — renamed from `*Form.vue` because they own their `SlideOver` now, the shape
+`RequirementDrawer` / `HireDrawer` / `InquiryResponseDrawer` use), the footer submits the body's form
+by `form="…"` association, and every mutation reports through `useToastStore`.
+
+**The one deliberate exception to the toast rule**, commented at its site: `finalize`'s refusal on
+`AnnualInspectionFormPage` stays an `AppCallout`. §5.8 is about mutation feedback — a sentence that
+expires — and that refusal is a worklist naming the components still needing an answer. It has to
+stay on screen beside the rows it is about, and it must outlive the four seconds a toast gets.
+
+**Continuing and discarding an inspection.** Both already existed — the route, and the `DELETE` B7
+added — and neither was reachable without opening the report first, so the list showed the state and
+offered nothing to do about it. They are row actions now: *Continue inspection* on a draft, *Open
+report* once filed, and *Discard* for a draft only (D-AVI4 — a filed report is superseded, never
+deleted; the API refuses it by name and the menu does not offer it).
+
+**Removing an inspector (D-AVI19).** B3 ruled that retirement is a date and never a deletion, and
+that ruling stands for the case it was written about: somebody who has inspected trucks has reports
+naming them, and §396.19 wants the evidence for a year past the employment. It was answering the
+wrong question for the OTHER case — a name typed wrongly and caught before it was used. Retiring
+that row leaves a person on the register who never existed, and the register's whole purpose (B3) is
+that the derived §396.19 assertion be checkable against something real.
+
+So `DELETE /api/maintenance/inspectors/:id` exists, and **the page does not decide which case it is
+looking at**. The delete is attempted; 0280's `on delete restrict` decides; a violation (SQLSTATE
+23503) comes back as a 409 whose message names Retire as the answer, and that message is what the
+reader is shown. Counting reports first to grey the action out would be the same question answered
+twice, and the second answer can be stale by the time it is acted on — which is the race a foreign
+key exists to not have.
+
+**Open, and not fixed here — `AppSelect` renders a native panel.** Contract §1.2 describes the form
+select as *"trigger matches the input metrics, panel matches the KebabMenu recipe"*, and the
+component is a bare `<select>`; the 2026-08-11 UI audit §6.2 recorded the same drift from the other
+side, when it still opened a custom listbox with no keyboard model. Fifteen files use it. Options:
+rebuild it on the tokened popover the description promises, or retire it in favour of `AppCombobox`
+and migrate the fifteen. **Recommendation: retire it** — `AppCombobox` already carries the keyboard
+contract, the teleport at `z-popover` and the async path (HAZMAT-UX-PLAN §2.1), and two controls for
+one job is what D-AVI18 is about. Out of scope for this surface, which uses `ComboSelect` throughout.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was
