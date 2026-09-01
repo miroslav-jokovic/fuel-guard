@@ -120,8 +120,20 @@ function baseRef() {
   const branchBase = hasOrigin ? baseFrom("origin/main") : baseFrom("main");
   if (branchBase) return branchBase;
 
-  // Nothing ahead of main, so HEAD IS main. If it is a merge commit, its first parent is main as it
-  // stood before — which reads the merge that just landed.
+  /**
+   * Nothing ahead of main, so HEAD IS main.
+   *
+   * With a CLEAN tree, a merge commit's first parent is main as it stood before — which reads the
+   * merge that just landed, and is what a post-merge check wants.
+   *
+   * With a DIRTY tree it is HEAD, and the difference is a false positive I hit on 2026-09-01: the
+   * migration had merged, the reader was uncommitted on top, and the first-parent fallback read the
+   * merge and the working tree TOGETHER — reporting the column and its reader "in the same change"
+   * when they were in fact two merges apart, exactly as the rule requires. A gate that fires on
+   * correct work is a gate that gets skipped, which is the second time this one has taught me that.
+   */
+  const dirty = git(["status", "--porcelain"]).trim().length > 0;
+  if (dirty) return head;
   const parents = git(["rev-list", "--parents", "-n", "1", "HEAD"]).trim().split(/\s+/);
   return parents.length > 2 ? parents[1] : null;
 }

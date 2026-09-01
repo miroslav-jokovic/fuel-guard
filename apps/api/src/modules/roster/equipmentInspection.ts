@@ -122,7 +122,17 @@ export async function recordEquipmentInspectionExpiry(
   subjectId: string,
   expiresAt: string,
 ): Promise<{ ok: true } | EquipmentError> {
-  const patch = { dot_annual_inspection_expires_at: expiresAt, identity_source: "manual" };
+  // ── THE CLAIM IS THE SOURCE COLUMN, NOT `identity_source` (0286) ─────────────────────────────
+  // It used to set `identity_source = 'manual'`, which stops the McLeod sweep overwriting this date
+  // — and also stops it maintaining the row's VIN, plate, make, model, year and registration,
+  // because `rosterIngest` answers a non-CLAIMABLE row by skipping the WHOLE patch. Measured
+  // 2026-09-01: the first identity sweep filled 200 trailer VINs and reported `office-owned=1` — the
+  // one trailer with a certified inspection, which ended the sweep still carrying `vin = null`. Its
+  // own inspection locked it out of its own VIN.
+  //
+  // So the claim now names the column it actually protects. `identity_source` goes back to meaning
+  // one thing: who owns the row's IDENTITY. An office that wants a vehicle outright still sets it.
+  const patch = { dot_annual_inspection_expires_at: expiresAt, dot_annual_inspection_source: "inspection" };
   const { error } =
     subjectType === "tractor"
       ? await admin.from("vehicles").update(patch).eq("org_id", orgId).eq("id", subjectId)
@@ -181,7 +191,16 @@ export async function releaseEquipmentInspectionClaim(
   expiresAt: string | null,
   restoreSource: string | null,
 ): Promise<{ ok: true } | EquipmentError> {
-  const patch: Record<string, string | null> = { dot_annual_inspection_expires_at: expiresAt };
+  const patch: Record<string, string | null> = {
+    dot_annual_inspection_expires_at: expiresAt,
+    // Handing the date back to the sweep is the whole release now (0286). Null rather than a value:
+    // "nobody has claimed this" is the default every row carries until an inspection is certified.
+    dot_annual_inspection_source: expiresAt === null ? null : "inspection",
+  };
+  // Legacy only. Reports filed between 0285 and 0286 DID take the identity claim, and those rows
+  // still need it given back; reports after 0286 never took it, so `restoreSource` is null and this
+  // does not fire. Kept until no report carries a recorded claim, not deleted on the day it stopped
+  // being written.
   if (restoreSource !== null) patch.identity_source = restoreSource;
   const { error } =
     subjectType === "tractor"
