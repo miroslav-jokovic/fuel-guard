@@ -310,7 +310,7 @@ export function useDeleteInspectionRecord() {
     mutationFn: async ({ id, reason }: { id: string; reason: string }): Promise<DeletedRecord> => {
       const r = await apiFetch<DeletedRecord>(`/api/maintenance/inspections/${id}/delete-record`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        body: { reason },
       });
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not delete the record");
       return r.data;
