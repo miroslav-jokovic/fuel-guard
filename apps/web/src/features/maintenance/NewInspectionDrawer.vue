@@ -9,7 +9,9 @@ import {
 } from "@silvicom/ui";
 import type { InspectionSubjectType } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import { useToastStore } from "@/stores/toast";
+import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import { useCreateInspection, useInspectorsQuery } from "@/features/maintenance/useAnnualInspections";
@@ -29,6 +31,13 @@ import { useCreateInspection, useInspectorsQuery } from "@/features/maintenance/
  *
  * The remaining `AppCallout` is NOT mutation feedback — it is the state of the register, read before
  * anything is attempted. Failures go to a toast (§5.8).
+ *
+ * ── IT ASKS FOR THE DECAL AND THE AGENCY BECAUSE THE PRINTED PAGE HAS BOTH ─────────────────────
+ * Three questions was one too few. The form's REPORT NUMBER box carries the §396.17(c)(2) decal
+ * serial — filled on every report the office has ever filed — and nothing in the product could
+ * capture it, so the register's "Decal" column was a column of dashes. It is asked here because
+ * this is when the inspector is holding the sticker; `InspectionHeaderFields` is the same component
+ * the report page mounts, so a decal applied at the end of the job is entered in the same shape.
  */
 
 const props = defineProps<{ open: boolean }>();
@@ -41,6 +50,8 @@ const subjectType = ref<InspectionSubjectType>("tractor");
 const subjectId = ref("");
 const inspectorId = ref("");
 const inspectedOn = ref(today());
+const decalSerial = ref<string | null>(null);
+const agency = ref<string | null>(null);
 
 /** Reopening must not offer the last attempt's answers as though they were this one's. */
 watch(
@@ -51,8 +62,14 @@ watch(
     subjectId.value = "";
     inspectorId.value = "";
     inspectedOn.value = today();
+    decalSerial.value = null;
+    agency.value = null;
   },
 );
+
+const org = useOrgSettingsQuery();
+/** The name the report will print in its MOTOR CARRIER OPERATOR block, so the in-house option says it. */
+const carrierName = computed(() => org.data.value?.name ?? "Our own technician");
 
 const vehicles = useVehiclesQuery();
 const trailers = useTrailersQuery();
@@ -86,6 +103,8 @@ async function save() {
       subjectId: subjectId.value,
       inspectorId: inspectorId.value,
       inspectedOn: inspectedOn.value,
+      decalSerial: decalSerial.value,
+      inspectionAgencyLocation: agency.value,
     });
     toast.success("Inspection started");
     emit("created", id);
@@ -140,6 +159,12 @@ async function save() {
           </FormField>
         </div>
       </section>
+
+      <InspectionHeaderFields
+        v-model:decal-serial="decalSerial"
+        v-model:agency="agency"
+        :carrier-name="carrierName"
+      />
     </form>
 
     <template #footer>

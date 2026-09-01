@@ -62,6 +62,11 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
 }));
 vi.mock("@/lib/api", () => ({ fetchObjectUrl: vi.fn(async () => "blob:x") }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
+// The page names the carrier on the in-house option of the "performed by" control, which is a real
+// vue-query hook — stubbed here rather than plumbing a QueryClient through a test about verdicts.
+vi.mock("@/composables/useOrgSettings", () => ({
+  useOrgSettingsQuery: () => ({ data: ref({ name: "Silvicom Inc" }) }),
+}));
 
 const AnnualInspectionFormPage = (await import("@/pages/AnnualInspectionFormPage.vue")).default;
 
@@ -241,5 +246,38 @@ describe("what the inspector is told about the pre-fill (D-AVI13)", () => {
     const before = mountPage(items()).text().match(/(\d+) part\(s\) still on the opening answer/)?.[1];
     const after = mountPage(touched).text().match(/(\d+) part\(s\) still on the opening answer/)?.[1];
     expect(Number(after)).toBe(Number(before) - 10);
+  });
+});
+
+describe("the header block the item rows do not carry", () => {
+  const stickerInput = (w: ReturnType<typeof mountPage>) => {
+    const label = w.findAll("label").find((l) => l.text().startsWith("Sticker number"))!;
+    return w.find(`#${label.attributes("for")}`);
+  };
+
+  it("lets a decal applied at the end of the job be recorded on the report itself", async () => {
+    // The drawer asks for it at the start because that is when the sticker is usually in hand — but
+    // a decal that goes on once the truck is back together would otherwise have nowhere to be typed,
+    // and the register's "Decal" column would keep reading "—" for a report that has one.
+    const w = mountPage(items());
+    await stickerInput(w).setValue("610685784");
+    expect(state.patch.mutate).toHaveBeenCalledWith({ decalSerial: "610685784" });
+  });
+
+  it("says so when a passing report has no sticker number", () => {
+    // Not a refusal — §396.21(a)'s six required contents do not include a decal, and whether a PASS
+    // should REQUIRE one is the owner's open question (plan §6 Q7). This is the half that can ship
+    // without deciding it: the office is told while the sticker is still to hand.
+    expect(mountPage(items(), { decal_serial: null }).text()).toContain("No sticker number recorded");
+  });
+
+  it("says nothing about the sticker once one is recorded", () => {
+    // The fixture carries 610641628 — the serial off the office's own tractor 654 report.
+    expect(mountPage(items()).text()).not.toContain("No sticker number recorded");
+  });
+
+  it("is read-only on a completed report, like every other control on it (D-AVI4)", () => {
+    const w = mountPage(items(), { status: "final", outcome: "pass", next_due_on: "2027-06-16" });
+    expect(stickerInput(w).attributes("disabled")).toBeDefined();
   });
 });

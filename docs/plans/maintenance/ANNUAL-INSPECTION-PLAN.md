@@ -1046,6 +1046,73 @@ and migrate the fifteen. **Recommendation: retire it** — `AppCombobox` already
 contract, the teleport at `z-popover` and the async path (HAZMAT-UX-PLAN §2.1), and two controls for
 one job is what D-AVI18 is about. Out of scope for this surface, which uses `ComboSelect` throughout.
 
+### B9 — the header the form has and the product could not fill — DONE 2026-08-31 (PR #TBD)
+
+The owner: *"in drawer for annual inspection we are missing options to select company and address and
+to put sticker number."* Three values the printed page carries, none of which had any UI:
+`decal_serial`, `inspection_agency_location`, and the choice between the two.
+
+**What the form actually asks, read off the artefacts rather than assumed.** `pdftotext -layout` on
+the blank template and on both filed samples:
+
+| Box on the form | Filed value (trailer 535968, 08/2026) | Where it comes from |
+| --- | --- | --- |
+| REPORT NUMBER | `610685784` | the §396.17(c)(2) decal — **no UI existed** |
+| FLEET UNIT NUMBER | `535968` | derived from the roster |
+| MOTOR CARRIER OPERATOR / ADDRESS / CITY, STATE, ZIP | `SILVICOM INC` / `1301 ARMITAGE AVE` / `MELROSE PARK IL , 60160` | `organizations`, edited at `/settings/org`; finalize refuses without it |
+| INSPECTOR'S NAME | `GEORGE GACEV` | the register |
+| VEHICLE IDENTIFICATION ✓ VIN | `1JJV532B4HL005968` | derived from the roster |
+| INSPECTION AGENCY/LOCATION (OPTIONAL) | *blank* | **no UI existed** |
+
+Two things that settles, before any design:
+
+1. **There is nothing to "select" for the carrier.** `select … from organizations` in production
+   returns one real carrier (Silvicom Inc, complete) and one QA org. The MOTOR CARRIER block is
+   derived and already enforced. So the ask is the AGENCY line — the shop that did the work.
+2. **The agency line is optional on the form and the office leaves it blank**, correctly: their own
+   technician does the inspection and the carrier block above it already names the company. So
+   "our own technician" is the default and prints nothing; the company/location fields appear only
+   for the case Q4 kept open — a dealer or shop doing one.
+
+**D-AVI20 — the decal serial is asked for at the start AND editable on the report.** It is on CREATE
+because that is when it is legible: the inspector is holding the report set the sticker came in. It
+is on the report page because a decal often goes on once the truck is back together. One component
+(`InspectionHeaderFields`) mounted twice, not two editors — the failure mode `lint:capabilities` was
+written for is a field acquiring a second editor with a different amount of honesty.
+
+**D-AVI21 — a duplicate decal serial is a 409 that names the mistake, not a 500.** 0280 has
+`unique (org_id, decal_serial) where decal_serial is not null` and nothing translated it, so the
+first mistyped digit would have been a bare server error — the reading under which somebody decides
+the field is broken and stops filling it. It now says: *"That decal serial is already on another
+inspection. One decal belongs to one inspection, so check the sticker against the report that
+already carries the number."* That is the integrity rule 0281 describes, said to the person holding
+the sticker: a repeat is either a transcription slip or a decal peeled onto a second truck, and the
+second puts a vehicle on the road wearing proof of an inspection it never had.
+
+**The agency cell was measured before the fields were designed.** 158 pt wide, stamped at 8 pt, the
+renderer shrinking to a 5.5 pt floor. Against pdf-lib's Helvetica:
+
+| Value | Chars | Settles at | Result |
+| --- | --- | --- | --- |
+| `PETERBILT OF CHICAGO, MELROSE PARK IL` | 37 | 7.25 pt | fits |
+| `PETERBILT OF CHICAGO, 1301 ARMITAGE AVE MELROSE PARK IL 60160` | 61 | 5.50 pt (floor) | **189 pt — overflows** |
+
+About **47 characters** is the ceiling. So the second field is labelled *Location* and asks for a
+city and state — which is what a form saying AGENCY/**LOCATION** wants anyway — and the hint carries
+a live count once the line is over budget. A hint and not an `error`: the renderer shrinks rather
+than refusing, so red would claim a refusal that never comes. Both boundaries are pinned in
+`render/layout.test.ts`, which had never asserted this cell because nothing could write it.
+
+**One stored line, two boxes.** The column is one field because the form is one cell; the office
+asked for company and address separately. The split is a presentation — joined with `", "`, split
+back on the first comma — and the round trip is what the component's test is mostly about, because
+a split that cannot rebuild what it wrote loses an office's typing on reload.
+
+**Q7 is still the owner's**, and this ships only the half that does not decide it: a passing draft
+with no sticker number says so on the page, where the sticker is still to hand. It does not block
+finalize. The question remains whether the decal always goes on before the truck moves — if it does,
+a PASS should be refused without one and this warning becomes a refusal.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was

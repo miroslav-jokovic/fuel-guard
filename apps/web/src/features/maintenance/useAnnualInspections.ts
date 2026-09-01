@@ -239,6 +239,9 @@ export interface NewInspection {
   subjectId: string;
   inspectorId: string;
   inspectedOn: string;
+  /** Both optional, both on the printed page — see `InspectionHeaderFields` for why they are asked here. */
+  decalSerial?: string | null;
+  inspectionAgencyLocation?: string | null;
 }
 
 /**

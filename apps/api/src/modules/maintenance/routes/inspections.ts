@@ -19,9 +19,9 @@ import {
   createInspectionDraft,
   discardDraft,
   getInspection,
-  listInspections,
   patchInspection,
 } from "../inspections/inspections.js";
+import { listInspections } from "../inspections/inspectionList.js";
 import { inspectorFor } from "../inspections/inspectors.js";
 import { finalizeInspection } from "../inspections/finalize.js";
 import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../inspections/reportDelivery.js";
@@ -135,7 +135,9 @@ export function inspectionsRouter(): Router {
 
       const result = await createInspectionDraft(admin, orgId, req.auth!.userId, body);
       if ("code" in result) {
-        res.status(500).json(apiError(result.code, result.error));
+        // A reused decal serial is the office's mistake to fix, not a server fault — 409 with the
+        // sentence naming what to check (0280's unique index; plan §6 Q1).
+        res.status(result.code === "duplicate_decal" ? 409 : 500).json(apiError(result.code, result.error));
         return;
       }
       if (!result.replayed) {
@@ -169,7 +171,8 @@ export function inspectionsRouter(): Router {
       const id = String(req.params.id ?? "");
       const result = await patchInspection(admin, orgId, id, res.locals.body as InspectionPatchRequest);
       if ("code" in result) {
-        const status = result.code === "not_found" ? 404 : result.code === "already_final" ? 409 : 500;
+        const status =
+          result.code === "not_found" ? 404 : result.code === "already_final" || result.code === "duplicate_decal" ? 409 : 500;
         res.status(status).json(apiError(result.code, result.error));
         return;
       }
