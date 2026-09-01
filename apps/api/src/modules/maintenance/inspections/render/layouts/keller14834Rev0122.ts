@@ -187,16 +187,128 @@ export function mappedItemKeys(): string[] {
  * — simpler, and one fewer pdf-lib behaviour to depend on.
  */
 export const HEADER_CELLS = {
-  decalSerial: { x: 389.2, y: 125.8, maxWidth: 96 },
-  fleetUnitNumber: { x: 519.7, y: 125.8, maxWidth: 82 },
-  inspectedOn: { x: 447.2, y: 144.7, maxWidth: 100 },
+  decalSerial: { x: 385.7, y: 125.1, maxWidth: 96 },
+  fleetUnitNumber: { x: 515.5, y: 125.7, maxWidth: 82 },
+  inspectedOn: { x: 448.2, y: 146.0, maxWidth: 100 },
   inspectorName: { x: 440.7, y: 175.8, maxWidth: 160 },
   carrierName: { x: 24.3, y: 174.1, maxWidth: 300 },
   carrierAddress: { x: 24.3, y: 198.6, maxWidth: 300 },
   carrierCityStateZip: { x: 23.3, y: 222.5, maxWidth: 300 },
-  vehicleIdentificationValue: { x: 324.0, y: 221.9, maxWidth: 180 },
+  vehicleIdentificationValue: { x: 331.6, y: 222.5, maxWidth: 180 },
   inspectionAgencyLocation: { x: 447.0, y: 233.0, maxWidth: 158 },
 } as const satisfies Record<string, Cell>;
+
+/**
+ * ── FOUR OF THESE MOVED 2026-08-31, AND THE REASON IS WHICH SAMPLE THEY CAME FROM ──────────────
+ * The map was measured against `654 6-26`, which the owner later found to be a damaged export. The
+ * carrier block matched the office's own filled trailer report (`535968 8-26`) to two decimal places
+ * — 24.29/174.07, 24.29/198.55, 23.29/222.53 — but four cells did not, because they had been
+ * inferred from artwork rather than read off a filled page:
+ *
+ * | cell | was | is | drift |
+ * | --- | --- | --- | --- |
+ * | decalSerial | 389.2, 125.8 | 385.7, 125.1 | 3.5 pt right, 0.7 low |
+ * | fleetUnitNumber | 519.7, 125.8 | 515.5, 125.7 | 4.2 pt right |
+ * | inspectedOn | 447.2, 144.7 | 448.2, 146.0 | 1.0 left, 1.3 high |
+ * | vehicleIdentificationValue | 324.0, 221.9 | 331.6, 222.5 | 7.6 pt left |
+ *
+ * The two files were confirmed to share a coordinate system before anything moved: the "VEHICLE
+ * COMPONENTS INSPECTED" bar renders at exactly y 252.96–264.72, x 18.00–593.76 in both at 300 dpi.
+ */
+
+/**
+ * The per-field type sizes, measured off the office's own filled report rather than chosen.
+ *
+ * Everything used to print at one size — 10 pt — which is why the top of the page read as small and
+ * thin next to the form's own artwork. What the office actually types (`535968 8-26`):
+ *
+ *   · the carrier block is **Helvetica-Bold at 12.085 pt**, read straight out of the AcroForm field's
+ *     appearance stream (`/HeBo 12.085 Tf`) — so bold is not a preference here, it is what the page
+ *     has always carried;
+ *   · the top-right block is far bigger than the rest: the decal serial and the fleet unit number
+ *     both advance 9.00 pt per digit, which for Helvetica's 0.556 em digit is **16.2 pt**, and
+ *     "GEORGE" measures 72.74 pt across six caps summing 4.39 em, which is **16.6 pt**;
+ *   · the date advances 39.01 pt over 3.614 em, which is **10.8 pt**;
+ *   · the VIN is the one value the office prints SMALL — 75.32 pt over 9.788 em, about **7.7 pt** —
+ *     because seventeen characters have to sit inside the identification box.
+ *
+ * Rounded to the nearest half point. `fit()` still shrinks anything that would overrun its cell, so
+ * these are opening sizes and not promises.
+ */
+export const HEADER_SIZES = {
+  decalSerial: 16,
+  fleetUnitNumber: 16,
+  inspectedOn: 11,
+  inspectorName: 16,
+  carrierName: 12,
+  carrierAddress: 12,
+  carrierCityStateZip: 12,
+  vehicleIdentificationValue: 9,
+  inspectionAgencyLocation: 8,
+} as const satisfies Record<keyof typeof HEADER_CELLS, number>;
+
+/**
+ * The sixteen section headings — which Keller's PDF draws in WHITE and we therefore have to draw
+ * ourselves (D-AVI22).
+ *
+ * ── THE FORM IS NOT MISSING THEM; IT IS KNOCKING THEM OUT ──────────────────────────────────────
+ * Reported as "we are missing section titles in template, we have items but no section titles", and
+ * the first guess — that the Illustrator round trip dropped them — was wrong in an instructive way.
+ * The text is present in both our blank and the carrier's own good form, drawn at `0 0 0 0 scn`
+ * (CMYK zero ink) over a 0.48 pt red rule. Measured at 300 dpi: fifteen rules, each spanning one
+ * printed column, each with the heading knocked out of it as white-on-colour.
+ *
+ * That is a design for PRE-PRINTED STOCK. The pad Keller ships already carries the coloured heading
+ * bands; the PDF is meant to be filled and printed onto it, so it leaves them as a knockout and the
+ * ink is never laid down. Print that PDF on plain paper and the headings are white on white — which
+ * is exactly what the office was looking at, and it is equally true of the carrier's own untouched
+ * file. `1. BRAKE SYSTEM` was additionally absent from the damaged `654` export, which is what made
+ * the fault look like a template problem rather than a printing one.
+ *
+ * So the renderer supplies them, and only on the PLAIN-PAPER path — `background: "template"`. The
+ * overlay path prints onto a real Keller pad that already has them, and drawing them there would
+ * double-print every heading (D-AVI8).
+ *
+ * `y` is the text baseline, top-down, as everywhere else in this file; `rule` is the red hairline's
+ * centre, which the heading is knocked out of. Both are measured: the rule centres by scanning the
+ * carrier's filled report at 300 dpi for red runs, the baselines from the `Tm` operators that place
+ * the white text (twelve of sixteen read directly, the remaining four sitting at their rule + 3.16
+ * pt, which is the offset the other twelve all share).
+ */
+export interface HeadingCell {
+  readonly number: number;
+  readonly x: number;
+  readonly y: number;
+  readonly rule: number;
+}
+export const GROUP_HEADINGS: readonly HeadingCell[] = [
+  { number: 1, x: 78, y: 286.29, rule: 283.08 },
+  { number: 2, x: 78, y: 471.3, rule: 468.12 },
+  { number: 3, x: 78, y: 558.3, rule: 555.24 },
+  { number: 4, x: 78, y: 681.3, rule: 678.12 },
+  { number: 5, x: 78, y: 741.28, rule: 738.12 },
+  { number: 6, x: 270, y: 286.29, rule: 283.08 },
+  { number: 7, x: 270, y: 370.27, rule: 367.08 },
+  { number: 8, x: 270, y: 525.28, rule: 522.12 },
+  { number: 9, x: 270, y: 589.36, rule: 586.2 },
+  { number: 10, x: 270, y: 662.32, rule: 659.16 },
+  { number: 11, x: 270, y: 713.27, rule: 710.16 },
+  { number: 12, x: 459, y: 286.29, rule: 283.08 },
+  { number: 13, x: 459, y: 332.28, rule: 329.16 },
+  { number: 14, x: 459, y: 368.27, rule: 365.16 },
+  { number: 15, x: 459, y: 404.26, rule: 401.16 },
+  { number: 16, x: 459, y: 451.36, rule: 448.2 },
+] as const;
+
+/**
+ * Group 16 is the form's own "OTHER" box and has no catalogue entry — `INSPECTION_GROUPS` stops at
+ * 15 because the first fifteen are Appendix A's component groups and the sixteenth is a free-text
+ * field. The heading still has to print, so its title lives here, with the form it belongs to.
+ */
+export const OTHER_GROUP_TITLE = "Other";
+
+/** Keller sets the headings at 8.64 pt — derived from four of them independently, all agreeing. */
+export const HEADING_SIZE = 8.64;
 
 /**
  * The tick boxes, each a small `X` at the box's own position from the sample.

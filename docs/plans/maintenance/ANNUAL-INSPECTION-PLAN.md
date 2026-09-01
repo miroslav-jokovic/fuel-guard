@@ -1113,6 +1113,82 @@ with no sticker number says so on the page, where the sticker is still to hand. 
 finalize. The question remains whether the decal always goes on before the truck moves — if it does,
 a PASS should be refused without one and this warning becomes a refusal.
 
+### B10 — the print itself: headings, ink, type and alignment — DONE 2026-08-31 (PR #TBD)
+
+Four reports from the owner against a rendered page (`183-sold.pdf`), plus one correction to a
+premise this plan has leaned on since A5: *"this original I have provided was broken from start and
+i didnt noticed."*
+
+**D-AVI22 — the section headings are Keller's knockout, and we have to draw them ourselves.**
+
+The first read was that the Illustrator round trip dropped them. It did not, and the difference
+matters. In BOTH our blank and the carrier's own untouched report, all sixteen headings are painted
+at `0 0 0 0 scn` — zero ink — over a **0.48 pt** red hairline. Measured at 300 dpi: fifteen
+hairlines, one per printed column-section, each with its heading knocked out of it.
+
+**That is a design for pre-printed stock.** The pad Keller ships already carries the coloured heading
+bands; the PDF is meant to be filled and printed ONTO it, so the ink is deliberately never laid
+down. Print it on plain paper — which is what "Plain paper — the whole form" does — and the office
+gets a table of items with nothing naming the sections. The carrier's own good report behaves
+identically, so this was never a template defect.
+
+So the renderer draws all sixteen, in black, knocked into the hairline, **only when
+`background: "template"`**. The overlay path lands on a real pad that already has them, and drawing
+them there would print every heading twice (D-AVI8). They come from `INSPECTION_GROUPS`, not from a
+list of strings, so a heading cannot go missing or disagree with the items under it.
+
+`1. BRAKE SYSTEM` *was* additionally absent from the `654` export — genuinely, not knocked out —
+which is what made the fault look like a template problem. That is now moot and is recorded in
+`assets/SOURCE.md`, along with the missing `OK` column header (cosmetic, not restored).
+
+**D-AVI23 — the header prints at the sizes and weight the office's own reports carry.** Everything
+was one regular 10 pt, which is why the top of the page read thin next to Keller's artwork. Measured
+off `535968 8-26`:
+
+| Field | Measured | Now |
+| --- | --- | --- |
+| carrier name / address / city-state-zip | `/HeBo 12.085 Tf` — **Helvetica-Bold 12**, read out of the AcroForm appearance stream | 12, bold |
+| decal serial, fleet unit number | 9.00 pt of advance per digit ÷ Helvetica's 0.556 em = **16.2 pt** | 16, bold |
+| inspector name | "GEORGE" 72.74 pt over 4.39 em = **16.6 pt** | 16, bold |
+| date | 39.01 pt over 3.614 em = **10.8 pt** | 11, bold |
+| VIN | 75.32 pt over 9.788 em = **7.7 pt** — the one value the office prints small, because seventeen characters must fit the box | 9, bold |
+
+Bold is not a preference: the carrier block's own appearance stream names Helvetica-Bold.
+
+**D-AVI24 — the draft preview stamps in black, like the filing.** It stamped
+`rgb(0.72, 0.11, 0.11)`, and the office reasonably read that as the product printing in red. It was
+a second signal nobody needed — the page already carries `DRAFT - NOT A CERTIFIED INSPECTION` across
+the middle of it, which says the thing in words. What the red cost was the preview's whole job:
+D-AVI14 exists so the office can see what will print before certifying, and a preview whose ink is a
+different colour from the filing is not showing them that. The ink is also now pure black rather
+than the 0.1 grey it was — this is a record that gets photocopied at a roadside.
+
+**Alignment: four cells moved, and the reason is which sample they came from.** The map was measured
+against the damaged `654`. The carrier block matched the office's filled report to two decimals
+(24.29/174.07, 24.29/198.55, 23.29/222.53) — but four cells had been inferred from artwork rather
+than read off a filled page:
+
+| cell | was | is | drift |
+| --- | --- | --- | --- |
+| decalSerial | 389.2, 125.8 | 385.7, 125.1 | 3.5 pt right, 0.7 low |
+| fleetUnitNumber | 519.7, 125.8 | 515.5, 125.7 | 4.2 pt right |
+| inspectedOn | 447.2, 144.7 | 448.2, 146.0 | 1.0 left, 1.3 high |
+| vehicleIdentificationValue | 324.0, 221.9 | 331.6, 222.5 | 7.6 pt left |
+
+The two files were confirmed to share a coordinate system before anything moved: the "VEHICLE
+COMPONENTS INSPECTED" bar renders at exactly y 252.96–264.72, x 18.00–593.76 in both at 300 dpi.
+
+**The item marks were measured and deliberately left alone.** Ours sit at x 18.8 / 210.6 / 402.6
+against the office's 19.2 / 211.2 / 403.7 — 0.4 to 1.1 pt — and the baselines match exactly
+(299.56 = 299.56). Ours were derived from the ruled boxes scanned at 300 dpi, which is a better
+origin than where a person happened to click in a form field. Moving them would be churn.
+
+**How this was found, since it is a lesson about the tests.** Nothing here was visible to any
+existing test: `report.test.ts` asserted the PDF was over 100 kB and deterministic, which a page of
+white-on-white headings satisfies perfectly. The new assertions read what was PAINTED — inflating
+pdf-lib's deflated content streams and decoding its hex strings — so "the heading is on the page",
+"it is not on the overlay" and "the draft ink is black" are now properties rather than intentions.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was
