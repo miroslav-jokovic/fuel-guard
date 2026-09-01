@@ -56,6 +56,24 @@ const report = computed(() => data.value?.inspection ?? null);
 const items = computed(() => data.value?.items ?? []);
 const isFinal = computed(() => report.value?.status === "final");
 
+/**
+ * The filed page and the preview are two different drawings.
+ *
+ * A completed report serves the BYTES IT WAS FILED WITH and is never re-rendered — that is what
+ * keeps it reproducible against its own hash, and it is not going to change. The consequence is that
+ * once the form's drawing moves, the preview button and the print button on the same completed
+ * report hand out visibly different pages. The office met this as "the preview has the section names
+ * and the print does not", with nothing on screen to explain it.
+ *
+ * So the screen explains it. Null `renderer_version` means the report was filed before 0284 recorded
+ * one, which is older than any version we could name rather than equal to the current one.
+ */
+const filedDrawingIsStale = computed(() => {
+  if (!isFinal.value || !report.value) return false;
+  const current = data.value?.currentRendererVersion;
+  return !!current && report.value.renderer_version !== current;
+});
+
 const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
 
 /** The report's own verdict, from the shared function. Never typed, never stored while draft. */
@@ -232,6 +250,16 @@ async function openPdf(kind: "report" | "preview") {
             sticker is what an officer reads off the vehicle.
           </template>
         </span>
+      </AppCallout>
+
+      <!-- Not a toast: this is a standing condition of the report rather than feedback on an action,
+           and it has to be readable at the moment somebody is choosing between the two buttons
+           underneath it. -->
+      <AppCallout v-if="filedDrawingIsStale" tone="caution">
+        This report was filed on an earlier version of the printed form, so <strong>Print</strong>
+        and <strong>Preview the printed page</strong> will not look the same. The filed copy is the
+        evidence and is served exactly as it was certified — it is not re-drawn. To put the current
+        form on paper, record a correction, which files a new report.
       </AppCallout>
 
       <div class="flex flex-wrap items-center gap-2">

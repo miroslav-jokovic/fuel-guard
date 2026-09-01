@@ -32,7 +32,7 @@ export const REPORT_COLUMNS =
   "id, org_id, subject_type, subject_id, inspector_id, inspected_on, catalogue_version, " +
   "vehicle_identification_method, vehicle_identification_value, inspection_agency_location, " +
   "decal_serial, other_conditions, status, outcome, next_due_on, supersedes_id, certification_id, " +
-  "document_id, finalized_at, created_at";
+  "document_id, finalized_at, renderer_version, template_revision, created_at";
 
 /** Shared with `inspectionList.ts` — one shape for the table, read from two places. */
 export interface ReportRow {

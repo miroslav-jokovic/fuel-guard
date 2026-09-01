@@ -1189,6 +1189,88 @@ white-on-white headings satisfies perfectly. The new assertions read what was PA
 pdf-lib's deflated content streams and decoding its hex strings — so "the heading is on the page",
 "it is not on the overlay" and "the draft ink is black" are now properties rather than intentions.
 
+### B11 — the template audit: what the export lost, and what a preview is allowed to differ from — DONE 2026-09-01
+
+Reported by the owner against a filled sample of the office's own good form: *"when we print we
+don't have this section names, also section names are not correct as on original… when i try to edit
+it in PDF it is removing this sections."*
+
+**D-AVI25 — B10's diagnosis was wrong, and the way it was wrong is the finding.**
+
+D-AVI22 said the sixteen headings are knocked out at `0 0 0 0 scn` over a 0.48 pt red hairline
+because Keller's pad is pre-printed. Read at the operator level on 2026-09-01, the blank contains:
+
+- **no `scn` operator at all**, and no CMYK — the page paints in `rg`/`RG` only, in four colours;
+- **no red rule at any heading row** — the only red strokes left are the four legend blanks;
+- fifteen heading strings painted `1 1 1 rg`: white on nothing.
+
+The 300 dpi scan that "measured fifteen hairlines" had measured the **bands' vertical centres** and
+called them hairlines. Every `rule` value in `GROUP_HEADINGS` was within 0.16 pt of a band centre —
+the numbers were right and the story around them was not.
+
+So the export **dropped artwork**. Four things, all of them ink the office's filed reports carry:
+
+| lost | what survives, and how the replacement is measured |
+| --- | --- |
+| the sixteen coloured section bands | each band's own pair of full-group-width rules, exactly **12.00 pt** apart, sixteen pairs. Independently corroborated: the surviving "VEHICLE COMPONENTS INSPECTED" bar is drawn as a **12 pt stroked line** in the same red |
+| `1. BRAKE SYSTEM`, absent from the file entirely | nothing — which is why all sixteen now come from `INSPECTION_GROUPS` rather than from the page |
+| the `OK` column heading, all three groups | ink measures **10.50 pt** wide on the filed report, which is Helvetica-**Bold** at exactly 7 pt (regular is 10.12 and does not fit), on `ITEM`'s own baseline |
+| the ✓ in `VEHICLE IDENTIFICATION (✓ AND COMPLETE)`, and the ✓ / X / NA on the INSTRUCTIONS legend | the sentence and the four red blanks. The legend marks are centred on their own rule to within 0.2 pt; the fourth blank carries no mark on the original and gets none here |
+
+Band geometry is derived rather than restated: `y = bandCentre + 3.26` reproduces all sixteen of
+Keller's own baselines to within 0.06 pt, so band and type are provably concentric. The number-to-
+title tab is Keller's own operator — `1.389 0 Td` for a one-digit number, `1.735 0 Td` for two, at
+8.64 pt — which is why `1.  BRAKE SYSTEM` carries a wide gap and `16. OTHER` does not. A band is
+also **framed**, not just filled: its two horizontal rules and the group's two boundary verticals
+survive across it on the original while the internal column rules stop at it, so the fill redraws
+that frame.
+
+**What stops the next wrong belief.** `TEMPLATE_SUPPLIES` declares what the asset carries and
+`render/assets.test.ts` reads the PDF to prove the declaration. A clean export flips five flags and
+the renderer stops drawing what the page already has, instead of double-printing it. The old
+diagnosis survived a fortnight because nothing could contradict it.
+
+**D-AVI26 — three tick boxes were printing on top of the labels they were meant to tick.**
+
+`layout.test.ts` asserted only that no two tick boxes shared a position, which every wrong answer
+also satisfies. The page draws its nine boxes as plain `re` operators, so they can simply be read:
+
+| box | artwork | was | drift |
+| --- | --- | --- | --- |
+| LIC. PLATE NO. | 451.75, 638.302 | 470.0 | **18.3 pt right — struck out "LIC."** |
+| OTHER | 552.75, 638.302 | 574.0 | **21.3 pt right — struck out "OTHER"** |
+| TRAILER | 123.25, 614.302 | 128.0 | **4.8 pt right — struck out "TRAILER"** |
+| §396.19 YES, VIN, TRACTOR | — | — | within a point, but all 1.5 pt low |
+
+So a plate- or other-identified report printed its only vehicle-ID mark across a printed label with
+all three boxes left empty, and **every trailer report** struck out the word TRAILER. All 46 trailers
+in the fleet inspect on this form (D-AVI12). The 1.5 pt drop was `baselineOf`'s descender correction,
+which is right for text cells measured with `pdftotext` and wrong for artwork read off `re` operators
+— so tick boxes no longer go through it, and the X is centred in the box's own rectangle.
+
+**D-AVI27 — a filing and a preview may differ, and the row now says which drawing made it.**
+
+This is what the owner actually met. A final report serves its **stored bytes** and is never
+re-rendered (§390.32(c), `documents.sha256`) — that rule is right and stays. What was missing is that
+nothing recorded which renderer drew them, and `RENDERER_VERSION` was not bumped when B10 changed the
+drawing. So `renderDigest` went on asserting that a report filed before the change and a preview
+drawn after it came from "the same renderer". They did not look alike.
+
+The single report filed in production (2026-09-01 04:01 UTC) predates B10's merge by thirty minutes.
+It is the page the owner printed.
+
+- `RENDERER_VERSION` → **2.0.0**, and the rule is written next to it: bump when the drawing moves.
+- Migration **0284** records `renderer_version` and `template_revision` on the report row at
+  finalize. NULL is left as NULL rather than backfilled with a guess — it means "filed before we
+  wrote this down", which is older than any version we could name.
+- The detail route answers with `currentRendererVersion`, and the form shows a caution on a report
+  whose filing predates it: the filed copy is the evidence and is served as certified; putting the
+  current form on paper means recording a correction. The version rides on the response rather than
+  being copied into the client, so there is no second source of truth to go stale.
+
+**Not done, deliberately:** the one stale filing was not re-filed. Superseding it is the office's
+call under A9's correction path, not a migration's.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was

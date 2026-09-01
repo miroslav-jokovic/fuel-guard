@@ -11,7 +11,8 @@ import {
 import { fileGeneratedDocument, insertCertification } from "../../evidence/index.js";
 import { getEquipmentIdentity, recordEquipmentInspectionExpiry } from "../../roster/index.js";
 import { carrierCityStateZip, getCarrierIdentity } from "../../org/index.js";
-import { renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
+import { RENDERER_VERSION, renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
+import { TEMPLATE_REVISION } from "./render/layouts/keller14834Rev0122.js";
 import { getInspection } from "./inspections.js";
 import { inspectorFor } from "./inspectors.js";
 import type { ServiceError } from "./inspectors.js";
@@ -229,6 +230,12 @@ export async function finalizeInspection(
       certification_id: certification.id,
       finalized_at: new Date().toISOString(),
       finalized_by: finalizedBy,
+      // These two ARE stamped at finalize, and the difference from `catalogue_version` below is the
+      // whole point: they describe the BYTES that were just filed, which is a fact about this moment
+      // rather than about the draft. Without them a filing and a preview of the same report can look
+      // like different documents with nothing anywhere saying why — see 0284.
+      renderer_version: RENDERER_VERSION,
+      template_revision: TEMPLATE_REVISION,
       // `catalogue_version` is DELIBERATELY not written here. It is pinned when the draft is created
       // and describes the checklist the inspector actually worked down; stamping the current version
       // at finalize would make a report claim a checklist it was never taken under, which is the one

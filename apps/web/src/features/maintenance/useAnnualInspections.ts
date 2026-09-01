@@ -39,6 +39,27 @@ export interface InspectionDetail extends InspectionSummary {
   inspection_agency_location: string | null;
   other_conditions: string | null;
   catalogue_version: string;
+  /**
+   * Which drawing produced the filed bytes (0284). Null on anything filed before that migration —
+   * which is not "current", it is "unknown and older", and the form treats it so. Compared against
+   * `currentRendererVersion` on the same response rather than a constant on this side: a copy of the
+   * server's version here would be a second source of truth that goes stale the next time it moves.
+   */
+  renderer_version: string | null;
+  template_revision: string | null;
+}
+
+/**
+ * What the detail route answers with.
+ *
+ * `currentRendererVersion` is the drawing the API would produce IF the page were rendered now. It
+ * rides along with the report rather than living in a constant on this side, so the form can tell a
+ * filing drawn by an older renderer from one that matches — see 0284 and D-AVI14.
+ */
+export interface InspectionResponse {
+  inspection: InspectionDetail;
+  items: InspectionItemDto[];
+  currentRendererVersion: string;
 }
 
 export interface Inspector {
@@ -88,8 +109,8 @@ export function useInspectionQuery(id: Ref<string>) {
   return useQuery({
     queryKey: ["maintenance", "inspection", id] as const,
     enabled: computed(() => Boolean(id.value)),
-    queryFn: async (): Promise<{ inspection: InspectionDetail; items: InspectionItemDto[] }> => {
-      const r = await apiFetch<{ inspection: InspectionDetail; items: InspectionItemDto[] }>(
+    queryFn: async (): Promise<InspectionResponse> => {
+      const r = await apiFetch<InspectionResponse>(
         `/api/maintenance/inspections/${id.value}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the inspection");
@@ -184,7 +205,7 @@ export function usePatchInspection(id: Ref<string>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: PatchPayload) => {
-      const r = await apiFetch<{ inspection: InspectionDetail; items: InspectionItemDto[] }>(
+      const r = await apiFetch<InspectionResponse>(
         `/api/maintenance/inspections/${id.value}`,
         { method: "PATCH", body: payload },
       );

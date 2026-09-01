@@ -82,21 +82,39 @@ describe("rendering onto the Keller template", () => {
     );
   };
 
-  it("prints the section headings on plain paper, because Keller's own page knocks them out", async () => {
-    // D-AVI22: the form draws them at zero ink over a hairline for a pre-printed pad. Print that on
-    // plain paper and the office gets a table of items with nothing naming the sections — which is
-    // exactly what was reported.
-    const pdf = await renderInspectionReport(BASE);
-    for (const heading of ["1. BRAKE SYSTEM", "11. WHEELS AND RIMS", "16. OTHER"]) {
-      expect(painted(pdf), heading).toContain(heading);
+  it("prints all sixteen section headings on plain paper, which the template no longer carries", async () => {
+    // D-AVI22, remeasured: the export dropped the coloured bands and left fifteen white heading
+    // strings on white paper, with `1. BRAKE SYSTEM` gone altogether. Print that and the office gets
+    // a table of items with nothing naming the sections — which is exactly what was reported.
+    //
+    // Number and title are two draw calls (Keller sets a fixed tab between them), so each title is
+    // checked on its own rather than as one string.
+    const pdf = painted(await renderInspectionReport(BASE));
+    for (const title of ["BRAKE SYSTEM", "WHEELS AND RIMS", "OTHER", "REAR IMPACT GUARD"]) {
+      expect(pdf, title).toContain(title);
     }
   });
 
-  it("does NOT print them onto a pre-printed pad, which already carries them", async () => {
-    // The overlay lands on a real Keller pad. Drawing the headings there would print each one on
-    // top of the one already on the paper (D-AVI8).
-    const overlay = await renderInspectionReport(BASE, { background: "none" });
-    expect(painted(overlay)).not.toContain("1. BRAKE SYSTEM");
+  it("knocks the headings out of a Keller-red band, not black onto white", async () => {
+    // The page the office files is white-on-colour. A black heading on a white gap is legible and is
+    // still the wrong document; this is the assertion that would have caught that.
+    const pdf = painted(await renderInspectionReport(BASE));
+    expect(pdf, "Keller red band").toContain("0.933 0.212 0.251 rg");
+    expect(pdf, "white knockout text").toContain("1 1 1 rg");
+  });
+
+  it("restores the OK column heading and the legend marks the export lost", async () => {
+    const pdf = painted(await renderInspectionReport(BASE));
+    expect(pdf).toContain("OK");
+    expect(pdf).toContain("NA");
+  });
+
+  it("does NOT print any of it onto a pre-printed pad, which already carries it", async () => {
+    // The overlay lands on a real Keller pad. Drawing the artwork there would print every band and
+    // heading on top of the one already on the paper (D-AVI8).
+    const overlay = painted(await renderInspectionReport(BASE, { background: "none" }));
+    expect(overlay).not.toContain("BRAKE SYSTEM");
+    expect(overlay, "no Keller-red band on the overlay").not.toContain("0.933 0.212 0.251 rg");
   });
 
   it("stamps every value in black, on the draft as well as the filing", async () => {

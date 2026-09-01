@@ -26,6 +26,7 @@ import { inspectorFor } from "../inspections/inspectors.js";
 import { finalizeInspection } from "../inspections/finalize.js";
 import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../inspections/reportDelivery.js";
 import { renderRegistrationSheet } from "../inspections/render/registrationSheet.js";
+import { RENDERER_VERSION } from "../inspections/render/report.js";
 import { getPrintProfile } from "../inspections/printProfiles.js";
 
 /**
@@ -96,7 +97,17 @@ export function inspectionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Inspection not found"));
         return;
       }
-      res.json({ ok: true, inspection: result.report, items: result.items });
+      // `currentRendererVersion` is what the API would DRAW today. A final report serves its stored
+      // bytes and is never re-rendered, so a filing drawn under an older renderer is a different page
+      // from the preview beside it — which is what the office reported. Sending the current version
+      // with the report is what lets the form say so, without the client keeping its own copy of it
+      // (0284, D-AVI14).
+      res.json({
+        ok: true,
+        inspection: result.report,
+        items: result.items,
+        currentRendererVersion: RENDERER_VERSION,
+      });
     }),
   );
 
@@ -183,7 +194,7 @@ export function inspectionsRouter(): Router {
         res.status(500).json(apiError("db_error", "Saved, but could not re-read the inspection."));
         return;
       }
-      res.json({ ok: true, inspection: after.report, items: after.items });
+      res.json({ ok: true, inspection: after.report, items: after.items, currentRendererVersion: RENDERER_VERSION });
     }),
   );
 

@@ -8,32 +8,53 @@ inspection values onto.
 | Provenance | The carrier's own purchased form, opened in Adobe Illustrator 30.7 by the owner and saved with every filled value removed, 2026-08-31 |
 | Page box | 612 × 846 pt (8.5 × 11.75 in), MediaBox = CropBox, rotation 0 |
 | AcroForm | **none** — the original's three text fields (carrier / address / city-state-zip) did not survive the Illustrator round trip, so the renderer stamps that block as text like every other field |
+| Structure | one page, one content stream (~17 KB inflated), **no XObjects**, three Type 1 subsets (HelveticaLTPro-Bold, HelveticaLTPro-Roman, MyriadPro-Regular) |
 | Verified | Max drift **0.009 pt** across 26 artwork anchors compared against the original filled sample, 2026-08-31. The coordinate map derived from that sample therefore transfers unchanged |
 
-## Two things this file does NOT carry, and one of them is Keller's doing
+## This file is DAMAGED, and the first diagnosis of how was wrong
 
-**The section headings are drawn in zero ink.** All sixteen — `1. BRAKE SYSTEM` and its siblings —
-are painted at `0 0 0 0 scn` over a 0.48 pt red hairline, so they are white on white on plain paper.
-That is not damage: the carrier's own untouched report (`535968 8-26`) does exactly the same, because
-the pad Keller ships is pre-printed with the coloured heading band and the PDF is designed to be
-filled and printed ONTO it. Confirmed by scanning both files at 300 dpi — fifteen hairlines, one per
-printed column-section, each with the heading knocked out of it.
+An earlier version of this note said the section headings were "painted at `0 0 0 0 scn` over a
+0.48 pt red hairline", designed to be printed onto the pre-printed pad Keller ships. That reading was
+wrong, and it is worth recording why, because a whole decision (D-AVI22) and a fortnight of output
+were built on it: nothing could contradict it. The page was never read, only reasoned about.
 
-The renderer therefore draws the headings itself, in black, and **only on the plain-paper path**
-(`background: "template"`). The overlay path prints onto a real pad that already has them. See
-D-AVI22 and `GROUP_HEADINGS` in `../layouts/keller14834Rev0122.ts`.
+Read at the operator level on 2026-09-01:
 
-**`1. BRAKE SYSTEM` is missing from this file entirely** — not merely knocked out, absent. It exists
-in the carrier's good report and did not survive the Illustrator round trip that produced this
-blank. It costs nothing now that the renderer supplies all sixteen from the catalogue, and it is
-recorded here because it is the one respect in which this blank is genuinely damaged rather than
-merely designed for stock we do not use.
+- the content stream contains **no `scn` operator at all**, and no CMYK. The page paints in `rg`/`RG`
+  only, in four colours — near-black `0.137 0.122 0.125`, Keller red `0.933 0.212 0.251`, the pale
+  column tint `0.992 0.918 0.89`, and white `1 1 1`;
+- there is **no red rule at any heading row**. The only red strokes left on the page are the four
+  blanks in the INSTRUCTIONS legend;
+- the fifteen surviving heading strings are painted `1 1 1 rg` — white on nothing.
 
-**The `OK` column header is also missing** from all three column groups (the ruled box survives, its
-label did not). Cosmetic, not yet restored, and named here so the next person does not re-diagnose
-it.
+So the export did not preserve a design for pre-printed stock. It **dropped artwork**, and left the
+knockout text stranded on white paper.
 
-## Why this file is here at all
+## The four losses, and where each one is put back
+
+| lost | what survives | restored by |
+|---|---|---|
+| The sixteen coloured section bands | each band's own pair of full-group-width rules, exactly 12.00 pt apart | `GROUP_HEADINGS` + `drawHeadingBands` |
+| `1. BRAKE SYSTEM`, gone from the file entirely (the other fifteen survive as white text) | nothing | the same, drawn from `INSPECTION_GROUPS` so all sixteen come from one source |
+| The `OK` column heading, in all three groups | the ruled box, and both its neighbours (`NEEDS REPAIR`, `REPAIRED DATE`) at 4 pt | `OK_COLUMN_HEADER` + `drawOkColumnHeaders` |
+| The ✓ in `VEHICLE IDENTIFICATION (✓ AND COMPLETE)` — a MyriadPro `\037` whose glyph is not in the subset, so the page prints a hollow .notdef box | the sentence around it | `IDENTIFICATION_TICK`, redrawn in ZapfDingbats |
+| The ✓ / X / NA marks on the INSTRUCTIONS legend | the four red blanks they sit on | `LEGEND_MARKS` + `drawLegendMarks` |
+
+All of it is drawn **only on the plain-paper path** (`background: "template"`). The overlay path goes
+onto a real Keller pad, which carries every one of them — this is the one place the original "the pad
+already has it" reasoning was true, and it was true about the PAD rather than about this PDF.
+
+## What stops this becoming permanent
+
+`TEMPLATE_SUPPLIES` in `../layouts/keller14834Rev0122.ts` declares what this file carries, and
+`../assets.test.ts` **reads the PDF** and fails the build when the declaration and the bytes stop
+agreeing. Drop in a clean export and the tests name the flags to flip; flip them and the renderer
+stops drawing what the page already has instead of double-printing it.
+
+That test is the reason the wrong diagnosis above cannot recur in the same shape. A belief about this
+file is now checkable against the file.
+
+## Why the Keller page at all
 
 `docs/plans/maintenance/ANNUAL-INSPECTION-PLAN.md` §2.1 records the ruling and what it costs. In
 short: FMCSA prescribes no form — §396.21 fixes the report's *contents*, not its layout — so a layout
@@ -47,7 +68,8 @@ commercial risk taken knowingly rather than an oversight.
 The coordinate map (`../layouts/keller14834Rev0122.ts`) is pinned to revision **1/22**. A new
 revision means re-measuring the map against the new blank — but **every report already filed keeps
 its stored bytes**, so no past filing changes. That is why A6 files the rendered PDF rather than
-re-rendering on demand.
+re-rendering on demand, and why 0284 records the renderer and template revision a filing was drawn
+under: a reissue is then visible per report rather than inferred from a date.
 
 The bijection test in `../layout.test.ts` fails the build if the map and the catalogue stop covering
 each other, so a revision cannot silently print into the wrong cell.
