@@ -915,7 +915,7 @@ first and checked after. A new surface in this repo starts by reading the two or
 already do the same job — the contract is the explanation, the call sites are the answer, and
 `gates-outrank-the-design-contract` says which wins when they disagree.
 
-### B7 — the production-readiness audit (2026-08-31, PR #NNN)
+### B7 — the production-readiness audit — DONE 2026-08-31 (PR #424)
 
 The owner asked for the feature to be inspected for gaps, assumptions and blockers rather than
 declared finished. Six findings; four fixed here, two are questions only they can answer.
