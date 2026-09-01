@@ -51,6 +51,9 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   }
 }
 
+const DOC = "55555555-5555-4555-8555-555555555555";
+const CERT = "66666666-6666-4666-8666-666666666666";
+
 const QUALIFIED_INSPECTOR = {
   id: INSPECTOR,
   full_name: "George Gacev",
@@ -242,6 +245,48 @@ describe("creating a draft", () => {
     );
     expect(status).toBe(400);
     expect(rec.queries).toHaveLength(0);
+  });
+});
+
+describe("destroying the record end to end through the route (D-AVI29)", () => {
+  /**
+   * The service is unit-tested next door; this exercises the WIRING — the real schema, the real
+   * `validateBody`, the real handler, the real response shape. A 500 from here is the difference
+   * between "the logic is wrong" and "the route was never going to work", and only one of those is
+   * visible from the service tests.
+   */
+  const seedForDelete = () =>
+    createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: (q) => {
+          if (q.ops.some((o) => o.method === "delete")) return { data: [], error: null };
+          const id = q.filters().find((f) => f.col === "id")?.val;
+          if (id === undefined) return { data: [], error: null };
+          return { data: [{ ...draftReport("final"), document_id: DOC, certification_id: CERT }], error: null };
+        },
+        vehicle_inspection_items: { data: [], error: null, count: 56 },
+        documents: [{ id: DOC, org_id: ORG, storage_path: `${ORG}/tractor/${VEHICLE}/${DOC}.pdf` }],
+        certifications: [{ id: CERT, org_id: ORG }],
+        vehicles: [{ id: VEHICLE, org_id: ORG, identity_source: "manual" }],
+        audit_logs: [],
+      },
+    });
+
+  it("answers 200 and says what it removed", async () => {
+    rec = seedForDelete();
+    await withServer(async (base) => {
+      const res = await post(base, { reason: "created against the wrong unit" }, `/${REPORT}/delete-record`);
+      expect(res.status, await res.clone().text()).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, itemsDeleted: 56, documentDeleted: true });
+    });
+  });
+
+  it("refuses a blank reason with a 400 the form can show, not a 500", async () => {
+    rec = seedForDelete();
+    await withServer(async (base) => {
+      const res = await post(base, { reason: "  " }, `/${REPORT}/delete-record`);
+      expect(res.status).toBe(400);
+    });
   });
 });
 
