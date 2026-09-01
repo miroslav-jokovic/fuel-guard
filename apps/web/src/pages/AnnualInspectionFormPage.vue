@@ -12,6 +12,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
+import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
@@ -71,6 +72,22 @@ const isFinal = computed(() => report.value?.status === "final");
  * Null `renderer_version` means the report was filed before 0284 recorded one, which is older than
  * any version we could name rather than equal to the current one.
  */
+/**
+ * Destroying the record (D-AVI29) — admin only, and separate from Discard.
+ *
+ * `session.admin` rather than `session.can("maintenance")`: a technician certifies inspections, they
+ * do not destroy the record of one. The API gates on the same role, so this hides a button the
+ * server would refuse rather than being the guard itself.
+ */
+const deleting = ref(false);
+const canDeleteRecord = computed(() => session.admin);
+
+function onDeleted() {
+  deleting.value = false;
+  toast.success("Record deleted");
+  void router.push({ name: "annual-inspections" });
+}
+
 const filedDrawingIsStale = computed(() => {
   if (!isFinal.value || !report.value) return false;
   const current = data.value?.currentRendererVersion;
@@ -289,6 +306,11 @@ async function openPdf(kind: "report" | "preview") {
         <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="completeInspection">
           Complete inspection
         </BaseButton>
+        <!-- Deliberately last, and `ghost` rather than `danger`: the destructive control should be
+             findable, not the thing the eye lands on first. The drawer is where it gets loud. -->
+        <BaseButton v-if="canDeleteRecord" variant="ghost" @click="deleting = true">
+          Delete this record
+        </BaseButton>
         <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
       </div>
 
@@ -346,6 +368,15 @@ async function openPdf(kind: "report" | "preview") {
         :can-manage="session.can('maintenance')"
         @close="printing = false"
       />
+      <DeleteInspectionDrawer
+        :open="deleting"
+        :inspection-id="id"
+        :unit-number="report.unit_number ?? ''"
+        :status="report.status"
+        @close="deleting = false"
+        @deleted="onDeleted"
+      />
+
 
 
     </template>

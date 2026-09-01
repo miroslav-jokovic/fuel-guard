@@ -18,6 +18,9 @@
   "case_pattern_reports": [
     "apps/api/src/modules/anomalies/entityRisk.ts"
   ],
+  "certifications": [
+    "apps/api/src/modules/evidence/retract.ts"
+  ],
   "declined_transactions": [
     "apps/api/src/modules/anomalies/declinedScoring.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
@@ -31,6 +34,7 @@
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",
     "apps/api/src/modules/evidence/generatedDocuments.ts",
+    "apps/api/src/modules/evidence/retract.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
     "apps/api/src/modules/recruiting/applicationPdf/file.ts"
   ],
@@ -391,6 +395,7 @@
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],
   "vehicle_inspections": [
+    "apps/api/src/modules/maintenance/inspections/deleteRecord.ts",
     "apps/api/src/modules/maintenance/inspections/finalize.ts",
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],

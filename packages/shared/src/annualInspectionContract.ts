@@ -282,6 +282,19 @@ export const inspectionItemDtoSchema = z.object({
 });
 export type InspectionItemDto = z.infer<typeof inspectionItemDtoSchema>;
 
+/**
+ * Destroying a report and everything it created (D-AVI29).
+ *
+ * The reason is REQUIRED and minimum-length, not because three characters prove anything, but
+ * because a blank box is how "why did this record vanish" gets answered with nothing. It is the only
+ * part of a deleted §396.17 report that survives, so the schema refuses the request without it
+ * rather than leaving the audit row to carry an empty string.
+ */
+export const inspectionDeleteRequestSchema = z.object({
+  reason: z.string().trim().min(3, "Say why this record is being deleted."),
+});
+export type InspectionDeleteRequest = z.infer<typeof inspectionDeleteRequestSchema>;
+
 export const inspectionDtoSchema = z.object({
   id: z.uuid(),
   subjectType: inspectionSubjectTypeSchema,

@@ -130,3 +130,63 @@ export async function recordEquipmentInspectionExpiry(
   if (error) return { error: "Could not record the inspection expiry", code: "update_failed" };
   return { ok: true };
 }
+
+/**
+ * What owns this equipment row right now — read BEFORE finalize claims it (0285).
+ *
+ * Returned as the raw column value rather than a parsed enum: the point is to put back exactly what
+ * was there, and a value this code does not recognise is still the right thing to restore.
+ */
+export async function readEquipmentIdentitySource(
+  admin: SupabaseClient,
+  orgId: string,
+  subjectType: InspectionSubjectType,
+  subjectId: string,
+): Promise<string | null | EquipmentError> {
+  const { data, error } =
+    subjectType === "tractor"
+      ? await admin.from("vehicles").select("identity_source").eq("org_id", orgId).eq("id", subjectId).maybeSingle()
+      : await admin.from("trailers").select("identity_source").eq("org_id", orgId).eq("id", subjectId).maybeSingle();
+  if (error) return { error: "Could not read the equipment's identity source", code: "db_error" };
+  return data ? ((data as { identity_source: string | null }).identity_source ?? null) : null;
+}
+
+/**
+ * Give back what a deleted report took (D-AVI29).
+ *
+ * ── BOTH HALVES, OR NEITHER IS RIGHT ───────────────────────────────────────────────────────────
+ * Finalize writes two things onto the truck: the projected expiry, and `identity_source = 'manual'`
+ * so the McLeod sweep's CLAIMABLE set ({'samsara','mcleod'}) leaves the office's date alone. Undoing
+ * only the date leaves the row stranded as 'manual' — and that claim is not scoped to the inspection
+ * column, so the sweep stops maintaining the vehicle's IDENTITY too. Measured on production
+ * 2026-09-01: 197 vehicles 'samsara', exactly one 'manual', and that one was the inspected truck.
+ *
+ * ── `expiresAt` IS RECOMPUTED BY THE CALLER, NOT ASSUMED NULL ──────────────────────────────────
+ * Deleting one report of several must leave the date the REMAINING reports justify. The caller reads
+ * them; this function only writes what it is told, so "no inspections left" and "an older one is now
+ * the newest" go down the same path.
+ *
+ * ── A NULL `restoreSource` MEANS "DO NOT TOUCH IT" ─────────────────────────────────────────────
+ * Reports filed before 0285 never recorded what they displaced. Guessing — writing the column
+ * default, or the value most of the fleet happens to carry — would be restating one fleet's plumbing
+ * as if it were a fact about this row. Leaving the claim in place is the honest failure: it costs a
+ * sweep that skips one vehicle, against a wrong write that hands the row to a sweep that never owned
+ * it.
+ */
+export async function releaseEquipmentInspectionClaim(
+  admin: SupabaseClient,
+  orgId: string,
+  subjectType: InspectionSubjectType,
+  subjectId: string,
+  expiresAt: string | null,
+  restoreSource: string | null,
+): Promise<{ ok: true } | EquipmentError> {
+  const patch: Record<string, string | null> = { dot_annual_inspection_expires_at: expiresAt };
+  if (restoreSource !== null) patch.identity_source = restoreSource;
+  const { error } =
+    subjectType === "tractor"
+      ? await admin.from("vehicles").update(patch).eq("org_id", orgId).eq("id", subjectId)
+      : await admin.from("trailers").update(patch).eq("org_id", orgId).eq("id", subjectId);
+  if (error) return { error: "Could not release the inspection claim", code: "update_failed" };
+  return { ok: true };
+}
