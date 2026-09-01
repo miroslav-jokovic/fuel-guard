@@ -32,6 +32,12 @@ export { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js
 export { startSamsaraScheduler } from "./samsaraScheduler.js";
 export { runSamsaraDiagnostics } from "./samsaraDiagnostics.js";
 export { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
-export { processSamsaraWebhook } from "./fuelEventsWebhook.js";
+export {
+  processSamsaraWebhook,
+  readSamsaraWebhookStatus,
+  samsaraWebhookBootWarning,
+  SAMSARA_WEBHOOK_PATH,
+  type SamsaraWebhookStatus,
+} from "./fuelEventsWebhook.js";
 export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";
 export { readVehicleMonthlyMiles } from "./samsaraIftaReads.js";

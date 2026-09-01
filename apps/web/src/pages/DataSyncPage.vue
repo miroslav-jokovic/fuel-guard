@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { apiFetch } from "@/lib/api";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
@@ -7,6 +7,7 @@ import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { formatDateTime } from "@/lib/format";
 
 const session = useSessionStore();
 
@@ -27,6 +28,56 @@ async function runDiagnostics() {
   }
 }
 const diagJson = computed(() => (diag.value ? JSON.stringify(diag.value, null, 2) : ""));
+
+/**
+ * Samsara webhook readiness (SAMSARA-COLLECTION-PLAN S1).
+ *
+ * The sudden-fuel-drop receiver had been unreachable since it was built — the vendor console pointed
+ * at the mount prefix rather than the route, and the signing secret was never set, so it answered 401
+ * to anything that did arrive. Neither end complained, and `fuel_events` sat at 0 rows for six months
+ * looking exactly like a fleet with no siphoning. Both fixes are console/Railway settings; what
+ * belongs here is the part that was actually missing, which is any way to SEE it from the product.
+ *
+ * The counts are all-time on purpose (D-SAM7): a windowed zero reads as a quiet week, and the state
+ * worth catching is a receiver that has never been reachable at all.
+ */
+interface WebhookStatus {
+  secretConfigured: boolean;
+  endpointPath: string;
+  endpointUrl: string | null;
+  eventCount: number;
+  lastEventAt: string | null;
+}
+const webhook = ref<WebhookStatus | null>(null);
+const webhookError = ref<string | null>(null);
+onMounted(async () => {
+  const res = await apiFetch<WebhookStatus>("/api/integrations/samsara/webhook");
+  if (res.ok) webhook.value = res.data ?? null;
+  else webhookError.value = res.error?.message ?? "Could not read the webhook status";
+});
+
+/** Plain word first, mechanism second — the state an operator has to act on, in one line. */
+const webhookState = computed(() => {
+  const w = webhook.value;
+  if (!w) return null;
+  if (!w.secretConfigured)
+    return {
+      warn: true,
+      label: "Not receiving — the signing secret is missing, so every delivery is rejected.",
+      detail: "Set SAMSARA_WEBHOOK_SECRET (from the Samsara webhook config) on the API service and restart.",
+    };
+  if (w.eventCount === 0)
+    return {
+      warn: true,
+      label: "Configured, but no event has ever arrived.",
+      detail: "Check that the Samsara webhook posts to the address below and is subscribed to the sudden fuel-level drop alert.",
+    };
+  return {
+    warn: false,
+    label: `Last event ${formatDateTime(w.lastEventAt)}.`,
+    detail: `${w.eventCount} event(s) received in total.`,
+  };
+});
 
 // Read-only integrity summary from the nightly self-heal job.
 const nightly = useJob("nightly_reconcile");
@@ -167,6 +218,34 @@ const integrity = computed(() => {
         description="Refresh this week's Safety + Efficiency driver scores from Samsara and the idle scorecard. Runs automatically on a schedule."
       />
     </div>
+
+    <!-- Samsara webhook: is the sudden-fuel-drop receiver configured, and has it ever heard anything? -->
+    <BaseCard>
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-ink">Fuel-drop webhook</h3>
+        <span
+          v-if="webhookState"
+          class="text-xs"
+          :class="webhookState.warn ? 'text-danger-600' : 'text-ink-tertiary'"
+          >{{ webhookState.label }}</span
+        >
+      </div>
+      <p class="mt-1 text-sm text-ink-muted">
+        Samsara calls us the moment a truck's fuel level drops suddenly — fuel leaving the tank with
+        no purchase behind it. This is push, not a scheduled pull, so it either works or it is
+        silent; there is no partial state to notice.
+      </p>
+      <p v-if="webhookError" class="mt-2 text-sm text-danger-600">{{ webhookError }}</p>
+      <p v-else-if="webhookState" class="mt-2 text-sm text-ink-secondary">
+        {{ webhookState.detail }}
+      </p>
+      <p v-if="webhook" class="mt-2 text-xs text-ink-tertiary">
+        Samsara must post to
+        <code class="rounded-control bg-surface-muted px-1 py-0.5 text-ink-secondary">{{
+          webhook.endpointUrl ?? webhook.endpointPath
+        }}</code>
+      </p>
+    </BaseCard>
 
     <!-- Samsara diagnostics (admin, read-only): raw endpoint status + response shapes, incl. HOS. -->
     <BaseCard v-if="session.admin">

@@ -9,6 +9,8 @@ import { z } from "zod";
 import { SecretBoxError } from "../../../lib/secretBox.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { runSamsaraDiagnostics } from "../samsaraDiagnostics.js";
+import { readSamsaraWebhookStatus } from "../fuelEventsWebhook.js";
+import { rolesThatCanView } from "@silvicom/shared";
 
 /** Samsara integration admin routes — token set/rotate/clear, the manual sync buttons, and the
  *  diagnostics probe. Moved here from routes/integrations.ts at the P1.6 split (2026-08-27): the
@@ -203,6 +205,29 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
         console.error("[integrations] diagnostics failed:", e);
         res.status(502).json(apiError("diagnostics_failed", "Could not run Samsara diagnostics"));
       }
+    }),
+  );
+
+  /**
+   * Webhook readiness (read-only) — is the receiver configured, and has it EVER received anything?
+   *
+   * S1's actual subject. The two live defects it reports around — a vendor webhook pointed at
+   * `/api/webhooks` instead of the mounted path, and an unset `SAMSARA_WEBHOOK_SECRET` making the
+   * receiver 401 everything — are both fixed in the Samsara console and in Railway, not here. What
+   * WAS a code defect is that neither was visible from inside the product: `fuel_events` sat at 0 rows
+   * for six months and no screen said whether that meant "no theft" or "no receiver".
+   *
+   * The gate is derived (`rolesThatCanView("settings")`), not hand-listed, per CLAUDE.md — this file's
+   * older `requireRole("admin")` writes are the surface T2 generalises and are left alone here.
+   */
+  router.get(
+    "/samsara/webhook",
+    requireOrg,
+    requireRole(...rolesThatCanView("settings")),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      res.json(await readSamsaraWebhookStatus(admin, env, req.auth!.orgId!));
     }),
   );
 
