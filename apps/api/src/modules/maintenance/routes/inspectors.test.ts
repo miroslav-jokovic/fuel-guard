@@ -52,8 +52,16 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   }
 }
 
+interface Body {
+  ok?: boolean;
+  error?: { code?: string; message?: string };
+}
+
 const del = (base: string, id = INSPECTOR) =>
   fetch(`${base}/api/maintenance/inspectors/${id}`, { method: "DELETE" });
+
+/** `Response` is express's in this file — this one is fetch's. */
+const bodyOf = async (res: Awaited<ReturnType<typeof fetch>>): Promise<Body> => (await res.json()) as Body;
 
 beforeEach(() => {
   audit.writeAudit.mockClear();
@@ -62,7 +70,7 @@ beforeEach(() => {
 describe("removing somebody from the register", () => {
   it("removes a row nothing points at, and audits that it did", async () => {
     rec = createSupabaseRecorder({ tables: { maintenance_inspectors: { data: [], count: 1 } } });
-    const body = await withServer(async (base) => (await del(base)).json());
+    const body = await withServer(async (base) => bodyOf(await del(base)));
 
     expect(body.ok).toBe(true);
     const write = rec.writes().find((w) => w.table === "maintenance_inspectors");
@@ -91,7 +99,7 @@ describe("removing somebody from the register", () => {
       },
     });
     const res = await withServer(async (base) => del(base));
-    const body = await res.json();
+    const body = await bodyOf(res);
 
     expect(res.status).toBe(409);
     expect(body.error?.code).toBe("has_inspections");
