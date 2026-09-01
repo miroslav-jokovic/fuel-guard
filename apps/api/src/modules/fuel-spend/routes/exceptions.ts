@@ -14,6 +14,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
+  rolesThatCanView, rolesThatManage,
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
@@ -33,11 +34,29 @@ const closedSet = <T extends string>(raw: unknown, allowed: readonly T[]): T[] |
 };
 const ymd = (raw: unknown): string | null => (typeof raw === "string" && YMD.test(raw) ? raw : null);
 
+/**
+ * ⚠ Role gates here are DERIVED, never listed (FUEL-T2, D-FUI12, 2026-09-01). This is the surface the
+ * 2026-08-27 audit named (D-SEP10) and the one where the cost was visible: `accountant` and `auditor`
+ * hold `fuel: "view"` in `SECTION_ACCESS`, so the nav offered them this ledger, the route is
+ * `requiresAuth` so the page loaded — and then the API answered 403, because the hand-written list
+ * said `admin, fleet_manager, dispatcher`. The nav, the router and the API each held their own
+ * opinion about one question.
+ *
+ * Reads take `rolesThatCanView("fuel")`, writes take `rolesThatManage("fuel")`, and nobody gained a
+ * write: the manage set IS `admin, fleet_manager`, which is what the PATCH already said. What changed
+ * is that a dispatcher's read is now a consequence of the matrix rather than a coincidence of a list,
+ * and `accountant`, `auditor` and `safety_manager` stopped being refused a page they were shown.
+ *
+ * `GET /exceptions/packet.pdf` widened further than the audit finding named — it was
+ * `admin, fleet_manager` and is now the view set. Deliberate: producing the packet reads findings the
+ * caller may already read and writes no business row, and an accountant is exactly who assembles a
+ * claim. Deciding a finding's outcome is the PATCH below, and that stayed where it was.
+ */
 export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { rows, total } = await listExceptions(admin, req.auth!.orgId!, {
@@ -57,7 +76,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/totals",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const totals = await exceptionTotals(admin, req.auth!.orgId!, { from: ymd(req.query.from), to: ymd(req.query.to) });
@@ -76,7 +95,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/packet.pdf",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const ids = (typeof req.query.ids === "string" ? req.query.ids.split(",") : [])
@@ -109,7 +128,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/:id",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const found = await readException(admin, req.auth!.orgId!, param(req.params.id));
@@ -128,7 +147,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.patch(
     "/exceptions/:id",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatManage("fuel")),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const body = req.body as Record<string, unknown>;

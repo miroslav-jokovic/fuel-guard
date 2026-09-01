@@ -562,6 +562,55 @@ future hardcoded list fails CI rather than waiting for an audit.
 **Verified by.** The extended `routeGates.test.ts`; `lint:section-policies`; a per-role test over
 `SECTION_ACCESS` for each fuel endpoint.
 
+#### — DONE 2026-09-01 (PR #446, `claude/fuel-route-gates-derive`)
+
+**What shipped.** 23 hand-written role lists replaced with the derived form across five route files;
+the other two of the 25 counted (`/thresholds`, `/discount-rules`) were already
+`rolesThatManage("admin")` and were left alone.
+
+| File | Sites | Reads → | Writes → |
+|---|---|---|---|
+| `modules/fuel/routes/transactions.ts` | 10 | — | `rolesThatManage("fuel")` |
+| `modules/fuel-spend/routes/spend.ts` | 3 | `rolesThatCanView("fuel")` | `rolesThatManage("fuel")` |
+| `modules/fuel-spend/routes/exceptions.ts` | 5 | `rolesThatCanView("fuel")` | `rolesThatManage("fuel")` |
+| `modules/fuel-spend/routes/statements.ts` | 3 | `rolesThatCanView("fuel")` | `rolesThatManage("fuel")` |
+| `modules/anomalies/routes/anomalies.ts` | 2 | — | `rolesThatManage("safety")` |
+
+`accountant`, `auditor` and `safety_manager` gained the reads their matrix row already granted.
+**Nobody gained a write** — `rolesThatManage("fuel")` *is* `admin, fleet_manager`, which is what every
+write already said.
+
+**One widening beyond what A2 enumerated, named because it is a decision.** `GET
+/exceptions/packet.pdf` was `admin, fleet_manager` and is now the view set. It is a read — it renders
+findings the caller may already read and writes no business row — and an accountant is exactly who
+assembles a claim. Deciding a finding's outcome is the PATCH, which did not move.
+
+**Two gates, because the form and the consequence are different properties.**
+- `routeGates.test.ts` gained a **source-level** fitness function: every `router.<verb>` in the three
+  modules' route files must gate with `rolesThatCanView(section)` for a read or
+  `rolesThatManage(section)` for a write, with a shrink-only waiver map. It reads the SOURCE, not the
+  mounted stack, on purpose — comparing role *sets* at runtime cannot tell a derived answer from a
+  coincidence, because `admin, fleet_manager, dispatcher` is exactly `rolesThatManage("dispatch")`.
+  It also asserts every declared route was parsed, so a route the parser cannot see fails rather than
+  passing unexamined.
+- `apps/api/src/fuelSectionRoles.test.ts` is new and **behavioural**: 7 endpoints × 9 roles against
+  the real app, asserting a permitted role gets past the gate and a refused one does not. It
+  reproduces the original defect exactly — reverting one list turns the `accountant`, `auditor` and
+  `safety_manager` cases red.
+
+**No `ci.yml` change was needed.** Both are vitest, so `pnpm test` already runs them.
+
+**Verified by:** `fuel-section route gates derive from SECTION_ACCESS (FUEL-T2, D-FUI12) > every
+fuel/anomaly route reads its roles from the matrix — reads the view set, writes the manage set`;
+`fuel-section endpoints agree with SECTION_ACCESS, per role > an accountant and an auditor can read
+the ledger they were shown and then refused`; `...and neither of them gains a write`. Proved able to
+fail by four mutations: restoring a hand-written list, putting the view set on a write route, hiding a
+route from the parser, and re-checking that the per-role suite goes red on the first of those. Gates:
+`pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, plus the CI gate list run individually.
+
+**Found while doing it, not fixed here — see Q-FUI12.** Four reads in these modules carry no role gate
+at all.
+
 ---
 
 ### T3 · The fleet's totals are computed where the rows are
@@ -900,6 +949,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI6** | ~~**The Alerts queue measures ~2.9% precision — is the detector wrong, or is the review wrong?**~~ **ANSWERED IN PART 2026-09-01 (owner ruling + §0.3a measurement): reading (a) — the detector over-fires on bad inputs.** Three root causes, measured: wrong entered tank capacity (101 of 145 trucks disagree with the sensor-learned value; 54% of `cumulative_overfuel` fires sit on them), odometer quality (74 fires / 34 false positives across four rules), and card→truck attribution (`card_multi_vehicle`, 50 / 25). The owner is correcting capacity within days. **The unresolved half is the fix order and the missing gate** — see Q-FUI11. Original framing kept for the record: §0.3: 218 cases, all `theft_case`; of 105 reviewed, 3 confirmed / 95 false_positive / 7 benign_explained; 78 still open and unreviewed. Three readings and they need different work: **(a)** the detector is genuinely over-firing and its threshold or gates need raising until what remains is worth a person's time (**recommended first move** — it is measurable and reversible); **(b)** reviewers are marking `false_positive` where they mean `benign_explained`, in which case the label is wrong and precision is understated; **(c)** the rule is sound and the fleet is clean, in which case the queue should be surfaced by exception rather than as a standing list. WP7 (behavioural) was withdrawn, so nothing else is scheduled to move this number. | Miki | **C7 does not ship in any form.** The two inboxes stay separate and Alerts is not promoted into the Fuel section. No owner-facing surface quotes the alert count as a finding. |
 | **Q-FUI7** | ~~**Is statement reconciliation a real workflow for this carrier?**~~ **ANSWERED 2026-09-01: YES, and the documents are already in hand.** The weekly PDF is a **Pilot Receivables LLC invoice** billed to Silvicom Inc — verified by reading `~/Downloads/db139445F.pdf`: invoice 795506105, period 2026-08-17 → 2026-08-23, with Ticket / AUTH / Odometer / Units / Fuel Cost / **Invoice Total** / **Retail Total** columns. That is exactly what `parsePilotStatement` expects and exactly the file `FUEL-SPEND-RELIABILITY-PLAN.md` **F0-bis-upload** names. Five weekly statements are on disk (`db139445F{,1,2,3,5}.pdf`, 2026-07-28 → 2026-08-24) and were parsed successfully in the F0-bis spike. **Nothing is missing but the upload.** This is an onboarding gap, not a product-fit question: C5 keeps both tabs and the ledger keeps all four `recon_*` kinds. ⚠ It is **not** a Samsara report — Samsara is telematics and issues no fuel invoice; its data already arrives through the API collector. Original framing kept for the record: Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
 | **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
+| **Q-FUI12** | **Four fuel/anomaly reads carry no role gate at all — narrow them to the matrix, or is one of them deliberately open?** Found while building T2 (2026-09-01), pinned in `routeGates.test.ts`' waiver map so they are findable: `GET /api/anomalies/:id/risk-context`, `/:id/pattern-report` and `/:id/history` are `requireOrg` only, so **any authenticated org member — including a `driver`, who holds `safety: "none"` — can read a theft case's history**; and `GET /api/fueling/statements/:id/source` is `requireOrg` only, though it does re-check the caller's org before signing a URL. T2 did not close them because T2 is a **widening** and these are a **narrowing**: gating them removes access somebody may be relying on, which is a decision that should be taken out loud rather than in passing. Candidates: **(a)** gate all four from the matrix — `rolesThatCanView("safety")` for the three anomaly reads, `rolesThatCanView("fuel")` for the statement source (**recommended**: it is what every neighbouring route now does, and the anomaly detail is reachable only from a page already gated on `safety`); **(b)** gate the anomaly reads and leave the statement source, on its org re-check; **(c)** leave all four and record them as accepted. | Miki | They stay as they are, waived with the argument in `routeGates.test.ts` and named here. Nothing is narrowed on an inference. |
 | **Q-FUI8** | **Trailer-at-fill: acknowledge the removal, or fund the capability?** §0.3: `duty_equipment_segments` is empty and no other time-ranged pairing exists. T4 removes the column. Restoring the capability means a new pairing-history table and a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. | Miki | T4 removes the column. It is not relabelled — a live fact beside a historical row is a confident wrong answer, and a caveat under it is a workaround with a caveat. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |

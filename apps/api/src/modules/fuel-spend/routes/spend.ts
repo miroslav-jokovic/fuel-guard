@@ -7,7 +7,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
-import type { SpendGrain } from "@silvicom/shared";
+import { rolesThatCanView, rolesThatManage, type SpendGrain } from "@silvicom/shared";
 
 /**
  * The daily fuel-spend rollup (migration 0244) is READ straight from PostgREST by the web app — the
@@ -27,6 +27,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const GRAINS = new Set(["day", "week", "month"]);
 
+/** Gates derived from `SECTION_ACCESS`, never listed — FUEL-T2/D-FUI12; the argument is in
+ *  routes/exceptions.ts. `spend-report.pdf` is a read, so it takes the view set: the accountant and
+ *  the auditor the report is FOR could not generate it before. The two rebuilds are writes. */
 export function registerSpendRoutes(router: Router): void {
   // The report as a document, for somebody who will not open the app. Rendered on the server from the
   // rollup rather than from whatever the browser is showing: a figure in a PDF gets quoted back months
@@ -34,7 +37,7 @@ export function registerSpendRoutes(router: Router): void {
   router.get(
     "/spend-report.pdf",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireRole(...rolesThatCanView("fuel")),
     asyncHandler(async (req, res) => {
       const from = typeof req.query.from === "string" ? req.query.from : "";
       const to = typeof req.query.to === "string" ? req.query.to : "";
@@ -80,7 +83,7 @@ export function registerSpendRoutes(router: Router): void {
   router.post(
     "/station-resolve",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatManage("fuel")),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -101,7 +104,7 @@ export function registerSpendRoutes(router: Router): void {
   router.post(
     "/spend-rollup",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...rolesThatManage("fuel")),
     asyncHandler(async (req, res) => {
       const body = req.body as { from?: unknown; to?: unknown };
       const from = typeof body?.from === "string" ? body.from : "";
