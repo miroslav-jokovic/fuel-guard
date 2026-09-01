@@ -11,6 +11,7 @@
  * dedup_key mapping against the AP side does not merge.
  */
 export { maintenanceRouter } from "./routes/index.js";
-export { createInspectionDraft, getInspection, listInspections, patchInspection } from "./inspections/inspections.js";
+export { createInspectionDraft, getInspection, patchInspection } from "./inspections/inspections.js";
+export { listInspections } from "./inspections/inspectionList.js";
 export { createInspector, inspectorFor, isQualifiedOn, listInspectors } from "./inspections/inspectors.js";
 export type { InspectorDto, InspectorInput, InspectorRow } from "./inspections/inspectors.js";

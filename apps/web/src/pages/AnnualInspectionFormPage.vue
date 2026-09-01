@@ -9,9 +9,11 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
+import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
 import {
   useCorrectInspection,
@@ -89,6 +91,29 @@ function setResult(key: string, result: InspectionResult) {
 function setRepaired(key: string, value: string | null) {
   if (isFinal.value) return;
   patch.mutate({ items: [{ key, result: "needs_repair", repairedAt: value }] });
+}
+
+const org = useOrgSettingsQuery();
+const carrierName = computed(() => org.data.value?.name ?? "Our own technician");
+
+/**
+ * The header values, editable while the report is a draft.
+ *
+ * A decal is often applied at the END of the job — the truck is back together, the sticker goes on,
+ * the number is transcribed — so the drawer that opened the report cannot be the only place it can
+ * be entered. Same component as the drawer mounts, so the two cannot ask for it differently.
+ *
+ * Patched on change rather than on a Save button, matching how every component result on this page
+ * is written: the PATCH answers with the report as the database holds it, so the page never believes
+ * a save the server did not take.
+ */
+function setDecalSerial(value: string | null) {
+  if (isFinal.value || value === (report.value?.decal_serial ?? null)) return;
+  patch.mutate({ decalSerial: value });
+}
+function setAgency(value: string | null) {
+  if (isFinal.value || value === (report.value?.inspection_agency_location ?? null)) return;
+  patch.mutate({ inspectionAgencyLocation: value });
 }
 
 const otherConditions = ref("");
@@ -202,6 +227,10 @@ async function openPdf(kind: "report" | "preview") {
             {{ openDefects.length }} part(s) need repair with no repair date.
           </template>
           <template v-if="stillDefault"> · {{ stillDefault }} part(s) still on the opening answer.</template>
+          <template v-if="outcome === 'pass' && !report.decal_serial">
+            · No sticker number recorded — a passing inspection normally gets a decal, and that
+            sticker is what an officer reads off the vehicle.
+          </template>
         </span>
       </AppCallout>
 
@@ -241,6 +270,20 @@ async function openPdf(kind: "report" | "preview") {
       <!-- `BaseCard` rather than a hand-rolled panel: a bordered surface with a heading is exactly
            what it is, and the contract's rule against bespoke chrome applies to a page as much as to
            an overlay. Heading is `text-base` — the card-section size — not the drawer's `text-sm`. -->
+      <!-- The header block the printed page carries and the item rows do not: the decal serial and
+           who performed the inspection. Shown for a completed report too, read-only, because a filed
+           report has to be readable in full from the page that represents it. -->
+      <BaseCard as="section" padding="md">
+        <InspectionHeaderFields
+          :decal-serial="report.decal_serial"
+          :agency="report.inspection_agency_location"
+          :carrier-name="carrierName"
+          :disabled="isFinal"
+          @update:decal-serial="setDecalSerial"
+          @update:agency="setAgency"
+        />
+      </BaseCard>
+
       <BaseCard v-for="group in groups" :key="group.number" as="section" padding="none">
         <h3 class="border-b border-edge-subtle px-4 py-3 text-base font-semibold text-ink">
           {{ group.number }}. {{ group.title }}

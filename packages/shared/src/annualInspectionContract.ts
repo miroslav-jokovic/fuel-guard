@@ -222,6 +222,21 @@ export const inspectionCreateSchema = z.object({
   subjectId: z.uuid(),
   inspectorId: z.uuid(),
   inspectedOn: inspectionDateSchema,
+  /**
+   * The two header values the office has in front of it when it starts, and which nothing could
+   * capture until now (the register showed a "Decal" column that was always "—").
+   *
+   * They are on CREATE as well as PATCH because of where they come from. The decal serial is read
+   * off the sticker in the report set the inspector is holding — `610685784` on the trailer form
+   * filed in 08/2026 — so the moment the report is opened is the moment it is legible. Requiring a
+   * second round trip to record it is how a field ends up empty on every row.
+   *
+   * Both stay optional. A failed inspection gets no decal, and the agency line is marked OPTIONAL on
+   * the form itself — the office leaves it blank when their own technician did the work, because the
+   * MOTOR CARRIER OPERATOR block above it already names the company.
+   */
+  decalSerial: z.string().max(40).nullish(),
+  inspectionAgencyLocation: z.string().max(200).nullish(),
 });
 export type InspectionCreateRequest = z.infer<typeof inspectionCreateSchema>;
 

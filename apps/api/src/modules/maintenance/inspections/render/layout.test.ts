@@ -101,6 +101,34 @@ describe("2. fit — every realistic value fits the box it is printed into", () 
       expect(font.widthOfTextAtSize(value, HEADER_SIZE), value).toBeLessThanOrEqual(cell.maxWidth);
     }
   });
+
+  /**
+   * The agency line was left out of the list above for as long as nothing could write it. It has a
+   * UI now (`InspectionHeaderFields`), which makes its width a real constraint rather than a
+   * hypothetical one — and it is the one header cell that can genuinely be overrun, because a
+   * company name plus an address is unbounded where a VIN and a date are not.
+   *
+   * It stamps at 8 pt rather than the 10 pt the rest of the header uses, and the renderer shrinks to
+   * a 5.5 pt floor before it gives up and overflows. So what is asserted is the boundary itself: the
+   * shape the UI asks for fits, and the shape it warns about does not.
+   */
+  it("fits a company and a city on the agency line, and confirms a street address does not", () => {
+    const cell = HEADER_CELLS.inspectionAgencyLocation;
+    const AGENCY_SIZE = 8;
+    const MIN_SIZE = 5.5;
+    const fits = (value: string) => {
+      let size = AGENCY_SIZE;
+      while (size > MIN_SIZE && font.widthOfTextAtSize(value, size) > cell.maxWidth) size -= 0.25;
+      return font.widthOfTextAtSize(value, size) <= cell.maxWidth;
+    };
+
+    // What the fields are labelled for — company, then city and state.
+    expect(fits("PETERBILT OF CHICAGO, MELROSE PARK IL")).toBe(true);
+    expect(fits("SILVICOM INC, MELROSE PARK IL")).toBe(true);
+    // What the hint steers away from, and why the component warns above ~47 characters: a full
+    // street address bottoms out at the floor and still runs past the cell.
+    expect(fits("PETERBILT OF CHICAGO, 1301 ARMITAGE AVE MELROSE PARK IL 60160")).toBe(false);
+  });
 });
 
 describe("3. no collision — nothing prints on top of anything else", () => {

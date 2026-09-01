@@ -148,6 +148,51 @@ describe("creating a draft", () => {
     expect(report!.status).toBeUndefined();
   });
 
+  it("records the decal serial and the agency line the form carries", async () => {
+    // Both are on CREATE and not only on PATCH because of WHEN they are legible: the serial is read
+    // off the sticker in the report set the inspector is holding. Until this shipped, nothing in the
+    // product could write either one, and the register's "Decal" column was a column of dashes.
+    await withServer(async (base) =>
+      post(base, { ...CREATE, decalSerial: "610685784", inspectionAgencyLocation: "PETERBILT OF CHICAGO, MELROSE PARK IL" }),
+    );
+    const [report] = rec.writtenRows("vehicle_inspections");
+    expect(report!.decal_serial).toBe("610685784");
+    expect(report!.inspection_agency_location).toBe("PETERBILT OF CHICAGO, MELROSE PARK IL");
+  });
+
+  it("leaves both null when they are not given — a failed inspection gets no decal", async () => {
+    await withServer(async (base) => post(base, CREATE));
+    const [report] = rec.writtenRows("vehicle_inspections");
+    expect(report!.decal_serial).toBeNull();
+    expect(report!.inspection_agency_location).toBeNull();
+  });
+
+  it("refuses a decal serial another report already carries, and says which mistake it is", async () => {
+    // 0280's `unique (org_id, decal_serial)`. One decal is one inspection: the sticker is often the
+    // ONLY on-vehicle proof a §396.17 inspection happened, so a repeat is either a transcription
+    // slip or a decal peeled onto a second truck — the second of which puts a vehicle on the road
+    // wearing proof of an inspection it never had. Before this it was a bare 500.
+    rec = createSupabaseRecorder({
+      tables: {
+        maintenance_inspectors: [QUALIFIED_INSPECTOR],
+        vehicle_inspections: {
+          data: [],
+          writeError: {
+            code: "23505",
+            message: 'duplicate key value violates unique constraint "vehicle_inspections_decal_serial_idx"',
+          },
+        },
+      },
+    });
+    const res = await withServer(async (base) => {
+      const r = await post(base, { ...CREATE, decalSerial: "610685784" });
+      return { status: r.status, body: (await r.json()) as { error?: { code?: string; message?: string } } };
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error?.code).toBe("duplicate_decal");
+    expect(res.body.error?.message).toContain("One decal belongs to one inspection");
+  });
+
   it("org-scopes every query it makes", async () => {
     await withServer(async (base) => post(base, CREATE));
     expectOrgScoped(rec, ORG);
