@@ -121,6 +121,71 @@ this entire plan.
    and `duty_equipment_segments` — the one time-ranged equipment table in the schema — is empty. The
    Fuel Log's Trailer column cannot be made correct; it can only be removed or relabelled (D-FUI14).
 
+### 0.3a Why the alerts are wrong — measured 2026-09-01, after the owner's 2026-09-01 ruling
+
+The owner ruled that the false positives are input-quality, not logic: *"some anomalies are incorrect
+because data for truck fuel tank capacity is wrong… some because data we are getting for fuel tank level
+at the moment of fueling is not correct."* That is confirmed, and the measurement makes it sharper —
+there are **three** root causes, not two, and the one the owner named second is not costing precision.
+
+**Signals behind the 218 cases** (`case_signals` joined to `anomalies.disposition`):
+
+| Rule | Fires | `false_positive` | `confirmed` | Depends on |
+|---|---|---|---|---|
+| `cumulative_overfuel` | **89** | **55** | **0** | entered tank capacity **and** `robustWindowMiles` |
+| `card_multi_vehicle` | **50** | **25** | 0 | card→truck assignment |
+| `odometer_mismatch` | 27 | 5 | 1 | odometer quality |
+| `expected_odometer_band` | 21 | 13 | 0 | odometer quality |
+| `odometer_daily_cap` | 17 | 11 | 0 | odometer quality |
+| `tank_space_exceeded` | 10 | 0 | 0 | tank sensor (gated) |
+| `odometer_regression` | 9 | 5 | 0 | odometer quality |
+| `tank_fill_short` | 9 | 0 | 0 | tank sensor (gated) |
+| `impossible_travel` · `implausible_topoff` · `fuel_while_driver_home` · `odometer_stale` · `mpg_deviation` · `mpg_sustained_decline` | ≤4 each | ≤1 each | 0 | — |
+
+**Fleet input quality:**
+
+| Measured | Value |
+|---|---|
+| Non-retired vehicles | **195** |
+| `tank_sensor_reliable` | **12 (6.2%)** |
+| Vehicles with a sensor-**learned** capacity (`sensor_capacity_gal`) | **145** |
+| …whose **entered** capacity disagrees with the learned one by >15% | **101** |
+| Vehicles with no usable capacity (null or 0) | **9** |
+| Tractor fills carrying **both** `samsara_fuel_pct_before` and `_after` | **2,413 / 13,696 — 17.6%** |
+
+**And the link, proved rather than asserted.** Of the 89 `cumulative_overfuel` fires:
+**48 (54%)** are on trucks whose entered capacity disagrees with the sensor-learned capacity by >15%;
+**85 (96%)** are on trucks the learner has already judged sensor-**unreliable**; and **0** are on trucks
+with no capacity at all — so the no-capacity guard works and the wrong-capacity case has no guard.
+
+**The three root causes, and what each one implies.**
+
+1. **Capacity (owner's item 1) — confirmed, and there is already a better fix than typing.** The product
+   *learns* capacity from the sensor and stores it in `vehicles.sensor_capacity_gal` for 145 trucks. 101
+   of those contradict the entered value. Hand-correcting 195 rows is not the shortest path; **reading
+   the 101 disagreements off the learner and confirming them is** (`scripts/export-equipment-worksheet.mjs`
+   already exists to produce that kind of sheet).
+2. **The missing gate — this is the actual defect.** `case_gates` suppresses the sensor-dependent rules
+   when `tankSensor !== 'reliable'`, which is why `tank_space_exceeded` and `tank_fill_short` produce
+   **zero** false positives. But `cumulative_overfuel` reads **entered capacity**, not the sensor, so the
+   gate does not cover it — and 96% of its fires are on trucks where nothing about the tank is trusted.
+   **There is no gate for "the entered capacity contradicts the learned capacity."** Adding one is a
+   pure-function change in `anomalyRules`, needs no new data, and addresses the largest single source of
+   false positives in the section.
+3. **Odometer quality (not named by the owner) is the second cluster.** `odometer_mismatch` +
+   `expected_odometer_band` + `odometer_daily_cap` + `odometer_regression` = **74 fires, 34 false
+   positives, 1 confirmed** — and `cumulative_overfuel` depends on odometer too, through
+   `robustWindowMiles`. **`card_multi_vehicle` is a third, independent cause** (50 fires, 25 false
+   positives, 0 confirmed) that touches neither capacity nor tank level — it is card→truck attribution
+   (WP3/WP3B).
+
+**The owner's item 2 — tank level at the moment of fueling — is costing COVERAGE, not precision.** Only
+17.6% of tractor fills carry both readings and only 12 sensors are trusted, so the gates correctly hold
+those rules silent: `tank_space_exceeded` and `tank_fill_short` have fired 19 times between them with
+**zero** false positives. Fixing the level feed would *switch checks on* that are currently off. It would
+not remove a single alert now on the screen. Both are worth doing; they are not the same job, and only
+the capacity/odometer/card work moves the 2.9%.
+
 ### 0.4 Capability parity across the section (tree audit, 2026-09-01)
 
 | Page | Multi-select | Export | URL state | Totals |
@@ -378,14 +443,18 @@ before it is built, not during.
 | P3 | **verified** | `ExceptionQuery`/`qs()`/the route all lack a vehicle field; `assignedTo` exists server-side and is unsent. |
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
 | C2–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. Filter/column parity is a per-page checklist that has not been enumerated line by line — do that in the step, not here. |
-| C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. |
-| C7 | **blocked ×2** | Q-FUI6 (2.9% precision) then Q-FUI1 (capability matrix). |
+| C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
+| C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
 | C9 | **verified** | Dashboard tiles all point at `/fuel-log`; the ledger figures exist to point at once C6 fires. |
 
 **Known unknowns, stated rather than buried:** the T3b seam; what the owner-facing report should say
-(Q-FUI10); whether statement reconciliation is a live workflow (Q-FUI7); and whether the 113 unreviewed
-anomalies would move the 2.9% precision figure materially if somebody worked them (Q-FUI6 (b)).
+(Q-FUI10); the fix order for the three alert root causes and whether the missing capacity gate ships
+ahead of the data correction (Q-FUI11); and whether the 113 unreviewed anomalies would move the 2.9%
+figure materially if somebody worked them.
+
+**Closed since the first draft:** Q-FUI6 (cause measured — input quality, three root causes, §0.3a) and
+Q-FUI7 (the weekly PDF is a Pilot invoice, five are on disk, only the upload is missing).
 
 **Resume ritual (a fresh chat starts here):**
 
@@ -745,7 +814,7 @@ for an anomaly, a money outcome for an exception — never a flattened enum. No 
 D-FUI7 is proven and it is the step that makes C7b small; it is useless to a reader on its own and that
 is fine.
 
-**⚠ C7 as a whole is now gated on Q-FUI6 ahead of Q-FUI1.** §0.3 measures the anomaly feed at ~2.9%
+**⚠ C7 as a whole is gated on Q-FUI11 (was Q-FUI6, answered in part 2026-09-01) ahead of Q-FUI1.** §0.3 measures the anomaly feed at ~2.9%
 precision (3 confirmed against 95 false positives, one rule). Joining that to the money ledger would
 attach a 19-in-20 wrong queue to the identified/claimed/recovered figures that are supposed to prove the
 product's worth, and would put the ledger's credibility inside the detector's error bar. **Fix or gate
@@ -798,8 +867,9 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI4** | Inherits **Q-FX8** from `FUEL-SPEND-RELIABILITY-PLAN.md` §6 — who owns a finding operationally. C7b needs a default assignee; the question is now blocking rather than theoretical. | Miki | `rolesThatManage("fuel")` writes; unassigned by default. No new role invented on a guess. |
 | **Q-FUI5** | Should **Fuel Planning** and **Truck Stops** move from Dispatch into Fuel? They are fuel objects gated on `dispatch`. Moving them means either changing their gate or accepting a nav group whose items ask two different capability questions (Fleet already does this deliberately, and says so). | Miki | They stay in Dispatch. C4 puts the price upload on Truck Stops regardless — the drawer follows the page, wherever the page lives. |
 
-| **Q-FUI6** | **The Alerts queue measures ~2.9% precision — is the detector wrong, or is the review wrong?** §0.3: 218 cases, all `theft_case`; of 105 reviewed, 3 confirmed / 95 false_positive / 7 benign_explained; 78 still open and unreviewed. Three readings and they need different work: **(a)** the detector is genuinely over-firing and its threshold or gates need raising until what remains is worth a person's time (**recommended first move** — it is measurable and reversible); **(b)** reviewers are marking `false_positive` where they mean `benign_explained`, in which case the label is wrong and precision is understated; **(c)** the rule is sound and the fleet is clean, in which case the queue should be surfaced by exception rather than as a standing list. WP7 (behavioural) was withdrawn, so nothing else is scheduled to move this number. | Miki | **C7 does not ship in any form.** The two inboxes stay separate and Alerts is not promoted into the Fuel section. No owner-facing surface quotes the alert count as a finding. |
-| **Q-FUI7** | **Is statement reconciliation a real workflow for this carrier?** Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
+| **Q-FUI6** | ~~**The Alerts queue measures ~2.9% precision — is the detector wrong, or is the review wrong?**~~ **ANSWERED IN PART 2026-09-01 (owner ruling + §0.3a measurement): reading (a) — the detector over-fires on bad inputs.** Three root causes, measured: wrong entered tank capacity (101 of 145 trucks disagree with the sensor-learned value; 54% of `cumulative_overfuel` fires sit on them), odometer quality (74 fires / 34 false positives across four rules), and card→truck attribution (`card_multi_vehicle`, 50 / 25). The owner is correcting capacity within days. **The unresolved half is the fix order and the missing gate** — see Q-FUI11. Original framing kept for the record: §0.3: 218 cases, all `theft_case`; of 105 reviewed, 3 confirmed / 95 false_positive / 7 benign_explained; 78 still open and unreviewed. Three readings and they need different work: **(a)** the detector is genuinely over-firing and its threshold or gates need raising until what remains is worth a person's time (**recommended first move** — it is measurable and reversible); **(b)** reviewers are marking `false_positive` where they mean `benign_explained`, in which case the label is wrong and precision is understated; **(c)** the rule is sound and the fleet is clean, in which case the queue should be surfaced by exception rather than as a standing list. WP7 (behavioural) was withdrawn, so nothing else is scheduled to move this number. | Miki | **C7 does not ship in any form.** The two inboxes stay separate and Alerts is not promoted into the Fuel section. No owner-facing surface quotes the alert count as a finding. |
+| **Q-FUI7** | ~~**Is statement reconciliation a real workflow for this carrier?**~~ **ANSWERED 2026-09-01: YES, and the documents are already in hand.** The weekly PDF is a **Pilot Receivables LLC invoice** billed to Silvicom Inc — verified by reading `~/Downloads/db139445F.pdf`: invoice 795506105, period 2026-08-17 → 2026-08-23, with Ticket / AUTH / Odometer / Units / Fuel Cost / **Invoice Total** / **Retail Total** columns. That is exactly what `parsePilotStatement` expects and exactly the file `FUEL-SPEND-RELIABILITY-PLAN.md` **F0-bis-upload** names. Five weekly statements are on disk (`db139445F{,1,2,3,5}.pdf`, 2026-07-28 → 2026-08-24) and were parsed successfully in the F0-bis spike. **Nothing is missing but the upload.** This is an onboarding gap, not a product-fit question: C5 keeps both tabs and the ledger keeps all four `recon_*` kinds. ⚠ It is **not** a Samsara report — Samsara is telematics and issues no fuel invoice; its data already arrives through the API collector. Original framing kept for the record: Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
+| **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
 | **Q-FUI8** | **Trailer-at-fill: acknowledge the removal, or fund the capability?** §0.3: `duty_equipment_segments` is empty and no other time-ranged pairing exists. T4 removes the column. Restoring the capability means a new pairing-history table and a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. | Miki | T4 removes the column. It is not relabelled — a live fact beside a historical row is a confident wrong answer, and a caveat under it is a workaround with a caveat. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |
@@ -823,8 +893,12 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 - **It does not fix the theft detector.** Q-FUI6 names the measurement and the candidate readings; the
   work itself is a scoring change and belongs with the anomaly rules, not with a page-consolidation plan.
   What this plan does is refuse to build on top of the number.
-- **It does not retire the reconciliation path on an inference from an empty table.** Q-FUI7 asks the
-  question; C5 keeps both tabs until it is answered.
+- **It does not retire the reconciliation path.** Q-FUI7 is answered: the documents exist, the parser
+  handles them, and only the upload is missing. C5 keeps both tabs and the ledger keeps all four
+  `recon_*` kinds.
+- **It does not fix the odometer cluster or `card_multi_vehicle`.** §0.3a measures both as independent
+  root causes of the 2.9%; neither is scheduled anywhere, and naming them here is so that the capacity
+  correction is not mistaken for the whole job.
 - **It does not rewrite the business-date derivation.** `businessDate()` and `fuel_business_date()`
   already exist in both layers and T1 reuses them — including 0247's widened-window filtering shape and
   its `set search_path` constraint.
