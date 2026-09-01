@@ -30,6 +30,7 @@ import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../i
 import { deleteInspectionRecord } from "../inspections/deleteRecord.js";
 import { renderRegistrationSheet } from "../inspections/render/registrationSheet.js";
 import { RENDERER_VERSION } from "../inspections/render/report.js";
+import { getEquipmentIdentity } from "../../roster/index.js";
 import { getPrintProfile } from "../inspections/printProfiles.js";
 
 /**
@@ -105,9 +106,27 @@ export function inspectionsRouter(): Router {
       // from the preview beside it — which is what the office reported. Sending the current version
       // with the report is what lets the form say so, without the client keeping its own copy of it
       // (0284, D-AVI14).
+      /**
+       * `unit_number` is RESOLVED here, not carried on the row.
+       *
+       * `vehicle_inspections` holds `subject_id`, a uuid, and nobody reads those. The LIST route has
+       * always resolved the unit through `roster` — the detail route did not, while the web type
+       * `InspectionDetail extends InspectionSummary` declared the field anyway. That type was a
+       * lie, and the first thing to actually read it broke: the delete drawer asks somebody to type
+       * the unit back, got an empty string, and no input could ever match it (reported 2026-09-01).
+       * Pinned by "carries the unit number, because the row only has a uuid and nobody reads those".
+       */
+      const equipment = await getEquipmentIdentity(
+        admin,
+        req.auth!.orgId!,
+        result.report.subject_type,
+        String(result.report.subject_id),
+      );
+      const unitNumber = equipment && !("code" in equipment) ? equipment.unitNumber : null;
+
       res.json({
         ok: true,
-        inspection: result.report,
+        inspection: { ...result.report, unit_number: unitNumber },
         items: result.items,
         currentRendererVersion: RENDERER_VERSION,
       });

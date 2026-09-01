@@ -19,6 +19,7 @@ const push = vi.hoisted(() => vi.fn());
 vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
 
 const state = vi.hoisted(() => ({
+  admin: { value: true },
   rows: { value: [] as unknown[] },
   discard: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
 }));
@@ -34,7 +35,7 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   }),
   useDiscardInspection: () => state.discard,
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, admin: state.admin.value }) }));
 
 const AnnualInspectionsPage = (await import("@/pages/AnnualInspectionsPage.vue")).default;
 
@@ -58,7 +59,7 @@ const page = (rows: unknown[]) => {
   state.rows.value = rows;
   return mount(AnnualInspectionsPage, {
     attachTo: document.body,
-    global: { stubs: { PageHeader: true, NewInspectionDrawer: true } },
+    global: { stubs: { PageHeader: true, NewInspectionDrawer: true, DeleteInspectionDrawer: true } },
   });
 };
 
@@ -124,5 +125,34 @@ describe("throwing an unfinished one away", () => {
     // something the server is going to take away from them.
     const labels = await openMenu(page([row({ status: "final", outcome: "pass" })]));
     expect(labels).not.toContain("Discard");
+  });
+});
+
+describe("destroying a record is a row action too, and a different one from Discard (D-AVI29)", () => {
+  beforeEach(() => {
+    state.admin.value = true;
+  });
+
+  it("is offered on a FILED report, which is exactly where Discard is not", async () => {
+    // Cleaning up is a job you do from the list. Discard refuses a filed report by design; this is
+    // the action that can remove one, and it is the whole reason the owner asked for it.
+    const labels = await openMenu(page([row({ status: "final", outcome: "pass" })]));
+    expect(labels).toContain("Delete record");
+    expect(labels).not.toContain("Discard");
+  });
+
+  it("is offered on a draft as well, alongside Discard", async () => {
+    const labels = await openMenu(page([row({ status: "draft" })]));
+    expect(labels).toContain("Delete record");
+    expect(labels).toContain("Discard");
+  });
+
+  it("is hidden from somebody who can manage maintenance but is not an admin", async () => {
+    // `can("maintenance")` is still true — a technician certifies inspections. What they must not
+    // have is the control that destroys the record of one.
+    state.admin.value = false;
+    const labels = await openMenu(page([row({ status: "final", outcome: "pass" })]));
+    expect(labels).not.toContain("Delete record");
+    expect(labels).toContain("Open report");
   });
 });

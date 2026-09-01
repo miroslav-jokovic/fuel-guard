@@ -245,6 +245,49 @@ describe("creating a draft", () => {
   });
 });
 
+describe("reading one report", () => {
+  /**
+   * ── THE FIELD THE TYPE CLAIMED AND THE SERVER DID NOT SEND ───────────────────────────────────
+   * `vehicle_inspections` holds `subject_id`, a uuid. The LIST route has always resolved that into a
+   * unit number through `roster`; this route did not, while the web's `InspectionDetail extends
+   * InspectionSummary` declared `unit_number` anyway. Nothing read it, so nothing failed — until the
+   * delete drawer asked somebody to type the unit back, got an empty string, and became impossible
+   * to satisfy (reported 2026-09-01, the day it shipped).
+   *
+   * A type that promises a field the server never sends is not caught by typecheck, by lint, or by
+   * any test that does not read it. This is that test.
+   */
+  it("carries the unit number, because the row only has a uuid and nobody reads those", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: [draftReport("final")],
+        vehicle_inspection_items: [],
+        vehicles: [{ id: VEHICLE, unit_number: "1187", vin: "3AKJ", plate: "IL 1234" }],
+      },
+    });
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/maintenance/inspections/${REPORT}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { inspection: { unit_number: string | null } };
+      expect(body.inspection.unit_number).toBe("1187");
+    });
+  });
+
+  it("sends null rather than failing when the equipment is gone from the roster", async () => {
+    // A report outlives the truck it was about. The drawer refuses to confirm on a null rather than
+    // offering a box nobody can satisfy, which is the other half of the same fix.
+    rec = createSupabaseRecorder({
+      tables: { vehicle_inspections: [draftReport("final")], vehicle_inspection_items: [], vehicles: [] },
+    });
+    await withServer(async (base) => {
+      const body = (await (await fetch(`${base}/api/maintenance/inspections/${REPORT}`)).json()) as {
+        inspection: { unit_number: string | null };
+      };
+      expect(body.inspection.unit_number).toBeNull();
+    });
+  });
+});
+
 describe("patching a draft", () => {
   const patch = (base: string, body: unknown) =>
     fetch(`${base}/api/maintenance/inspections/${REPORT}`, {

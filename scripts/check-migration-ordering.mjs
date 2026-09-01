@@ -87,17 +87,39 @@ function baseRef() {
   const pinned = process.env.MIGRATION_ORDERING_BASE?.trim();
   if (pinned) return pinned;
   const head = git(["rev-parse", "HEAD"]).trim();
-  // A branch first: its merge base is the point it left main. Order matters — a branch whose tip
-  // happens to BE a merge commit must still be diffed against main, not against its own first
-  // parent, or the gate reads the merge it was branched from instead of the work on the branch.
-  for (const ref of ["origin/main", "main"]) {
+
+  /**
+   * `origin/main` is the ONLY branch consulted when it exists, and a stale local `main` is never a
+   * fallback for it.
+   *
+   * That was a real false positive, found 2026-09-01: local main sat two merges behind origin/main,
+   * so `merge-base(main, HEAD)` returned an old commit and the diff swallowed migrations that had
+   * already shipped — the gate then blamed the current change for a column somebody else had merged
+   * a merge earlier. A gate that fires on innocent work is a gate that gets skipped.
+   *
+   * Local `main` is tried only when there is no `origin/main` at all (a clone with no remote), where
+   * a stale answer is better than no answer.
+   */
+  const baseFrom = (ref) => {
     try {
       const b = git(["merge-base", ref, "HEAD"]).trim();
-      if (b && b !== head) return b;
+      return b && b !== head ? b : null;
     } catch {
-      /* not fetched — try the next */
+      return null;
     }
-  }
+  };
+  const hasOrigin = (() => {
+    try {
+      git(["rev-parse", "--verify", "--quiet", "origin/main"]);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  const branchBase = hasOrigin ? baseFrom("origin/main") : baseFrom("main");
+  if (branchBase) return branchBase;
+
   // Nothing ahead of main, so HEAD IS main. If it is a merge commit, its first parent is main as it
   // stood before — which reads the merge that just landed.
   const parents = git(["rev-list", "--parents", "-n", "1", "HEAD"]).trim().split(/\s+/);
