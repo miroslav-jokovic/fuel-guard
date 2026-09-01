@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  APP_SECTIONS,
   emailDomain,
   isEmailDomainAllowed,
   canResolveAnomalies,
@@ -201,7 +202,10 @@ describe("section capability matrix", () => {
     expect(rolesThatManage("equipment").sort()).toEqual(["admin", "fleet_manager"]);
     // 0277 mirrors the equipment line into vehicles_write / trailers_write. The view side is wider
     // than the manage side on purpose — a dispatcher and a safety manager both READ the truck list.
-    expect(rolesThatCanView("equipment").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "safety_manager"]);
+    // `technician` joins the readers 2026-08-31 (0279, D-AVI11) and ONLY the readers: the inspector
+    // must find unit 654 in the list, and 0277's ruling that a machine's plate and VIN are the fleet
+    // manager's record is unchanged by a new role turning up to inspect it.
+    expect(rolesThatCanView("equipment").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "safety_manager", "technician"]);
     expect(rolesThatCanView("roster").sort()).toEqual(["admin", "auditor", "dispatcher", "fleet_manager", "recruiter", "safety_manager"]);
     // Mirrored by driver_employment_history's write policy (0208) and its restrictive read (0209).
     expect(rolesThatManage("recruitment").sort()).toEqual(["admin", "fleet_manager", "recruiter", "safety_manager"]);
@@ -214,7 +218,8 @@ describe("section capability matrix", () => {
     expect(rolesThatCanView("accounting").sort()).toEqual(["accountant", "admin", "auditor"]);
     expect(rolesThatCanView("billing").sort()).toEqual(["accountant", "admin", "auditor"]);
     // maintenance: the shop is ops (admin + fleet_manager manage); the bookkeeper and the auditor read
-    expect(rolesThatManage("maintenance").sort()).toEqual(["admin", "fleet_manager"]);
+    // — plus the `technician` who actually turns the wrench (0279, D-AVI11, 2026-08-31)
+    expect(rolesThatManage("maintenance").sort()).toEqual(["admin", "fleet_manager", "technician"]);
     // `settings` (R0): the operations console. Its members are EXACTLY the deleted canManageFleet
     // set, and that is the point — R0 said what the 50 web call sites meant without re-deciding who
     // may do what. The auditor reads it for the audit-log card; safety_manager does not, because
@@ -222,7 +227,23 @@ describe("section capability matrix", () => {
     expect(rolesThatManage("settings").sort()).toEqual(["admin", "fleet_manager"]);
     expect(rolesThatCanView("settings").sort()).toEqual(["admin", "auditor", "fleet_manager"]);
     expect(sectionAccess("safety_manager", "settings")).toBe("none");
-    expect(rolesThatCanView("maintenance").sort()).toEqual(["accountant", "admin", "auditor", "fleet_manager"]);
+    expect(rolesThatCanView("maintenance").sort()).toEqual(["accountant", "admin", "auditor", "fleet_manager", "technician"]);
+    // ── `technician` (0279, D-AVI11): the shop floor and NOTHING else ─────────────────────────────
+    // Asserted as a whole row rather than section by section, because the failure this guards is a
+    // section quietly widening later — the recruiter leak was exactly that, and it was found by
+    // reading, not by a test.
+    expect(sectionAccess("technician", "maintenance")).toBe("manage");
+    expect(sectionAccess("technician", "equipment")).toBe("view");
+    for (const section of APP_SECTIONS) {
+      if (section === "maintenance" || section === "equipment") continue;
+      expect(sectionAccess("technician", section), section).toBe("none");
+    }
+    // The narrowing that is the reason this role exists at all: a technician reads the tractor list
+    // and may not edit it (D-ROS12's argument), and never sees a driver.
+    expect(canManageSection("technician", "equipment")).toBe(false);
+    expect(canViewSection("technician", "roster")).toBe(false);
+    // ...and the reverse never happened: adding a role must not widen an existing one.
+    expect(rolesThatManage("equipment").sort()).toEqual(["admin", "fleet_manager"]);
     // and the narrowing that matters: dispatch/fleet access never implies books access
     expect(sectionAccess("dispatcher", "accounting")).toBe("none");
     expect(sectionAccess("fleet_manager", "billing")).toBe("none");

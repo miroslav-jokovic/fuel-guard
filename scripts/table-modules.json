@@ -1,5 +1,5 @@
 {
-  "//": "Table \u2192 owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
+  "//": "Table → owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
   "tables": {
     "anomalies": {
       "module": "anomalies",
@@ -333,6 +333,14 @@
       "module": "loads",
       "layer": "core"
     },
+    "maintenance_inspectors": {
+      "module": "maintenance",
+      "layer": "core"
+    },
+    "maintenance_print_profiles": {
+      "module": "maintenance",
+      "layer": "infra"
+    },
     "mcleod_ap_vouchers": {
       "module": "mcleod",
       "layer": "raw"
@@ -496,6 +504,14 @@
     "vehicle_idle_learned": {
       "module": "idle",
       "layer": "derived"
+    },
+    "vehicle_inspection_items": {
+      "module": "maintenance",
+      "layer": "core"
+    },
+    "vehicle_inspections": {
+      "module": "maintenance",
+      "layer": "core"
     },
     "vehicle_tank_learned": {
       "module": "anomalies",

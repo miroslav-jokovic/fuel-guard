@@ -146,6 +146,21 @@ const SECTION_ACCESS: Record<UserRole, Record<AppSection, SectionAccess>> = {
   // `fleet_manager` gets NO books access on the same argument in reverse — an org whose ops lead also
   // does the books expresses that as a second membership decision by the admin, not as a default.
   accountant: { fuel: "view", dispatch: "none", safety: "none", hazmat: "none", roster: "none", equipment: "none", recruitment: "none", admin: "none", settings: "none", accounting: "manage", billing: "manage", maintenance: "view" },
+  // ── `technician`, added 2026-08-31 (D-AVI11, ANNUAL-INSPECTION-PLAN; the owner's ruling) ────────
+  // The shop floor, and deliberately ONLY the shop floor. The person who performs the §396.17
+  // annual inspection needs one section and one read; `fleet_manager` — the obvious shortcut, since
+  // it already carries `maintenance: manage` — would also hand them fuel, dispatch, safety, hazmat,
+  // the whole roster, hiring and the settings console. That is the recruiter mistake and then the
+  // accountant lesson; twice is a pattern, and a third would be a decision rather than an accident.
+  //
+  // `equipment: "view"` and not "manage" on exactly the argument D-ROS12 made for the safety
+  // manager: reading which tractor is unit 654 is what an inspection needs, and a tractor's plate,
+  // VIN and registration remain the fleet manager's record. `roster: "none"` because an inspector
+  // inspects machines — nothing in Appendix A needs a driver's name, licence or medical card.
+  // `settings: "none"` on the R0 argument: maintaining equipment is not a reason to re-sync
+  // Samsara. No `accounting`/`billing`, on 0266's ruling read in the other direction — managing the
+  // shop is not bookkeeping, and bookkeeping does not come with a wrench.
+  technician: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", roster: "none", equipment: "view", recruitment: "none", admin: "none", settings: "none", accounting: "none", billing: "none", maintenance: "manage" },
 };
 
 export const sectionAccess = (role: UserRole | null | undefined, section: AppSection): SectionAccess =>

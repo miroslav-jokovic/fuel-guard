@@ -96,11 +96,15 @@ function clear() {
 
 <template>
   <div class="inline-flex items-center gap-1">
+    <!-- `time-config`, not `enable-time-picker`: v14 regrouped the flat props, and a stale one is
+         accepted as a plain HTML attribute rather than refused — this carried the pre-bump name,
+         which landed on the root div and did nothing. Same class of silent break as the `--dp-*`
+         theme block, which had stopped matching for the same reason (D-DS17). -->
     <VueDatePicker
       v-model="model"
       :range="{ partialRange: false }"
       model-type="yyyy-MM-dd"
-      :enable-time-picker="false"
+      :time-config="{ enableTimePicker: false }"
       :preset-dates="presetDates"
       :max-date="maxDate || undefined"
       auto-apply

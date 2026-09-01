@@ -6,6 +6,11 @@ export interface OrgSettings {
   name: string;
   /** USDOT number as issued by FMCSA. Printed on the driver-qualification binder cover (D-BD5). */
   dot_number: string | null;
+  /** The carrier's address (0282) — §396.21(a)(2) on the inspection report, §396.17(c)(2) on the decal. */
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
   allowed_domains: string[];
   operating_hours: { start: string; end: string; tz: string };
   notification_emails: string[];
@@ -25,6 +30,19 @@ export const orgSettingsFormSchema = z.object({
     .regex(/^\d{1,8}$/, "Use digits only, as issued by FMCSA")
     .or(z.literal(""))
     .nullish(),
+  /**
+   * The carrier's own address (0282), beside `dot_number` because it is the same kind of fact and
+   * printed for the same kind of reader.
+   *
+   * §396.21(a)(2) requires the annual inspection report to identify the motor carrier, and
+   * §396.17(c)(2) requires the decal on the vehicle to name the address WHERE THE REPORT IS
+   * MAINTAINED — an officer's route from a sticker on a truck to a filing cabinet. Empty means "not
+   * recorded", and the inspection refuses to certify rather than printing a blank carrier block.
+   */
+  address_line1: z.string().trim().max(200).or(z.literal("")).nullish(),
+  city: z.string().trim().max(100).or(z.literal("")).nullish(),
+  state: z.string().trim().max(20).or(z.literal("")).nullish(),
+  postal_code: z.string().trim().max(20).or(z.literal("")).nullish(),
   allowed_domains: z.array(z.string().trim().toLowerCase().min(1)).default([]),
   operating_hours: z.object({
     start: timeHHMM,

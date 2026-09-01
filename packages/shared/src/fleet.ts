@@ -120,6 +120,12 @@ export interface Vehicle {
   cargo_compartments?: Array<{ index: number; capacityGal: number }> | null;
   created_at: string;
   updated_at: string;
+  /**
+   * When this unit's annual inspection lapses — projected by the maintenance module when an
+   * inspection is completed, and claimed to `manual` so the TMS sweep cannot revert it (D-AVI9).
+   * Null means none has been recorded, which the roster shows as unknown rather than as overdue.
+   */
+  dot_annual_inspection_expires_at?: string | null;
 }
 
 // ── Trailer (reefer) ────────────────────────────────────────────────────────────
@@ -280,6 +286,8 @@ export interface Trailer {
   samsara_asset_id: string | null;
   created_at: string;
   updated_at: string;
+  /** See `Vehicle.dot_annual_inspection_expires_at`. */
+  dot_annual_inspection_expires_at?: string | null;
 }
 
 // ── Driver ────────────────────────────────────────────────────────────────────

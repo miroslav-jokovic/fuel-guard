@@ -6,6 +6,7 @@ import {
   MPG_FUEL_TYPES,
   RULE_IDS,
   USER_ROLES,
+  USER_ROLE_LABELS,
   isApplicantStatus,
   runAllRules,
 } from "./index.js";
@@ -15,15 +16,22 @@ describe("shared constants", () => {
     expect(APP_NAME).toBe("Silvicom 360");
   });
 
-  it("defines the eight user roles (incl. the department roles, the recruiter and the accountant)", () => {
+  it("defines the nine user roles (incl. the department roles, recruiter, accountant and technician)", () => {
     // The count is asserted on purpose: every role is a Postgres enum value that CANNOT be dropped
     // (no ALTER TYPE ... DROP VALUE), so adding one is a one-way door and should not pass unnoticed.
-    expect(USER_ROLES).toHaveLength(8); // accountant added 2026-08-27 (0266, D-SEP7) — deliberately, one-way door and all
+    expect(USER_ROLES).toHaveLength(9); // accountant 2026-08-27 (0266, D-SEP7); technician 2026-08-31 (0279, D-AVI11) — both one-way doors
     expect(USER_ROLES).toContain("admin");
     expect(USER_ROLES).toContain("dispatcher");
     expect(USER_ROLES).toContain("safety_manager");
     expect(USER_ROLES).toContain("accountant");
     expect(USER_ROLES).toContain("recruiter");
+    expect(USER_ROLES).toContain("technician");
+  });
+
+  it("gives every role a picker label — an unlabelled role is invisible to whoever assigns it", () => {
+    for (const role of USER_ROLES) {
+      expect(USER_ROLE_LABELS[role], role).toBeTruthy();
+    }
   });
 
   /**

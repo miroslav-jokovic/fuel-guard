@@ -22,6 +22,31 @@ export interface ApiResult<T> {
   detail?: Record<string, unknown>;
 }
 
+/**
+ * Fetch a binary response — a PDF — and hand back an object URL the browser can open.
+ *
+ * `window.open()` on an API path cannot work: these routes sit behind `requireAuth` and a plain
+ * navigation carries no Authorization header, so it would 401. The alternative shape in this repo is
+ * an endpoint that returns a SIGNED STORAGE URL (`statementSourceUrl`, the DQ export download), which
+ * is right when the bytes are already an object in a bucket — and is not available for a document
+ * rendered on demand and deliberately never stored, like the inspection DRAFT preview.
+ *
+ * The caller owns the returned URL and must `URL.revokeObjectURL` it when done.
+ */
+export async function fetchObjectUrl(path: string): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    // The body is JSON on failure and a PDF on success, so the message only exists on this branch.
+    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    throw new Error(body?.error?.message ?? `Could not open the document (${res.status})`);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Call the Silvicom 360 API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,

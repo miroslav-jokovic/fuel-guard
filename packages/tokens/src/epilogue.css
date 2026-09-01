@@ -17,8 +17,20 @@
 
 /* ── VueDatePicker theme (@vuepic/vue-datepicker) ─────────────────────────
    Maps the picker's --dp-* variables onto the design tokens so it renders
-   like a native part of the system (and will follow a future dark theme). */
-.dp__theme_light {
+   like a native part of the system (and will follow a future dark theme).
+
+   ⚠ THE SELECTORS ARE THE PART THAT ROTS, AND THEY DID (D-DS17).
+   These read `.dp__theme_light` / `.dp__main` / `.dp__menu` until 2026-08-31.
+   v14 renamed every class to `.dp--theme-light` / `.dp--main` / `.dp--menu`
+   — the --dp-* CUSTOM PROPERTIES all survived the rename, so nothing here
+   errored, nothing failed a build, and the whole block simply stopped
+   matching: every calendar in the product had been rendering in the
+   library's own default palette since the bump. Found by dumping the
+   rendered markup while building the date field, not by looking. A CSS
+   selector that stops matching is the quietest failure in the system —
+   if this file grows a third of these, it needs a test that asserts the
+   class names against the installed package. */
+.dp--theme-light {
   --dp-background-color: var(--surface);
   --dp-text-color: var(--ink);
   --dp-hover-color: var(--surface-muted);
@@ -47,7 +59,7 @@
   --dp-range-between-dates-text-color: var(--ink);
   --dp-range-between-border-color: var(--ramp-brand-50);
 }
-.dp__main {
+.dp--main {
   /* sizing: match BaseInput / rounded-control controls */
   --dp-border-radius: 0.375rem;
   --dp-cell-border-radius: 0.375rem;
@@ -57,7 +69,7 @@
   --dp-input-padding: 5px 30px 5px 34px;
   --dp-menu-min-width: 16rem;
 }
-.dp__menu {
+.dp--menu {
   box-shadow: var(--elevation-overlay);
 }
 

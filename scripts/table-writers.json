@@ -30,6 +30,7 @@
   "documents": [
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",
+    "apps/api/src/modules/evidence/generatedDocuments.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
     "apps/api/src/modules/recruiting/applicationPdf/file.ts"
   ],
@@ -253,6 +254,12 @@
     "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngest.ts"
   ],
+  "maintenance_inspectors": [
+    "apps/api/src/modules/maintenance/inspections/inspectors.ts"
+  ],
+  "maintenance_print_profiles": [
+    "apps/api/src/modules/maintenance/inspections/printProfiles.ts"
+  ],
   "mcleod_ap_vouchers": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
@@ -369,6 +376,7 @@
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
   "trailers": [
+    "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/roster/trailerPairing.ts",
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
@@ -379,10 +387,18 @@
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
+  "vehicle_inspection_items": [
+    "apps/api/src/modules/maintenance/inspections/inspections.ts"
+  ],
+  "vehicle_inspections": [
+    "apps/api/src/modules/maintenance/inspections/finalize.ts",
+    "apps/api/src/modules/maintenance/inspections/inspections.ts"
+  ],
   "vehicles": [
     "apps/api/src/modules/anomalies/scoring/learnVehicle.ts",
     "apps/api/src/modules/anomalies/scoring/persist.ts",
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
+    "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",

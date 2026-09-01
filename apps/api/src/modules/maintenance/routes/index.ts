@@ -6,6 +6,9 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { searchEntries } from "../../financial/index.js";
+import { inspectionsRouter, inspectionPrintingRouter } from "./inspections.js";
+import { inspectorsRouter } from "./inspectors.js";
+import { printProfilesRouter } from "./printProfiles.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -31,6 +34,16 @@ export function maintenanceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
   const canView = requireRole(...rolesThatCanView("maintenance"));
+
+  // The §396.17 annual inspection (ANNUAL-INSPECTION-PLAN.md, step A4) — the module's first owned
+  // tables, mounted beside the repair-spend read it was born with. Each sub-router carries its own
+  // per-verb gates derived from the same matrix.
+  router.use("/inspections", inspectionsRouter());
+  router.use("/inspectors", inspectorsRouter());
+  // Printing onto the pre-printed pads (D-AVI8): the per-printer offsets, and the sheet they are
+  // measured with.
+  router.use("/print-profiles", printProfilesRouter());
+  router.use("/printing", inspectionPrintingRouter());
 
   router.get(
     "/spend",

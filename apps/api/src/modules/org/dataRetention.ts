@@ -217,6 +217,20 @@ export const RETENTION_RULES: RetentionRule[] = [
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */
 export const RETENTION_FORBIDDEN = [
+  /**
+   * The §396.17 annual vehicle inspection and its per-component results (0280, D-AVI4).
+   *
+   * §396.21(b) requires the report retained for FOURTEEN MONTHS from the date of inspection, at the
+   * location where the vehicle is housed or maintained, and produced on demand to a federal, state
+   * or local official. A prune written against `created_at` would therefore be a compliance
+   * incident rather than housekeeping — and the obvious "keep 12 months" that somebody reaches for
+   * is two months short of the number the regulation actually says.
+   *
+   * The rows are already frozen once final by 0280's trigger; pinning them here is what stops a
+   * retention rule deleting a report that a roadside inspection is about to ask for.
+   */
+  "vehicle_inspections",
+  "vehicle_inspection_items",
   "audit_logs", // append-only compliance ledger
   "platform_audit_log",
   "fuel_transactions", // business records

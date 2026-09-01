@@ -253,6 +253,31 @@ describe("identity mode (M4)", () => {
     expect(rec.writtenRows("vehicles")[0]!.dot_annual_inspection_expires_at).toBe("2027-08-14");
   });
 
+  /**
+   * The other half of that derivation, and the one A6 depends on.
+   *
+   * Once Silvicom performs its own §396.17 inspection, `roster.recordEquipmentInspectionExpiry`
+   * writes the expiry AND claims the row to 'manual' (D-AVI9, ANNUAL-INSPECTION-PLAN). That claim is
+   * worth nothing unless this sweep honours it — so the standing-off is asserted for VEHICLES here
+   * and not only for drivers above, because a truck is the thing the inspection is about.
+   *
+   * Note what would happen without it: the office certifies unit 789 on 2026-06-16, and the next
+   * nightly sweep quietly replaces the expiry with one derived from McLeod's own inspection_date.
+   * Nothing errors, nothing is logged, and the compliance surface silently disagrees with the filed
+   * report — the dual-source failure ARCHITECTURE.md §3 calls the audit's sharpest finding.
+   */
+  it("stands off a VEHICLE the office claimed by inspecting it — the expiry is not reverted", async () => {
+    const rec = seed({
+      vehicles: [vehicle({ mcleod_tractor_id: "789", identity_source: "manual" })],
+    });
+    const r = await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", annual_inspection_performed_at: "2026-08-14" },
+    ], "identity");
+    expect(r.skippedOwned).toBe(1);
+    expect(r.updated).toBe(0);
+    expect(rec.writes()).toEqual([]);
+  });
+
   it("never writes tank capacity, which is learned from fill history", async () => {
     const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789" })] });
     await ingestVehicles(rec.client, ORG, [
