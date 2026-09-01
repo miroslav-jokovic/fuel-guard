@@ -105,6 +105,24 @@ const post = (base: string, body: unknown, path = "") =>
   });
 
 describe("creating a draft", () => {
+  it("seeds a REEFER trailer's engine and fuel system, and a dry van's as N/A", async () => {
+    // 46 of 211 trailers are reefers. Seeding one checklist for both would open a dry van's exhaust
+    // and fuel on Ok — an inspection of parts it does not have.
+    for (const [isReefer, expected] of [[true, "ok"], [false, "na"]] as const) {
+      rec = createSupabaseRecorder({
+        tables: {
+          maintenance_inspectors: [QUALIFIED_INSPECTOR],
+          vehicle_inspections: [],
+          trailers: [{ id: VEHICLE, unit_number: "T-1", vin: null, plate: null, is_reefer: isReefer }],
+        },
+      });
+      await withServer(async (base) => post(base, { ...CREATE, subjectType: "trailer" }));
+      const seeded = rec.writtenRows("vehicle_inspection_items");
+      const fuel = seeded.find((r) => r.item_key === "fuel.tank_secure");
+      expect(fuel!.result, String(isReefer)).toBe(expected);
+    }
+  });
+
   it("seeds every catalogue component, so D-AVI5 costs the inspector nothing", async () => {
     const status = await withServer(async (base) => (await post(base, CREATE)).status);
     expect(status).toBe(201);

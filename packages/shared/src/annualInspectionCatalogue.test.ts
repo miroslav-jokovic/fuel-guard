@@ -69,17 +69,18 @@ describe("annual inspection catalogue", () => {
   });
 
   describe("both default columns are transcribed from real filled forms", () => {
-    it("gives every component an answer for both kinds of equipment", () => {
+    it("gives every component an answer in all three columns", () => {
       for (const item of INSPECTION_ITEMS) {
-        expect(item.defaults.tractor, item.key).toMatch(/^(ok|needs_repair|na)$/);
-        expect(item.defaults.trailer, item.key).toMatch(/^(ok|needs_repair|na)$/);
+        for (const col of ["tractor", "trailerReefer", "trailerDry"] as const) {
+          expect(item.defaults[col], `${item.key}/${col}`).toMatch(/^(ok|needs_repair|na)$/);
+        }
       }
     });
 
     it("differs on exactly the eighteen components the two forms differ on", () => {
       // Tractor 654 (2026-06-16) vs trailer 535968 (2026-08). If this number moves, somebody has
       // changed a default by hand rather than by measuring another form.
-      const differing = INSPECTION_ITEMS.filter((i) => i.defaults.tractor !== i.defaults.trailer);
+      const differing = INSPECTION_ITEMS.filter((i) => i.defaults.tractor !== i.defaults.trailerReefer);
       expect(differing).toHaveLength(18);
     });
 
@@ -92,17 +93,49 @@ describe("annual inspection catalogue", () => {
         "fuel.no_visible_leak", "fuel.filler_cap", "fuel.tank_secure",
         "brake.air_compressor", "brake.tractor_protection_valve",
       ]) {
-        expect(inspectionItem(key)!.defaults.trailer, key).toBe("ok");
+        expect(inspectionItem(key)!.defaults.trailerReefer, key).toBe("ok");
       }
     });
 
     it("and the ones that go the other way", () => {
       for (const key of ["coupling.drawbar_eye", "coupling.safety_devices", "coupling.fifth_wheel"]) {
-        expect(inspectionItem(key)!.defaults.trailer, key).toBe("na");
+        expect(inspectionItem(key)!.defaults.trailerReefer, key).toBe("na");
       }
-      expect(inspectionItem("rear_impact_guard.present")!.defaults.trailer).toBe("ok");
-      expect(inspectionItem("frame.adjustable_axle")!.defaults.trailer).toBe("ok");
-      expect(inspectionItem("tires.steer_axle")!.defaults.trailer).toBe("na");
+      expect(inspectionItem("rear_impact_guard.present")!.defaults.trailerReefer).toBe("ok");
+      expect(inspectionItem("frame.adjustable_axle")!.defaults.trailerReefer).toBe("ok");
+      expect(inspectionItem("tires.steer_axle")!.defaults.trailerReefer).toBe("na");
+    });
+  });
+
+  describe("a dry van is not a reefer, and the fleet is mostly not reefers", () => {
+    it("opens a dry van's engine and fuel system on N/A", () => {
+      // Measured 2026-08-31: 46 reefers, 13 dry vans and 152 with no type recorded, out of 211. The
+      // sample form is a reefer, so applying it whole would open a dry van's exhaust and fuel on Ok
+      // — an inspection of an engine and a tank it does not have.
+      for (const key of ["exhaust.no_leaks_at_cab", "exhaust.no_burn_risk", "fuel.no_visible_leak", "fuel.filler_cap", "fuel.tank_secure"]) {
+        expect(defaultInspectionResult(inspectionItem(key)!, "trailer", true), key).toBe("ok");
+        expect(defaultInspectionResult(inspectionItem(key)!, "trailer", false), key).toBe("na");
+      }
+    });
+
+    it("changes nothing else between the two kinds of trailer", () => {
+      const moved = INSPECTION_ITEMS.filter((i) => i.defaults.trailerReefer !== i.defaults.trailerDry);
+      expect(moved.map((i) => i.key).sort()).toEqual([
+        "exhaust.no_burn_risk", "exhaust.no_leaks_at_cab",
+        "fuel.filler_cap", "fuel.no_visible_leak", "fuel.tank_secure",
+      ]);
+    });
+
+    it("treats anything that is not a known reefer as a dry van", () => {
+      // The owner's rule: 46 reefers, everything else a dry van. The roster says exactly that —
+      // `is_reefer` is 46 true, 165 false and never null — so there is no third state to guess at.
+      for (const notAReefer of [false, undefined, null]) {
+        expect(
+          defaultInspectionResult(inspectionItem("fuel.tank_secure")!, "trailer", notAReefer),
+          String(notAReefer),
+        ).toBe("na");
+      }
+      expect(defaultInspectionResult(inspectionItem("fuel.tank_secure")!, "trailer", true)).toBe("ok");
     });
   });
 

@@ -823,6 +823,20 @@ folder** and the question should have been "is there another form?" before it wa
 trailer have?".
 
 
+**Q10 — The dry-van default column is DERIVED, not measured.** *(affects 165 of 211 trailers)*
+The trailer sample is a **reefer** — it marks exhaust and fuel `Ok`, which only a reefer has. The
+owner's rule is 46 reefers and everything else a dry van, and the roster says exactly that:
+`trailers.is_reefer` measured 2026-08-31 is 46 true, 165 false, **never null**. So the column a
+trailer reads is a fact the product already holds, and the seed reads it.
+
+What is NOT measured is the dry-van column itself. It is derived from the reefer one by setting the
+five engine-and-fuel components to `N/A`, and that is labelled rather than hidden because the last
+inferred column was wrong on seven items (Q6). The derivation is a much smaller claim than that one
+was — a dry van has no engine and no fuel tank, which is what "dry van" means — but it is still a
+claim.
+**Recommendation:** one filled DRY VAN report settles it in a minute, the same way the trailer form
+settled Q6. Until then this is the only part of either checklist that did not come off paper.
+
 **Q7 — Should a PASS require a decal serial, and should decals be tracked as stock?** *(blocks A6's finalize rule and A7's field; from Q1)*
 Now that the number is known to be a §396.17(c)(2) decal, two things follow that the plan has not
 decided.

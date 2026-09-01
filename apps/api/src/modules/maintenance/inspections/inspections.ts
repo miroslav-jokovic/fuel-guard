@@ -8,7 +8,7 @@ import {
   type InspectionPatchRequest,
   type InspectionSubjectType,
 } from "@silvicom/shared";
-import { getEquipmentIdentities } from "../../roster/index.js";
+import { getEquipmentIdentities, getEquipmentIdentity } from "../../roster/index.js";
 import type { ServiceError } from "./inspectors.js";
 
 /**
@@ -86,7 +86,12 @@ export async function createInspectionDraft(
   });
   if (error) return traced("createInspectionDraft", "insert_failed", "Could not start the inspection", error);
 
-  const seeded = defaultInspectionItems(input.subjectType).map((item) => ({
+  // A reefer's checklist is not a dry van's: it has an engine and a fuel tank. Read once at seed
+  // time so the form opens right, rather than making the inspector correct five rows every time.
+  const equipment = await getEquipmentIdentity(admin, orgId, input.subjectType, input.subjectId);
+  const isReefer = equipment && !("code" in equipment) ? equipment.isReefer : null;
+
+  const seeded = defaultInspectionItems(input.subjectType, isReefer).map((item) => ({
     org_id: orgId,
     inspection_id: input.id,
     item_key: item.key,
