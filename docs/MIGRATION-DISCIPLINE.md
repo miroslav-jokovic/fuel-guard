@@ -38,3 +38,68 @@ Add a CI check that fails if `supabase db diff` is non-empty on a PR, so drift c
 ## Invariant going forward
 Change the schema **only** by adding a numbered file to `supabase/migrations/`. Never edit an applied
 migration; never hand-apply SQL. The pipeline is the only door.
+
+## The deploy window — a merge is served ~9 minutes before its migration is applied
+
+Two pipelines start from the same merge and finish at different times:
+
+| | |
+|---|---|
+| **Railway** | deploys on push to `main`, immediately (its own GitHub integration, `railway.json` `watchPatterns`). Nothing in this repository triggers or orders it. |
+| **`migrate.yml`** | waits for **CI green** before touching production Supabase — deliberately. It used to run in parallel, so a push with a red test suite still applied migrations (audit 2026-08-09, finding 3.1). It fails closed now. |
+
+Measured on the #430 merge, 2026-09-01:
+
+```
+15:33:00Z  merge to main
+15:36:01Z  Railway is serving the new API        ← new code, OLD schema
+15:44:37Z  CI green
+15:45:11Z  migrate.yml applies 0284              ← window closes
+```
+
+**Nine minutes and ten seconds** of new code against the previous schema. `deploy-verify.yml`
+already models this as normal: it polls for `schema.state = "current"` for up to fifteen minutes and
+treats "commit matches, schema behind" as a transient state rather than a failure.
+
+### What that means for you
+
+**Every merge must work against the schema of the merge before it.** #430 did not: migration 0284
+added `renderer_version` and `template_revision` to `vehicle_inspections`, and the same commit added
+both names to `REPORT_COLUMNS`, the SELECT list behind the inspections page. PostgREST rejects a
+whole query for one unknown column, so the page returned 500 for everyone until the migration landed.
+
+So a column and its first reader ship in **two merges**:
+
+1. **Merge the migration alone.** No code names the new column.
+2. Wait for `curl <API_URL>/api/version` to report `"schema":{"state":"current"}` — or for the
+   "Apply Supabase migrations" run to go green, which is the same fact.
+3. **Merge the code** that reads it.
+
+`pnpm lint:migration-ordering` enforces this on every pull request
+(`scripts/check-migration-ordering.mjs`). It flags a column **added to an existing table** whose name
+this same change introduces to application source.
+
+**A new table is exempt, on purpose.** Its readers are new code paths, so the window degrades a
+feature nobody is using yet rather than breaking one they are — the difference between 0283
+(`maintenance_print_profiles` and its service together, harmless) and 0284 (two columns into a live
+SELECT list, an outage). Widening the gate to new tables would fail nearly every feature PR and
+would be waived within a week, which is how a gate dies.
+
+**A rename has no safe window at all** and is caught by its new name: the old name breaks the moment
+the migration lands, the new one breaks until it does. The safe shape is add → backfill → switch →
+drop, four merges. 0281 renamed `stock_serial` to `decal_serial` in one merge and got away with it
+only because the table was empty and the feature unreleased.
+
+**Dropping a column is not covered by the gate.** The hazard runs the other way — deployed code still
+reading a column this merge removes — and detecting it means proving no remaining source names it.
+Named here rather than left to be discovered.
+
+### Open question — closing the window instead of policing it
+
+The gate makes the window survivable; it does not remove it. Removing it means **ordering the app
+deploy behind the migration**: Railway deploying on a workflow trigger that runs after `migrate.yml`
+succeeds, instead of on push. That is Railway configuration plus a deploy token in Actions, and it is
+the owner's call because it changes how every deploy in the repository is triggered — including the
+failure mode where a broken `migrate.yml` would then block all deploys rather than just schema
+changes. Until it is answered, backward compatibility for one release is a property every merge has
+to have, and the gate is what checks it.

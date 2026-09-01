@@ -32,6 +32,11 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
 - Schema changes ONLY as the next-numbered file in `supabase/migrations/` (`lint:migrations`). Never
   edit an applied migration. `migrate.yml` auto-applies to production Supabase on merge to main,
   gated on CI green — a merged migration IS a deployed migration.
+- ...but NOT an immediately deployed one. Railway serves a merge ~3 min in and `migrate.yml` applies
+  the schema ~12 min in, so **every merge must work against the previous schema for ~9 minutes**. A
+  column and its first reader ship in two separate merges (`lint:migration-ordering`); new tables are
+  exempt, renames need the four-step dance. Measured, and the outage it cost, in
+  `docs/MIGRATION-DISCIPLINE.md` §the-deploy-window.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict

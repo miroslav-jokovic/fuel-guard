@@ -13,6 +13,10 @@ jobs:
       VITE_SUPABASE_ANON_KEY: ci-test-anon-key
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The migration-ordering gate diffs this change against the base it will merge into, so it
+          # needs history rather than the default single commit. Everything else is unaffected.
+          fetch-depth: 0
 
       - name: Enable Corepack
         run: corepack enable
@@ -54,6 +58,20 @@ jobs:
 
       - name: Migration versions
         run: pnpm lint:migrations
+
+      # Only on a pull request, and that is the point: this gate exists to STOP a merge that would
+      # serve code against a schema it has not got yet. On a push to main the merge has already
+      # happened and the deploy is already running, so failing there would paint main red over
+      # something nobody can now prevent. The self-test runs on both events, so a broken detector is
+      # still caught. See scripts/check-migration-ordering.mjs and docs/MIGRATION-DISCIPLINE.md.
+      - name: Migration ordering self-test
+        run: node scripts/check-migration-ordering.mjs --self-test
+
+      - name: Migration ordering (column and its first reader in one merge)
+        if: github.event_name == 'pull_request'
+        env:
+          MIGRATION_ORDERING_BASE: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/check-migration-ordering.mjs
 
       - name: Upsert-as-update guard
         run: pnpm lint:upserts
