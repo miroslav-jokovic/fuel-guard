@@ -257,16 +257,49 @@ describe("identity mode (M4)", () => {
    * The other half of that derivation, and the one A6 depends on.
    *
    * Once Silvicom performs its own §396.17 inspection, `roster.recordEquipmentInspectionExpiry`
-   * writes the expiry AND claims the row to 'manual' (D-AVI9, ANNUAL-INSPECTION-PLAN). That claim is
-   * worth nothing unless this sweep honours it — so the standing-off is asserted for VEHICLES here
-   * and not only for drivers above, because a truck is the thing the inspection is about.
-   *
-   * Note what would happen without it: the office certifies unit 789 on 2026-06-16, and the next
-   * nightly sweep quietly replaces the expiry with one derived from McLeod's own inspection_date.
-   * Nothing errors, nothing is logged, and the compliance surface silently disagrees with the filed
-   * report — the dual-source failure ARCHITECTURE.md §3 calls the audit's sharpest finding.
+   * writes the expiry AND marks `dot_annual_inspection_source = 'inspection'` (D-AVI9, 0286). That
+   * claim is worth nothing unless this sweep honours it: without it the office certifies unit 789,
+   * and the next nightly sweep quietly replaces the expiry with one derived from McLeod's own
+   * inspection_date. Nothing errors, nothing is logged, and the compliance surface silently
+   * disagrees with the filed report — the dual-source failure ARCHITECTURE.md §3 calls the audit's
+   * sharpest finding.
    */
-  it("stands off a VEHICLE the office claimed by inspecting it — the expiry is not reverted", async () => {
+  it("does not revert the expiry of a VEHICLE the office claimed by inspecting it", async () => {
+    const rec = seed({
+      vehicles: [vehicle({ mcleod_tractor_id: "789", dot_annual_inspection_source: "inspection" })],
+    });
+    const r = await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", annual_inspection_performed_at: "2026-08-14" },
+    ], "identity");
+    expect(r.updated).toBe(1);
+    const [patch] = rec.writtenRows("vehicles") as Array<Record<string, unknown>>;
+    expect(patch).not.toHaveProperty("dot_annual_inspection_expires_at");
+  });
+
+  /**
+   * ── THE HALF THAT USED TO COST A TRAILER ITS VIN (0286) ──────────────────────────────────────
+   * The claim used to be `identity_source = 'manual'`, which the ownership rule answers by skipping
+   * the WHOLE patch. Measured 2026-09-01: the first identity sweep filled 200 trailer VINs and
+   * reported `office-owned=1` — the single trailer with a certified inspection, which ended the
+   * sweep still carrying `vin = null`. Its own inspection locked it out of its own VIN.
+   *
+   * So the claim now costs exactly one column. Everything else about the row is still McLeod's.
+   */
+  it("still writes the IDENTITY of an inspected vehicle — only the date stands off", async () => {
+    const rec = seed({
+      vehicles: [vehicle({ mcleod_tractor_id: "789", dot_annual_inspection_source: "inspection" })],
+    });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", plate: "IL 9999",
+        annual_inspection_performed_at: "2026-08-14" },
+    ], "identity");
+    const [patch] = rec.writtenRows("vehicles") as Array<Record<string, unknown>>;
+    expect(patch).toMatchObject({ vin: "3AKJHHDR4LSLL4083", plate: "IL 9999" });
+  });
+
+  it("still stands fully off a row the OFFICE owns outright — identity_source keeps its own job", async () => {
+    // Scoping the inspection claim must not weaken the general ownership rule. A row somebody set to
+    // 'manual' on purpose is still skipped entirely, patch and link refresh included.
     const rec = seed({
       vehicles: [vehicle({ mcleod_tractor_id: "789", identity_source: "manual" })],
     });
