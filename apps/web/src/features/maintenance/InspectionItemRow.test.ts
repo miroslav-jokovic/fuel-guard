@@ -29,7 +29,9 @@ describe("the three-state control", () => {
   });
 
   it("marks the current answer with aria-pressed, so a screen reader hears the state", () => {
-    const buttons = mountRow({ result: "needs_repair" }).findAll("button");
+    // Scoped to the group: a row marked "Repair" also shows a repair-date field, and that field's
+    // calendar button is a button in this row that is not one of the three answers.
+    const buttons = mountRow({ result: "needs_repair" }).findAll('[role="group"] button');
     expect(buttons.map((b) => b.attributes("aria-pressed"))).toEqual(["false", "true", "false"]);
   });
 
@@ -51,12 +53,12 @@ describe("every row is answerable — the form is the same for both (owner rulin
     // the difference is the unit number and which boxes are marked — so refusing a mark the paper
     // permits would be a rule the office does not have. A converter dolly carries a fifth wheel.
     const w = mountRow({ item: inspectionItem("rear_impact_guard.present")!, result: "na" });
-    expect(w.findAll("button").map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
+    expect(w.findAll('[role="group"] button').map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
   });
 
   it("leaves a fleet default markable too — that na is about this fleet, not the rules", () => {
     const w = mountRow({ item: inspectionItem("brake.hydraulic")!, result: "na" });
-    expect(w.findAll("button").map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
+    expect(w.findAll('[role="group"] button').map((b) => b.attributes("disabled") !== undefined)).toEqual([false, false, false]);
   });
 
   it("still disables everything once the inspection is completed (D-AVI4)", () => {
@@ -81,8 +83,13 @@ describe("what the row tells the inspector about itself", () => {
   });
 
   it("offers a repair date only for a defect, because a date anywhere else is a data-entry error", () => {
-    expect(mountRow({ result: "ok" }).find('input[type="date"]').exists()).toBe(false);
-    expect(mountRow({ result: "needs_repair" }).find('input[type="date"]').exists()).toBe(true);
+    // Asked of the COMPONENT, not of `input[type="date"]`: the date field is a real picker now
+    // (D-DS17) and its input is a text one, so a selector on the native type would report "no date
+    // field here" for every row that has one.
+    const has = (result: "ok" | "needs_repair") =>
+      mountRow({ result }).findComponent({ name: "AppDateField" }).exists();
+    expect(has("ok")).toBe(false);
+    expect(has("needs_repair")).toBe(true);
   });
 
   it("clears the repair date to null rather than an empty string", () => {

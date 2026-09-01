@@ -12,7 +12,7 @@
  *     distance and `baselineOf()` is the single place that flips it. Getting that conversion wrong
  *     mirrors the whole page, which is why it happens in one function.
  *   · a four-digit repair date OVERFLOWS its cell (40.03 pt of text in a 39.2 pt box), so a cell is
- *     a RECTANGLE with a `maxWidth` rather than a point, and `layout.test.ts` fails the build when a
+ *     a RECTANGLE with a `maxWidth` rather than a point, and `../layout.test.ts` fails the build when a
  *     realistic value does not fit.
  *
  * ── IF KELLER REISSUES THE FORM ────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ export interface Cell {
   readonly x: number;
   /** Top-down distance to the text baseline — flip it with `baselineOf`. */
   readonly y: number;
-  /** The box the value must fit inside. Enforced by `layout.test.ts`, not by hope. */
+  /** The box the value must fit inside. Enforced by `../layout.test.ts`, not by hope. */
   readonly maxWidth: number;
 }
 
