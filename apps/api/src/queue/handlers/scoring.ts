@@ -25,21 +25,39 @@ export const rebuildHandler: JobHandler = async (ctx, job, report) => {
   return { count };
 };
 
-/** Live Samsara reconciliation backfill — cancel-aware via the ledger's cooperative cancel flag. */
+/**
+ * Live Samsara reconciliation backfill — cancel-aware via the ledger's cooperative cancel flag.
+ *
+ * Three shapes, one handler, decided entirely by the payload (plan A2 — the input is never
+ * closure-captured):
+ *  - `full` — every fill, the manual "Re-check all history" button.
+ *  - `reconBatch` — the SAM-S3 collector tier: the oldest N fills still missing telematics, bounded so
+ *    one tick finishes inside its rate budget. This is the shape that runs on a schedule.
+ *  - neither — "catch up new fills", the manual button, unbounded over never-reconciled rows.
+ */
 export const backfillHandler: JobHandler = async (ctx, job, report) => {
   const full = job.payload.full === true;
   const actorId = asStr(job.payload.actorId);
+  const batch = asNum(job.payload.reconBatch);
+  const retryAfterHours = asNum(job.payload.reconRetryAfterHours) ?? 24;
+  const opts = full
+    ? {}
+    : batch != null
+      ? { reconClaim: { limit: batch, retryAfterHours } }
+      : { onlyUnreconciled: true };
   const count = await backfillOrg(
     ctx.admin, ctx.env, job.org_id,
-    full ? {} : { onlyUnreconciled: true },
+    opts,
     report,
     () => jobCancelRequested(ctx.admin, job.id),
   );
   const canceled = await jobCancelRequested(ctx.admin, job.id);
+  // A scheduled tick has no actor, and `writeAudit` with a null actor is how every other scheduled run
+  // records itself — the audit row is what makes "the collector ran and fetched nothing" visible.
   await writeAudit(ctx.admin, {
-    orgId: job.org_id, actorId, action: "transactions.backfill", meta: { count, full, canceled },
+    orgId: job.org_id, actorId, action: "transactions.backfill", meta: { count, full, canceled, batch: batch ?? null },
   });
-  return { count, full, canceled };
+  return { count, full, canceled, ...(batch != null ? { batch } : {}) };
 };
 
 /** Score just the transactions from one import (referenced by persisted importId). */

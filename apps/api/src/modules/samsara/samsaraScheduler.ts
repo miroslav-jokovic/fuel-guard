@@ -16,6 +16,7 @@ import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../org/index.js";
 import { enqueueJob } from "../../queue/enqueue.js";
+import { dispatchJob } from "../../queue/dispatch.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
@@ -129,21 +130,58 @@ function startTier(
 }
 
 /**
- * Start the tiered Samsara schedulers (in-process on the single Railway instance):
- *  - **Live stats** (odometer + fuel level) every SAMSARA_STATS_SYNC_MINUTES — cheap, kept fresh.
- *  - **Identity** (vehicles, drivers, assignments) every SAMSARA_IDENTITY_SYNC_HOURS — slow-changing.
- * Both run through the jobs ledger (freshness + no-overlap) and the rate-limited Samsara client.
- * SAMSARA_SYNC_HOURS=0 remains a kill switch that disables ALL sync (manual buttons still work).
+ * Tier 5 — PER-FILL TELEMATICS (SAM-S3, D-SAM1). The tier that stops the collection hole growing.
+ *
+ * ── WHY THIS TIER HAD TO EXIST ───────────────────────────────────────────────────────────────────
+ * Per-fill Samsara reconciliation lived inside `modules/anomalies/scoring/reconcile.ts` — it happened
+ * as a SIDE EFFECT of scoring a fill, and never otherwise. `ScoreOpts.skipRecon` documents the
+ * consequence in its own words: bulk rebuilds reuse stored values so they do not hammer the vendor
+ * rate limit. A new import fetches; a bulk rebuild, the post-import cascade and `scoreVehicle` do
+ * not — and for a historical row there is nothing stored, so it stayed empty permanently. Measured
+ * 2026-09-01: 10,644 of 13,711 tractor fills (77.6%) had no telematics, and by month 2026-03, 2026-04
+ * and 2026-06 had ZERO successful reconciliations while 2026-08 onward is ~100% — the signature of
+ * "whatever happened to be imported got fetched". Nothing incidental was going to close that.
+ *
+ * A collector whose coverage depends on what a downstream consumer happened to request is not a
+ * collector (plan §1.3). This tier owns the work on its own schedule, and D-SAM3's "enqueue it
+ * instead of dropping it" needs no second queue: a pass that skips a fill leaves `samsara_recon_at`
+ * null, and null is exactly what the claim selects. The rows ARE the queue.
+ *
+ * ── WHY IT DISPATCHES INSTEAD OF CALLING ─────────────────────────────────────────────────────────
+ * `backfillOrg` lives in `modules/anomalies`, and `samsara -> anomalies` is deliberately NOT in
+ * `check-feature-boundaries.mjs`' allow-list: the collector must not depend on the scoring module,
+ * which is the whole of D-ARC1 and the inversion this plan is about. So the tier does what
+ * `startRebuildOnBoot` does — it DISPATCHES the existing `backfill` kind. A message, not a
+ * dependency. `dispatchJob` also gives it the per-org scoring mutex for free (`SCORING_JOB_KINDS`),
+ * so a tick can never run alongside a manual rebuild over the same rows; a conflict means one is
+ * already running, which is the "already handled" case, and is skipped rather than queued.
  */
-export function startSamsaraScheduler(env: Env): void {
-  if (env.SAMSARA_SYNC_HOURS === 0) return; // legacy kill switch → disable all Samsara scheduling
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
+function startReconTier(env: Env): void {
+  startTier(env, "recon", 240_000, env.SAMSARA_RECON_SYNC_MINUTES * 60_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      try {
+        await dispatchJob(admin, env, "backfill", {
+          orgId,
+          payload: {
+            reconBatch: env.SAMSARA_RECON_BATCH,
+            reconRetryAfterHours: env.SAMSARA_RECON_RETRY_HOURS,
+          },
+        });
+      } catch (e) {
+        console.error(
+          `[samsara-sched] recon tier dispatch failed for org ${orgId}:`,
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }
+  });
+}
 
-  const statsMs = env.SAMSARA_STATS_SYNC_MINUTES * 60_000;
-  const identityMs = env.SAMSARA_IDENTITY_SYNC_HOURS * 3_600_000;
-
-  // Tier 1 — live stats. Shares the "sync_vehicles" slot? No: distinct kind so it never blocks identity.
-  startTier(env, "stats", 30_000, statsMs, async (admin) => {
+/**
+ * Tier 1 — live stats. Shares the "sync_vehicles" slot? No: distinct kind so it never blocks identity.
+ */
+function startStatsTier(env: Env, intervalMs: number): void {
+  startTier(env, "stats", 30_000, intervalMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_stats", async () => {
         const r = await syncVehicleStatsFromSamsara(admin, env, orgId);
@@ -151,10 +189,14 @@ export function startSamsaraScheduler(env: Env): void {
       });
     }
   });
+}
 
-  // Tier 2 — identity (drivers first so assignments resolve). Uses the "sync_vehicles" kind so a manual
-  // "Sync from Samsara" and this scheduled refresh share ONE active-run slot (no concurrent double-sync).
-  startTier(env, "identity", 90_000, identityMs, async (admin) => {
+/**
+ * Tier 2 — identity (drivers first so assignments resolve). Uses the "sync_vehicles" kind so a manual
+ * "Sync from Samsara" and this scheduled refresh share ONE active-run slot (no concurrent double-sync).
+ */
+function startIdentityTier(env: Env, intervalMs: number): void {
+  startTier(env, "identity", 90_000, intervalMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_vehicles", async () => {
         try {
@@ -171,9 +213,13 @@ export function startSamsaraScheduler(env: Env): void {
       });
     }
   });
+}
 
-  // Tier 3 — driver performance: refresh the current week's Safety+Efficiency scores, then freeze any settled
-  // weeks into the rewards ledger. Both run through the jobs ledger (no overlap); efficiency degrades gracefully.
+/**
+ * Tier 3 — driver performance: refresh the current week's Safety+Efficiency scores, then freeze any settled
+ * weeks into the rewards ledger. Both run through the jobs ledger (no overlap); efficiency degrades gracefully.
+ */
+function startPerformanceTier(env: Env): void {
   const driverScoreMs = env.SAMSARA_DRIVER_SCORE_SYNC_HOURS * 3_600_000;
   startTier(env, "driver-scores", 120_000, driverScoreMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
@@ -262,34 +308,40 @@ export function startSamsaraScheduler(env: Env): void {
       });
     }
   });
+}
 
-  // Tier 3b — IFTA jurisdiction miles (0255). Daily, and deliberately its own tier rather than a line
-  // in tier 3: it is the only Samsara feed whose grain is a MONTH, nothing it reads moves faster than
-  // Samsara's 72-hour restatement window, and a tax figure has no business sharing a ledger slot with a
-  // driver-score refresh that runs every six hours. `SAMSARA_IFTA_SYNC_HOURS=0` disables it outright.
-  if (env.SAMSARA_IFTA_SYNC_HOURS > 0) {
-    startTier(env, "ifta", 180_000, env.SAMSARA_IFTA_SYNC_HOURS * 3_600_000, async (admin) => {
-      for (const orgId of await orgsToSync(admin, env)) {
-        await runOrgTier(admin, env, orgId, "sync_ifta", async () => {
-          const months = monthsToSync(new Date());
-          const per: Record<string, number> = {};
-          let rows = 0;
-          let unmapped = 0;
-          for (const { year, month } of months) {
-            const r = await syncIftaMilesForMonth(admin, env, orgId, year, month);
-            per[`${month} ${year}`] = r.rows;
-            rows += r.rows;
-            unmapped = Math.max(unmapped, r.unmappedVehicles);
-          }
-          return { months: per, rows, unmappedVehicles: unmapped };
-        });
-      }
-    });
-  }
+/**
+ * Tier 3b — IFTA jurisdiction miles (0255). Daily, and deliberately its own tier rather than a line
+ * in tier 3: it is the only Samsara feed whose grain is a MONTH, nothing it reads moves faster than
+ * Samsara's 72-hour restatement window, and a tax figure has no business sharing a ledger slot with a
+ * driver-score refresh that runs every six hours. `SAMSARA_IFTA_SYNC_HOURS=0` disables it outright.
+ */
+function startIftaTier(env: Env): void {
+  startTier(env, "ifta", 180_000, env.SAMSARA_IFTA_SYNC_HOURS * 3_600_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "sync_ifta", async () => {
+        const months = monthsToSync(new Date());
+        const per: Record<string, number> = {};
+        let rows = 0;
+        let unmapped = 0;
+        for (const { year, month } of months) {
+          const r = await syncIftaMilesForMonth(admin, env, orgId, year, month);
+          per[`${month} ${year}`] = r.rows;
+          rows += r.rows;
+          unmapped = Math.max(unmapped, r.unmappedVehicles);
+        }
+        return { months: per, rows, unmappedVehicles: unmapped };
+      });
+    }
+  });
+}
 
-  // Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
-  // (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
-  // the run + its per-table delete counts are visible on Data & Sync.
+/**
+ * Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
+ * (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
+ * the run + its per-table delete counts are visible on Data & Sync.
+ */
+function startRetentionTier(env: Env): void {
   startTier(env, "retention", 600_000, 24 * 3_600_000, async (admin) => {
     // ALL orgs — retention is not tied to having a Samsara token.
     const { data: orgs } = await admin.from("organizations").select("id");
@@ -305,8 +357,35 @@ export function startSamsaraScheduler(env: Env): void {
       });
     }
   });
+}
+
+/**
+ * Start the tiered Samsara schedulers (in-process on the single Railway instance). Every tier runs
+ * through the jobs ledger (freshness + no-overlap) and the rate-limited Samsara client.
+ * SAMSARA_SYNC_HOURS=0 remains a kill switch that disables ALL sync (manual buttons still work).
+ *
+ * ⚠ One function per tier, and that is `lint:funcsize`'s instruction rather than a preference: this
+ * function crossed the 200-line budget when the per-fill telematics tier landed (SAM-S3), and the
+ * gate's own message is "split into an orchestrator + stage helpers". It was split WHOLE rather than
+ * by evicting whichever tier happened to be biggest — squeezing back under leaves the next tier to
+ * hit the same wall with no headroom, which is the argument `mountApiRouters` in app.ts already had
+ * to make once.
+ */
+export function startSamsaraScheduler(env: Env): void {
+  if (env.SAMSARA_SYNC_HOURS === 0) return; // legacy kill switch → disable all Samsara scheduling
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
+
+  startStatsTier(env, env.SAMSARA_STATS_SYNC_MINUTES * 60_000);
+  startIdentityTier(env, env.SAMSARA_IDENTITY_SYNC_HOURS * 3_600_000);
+  startPerformanceTier(env);
+  if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
+  if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
+  startRetentionTier(env);
 
   console.log(
-    `[samsara-sched] tiered sync enabled — stats every ${env.SAMSARA_STATS_SYNC_MINUTES}m, identity every ${env.SAMSARA_IDENTITY_SYNC_HOURS}h`,
+    `[samsara-sched] tiered sync enabled — stats every ${env.SAMSARA_STATS_SYNC_MINUTES}m, identity every ${env.SAMSARA_IDENTITY_SYNC_HOURS}h` +
+      (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0
+        ? `, per-fill telematics ${env.SAMSARA_RECON_BATCH} fills every ${env.SAMSARA_RECON_SYNC_MINUTES}m`
+        : ", per-fill telematics DISABLED"),
   );
 }
