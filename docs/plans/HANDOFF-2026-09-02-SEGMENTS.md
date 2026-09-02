@@ -144,7 +144,7 @@ appear. Derive the facet from `efs_transactions.unit` (D-FUI16).
 | **Steps** | T5's remaining bullets: "share attributed to a vehicle" on the fuel list pages |
 | **Owns** | one migration, `apps/api/src/modules/fuel-spend/**`, the list pages' header lines |
 | **Migration?** | **YES — see §0.1.** `fuel_range_totals` (0289) returns `fills` but not "fills naming a truck". `create or replace` **cannot** change a `returns table` shape: it is `drop function` + `create` in one transaction (safe — an extra column is ignored by the old reader). |
-| **Blocked by** | ⚠ **The Cards page's third fact is under-specified.** "Share attributed to a vehicle" has no meaning there — a card is issued to a driver or a truck as setup, not attributed per row, so there is no denominator. **Decide and name the rule, or drop the fact on that page and say so.** |
+| **Blocked by** | **Nothing — Q-FUI14 answered 2026-09-02: Cards DROPS the attribution fact.** It has no denominator there (a card is issued to a driver or truck as setup, not attributed per row), so Cards carries rows-in-window and last-feed-poll only. The remaining constraint is the migration protocol in §0.1. |
 | **Done when** | No figure in the section reads as a claim about everything without saying what it covers. |
 
 **Already done and not to be redone:** the rollup build-age line on Fuel Spend and the spend PDF (#479),
@@ -175,7 +175,7 @@ exist after Segment B. Whoever finishes B should check it.
 ```
 now, in parallel:   Segment A (Samsara)        Segment B (consolidation, 4 PRs)
 then:                                          Segment C (parity, 3 PRs)
-alongside C:        Segment D (T5) — once its Cards ruling exists and no other migration is in flight
+alongside C:        Segment D (T5) — unblocked; start when no other migration is in flight
 last:               Segment E — once Q-FUI3 / Q-FUI11 / Q-FUI1 are answered and S6 has measured
 ```
 
@@ -200,7 +200,7 @@ Unchanged, and each one blocks something above.
 | Question | Blocks | Fallback if unanswered |
 |---|---|---|
 | **Q-SAM6** — raise `SAMSARA_RECON_BATCH`? | S6's timing | stays 250; drains in ~43 h not ~11 |
-| **Cards' third fact** | Segment D | drop the fact on that page, stated |
+| ~~**Cards' third fact**~~ | ~~Segment D~~ | **ANSWERED 2026-09-02 — dropped. Q-FUI14.** Segment D is unblocked. |
 | **Q-FUI3** | C6 | C6 does not ship; policy views stay unmounted |
 | **Q-FUI11**, **Q-FUI1** | C7 | C7 does not ship; two inboxes remain |
 | **Q-SAM1** | S5's targets only | provisional numbers, no alert on a guess |
