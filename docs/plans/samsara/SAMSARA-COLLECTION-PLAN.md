@@ -332,6 +332,48 @@ Done-when above.
 **Verified by.** A test that advances the cursor across a simulated multi-change window;
 `lint:rls`, `lint:table-modules`, `lint:migrations`, a PGlite matrix with a `RESULT` line.
 
+#### — MERGE 1 of 2 SHIPPED 2026-09-01 (`claude/samsara-feed-cursors`). S2 stays OPEN until merge 2.
+
+**What shipped.** Migration **0288**, `samsara_feed_cursors` — primary key `(org_id, feed)`, an opaque
+`end_cursor`, `updated_at` maintained by `set_updated_at()`, RLS enabled with **no policy at all**, and
+the ownership entry (`module=samsara; layer=infra`). Nothing reads or writes it yet; that is merge 2.
+
+**⚠ The plan said column `cursor`; it shipped as `end_cursor`, and the reason is not cosmetic.** The
+value is Samsara's `pagination.endCursor` and is opaque — we never parse one and could never construct
+one. A column called `cursor` reads like something this system owns and could recompute after a loss;
+`end_cursor` says whose it is. Same reason `feed` is a checked-non-empty text vocabulary rather than an
+enum: a new feed is a new collector tier, which is application work, and making it also a migration
+would buy nothing.
+
+**Two merges, not one, even though the gate would have allowed one.** `lint:migration-ordering` exempts
+new tables — "their readers are new code paths, so the window degrades a feature nobody is using yet".
+That exemption does **not** describe this step: the reader is the *existing* stats tier, which works
+today. Splitting is what HANDOFF-2026-09-01 §4 instructs, and it means the ~9-minute window between a
+merge being served and its migration being applied cannot touch a live tier.
+
+**The cost of splitting, named because it is a change to a gate's own file.** With no writer yet,
+`lint:table-producers` fails — schema nothing writes is "a promise nobody is keeping". The table is on
+that gate's waiver list for exactly one merge, with merge 2 named as what removes it. **If that entry
+outlives this step, the step did not finish.**
+
+**Verified by:** `supabase/tests/samsara-feed-cursors.test.mjs` — 21 assertions, `RESULT` line, and
+`rls.test.mjs` (459) discovered and seeded the table on its own, so cross-tenant isolation is covered
+without a hand-written case. Proved able to fail by four mutations of 0288: dropping `enable row level
+security` (8 fail), dropping the `end_cursor` check (3), removing the `updated_at` trigger (1), and
+narrowing the primary key to `org_id` alone (1). Gates run individually and green: `pnpm test`,
+`typecheck`, `lint`, `build`, `lint:migrations`, `lint:migration-ordering`, `lint:rls`,
+`lint:table-writers` (with the regenerated `schema.generated.sql` staged), `lint:table-producers`,
+`lint:tests`, `lint:upserts`, `lint:comment-claims`, `lint:filesize`, `lint:funcsize`,
+`lint:boundaries`, `lint:rpc-org-default`, `lint:capabilities`, `lint:secrets`, `lint:codegen`,
+`lint:tokens-parity`, `lint:ui-adoption`.
+
+**What merge 2 owes, and one thing it has to settle first.** The Done-when above — *"a value that
+changes twice between two polls produces two records rather than one"* — **cannot be satisfied by the
+Build list as written**, and that is worth saying before the reader is built rather than after.
+`syncVehicleStatsFromSamsara` writes `vehicles.current_odometer` and `vehicles.samsara_fuel_percent`:
+single current-value columns, where the last sample wins and the intermediate one is lost exactly as it
+is today. Swapping the endpoint alone changes the mechanism and nothing observable. See **Q-SAM5**.
+
 ### S3 · Per-fill telematics becomes a collector tier
 
 **Prerequisites:** none (parallel with S2).
@@ -466,6 +508,7 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
 | **Q-SAM2** | **Do we handle the five `RouteStop*` events or unsubscribe them?** They imply a dispatch/ETA feature nobody has asked for. Handling them is real work; leaving them is a permanent 404 generator against our own endpoint. | Miki | Unsubscribe. An event type with no handler is not a feature. |
 | **Q-SAM3** | **What is the `Fleetpal Webhook` on this account, and is it ours to touch?** It receives `VehicleCreated`/`VehicleUpdated`/`DvirSubmitted` at a third-party URL. `ARCHITECTURE.md` names a future `fleetpal` collector, so this may be a live integration outside this codebase. | Miki | Left strictly alone. Nothing in this plan modifies a webhook we did not create. |
 | **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | S1 fixes the path on the service already configured and changes no deployment topology. |
+| **Q-SAM5** | **NEW, 2026-09-01, raised by S2 merge 1.** **Where does an intermediate sample go?** S2's Done-when asks that "a value that changes twice between two polls produces two records rather than one", but the stats tier's only sink is `vehicles.current_odometer` / `samsara_fuel_percent` — one current value per truck, last-sample-wins. **The feed's completeness is real and lands nowhere.** Three candidates: **(a)** file the intermediate *fuel-level drops* into `fuel_events`, whose `fuel_pct_before` / `fuel_pct_after` columns have sat unused since 0021 and were plainly designed for exactly this, gated on the learned-reliable sensor the way `ruleEligible` already gates `tank_fill_short`, and sized against `resolveCapacity` rather than a new blanket threshold; **(b)** a general per-vehicle telematics sample store — honest but expensive, ~195 vehicles at telematics ping rates, and it duplicates what `stats/history` already serves S4; **(c)** accept that the cursor buys *guaranteed delivery of the latest value* and nothing more, and strike the Done-when. **Recommendation: (a).** It is the only one that makes the Done-when literally true, it reuses two learners the product already paid for instead of inventing a threshold, and it is D-SAM2's own words — the cursor feed sitting *underneath* the webhook as the reconciler that makes completeness a property rather than a hope. ⚠ Note `fuel_events` is operator-facing: it renders on `/fuel-events` and is counted as "Siphoning" in the weekly digest, so (a) must **not** reuse the webhook's `notifyFuelDrop` path, and its suppressed-by-gate count must be reported into the `jobs` ledger so S6 can measure what the gate cost. | Miki | ~~open~~ **ANSWERED 2026-09-01: (a).** Merge 2 ships the cursor, the endpoint swap, and the feed-derived `fuel_events` sink under the reliability gate. |
 
 ---
 
