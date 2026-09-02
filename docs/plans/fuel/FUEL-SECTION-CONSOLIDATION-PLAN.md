@@ -861,6 +861,39 @@ measurements above, a matrix asserting it against `aggregateWindowOdo`, and the 
 merges**, because a new FUNCTION is invisible to `lint:migration-ordering` and would 404 for the ~9
 minutes of the deploy window (see T3a merge 1).
 
+#### — T3b MERGE 1 of 2 SHIPPED 2026-09-02 (`claude/fuel-miles-mpg-rpc`). T3b is OPEN until the reader lands.
+
+**What shipped.** Migration **0290**, `fuel_range_miles_inputs(...)`: per-truck `obd_count/min/max`,
+`entered_count/min/max`, `entered_worst_step`, and banded `mpg_weighted` / `mpg_gallons`. Nothing calls
+it yet. **`p_mpg_min` / `p_mpg_max` have no DEFAULT**, so the band cannot exist as a second definition
+here — it arrives from `packages/shared/src/dashboard.ts` at call time.
+
+**The matrix asserts against the imported TypeScript, not against a restatement of it.** CI builds
+`packages/shared/dist` before `pnpm test` (ci.yml step 48), so
+`supabase/tests/fuel-range-miles-inputs.test.mjs` imports the real `aggregateWindowOdo` and
+`windowMilesFromAggregate` and compares the SQL to them truck by truck. A hand-written expectation would
+drift from the TypeScript the day somebody edited it, which is the exact failure D-AG1 exists to prevent.
+
+**⚠ AND THAT IMMEDIATELY FOUND A REAL BUG IN THE SQL. Postgres `LEAST` IGNORES NULLS.** The obvious
+`least(min(step), 0)` returns **0** for a truck with a single reading — i.e. "never went backwards" —
+where the specification returns null, because there is no step to measure. A restated expectation would
+almost certainly have restated the same mistake. Fixed with an explicit null guard, and the reason is
+written above the line.
+
+**The null-vehicle group is deliberately kept.** Fleet MPG counts fills attributed to no truck — the
+browser loop's `if (!r.vehicle_id) continue` sits *after* its MPG accumulation — so dropping that group
+would quietly change one figure while looking like a tidy-up. TypeScript sums MPG across every row and
+miles across only the rows naming a truck.
+
+**Verified by:** `fuel-range-miles-inputs.test.mjs` — 13 assertions, `RESULT` line, including `the SQL
+aggregate equals aggregateWindowOdo for all 9 branch shapes — asserted against the imported function,
+not a restatement of it`; `a 100-mile backward entry is REPORTED as -100, not judged here`; `a fill with
+no odometer neither manufactures a step nor breaks the chain across itself`; `a 64-mpg fill is excluded
+from the numerator AND the denominator`; `fills attributed to no truck get their own row`. Proved able
+to fail by six mutations: judging monotonicity in SQL; `LEAST` without the null guard; stepping over all
+rows rather than non-null ones; dropping the null-vehicle group; letting the band dilute instead of
+filter; counting non-OBD readings as OBD.
+
 ---
 
 ### T4 · The Trailer column comes off the Fuel Log
