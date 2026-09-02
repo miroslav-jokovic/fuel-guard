@@ -31,9 +31,9 @@ const MODULE_SETS: Array<[string, ModuleKey[] | null]> = [
 ];
 
 /** A stable, readable rendering: group labels and the items under them, in order. */
-function render(role: UserRole | null, modules: ModuleKey[] | null, counts = {}, sections = null) {
+function render(role: UserRole | null, modules: ModuleKey[] | null, counts = {}, sections = null, surfaces = null) {
   const set = modules === null ? null : new Set(modules);
-  return buildNavGroups(role, set, counts, sections).map((g) => ({
+  return buildNavGroups(role, set, counts, sections, surfaces).map((g) => ({
     group: g.label,
     items: g.items.map((i) => `${i.name} → ${i.to}${i.badge === undefined ? "" : ` [${i.badge}]`}`),
   }));
@@ -61,6 +61,27 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
 
   it("badges are threaded through, and only when non-zero", () => {
     expect(render("admin", [...MODULE_KEYS], { hazmatReview: 4, messagesUnread: 7 })).toMatchSnapshot();
+  });
+
+  it("the org's SCREEN answers narrow the sidebar, per role (S3/D-SURF1)", () => {
+    // The owner's worked example in the surface it was asked about: a technician left with Annual
+    // Inspections alone. The Maintenance group must keep exactly one item, and the technician's
+    // other group (Fleet → equipment: view) must be untouched — a screen denial is not a section one.
+    const denied = render("technician", [...MODULE_KEYS], {}, null, {
+      "maintenance.repair-spend": false,
+      "maintenance.inspectors": false,
+    } as never);
+    expect(denied).toMatchSnapshot();
+    // …and the same denials against a role that reaches those screens by a different section answer
+    // still apply, because the key is the screen and not the role's route to it.
+    expect(render("fleet_manager", [...MODULE_KEYS], {}, null, { "maintenance.inspectors": false } as never))
+      .toMatchSnapshot();
+  });
+
+  it("a screen answer cannot widen — an `allowed` for a section the role lacks stays hidden", () => {
+    // D-SURF2 at the sidebar: the gate is checked before the answer, so this must be a no-op.
+    expect(render("recruiter", [...MODULE_KEYS], {}, null, { "maintenance.inspectors": true } as never))
+      .toEqual(render("recruiter", [...MODULE_KEYS], {}, null, null));
   });
 
   it("the sections claim still narrows and widens (P3/D-PERM2)", () => {

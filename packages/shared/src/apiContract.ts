@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { USER_ROLES } from "./constants.js";
+import { SURFACES, isEditableSurface } from "./surfaces.js";
 import { isEditableRole, isEditableSection } from "./auth.js";
 
 /**
@@ -34,6 +35,32 @@ export const sectionAccessSetSchema = z.object({
   access: z.enum(["none", "view", "manage"]),
 });
 export type SectionAccessSetRequest = z.infer<typeof sectionAccessSetSchema>;
+
+/**
+ * `PUT /api/surface-access` — one org-level answer about one screen for one role (S3, D-SURF1).
+ *
+ * `role` is validated against the EDITABLE set for D-PERM7/D-PERM8's reason. `surfaceKey` is
+ * validated against the CATALOGUE rather than against a vocabulary listed here: the catalogue is the
+ * single home for what a surface is (D-SURF3), and 0296 deliberately left the column unconstrained
+ * because a bad key is inert in SQL. This is the layer that can say which field was wrong and why,
+ * so it is the layer that checks.
+ *
+ * ⚠ Only a surface whose gate is a SECTION gate may be answered. `staff` and `admin` gated screens —
+ * Dashboard, Ask AI, Users — are product constants an org may not deny (Q-SURF3, owner's ruling
+ * 2026-09-02), and `isEditableSurface` derives that from the gate rather than from a stored flag.
+ */
+export const surfaceAccessSetSchema = z.object({
+  role: z.string().refine(isEditableRole, "That role's access cannot be changed"),
+  surfaceKey: z
+    .string()
+    .refine((k) => SURFACES.some((s) => s.key === k), "No such screen")
+    .refine(
+      (k) => SURFACES.some((s) => s.key === k && isEditableSurface(s) && s.parent === undefined),
+      "That screen is not an organisation's to change",
+    ),
+  allowed: z.boolean(),
+});
+export type SurfaceAccessSetRequest = z.infer<typeof surfaceAccessSetSchema>;
 
 // ── Invites ───────────────────────────────────────────────────────────────────
 export const inviteCreateSchema = z.object({

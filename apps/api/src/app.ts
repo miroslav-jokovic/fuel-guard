@@ -6,16 +6,17 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
-import { APP_NAME } from "@silvicom/shared";
+import { APP_NAME, type UserRole, type SurfaceClaim } from "@silvicom/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
+import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter, sectionAccessRouter } from "./modules/org/index.js";
+import { invitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
@@ -229,6 +230,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/members", membersRouter());
   // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
   app.use("/api/section-access", sectionAccessRouter());
+  app.use("/api/surface-access", surfaceAccessRouter());
   // A bookmark belonging to the caller — no role gate; see the router's header.
   app.use("/api/saved-views", savedViewsRouter());
   app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
@@ -375,15 +377,48 @@ export function createApp(env: Env): Express {
     }),
   );
 
-  // Current principal from the verified JWT (org/role may be null until membership exists).
-  app.get("/api/me", requireAuth, (req: Request, res: Response) => {
+  /**
+   * Current principal from the verified JWT (org/role may be null until membership exists), plus the
+   * org's SCREEN entitlements for this caller's role.
+   *
+   * ⚠ Why the surfaces travel here and NOT in the token, when sections do (D-SURF4). Sections must be
+   * a claim: RLS reads them per row, and `auth_section()` has to inline — this repo has the measured
+   * number for breaking that, 128x, and the outage it caused. Nothing in RLS reads a SURFACE, so
+   * putting them in the token would buy nothing and cost the one thing the claim costs: a permission
+   * change that lands up to an hour later, when `jwt_expiry` is 3600. Served from here, a screen
+   * change lands on the next page load.
+   *
+   * The web calls this in `session.init()`, which the router guard already awaits, so the guard reads
+   * the answer synchronously and there is no window where a route resolves against a stale one.
+   */
+  app.get("/api/me", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const orgId = req.auth!.orgId;
+    /**
+     * ⚠ The screen answers must NEVER be able to break this endpoint. `/api/me` is the identity the
+     * web bootstraps from, and it answered before surfaces existed; a Supabase-admin misconfiguration
+     * turning it into a 500 would take the whole app down for a permissions refinement — which
+     * `auth.test.ts` caught the moment this was written without the guard.
+     *
+     * Falling back to `{}` is the same fail-OPEN `surfaceClaimFor` documents, applied one layer out
+     * where `getSupabaseAdmin` itself can throw. It is safe for the same reason: a surface answer may
+     * only NARROW within a section (D-SURF2), so no answer is the shipped catalogue and never more.
+     */
+    let surfaces: SurfaceClaim = {};
+    if (orgId) {
+      try {
+        surfaces = await surfaceClaimFor(getSupabaseAdmin(env), orgId, req.auth!.role as UserRole | null);
+      } catch {
+        surfaces = {};
+      }
+    }
     res.json({
       userId: req.auth!.userId,
       email: req.auth!.email,
-      orgId: req.auth!.orgId,
+      orgId,
       role: req.auth!.role,
+      surfaces,
     });
-  });
+  }));
 
   mountApiRouters(app, env);
 

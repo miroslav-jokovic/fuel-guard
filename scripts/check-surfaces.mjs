@@ -28,13 +28,14 @@
  *
  * `--self-test` proves all five detectors fire.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const CATALOGUE = `${ROOT}packages/shared/src/surfaces.ts`;
 const ICONS = `${ROOT}apps/web/src/lib/navIcons.ts`;
 const ROUTE_SNAPSHOT = `${ROOT}apps/web/src/router/__snapshots__/routeTable.test.ts.snap`;
 const AUTH = `${ROOT}packages/shared/src/auth.ts`;
+const API_SRC = `${ROOT}apps/api/src`;
 
 /**
  * Every declared route, read from the snapshot the live router produces, with the two facts this
@@ -124,7 +125,28 @@ const UNCATALOGUED_WAIVERS = {
   "/use-the-app": "the driver redirect; reached BEFORE any section gate, by construction",
 };
 
-export function findViolations({ cat, icons, routes, sections, authRoutes = null }) {
+/** Every `requireSurface("key")` in the API, with the file that wrote it. */
+const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*/gm, "");
+
+export function requireSurfaceKeys(files) {
+  const out = [];
+  for (const { path, src: raw } of files) {
+    // Comments FIRST, on check-capabilities.mjs's precedent: this middleware's own header names
+    // `requireSurface("maintenance.inspectors")` as its worked example, and counting a comment as a
+    // call site would make the gate's own tally a number nobody could reconcile.
+    const src = stripComments(raw);
+    for (const m of src.matchAll(/requireSurface\(\s*"([^"]+)"\s*\)/g)) {
+      // `requireSurface("${key}")` inside the middleware's own error message is not a call site.
+      // Skipping INTERPOLATED strings rather than skipping the file keeps a real call in
+      // requireSurface.ts visible, which excluding the file by name would not.
+      if (m[1].includes("${")) continue;
+      out.push({ path, key: m[1] });
+    }
+  }
+  return out;
+}
+
+export function findViolations({ cat, icons, routes, sections, authRoutes = null, apiGates = null }) {
   const errors = [];
   const keys = new Set(cat.map((s) => s.key));
   const navKeys = new Set(cat.filter((s) => !s.parent).map((s) => s.key));
@@ -164,6 +186,18 @@ export function findViolations({ cat, icons, routes, sections, authRoutes = null
         errors.push(`UNCATALOGUED_WAIVERS names ${path}, which IS catalogued — the waiver reads as "not covered" and is not; drop it.`);
     }
   }
+  /**
+   * D-SURF5: an endpoint may only claim a surface the catalogue defines. A typo'd key gates on a
+   * screen that does not exist, and `surfaceAllowed` answers `true` for it — an open door that reads
+   * as a closed one. `requireSurface` throws at construction too; this is what catches it in review
+   * rather than at boot.
+   */
+  if (apiGates) {
+    const keys = new Set(cat.map((s) => s.key));
+    for (const g of apiGates)
+      if (!keys.has(g.key))
+        errors.push(`${g.path}: requireSurface("${g.key}") names no surface in the catalogue — the gate would never close.`);
+  }
   return errors;
 }
 
@@ -196,6 +230,13 @@ function selfTest() {
   });
   if (!stale.some((e) => /no longer an authenticated route/.test(e)))
     fails.push(`detector did not fire for a stale waiver: ${JSON.stringify(stale)}`);
+  const badGate = findViolations({
+    cat: [{ key: "a", path: "/real", kind: "staff" }], icons: new Set(["a"]), routes, sections,
+    apiGates: [{ path: "x.ts", key: "not.a.surface" }],
+  });
+  if (!badGate.some((e) => /names no surface in the catalogue/.test(e)))
+    fails.push(`detector did not fire for a bad requireSurface key: ${JSON.stringify(badGate)}`);
+
   const redundant = findViolations({
     cat: [{ key: "a", path: Object.keys(UNCATALOGUED_WAIVERS)[0], kind: "staff" }],
     icons: new Set(["a"]), routes: new Set([Object.keys(UNCATALOGUED_WAIVERS)[0]]), sections,
@@ -216,7 +257,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all eight detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all nine detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 
@@ -230,7 +271,19 @@ const authRoutes = routeRecords(snapshot)
   .map((r) => r.path);
 const sections = matrix(readFileSync(AUTH, "utf8"));
 
-const errors = findViolations({ cat, icons, routes, sections, authRoutes });
+/** Walk the API source for `requireSurface(...)` call sites. */
+function apiFiles(dir) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) out.push(...apiFiles(p));
+    else if (e.name.endsWith(".ts") && !e.name.includes(".test.")) out.push({ path: p.slice(ROOT.length), src: readFileSync(p, "utf8") });
+  }
+  return out;
+}
+const apiGates = requireSurfaceKeys(apiFiles(API_SRC));
+
+const errors = findViolations({ cat, icons, routes, sections, authRoutes, apiGates });
 if (errors.length) {
   console.error(`✗ ${errors.length} surface-catalogue violation(s):`);
   for (const e of errors) console.error(`   ${e}`);
@@ -240,5 +293,6 @@ console.log(
   `✓ surfaces ok — ${cat.length} surfaces (${cat.filter((s) => !s.parent).length} in the sidebar, ` +
     `${cat.filter((s) => s.parent).length} detail routes) all resolve to real routes; ` +
     `${icons.size} icons match the nav surfaces exactly; ` +
-    `all ${authRoutes.length} authenticated routes are catalogued or waived.`,
+    `all ${authRoutes.length} authenticated routes are catalogued or waived; ` +
+    `${apiGates.length} requireSurface gates name real screens.`,
 );

@@ -3,9 +3,11 @@ import {
   NAV_SURFACES,
   SURFACE_GROUPS,
   canReachSurface,
+  surfaceAllowed,
   type SectionClaim,
   type UserRole,
   type ModuleSet,
+  type SurfaceClaim,
 } from "@silvicom/shared";
 import { SURFACE_ICONS, GROUP_ICONS } from "./navIcons";
 
@@ -61,6 +63,12 @@ export function buildNavGroups(
    * page passes when previewing a role rather than a person.
    */
   sections: SectionClaim | null = null,
+  /**
+   * The org's answers about which SCREENS this role may reach (D-SURF1, S3). Optional, and omitting
+   * it means "no denials" — which is what every caller passed before S3 and what the permissions page
+   * passes when previewing the shipped catalogue rather than a live org.
+   */
+  surfaces: SurfaceClaim | null = null,
 ): NavGroup[] {
   return SURFACE_GROUPS.map((g) => ({
     label: g.label,
@@ -70,7 +78,7 @@ export function buildNavGroups(
         name: s.label,
         to: s.path,
         icon: SURFACE_ICONS[s.key]!,
-        show: canReachSurface(s, role, modules, sections),
+        show: canReachSurface(s, role, modules, sections) && surfaceAllowed(s, role, sections, surfaces),
         ...(s.badge ? { badge: counts[s.badge] } : {}),
       }))
       .filter((i) => i.show),

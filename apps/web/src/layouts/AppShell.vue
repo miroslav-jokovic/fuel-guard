@@ -54,6 +54,9 @@ const navGroups = computed<NavGroup[]>(() =>
     // matrix while every route guard and every API gate answered from the org's — a member granted a
     // section would have the page but no way to reach it.
     session.sections,
+    // …and the org's SCREEN answers (D-SURF1, S3), on the same argument one layer along: without
+    // this the sidebar would still offer a page the router guard now turns away from.
+    session.surfaces,
   ),
 );
 
