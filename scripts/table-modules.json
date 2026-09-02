@@ -449,6 +449,10 @@
       "module": "routing",
       "layer": "infra"
     },
+    "samsara_feed_cursors": {
+      "module": "samsara",
+      "layer": "infra"
+    },
     "samsara_ifta_fetches": {
       "module": "samsara",
       "layer": "raw"
