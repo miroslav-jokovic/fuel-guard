@@ -86,11 +86,24 @@ async function resolveLink() {
     return;
   }
 
-  // The store holds the session the rest of the app reads; `verifyOtp`/`setSession` only told the
-  // Supabase client. Without this the guard on the NEXT navigation still believes we are signed out.
-  await session.refresh();
+  /**
+   * ADOPT the session the client now holds — do not rotate it.
+   *
+   * This block called `session.refresh()` until 2026-09-02 and locked a real user out. `refresh()`
+   * is `refreshSession()`, which ROTATES a refresh token that `verifyOtp` had issued seconds
+   * earlier; when that raced with supabase-js's own auto-refresh it failed, `refresh()` swallowed
+   * the error, the store stayed null, and this branch told somebody their link had expired while
+   * the server had already recorded their sign-in. Their password was never set and no membership
+   * was ever created, because the page gave up before reaching either.
+   *
+   * The client is the authority on whether redemption worked, so ask IT, not a fresh round trip.
+   */
+  await session.syncFromClient();
   if (!session.session) {
-    linkError.value = "This invitation link has expired or was already used.";
+    // Genuinely no session: redemption reported success but produced nothing to sign in with.
+    // Distinct wording from the spent-link case above, because "try again" is the wrong advice for
+    // a link that was already consumed and the right advice for this.
+    linkError.value = "We couldn't sign you in from this link.";
     step.value = "unusable";
     return;
   }

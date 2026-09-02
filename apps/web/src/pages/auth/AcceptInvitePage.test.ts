@@ -45,12 +45,23 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 const storeSession = vi.hoisted(() => ({ value: null as unknown }));
+/**
+ * `refresh()` ROTATES the refresh token; `syncFromClient()` reads what the client already holds.
+ * The store fake keeps them distinct on purpose — collapsing them is exactly the confusion that
+ * locked a user out on 2026-09-02, and a fake where both do the same thing could not express it.
+ */
+const refreshFails = vi.hoisted(() => ({ value: false }));
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({
     get session() {
       return storeSession.value;
     },
     refresh: vi.fn(async () => {
+      // Real `refresh()` swallows its error and leaves the store untouched when the rotation fails.
+      if (refreshFails.value) return;
+      storeSession.value = auth.sessionAfter;
+    }),
+    syncFromClient: vi.fn(async () => {
       storeSession.value = auth.sessionAfter;
     }),
   }),
@@ -74,6 +85,7 @@ beforeEach(() => {
   authCalls.length = 0;
   auth.verifyOtpError = null;
   auth.sessionAfter = { user: { id: "u1" } };
+  refreshFails.value = false;
   storeSession.value = null;
 });
 
@@ -122,6 +134,29 @@ describe("AcceptInvitePage", () => {
     const w = mountAt("/accept-invite?token_hash=abc&type=invite");
     await flushPromises();
     expect(w.text()).not.toContain("Set your password");
+    // …and says the right thing. A link that redeemed fine is not a spent link, and telling somebody
+    // to ask for a resend when the token worked sends them round a loop that cannot end.
+    expect(w.text()).not.toContain("expired or was already used");
+    expect(w.text()).toContain("couldn't sign you in");
+  });
+
+  /**
+   * THE LOCKOUT (production, 2026-09-02). `verifyOtp` succeeded — the server recorded the sign-in —
+   * and the page still said "this invitation link has expired", because it reached for `refresh()`
+   * to populate the store. That call rotates a refresh token issued seconds earlier; when the
+   * rotation failed the store stayed null and this page read null as "the link was bad".
+   *
+   * The invited user therefore never saw a password form, `/api/invites/accept` was never called,
+   * and no membership was ever created — while their account existed, confirmed, with a password.
+   * Nothing in the flow could tell them that, and re-inviting reproduced it exactly.
+   */
+  it("shows the password form even when a token rotation would have failed", async () => {
+    refreshFails.value = true;
+    const w = mountAt("/accept-invite?token_hash=abc&type=invite");
+    await flushPromises();
+    expect(authCalls).toEqual(["verifyOtp"]);
+    expect(w.text()).toContain("Set your password");
+    expect(w.text()).not.toContain("expired or was already used");
   });
 
   it("keeps the credential out of the address bar once redeemed", async () => {
