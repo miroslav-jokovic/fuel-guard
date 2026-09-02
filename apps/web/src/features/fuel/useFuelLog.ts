@@ -23,8 +23,13 @@ export const FUEL_PAGE_SIZE = 20;
 export interface FuelFilters {
   vehicleId?: string;
   driverId?: string;
-  from?: string; // ISO date (inclusive)
-  to?: string; // ISO date (inclusive)
+  /**
+   * The window, as CALENDAR DAYS — both ends inclusive, both `YYYY-MM-DD`, and both meaning the
+   * STATION-LOCAL business date (D-FUI11, migration 0287). Not an instant, and deliberately not one:
+   * see the note above the filters in `useFuelTransactions`.
+   */
+  from?: string;
+  to?: string;
   tankType?: "tractor" | "reefer"; // filter tractor vs reefer fills
   /** Free-text smart search — matched server-side against location & card, plus vehicle/driver via the
    *  page-resolved id lists below (so a unit number or driver name in the box narrows the log too). */
@@ -68,8 +73,15 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
       if (f.driverId) q = q.eq("driver_id", f.driverId);
       if (f.tankType) q = q.eq("tank_type", f.tankType);
-      if (f.from) q = q.gte("fueled_at", f.from);
-      if (f.to) q = q.lte("fueled_at", f.to);
+      // FUEL-T1 / D-FUI11. This filtered `fueled_at` — a UTC INSTANT — while the table beside it
+      // rendered that same instant in the STATION's zone. Two derivations of one day, disagreeing
+      // whenever the station's local day differs from the UTC day: measured 2026-09-01, 1,833 of
+      // 14,749 fills (12.4%), of which 57 ($28,430.70) sat in the neighbouring MONTH's total. A
+      // California fill at 18:00 on 31 August displayed as "Aug 31" and fell outside an August
+      // window. `business_date` is the stored station-local day (0287, trigger-maintained), so the
+      // filter and the display now read the SAME derivation instead of agreeing by luck.
+      if (f.from) q = q.gte("business_date", f.from);
+      if (f.to) q = q.lte("business_date", f.to);
       const or = searchOr(f);
       if (or) q = q.or(or);
       const { data, error, count } = await q;
@@ -132,8 +144,11 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
         if (f.driverId) q = q.eq("driver_id", f.driverId);
         if (f.tankType) q = q.eq("tank_type", f.tankType);
-        if (f.from) q = q.gte("fueled_at", f.from);
-        if (f.to) q = q.lte("fueled_at", f.to);
+        // Same window as the list above, and it has to be the same one: these tiles sit directly above
+        // that table, so a tile counting a different set than the rows beneath it is the disagreement
+        // this step exists to end.
+        if (f.from) q = q.gte("business_date", f.from);
+        if (f.to) q = q.lte("business_date", f.to);
         const or = searchOr(f);
         if (or) q = q.or(or);
         const { data, error } = await q;

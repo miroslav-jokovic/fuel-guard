@@ -7,6 +7,7 @@ import {
   type Anomaly,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { efsRejectDayWindow } from "@/lib/stationTime";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 
 // PostgREST caps a single response at 1000 rows. A month of fleet fills is several thousand, so a plain
@@ -31,8 +32,8 @@ async function fetchAllPaged<T>(
 
 /**
  * Executive dashboard summary for an explicit date range (org-scoped via RLS). `range` holds inclusive
- * YYYY-MM-DD bounds (the page defaults them to the last 30 days); the window covers the full local days —
- * start-of-day `from` through end-of-day `to` — so fills anytime on the boundary days are included.
+ * YYYY-MM-DD bounds (the page defaults them to the last 30 days), and every window below is now a
+ * window of DAYS rather than of instants (FUEL-T1, D-FUI11) — see the note on the fills query.
  */
 export function useDashboard(range: Ref<{ from: string; to: string }>) {
   // The SAME burn-rate + $/gal basis the Idling page uses, so the idle tile matches that page exactly.
@@ -45,8 +46,8 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<DashboardSummary> => {
       const { from: fromDay, to: toDay } = toValue(range);
-      const from = new Date(`${fromDay}T00:00:00`).toISOString();
-      const to = new Date(`${toDay}T23:59:59.999`).toISOString();
+      // The declines window in the station-agnostic zone EFS prints rejects in (see the query below).
+      const rejectWindow = efsRejectDayWindow(fromDay, toDay);
       const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes] = await Promise.all([
         // Ordered + paged so every fill in the window is aggregated (not just an arbitrary first 1000).
         fetchAllPaged<FuelTransaction>((lo, hi) =>
@@ -54,8 +55,14 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
             .from("fuel_transactions")
             .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg, tank_type, samsara_recon_at")
             .eq("is_canonical", true)
-            .gte("fueled_at", from)
-            .lte("fueled_at", to)
+            // FUEL-T1 / D-FUI11. This built its bounds with `new Date(`${fromDay}T00:00:00`)` — the
+            // BROWSER's midnight — and compared them to a UTC instant, so the same picked range
+            // returned a different set of fills depending on where the viewer was sitting, and a
+            // different set again from the Fuel Log beside it. `business_date` (0287) is the station's
+            // own day, stored, so this window is now the same window the Fuel Log uses and the same
+            // KIND of window `idle_rollup_days` below has always used.
+            .gte("business_date", fromDay)
+            .lte("business_date", toDay)
             .order("fueled_at", { ascending: true })
             .range(lo, hi),
         ),
@@ -86,8 +93,14 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
             .order("vehicle_id", { ascending: true })
             .range(lo, hi),
         ),
-        // Declined-attempt count over the same window (head count -> no rows pulled).
-        supabase.from("declined_transactions").select("id", { count: "exact", head: true }).gte("declined_at", from).lte("declined_at", to),
+        // Declined-attempt count over the same window (head count -> no rows pulled). Bounded in
+        // CENTRAL, because that is the zone EFS prints reject times in whatever the station's own zone
+        // is — the same window the Rejections page uses, so the tile and the page agree.
+        supabase
+          .from("declined_transactions")
+          .select("id", { count: "exact", head: true })
+          .gte("declined_at", rejectWindow.gte)
+          .lt("declined_at", rejectWindow.lt),
       ]);
       // Driver attribution for the alert set: its fills can be OLDER than the visible range, so the
       // range-scoped `txns` can't resolve them — fetch driver_id for exactly the flagged fills.

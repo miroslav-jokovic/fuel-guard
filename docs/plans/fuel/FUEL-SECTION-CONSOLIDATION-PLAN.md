@@ -584,6 +584,49 @@ meaning depends on whose session is asking.
 
 **Merge 2 (the readers) is still owed**; T1's Done-when is not met until it lands.
 
+#### — MERGE 2 of 2 SHIPPED 2026-09-01 (PR #448, `claude/fuel-business-date-readers`). T1 is DONE, with one stated exception.
+
+**What shipped.**
+- `useFuelTransactions` and `useFuelRangeTotals` window on `business_date` — the rows and the tiles
+  above them now filter the same column, which is the point.
+- `FuelLogPage`'s `setTo` no longer appends `T23:59:59`. That hack existed only because the filter
+  windowed an instant; against a `date` it is a bug, and removing it is part of the fix rather than
+  tidying beside it.
+- **Declines get a computed window, not a column.** `efsRejectDayWindow(from, to)` converts the picked
+  days into the UTC instants that bound them in Central, because EFS records reject times in Central
+  whatever the station's own zone is. A fill's zone varies per row and needed a stored column; a
+  decline's does not, so deriving beats storing — no migration, no backfill.
+- **The Dashboard moved too**, because T1's Done-when says *every* fuel surface. Its fills query built
+  bounds from `new Date(\`${fromDay}T00:00:00\`)` — the BROWSER's midnight — so the same picked range
+  returned a different set of fills depending on where the viewer was sitting, and a different set
+  again from the Fuel Log beside it. Its declined-attempt count now uses the same Central window the
+  Rejections page does.
+- Fuel Log, Rejections and Transactions each carry a one-line note naming the day their filter means.
+
+**Two defects found while doing it, neither of them in the plan.**
+1. **The Rejections page was dropping the last day of every window.** It passed bare `YYYY-MM-DD` to
+   `.lte("declined_at", …)`, an instant comparison, so the bound was midnight UTC on the end day.
+   Measured 2026-09-01: **3,428 of 3,429 declines (99.97%)** sit strictly after UTC midnight of their
+   own day, so the final day of any picked range was kept only in name. 292 (8.5%) also fall on a
+   different day in Central than in UTC. Both are closed by the half-open Central window.
+2. **The Dashboard's fuel window was viewer-relative** (above). Nobody would have seen it from one
+   timezone, which is why it lasted.
+
+**⚠ ONE FUEL SURFACE IS NOT COVERED, and T1 does not claim it: Alerts.** `useAnomalies` filters
+`anomalies.fueled_at` — a column on the `anomalies` table, not on `fuel_transactions` — so 0287's
+`business_date` is not reachable from it. Closing it means another column, another trigger and another
+two-merge dance on a second table, which is its own step rather than a rider on this one. Recorded as
+**Q-FUI13**.
+
+**Verified by:** `the fuel window is a window of days > the list filters business_date, inclusive at
+both ends, with the days as picked`; `> the list no longer windows on the fueled_at instant`; `> the
+tiles window on exactly the same column as the rows beneath them`; `> fueled_at still orders the log`;
+and `efsRejectDayWindow > puts a 19:00-Central decline on 31 August inside August — the defect,
+stated` plus `> ends at the START of the day after — half-open, so no second is dropped`. Proved able
+to fail by three mutations: reverting the list to the instant window, drifting the tiles off the rows'
+column, and returning the reject window to bare dates. Gates: `pnpm test`, `typecheck`, `lint`,
+`build`, and the CI list run individually.
+
 ---
 
 ### T2 · Every fuel route derives its gate from the matrix
@@ -1004,6 +1047,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI7** | ~~**Is statement reconciliation a real workflow for this carrier?**~~ **ANSWERED 2026-09-01: YES, and the documents are already in hand.** The weekly PDF is a **Pilot Receivables LLC invoice** billed to Silvicom Inc — verified by reading `~/Downloads/db139445F.pdf`: invoice 795506105, period 2026-08-17 → 2026-08-23, with Ticket / AUTH / Odometer / Units / Fuel Cost / **Invoice Total** / **Retail Total** columns. That is exactly what `parsePilotStatement` expects and exactly the file `FUEL-SPEND-RELIABILITY-PLAN.md` **F0-bis-upload** names. Five weekly statements are on disk (`db139445F{,1,2,3,5}.pdf`, 2026-07-28 → 2026-08-24) and were parsed successfully in the F0-bis spike. **Nothing is missing but the upload.** This is an onboarding gap, not a product-fit question: C5 keeps both tabs and the ledger keeps all four `recon_*` kinds. ⚠ It is **not** a Samsara report — Samsara is telematics and issues no fuel invoice; its data already arrives through the API collector. Original framing kept for the record: Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
 | **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
 | **Q-FUI12** | **Four fuel/anomaly reads carry no role gate at all — narrow them to the matrix, or is one of them deliberately open?** Found while building T2 (2026-09-01), pinned in `routeGates.test.ts`' waiver map so they are findable: `GET /api/anomalies/:id/risk-context`, `/:id/pattern-report` and `/:id/history` are `requireOrg` only, so **any authenticated org member — including a `driver`, who holds `safety: "none"` — can read a theft case's history**; and `GET /api/fueling/statements/:id/source` is `requireOrg` only, though it does re-check the caller's org before signing a URL. T2 did not close them because T2 is a **widening** and these are a **narrowing**: gating them removes access somebody may be relying on, which is a decision that should be taken out loud rather than in passing. Candidates: **(a)** gate all four from the matrix — `rolesThatCanView("safety")` for the three anomaly reads, `rolesThatCanView("fuel")` for the statement source (**recommended**: it is what every neighbouring route now does, and the anomaly detail is reachable only from a page already gated on `safety`); **(b)** gate the anomaly reads and leave the statement source, on its org re-check; **(c)** leave all four and record them as accepted. | Miki | They stay as they are, waived with the argument in `routeGates.test.ts` and named here. Nothing is narrowed on an inference. |
+| **Q-FUI13** | **Does the Alerts queue get its own business date, or does it stay on the instant?** T1 gave `fuel_transactions` a stored station-local `business_date` (0287) and moved every fuel surface onto it except one: `useAnomalies` filters `anomalies.fueled_at`, a column on a different table, so a case for a fill displayed as "Aug 31" can still fall outside an August window on the Alerts page. Candidates: **(a)** `anomalies.business_date`, trigger-maintained from the same helper, two merges (**recommended** if Alerts survives Q-FUI11 as a working queue — it is the same shape as 0287 and costs a migration); **(b)** leave it, and label the Alerts date control as filtering the detection instant; **(c)** wait for Q-FUI11 — a queue measured at 2.9% precision may not be worth a migration until it is worth working. | Miki | (b) — Alerts stays on the instant and nothing claims otherwise. A second table gets a derived column when somebody decides the page is worth it. |
 | **Q-FUI8** | **Trailer-at-fill: acknowledge the removal, or fund the capability?** §0.3: `duty_equipment_segments` is empty and no other time-ranged pairing exists. T4 removes the column. Restoring the capability means a new pairing-history table and a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. | Miki | T4 removes the column. It is not relabelled — a live fact beside a historical row is a confident wrong answer, and a caveat under it is a workaround with a caveat. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |

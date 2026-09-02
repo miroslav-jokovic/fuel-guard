@@ -56,12 +56,17 @@ const trailerForVehicle = (vehicleId: string | null) => {
 };
 
 // ── Filters ───────────────────────────────────────────────────────────────────────────────────────
-// Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
+// The picker emits YYYY-MM-DD and the query now windows on `business_date`, a DATE — so the day goes
+// through untouched, at both ends, and `to` is inclusive because a date compared to a date is.
+//
+// The `${v}T23:59:59` this used to append is gone with the column it existed for: while the filter
+// windowed the `fueled_at` INSTANT, an end date alone meant midnight and silently cut the last day
+// down to one second of it. That hack was correct for a timestamp and is a bug against a date, which
+// is the general shape of what FUEL-T1 removes — every place the section had to say what a day meant.
 const fromDate = computed(() => filters.value.from?.slice(0, 10));
 const toDate = computed(() => filters.value.to?.slice(0, 10));
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
-const setTo = (v: string | undefined) =>
-  (filters.value = { ...filters.value, to: v ? `${v}T23:59:59` : undefined });
+const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
 
 const tankTypeFilter = computed<string>({
   get: () => filters.value.tankType ?? "",
@@ -246,6 +251,11 @@ const columns: DataTableColumn[] = [
         <FilterSelect v-model="driverFilter" label="Driver" :options="driverOptions" block />
       </template>
     </FilterBar>
+
+    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
+         the section had four answers to “what is a day” and no surface admitted to having one. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the day of the fill at the station that sold it — the day EFS prints, and the day the
+        row beside it shows.</p>
 
     <!-- Summary stats block -->
     <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
