@@ -62,7 +62,7 @@ const PROBES = [
   "/fuel-cards", "/fuel-cards/fc_1",
   "/settings/card-control",
   "/anomalies", "/fuel-events", "/ask", "/reports",
-  "/settings", "/settings/users", "/settings/thresholds", "/settings/driver-performance",
+  "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data",
   "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
   // G1's operator-visited dead ends. The catch-all is deliberately NOT probed here — an unmatched

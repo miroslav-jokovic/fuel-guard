@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type AppSection, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
+import { USER_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-import { AppSelect, AppTable } from "@silvicom/ui";
+import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -170,22 +170,6 @@ async function changeRole(userId: string, newRole: string) {
   await load();
 }
 
-// ── roles & permissions reference (from the shared section-capability matrix) ─────────────────
-// Typed on AppSection, not Record<string, string>: the permissions table renders a column per
-// APP_SECTIONS entry, so a section added without a label here used to render an empty heading. Now
-// it does not compile.
-const SECTION_LABELS: Record<AppSection, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", roster: "Roster", equipment: "Equipment", recruitment: "Recruitment", admin: "Admin", settings: "Settings", accounting: "Accounting", billing: "Billing", maintenance: "Maintenance" };
-const showPerms = ref(false);
-const permMatrix = computed(() =>
-  USER_ROLES.map((r) => ({
-    role: r as UserRole,
-    label: USER_ROLE_LABELS[r],
-    cells: APP_SECTIONS.map((s) => ({ section: s, access: sectionAccess(r, s) })),
-  })),
-);
-const accessText = (a: string) => (a === "manage" ? "Manage" : a === "view" ? "View" : "—");
-const accessCls = (a: string) => (a === "manage" ? "font-medium text-success-700" : a === "view" ? "text-ink-secondary" : "text-ink-tertiary");
-
 // ── search + multi-select (members) ─────────────────────────────────────────
 const search = ref("");
 const filteredMembers = computed(() => {
@@ -323,29 +307,18 @@ onMounted(load);
       </DataTable>
     </section>
 
+    <!-- The matrix itself moved to /settings/permissions (P0): it was collapsed behind a toggle at
+         the foot of this page, which is why the product read as having no permissions surface. It is
+         rendered in exactly one place now — a second copy here would be the restated fact the
+         no-workarounds rule names. -->
     <section class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-base font-semibold text-ink">Roles &amp; permissions</h3>
-        <BaseButton variant="ghost" size="sm" @click="showPerms = !showPerms">{{ showPerms ? "Hide" : "Show" }}</BaseButton>
-      </div>
-      <BaseCard v-if="showPerms" as="section">
-        <p class="mb-3 text-sm text-ink-muted">What each role can access. <span class="font-medium text-success-700">Manage</span> = view + edit; View = read-only. Set a member's role in the table above.</p>
-        <div class="overflow-x-auto">
-          <AppTable class="min-w-full text-sm">
-            <thead class="text-ink-muted">
-              <tr>
-                <th class="py-2 pr-4 text-left font-medium">Role</th>
-                <th v-for="s in APP_SECTIONS" :key="s" class="px-3 py-2 text-center font-medium">{{ SECTION_LABELS[s] }}</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-edge-subtle">
-              <tr v-for="prow in permMatrix" :key="prow.role">
-                <td class="py-2 pr-4 font-medium text-ink">{{ prow.label }}</td>
-                <td v-for="c in prow.cells" :key="c.section" class="px-3 py-2 text-center" :class="accessCls(c.access)">{{ accessText(c.access) }}</td>
-              </tr>
-            </tbody>
-          </AppTable>
-        </div>
+      <h3 class="text-base font-semibold text-ink">Roles &amp; permissions</h3>
+      <BaseCard as="section">
+        <p class="text-sm text-ink-muted">
+          Access follows a member's role. See what each role can reach, and what a given member sees
+          in the sidebar, on the
+          <RouterLink to="/settings/permissions" class="text-brand-700 underline">Permissions page</RouterLink>.
+        </p>
       </BaseCard>
     </section>
 

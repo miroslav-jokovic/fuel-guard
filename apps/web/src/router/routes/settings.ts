@@ -26,6 +26,16 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Users", parent: "/settings" },
   },
   {
+    // EDITABLE-PERMISSIONS-PLAN.md P0. The matrix existed only as a collapsed panel at the foot of
+    // /settings/users — no route, no nav entry, no title — which is why the owner reported the
+    // product as having no permissions page at all. `requiresAdmin` matches Users: who may see
+    // whom, and with what access, is org administration.
+    path: "/settings/permissions",
+    name: "permissions",
+    component: () => import("@/pages/SettingsPermissionsPage.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Permissions", parent: "/settings" },
+  },
+  {
     path: "/settings/thresholds",
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),

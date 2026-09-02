@@ -353,6 +353,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/users",
   },
   {
+    "name": "permissions",
+    "params": {},
+    "url": "/settings/permissions",
+  },
+  {
     "name": "thresholds",
     "params": {},
     "url": "/settings/thresholds",
@@ -1040,6 +1045,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "org-settings",
     "path": "/settings/org",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Permissions",
+    },
+    "name": "permissions",
+    "path": "/settings/permissions",
     "redirect": null,
   },
   {
