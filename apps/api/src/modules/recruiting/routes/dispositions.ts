@@ -2,11 +2,9 @@ import { Router } from "express";
 import {
   applicantDispositionCreateSchema,
   isCarrierDecision,
-  rolesThatCanView,
-  rolesThatManage,
   type ApplicantDispositionCreate,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -29,8 +27,8 @@ import { writeAudit } from "../../../lib/audit.js";
 export function recruitmentDispositionsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
-  const canManage = requireRole(...rolesThatManage("recruitment"));
-  const canView = requireRole(...rolesThatCanView("recruitment"));
+  const canManage = requireSection("recruitment");
+  const canView = requireSection("recruitment", "view");
 
   const COLS = "id, driver_id, outcome, decided_on, reason, rested_on_consumer_report, decided_by, created_at";
 

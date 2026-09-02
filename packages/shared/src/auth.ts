@@ -10,6 +10,15 @@ export interface AuthClaims {
   email?: string;
   org_id?: string;
   user_role?: UserRole;
+  /**
+   * The org's overrides of this user's role, injected by the hook since migration 0292 (D-PERM2).
+   *
+   * SPARSE and OPTIONAL, both load-bearing. A section that is absent is not denied — it is
+   * unchanged, and its answer is the shipped `SECTION_ACCESS` default. A token minted before 0292
+   * has no `sections` key at all, so every consumer falls through to the defaults and behaves
+   * exactly as it did; that is what makes the rollout free of a window in which anyone loses access.
+   */
+  sections?: Partial<Record<AppSection, SectionAccess>>;
   /** Seconds since the epoch. Standard JWT claim, verified by `jose` along with the signature. */
   iat?: number;
 }
@@ -20,6 +29,17 @@ export interface AuthContext {
   email: string | null;
   orgId: string | null;
   role: UserRole | null;
+  /**
+   * The org's overrides for this caller's role, off the same verified JWT as the rest of this
+   * context (D-PERM2).
+   *
+   * OPTIONAL, and absence means "no overrides" — the shipped defaults — never "deny everything".
+   * That is the opposite reading from `issuedAt` below, and deliberately so: an absent freshness
+   * claim must fail closed because the gate's whole job is certainty, while an absent `sections`
+   * claim is the state of EVERY token in existence on the day migration 0292 applies. Failing
+   * closed here would lock the entire product out for one token lifetime.
+   */
+  sections?: Partial<Record<AppSection, SectionAccess>> | null;
   /**
    * When this token was minted, in seconds since the epoch — the basis for step-up re-authentication
    * (`middleware/requireFreshAuth.ts`). It comes off the SAME verified JWT as the rest of this
@@ -243,6 +263,7 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   email: c.email ?? null,
   orgId: c.org_id ?? null,
   role: c.user_role ?? null,
+  sections: c.sections ?? null,
   // Carried through verbatim: a number here is only ever one `jose` has already verified the
   // signature over, so nothing downstream has to trust the client about when it signed in.
   issuedAt: typeof c.iat === "number" ? c.iat : null,
@@ -429,3 +450,48 @@ export const effectiveSectionAccess = (
   if (!isEditableRole(role) || !isEditableSection(section)) return shipped;
   return overrides[role]?.[section] ?? shipped;
 };
+
+/** One caller's overrides, already scoped to their role — the shape the JWT `sections` claim takes. */
+export type SectionClaim = Partial<Record<AppSection, SectionAccess>>;
+
+/**
+ * The access a CALLER actually has. THE function every request-time check asks, on both sides.
+ *
+ * It differs from `effectiveSectionAccess` only in its input: that one takes the whole-org
+ * `role → section → access` map an admin edits, this one takes the already-role-scoped claim off
+ * the caller's token. Two shapes, one rule — and the rule lives here once rather than being spelled
+ * out at each of the ~130 call sites that ask it.
+ *
+ * `claim` of `null` means "this token predates migration 0292" and resolves to the shipped default,
+ * NOT to denial. Every token in existence on the day 0292 applies is in that state, so the opposite
+ * reading would lock the whole product out for one token lifetime.
+ *
+ * The two locks are re-applied rather than trusted (D-PERM7/D-PERM8): a claim naming the `admin`
+ * section, or any claim at all for `admin`/`driver`, cannot be minted — the hook drops it, the
+ * endpoint refuses it and 0291's CHECK constraints refuse the row behind it — so seeing one here
+ * means something upstream is wrong, and honouring it would be an escalation rather than a bad read.
+ */
+export const resolveSectionAccess = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): SectionAccess => {
+  const shipped = sectionAccess(role, section);
+  if (!role || !claim) return shipped;
+  if (!isEditableRole(role) || !isEditableSection(section)) return shipped;
+  return claim[section] ?? shipped;
+};
+
+/** Can this caller WRITE in the section, given their org's overrides? */
+export const callerCanManage = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): boolean => resolveSectionAccess(role, section, claim) === "manage";
+
+/** Can this caller READ the section at all, given their org's overrides? */
+export const callerCanView = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): boolean => resolveSectionAccess(role, section, claim) !== "none";

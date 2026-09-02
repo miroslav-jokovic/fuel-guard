@@ -4,12 +4,10 @@ import {
   assignLoadRequestSchema,
   createLoadRequestSchema,
   reasonRequestSchema,
-  rolesThatCanView,
-  rolesThatManage,
   resolveExceptionRequestSchema,
   updateLoadRequestSchema,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
 import { listAssignmentHistory } from "../dispatchLoads/history.js";
@@ -50,8 +48,8 @@ export function dispatchRouter(): Router {
   // module gets one clear 403 instead of an empty board they cannot explain.
   router.use(requireAuth, requireOrg, requireModule("dispatch"));
 
-  const canView = requireRole(...rolesThatCanView("dispatch"));
-  const canManage = requireRole(...rolesThatManage("dispatch"));
+  const canView = requireSection("dispatch", "view");
+  const canManage = requireSection("dispatch");
 
   const actorOf = (req: Request) => ({ userId: req.auth!.userId, role: req.auth!.role });
   const param = (req: Request, name: string): string => {

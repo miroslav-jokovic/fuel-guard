@@ -10,14 +10,13 @@ import {
   touchesDriverLifecycle,
   isEmailDomainAllowed,
   resolveDriverUpdate,
-  rolesThatCanView,
   rolesThatManage,
   type DriverCreateRequest,
   type DriverInviteRequest,
   type DriverUpdateContext,
   type DriverUpdateRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -73,7 +72,7 @@ export function rosterDriversRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("roster"));
+  const canView = requireSection("roster", "view");
   /**
    * Create + edit a driver row, which is a RECRUITMENT action as much as a fleet one.
    *

@@ -7,14 +7,13 @@
  * $9,000 dispute, and when" a question with an answer.
  */
 import type { Router } from "express";
-import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
-  rolesThatCanView, rolesThatManage,
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
@@ -56,7 +55,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { rows, total } = await listExceptions(admin, req.auth!.orgId!, {
@@ -76,7 +75,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/totals",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const totals = await exceptionTotals(admin, req.auth!.orgId!, { from: ymd(req.query.from), to: ymd(req.query.to) });
@@ -95,7 +94,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/packet.pdf",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const ids = (typeof req.query.ids === "string" ? req.query.ids.split(",") : [])
@@ -128,7 +127,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.get(
     "/exceptions/:id",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const found = await readException(admin, req.auth!.orgId!, param(req.params.id));
@@ -147,7 +146,7 @@ export function registerExceptionRoutes(router: Router): void {
   router.patch(
     "/exceptions/:id",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const body = req.body as Record<string, unknown>;

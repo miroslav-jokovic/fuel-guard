@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -7,7 +7,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
-import { rolesThatCanView, rolesThatManage, type SpendGrain } from "@silvicom/shared";
+import { type SpendGrain } from "@silvicom/shared";
 
 /**
  * The daily fuel-spend rollup (migration 0244) is READ straight from PostgREST by the web app — the
@@ -37,7 +37,7 @@ export function registerSpendRoutes(router: Router): void {
   router.get(
     "/spend-report.pdf",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const from = typeof req.query.from === "string" ? req.query.from : "";
       const to = typeof req.query.to === "string" ? req.query.to : "";
@@ -83,7 +83,7 @@ export function registerSpendRoutes(router: Router): void {
   router.post(
     "/station-resolve",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -104,7 +104,7 @@ export function registerSpendRoutes(router: Router): void {
   router.post(
     "/spend-rollup",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const body = req.body as { from?: unknown; to?: unknown };
       const from = typeof body?.from === "string" ? body.from : "";

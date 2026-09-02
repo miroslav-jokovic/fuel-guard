@@ -14,10 +14,9 @@ import {
   hazmatProductsQuerySchema, type HazmatProductsResponse,
   type HazmatAnalyzeResponse,
   HAZMAT_REVIEW_ROLES,
-  rolesThatCanView, rolesThatManage,
 } from "@silvicom/shared";
 import { loadDataset, loadReferenceText } from "@hazmat/data";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -54,8 +53,8 @@ export function hazmatRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireModule("hazmatguard"));
 
-  const canView = requireRole(...rolesThatCanView("hazmat"));
-  const canManage = requireRole(...rolesThatManage("hazmat"));
+  const canView = requireSection("hazmat", "view");
+  const canManage = requireSection("hazmat");
   const canReview = requireRole(...HAZMAT_REVIEW_ROLES);
   const orgOf = (req: Request): string => req.auth!.orgId!;
   const userOf = (req: Request): string => req.auth!.userId;

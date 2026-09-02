@@ -1,7 +1,7 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { rolesThatCanView, rolesThatManage, truckCostScheduleSchema } from "@silvicom/shared";
-import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { truckCostScheduleSchema } from "@silvicom/shared";
+import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -16,8 +16,8 @@ import { listSchedules, createSchedule, updateSchedule, deleteSchedule } from ".
  * report's auditability, not bookkeeping about bookkeeping.
  */
 export function registerCostScheduleRoutes(router: Router): void {
-  const canView = requireRole(...rolesThatCanView("accounting"));
-  const canManage = requireRole(...rolesThatManage("accounting"));
+  const canView = requireSection("accounting", "view");
+  const canManage = requireSection("accounting");
 
   router.get(
     "/cost-schedules",

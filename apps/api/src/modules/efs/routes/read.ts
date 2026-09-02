@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { maskPan, mergeEffectiveConfig, policyNumberSchema, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
+import { maskPan, mergeEffectiveConfig, policyNumberSchema } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getPolicyCached } from "../lib/efsPolicyCache.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
@@ -9,7 +9,7 @@ import { searchLocation } from "../lib/efsLocationSearch.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { handleMutationLog } from "./mutationLog.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import {
   EFS_CARD_DETAIL_COLS,
   EFS_CARD_LIST_COLS,
@@ -150,8 +150,8 @@ export function fuelCardsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("fuel"));
-  const canManage = requireRole(...rolesThatManage("fuel"));
+  const canView = requireSection("fuel", "view");
+  const canManage = requireSection("fuel");
 
   // ── Fixed paths first. `/:id` would otherwise swallow "locations", "policies" and "sync". ───────
 

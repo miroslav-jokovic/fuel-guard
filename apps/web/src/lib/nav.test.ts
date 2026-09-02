@@ -167,3 +167,57 @@ describe("the collapsed rail can tell its sections apart", () => {
     expect(admin?.items.find((i) => i.name === "Settings")?.icon).toBe(admin?.icon);
   });
 });
+
+/**
+ * The org's overrides, in the sidebar (D-PERM2, EDITABLE-PERMISSIONS-PLAN.md P3).
+ *
+ * This is the half of "control exactly what they can see on dashboard" that is literally about the
+ * dashboard. Route guards and API gates read the claim from P3 onward; if the nav kept answering
+ * from the shipped matrix, a member granted a section would have the page and no way to reach it,
+ * and a member denied one would still see the item and get bounced by the guard. Both failures look
+ * like a broken product rather than a permission.
+ */
+describe("buildNavGroups under an org's overrides", () => {
+  const modules = new Set(["hazmatguard", "dispatch"]) as unknown as ModuleSet;
+  const names = (role: Parameters<typeof buildNavGroups>[0], sections: Parameters<typeof buildNavGroups>[3] = null) =>
+    buildNavGroups(role, modules, {}, sections).flatMap((g) => g.items.map((i) => i.name));
+
+  it("is unchanged when the org has overridden nothing", () => {
+    expect(names("dispatcher", null)).toEqual(names("dispatcher"));
+    expect(names("dispatcher", {})).toEqual(names("dispatcher"));
+  });
+
+  it("shows a section the org has granted a role that does not ship with it", () => {
+    expect(names("dispatcher")).not.toContain("Alerts");
+    expect(names("dispatcher", { safety: "view" })).toContain("Alerts");
+  });
+
+  it("hides a section the org has taken away", () => {
+    expect(names("dispatcher")).toContain("Loads");
+    expect(names("dispatcher", { dispatch: "none" })).not.toContain("Loads");
+  });
+
+  it("respects the view/manage distinction — a granted VIEW does not add the write surfaces", () => {
+    // Import and Fuel Spend are `canManageSection("fuel")`; Transactions is `canViewSection`.
+    const viewOnly = names("recruiter", { fuel: "view" });
+    expect(viewOnly).toContain("Transactions");
+    expect(viewOnly).not.toContain("Import");
+    expect(names("recruiter", { fuel: "manage" })).toContain("Import");
+  });
+
+  it("leaves untouched sections alone, because the claim is sparse", () => {
+    const granted = names("dispatcher", { safety: "view" });
+    expect(granted).toContain("Loads"); // still their own section
+    expect(granted).not.toContain("Applicants"); // still not granted
+  });
+
+  it("drops a group entirely when its last item goes, rather than leaving an empty heading", () => {
+    const groups = buildNavGroups("technician", modules, {}, { maintenance: "none", equipment: "none" });
+    expect(groups.find((g) => g.label === "Maintenance")).toBeUndefined();
+    expect(groups.find((g) => g.label === "Fleet")).toBeUndefined();
+  });
+
+  it("ignores a claim for an admin, so an org cannot hide its own way back", () => {
+    expect(names("admin", { settings: "none" })).toContain("Settings");
+  });
+});

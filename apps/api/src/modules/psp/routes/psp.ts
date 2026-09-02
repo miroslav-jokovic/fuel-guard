@@ -4,11 +4,11 @@ import {
   canReadInvestigationHistory,
   pspImportSchema,
   pspImportUploadSchema,
-  rolesThatManage,
+  USER_ROLES,
   type PspImport,
   type PspImportUpload,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireRole, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -36,7 +36,16 @@ export function recruitmentPspRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canFile = requireRole(...rolesThatManage("recruitment").filter(canReadInvestigationHistory));
+  // The INTERSECTION, now two gates rather than one filtered role list — and it has to be two,
+  // because the halves have different owners. The first is a SECTION question an org may have
+  // re-answered on its permissions page; the second is the §391.53(a)(1) reader test, which belongs
+  // to the regulation and is not an org's to edit. Chaining middlewares gives AND. Folding them back
+  // into one derived list would make the regulatory half look editable, which is the drift the
+  // header above warns about, arriving by a new route.
+  const canFile = [
+    requireSection("recruitment"),
+    requireRole(...USER_ROLES.filter(canReadInvestigationHistory)),
+  ];
 
   /**
    * The wording the operator is asked to affirm, served rather than hard-coded in the client — the

@@ -1,13 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import {
-  rolesThatCanView,
-  rolesThatManage,
   setDriverAppFeatureRequestSchema,
   setDriverAppOverrideRequestSchema,
   type SetDriverAppFeatureRequest,
   type SetDriverAppOverrideRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -43,10 +41,10 @@ export function driverAppSettingsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const settingsView = requireRole(...rolesThatCanView("roster"));
-  const settingsManage = requireRole(...rolesThatManage("roster"));
-  const overridesView = requireRole(...rolesThatCanView("dispatch"));
-  const overridesManage = requireRole(...rolesThatManage("dispatch"));
+  const settingsView = requireSection("roster", "view");
+  const settingsManage = requireSection("roster");
+  const overridesView = requireSection("dispatch", "view");
+  const overridesManage = requireSection("dispatch");
 
   const param = (req: Request, name: string): string => {
     const v = req.params[name];

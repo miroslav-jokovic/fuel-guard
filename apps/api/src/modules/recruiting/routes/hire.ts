@@ -3,10 +3,9 @@ import {
   USER_ROLES,
   canWriteDriverLifecycle,
   hireApplicantSchema,
-  rolesThatCanView,
   type HireApplicant,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -32,7 +31,7 @@ export function recruitmentHireRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("recruitment"));
+  const canView = requireSection("recruitment", "view");
   // Derived from the predicate 0213's trigger mirrors, not from a role list — a hand-written list
   // here is how the API and the trigger come to disagree about who may hire.
   const canHire = requireRole(...USER_ROLES.filter(canWriteDriverLifecycle));

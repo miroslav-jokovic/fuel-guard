@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { rolesThatCanView } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -31,7 +30,7 @@ import { windowSchema, entriesSchema, cpmQuerySchema } from "./schemas.js";
 export function accountingRouter(): Router {
   const router = Router();
   router.use(requireAuth);
-  const canView = requireRole(...rolesThatCanView("accounting"));
+  const canView = requireSection("accounting", "view");
 
   router.get(
     "/entries",

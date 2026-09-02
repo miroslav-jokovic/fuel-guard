@@ -1,6 +1,6 @@
 import type { Router } from "express";
-import { discountRulesUpdateSchema, rolesThatManage } from "@silvicom/shared";
-import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { discountRulesUpdateSchema } from "@silvicom/shared";
+import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -14,7 +14,7 @@ export function registerDiscountRuleRoutes(router: Router): void {
   router.post(
     "/discount-rules",
     requireOrg,
-    requireRole(...rolesThatManage("admin")),
+    requireSection("admin"),
     validateBody(discountRulesUpdateSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

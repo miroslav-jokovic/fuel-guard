@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import { rolesThatManage } from "@silvicom/shared";
 import { asyncHandler } from "../../lib/http.js";
-import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../middleware/auth.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
 import { ActionRefusalError } from "./services/efsCardControlErrors.js";
 import {
@@ -51,7 +50,7 @@ export function fuelCardCapabilityRouter(
   const router = Router();
   router.use(requireAuth);
 
-  const canManage = requireRole(...rolesThatManage("fuel"));
+  const canManage = requireSection("fuel");
 
   for (const capability of capabilities) {
     const { method, path } = capability.contract.route;

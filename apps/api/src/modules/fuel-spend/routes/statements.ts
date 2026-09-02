@@ -1,10 +1,10 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { rolesThatCanView, rolesThatManage, type StatementWord } from "@silvicom/shared";
+import { type StatementWord } from "@silvicom/shared";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "../fuelStatementIngest.js";
 import { runFuelReconciliation } from "../fuelReconRun.js";
 
@@ -21,7 +21,7 @@ export function registerStatementRoutes(router: Router): void {
   router.post(
     "/statements",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -58,7 +58,7 @@ export function registerStatementRoutes(router: Router): void {
   router.post(
     "/recon-runs",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -108,7 +108,7 @@ export function registerStatementRoutes(router: Router): void {
   router.get(
     "/recon-runs",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

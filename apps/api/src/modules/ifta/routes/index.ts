@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
-import { rolesThatCanView } from "@silvicom/shared";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -24,7 +23,7 @@ export function iftaRouter(): Router {
   router.get(
     "/period",
     requireOrg,
-    requireRole(...rolesThatCanView("fuel")),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const parsed = querySchema.safeParse(req.query);
       if (!parsed.success) {

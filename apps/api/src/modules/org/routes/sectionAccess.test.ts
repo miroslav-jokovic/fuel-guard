@@ -35,6 +35,11 @@ vi.mock("../../../middleware/auth.js", () => ({
   },
   requireOrg: (_req: Request, _res: Response, next: NextFunction) => next(),
   requireRole: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  // P3 swapped this router's gates to `requireSection`; the stubs open the door the same way
+  // `requireRole`'s always has. What each gate ADMITS is proved in middleware/requireSection.test.ts
+  // against the real implementation — stubbing it here would only prove the stub.
+  requireSection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  requireAnySection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => undefined) }));
 
