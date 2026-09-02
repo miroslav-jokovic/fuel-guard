@@ -525,5 +525,147 @@ ok(
   !(await wrote(DISPATCHER, ORG, "driver", { equipment: "manage" }, VEH, [ORG])),
 );
 
+// ── P4 batch 2: the fuel and safety sections (0294) ───────────────────────────
+// Same shape as the batch-1 block above, against the two sections 0294 wrapped. The 13 policies it
+// covers are all `org_id = auth_org_id() AND <section gate>` with no third conjunct, so one table
+// per section per level is enough to exercise the gate; what varies between them is the section
+// name and the level, and both are asserted here.
+//
+// ⚠ Every fixture below is a REAL row, seeded with the service role where the assertion is an
+// UPDATE/DELETE. The batch-1 block learned this the hard way: a statement matching nothing reports
+// zero affected rows and is indistinguishable from an RLS refusal, so a "cannot write" assertion
+// written against an empty table passes whatever the policy says.
+
+// ── fuel, at 'manage' (fuel_cards_write stands for the nine) ──────────────────
+// Fuel's shipped manage set is [admin, fleet_manager]; a dispatcher holds `fuel: "view"`, which is
+// what makes them the right role to test both directions against.
+const CARD = `insert into fuel_cards (org_id, card_ref) values ($1, 'P4B2-CARD')`;
+
+ok(
+  "with no override a fleet manager still writes fuel cards",
+  await wrote(DISPATCHER, ORG, "fleet_manager", null, CARD, [ORG]),
+);
+ok(
+  "with no override a dispatcher still cannot write fuel cards (they hold fuel: view)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, CARD, [ORG])),
+);
+ok(
+  "an org that takes fuel away from its fleet managers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "fleet_manager", { fuel: "none" }, CARD, [ORG])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only fleet manager cannot write a fuel card either",
+  !(await wrote(DISPATCHER, ORG, "fleet_manager", { fuel: "view" }, CARD, [ORG])),
+);
+ok(
+  "an org that grants fuel to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, CARD, [ORG]),
+);
+ok(
+  "…but granting 'view' does not grant the write",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "view" }, CARD, [ORG])),
+);
+ok(
+  "overriding safety leaves fuel at its default — the claim is sparse across sections too",
+  await wrote(DISPATCHER, ORG, "fleet_manager", { safety: "none" }, CARD, [ORG]),
+);
+ok(
+  "a claim narrowing an ADMIN's fuel is ignored, so an org can always dig itself out",
+  await wrote(DISPATCHER, ORG, "admin", { fuel: "none" }, CARD, [ORG]),
+);
+ok(
+  "a claim granting a DRIVER fuel is ignored — D-PERM8 is not negotiable at the row layer",
+  !(await wrote(DISPATCHER, ORG, "driver", { fuel: "manage" }, CARD, [ORG])),
+);
+
+// ── safety, at 'manage' (certifications_write and qualification_records_insert) ─
+// Safety's shipped manage set is [admin, fleet_manager, safety_manager]; a dispatcher holds
+// `safety: "none"`, so they are the widening case here.
+const CERT = `insert into certifications (org_id, subject_type, subject_id, kind, effective_from)
+              values ($1, 'driver', $2, 'medical_card', current_date)`;
+
+ok(
+  "with no override a safety manager still files a certification",
+  await wrote(DISPATCHER, ORG, "safety_manager", null, CERT, [ORG, DRIVER_ID]),
+);
+ok(
+  "with no override a dispatcher still cannot (they hold safety: none)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that takes safety away from its safety managers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { safety: "none" }, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only safety manager cannot file one either",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { safety: "view" }, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that grants safety to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, CERT, [ORG, DRIVER_ID]),
+);
+
+// The §391.51 file itself, and the half of it that matters most: a grant opens the INSERT and
+// nothing else. `qualification_records` has no UPDATE and no DELETE policy at any level (0205 and
+// 0211 gave it only a select, a driver scope, the two restricted-kind gates, and this insert), so
+// widening the section cannot produce a mutation path where there was none. This is the assertion
+// behind 0294's claim that wrapping a policy leaves an append-only table append-only — the table's
+// evidence character is the ABSENCE of those policies plus its pin in RETENTION_FORBIDDEN, and a
+// section gate on the insert does not touch either.
+const QR = `insert into qualification_records (org_id, driver_id, kind, occurred_on)
+            values ($1, $2, 'road_test', current_date)`;
+const SEEDED_QR = (await one(
+  `insert into qualification_records (org_id, driver_id, kind, occurred_on)
+   values ($1, $2, 'road_test', current_date) returning id`,
+  [ORG, DRIVER_ID],
+)).id;
+
+ok(
+  "a granted safety section opens the §391.51 insert a dispatcher does not ship with",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, QR, [ORG, DRIVER_ID]),
+);
+ok(
+  "the seeded qualification record is real — a plain admin can read it back",
+  (await asUserWith(DISPATCHER, ORG, "admin", null,
+    `select count(*)::int as n from qualification_records where id = $1`, [SEEDED_QR])).rows[0].n === 1,
+);
+ok(
+  "…but that same grant does NOT open a delete — the record stays append-only",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" },
+    `delete from qualification_records where id = $1`, [SEEDED_QR])),
+);
+ok(
+  "…nor does it open an update, for the same reason: there is no such policy to widen",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" },
+    `update qualification_records set kind = 'mvr' where id = $1`, [SEEDED_QR])),
+);
+
+// ── safety, at 'view' (dq_exports_select is the one SELECT in batch 2) ────────
+// Safety's view set adds the auditor to its manage set. `dq_exports` has no client write policy at
+// all — service-role writes only — so this select IS the whole of an org's editable surface on the
+// DQ export ledger, which makes it the cleanest place to show 'view' behaving independently.
+await db.query(
+  `insert into dq_exports (org_id, kind, driver_ids, as_at) values ($1, 'binder', array[$2::uuid], current_date)`,
+  [ORG, DRIVER_ID],
+);
+const SEE_EXPORTS = `select count(*)::int as n from dq_exports`;
+
+ok(
+  "with no override an auditor reads the DQ export ledger",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_EXPORTS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed safety section closes a read the auditor does ship with",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { safety: "none" }, SEE_EXPORTS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the recruiter does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { safety: "view" }, SEE_EXPORTS)).rows[0].n === 1,
+);
+ok(
+  "…and 'manage' implies 'view', so a granted manager reads it too",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { safety: "manage" }, SEE_EXPORTS)).rows[0].n === 1,
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

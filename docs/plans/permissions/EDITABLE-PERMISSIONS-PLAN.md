@@ -214,6 +214,10 @@ section except `admin`. (Nine roles ship; `admin` and `driver` are the two locks
 
 ## §2b Position, measured 2026-09-02 at `origin/main` = de9a8eb (live: schema 0293)
 
+> Superseded in part by §2c below, written after batch 2 measured the inventory against the matrix
+> instead of against the pattern. The per-section table here is still the right net; the split of what
+> is inside it is in §2c.
+
 **P0, P1, P2, P3 and P4 batch 1 are SHIPPED and DEPLOYED.** Merged as #463, #467, #465, #466, #469.
 (#464 was closed unmerged — GitHub closes a stacked PR when its base branch is deleted rather than
 retargeting it, and a closed PR cannot have its base changed. #467 is the same commit rebased.)
@@ -262,16 +266,144 @@ draft of this plan said "~90 remaining" for exactly this reason and was wrong.
 
 ### Remaining batches
 
-- **B2 — fuel (12) + safety (9) = 21.** Matrices: `rls` (461), `restricted-records` (50), the fuel
-  matrices. ⚠ `safety` includes the §391.51 evidence tables, which are append-only and pinned in
-  `RETENTION_FORBIDDEN`; wrapping a policy does not change that and must not appear to.
-- **B3 — recruitment (6) + maintenance (8) = 14.** Matrices: `hire-applicant`,
-  `employer-inquiries`, `rls`. ⚠ The two PSP gates are an INTERSECTION with
-  `canReadInvestigationHistory` (§391.53(a)(1)) — a regulatory test that is NOT an org's to edit; it
-  stays a role check beside the section gate, exactly as P3 left it in the API.
+- **B2 — fuel + safety. SHIPPED as 0294, and it was 13 policies rather than the 21 counted here.**
+  See §2c: the inventory above counted by PATTERN (a role list on a table whose module maps to an
+  editable section) and eight of those 21 turn out not to be section gates at all. The evidence
+  quoted on merge: `rls` 461, `restricted-records` 50, the fourteen fuel/efs matrices, all unchanged;
+  `org-section-access` 47 → 69. ⚠ The `safety` evidence-table note was correct and is discharged —
+  0294's header shows `RETENTION_FORBIDDEN` governs which tables a retention PRUNE may name and is
+  enforced by a guard test over `RETENTION_RULES`, a different mechanism at a different layer from
+  RLS, and the new assertions prove a widened section opens `qualification_records`' INSERT and
+  neither an UPDATE nor a DELETE.
+- **B3 — recruitment (6) + maintenance (8) + `psp_requests_section_read` = 15.** Matrices:
+  `hire-applicant`, `employer-inquiries`, `rls`. ⚠ The PSP note above was right in substance and
+  wrong about which gate: `psp_requests_section_read` IS a section gate — its list is exactly
+  `rolesThatCanView('recruitment')` and 0216's header calls it "hiring paperwork, behind the hiring
+  section" — but it reaches the safety batch only because the `psp` MODULE maps to `safety` in
+  `check-section-policies.mjs`. Wrapping it needs a `TABLE_SECTIONS` entry pointing `psp_requests`
+  at `recruitment`, which is why it travels with B3. The four gates that genuinely are NOT an org's
+  to edit are the ones D-PERM9 names, and they are all in `safety`.
 - **P5 — the editable page**, and not before B2 and B3. Shipping it earlier saves permissions the
   database does not honour, which §4 below names as the workaround to avoid.
-- **P6 — the gate.**
+- **P6 — the gate.** Q-PERM11 below is now part of its scope and should be read first: the gate is
+  currently blind to one of the two spellings of a role list, and un-blinding it surfaces nine
+  pre-existing disagreements between SQL and `SECTION_ACCESS` that have to be ruled on before it can
+  be turned on.
+
+## §2c What batch 2 measured, 2026-09-02 — the inventory was a pattern count, and patterns overcount
+
+§2b sized the remaining work at 35 by matching `auth_role() = ANY (ARRAY[…])` on a table whose module
+maps to an editable section. That is the right net to cast — it is what stopped the early "~90"
+guess — but it catches two things that look identical in SQL and are not the same question:
+
+1. a **section gate**, whose role list equals `rolesThatManage(section)` or `rolesThatCanView(section)`;
+2. a **role check that happens to name roles**, whose list equals neither.
+
+Re-deriving the 52 in-scope policies against the matrix itself, rather than against the pattern,
+splits them cleanly. The comparison is arithmetic, not judgement: a list either equals a derived set
+or it does not.
+
+| | policies | |
+| --- | ---: | --- |
+| wrapped by 0293 (batch 1) | 17 | |
+| wrapped by 0294 (batch 2) | 13 | fuel 9, safety 4 |
+| remaining for batch 3 | 15 | recruitment 6, maintenance 8, `psp_requests_section_read` 1 |
+| never to be wrapped (D-PERM9) | 4 | the §382.401(a) and §391.53(a)(1) reader tests |
+| blocked on a ruling (Q-PERM10) | 3 | the fuel policies that disagree with the matrix |
+| | **52** | |
+
+### D-PERM9 — A regulatory reader test is not a section, and is never wrapped
+
+`documents_restricted_testing`, `documents_restricted_investigation`,
+`qualification_records_restricted_testing` and `qualification_records_restricted_investigation` carry
+role lists and sit on safety-section tables, and they are not section gates. 0211's header says so in
+words; the matrix says so in arithmetic — their lists are `[admin, safety_manager]` and
+`[admin, safety_manager, recruiter]`, and safety derives `manage=[admin, fleet_manager,
+safety_manager]`, `view=` those three plus `auditor`. Neither matches, because they mirror
+`canReadTestingRecords()` and `canReadInvestigationHistory()` in `auth.ts` rather than
+`SECTION_ACCESS`:
+
+- **§382.401(a)** — drug and alcohol testing records live in "a secure location with controlled
+  access". A custody rule that says nothing about hiring.
+- **§391.53(a)(1)** — the investigation history goes to "those who are involved in the hiring
+  decision", which is what puts the recruiter in one list and not the other.
+
+Ruled: they stay bare role checks for ever. Wrapping them would make a federal confidentiality rule
+org-editable — an org granting `safety: manage` to its dispatchers would thereby hand them drug-test
+results — and the failure would be invisible until an audit or a lawsuit found it. This generalises
+the B3 note that already said the same thing about the PSP gates. **P5's editable page must not
+present these as anything an org can reach**, and P6's gate needs an exemption for them by name.
+
+### Q-PERM10 — Three fuel policies disagree with the matrix, and wrapping them would freeze the drift
+
+Not wrapped by 0294, and the reason is not taste:
+
+| policy | list | fuel derives |
+| --- | --- | --- |
+| `fuel_discount_write` | `[admin, dispatcher, fleet_manager]` | `manage=[admin, fleet_manager]` |
+| `route_fuel_settings_write` | `[admin, dispatcher, fleet_manager]` | `manage=[admin, fleet_manager]` |
+| `ftxn_insert` | `[admin, driver, fleet_manager]` | `manage=[admin, fleet_manager]` |
+
+A dispatcher holds `fuel: "view"`, so the first two grant a write the matrix says they do not have.
+Under D-PERM4 the role list IS the shipped default, so wrapping a list the matrix contradicts would
+freeze that contradiction as the default branch — the one thing D-PERM4 says the role list must never
+become. `lint:section-policies` would also reject them, and its only escape is a FILE-scoped waiver
+that would have switched the gate off for the other thirteen policies in the same migration.
+
+Candidate answers, measured rather than guessed:
+
+- **Both dispatcher lists are exactly `rolesThatManage('dispatch')`.** Route fuel planning and the
+  discount table are arguably dispatch surfaces, and `TABLE_SECTIONS` exists precisely for a table
+  whose module and section differ. Re-pointing them at `dispatch` makes both lists correct with no
+  behaviour change at all, and is the cheapest answer that is not a fudge.
+- **Or narrow them to fuel's manage set**, which is a real behaviour change: a dispatcher loses both
+  writes. Note the API has already moved on — `apps/api/src/modules/fuel/routes/discountRules.ts`
+  gates the discount write at `requireSection("admin")`, and no API path writes
+  `route_fuel_settings` at all (it is read-only there, `routing/fuelPlanning.ts:171` and
+  `routing/routes/stations.ts:21`). So the wider RLS list is a client-side path the product no
+  longer uses, and narrowing it may cost nothing in practice.
+- **`ftxn_insert`'s `driver` is a driver-app path, not a section grant**, and belongs in a
+  driver-scoped predicate beside the section gate rather than inside its role list.
+
+Recommendation: take the first answer for the two dispatcher policies (a `TABLE_SECTIONS` entry plus
+a wrapper, no behaviour change) and the third for `ftxn_insert`, as one PR after B3. It needs an
+owner ruling because it is a permission decision, not a mechanical edit.
+
+### Q-PERM11 — `lint:section-policies` reads only one of the two spellings, and 0293 used the other
+
+Measured while writing 0294. `check-section-policies.mjs` detects a role list with
+`/auth_role\(\)\s+in\s+\(/`. Postgres renders `auth_role() in (a,b)` and
+`auth_role() = any (array[a,b])` identically in `pg_policy`, so the two are the same thing to the
+database and an author picks between them on taste — but 0293 wrote all 31 of its lists in the
+second spelling, and the gate printed `✓ section policies ok` having read none of them. The recipe's
+step 2 credits this gate with checking the shipped defaults; for batch 1 that credit was not earned.
+
+Batch 2 works around nothing: 0294 uses the `in (…)` spelling, and the gate demonstrably reads it —
+mutating one fuel list to `[admin, dispatcher]` produces 17 violations naming 0294.
+
+⚠ There is a second trap behind the first. The waiver check greps the RAW file, before comments are
+stripped, so a migration header that merely *mentions* the waiver marker waives its own migration. An
+earlier draft of 0294's header did exactly that and the gate went green having read nothing; the
+published header says so in the same paragraph, so the next author meets it as a warning rather than
+as a surprise.
+
+The fix is a two-line change to the detector and it is ready — the patched script is not committed
+because turning it on fails CI. Un-blinding it surfaces **nine pre-existing disagreements between an
+already-applied policy and the matrix**, all of them predating 0293 and faithfully preserved by it:
+
+| table | policy list | section derives |
+| --- | --- | --- |
+| `hazmat_loads` (×3), `hazmat_documents` | `[admin, dispatcher, fleet_manager]` | hazmat `manage` adds `safety_manager` |
+| `hazmat_reviews` insert | `[admin, fleet_manager, safety_manager]` | hazmat `manage` adds `dispatcher` |
+| `hazmat_reviews` select | `[admin, auditor, fleet_manager, safety_manager]` | hazmat `view` adds `dispatcher` |
+| `drivers` | `[admin, fleet_manager, recruiter, safety_manager]` | roster `manage` has no `recruiter` |
+| `driver_vehicle_assignments`, `driver_scores`, `driver_performance_weeks` | `[admin, fleet_manager]` | roster `manage` adds `safety_manager` |
+| `idle_settings` | `[admin, fleet_manager, safety_manager]` | equipment `manage` has no `safety_manager` |
+
+Only the `drivers` one is already explained — `auth.ts` says the recruiter's single roster write is
+"granted by NAME in 0212's policy rather than by widening the section", which is a deliberate
+exception and wants an exemption rather than a fix. The other eight are unexplained and each is a
+permission ruling. This is P6's real content, and it is larger than "turn the gate on".
 
 ## §3 Steps
 
