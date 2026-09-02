@@ -1,98 +1,19 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   inviteCreateSchema,
   isEmailDomainAllowed,
-  renderInviteEmail,
   type InviteCreateRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
+import { deliverInvite } from "../inviteDelivery.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { makeSender, sendEmail } from "../../../lib/mailer.js";
-import type { Env } from "../../../env.js";
+import { sendEmail } from "../../../lib/mailer.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
-
-export interface InviteDelivery {
-  sent: boolean;
-  /** The action link — always returned when generated, so an admin can copy/share it even if email fails. */
-  link: string | null;
-  /** Why email wasn't sent: mail_disabled | send_failed | link_failed. null when sent. */
-  reason: string | null;
-}
-
-/**
- * Deliver an invite through OUR mailer (Resend/Brevo) instead of Supabase's built-in email. We ask
- * Supabase to GENERATE the action link (which also creates the auth user) without sending, then send
- * a branded email ourselves — reliable for external addresses and not subject to Supabase's
- * default-email limits. Falls back to a recovery link when the user already exists.
- *
- * ── WHY WE EMAIL OUR OWN URL AND NOT `action_link` (2026-09-02) ─────────────────────────────────
- * `properties.action_link` is `…/auth/v1/verify?token=…&type=invite&redirect_to=…`, and GoTrue
- * consumes that token on the FIRST HTTP GET — whoever makes it. Corporate mail security fetches
- * every link in an inbound message before the recipient sees it (Defender Safe Links, Proofpoint URL
- * Defense), so on those tenants the scanner spends the invite and the human's click arrives at
- * `/accept-invite#error=access_denied&error_code=otp_expired`. With no session, the SPA's router
- * guard sent them to /login with no explanation — which is the bug this replaces, and the reason
- * "the invite link just goes to the login page" was never reproducible in-house.
- *
- * So we email `${WEB_APP_URL}/accept-invite?token_hash=…&type=…` instead. A scanner's GET on that
- * lands on our own SPA route and consumes nothing; the token is redeemed by `verifyOtp` from the
- * page, which needs JavaScript the scanner does not run. `hashed_token` is the same credential the
- * action link carries — this changes WHO redeems it and when, not what it is.
- *
- * The link is ALWAYS returned so invites work even when email delivery is misconfigured (the admin
- * can copy + share it directly).
- */
-export async function deliverInvite(
-  admin: SupabaseClient,
-  env: Env,
-  orgName: string,
-  email: string,
-): Promise<InviteDelivery> {
-  const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
-  // `type` travels with the token because the two are not interchangeable: `verifyOtp` must be told
-  // which one it is holding, and a re-invite to an already-confirmed address is a RECOVERY token.
-  const acceptUrl = (hashedToken: string, type: "invite" | "recovery") =>
-    `${redirectTo}?token_hash=${encodeURIComponent(hashedToken)}&type=${type}`;
-
-  let link: string | null = null;
-  const invite = await admin.auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: { redirectTo },
-  });
-  if (!invite.error && invite.data?.properties?.hashed_token) {
-    link = acceptUrl(invite.data.properties.hashed_token, "invite");
-  } else {
-    const recovery = await admin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: { redirectTo },
-    });
-    if (!recovery.error && recovery.data?.properties?.hashed_token)
-      link = acceptUrl(recovery.data.properties.hashed_token, "recovery");
-    else
-      console.error(
-        `[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`,
-      );
-  }
-  if (!link) return { sent: false, link: null, reason: "link_failed" };
-  if (env.MAIL_PROVIDER === "none") return { sent: false, link, reason: "mail_disabled" };
-
-  const mail = renderInviteEmail(orgName, link);
-  const sent = await makeSender(env)({
-    to: [email],
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-  });
-  return { sent, link, reason: sent ? null : "send_failed" };
-}
 
 export function invitesRouter(): Router {
   const router = Router();
@@ -233,6 +154,83 @@ export function invitesRouter(): Router {
         action: "invite.revoked",
         entity: "invites",
         entityId: id,
+      });
+      res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Delete an invite that is no longer wanted (admin).
+   *
+   * Revoking hides an invite from use; it does not clear it off the page, and until 2026-09-02
+   * nothing did — the Users page accumulated revoked rows an admin could neither act on nor remove.
+   *
+   * ── WHY DELETION IS ALLOWED HERE AND REFUSED ON `drivers` ──────────────────────────────────────
+   * `invites` is NOT an evidence table. It is not in `RETENTION_FORBIDDEN`, no regulation reads it,
+   * and it holds no §391.51 record — it is the record of an offer, and the record that MATTERS is
+   * the audit row, which survives this and names the email, the role and who removed it. Compare
+   * `drivers` (0235), where a hard delete raises DR010 for everybody including the service role
+   * because §390.32(d) wants the file reproducible.
+   *
+   * ⚠ ONLY a revoked or expired invite. A PENDING one must be revoked first, deliberately: revoking
+   * is what makes the outstanding link unusable, and deleting the row without it would leave a live
+   * invitation in somebody's inbox and nothing on screen to say so. Two steps, because they are two
+   * different acts.
+   *
+   * An ACCEPTED invite is likewise refused — it is the provenance of a membership that exists.
+   */
+  router.delete(
+    "/:id",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+
+      const { data: existing } = await admin
+        .from("invites")
+        .select("id, email, role, status")
+        .eq("id", id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!existing) {
+        res.status(404).json(apiError("not_found", "Invite not found"));
+        return;
+      }
+      if (!["revoked", "expired"].includes(existing.status)) {
+        res
+          .status(409)
+          .json(
+            apiError(
+              "invalid_status",
+              existing.status === "accepted"
+                ? "This invitation was accepted and is the record of an existing member"
+                : "Revoke the invitation first — that is what makes the emailed link unusable",
+            ),
+          );
+        return;
+      }
+
+      const { error } = await admin
+        .from("invites")
+        .delete()
+        .eq("id", id)
+        .eq("org_id", orgId);
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not delete invite"));
+        return;
+      }
+
+      // Written AFTER the delete and carrying the whole row: this audit entry is the only thing left
+      // that says the invitation existed, so it has to hold what the row held.
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "invite.deleted",
+        entity: "invites",
+        entityId: id,
+        meta: { email: existing.email, role: existing.role, status: existing.status },
       });
       res.json({ ok: true });
     }),

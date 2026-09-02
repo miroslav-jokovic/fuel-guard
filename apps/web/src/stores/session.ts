@@ -137,7 +137,34 @@ export const useSessionStore = defineStore("session", () => {
     }
   }
 
-  /** Re-fetch the token so newly-created membership claims (org_id/user_role) appear (audit B3). */
+  /**
+   * Adopt whatever session the Supabase client already holds.
+   *
+   * NOT the same call as `refresh()` below, and the difference cost a locked-out user on
+   * 2026-09-02. `verifyOtp`/`setSession` hand the client a session directly; this store only learns
+   * about it through `onAuthStateChange`, which supabase-js dispatches on a `setTimeout(…, 0)` — so
+   * an `await` chain immediately afterwards can observe a null store while the client is perfectly
+   * signed in. `AcceptInvitePage` reached for `refresh()` to close that gap, which forces a token
+   * ROTATION on a refresh token issued seconds earlier; when that raced it failed silently, the
+   * store stayed null, and the page reported "this link has expired" to somebody whose sign-in the
+   * server had already recorded.
+   *
+   * Reading is the right verb when the client already has the answer. Rotating is not.
+   */
+  async function syncFromClient() {
+    if (DEV_BYPASS) return;
+    const { data } = await supabase.auth.getSession();
+    session.value = data.session;
+  }
+
+  /**
+   * Re-fetch the token so newly-created membership claims (org_id/user_role) appear (audit B3).
+   *
+   * A rotation is CORRECT here and only here: the claims are minted by the auth hook, so nothing but
+   * a new token can carry a membership that did not exist when the current one was issued. Use
+   * `syncFromClient()` for "the client signed in, catch up" — see its header for what asking the
+   * wrong one costs.
+   */
   async function refresh() {
     if (DEV_BYPASS) return;
     const { data } = await supabase.auth.refreshSession();
@@ -161,6 +188,7 @@ export const useSessionStore = defineStore("session", () => {
     restrictedAccess,
     canReadKind,
     init,
+    syncFromClient,
     signIn,
     signOut,
     refresh,

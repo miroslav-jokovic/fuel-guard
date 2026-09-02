@@ -11,7 +11,8 @@
  * probe, and storage backup/reconcile. The queue RUNTIME (`queue/`) deliberately stays
  * outside: it is the process fabric every module's handlers register into, not one module's own.
  */
-export { invitesRouter, deliverInvite } from "./routes/invites.js";
+export { invitesRouter } from "./routes/invites.js";
+export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { auditRouter } from "./routes/audit.js";

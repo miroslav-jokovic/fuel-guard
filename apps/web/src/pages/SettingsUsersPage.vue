@@ -130,6 +130,20 @@ async function revoke(id: string) {
   }
 }
 
+async function remove(id: string) {
+  const inv = invites.value.find((i) => i.id === id);
+  // window.confirm, matching the destructive-action precedent on the pages beside this one. The
+  // email is in the sentence because the row it names is about to stop being on screen.
+  if (!confirm(`Delete the invitation for ${inv?.email ?? "this address"}? The audit log keeps a record.`)) return;
+  const res = await apiFetch(`/api/invites/${id}`, { method: "DELETE" });
+  if (res.ok) {
+    toast.success("Invitation deleted");
+    await load();
+  } else {
+    toast.error("Could not delete invitation", res.error?.message);
+  }
+}
+
 async function resend(id: string) {
   const inv = invites.value.find((i) => i.id === id);
   const res = await apiFetch<InviteResult>(`/api/invites/${id}/resend`, { method: "POST" });
@@ -331,7 +345,10 @@ onMounted(load);
         <template #actions="{ row }">
           <KebabMenu v-if="row.status === 'pending' || row.status === 'revoked' || row.status === 'expired'">
             <BaseButton v-if="row.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(row.id)">Revoke invite</BaseButton>
-            <BaseButton v-else class="kebab-item" @click="resend(row.id)">Resend invite</BaseButton>
+            <template v-else>
+              <BaseButton class="kebab-item" @click="resend(row.id)">Resend invite</BaseButton>
+              <BaseButton class="kebab-item kebab-item-danger" @click="remove(row.id)">Delete invite</BaseButton>
+            </template>
           </KebabMenu>
         </template>
       </DataTable>
