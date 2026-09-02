@@ -72,6 +72,9 @@ const asQuery = <T,>(data: T) => ({
   error: ref(null), refetch: vi.fn(),
 });
 
+/** What the freshness strip is told. Mutable so a test can make the window stale. */
+const FRESHNESS = { value: { builtAt: "2026-08-24T05:00:00Z", ageDays: 1, stale: false, lead: "Figures rebuilt 1 day ago.", short: "1 day ago" } as Record<string, unknown> | null };
+
 vi.mock("@/features/reconcile/useSpendLines", () => ({
   useSpendLinesQuery: (filters: Ref<{ from: string; to: string; vehicleIds: string[] }>) => {
     seen.spendLineFilters = filters;
@@ -119,6 +122,12 @@ vi.mock("@/features/reconcile/useBuyFills", () => ({
 }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => asQuery([{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]),
+}));
+// A6 / FUEL-T5. Mocked like every other composable this page reads — an unmocked one reaches for a
+// real query client the harness does not provide, and takes the whole page down. Its own query is
+// asserted in `useSpendFreshness.test.ts`; what matters here is that the page renders the sentence.
+vi.mock("@/features/reconcile/useSpendFreshness", () => ({
+  useSpendFreshnessQuery: () => asQuery(FRESHNESS.value),
 }));
 
 // The two heaviest tabs carry their own queries and their own test files; here they only need to be
@@ -320,5 +329,39 @@ describe("buy discipline", () => {
     // wrong tab.
     const t = (await mountPage("?tab=buy_discipline")).w.text();
     expect(t).toContain("fills in sequence");
+  });
+});
+
+/**
+ * A6 / D-FUI18 — the page says when its figures were derived, above the figures.
+ *
+ * The rollup rebuilds only the trailing 14 days, so a window reaching further back shows numbers
+ * derived once and never re-derived through any correction since. The reader cannot infer that from
+ * anything else on screen: a stale figure is not a smaller number, it is an older one.
+ */
+describe("FuelReconciliationPage — how current the figures are", () => {
+  it("prints the build age above the figures it qualifies", async () => {
+    FRESHNESS.value = { builtAt: "2026-08-24T05:00:00Z", ageDays: 1, stale: false, lead: "Figures rebuilt 1 day ago.", short: "1 day ago" };
+    const { w } = await mountPage();
+    expect(w.text()).toContain("Figures rebuilt 1 day ago.");
+  });
+
+  it("gives a stale window the caution treatment, and a fresh one no treatment at all", async () => {
+    FRESHNESS.value = { builtAt: "2026-07-01T00:00:00Z", ageDays: 40, stale: true, lead: "Some figures here were last rebuilt 40 days ago.", short: "40 days ago — older than the 14-day rebuild" };
+    const { w: stale } = await mountPage();
+    expect(stale.html()).toContain("bg-caution-50");
+
+    FRESHNESS.value = { builtAt: "2026-08-24T05:00:00Z", ageDays: 1, stale: false, lead: "Figures rebuilt 1 day ago.", short: "1 day ago" };
+    const { w: fresh } = await mountPage();
+    // A rebuild that happened yesterday is context, not an alert. Toning every freshness line the same
+    // way is how a caution colour stops meaning anything.
+    expect(fresh.text()).toContain("Figures rebuilt 1 day ago.");
+    expect(fresh.html()).not.toContain("bg-caution-50");
+  });
+
+  it("renders nothing when the window holds no rows — there is no age to report", async () => {
+    FRESHNESS.value = { builtAt: null, ageDays: null, stale: false, lead: null, short: null };
+    const { w } = await mountPage();
+    expect(w.text()).not.toContain("Figures rebuilt");
   });
 });

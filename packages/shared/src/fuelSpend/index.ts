@@ -12,6 +12,7 @@ export * from "./ancillary.js";
 export * from "./spendPeriodTotals.js";
 export * from "./operatingBridge.js";
 export * from "./rollupDerive.js";
+export * from "./rollupFreshness.js";
 export * from "./spendPeriods.js";
 export * from "./spendWindow.js";
 export * from "./stationMatch.js";
