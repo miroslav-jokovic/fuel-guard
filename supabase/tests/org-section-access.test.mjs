@@ -266,5 +266,143 @@ ok(
   (await one(`select count(*)::int as n from org_section_access where org_id = $1`, [ORG])).n === 2,
 );
 
+// ══════════════════════════════════════════════════════════════════════════════
+// The claim (0292, step P2) — where an override becomes authority.
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `custom_access_token_hook` is the only thing that turns a row in this table into something a
+// policy can act on, so its behaviour is what the rest of the program rests on. Four properties
+// matter, and each would be silently wrong in a different way:
+//
+//  · the claim is SPARSE — an absent section means "unchanged", never "denied" (D-PERM4);
+//  · an org that has overridden nothing mints EXACTLY the token it does today, so applying this
+//    migration to a live project cannot change anyone's access;
+//  · the locks hold here too, because this is the last place that can decline to honour a row that
+//    should not exist, and the only one whose failure is an escalation rather than a bad row;
+//  · `auth_section()` reads what the hook wrote, or NULL — the value P4's policies branch on.
+
+const claimsFor = async (userId) =>
+  (await one(`select public.custom_access_token_hook(jsonb_build_object('user_id', $1::text, 'claims', '{}'::jsonb)) as e`, [userId]))
+    .e.claims;
+
+// Two members of ORG: a dispatcher (who has one override, seeded above) and a fleet_manager (who
+// has none). Both roles are editable, so any difference between them is the overrides and nothing
+// else.
+// ⚠ Fresh subjects, not COLLEAGUE: the lifecycle assertion above DELETES that account to prove an
+// override outlives the person who set it, so reusing it here fails on the memberships FK — which
+// reads exactly like a hook that returned nothing.
+const DISPATCHER = "00000000-0000-4000-8000-000000000004";
+const MANAGER = "00000000-0000-4000-8000-000000000005";
+const BOSS = "00000000-0000-4000-8000-000000000006";
+const HAULER = "00000000-0000-4000-8000-000000000007";
+await db.query(
+  `insert into auth.users (id, email)
+   values ($1,'dispatcher@example.com'), ($2,'manager@example.com'), ($3,'boss@example.com'), ($4,'hauler@example.com')`,
+  [DISPATCHER, MANAGER, BOSS, HAULER],
+);
+await db.query(
+  `insert into memberships (org_id, user_id, role) values ($1,$2,'dispatcher'), ($1,$3,'fleet_manager'), ($1,$4,'admin'), ($1,$5,'driver')`,
+  [ORG, DISPATCHER, MANAGER, BOSS, HAULER],
+);
+
+const dispatcherClaims = await claimsFor(DISPATCHER);
+ok(
+  "the hook still injects org_id and user_role, unchanged from 0006",
+  dispatcherClaims.org_id === ORG && dispatcherClaims.user_role === "dispatcher",
+);
+ok(
+  "an overridden role carries a SPARSE sections claim — only what the org changed",
+  JSON.stringify(dispatcherClaims.sections) === JSON.stringify({ safety: "view" }),
+);
+
+const managerClaims = await claimsFor(MANAGER);
+ok(
+  "a role with no overrides carries no sections claim at all, so its token is byte-identical to today's",
+  managerClaims.sections === undefined && managerClaims.user_role === "fleet_manager",
+);
+
+// ── The locks, applied where honouring a bad row would be an escalation ────────
+// These rows cannot be inserted through the endpoint or past 0291's CHECK constraints, so they are
+// forced in with the constraints disabled — the point is what the HOOK does if one ever exists.
+await db.exec(`alter table org_section_access drop constraint org_section_access_role_check`);
+await db.exec(`alter table org_section_access drop constraint org_section_access_section_check`);
+await db.query(SET, [ORG, "admin", "fuel", "none", ACTOR]);
+await db.query(SET, [ORG, "driver", "fuel", "manage", ACTOR]);
+await db.query(SET, [ORG, "dispatcher", "admin", "manage", ACTOR]);
+
+ok(
+  "a smuggled override for the admin role is not honoured — an org always has a way back",
+  (await claimsFor(BOSS)).sections === undefined,
+);
+ok(
+  "a smuggled override for the driver role is not honoured",
+  (await claimsFor(HAULER)).sections === undefined,
+);
+ok(
+  "a smuggled grant of the admin SECTION is dropped from the claim, and the rest survives",
+  JSON.stringify((await claimsFor(DISPATCHER)).sections) === JSON.stringify({ safety: "view" }),
+);
+
+// ── auth_section(): what a policy will actually branch on at P4 ────────────────
+const asClaims = async (claims, sql) => {
+  await db.exec("begin");
+  try {
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const r = await db.query(sql);
+    await db.exec("rollback");
+    return r.rows[0];
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+};
+
+const withSections = { sub: DISPATCHER, org_id: ORG, user_role: "dispatcher", sections: { safety: "view" } };
+ok(
+  "auth_section returns the override where there is one",
+  (await asClaims(withSections, `select auth_section('safety') as v`)).v === "view",
+);
+ok(
+  "auth_section returns NULL for a section the org has not touched — 'unchanged', not 'denied'",
+  (await asClaims(withSections, `select auth_section('fuel') as v`)).v === null,
+);
+ok(
+  "auth_section_view is true for an override of view",
+  (await asClaims(withSections, `select auth_section_view('safety') as v`)).v === true,
+);
+ok(
+  "auth_section_manage is FALSE for an override of view — view does not imply manage",
+  (await asClaims(withSections, `select auth_section_manage('safety') as v`)).v === false,
+);
+ok(
+  "auth_section_view is true for an override of manage — manage implies view",
+  (await asClaims({ ...withSections, sections: { safety: "manage" } }, `select auth_section_view('safety') as v`)).v === true,
+);
+
+// The property the whole rollout rests on: a token minted before any of this existed carries no
+// `sections` key, so every policy takes its default branch and no live session loses access.
+ok(
+  "a token with no sections claim answers NULL, so P4's policies fall through to their role list",
+  (await asClaims({ sub: ACTOR, org_id: ORG, user_role: "dispatcher" }, `select auth_section('safety') as v`)).v === null,
+);
+// SQL is three-valued, and this is where that bites. `null in ('view','manage')` and
+// `null = 'manage'` both evaluate to NULL, not false — and RLS reads a NULL predicate as a refusal.
+// Without the `coalesce` in 0292, a bare `using (auth_section_view('fuel'))` would have denied every
+// token minted before the migration, which is every token in existence on the day it applies.
+const noClaim = await asClaims(
+  { sub: ACTOR, org_id: ORG, user_role: "dispatcher" },
+  `select auth_section_view('safety') as a, auth_section_manage('safety') as b`,
+);
+ok("…and the view wrapper answers false, not NULL, so a policy using it does not deny", noClaim.a === false);
+ok("…and so does the manage wrapper", noClaim.b === false);
+
+// An empty claims setting is what a rolled-back `set_local` leaves behind. `auth_role()` raised
+// 22P02 on exactly this until 0213 added the nullif guard, and every policy in the product calls
+// these functions — so the guard is copied, and pinned.
+ok(
+  "an EMPTY claims setting reads as 'no override' rather than raising 22P02 (0213's bug, not repeated)",
+  (await asClaims("", `select auth_section('safety') as v`)).v === null,
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
