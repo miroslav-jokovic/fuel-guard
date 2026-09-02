@@ -12,7 +12,8 @@ not re-derive, and §2's decisions are what the code below is shaped by.
 
 ## 1. Where the programme actually stands
 
-`origin/main` = `9493afa`. Highest migration = **0296**, so your next is **0297**.
+`origin/main` was `9493afa` when this was written. **Do not trust either number below without
+checking** — see the migration note at the end of this section.
 
 | step | state | what it left behind |
 |---|---|---|
@@ -27,6 +28,13 @@ not re-derive, and §2's decisions are what the code below is shaped by.
 Open questions in the plan's §6: **Q-SURF1** (S7's content), **Q-SURF2** (hazmat governs no screen —
 still unanswered, and it is a one-line catalogue edit when it is), **Q-SURF4** (token size, and S5 is
 where it becomes real). Q-SURF3 and Q-SURF5 are answered and struck.
+
+⚠ **Never pin a migration number in advance — take the next free one AT execution:**
+`ls supabase/migrations | tail -1`. This handoff originally said "your next is 0297" and a parallel
+session opened a PR claiming 0297 **eleven minutes later**. That is the convention
+`RECRUITING-SYSTEM-PLAN.md` §4 already states ("the training plan's pinned numbers went stale by 145
+within a month"), and it is not a gate — `lint:migrations` catches duplicates only once both have
+merged, by which time one of them has to be renumbered anyway.
 
 ---
 
@@ -65,7 +73,7 @@ the user layer is the row that earns the boolean column 0296 added — an org de
 **Done when:** a named member on the `technician` role sees only Annual Inspections, **and no other
 technician is affected**. That second clause is the test that distinguishes S4 from S3.
 
-### The table (migration 0297)
+### The table
 
 `user_surface_access (org_id, user_id, surface_key, allowed, updated_at, updated_by)`, primary key
 `(org_id, user_id, surface_key)`. Mirror 0296 exactly — read the file, do not reinvent:
@@ -214,8 +222,9 @@ gh pr list --state open                # what is about to land?
 Then, before merging, the two that actually bite:
 
 - **Migration numbers.** `git ls-tree -r --name-only origin/main supabase/migrations/ | tail -3`. If
-  the other session has taken 0297, renumber — `lint:migrations` enforces uniqueness and a collision
-  is only visible after both merge.
+  the other session has taken the number you were about to use, renumber. `lint:migrations` enforces
+  uniqueness but only sees both files once both have merged, so the collision surfaces late and the
+  loser renumbers anyway — this happened to this very handoff, see §1.
 - **File overlap.** `gh pr view <theirs> --json files -q '.files[].path'` against your own list.
 
 Leave the tree clean when you stop. `main` is often checked out in their worktree, so
