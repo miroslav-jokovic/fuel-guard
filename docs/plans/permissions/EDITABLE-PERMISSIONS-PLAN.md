@@ -275,14 +275,13 @@ draft of this plan said "~90 remaining" for exactly this reason and was wrong.
   enforced by a guard test over `RETENTION_RULES`, a different mechanism at a different layer from
   RLS, and the new assertions prove a widened section opens `qualification_records`' INSERT and
   neither an UPDATE nor a DELETE.
-- **B3 — recruitment (6) + maintenance (8) + `psp_requests_section_read` = 15.** Matrices:
-  `hire-applicant`, `employer-inquiries`, `rls`. ⚠ The PSP note above was right in substance and
-  wrong about which gate: `psp_requests_section_read` IS a section gate — its list is exactly
-  `rolesThatCanView('recruitment')` and 0216's header calls it "hiring paperwork, behind the hiring
-  section" — but it reaches the safety batch only because the `psp` MODULE maps to `safety` in
-  `check-section-policies.mjs`. Wrapping it needs a `TABLE_SECTIONS` entry pointing `psp_requests`
-  at `recruitment`, which is why it travels with B3. The four gates that genuinely are NOT an org's
-  to edit are the ones D-PERM9 names, and they are all in `safety`.
+- **B3 — recruitment, maintenance and the two section≠module tables. SHIPPED as 0295, 14 policies.**
+  Recruitment 5 (including `psp_requests_section_read`), roster 1 (`seven_day_statements_write`),
+  maintenance 8. One more exclusion found: `employer_inquiries_read` is a fifth D-PERM9 reader test
+  (§391.23(k)(2), and 0223 says in words that it mirrors `canReadInvestigationHistory`). Evidence on
+  merge: `rls` 461, `restricted-records` 50, `hire-applicant` 17, `employer-inquiries` 21,
+  `annual-inspections` 42, `merge-driver-dqf` 21, all unchanged; `org-section-access` 69 → 92.
+  **P4 is complete: every section gate an org can edit now asks the org.**
 - **P5 — the editable page**, and not before B2 and B3. Shipping it earlier saves permissions the
   database does not honour, which §4 below names as the workaround to avoid.
 - **P6 — the gate.** Q-PERM11 below is now part of its scope and should be read first: the gate is
@@ -307,10 +306,14 @@ or it does not.
 | --- | ---: | --- |
 | wrapped by 0293 (batch 1) | 17 | |
 | wrapped by 0294 (batch 2) | 13 | fuel 9, safety 4 |
-| remaining for batch 3 | 15 | recruitment 6, maintenance 8, `psp_requests_section_read` 1 |
-| never to be wrapped (D-PERM9) | 4 | the §382.401(a) and §391.53(a)(1) reader tests |
+| wrapped by 0295 (batch 3) | 14 | recruitment 5, roster 1, maintenance 8 |
+| never to be wrapped (D-PERM9) | 5 | the §382.401(a), §391.53(a)(1) and §391.23(k)(2) reader tests |
 | blocked on a ruling (Q-PERM10) | 3 | the fuel policies that disagree with the matrix |
 | | **52** | |
+
+**44 of the 52 are wrapped, 5 never will be, and 3 wait on Q-PERM10.** P5 may proceed: the only
+sections whose editable surface the database does not yet fully honour are named in Q-PERM10, and
+they are three policies inside `fuel`, not a section.
 
 ### D-PERM9 — A regulatory reader test is not a section, and is never wrapped
 
@@ -328,11 +331,23 @@ safety_manager]`, `view=` those three plus `auditor`. Neither matches, because t
 - **§391.53(a)(1)** — the investigation history goes to "those who are involved in the hiring
   decision", which is what puts the recruiter in one list and not the other.
 
-Ruled: they stay bare role checks for ever. Wrapping them would make a federal confidentiality rule
-org-editable — an org granting `safety: manage` to its dispatchers would thereby hand them drug-test
-results — and the failure would be invisible until an audit or a lawsuit found it. This generalises
-the B3 note that already said the same thing about the PSP gates. **P5's editable page must not
+Batch 3 found a fifth, on the same argument and a third regulation: `employer_inquiries_read` lists
+`[admin, safety_manager, recruiter]`, which is no section's derived set, and 0223's header says it
+mirrors `canReadInvestigationHistory` rather than restating it — because **§391.23(k)(2)** obliges the
+carrier to "take all precautions reasonably necessary to protect the records from disclosure to any
+person not directly involved in deciding whether to hire the driver."
+
+Ruled: all five stay bare role checks for ever. Wrapping them would make a federal confidentiality
+rule org-editable — an org granting `safety: manage` to its dispatchers would thereby hand them
+drug-test results, or `recruitment: manage` a former employer's answer about somebody — and the
+failure would be invisible until an audit or a lawsuit found it. **P5's editable page must not
 present these as anything an org can reach**, and P6's gate needs an exemption for them by name.
+
+The distinction that separates them from the two tables 0295 re-pointed with `TABLE_SECTIONS` is
+arithmetic, not taste: a reader test's list equals NO section's derived set, while `psp_requests` and
+`seven_day_statements` each equal exactly one — just not their module's. When a list matches a
+section, wrapping it with that section changes no behaviour; when it matches none, wrapping it has to
+invent an answer.
 
 ### Q-PERM10 — Three fuel policies disagree with the matrix, and wrapping them would freeze the drift
 

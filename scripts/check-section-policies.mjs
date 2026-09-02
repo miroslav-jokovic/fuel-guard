@@ -86,6 +86,19 @@ const MODULE_SECTIONS = {
 const TABLE_SECTIONS = {
   vehicles: "equipment",
   trailers: "equipment",
+  // Added with 0295 (P4 batch 3). Both are the D-ROS12 case again — a module and a section that
+  // answer different questions — and neither is a re-classification: in each case the policy's
+  // EXISTING role list is exactly one section's derived set, and the migration that authored it says
+  // so in words. Pointing them anywhere else would fail this gate, which is the gate working.
+  //
+  // `psp_requests` is written by the `psp` module (module default `safety`) and its section read
+  // lists exactly rolesThatCanView("recruitment"); 0216 calls it "hiring paperwork, behind the
+  // hiring section".
+  psp_requests: "recruitment",
+  // `seven_day_statements` is written by the `recruiting` module (module default `recruitment`) and
+  // its write lists exactly rolesThatManage("roster"); 0236 says it "takes the fleet lifecycle
+  // roles", and `canWriteDriverLifecycle()` in auth.ts is literally canManageSection(role,"roster").
+  seven_day_statements: "roster",
 };
 
 /** The section a table's policies are checked against: its own override, else its module's default. */
