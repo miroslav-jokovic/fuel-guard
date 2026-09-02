@@ -110,8 +110,25 @@ Two independent reasons it has never delivered anything:
   path corrected, nothing we receive would be stored.
 
 **Check 3 (added) — is the delta feed reachable with this token?** `GET /fleet/vehicles/stats/feed?types=fuelPercents,obdOdometerMeters`
-→ **HTTP 200**, 192 vehicles in the first page, a valid `endCursor`, `hasNextPage: false`. **The
+→ **HTTP 200**, 192 vehicles in the first page, a valid `endCursor`, ~~`hasNextPage: false`~~. **The
 recommended mechanism works on the current plan and scope.** No entitlement question to resolve.
+
+> ⚠ **CORRECTED 2026-09-01 by S2, and the original reading would have hung the tier.** `hasNextPage` is
+> **`true`, always** — re-measured against the live feed by walking it twelve pages deep, including on
+> pages carrying a single sample and on an immediate re-poll of an idle fleet. It never went false. On
+> a *delta* feed the flag means "this stream continues", not "there is more data right now", so a
+> `while (pagination.hasNextPage)` walk — which is what this plan's S2 Build bullet implies — never
+> terminates. **A page with an empty `data` array is the end of the available delta**
+> (`feedPageHasData`).
+>
+> Also measured, and load-bearing for S2's shape: **the feed returns per-vehicle ARRAYS**
+> (`fuelPercents: [{time, value}]`), not the singular objects `/fleet/vehicles/stats` returns. The
+> existing `parseVehicleFuelPercents` / `parseVehicleStatsOdometer` read `.value` off those arrays and
+> would yield `undefined` for every truck, silently. The shapes therefore have separate parsers.
+>
+> Volume, for S5's cadence argument: a cursorless seed of the whole fleet drained in **12 pages / 422
+> samples** (396 of them on page 1), and a re-poll seconds later returned **1 vehicle, 1 sample**. The
+> delta is real and it is cheap.
 
 ### 0.6 The one-line thesis
 
@@ -373,6 +390,69 @@ Build list as written**, and that is worth saying before the reader is built rat
 `syncVehicleStatsFromSamsara` writes `vehicles.current_odometer` and `vehicles.samsara_fuel_percent`:
 single current-value columns, where the last sample wins and the intermediate one is lost exactly as it
 is today. Swapping the endpoint alone changes the mechanism and nothing observable. See **Q-SAM5**.
+
+#### — MERGE 2 of 2 SHIPPED 2026-09-01 (`claude/samsara-stats-feed-reader`). **S2 is DONE.**
+
+**What shipped.** `samsaraStatsFeed.ts` — the stats tier now walks `GET /fleet/vehicles/stats/feed`
+from the cursor stored in 0288, accumulates every page of the delta, applies it, and only then advances
+the cursor. `syncVehicleStatsFromSamsara` moved there from `samsaraVehicleSync.ts` under the same name,
+so the scheduler tier and the queue handler are unchanged. Cadence is untouched at
+`SAMSARA_STATS_SYNC_MINUTES` — **it is a latency knob now, not a completeness one**, which is the point.
+
+**The Done-when is met, via Q-SAM5 (a).** A contiguous descent in tank level is filed to `fuel_events`
+with `fuel_pct_before` / `fuel_pct_after` — **the first producer ever to write those two columns; 0021
+added them and the webhook populates neither.** Two descents between two polls therefore produce two
+rows, which is precisely what `vehicles.samsara_fuel_percent` cannot represent.
+
+**Nothing about the detector is invented, except one number that is stated as such.**
+- Capacity is `resolveCapacity()` — sensor-measured over entered, with the observed-fill floor — never
+  the entered figure, because 101 of the 145 trucks with a learned capacity disagree with theirs by >15%.
+- The gallons floor is the existing `TANK_FILL_MIN_TOLERANCE_GAL` (15), not a new constant.
+- The gate is `tank_sensor_reliable`, the same one `ruleEligible` puts in front of `tank_fill_short` —
+  the gate the fuel plan measured at **19 fires / 0 false**, against ungated `cumulative_overfuel`'s
+  89 / 55 / 0 (§0.3a). It is narrow today (12 of 195 trucks) and widens as S3/S4 feed the learner, so
+  **what it suppresses is counted into the `jobs` ledger** rather than discarded.
+- ⚠ The one judgement: `FUEL_DROP_MAX_GAP_MINUTES = 30`, standing in for a fuel-burn model. Stated, not
+  tuned: over 30 minutes a tractor at highway speed burns ~5 gal at a 6 mpg baseline, so the 15-gal
+  floor sits at ~3x the largest consumption the window can legitimately contain. **SAM-S6 owns changing it.**
+
+**⚠ It does NOT email.** The webhook path calls `notifyFuelDrop`; this one deliberately does not. A new
+detector joining a queue measured at 2.9% precision earns an inbox before it earns an inbox alert.
+
+**Two things the live API corrected, both in §0.5 check 3 above** — `hasNextPage` is always true (a
+`while (hasNextPage)` walk, which this plan's Build bullet implies, never terminates), and the feed
+returns arrays where the snapshot returns singular objects.
+
+**One thing this forced, named because it touches a gate's ledger.** `vehicles` is owned by `roster`,
+and `lint:table-modules` grandfathers exactly ONE out-of-owner write site for it in this module — a
+list that may shrink and not grow. Writing `vehicles` from the new file would have pinned the same debt
+twice and stepped the ratchet backwards, so the write stays in `samsaraVehicleSync.ts` behind
+`writeVehicleTelematics()` and the collector reads and diffs where its logic lives. **The real fix is a
+roster-owned "a collector observed this truck" interface; it is not this step's to build, and the
+function's comment says so.**
+
+**Verified by:** `samsaraStatsFeed.test.ts` (17) — `resumes from the stored cursor rather than
+re-reading the feed's head`; `treats a missing cursor table as 'no cursor' instead of failing the
+tick`; `stops on an EMPTY page, never on hasNextPage — which the live feed never sets false`; `cannot
+spin forever on a vendor that never returns an empty page`; `advances the cursor only AFTER the page is
+applied — at-least-once, never at-most-once`; `a cursor it cannot store does not lose the samples it
+already applied`; `two descents between two polls produce TWO rows, not one`; `a descent split across
+pages is ONE event, because pages accumulate before anything is judged`; `re-delivery collides with the
+row it already wrote instead of doubling the queue`; `suppresses a drop on a sensor the learner does not
+trust, and COUNTS what it suppressed`; `sizes the loss against the LEARNED capacity, not the entered
+one`; `never emails — the webhook notifies, this does not, because the detector has not earned an
+alert`; `is org-scoped, like every other service-role read` (`expectOrgScoped`). Plus
+`samsaraStatsFeed.test.ts` in `packages/shared` (13) for the pure detector.
+
+**Proved able to fail by eight mutations**, each breaking exactly one assertion: terminating on
+`hasNextPage`; advancing the cursor before applying; deleting the sensor gate; sizing the drop against
+the entered capacity; removing the gap window; filing per adjacent pair instead of per descent; trusting
+`hasNextPage` in `feedPageHasData`; and deleting the unknown-capacity guard. ⚠ **That last mutation
+initially passed** — the guard was redundant with the gallons floor, so the assertion proved nothing.
+The test now drops the floor to isolate the guard. Gates green individually: `pnpm test`, `typecheck`,
+`lint`, `build`, and the CI list including `lint:table-writers`, `lint:table-modules`,
+`lint:table-producers` (the merge-1 waiver **removed**, as promised), `lint:boundaries`, `lint:upserts`,
+`lint:funcsize`, `lint:filesize`.
 
 ### S3 · Per-fill telematics becomes a collector tier
 

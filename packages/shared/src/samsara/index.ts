@@ -76,3 +76,19 @@ export type {
   SamsaraTrailer,
   TrailerVehicleLink,
 } from "./entities.js";
+export {
+  findFuelLevelDrops,
+  normalizeFuelSamples,
+  accumulateStatsFeedPage,
+  latestOdometerMiles,
+  latestFuelLevel,
+  feedPageHasData,
+  FUEL_DROP_MAX_GAP_MINUTES,
+} from "./statsFeed.js";
+export type {
+  FuelLevelSample,
+  FuelLevelDrop,
+  FuelDropOptions,
+  StatsFeedPage,
+  VehicleFeedSeries,
+} from "./statsFeed.js";

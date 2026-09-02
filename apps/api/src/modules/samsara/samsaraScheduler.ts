@@ -1,11 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
-import {
-  syncVehiclesFromSamsara,
-  syncVehicleStatsFromSamsara,
-  NoSamsaraTokenError,
-} from "./samsaraVehicleSync.js";
+import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { syncVehicleStatsFromSamsara } from "./samsaraStatsFeed.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "../performance/index.js";
 import { snapshotSettledWeeks } from "../performance/index.js";
@@ -185,7 +182,20 @@ function startStatsTier(env: Env, intervalMs: number): void {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_stats", async () => {
         const r = await syncVehicleStatsFromSamsara(admin, env, orgId);
-        return { updated: r.updated };
+        // Every field the delta feed made knowable goes into the jobs ledger, because the tier's
+        // whole claim — that it stopped losing what happens between polls — is only checkable from
+        // outside if the numbers are recorded. `resumed: false` after the first tick means the cursor
+        // is not persisting; `pagesCapped` means the walk was cut short; and
+        // `dropsSuppressedUnreliableSensor` is what the sensor gate cost, which SAM-S6 re-argues.
+        return {
+          updated: r.updated,
+          pages: r.pages,
+          samples: r.samples,
+          resumed: r.resumed,
+          pagesCapped: r.pagesCapped,
+          dropsFiled: r.dropsFiled,
+          dropsSuppressedUnreliableSensor: r.dropsSuppressedUnreliableSensor,
+        };
       });
     }
   });
