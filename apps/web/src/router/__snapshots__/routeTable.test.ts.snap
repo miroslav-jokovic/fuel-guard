@@ -941,7 +941,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "settings",
+      "requiresView": "settings",
       "title": "Settings",
     },
     "name": "settings",
