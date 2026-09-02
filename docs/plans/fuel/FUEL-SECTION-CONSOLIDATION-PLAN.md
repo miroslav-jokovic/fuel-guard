@@ -757,6 +757,44 @@ stays on the vehicle and reefer-coverage surfaces, where it is already labelled 
 wants trailer-at-fill, that is a new time-ranged pairing table and a source to fill it, which is its own
 plan and not this one.
 
+#### — DONE 2026-09-02 (`claude/fuel-trailer-column`), on Q-FUI8's stated fallback.
+
+**Premise re-measured in production before acting on it**, per the handoff's rule about this plan's own
+numbers: `duty_equipment_segments` is **still 0 rows**, and **157 of 211** trailers carry a
+`assigned_vehicle_id`. So the column was not stale or approximate — it rendered TODAY's pairing beside a
+fill from months ago, for three quarters of the fleet, with nothing on screen saying so.
+
+**What shipped.** The column, its cell template, the `trailerForVehicle` helper and the
+`useTrailersQuery` call are gone from `FuelLogPage.vue`. Removed, **not relabelled** — a caveat under a
+wrong number is a workaround with a caveat (D-FUI14). Current pairing is untouched on the vehicle and
+reefer-coverage surfaces, where it is already labelled as current and is true.
+
+**A removal leaves nothing behind to notice, so it is pinned by a test.** Re-adding the column is one
+line of a column array plus a helper that still reads perfectly plausibly — a two-minute change that
+looks like an improvement. `FuelLogPage.test.ts` now mounts the page and asserts the header is absent,
+that the currently-paired unit number appears nowhere against a historical fill, and that the trailer
+roster is **not even queried**. Someone restoring it has to argue with Q-FUI8 rather than reverse it
+quietly.
+
+**⚠ Two vacuous-pass traps hit while writing that test, both worth knowing about for any future
+page-mount suite in this app:**
+- `DataTable` swaps to a card layout below 768px and jsdom reports no `matchMedia` at all, so the table
+  rendered as cards, `findAll("th")` returned `[]`, and *"the headers do not include Trailer"* passed
+  because there were no headers. `useMediaQuery` is stubbed to the desktop breakpoint, and the test
+  additionally asserts the columns that DO belong are present, so an empty render cannot pass again.
+- The trailer-roster spy was a module-level `const` referenced inside a hoisted `vi.mock` factory. That
+  throws `Cannot access before initialization` — but only when the mock is actually loaded, i.e.
+  **exactly when someone re-adds the import**. The regression would have surfaced as a broken-looking
+  test rather than a named failure. It is a `vi.hoisted` binding now.
+
+**Verified by:** `FuelLogPage.test.ts` — `shows no Trailer column header`; `never renders the
+currently-paired trailer against a historical fill`; `does not even ask for the trailer roster — the
+capability is removed, not hidden`. Proved able to fail by two mutations: re-adding the column
+definition alone (1 of 3 fails), and re-adding the roster query and cell template (all 3 fail). Gates
+green: `pnpm test`, `typecheck`, `lint`, `build`, `lint:ui-adoption`, `lint:ui-contrast`,
+`lint:tokens-parity`, `lint:boundaries`, `lint:filesize`, `lint:funcsize`, `lint:capabilities`,
+`lint:tests`, `lint:comment-claims`, and `pnpm --filter web lint:tokens`.
+
 ---
 
 ### T5 · Say what is measured, on every surface
@@ -1048,7 +1086,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
 | **Q-FUI12** | **Four fuel/anomaly reads carry no role gate at all — narrow them to the matrix, or is one of them deliberately open?** Found while building T2 (2026-09-01), pinned in `routeGates.test.ts`' waiver map so they are findable: `GET /api/anomalies/:id/risk-context`, `/:id/pattern-report` and `/:id/history` are `requireOrg` only, so **any authenticated org member — including a `driver`, who holds `safety: "none"` — can read a theft case's history**; and `GET /api/fueling/statements/:id/source` is `requireOrg` only, though it does re-check the caller's org before signing a URL. T2 did not close them because T2 is a **widening** and these are a **narrowing**: gating them removes access somebody may be relying on, which is a decision that should be taken out loud rather than in passing. Candidates: **(a)** gate all four from the matrix — `rolesThatCanView("safety")` for the three anomaly reads, `rolesThatCanView("fuel")` for the statement source (**recommended**: it is what every neighbouring route now does, and the anomaly detail is reachable only from a page already gated on `safety`); **(b)** gate the anomaly reads and leave the statement source, on its org re-check; **(c)** leave all four and record them as accepted. | Miki | They stay as they are, waived with the argument in `routeGates.test.ts` and named here. Nothing is narrowed on an inference. |
 | **Q-FUI13** | **Does the Alerts queue get its own business date, or does it stay on the instant?** T1 gave `fuel_transactions` a stored station-local `business_date` (0287) and moved every fuel surface onto it except one: `useAnomalies` filters `anomalies.fueled_at`, a column on a different table, so a case for a fill displayed as "Aug 31" can still fall outside an August window on the Alerts page. Candidates: **(a)** `anomalies.business_date`, trigger-maintained from the same helper, two merges (**recommended** if Alerts survives Q-FUI11 as a working queue — it is the same shape as 0287 and costs a migration); **(b)** leave it, and label the Alerts date control as filtering the detection instant; **(c)** wait for Q-FUI11 — a queue measured at 2.9% precision may not be worth a migration until it is worth working. | Miki | (b) — Alerts stays on the instant and nothing claims otherwise. A second table gets a derived column when somebody decides the page is worth it. |
-| **Q-FUI8** | **Trailer-at-fill: acknowledge the removal, or fund the capability?** §0.3: `duty_equipment_segments` is empty and no other time-ranged pairing exists. T4 removes the column. Restoring the capability means a new pairing-history table and a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. | Miki | T4 removes the column. It is not relabelled — a live fact beside a historical row is a confident wrong answer, and a caveat under it is a workaround with a caveat. |
+| **Q-FUI8** | ~~**Trailer-at-fill: acknowledge the removal, or fund the capability?**~~ **SHIPPED ON THE FALLBACK 2026-09-02.** T4 removed the column; the premise was re-measured first (`duty_equipment_segments` still 0 rows, 157 of 211 trailers carrying a current pairing). ⚠ **This remains an acknowledgement the owner has not given, not a question they answered** — if trailer-at-fill is wanted, it is a new time-ranged pairing table plus a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. The removal is pinned by `FuelLogPage.test.ts`, so restoring it means arguing with this row rather than reversing it quietly. | Miki | ~~T4 removes the column.~~ Done. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |
 
