@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton, AppAvatar } from "@silvicom/ui";
+import { AppButton, AppAvatar, AppCheckbox } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
@@ -28,6 +28,12 @@ type SidebarMode = "dark" | "light";
  */
 // A three-level specimen, no longer copied from the router: D-H17 deleted the hazmat board and the
 // app's deepest real trail is two. The specimen stays three deep because that is what it is for.
+// Lab-only state for the checkbox rulers below — one of each so the checked and unchecked boxes can
+// be compared against the same baseline.
+const labCheckA = ref(false);
+const labCheckB = ref(true);
+const labCheckC = ref(false);
+
 const labTrailDeep: Crumb[] = [
   { label: "Settings", to: "/settings" },
   { label: "Users", to: "/settings/users" },
@@ -351,6 +357,22 @@ const rows = [
           </span>
         </template>
       </DataTable>
+
+      <h3>Checkbox</h3>
+      <p class="lab-shipped-note">
+        Here because its alignment could not be seen any other way: it is block-level so stacked
+        options cannot share a line, and the box sits on the FIRST line of a label rather than in the
+        middle of a wrapped one. Both rulers below are the check — the box's centre must meet the
+        first line's centre, whether the label wraps or not.
+      </p>
+      <div class="lab-shipped-row" style="flex-direction: column; align-items: stretch; gap: 0">
+        <AppCheckbox v-model="labCheckA">Residue only — the packaging is empty but not cleaned</AppCheckbox>
+        <AppCheckbox v-model="labCheckB">Marked “Limited Quantity” on the BOL</AppCheckbox>
+        <AppCheckbox v-model="labCheckC">
+          A deliberately long label that wraps onto a second line so the box can be seen holding its
+          place beside the first one rather than drifting to the middle of the block
+        </AppCheckbox>
+      </div>
 
       <h3>Avatar</h3>
       <p class="lab-shipped-note">
