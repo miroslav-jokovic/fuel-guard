@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { USER_ROLES } from "./constants.js";
+import { isEditableRole, isEditableSection } from "./auth.js";
 
 /**
  * API contract (audit C1) — request/response Zod schemas shared by api + web.
@@ -16,6 +17,23 @@ export const apiErrorSchema = z.object({
   }),
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;
+
+// ── Section access overrides (D-PERM1, EDITABLE-PERMISSIONS-PLAN.md P1) ───────
+
+/**
+ * One cell of the permission matrix, as an org wants it.
+ *
+ * `role` and `section` are validated against the EDITABLE sets rather than the full vocabularies —
+ * `admin`/`driver` roles and the `admin` section are rulings (D-PERM7/D-PERM8), and a request
+ * naming one of them is a validation failure here rather than a CHECK-constraint 500 further down.
+ * The database refuses them too; this is the layer that can say which field was wrong and why.
+ */
+export const sectionAccessSetSchema = z.object({
+  role: z.string().refine(isEditableRole, "That role's access cannot be changed"),
+  section: z.string().refine(isEditableSection, "That section's access cannot be changed"),
+  access: z.enum(["none", "view", "manage"]),
+});
+export type SectionAccessSetRequest = z.infer<typeof sectionAccessSetSchema>;
 
 // ── Invites ───────────────────────────────────────────────────────────────────
 export const inviteCreateSchema = z.object({

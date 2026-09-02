@@ -320,6 +320,9 @@
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
   ],
+  "org_section_access": [
+    "apps/api/src/modules/org/routes/sectionAccess.ts"
+  ],
   "organizations": [
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
