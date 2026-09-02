@@ -15,13 +15,22 @@ import { ref } from "vue";
  */
 
 const fetched = { value: null as Record<string, unknown> | null, ok: true };
+const coverageFetched = { value: null as Record<string, unknown> | null, ok: true };
 
+// The page makes TWO independent calls, so the fake dispatches on the path. It used to answer every
+// call with the webhook payload, which meant adding a second card silently fed that card the wrong
+// shape and took the whole page down — four assertions failed for a reason none of them was about.
 vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(async () =>
-    fetched.ok
+  apiFetch: vi.fn(async (url: string) => {
+    if (url.includes("telematics-coverage")) {
+      return coverageFetched.ok
+        ? { ok: true, data: coverageFetched.value }
+        : { ok: false, error: { message: "Could not read telematics coverage" } };
+    }
+    return fetched.ok
       ? { ok: true, data: fetched.value }
-      : { ok: false, error: { message: "Could not read the webhook status" } },
-  ),
+      : { ok: false, error: { message: "Could not read the webhook status" } };
+  }),
 }));
 
 vi.mock("@/features/jobs/useJob", () => ({
@@ -43,9 +52,26 @@ const status = (o: Record<string, unknown> = {}) => ({
   ...o,
 });
 
+const coverage = (o: Record<string, unknown> = {}) => ({
+  fills: 100,
+  reconciled: 60,
+  noData: 10,
+  pending: 30,
+  coveragePct: 60,
+  attainablePct: 85.7,
+  truncated: false,
+  byMonth: [
+    { month: "2026-08", fills: 50, reconciled: 48, noData: 2, pending: 0, coveragePct: 96 },
+    { month: "2026-01", fills: 50, reconciled: 12, noData: 8, pending: 30, coveragePct: 24 },
+  ],
+  ...o,
+});
+
 beforeEach(() => {
   fetched.value = status();
   fetched.ok = true;
+  coverageFetched.value = coverage();
+  coverageFetched.ok = true;
 });
 
 async function mountPage() {
@@ -92,5 +118,50 @@ describe("DataSyncPage — the fuel-drop webhook card", () => {
   it("prints the exact address Samsara must post to", async () => {
     const t = (await mountPage()).text();
     expect(t).toContain("https://api.example.test/api/webhooks/samsara");
+  });
+});
+
+/**
+ * The telematics-history card (SAM-S4, D-SAM7).
+ *
+ * The Coverage page computes the same idea over 90 days and reads ~95%; against the whole history the
+ * figure was 23%, because 76.8% of fills had never been fetched. So what this card has to do is show
+ * the gap and say which KIND of gap it is — a backlog the collector is draining, or a dead end at the
+ * vendor that never improves. Those need different actions and only one of them is worth waiting for.
+ */
+describe("DataSyncPage — the telematics-history card", () => {
+  it("leads with the all-time figure and separates the backlog from the dead end", async () => {
+    const t = (await mountPage()).text();
+    expect(t).toContain("60%");
+    expect(t).toContain("60 of 100 fills checked");
+    expect(t).toContain("30 still to fetch");
+    expect(t).toContain("10 came back with nothing on Samsara's side");
+  });
+
+  it("says where coverage lands once the backlog clears, so 60% is not read as the end state", async () => {
+    expect((await mountPage()).text()).toContain("85.7%");
+  });
+
+  it("does not promise a landing figure when there is no backlog to clear", async () => {
+    coverageFetched.value = coverage({ pending: 0, attainablePct: 100 });
+    const t = (await mountPage()).text();
+    expect(t).not.toContain("once the backlog clears");
+  });
+
+  it("lists every month it holds a fill for, each with its own rate", async () => {
+    const t = (await mountPage()).text();
+    expect(t).toContain("96%"); // August — recent months are near-complete
+    expect(t).toContain("24%"); // January — the old end, where the vendor gap lives
+  });
+
+  it("says the number is a floor when the read stopped early, rather than showing it as final", async () => {
+    coverageFetched.value = coverage({ truncated: true });
+    expect((await mountPage()).text()).toContain("this is a floor");
+  });
+
+  it("reports a failed read instead of rendering 0% coverage", async () => {
+    coverageFetched.ok = false;
+    const t = (await mountPage()).text();
+    expect(t).toContain("Could not read telematics coverage");
   });
 });

@@ -30,6 +30,10 @@ export {
   VEHICLE_STATS_FEED,
   type VehicleStatsFeedResult,
 } from "./samsaraStatsFeed.js";
+export {
+  readTelematicsCoverage,
+  type TelematicsCoverageResult,
+} from "./telematicsCoverage.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
 export { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 export { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";

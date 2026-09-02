@@ -7,6 +7,8 @@ import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDateTime } from "@/lib/format";
 
 const session = useSessionStore();
@@ -55,6 +57,64 @@ onMounted(async () => {
   if (res.ok) webhook.value = res.data ?? null;
   else webhookError.value = res.error?.message ?? "Could not read the webhook status";
 });
+
+/**
+ * Telematics history coverage (SAMSARA-COLLECTION-PLAN S4, D-SAM7).
+ *
+ * ⚠ ALL-TIME, and it has no window control ON PURPOSE. The Coverage page shows the same idea over 90
+ * days and reads ~95%; across the whole history the figure was 23%, because 76.8% of fills had never
+ * had telematics fetched at all. Both were true and one was useless — a coverage figure whose scope
+ * hides the gap turns an unanswered question into a reassuring answer.
+ *
+ * The three states are shown apart because they need different actions and only one of them improves
+ * by waiting: **corroborated**, **no history at Samsara** (a permanent answer), and **not fetched yet**
+ * (the collector tier is still working through these, oldest first).
+ */
+interface CoverageMonth {
+  month: string;
+  fills: number;
+  reconciled: number;
+  noData: number;
+  pending: number;
+  coveragePct: number;
+}
+interface TelematicsCoverage {
+  fills: number;
+  reconciled: number;
+  noData: number;
+  pending: number;
+  coveragePct: number;
+  attainablePct: number | null;
+  truncated: boolean;
+  byMonth: CoverageMonth[];
+}
+const coverage = ref<TelematicsCoverage | null>(null);
+const coverageError = ref<string | null>(null);
+onMounted(async () => {
+  const res = await apiFetch<TelematicsCoverage>("/api/integrations/samsara/telematics-coverage");
+  if (res.ok) coverage.value = res.data ?? null;
+  else coverageError.value = res.error?.message ?? "Could not read telematics coverage";
+});
+
+const monthLabel = (m: string) => {
+  const [y, mm] = m.split("-");
+  return new Date(Number(y), Number(mm) - 1, 1).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
+};
+const covTone = (p: number) =>
+  p >= 85 ? "text-success-700" : p >= 50 ? "text-warning-600" : "text-danger-700";
+
+/** Each state gets its own column because each needs a different action — see the block comment above. */
+const coverageColumns: DataTableColumn[] = [
+  { key: "month", label: "Month", cellClass: "font-medium text-ink" },
+  { key: "fills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reconciled", label: "Checked", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "noData", label: "No history", numeric: true },
+  { key: "pending", label: "To fetch", numeric: true },
+  { key: "coveragePct", label: "Covered", numeric: true },
+];
 
 /** Plain word first, mechanism second — the state an operator has to act on, in one line. */
 const webhookState = computed(() => {
@@ -218,6 +278,63 @@ const integrity = computed(() => {
         description="Refresh this week's Safety + Efficiency driver scores from Samsara and the idle scorecard. Runs automatically on a schedule."
       />
     </div>
+
+    <!-- Telematics history: how much of the WHOLE history the collector has corroborated (S4, D-SAM7). -->
+    <BaseCard>
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-ink">Telematics history</h3>
+        <span v-if="coverage" class="text-2xl font-bold" :class="covTone(coverage.coveragePct)">
+          {{ coverage.coveragePct }}%
+        </span>
+      </div>
+      <p class="mt-1 text-sm text-ink-muted">
+        How many of this carrier's fuel purchases we have been able to check against what the truck's
+        telematics actually recorded. This counts every fill we hold, not a recent window — a figure
+        that only looks at the last few months would read healthy while years of history sat
+        unchecked.
+      </p>
+      <p v-if="coverageError" class="mt-2 text-sm text-danger-600">{{ coverageError }}</p>
+      <template v-else-if="coverage">
+        <p class="mt-2 text-sm text-ink-secondary">
+          {{ coverage.reconciled.toLocaleString() }} of {{ coverage.fills.toLocaleString() }} fills
+          checked.
+          <template v-if="coverage.pending">
+            {{ coverage.pending.toLocaleString() }} still to fetch — the collector works through these
+            oldest-first, on its own schedule, and nobody needs to start it.
+          </template>
+          <template v-if="coverage.noData">
+            {{ coverage.noData.toLocaleString() }} came back with nothing on Samsara's side; those do
+            not improve by waiting.
+          </template>
+        </p>
+        <p v-if="coverage.attainablePct !== null && coverage.pending" class="mt-1 text-sm text-ink-tertiary">
+          At the rate the fills already checked came back, this lands near
+          <strong class="text-ink-secondary">{{ coverage.attainablePct }}%</strong> once the backlog
+          clears.
+        </p>
+        <p v-if="coverage.truncated" class="mt-1 text-sm text-warning-600">
+          Only the most recent fills were read, so this is a floor rather than the whole figure.
+        </p>
+
+        <div v-if="coverage.byMonth.length" class="mt-4">
+          <DataTable :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
+            <template #cell-month="{ row }">{{ monthLabel(row.month) }}</template>
+            <template #cell-noData="{ row }">
+              <span :class="row.noData ? 'text-warning-600' : 'text-ink-tertiary'">{{ row.noData.toLocaleString() }}</span>
+            </template>
+            <template #cell-pending="{ row }">
+              <span :class="row.pending ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ row.pending.toLocaleString() }}</span>
+            </template>
+            <template #cell-coveragePct="{ row }">
+              <span class="font-medium" :class="covTone(row.coveragePct)">{{ row.coveragePct }}%</span>
+            </template>
+          </DataTable>
+        </div>
+        <p class="mt-2 text-xs text-ink-tertiary">
+          Every month we hold a fill for is listed — nothing is hidden, which is the point.
+        </p>
+      </template>
+    </BaseCard>
 
     <!-- Samsara webhook: is the sudden-fuel-drop receiver configured, and has it ever heard anything? -->
     <BaseCard>

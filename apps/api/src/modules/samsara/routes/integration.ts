@@ -10,6 +10,7 @@ import { SecretBoxError } from "../../../lib/secretBox.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { runSamsaraDiagnostics } from "../samsaraDiagnostics.js";
 import { readSamsaraWebhookStatus } from "../fuelEventsWebhook.js";
+import { readTelematicsCoverage } from "../telematicsCoverage.js";
 import { rolesThatCanView } from "@silvicom/shared";
 
 /** Samsara integration admin routes — token set/rotate/clear, the manual sync buttons, and the
@@ -228,6 +229,26 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       res.json(await readSamsaraWebhookStatus(admin, env, req.auth!.orgId!));
+    }),
+  );
+
+  /**
+   * How much of this carrier's fuel history the collector has corroborated, per month (SAM-S4).
+   *
+   * ⚠ ALL-TIME by construction, with no window parameter — D-SAM7. The Coverage page computes the
+   * same idea over 90 days and reads ~95%; measured against the whole history the figure was 23%.
+   * Giving this route a window would re-create exactly the reassuring answer it exists to replace.
+   *
+   * Gate is derived (`rolesThatCanView("settings")`), not hand-listed, per CLAUDE.md.
+   */
+  router.get(
+    "/samsara/telematics-coverage",
+    requireOrg,
+    requireRole(...rolesThatCanView("settings")),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      res.json(await readTelematicsCoverage(admin, req.auth!.orgId!));
     }),
   );
 
