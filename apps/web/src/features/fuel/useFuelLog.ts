@@ -2,7 +2,7 @@ import { type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
   derivePricePerGal,
-  robustWindowMiles,
+  windowMilesFromAggregate,
   MPG_PLAUSIBLE_MIN,
   MPG_PLAUSIBLE_MAX,
   type FillUpInput,
@@ -163,68 +163,58 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         has_cost: boolean; flagged: number; clear: number;
       } | null;
 
-      // ── The two that are JUDGEMENT, and therefore still page (D-AG1, migration 0252) ──────────────
+      // ── The two that are JUDGEMENT — now fed by a measurement, not by a page (FUEL-T3b, 0290) ─────
       // "THIS SUMS. IT DOES NOT DERIVE." Fleet MPG applies a plausibility band, and `robustWindowMiles`
       // prefers an OBD span, falls back to the entered span only when it is monotonic within ±1, and
-      // returns null rather than 0 for a non-advancing window. Re-expressing either in SQL would put a
-      // second copy of a rule where no unit test can reach it, so both stay here and both still depend
-      // on this loop finishing. **That is a known, deliberate limitation, and FUEL-T3b is the spike
-      // that asks whether a per-vehicle odometer aggregate can feed them without copying a constant
-      // into SQL.** It is allowed to conclude that it cannot.
-      const PAGE = 1000;
-      // Group in-range fills by vehicle, OLDEST→NEWEST (robustWindowMiles expects that order).
-      const byVehicle = new Map<string, { enteredOdometer: number | null; samsaraOdometer: number | null; samsaraSource: string | null }[]>();
-      let mpgWeighted = 0; // Σ(mpg·gallons) over plausible fills → gallon-weighted fleet MPG
-      let mpgGallons = 0;
-      for (let start = 0; ; start += PAGE) {
-        let q = supabase
-          .from("fuel_transactions")
-          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons, computed_mpg")
-          .eq("is_canonical", true)
-          // vehicle_id then fueled_at keeps each truck's readings contiguous AND ordered → stable paging.
-          .order("vehicle_id", { ascending: true })
-          .order("fueled_at", { ascending: true })
-          .range(start, start + PAGE - 1);
-        if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
-        if (f.driverId) q = q.eq("driver_id", f.driverId);
-        if (f.tankType) q = q.eq("tank_type", f.tankType);
-        // Same window as the list and as the RPC above — all three window on `business_date`.
-        if (f.from) q = q.gte("business_date", f.from);
-        if (f.to) q = q.lte("business_date", f.to);
-        const or = searchOr(f);
-        if (or) q = q.or(or);
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
-        const batch = (data ?? []) as {
-          vehicle_id: string | null;
-          odometer: number | string | null;
-          samsara_odometer: number | string | null;
-          samsara_odometer_source: string | null;
-          gallons: number | string | null;
-          computed_mpg: number | string | null;
-        }[];
-        for (const r of batch) {
-          const gallons = r.gallons == null ? 0 : Number(r.gallons);
-          // Gallon-weight only plausible per-fill MPG (same guard the dashboard uses), so a bogus
-          // computed_mpg can't distort the fleet number.
-          if (r.computed_mpg != null && gallons > 0) {
-            const mpg = Number(r.computed_mpg);
-            if (Number.isFinite(mpg) && mpg >= MPG_PLAUSIBLE_MIN && mpg <= MPG_PLAUSIBLE_MAX) {
-              mpgWeighted += mpg * gallons;
-              mpgGallons += gallons;
-            }
-          }
-          if (!r.vehicle_id) continue;
-          const list = byVehicle.get(r.vehicle_id) ?? [];
-          list.push({ enteredOdometer: n(r.odometer), samsaraOdometer: n(r.samsara_odometer), samsaraSource: r.samsara_odometer_source });
-          byVehicle.set(r.vehicle_id, list);
-        }
-        if (batch.length < PAGE) break;
-      }
+      // returns null rather than 0 for a non-advancing window. None of that moved into SQL, and none of
+      // it may: T3b's finding is that the database can return the MEASUREMENTS those rules judge —
+      // spans, counts, and the worst backward step — without ever knowing the thresholds. The band
+      // travels the other way, as a required argument, so there is exactly one definition of it and it
+      // lives in `@silvicom/shared`.
+      //
+      // The paging loop this replaces is gone. Every tile on this page is now independent of how many
+      // fills there are, which is what FUEL-T3a set out to do and could only half-finish.
+      const { data: perVehicle, error: milesErr } = await supabase.rpc("fuel_range_miles_inputs", {
+        p_mpg_min: MPG_PLAUSIBLE_MIN,
+        p_mpg_max: MPG_PLAUSIBLE_MAX,
+        p_from: f.from ?? null,
+        p_to: f.to ?? null,
+        p_vehicle: f.vehicleId ?? null,
+        p_driver: f.driverId ?? null,
+        p_tank_type: f.tankType ?? null,
+        p_search: searchTerm(f),
+        p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
+        p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
+      });
+      if (milesErr) throw new Error(milesErr.message);
+
       let totalMiles = 0;
-      for (const rows of byVehicle.values()) {
-        totalMiles += robustWindowMiles(rows).miles ?? 0; // null (data-quality) → contributes 0
+      let mpgWeighted = 0;
+      let mpgGallons = 0;
+      for (const v of (perVehicle ?? []) as {
+        vehicle_id: string | null;
+        obd_count: number; obd_min: number | string | null; obd_max: number | string | null;
+        entered_count: number; entered_min: number | string | null; entered_max: number | string | null;
+        entered_worst_step: number | string | null;
+        mpg_weighted: number | string; mpg_gallons: number | string;
+      }[]) {
+        // Fleet MPG counts every fill, INCLUDING those attributed to no truck — the loop this replaced
+        // accumulated MPG before it skipped them, and that behaviour is preserved deliberately.
+        mpgWeighted += Number(v.mpg_weighted);
+        mpgGallons += Number(v.mpg_gallons);
+        if (!v.vehicle_id) continue; // …but a fill with no truck has no odometer span to contribute
+        totalMiles +=
+          windowMilesFromAggregate({
+            obdCount: Number(v.obd_count),
+            obdMin: n(v.obd_min),
+            obdMax: n(v.obd_max),
+            enteredCount: Number(v.entered_count),
+            enteredMin: n(v.entered_min),
+            enteredMax: n(v.entered_max),
+            enteredWorstStep: n(v.entered_worst_step),
+          }).miles ?? 0; // null (data-quality) → contributes 0, exactly as before
       }
+
       return {
         fillUps: Number(t?.fills ?? 0),
         totalMiles,
