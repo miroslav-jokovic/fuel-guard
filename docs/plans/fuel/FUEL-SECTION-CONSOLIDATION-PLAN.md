@@ -95,8 +95,8 @@ this entire plan.
 | Measured | Value | What it means |
 |---|---|---|
 | Canonical fills | **14,796** (2026-01-01 → 2026-09-01) | Real volume. Nothing here is a toy-data artefact. |
-| Fills whose station-local date ≠ their UTC date | **2,278 — 15.4%** | Rows whose displayed date and filter date disagree (A1). |
-| Fills a month-boundary filter puts in the wrong month | **76, worth $38,473** | Every month, 7–13 fills and $3.3k–$7.7k land in the neighbouring month's total (A1). |
+| Fills whose station-local date ≠ their UTC date | ~~2,278 — 15.4%~~ → **1,833 — 12.4%** (re-measured 2026-09-01, T1) | Rows whose displayed date and filter date disagree (A1). |
+| Fills a month-boundary filter puts in the wrong month | ~~76, worth $38,473~~ → **57, worth $28,430.70** (re-measured 2026-09-01, T1) | Every month, fills land in the neighbouring month's total (A1). |
 | `fuel_statements` rows | **0** | No statement has **ever** been uploaded. |
 | `fuel_recon_runs` rows | **0** | The reconciler has **never** run. |
 | `fuel_exceptions` rows | **0** | The ledger has never held a single finding. |
@@ -529,6 +529,60 @@ displayed as "Aug 31" is inside an August window on every fuel surface.
 California fill at 18:00 local on the last day of a month — asserting it is inside that month's window
 and outside the next. `lint:migrations`, `lint:migration-ordering`, `lint:table-writers` (the
 regenerated `schema.generated.sql` is part of the migration commit), `lint:upserts`.
+
+#### — MERGE 1 of 2 SHIPPED 2026-09-01 (PR #447, `claude/fuel-business-date-column`). T1 stays OPEN until merge 2.
+
+**What shipped.** Migration **0287**: `fuel_transactions.business_date date`, a
+`before insert or update` trigger (`trg_ftxn_business_date` → `set_fuel_transaction_business_date()`)
+deriving it from `fuel_business_date(fueled_at, state)`, a one-shot backfill, and
+`idx_fuel_txn_org_business_date (org_id, business_date desc)`. **Nothing reads it yet** — that is merge
+2, and `lint:migration-ordering` passes precisely because of that.
+
+**⚠ THE PLAN'S OWN FIGURES DID NOT REPRODUCE, and §0.3 is corrected in place.** Re-measured
+2026-09-01 against production, session timezone confirmed `UTC`, over this plan's exact window
+(canonical fills, 2026-01-01 → 2026-09-01):
+
+| | Plan said | Measured | |
+|---|---|---|---|
+| Fills in window | 14,796 | **14,749** | the feed moves; not material |
+| Station-local date ≠ UTC date | 2,278 (15.4%) | **1,833 (12.4%)** | −20% |
+| Wrong month | 76 fills / $38,473 | **57 fills / $28,430.70** | −25% |
+
+`(fueled_at at time zone 'UTC')::date` and `fueled_at::date` return an identical 1,833, so the gap is
+not a comparator choice. Both plan figures are ~25% high and could not be reconstructed. **The benefit
+is real and smaller than the plan advertised**; the reproducible numbers are what 0287's header claims,
+with the query beside them so nobody re-derives it.
+
+**Two things measured rather than assumed.**
+- *The backfill's cost.* `explain (analyze)` evaluating `fuel_business_date` over the whole table:
+  **81 ms** (14,808 rows, 39 MB). A full-table backfill is exactly the shape 0247's `set search_path`
+  trap warns about, and the answer is that this table is small — an answer that expires if it grows,
+  which is why the number is in the migration instead of a reassurance.
+- *The backfill's blast radius, a trap the plan did not name.* A bare
+  `update fuel_transactions set business_date = ...` touches all 14,808 rows and therefore also fires
+  `trg_ftxn_updated` (stamping `updated_at = now()` on **every fill in the carrier's history**) and
+  `trg_fuel_txn_satellites` (up to **three** satellite upserts per row, ~44k writes, each stamping its
+  own `updated_at`, for a column no satellite mirrors). Both are muted for the statement and re-enabled
+  in the same transaction. The matrix asserts the quietness rather than trusting it.
+
+**Verified by:** the new `fuel-business-date` PGlite matrix — 12 assertions, `RESULT` line — including
+`an 18:00-local fill on 31 Aug in California is INSIDE August`, `  ...and OUTSIDE September`,
+`  ...while the OLD instant window puts that same fill in September — the defect, stated`,
+`a writer cannot assert a business date — the trigger overwrites what it sent`,
+`the backfill did not stamp updated_at on every fill in the history`, and `  and it did not re-touch
+the 0261 satellites`. Proved able to fail by three mutations: letting the trigger `coalesce` to a
+caller-supplied value, un-muting the two noisy triggers, and dropping the backfill statement. Gates:
+`lint:migrations`, `lint:migration-ordering`, `lint:table-writers` (regenerated
+`schema.generated.sql` committed), `lint:upserts`, `lint:rls`, plus `pnpm test`/`typecheck`/`lint`/
+`build` and the rest of the CI list.
+
+**⚠ A trap for the next person writing date assertions in a matrix.** **PGlite's session timezone is
+`Etc/GMT+6`, not UTC.** A bare `where fueled_at >= '2026-09-01'` in a matrix therefore means 06:00Z and
+answers a different question than the same string does in production — so the matrix writes its
+instant bounds as explicit `::timestamptz` values. Which is A1 one layer down: the old filter's
+meaning depends on whose session is asking.
+
+**Merge 2 (the readers) is still owed**; T1's Done-when is not met until it lands.
 
 ---
 
