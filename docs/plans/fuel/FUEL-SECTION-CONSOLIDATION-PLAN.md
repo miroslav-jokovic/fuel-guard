@@ -1088,6 +1088,92 @@ the Fuel Log's line entirely. Both need a window-wide aggregate — `fuel_range_
 `vehicle_id` — so both need a migration. Deferred deliberately while the permissions work is claiming
 migration numbers. ~~And the **Cards** page's third fact is still under-specified.~~ **Q-FUI14 answered 2026-09-02: Cards drops the attribution fact entirely** — there is no denominator on that page — so it carries rows-in-window and last-feed-poll only.
 
+#### — SECOND BULLET, ATTRIBUTION HALF, SHIPPED 2026-09-02 for Transactions, Rejections and Cards (`claude/fuel-row-coverage`). T5 stays OPEN for the Fuel Log.
+
+**What shipped.** `describeRowCoverage` in `@silvicom/shared`, `useEfsRowCoverage` beside the two list
+queries, and a `RowCoverageLine` under each page's freshness line. Cards took the Q-FUI14 shape
+instead: no attribution fact, and the poll time it already computed now always renders.
+
+**⚠ THE PLAN SAID BOTH RAW-FEED PAGES NEED A MIGRATION. ONE OF THEM ALREADY HAD THE COLUMN.**
+T5's own note says Transactions and Rejections "key on a text `unit` rather than a `vehicle_id`, so
+both need a migration". That is true of `efs_transactions` and **false of `declined_transactions`**,
+which has carried `vehicle_id` since its scoring work. Measured in production 2026-09-02: 2,749
+declines carry one, and they are exactly the 2,749 whose `unit` matches a vehicle. The column already
+IS the attribution fact, so Rejections needed no schema change at all — and neither did Transactions,
+for a different reason below. **Segment D's migration is now needed by the Fuel Log alone.**
+
+**Why Transactions matches against the fleet's unit numbers instead of a new SQL function.** The
+alternative was a `fuel_range_totals`-shaped aggregate for `efs_transactions`, which would have
+restated seven filters in a second language beside the seven the list already applies. That is the
+drift `fuelSpendReport.ts` carries a scar about — its price-line query diverged from the screen's and
+the document contradicted the page beside it. Instead `applyEfsTxnFilters` / `applyDeclinedFilters`
+were extracted and BOTH counts go through them, so the caveat cannot describe a different set than the
+rows under it. It is the argument `searchTerm` makes in `useFuelLog` — one definition, two callers —
+one level up. The unit list is derived from `vehicles`, the same query that fills the page's Unit
+filter, never written down.
+
+**Both counts are issued together, and the denominator is NOT the list query's `total`.** Two queries
+with independent cache lifetimes can be one poll apart, and "28,300 of 28,620" quietly becomes
+"28,300 of 28,041" with no error anywhere.
+
+**The share is FLOORED.** 1,204 of 1,205 rounds to 100%, and a complete-looking share beside a row
+that is not covered is the confident lie this whole step exists to remove.
+
+**Never toned.** An incomplete attribution share is the normal state of this carrier's data, so a
+caution colour here would be permanently lit — and `FeedFreshnessLine` needs that colour to still mean
+"the feed has stopped". Whether some threshold of unattributed rows deserves an alarm is a detection
+question with an owner, not a colour choice.
+
+**Measured in production 2026-09-02, and one of the three is not small:**
+
+| List | Rows | Naming a truck | Not |
+|---|---|---|---|
+| `efs_transactions` | 28,620 | 28,281 | **339** — 283 carry no unit at all, 56 carry a unit naming no truck |
+| `declined_transactions` | 3,445 | 2,749 | **696 — one decline in five**, on the page whose whole job is a fraud signal |
+| `fuel_transactions` (canonical, for the Fuel Log half still to come) | 14,868 | 14,568 | **300** |
+
+⚠ **The 283 unit-less EFS lines are NOT the fee/DEF/footer rows one would guess.** By `item` they are
+ULSR (137), ULSD (117) and DEFD (29) — real fuel purchases EFS printed with an empty unit column. The
+guess was made while writing the comment and the measurement contradicted it, which is the only reason
+the comment is right.
+
+**Verified by:** `rowCoverage.test.ts` in `packages/shared` (10) — `floors the share rather than
+rounding it, so a complete-looking percentage means a complete set`; `changes what it says, not just
+the number, when every row names a truck`; `clamps a count read mid-write rather than printing a share
+above 100%`; `gives a single unattributed row its own clause instead of 'The other 1 declines are'`.
+`efsRowCoverage.test.ts` (7) — `puts every filter on BOTH counts, so the share describes the rows on
+screen`; `does not count at all until the fleet's unit numbers have arrived`; `reads the declines' own
+vehicle_id rather than matching unit text, and needs no fleet list`. `RowCoverageLine.test.ts` (4) —
+`never takes the caution colour, however incomplete the attribution is`. `fuelCoverageLine.test.ts`
+(3) — `puts the line on Rejections and asks about the declines, not the purchases`.
+`fuelCardsFreshness.test.ts` (2) — `says when it last checked even when the sweep is on time`.
+
+**Proved able to fail by twenty-one mutations** across the five layers: rounding the share, dropping
+the clamp, un-flooring a fractional row count, un-grouping the thousands, removing the empty-list
+guard, printing the percentage form for a complete list, pluralising the single-row clause, dropping
+the singular noun, swapping the two feeds' nouns; making the transactions count run with no fleet list, taking the attributed count off the
+list's filters, giving Rejections the unit-list treatment, asking for rows rather than a head count,
+applying the wrong table's filters, swapping numerator and denominator; deleting the line from either
+page, moving it below the freshness line, pointing Rejections at the posted feed; and on Cards,
+restoring the `stale`-only render and toning every form as caution.
+
+⚠ **`useEfsRowCoverage`'s suite takes its query slice per CALL, not per test.** A host left mounted
+keeps its vue-query subscription alive, and a refetch from an earlier case lands in the recorder after
+`beforeEach` has cleared it. That produced an assertion about a date window reading a chain built by a
+previous test's unfiltered query — a failure that looks like a bug in the code under test.
+
+**⚠ STILL NOT DONE, and T5 stays open for it:** the **Fuel Log's line entirely** — rows in window,
+share attributed, and the posted feed's last delivery. It is the only part that needs the migration
+Segment D owns: `fuel_range_totals` (0289) returns `fills` but not "fills naming a truck", and
+`create or replace` cannot change a `returns table` shape, so it is `drop function` + `create` in one
+transaction. Two measurements that shape it, both taken 2026-09-02: every canonical fill is
+`source = 'fuel_card'` (14,868 of 14,868), so the posted feed's freshness IS the Fuel Log's freshness
+and no manual-entry caveat is owed; and no fill is unscored (0 of 14,868 with a null `case_level`,
+including the 3,055 belonging to 46 imports whose `efs_processing_runs` row is still `running`), so
+the Flagged tile needs no scoring-backlog caveat either. **That last one is a measurement, not a
+guarantee** — it was checked because a stuck scoring stage would have made a freshness line on this
+page the same confident lie the `*_last_polled_at` column would have been.
+
 ---
 
 ## Phase P — parity

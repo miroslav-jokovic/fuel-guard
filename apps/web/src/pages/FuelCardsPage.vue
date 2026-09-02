@@ -167,6 +167,21 @@ const truncated = computed(() => (query.data.value?.total ?? 0) > allRows.value.
 
 /** Oldest REACHABLE row wins — see `reachableSyncFloor` for why absent cards must not count. */
 const oldestSync = computed(() => reachableSyncFloor(rows.value));
+/**
+ * FUEL-T5 / Q-FUI14 — this page's half of "say what is measured".
+ *
+ * The ruling of 2026-09-02 is that Cards carries rows-in-window and last-feed-poll and NOT the
+ * attribution share the other three fuel lists carry: a card is issued to a driver or a truck as a
+ * matter of SETUP, not attributed per row, so there is no denominator to take a share of. Inventing a
+ * substitute — cards seen on the last sweep against cards held — would have been a different fact
+ * wearing the same sentence's clothes.
+ *
+ * The count was already in the filter bar below. This was already computed too, but only SPOKE on
+ * failure: `freshness()` returns a plain "Checked 20 minutes ago." inside the sweep cadence, and the
+ * template rendered it only when `stale`, so a page that was working correctly said nothing at all
+ * about when it had last read from EFS. It now always says, and only the stale form keeps the caution
+ * colour — the same reservation `FeedFreshnessLine` makes, for the same reason.
+ */
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
 
 const columns: DataTableColumn[] = [
@@ -267,7 +282,8 @@ const mileageOpen = ref(false);
       <span v-if="syncOutcome.at" class="text-ink-muted">(last checked {{ syncOutcome.at }})</span>
     </p>
 
-    <p v-if="listFreshness.stale && rows.length > 0" class="text-sm text-caution-700">
+    <!-- FUEL-T5 / Q-FUI14: always says when it last checked; only the stale form is toned. -->
+    <p v-if="rows.length > 0" :class="listFreshness.stale ? 'text-sm text-caution-700' : 'text-xs text-ink-tertiary'">
       {{ listFreshness.text }}
     </p>
 
