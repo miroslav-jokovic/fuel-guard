@@ -109,6 +109,22 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
 export interface FuelRangeTotals {
   /** Fill-ups matching the filters (the whole set, not one page). */
   fillUps: number;
+  /**
+   * Of those, how many name a truck (`fills_with_vehicle`, migration 0297, FUEL-T5).
+   *
+   * This is not decoration beside `fillUps` — it is the number that reconciles two tiles on this page
+   * that have always covered different sets. `totalMiles` below skips a fill with no `vehicle_id`
+   * because there is no odometer span without a vehicle; `totalGallons` and `totalCost` count it.
+   * Measured 2026-09-02: 300 of 14,868 canonical fills, so the difference is real and unstated.
+   *
+   * ⚠ **NULL when the function has not got the column yet, and never 0.** This is the one field on
+   * this object whose absence and whose zero mean opposite things: 0 is "not one fill in this window
+   * names a truck", which for a fleet is alarming and for a deploy window is a lie.
+   * `lint:migration-ordering` reads COLUMNS and cannot see a function's return shape, so nothing
+   * mechanical stops a reader reaching production in the nine minutes before its schema does. Null
+   * makes that window render NOTHING, which is what the page said before this existed.
+   */
+  fillsWithVehicle: number | null;
   /** Fleet miles ACTUALLY driven inside the range: per-truck robust odometer span (max−min within range),
    *  summed. Not the sum of per-fill `miles_since_last` — that over-counts (each fill's delta reaches back
    *  to the truck's previous fill, usually BEFORE the range start). */
@@ -161,6 +177,9 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       const t = (Array.isArray(sums) ? sums[0] : sums) as {
         fills: number; gallons: number | string; spend: number | string;
         has_cost: boolean; flagged: number; clear: number;
+        // 0297, and OPTIONAL in this type on purpose — see `fillsWithVehicle` above for why its
+        // absence must not collapse to 0.
+        fills_with_vehicle?: number | null;
       } | null;
 
       // ── The two that are JUDGEMENT — now fed by a measurement, not by a page (FUEL-T3b, 0290) ─────
@@ -217,6 +236,8 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
 
       return {
         fillUps: Number(t?.fills ?? 0),
+        // `?? 0` here would be the confident lie. See the field's doc comment.
+        fillsWithVehicle: t?.fills_with_vehicle == null ? null : Number(t.fills_with_vehicle),
         totalMiles,
         totalGallons: Number(t?.gallons ?? 0),
         totalCost: Number(t?.spend ?? 0),

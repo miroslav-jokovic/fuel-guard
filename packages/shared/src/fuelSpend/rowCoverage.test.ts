@@ -45,7 +45,21 @@ describe("describeRowCoverage — how much of this list names a truck", () => {
   it("uses each list's own noun, matching the count label the filter bar prints beneath it", () => {
     expect(describeRowCoverage("transactions", 10, 9).lead).toContain("10 transactions");
     expect(describeRowCoverage("rejections", 10, 9).lead).toContain("10 declines");
+    expect(describeRowCoverage("fuelLog", 10, 9).lead).toContain("10 fill-ups");
     expect(describeRowCoverage("rejections", 3445, 2749).lead).toContain("The other 696 declines");
+  });
+
+  // ⚠ The Fuel Log's clause is not a rewording of the other two. Its six tiles already disagree —
+  // Gallons and Spend count every matching fill, Total miles counts only the attributed ones — and
+  // the sentence names that, so a reader can check it against the tiles two inches below. A generic
+  // "absent from any figure counted per truck" would be consistent and would describe nothing.
+  it("tells the Fuel Log's reader which tiles the unattributed fills are in and which they are not", () => {
+    const c = describeRowCoverage("fuelLog", 14_868, 14_568);
+    expect(c.lead).toBe(
+      "97% of the 14,868 fill-ups in this list name a truck on the fleet. " +
+        "The other 300 fill-ups are counted in the gallons and the spend above, and in none of the miles.",
+    );
+    expect(describeRowCoverage("transactions", 100, 90).lead).not.toContain("miles");
   });
 
   it("gives a single unattributed row its own clause instead of 'The other 1 declines are'", () => {

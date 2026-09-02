@@ -25,10 +25,10 @@ git fetch origin && git ls-tree --name-only origin/main supabase/migrations/ | t
 …and take the next number **only if you are about to commit within the hour**. If you are not, do the
 non-migration part of your segment first. A claimed-but-unpushed number is not claimed.
 
-~~**Highest at the time of writing: `0295`.**~~ **`0296` as of 2026-09-02** (`org_role_surface_access`,
-the permissions chat). Three segments below want a migration; they are marked, and **only one of them
-should be in flight at a time** — and one of the three, Segment D, turned out to need it for the Fuel
-Log alone rather than for three pages. Re-run the command above rather than trusting this line.
+~~**Highest at the time of writing: `0295`.**~~ **`0297` as of 2026-09-02** (`fuel_range_totals`
+gaining `fills_with_vehicle`; `0296` was `org_role_surface_access`, the permissions chat). Segment D's
+is spent — the two that remain are marked below, and **only one of them should be in flight at a
+time.** Re-run the command above rather than trusting this line.
 
 ### 0.2 Files more than one segment will reach for
 
@@ -141,9 +141,11 @@ appear. Derive the facet from `efs_transactions.unit` (D-FUI16).
 
 **Small, self-contained, and the only fuel segment that needs a migration.**
 
-**⚠ THREE QUARTERS OF THIS IS DONE.** Transactions, Rejections and Cards shipped 2026-09-02
-(`claude/fuel-row-coverage`), and **neither raw-feed page needed a migration after all** — see the
-correction below. What is left is the **Fuel Log's line**, and that is the part the migration is for.
+**✅ SEGMENT D IS COMPLETE, 2026-09-02, in three PRs.** Transactions, Rejections and Cards
+(`claude/fuel-row-coverage`), then migration `0297` alone (`claude/fuel-range-totals-attribution`),
+then the Fuel Log's line one merge behind it (`claude/fuel-log-coverage-line`). **Only the Fuel Log
+needed the migration** — see the correction below. Nothing here is left to do; the notes stay because
+the correction and the deploy-window handling are the parts worth reading again.
 
 | | |
 |---|---|
@@ -200,8 +202,7 @@ exist after Segment B. Whoever finishes B should check it.
 ```
 now, in parallel:   Segment A (Samsara)        Segment B (consolidation, 4 PRs)
 then:                                          Segment C (parity, 3 PRs)
-alongside C:        Segment D (T5) — 3 of 4 pages SHIPPED 2026-09-02; the Fuel Log's line remains,
-                    and it is the only part still needing the migration
+(done)              Segment D (T5) — COMPLETE 2026-09-02, three PRs, migration 0297
 last:               Segment E — once Q-FUI3 / Q-FUI11 / Q-FUI1 are answered and S6 has measured
 ```
 

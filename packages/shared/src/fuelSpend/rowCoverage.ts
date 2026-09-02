@@ -31,27 +31,41 @@
  */
 
 /** The lists this line can qualify. Each one's wording lives in the tables below, not at its call site. */
-export type CoverageSurface = "transactions" | "rejections";
+export type CoverageSurface = "transactions" | "rejections" | "fuelLog";
 
 /** What the rows are called, matched to the count label the filter bar prints directly beneath. */
 const ROW_NOUN: Record<CoverageSurface, { one: string; many: string }> = {
   transactions: { one: "transaction", many: "transactions" },
   rejections: { one: "decline", many: "declines" },
+  fuelLog: { one: "fill-up", many: "fill-ups" },
 };
 
 /**
  * What the reader loses by the remainder being unattributed — the half that makes this a caveat
  * rather than a statistic.
  *
- * Both raw-feed pages get the same clause because it IS the same fact: these are EFS's own rows, and
- * a row EFS printed against no unit (or against a unit naming no truck on this fleet) cannot be
- * reached by anything that groups or totals by vehicle. It is deliberately ONE constant rather than a
- * per-surface map — the Fuel Log's consequence is a different sentence (its unattributed fills carry
- * gallons and spend into the tiles but contribute no miles), and it arrives with the migration that
- * lets that page count them at all. A map with two identical entries would be a shape invented for a
- * caller that does not exist yet.
+ * The two raw-feed pages share a clause because it IS one fact: these are EFS's own rows, and a row
+ * EFS printed against no unit (or against a unit naming no truck on this fleet) cannot be reached by
+ * anything that groups or totals by vehicle. Until the Fuel Log arrived this was one constant, said so,
+ * and said what would promote it.
+ *
+ * ── ⚠ THE FUEL LOG'S CLAUSE IS NOT A REWORDING. IT NAMES A DISAGREEMENT ALREADY ON THAT PAGE ────
+ * Its six tiles do not all cover the same fills. **Gallons, Spend and Total fill-ups count every
+ * matching row; Total miles counts only the attributed ones** — `useFuelRangeTotals` skips a null
+ * `vehicle_id` outright, because `windowMilesFromAggregate` measures a per-vehicle odometer span and
+ * there is no span without a vehicle. Fleet MPG, deliberately, counts them all. Measured 2026-09-02:
+ * 300 of 14,868 canonical fills carry no `vehicle_id` — 300 fills' worth of gallons and dollars
+ * inside the totals and outside the mileage.
+ *
+ * So the honest sentence there is not "these are missing from per-truck figures" but the specific
+ * thing a reader can check against the tiles two inches below: they are in the money and not in the
+ * miles. A generic clause would have been consistent and would have described nothing.
  */
-const CONSEQUENCE = "absent from any figure counted per truck";
+const CONSEQUENCE: Record<CoverageSurface, string> = {
+  transactions: "absent from any figure counted per truck",
+  rejections: "absent from any figure counted per truck",
+  fuelLog: "counted in the gallons and the spend above, and in none of the miles",
+};
 
 export interface RowCoverage {
   /** Rows matching the current filters — the denominator, and the whole set rather than one page. */
@@ -105,8 +119,8 @@ export function describeRowCoverage(surface: CoverageSurface, rows: number, attr
   // nobody read the output. One row gets its own clause rather than a pluralisation patch.
   const remainder =
     unattributed === 1
-      ? `The one that does not is ${CONSEQUENCE}.`
-      : `The other ${fmt(unattributed)} ${noun.many} are ${CONSEQUENCE}.`;
+      ? `The one that does not is ${CONSEQUENCE[surface]}.`
+      : `The other ${fmt(unattributed)} ${noun.many} are ${CONSEQUENCE[surface]}.`;
 
   return {
     rows: safeRows, attributed: safeAttributed, unattributed, attributedPercent, complete: false,

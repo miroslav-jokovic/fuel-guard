@@ -63,6 +63,32 @@ describe("FeedFreshnessLine", () => {
     }
   });
 
+  // ⚠ A TRANSPORT failure, not an HTTP one. `apiFetch` returns `{ ok: false }` for a 500 but does not
+  // wrap `fetch`, so being offline REJECTS — and in an async `onMounted` with no catch that is an
+  // unhandled rejection rather than a quiet line. It was possible from the day this shipped and only
+  // became visible when the Fuel Log mounted this component under a suite that does not stub the API.
+  //
+  // ⚠ The RENDER is identical either way — nothing is shown whether the rejection was caught or not —
+  // so asserting on the markup alone would pass with the catch deleted. What actually differs is
+  // whether the rejection escapes, so that is what this listens for. (Confirmed by mutation: with the
+  // catch removed this fails, and an assertion on `html()` alone does not.)
+  it("says nothing when the request never completes at all, and lets no rejection escape the page", async () => {
+    const escaped: unknown[] = [];
+    const onUnhandled = (reason: unknown) => escaped.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      apiFetch.mockRejectedValueOnce(new Error("fetch failed"));
+      const w = mount(FeedFreshnessLine, { props: { feed: "posted" } });
+      await flushPromises();
+      // Node surfaces an unhandled rejection after the microtask queue drains, so give it the turn.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(escaped).toEqual([]);
+      expect(w.html()).toBe("<!--v-if-->");
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   // The rows below are still the vendor's rows. A freshness line that cannot load says nothing, which
   // is exactly what it said before this component existed — an error banner here would be a worse page.
   it("says nothing at all when it cannot read the freshness, rather than erroring over the rows", async () => {
