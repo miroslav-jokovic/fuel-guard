@@ -100,3 +100,9 @@ export type {
   ExistingAnomaly,
   AnomalyReconciliation,
 } from "./cases.js";
+export {
+  windowMilesFromAggregate,
+  aggregateWindowOdo,
+  windowMilesViaAggregate,
+} from "./windowMilesAggregate.js";
+export type { WindowOdoAggregate } from "./windowMilesAggregate.js";

@@ -821,6 +821,46 @@ column as the rows beneath them* — now checks BOTH halves: the RPC's `p_from`/
 loop's `business_date` filters. The property is unchanged; there are simply two mechanisms to hold to it
 now.
 
+#### — T3b SPIKE ANSWERED 2026-09-02 (`claude/fuel-miles-mpg-spike`). **The seam CAN be drawn.** Implementation remains.
+
+The question was whether SQL can feed `robustWindowMiles` and the MPG band **without copying a constant
+into SQL**. It can, and the finding is one sentence: **make SQL return a MEASUREMENT rather than a
+VERDICT, and the constant never has to cross the boundary.**
+
+| The judgement | What SQL returns instead | Who compares |
+|---|---|---|
+| `span > MIN_WINDOW_ADVANCE_MI` | the span | TypeScript |
+| `obd.length >= 2` | the count | TypeScript |
+| monotonic within ±1 (`v >= prev - 1`) | **the worst backward step**, `min(v - lag(v))` | TypeScript |
+| `MPG_PLAUSIBLE_MIN/MAX` band | Σ(mpg·gallons) and Σ(gallons), **band passed in as parameters** | TypeScript owns the value |
+
+**The third row is the whole finding.** "Is this sequence monotonic within one mile" looks like it needs
+the tolerance in SQL. It does not: the largest backward step is a plain window aggregate with no
+threshold in it, and TypeScript then asks whether that step is inside its own tolerance.
+
+For MPG the band travels as an **argument**, which is the opposite of a copy — there is still exactly
+one definition, in TypeScript, and SQL follows it automatically if it changes. A parameter with no
+DEFAULT cannot drift; a literal in a function body can.
+
+**What shipped:** `windowMilesFromAggregate` + `aggregateWindowOdo` in `@silvicom/shared`, and
+`aggregateWindowOdo` doubles as an **executable statement of exactly what the SQL must compute** — the
+matrix for the eventual RPC asserts against it rather than against prose.
+
+**Verified by:** `windowMilesAggregate.test.ts` (25) — twenty enumerated row shapes covering every
+branch (`two OBD readings that do NOT advance — null, never 0`; `entered with a backward step exactly at
+the tolerance`; `OBD did not move but entered did — OBD still decides, and suppresses`; …) plus
+`agrees on 4,096 generated sequences`, a deterministic sweep over odometer patterns rather than a
+sample. Proved able to fail by six mutations: returning 0 instead of null for a non-advancing OBD span;
+falling through to entered when OBD says the truck did not move; dropping the backward-step tolerance;
+`>=` instead of `>` on the advance threshold; not clamping the worst step; and counting non-OBD readings
+as OBD. Each broke between one and three assertions.
+
+**⚠ NOT YET DONE, and T3b stays open for it:** the RPC itself, and the reader. The seam is drawn and
+proven; nothing is calling it. The remaining work is a per-vehicle aggregate function returning the six
+measurements above, a matrix asserting it against `aggregateWindowOdo`, and the reader swap — **two
+merges**, because a new FUNCTION is invisible to `lint:migration-ordering` and would 404 for the ~9
+minutes of the deploy window (see T3a merge 1).
+
 ---
 
 ### T4 · The Trailer column comes off the Fuel Log
