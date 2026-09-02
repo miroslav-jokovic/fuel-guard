@@ -92,3 +92,9 @@ export type {
   StatsFeedPage,
   VehicleFeedSeries,
 } from "./statsFeed.js";
+export { computeTelematicsCoverage } from "./telematicsCoverage.js";
+export type {
+  TelematicsCoverageInput,
+  TelematicsCoverageMonth,
+  TelematicsCoverageSummary,
+} from "./telematicsCoverage.js";
