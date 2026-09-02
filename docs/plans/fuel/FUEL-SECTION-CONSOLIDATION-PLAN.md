@@ -1174,6 +1174,67 @@ the Flagged tile needs no scoring-backlog caveat either. **That last one is a me
 guarantee** — it was checked because a stuck scoring stage would have made a freshness line on this
 page the same confident lie the `*_last_polled_at` column would have been.
 
+#### — THE MIGRATION FOR THE FUEL LOG HALF LANDED 2026-09-02 as `0297` (`claude/fuel-range-totals-attribution`). The READER IS HELD.
+
+**What shipped.** `fuel_range_totals` returns a seventh column, `fills_with_vehicle`, counted over the
+same `matched` CTE as the other six. Nothing else about the function changed — the body below the
+select list is 0289's, reproduced unchanged so the two can be diffed.
+
+**Why the Fuel Log needs this more than the raw-feed pages did.** Its six tiles do not all cover the
+same fills, and never have. **Gallons, Spend and Total fill-ups count every matching row; Total miles
+counts only the attributed ones** — `useFuelRangeTotals` skips a null `vehicle_id` outright, because
+`windowMilesFromAggregate` measures a per-vehicle odometer span and there is no span without a
+vehicle. Fleet MPG, deliberately, counts them all. Measured 2026-09-02: **300 of 14,868 canonical
+fills — 2.0% — carry no `vehicle_id`**, which is 300 fills' worth of gallons and dollars inside the
+totals and outside the mileage, and therefore fuel divided by miles nothing on the page can name.
+Two tiles standing side by side already describe different sets and nothing says so.
+
+**Drop and recreate, in one transaction.** `create or replace function` cannot change a
+`returns table` shape — Postgres answers "cannot change return type of existing function". Dropped by
+its full nine-argument list rather than by name, because an unqualified drop turns ambiguous the
+moment anybody adds an overload. `supabase db push` runs a migration file inside a transaction, so no
+session observes the function missing; the precedent is 0258, which did the same for three functions.
+
+**⚠ THE READER MUST NOT SHIP UNTIL THIS IS APPLIED, AND NO GATE WILL SAY SO.**
+`lint:migration-ordering` reads COLUMNS — it does not see functions. The deploy window serves a merge
+about nine minutes before its schema arrives, so a reader merged alongside this would read `undefined`
+and report that **no fill in the fleet names a truck**, which is precisely the confident lie T5 exists
+to remove, printed at maximum confidence. The check before merging the reader is by hand:
+
+```
+supabase db query --linked "select p.proname, pg_get_function_result(p.oid)
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname = 'fuel_range_totals';"
+```
+
+…and `fills_with_vehicle` must appear in the result before the reader PR is merged.
+
+**Landing the migration first costs nothing.** The only caller destructures the fields it wants by
+NAME off a PostgREST JSON object, so an extra key is ignored and the currently-deployed build behaves
+identically against the new function.
+
+**D-AG1 holds: this sums, it does not derive.** Counting rows whose `vehicle_id` is not null has no
+threshold, band or fallback in it — the same class of figure as `flagged`, `clear` and `has_cost`, and
+not the class of Fleet MPG or `robustWindowMiles`, which stay in TypeScript. `vehicle_id is not null`
+needs no join: the column is a foreign key to `vehicles` with `on delete restrict`, so a non-null
+value cannot name a truck that is not there.
+
+**Verified by:** the `fuel-range-totals` matrix, 19 assertions to 25 — `fills_with_vehicle equals
+fills while every row names a truck`; `a fill with no truck raises fills and leaves fills_with_vehicle
+where it was`; `scoped to one truck, every counted fill is attributed — the numerator lives inside the
+filters`; `an empty window reports zero attributed fills rather than null`; `the attributed count
+reaches the browser's call, and is a strict subset once unattributed fills exist`.
+
+**Proved able to fail by four mutations of the one new expression**, each breaking a different
+assertion: counting every row (the filter never fires) — 3 failures; inverting the predicate — 4;
+counting the FLEET instead of the rows on screen — 2, one of them the per-truck scope; and
+`sum(case ...)`, which is NULL rather than 0 over no rows — 1. That last one is why the empty-window
+assertion exists at all: the difference only shows on a window with nothing in it.
+
+⚠ **`fills_with_vehicle` is appended LAST in the `returns table`.** PostgREST hands the browser named
+keys so position is nothing to it, but the matrix and any future positional reader get the columns
+they already knew, in the order they already knew them.
+
 ---
 
 ## Phase P — parity
