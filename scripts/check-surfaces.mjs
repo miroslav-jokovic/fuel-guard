@@ -1,0 +1,157 @@
+#!/usr/bin/env node
+/**
+ * Fitness function — the surface catalogue is ONE home, and it stays one
+ * (SURFACE-ENTITLEMENTS-PLAN.md S1, D-SURF3).
+ *
+ * `SURFACES` in `packages/shared` answers "which permission does this screen need". Three consumers
+ * read it: the sidebar (S1), the router guard (S2) and the API (S3). The catalogue is only worth
+ * having while nothing drifts away from it, and three things can:
+ *
+ *   1. A CATALOGUED PATH THAT IS NOT A REAL ROUTE. A surface nobody can reach is a permission an
+ *      admin can grant that does nothing — the worst kind, because the page reads as if it worked.
+ *      Checked against `routeTable.test.ts.snap`, which is generated from the LIVE router rather
+ *      than parsed out of the route files. Three hand-written regex parsers were tried while
+ *      measuring this plan and each was wrong in a different way; the snapshot is ground truth.
+ *
+ *   2. AN ICON MAP THAT HAS DRIFTED FROM THE CATALOGUE. Icons cannot live in shared — it depends on
+ *      zod alone and is compiled for React Native for `apps/driver` — so they live in
+ *      `apps/web/src/lib/navIcons.ts`. That split is the exact point where an author concludes the
+ *      catalogue "can't live in shared" and duplicates it. Both directions are checked: an icon
+ *      without a surface, and a nav surface without an icon (which would render a blank glyph).
+ *
+ *   3. A SURFACE WHOSE LEVEL EXCEEDS ITS SECTION. `level: "manage"` on a section no role manages is
+ *      a dead entry; a `parent` that names no surface breaks D-SURF8's inheritance silently.
+ *
+ * It PARSES the catalogue's own literal rather than importing it, for the reason every other gate in
+ * this repo does: a gate that needs the workspace built cannot run before the build. Parse failure
+ * IS failure — a detector that silently matches nothing is worse than no detector.
+ *
+ * `--self-test` proves all five detectors fire.
+ */
+import { readFileSync } from "node:fs";
+
+const ROOT = new URL("..", import.meta.url).pathname;
+const CATALOGUE = `${ROOT}packages/shared/src/surfaces.ts`;
+const ICONS = `${ROOT}apps/web/src/lib/navIcons.ts`;
+const ROUTE_SNAPSHOT = `${ROOT}apps/web/src/router/__snapshots__/routeTable.test.ts.snap`;
+const AUTH = `${ROOT}packages/shared/src/auth.ts`;
+
+/** Every declared route path, read from the snapshot the live router produces. */
+export function routePaths(snapshot) {
+  const block = snapshot.split("> route table 1`] = `")[1];
+  if (!block) throw new Error("route-table snapshot block not found — the gate cannot check paths; fix the parser with the test");
+  const paths = [...block.matchAll(/^\s*"path": "([^"]*)",$/gm)].map((m) => m[1]);
+  if (paths.length < 50) throw new Error(`route snapshot parse found only ${paths.length} paths — parser or snapshot shape changed; fix together`);
+  return new Set(paths);
+}
+
+/** The catalogue's entries, parsed from its literal. */
+export function surfaces(src) {
+  const block = src.match(/export const SURFACES: readonly Surface\[\] = \[([\s\S]*?)\n\];/);
+  if (!block) throw new Error("SURFACES literal not found in surfaces.ts — gate cannot check anything; fix the parser with the file");
+  const out = [];
+  for (const line of block[1].split("\n")) {
+    const key = line.match(/\{\s*key:\s*"([^"]+)"/)?.[1];
+    if (!key) continue;
+    out.push({
+      key,
+      path: line.match(/path:\s*"([^"]*)"/)?.[1],
+      group: line.match(/group:\s*"([^"]+)"/)?.[1],
+      parent: line.match(/parent:\s*"([^"]+)"/)?.[1] ?? null,
+      section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
+      level: /gate:\s*manage\(/.test(line) ? "manage" : /gate:\s*section\(/.test(line) ? "view" : null,
+      kind: /gate:\s*ALWAYS/.test(line) ? "always" : /gate:\s*STAFF/.test(line) ? "staff" : /gate:\s*ADMIN/.test(line) ? "admin" : "section",
+    });
+  }
+  if (out.length < 20) throw new Error(`SURFACES parse found only ${out.length} entries — parser or literal shape changed; fix together`);
+  return out;
+}
+
+/** The icon map's keys. */
+export function iconKeys(src) {
+  const block = src.match(/export const SURFACE_ICONS: Record<string, Icon> = \{([\s\S]*?)\n\};/);
+  if (!block) throw new Error("SURFACE_ICONS literal not found in navIcons.ts — gate cannot check the split; fix the parser with the file");
+  return new Set([...block[1].matchAll(/^\s*"?([\w.-]+)"?:/gm)].map((m) => m[1]));
+}
+
+/** Roles that can manage / view each section, from the auth.ts matrix. */
+function matrix(src) {
+  const block = src.match(/const SECTION_ACCESS[^=]*=\s*\{([\s\S]*?)\n\};/);
+  if (!block) throw new Error("SECTION_ACCESS literal not found in auth.ts — gate cannot check levels; fix the parser with the file");
+  const m = {};
+  for (const row of block[1].matchAll(/^\s*(\w+):\s*\{([^}]*)\},?\s*$/gm))
+    for (const c of row[2].matchAll(/(\w+):\s*"(none|view|manage)"/g)) (m[c[1]] ??= {})[row[1]] = c[2];
+  if (Object.keys(m).length < 8) throw new Error(`SECTION_ACCESS parse found only ${Object.keys(m).length} sections — fix the parser with the matrix`);
+  return m;
+}
+
+export function findViolations({ cat, icons, routes, sections }) {
+  const errors = [];
+  const keys = new Set(cat.map((s) => s.key));
+  const navKeys = new Set(cat.filter((s) => !s.parent).map((s) => s.key));
+
+  for (const s of cat) {
+    if (!routes.has(s.path))
+      errors.push(`surface "${s.key}" has path ${s.path}, which is not a declared route — a permission that grants nothing.`);
+    if (s.parent && !keys.has(s.parent))
+      errors.push(`surface "${s.key}" names parent "${s.parent}", which is not a surface (D-SURF8 inheritance would silently do nothing).`);
+    if (s.kind === "section") {
+      const roles = sections[s.section];
+      if (!roles) errors.push(`surface "${s.key}" gates on section "${s.section}", which is not in SECTION_ACCESS.`);
+      else if (s.level === "manage" && !Object.values(roles).includes("manage"))
+        errors.push(`surface "${s.key}" needs manage on "${s.section}", which no role manages — a dead entry.`);
+    }
+  }
+  for (const k of navKeys) if (!icons.has(k)) errors.push(`nav surface "${k}" has no icon in navIcons.ts — it would render blank.`);
+  for (const k of icons) if (!navKeys.has(k)) errors.push(`navIcons.ts has an icon for "${k}", which is not a nav surface — the split has drifted.`);
+  return errors;
+}
+
+function selfTest() {
+  const routes = new Set(["/real", "/parent"]);
+  const sections = { fuel: { admin: "manage", auditor: "view" }, ghost: { admin: "view" } };
+  const cases = [
+    [[{ key: "a", path: "/nope", kind: "staff" }], new Set(["a"]), /not a declared route/],
+    [[{ key: "a", path: "/real", kind: "staff", parent: "missing" }], new Set(), /not a surface/],
+    [[{ key: "a", path: "/real", kind: "section", section: "nowhere", level: "view" }], new Set(["a"]), /not in SECTION_ACCESS/],
+    [[{ key: "a", path: "/real", kind: "section", section: "ghost", level: "manage" }], new Set(["a"]), /no role manages/],
+    [[{ key: "a", path: "/real", kind: "staff" }], new Set(), /has no icon/],
+    [[{ key: "a", path: "/real", kind: "staff" }], new Set(["a", "stale"]), /split has drifted/],
+  ];
+  const fails = [];
+  for (const [cat, icons, expected] of cases) {
+    const found = findViolations({ cat, icons, routes, sections });
+    if (!found.some((e) => expected.test(e))) fails.push(`detector did not fire for ${expected}: got ${JSON.stringify(found)}`);
+  }
+  // A clean catalogue must produce nothing — a gate that always fires is a gate nobody keeps.
+  const clean = findViolations({
+    cat: [{ key: "a", path: "/real", kind: "section", section: "fuel", level: "manage" }],
+    icons: new Set(["a"]), routes, sections,
+  });
+  if (clean.length) fails.push(`false positive on a clean catalogue: ${JSON.stringify(clean)}`);
+  return fails;
+}
+
+if (process.argv.includes("--self-test")) {
+  const fails = selfTest();
+  if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
+  console.log("✓ surfaces self-test — all five detectors fire, and none fires on a clean catalogue.");
+  process.exit(0);
+}
+
+const cat = surfaces(readFileSync(CATALOGUE, "utf8"));
+const icons = iconKeys(readFileSync(ICONS, "utf8"));
+const routes = routePaths(readFileSync(ROUTE_SNAPSHOT, "utf8"));
+const sections = matrix(readFileSync(AUTH, "utf8"));
+
+const errors = findViolations({ cat, icons, routes, sections });
+if (errors.length) {
+  console.error(`✗ ${errors.length} surface-catalogue violation(s):`);
+  for (const e of errors) console.error(`   ${e}`);
+  process.exit(1);
+}
+console.log(
+  `✓ surfaces ok — ${cat.length} surfaces (${cat.filter((s) => !s.parent).length} in the sidebar, ` +
+    `${cat.filter((s) => s.parent).length} detail routes) all resolve to real routes; ` +
+    `${icons.size} icons match the nav surfaces exactly.`,
+);

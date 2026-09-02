@@ -82,6 +82,7 @@ export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./dispatchContract.js";
 export * from "./entitlements.js";
+export * from "./surfaces.js";
 export * from "./featureCatalog.js";
 export * from "./sentryScrub.js";
 export * from "./notificationsContract.js";
