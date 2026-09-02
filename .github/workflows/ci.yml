@@ -106,6 +106,13 @@ jobs:
       - name: Capability decisions
         run: pnpm lint:capabilities
 
+      # The surface catalogue is only worth having while nothing drifts away from it. Its own step
+      # rather than a chain onto another gate, because the failure it catches — a permission that
+      # grants access to a route that does not exist, or an icon map that has quietly become a
+      # second copy of the catalogue — reads as nothing at all in a combined summary line.
+      - name: Surface catalogue
+        run: pnpm lint:surfaces
+
       # Added 2026-08-26 (re-founding, docs/ARCHITECTURE.md §6). Four tables merged two days
       # earlier with zero application code; this would have failed that merge.
       - name: Every table has a producer
