@@ -128,6 +128,37 @@ describe("the route table survives being split by area", () => {
     expect(workspace.params).toEqual({ id: "hz_1" });
   });
 
+  /**
+   * `public: true` is the one meta flag that admits the whole internet, and the snapshot above
+   * records it only as one line in a 70-route dump — a diff a reviewer updates without reading.
+   * This names the set instead, so ADDING a public route is a deliberate edit to a list with a
+   * reason beside each member rather than a snapshot refresh.
+   *
+   * `/accept-invite` joined on 2026-09-02. It was `requiresAuth: true`, which meant the guard turned
+   * every failed invite link — spent by a mail scanner, expired, or merely not yet redeemed — into a
+   * redirect to /login, so nobody could tell a broken link from a wrong password. The page redeems
+   * its own token and shows a form only once that succeeds; `POST /api/invites/accept` re-checks
+   * email confirmation server-side before it will create a membership.
+   */
+  it("names every route reachable without a session", () => {
+    const publicPaths = router
+      .getRoutes()
+      .filter((r) => r.meta.public === true && r.path !== "/__design-system")
+      .map((r) => r.path)
+      .sort();
+    expect(publicPaths).toEqual([
+      // G1's catch-all and its two dead-end pages. Public by necessity: a 404 or an outage screen
+      // that bounces you to /login first tells you nothing about why you are not where you meant to be.
+      "/:pathMatch(.*)*",
+      "/accept-invite", // redeems its own invite token; membership still gated server-side
+      "/apply/:token", // H5b — the applicant's form; the token IS the access control
+      "/error",
+      "/login",
+      "/maintenance",
+      "/placard-calculator", // M7 — the free public calculator, deliberately indexable
+    ]);
+  });
+
   it("every declared path is probed, so a new route cannot slip in unpinned", () => {
     // Params are stripped from both sides: `/drivers/:id` is covered by the probe `/drivers/dr_1`.
     const shape = (p: string) => p.replace(/:[^/]+/g, "*");

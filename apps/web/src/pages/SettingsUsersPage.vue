@@ -47,7 +47,7 @@ async function load() {
   loading.value = false;
 }
 
-interface InviteResult { emailSent: boolean; reason?: string | null }
+interface InviteResult { emailSent: boolean; reason?: string | null; link?: string | null }
 
 const REASON_TEXT: Record<string, string> = {
   mail_disabled: "Email isn't configured on the server.",
@@ -55,9 +55,37 @@ const REASON_TEXT: Record<string, string> = {
   link_failed: "Couldn't create the invite — try again.",
 };
 
+/**
+ * The accept link for the invite we just created or resent, held so the admin can hand it over
+ * directly when email did not arrive.
+ *
+ * `deliverInvite` has returned this since the mailer was written and the response never carried it,
+ * so the only recovery from a bounced or filtered invite was to resend into the same void. It is
+ * shown ONLY when delivery failed: an invite that was emailed does not need a second copy of its
+ * own credential on screen.
+ */
+const pendingLink = ref<{ email: string; link: string } | null>(null);
+const linkCopied = ref(false);
+
+async function copyPendingLink() {
+  if (!pendingLink.value) return;
+  try {
+    await navigator.clipboard.writeText(pendingLink.value.link);
+    linkCopied.value = true;
+    setTimeout(() => (linkCopied.value = false), 2000);
+  } catch {
+    toast.error("Couldn't copy", "Select the link and copy it manually.");
+  }
+}
+
 function handleInviteResult(addr: string, data: InviteResult | undefined) {
-  if (data?.emailSent) toast.success("Invitation emailed", addr);
-  else toast.error("Invitation not emailed", data?.reason ? (REASON_TEXT[data.reason] ?? data.reason) : undefined);
+  if (data?.emailSent) {
+    pendingLink.value = null;
+    toast.success("Invitation emailed", addr);
+    return;
+  }
+  pendingLink.value = data?.link ? { email: addr, link: data.link } : null;
+  toast.error("Invitation not emailed", data?.reason ? (REASON_TEXT[data.reason] ?? data.reason) : undefined);
 }
 
 interface MailTest { ok: boolean; provider: string; status?: number; detail?: string; from: string; to: string }
@@ -241,6 +269,14 @@ onMounted(load);
           {{ submitting ? "Sending…" : "Send invite" }}
         </BaseButton>
       </form>
+      <div v-if="pendingLink" class="mt-4 rounded-control bg-warning-50 p-3 text-sm ring-1 ring-warning-200">
+        <p class="font-medium text-warning-800">Email didn't go out — send this link to {{ pendingLink.email }} yourself</p>
+        <p class="mt-1 text-xs text-warning-800">It sets their password and expires in 7 days. Treat it like a password.</p>
+        <div class="mt-2 flex items-center gap-2">
+          <code class="min-w-0 flex-1 truncate rounded-control bg-surface px-2 py-1.5 text-xs text-ink-secondary">{{ pendingLink.link }}</code>
+          <BaseButton size="sm" @click="copyPendingLink">{{ linkCopied ? "Copied" : "Copy" }}</BaseButton>
+        </div>
+      </div>
       <p class="mt-2 text-xs text-ink-tertiary">
         Looking for drivers? Driver-app logins aren't invited by email — issue a username + password
         from the <RouterLink to="/drivers" class="text-brand-700 underline">Drivers page</RouterLink> (App access column).

@@ -450,7 +450,7 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "allowNoOrg": true,
       "layout": "auth",
-      "requiresAuth": true,
+      "public": true,
     },
     "name": "accept-invite",
     "path": "/accept-invite",
