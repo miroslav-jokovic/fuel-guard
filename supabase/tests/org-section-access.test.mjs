@@ -404,5 +404,126 @@ ok(
   (await asClaims("", `select auth_section('safety') as v`)).v === null,
 );
 
+// ══════════════════════════════════════════════════════════════════════════════
+// The policies (0293, step P4 batch 1) — where an override finally reaches data.
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// 0291 stored the override, 0292 put it in the token, and until 0293 nothing in SQL read it: an
+// override changed the UI and the API while PostgREST went on enforcing the shipped matrix. A page
+// that saves a permission the database does not honour is a UI that lies about security, which is
+// why the plan puts this step BEFORE the editable page rather than after it.
+//
+// The four matrices that already cover these tables (`rls` 461, `load-lifecycle` 61, `hazmat_rls`
+// 38, `equipment-section-split` 16) are the evidence that the DEFAULT branch is unchanged. What
+// follows is the other half: that the override branch does what it says.
+
+/** Run one statement as a caller whose token carries a `sections` claim. */
+async function asUserWith(user, org, role, sections, sql, params = []) {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    const claims = { sub: user, org_id: org, user_role: role, role: "authenticated" };
+    if (sections) claims.sections = sections;
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const res = await db.query(sql, params);
+    await db.exec("rollback");
+    return res;
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+}
+
+const wrote = async (user, org, role, sections, sql, params) => {
+  const res = await asUserWith(user, org, role, sections, sql, params);
+  return !res.error && (res.affectedRows ?? 0) > 0;
+};
+
+const VEH = `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P4-1','diesel',100)`;
+// `loads_status_guard()` refuses a hand-set status, so the row is created the way the product
+// creates one and touched on a column the guard does not police.
+const LOAD_ID = (await one(
+  `insert into loads (org_id, ref, equipment, commodity) values ($1,'P4-REF','Dry van','General freight') returning id`,
+  [ORG],
+)).id;
+const TOUCH_LOAD = `update loads set commodity = 'General freight' where id = $1`;
+
+// ── The default branch: exactly today's answers ────────────────────────────────
+ok(
+  "with no override a dispatcher still writes loads",
+  await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_LOAD, [LOAD_ID]),
+);
+ok(
+  "with no override a recruiter still cannot write vehicles (D-ROS12's narrowing holds)",
+  !(await wrote(DISPATCHER, ORG, "recruiter", null, VEH, [ORG])),
+);
+
+// ── Narrowing ─────────────────────────────────────────────────────────────────
+ok(
+  "an org that takes dispatch away from its dispatchers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "none" }, TOUCH_LOAD, [LOAD_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only dispatcher cannot write either",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_LOAD, [LOAD_ID])),
+);
+
+// ── Widening ──────────────────────────────────────────────────────────────────
+// The half a role list computed at policy-authoring time could never express.
+ok(
+  "an org that grants equipment to its recruiters is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "recruiter", { equipment: "manage" }, VEH, [ORG]),
+);
+ok(
+  "…but granting 'view' does not grant the write",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { equipment: "view" }, VEH, [ORG])),
+);
+
+// ── Sparseness at the policy layer ────────────────────────────────────────────
+ok(
+  "overriding one section leaves the others at their defaults",
+  await wrote(DISPATCHER, ORG, "dispatcher", { equipment: "manage" }, TOUCH_LOAD, [LOAD_ID]),
+);
+
+// ── A view-level policy (hazmat_reviews_select is the one SELECT in this batch) ─
+const SEE_REVIEWS = `select count(*)::int as n from hazmat_reviews`;
+ok(
+  "a granted 'view' opens a read the role does not ship with",
+  !(await asUserWith(DISPATCHER, ORG, "recruiter", { hazmat: "view" }, SEE_REVIEWS)).error,
+);
+ok(
+  "a narrowed section closes a read the role does ship with",
+  (await asUserWith(DISPATCHER, ORG, "safety_manager", { hazmat: "none" }, SEE_REVIEWS)).rows[0].n === 0,
+);
+
+// ── The locks, at the layer that hands out rows ───────────────────────────────
+// 0292's hook refuses to MINT these claims and 0291's constraints refuse the rows behind them. This
+// is the last gate before data, and the only one whose failure would grant access rather than
+// merely store something wrong — so it declines to honour them on its own account.
+// ⚠ A real row to touch, seeded with the service role. An `update` matching NOTHING reports zero
+// affected rows and is indistinguishable from an RLS refusal, so a version of this assertion
+// written against an empty table would pass whatever the policy said.
+const DRIVER_ID = (await one(
+  `insert into drivers (org_id, full_name) values ($1,'P4 Tester') returning id`,
+  [ORG],
+)).id;
+const TOUCH_DRIVER = `update drivers set full_name = 'P4 Tester' where id = $1`;
+ok(
+  "the fixture is real — a plain admin can touch the seeded driver",
+  await wrote(DISPATCHER, ORG, "admin", null, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "a claim narrowing an ADMIN is ignored, so an org can always dig itself out",
+  await wrote(DISPATCHER, ORG, "admin", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "…while the same narrowing DOES bind a role that is editable",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID])),
+);
+ok(
+  "a claim granting a DRIVER is ignored — they hold none of these sections",
+  !(await wrote(DISPATCHER, ORG, "driver", { equipment: "manage" }, VEH, [ORG])),
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
