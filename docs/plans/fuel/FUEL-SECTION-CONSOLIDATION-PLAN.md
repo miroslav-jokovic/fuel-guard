@@ -741,6 +741,50 @@ spanning **more than one 1,000-row page** — the exact case the present loop is
 from getting wrong; the `fuel-spend-by-period` matrix pattern (`RESULT` line); `lint:rpc-org-default`;
 `expectOrgScoped`.
 
+#### — T3a MERGE 1 of 2 SHIPPED 2026-09-02 (`claude/fuel-range-totals-rpc`). T3a is OPEN until merge 2.
+
+**What shipped.** Migration **0289**: `fuel_range_totals(...)` returning `fills`, `gallons`, `spend`,
+`has_cost`, `flagged`, `clear`, plus `fuel_search_escape(text)`. `security invoker`, `p_org` last with a
+DEFAULT (D-FC1). Nothing calls it yet — the reader is merge 2.
+
+**⚠ Two merges, and `lint:migration-ordering` would NOT have caught this one.** That gate reads added
+*columns*; a new FUNCTION is invisible to it. But the failure is identical — for the ~9 minutes between
+Railway serving a merge and `migrate.yml` applying it, a browser calling a function the database does
+not have gets a PostgREST 404, and the Fuel Log's tiles break on a page people are using. **The gate's
+silence here is a gap in the gate, not permission.**
+
+**Why the split is correctness rather than speed, since the loop still runs for two tiles.** The browser
+pages `fuel_transactions` 1,000 rows at a time until a short page arrives. PostgREST's `max_rows` is a
+server setting the client does not control and this carrier is already fifteen round trips into it; if
+that ceiling moves, **every tile reads low with no error beside it**. Summing in SQL removes the coupling
+for the four figures that are pure addition. It does not make the page faster — T3b decides the rest.
+
+**D-AG1 held: `has_cost` is returned as its own boolean.** `sum()` cannot distinguish "no fill carried a
+cost" from "the costs sum to zero", and the tile renders those differently — "—" against "$0".
+
+**Verified by:** `supabase/tests/fuel-range-totals.test.mjs` — 19 assertions, `RESULT` line, over a
+**2,400-row fixture past two page boundaries**, compared against totals accumulated row by row in
+JavaScript the way the browser's loop did. Proved able to fail by six mutations: dropping
+`is_canonical`; inferring `has_cost` from `spend > 0`; dropping the org filter; passing the raw search
+term to `ilike`; making `p_to` exclusive; and counting `clear` with its own condition instead of as the
+complement.
+
+**⚠ Three of those six initially passed, and each exposed a real hole in the fixture rather than in the
+SQL** — worth recording because all three are the same shape, *a fixture that cannot tell two
+implementations apart*:
+- **`p_to` exclusive** — every fixture row sat on the 15th, so no bound change could move the count. A
+  fill on the closing date was added.
+- **no escaping** — the `%` case passed, but nothing covered `_`, which `ilike` treats as a
+  single-character wildcard. The escape moved into `fuel_search_escape` (escaping `\` first, then `%`,
+  then `_`) and a `C_001` case was added.
+- **`clear` counted independently** — every fixture row had `gallons > 0`, so a `clear` counted as
+  `has_anomaly is false and gallons > 0` was indistinguishable from the complement. A zero-gallon
+  unflagged fill was added, which is what makes `flagged + clear = fills` an assertion.
+
+**One fixture that could not exist:** `has_anomaly` is NOT NULL, so 0289's `coalesce(has_anomaly, false)`
+can never fire. It is kept as a statement of intent and the matrix says so rather than inserting a null
+the database would reject.
+
 ---
 
 ### T4 · The Trailer column comes off the Fuel Log
