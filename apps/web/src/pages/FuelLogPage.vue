@@ -10,7 +10,6 @@ import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useTrailersQuery } from "@/composables/useTrailers";
 import { useFuelTransactions, useFuelRangeTotals, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
@@ -29,7 +28,6 @@ import { useToastStore } from "@/stores/toast";
 const router = useRouter();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
-const { data: trailers } = useTrailersQuery();
 
 const filters = ref<FuelFilters>({});
 const page = ref(1);
@@ -44,16 +42,23 @@ const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransact
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const { data: rangeTotals } = useFuelRangeTotals(filters);
 
-// ── Lookups for the Vehicle / Trailer / Driver columns ────────────────────────────────────────────
+// ── Lookups for the Vehicle / Driver columns ──────────────────────────────────────────────────────
 const vehicleLabel = (id: string | null) =>
   id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "Unattributed";
 const driverName = (id: string | null) =>
   id ? (drivers.value?.find((d) => d.id === id)?.full_name ?? "—") : "—";
-// Currently-paired trailer for a truck (best available; reflects today's pairing, not the fill date).
-const trailerForVehicle = (vehicleId: string | null) => {
-  if (!vehicleId) return null;
-  return (trailers.value ?? []).find((t) => t.assigned_vehicle_id === vehicleId && t.status !== "retired")?.unit_number ?? null;
-};
+// NO TRAILER LOOKUP, and that is a decision rather than an omission (D-FUI14, FUEL-T4).
+//
+// This page used to render the truck's CURRENTLY paired trailer beside every fill, including fills
+// from months ago. There is no historical pairing to render instead: `duty_equipment_segments` holds
+// 0 rows (re-measured in production 2026-09-02) and `trailers.assigned_vehicle_id` is current-state by
+// construction — 157 of 211 trailers carry one. So the column was not approximately right, it was a
+// live fact presented as a historical one, which is a confident wrong answer.
+//
+// It was removed rather than relabelled: a caveat under a wrong number is a workaround with a caveat.
+// Current pairing still shows on the vehicle and reefer-coverage surfaces, where it is already labelled
+// as current and is true. Restoring trailer-at-fill means a time-ranged pairing table and a source that
+// fills it, which is its own plan (Q-FUI8).
 
 // ── Filters ───────────────────────────────────────────────────────────────────────────────────────
 // The picker emits YYYY-MM-DD and the query now windows on `business_date`, a DATE — so the day goes
@@ -177,7 +182,7 @@ const avgMpg       = computed(() => rangeTotals.value?.fleetMpg ?? null);
 const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-// Vehicle leads (sticky on small screens, like the Transactions table); Trailer + Driver follow.
+// Vehicle leads (sticky on small screens, like the Transactions table); Driver follows.
 /** WP2 "why" surface — sub-threshold signals persisted on the fill (case_signals) explained in plain
  *  language, so a clear fill with a fired-but-weak signal (e.g. a lone odometer regression) is visible. */
 function weakSignals(row: FuelTransaction): CaseSignal[] {
@@ -211,7 +216,6 @@ const columns: DataTableColumn[] = [
     width: "md",
   },
   { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
-  { key: "trailer", label: "Trailer", width: "md", cellClass: "text-ink-secondary" },
   { key: "driver", label: "Driver", width: "lg", cellClass: "text-ink-secondary" },
   { key: "odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
@@ -313,7 +317,6 @@ const columns: DataTableColumn[] = [
     >
       <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
       <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
-      <template #cell-trailer="{ row }">{{ trailerForVehicle(row.vehicle_id) ?? "—" }}</template>
       <template #cell-driver="{ row }">{{ driverName(row.driver_id) }}</template>
       <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
       <template #cell-gallons="{ row }">
