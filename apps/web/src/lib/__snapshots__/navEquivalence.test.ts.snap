@@ -1,0 +1,1680 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null module set is not the same as an empty one 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+      "Users → /settings/users",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null role (signed in, no membership yet) · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+      "Users → /settings/users",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+      "Users → /settings/users",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+      "Users → /settings/users",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages",
+      "Assignments → /assignments",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Assignments → /assignments",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are threaded through, and only when non-zero 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages [7]",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review [4]",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Finance",
+    "items": [
+      "Money in & out → /accounting",
+      "Cost per mile → /cpm",
+      "Truck fixed costs → /cost-schedule",
+      "Revenue & margin → /billing",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+      "Users → /settings/users",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manager · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manager · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manager · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Drivers → /drivers",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Drivers → /drivers",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Drivers → /drivers",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_manager · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_manager · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_manager · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician · all-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician · default-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician · no-modules 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+      "Inspectors → /shop/inspectors",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the sections claim still narrows and widens (P3/D-PERM2) 1`] = `
+{
+  "narrowed": [
+    {
+      "group": null,
+      "items": [
+        "Dashboard → /",
+        "Ask AI → /ask",
+      ],
+    },
+    {
+      "group": "Fuel",
+      "items": [
+        "Fuel Log → /fuel-log",
+        "Transactions → /transactions",
+        "Rejections → /rejections",
+        "Cards → /fuel-cards",
+        "Exceptions → /fuel-spend/exceptions",
+        "IFTA → /ifta",
+      ],
+    },
+    {
+      "group": "Safety",
+      "items": [
+        "Driver Qualification → /compliance",
+        "Placard calculator → /hazmat/calculator",
+        "Hazmat review → /hazmat/review",
+      ],
+    },
+    {
+      "group": "Fleet",
+      "items": [
+        "Vehicles → /vehicles",
+        "Trailers → /trailers",
+        "Drivers → /drivers",
+        "Odometer → /odometer",
+      ],
+    },
+  ],
+  "widened": [
+    {
+      "group": null,
+      "items": [
+        "Dashboard → /",
+        "Ask AI → /ask",
+      ],
+    },
+    {
+      "group": "Fuel",
+      "items": [
+        "Fuel Log → /fuel-log",
+      ],
+    },
+    {
+      "group": "Safety",
+      "items": [
+        "Driver Qualification → /compliance",
+        "Placard calculator → /hazmat/calculator",
+        "Hazmat review → /hazmat/review",
+      ],
+    },
+    {
+      "group": "Recruitment",
+      "items": [
+        "Applicants → /recruitment",
+        "Screening readiness → /recruitment/screening",
+        "Safety-history inquiries → /recruitment/inquiries",
+      ],
+    },
+    {
+      "group": "Fleet",
+      "items": [
+        "Vehicles → /vehicles",
+        "Trailers → /trailers",
+        "Drivers → /drivers",
+        "Odometer → /odometer",
+      ],
+    },
+  ],
+}
+`;
