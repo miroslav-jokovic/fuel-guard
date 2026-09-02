@@ -667,5 +667,178 @@ ok(
   (await asUserWith(DISPATCHER, ORG, "recruiter", { safety: "manage" }, SEE_EXPORTS)).rows[0].n === 1,
 );
 
+// ── P4 batch 3: recruitment, maintenance, and the two tables whose section is not their module (0295) ─
+// The last batch, so this block also covers the two shapes the earlier ones did not have: a
+// RESTRICTIVE section read with a `driver` escape outside the wrapper, and a table wrapped with a
+// section other than the one its module maps to.
+
+// ── recruitment, at 'manage' ─────────────────────────────────────────────────
+// Recruitment's shipped manage set is [admin, fleet_manager, safety_manager, recruiter]; a
+// dispatcher holds `recruitment: "none"`, so they are the widening case throughout.
+const EMPLOYMENT = `insert into driver_employment_history (org_id, driver_id, employer_name, started_on)
+                    values ($1, $2, 'Prior Carrier LLC', current_date - 400)`;
+
+ok(
+  "with no override a recruiter still records previous employment",
+  await wrote(DISPATCHER, ORG, "recruiter", null, EMPLOYMENT, [ORG, DRIVER_ID]),
+);
+ok(
+  "with no override a dispatcher still cannot (they hold recruitment: none)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that takes recruitment away from its recruiters is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { recruitment: "none" }, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only recruiter cannot record employment either",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { recruitment: "view" }, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that grants recruitment to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { recruitment: "manage" }, EMPLOYMENT, [ORG, DRIVER_ID]),
+);
+
+// ── recruitment, at 'view', through a RESTRICTIVE policy ─────────────────────
+// `driver_authorizations_section_read` and `psp_requests_section_read` are RESTRICTIVE, so they AND
+// onto the permissive org policy and can only narrow. A restrictive gate that a narrowing did not
+// close would be invisible in a permissive-only test, which is why both directions are asserted.
+await db.query(
+  `insert into driver_authorizations (org_id, driver_id, purpose, disclosure_version, disclosure_text,
+                                      method, signed_name, intent_statement)
+   values ($1, $2, 'psp', 'v1', 'Disclosure text', 'esign', 'P4 Tester', 'I agree')`,
+  [ORG, DRIVER_ID],
+);
+const SEE_AUTHS = `select count(*)::int as n from driver_authorizations`;
+
+ok(
+  "with no override an auditor reads the consent record",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_AUTHS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed recruitment section closes a read the auditor does ship with",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { recruitment: "none" }, SEE_AUTHS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the dispatcher does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "dispatcher", { recruitment: "view" }, SEE_AUTHS)).rows[0].n === 1,
+);
+
+// The `driver` disjunct sits OUTSIDE the wrapper on purpose (0295's header): half of what a consent
+// record is for is the person who gave it being able to check what it bought, and no org may
+// configure that away. Narrowing recruitment to `none` must therefore leave it alone.
+//
+// ⚠ `auth_driver_id()` resolves `drivers.user_id` for an ACTIVE driver in the caller's org, and the
+// seeded row was created without one. Bind it to HAULER's login first: without this the driver sees
+// zero rows because they are nobody's driver, and the assertion would report the section gate
+// closing a read that the driver-scope policy had already closed for an unrelated reason.
+await db.query(`update drivers set user_id = $1 where id = $2`, [HAULER, DRIVER_ID]);
+ok(
+  "the driver fixture is real — the bound driver reads their own consent with no override at all",
+  (await asUserWith(HAULER, ORG, "driver", null, SEE_AUTHS)).rows[0].n === 1,
+);
+// ⚠ Measured, so the next reader does not over-read this assertion: the driver's read survives a
+// narrowing through TWO independent mechanisms — the disjunct's placement outside the wrapper, and
+// `auth_section_or_default`'s D-PERM8 branch, which short-circuits `driver` to the default. Mutating
+// either ALONE leaves this green; only removing both closes the read. So this pins the BEHAVIOUR
+// (an org cannot configure away somebody's sight of their own consent) and not the placement, and
+// the placement stays as it is on the defensive argument in 0295's header rather than because a
+// test would catch its loss.
+ok(
+  "a narrowed recruitment section does NOT close the driver's read of their own consent",
+  (await asUserWith(HAULER, ORG, "driver", { recruitment: "none" }, SEE_AUTHS)).rows[0].n === 1,
+);
+
+// ── the two tables whose section is not their module's (0295, TABLE_SECTIONS) ─
+// `psp_requests` is written by the `psp` module, whose section default is `safety`, and is gated on
+// `recruitment`. Asserting BOTH halves is the point: the recruitment override must bind it, and a
+// safety override must not — otherwise the TABLE_SECTIONS entry would be decoration.
+await db.query(
+  `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body)
+   values ($1, $2, 'REF-P4B3', 'KEY-P4B3', '{}'::jsonb)`,
+  [ORG, DRIVER_ID],
+);
+const SEE_PSP = `select count(*)::int as n from psp_requests`;
+
+ok(
+  "with no override an auditor reads the PSP ledger",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_PSP)).rows[0].n === 1,
+);
+ok(
+  "narrowing RECRUITMENT closes the PSP ledger — the section its role list derives from",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { recruitment: "none" }, SEE_PSP)).rows[0].n === 0,
+);
+ok(
+  "…while narrowing SAFETY does not, though `psp` is the safety module — section ≠ module",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { safety: "none" }, SEE_PSP)).rows[0].n === 1,
+);
+
+// `seven_day_statements` is the mirror image: written by the `recruiting` module, gated on `roster`,
+// because recording one takes the employment-lifecycle roles and that helper IS
+// canManageSection(role, "roster").
+const STATEMENT = `insert into seven_day_statements (org_id, driver_id, statement_date, days,
+                                                     last_relieved_at, signed_name, signed_on)
+                   values ($1, $2, current_date, $3::jsonb, now(), 'P4 Tester', current_date)`;
+// `seven_day_statements_days_shape` requires exactly seven entries — the statement is a record of
+// seven days, so a shorter fixture is not a smaller version of one, it is a different thing.
+const SEVEN_DAYS = JSON.stringify(Array.from({ length: 7 }, (_, i) => ({ date: `2026-08-0${i + 1}`, hours: 8 })));
+
+ok(
+  "with no override a safety manager still records a seven-day statement",
+  await wrote(DISPATCHER, ORG, "safety_manager", null, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS]),
+);
+ok(
+  "narrowing ROSTER closes it — the section its role list derives from",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { roster: "none" }, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS])),
+);
+ok(
+  "…while narrowing RECRUITMENT does not, though `recruiting` is its module — section ≠ module",
+  await wrote(DISPATCHER, ORG, "safety_manager", { recruitment: "none" }, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS]),
+);
+
+// ── maintenance, at both levels ──────────────────────────────────────────────
+// Maintenance manage is [admin, fleet_manager, technician]; view adds the auditor and the
+// accountant. The technician is the role D-AVI11 added for exactly one section, so narrowing it is
+// the sharpest test of the section actually binding.
+const INSPECTOR = `insert into maintenance_inspectors (org_id, full_name, qualification_basis, effective_from)
+                   values ($1, 'A Wrench', 'training_and_experience', current_date)`;
+
+ok(
+  "with no override a technician still registers an inspector",
+  await wrote(DISPATCHER, ORG, "technician", null, INSPECTOR, [ORG]),
+);
+ok(
+  "an org that takes maintenance away from its technicians is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "technician", { maintenance: "none" }, INSPECTOR, [ORG])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only technician cannot register one either",
+  !(await wrote(DISPATCHER, ORG, "technician", { maintenance: "view" }, INSPECTOR, [ORG])),
+);
+ok(
+  "an org that grants maintenance to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { maintenance: "manage" }, INSPECTOR, [ORG]),
+);
+
+await db.query(
+  `insert into maintenance_inspectors (org_id, full_name, qualification_basis, effective_from)
+   values ($1, 'Seeded Wrench', 'state_federal_program', current_date)`,
+  [ORG],
+);
+const SEE_INSPECTORS = `select count(*)::int as n from maintenance_inspectors`;
+
+ok(
+  "with no override an accountant reads the inspector register (repair spend is their ledger)",
+  (await asUserWith(DISPATCHER, ORG, "accountant", null, SEE_INSPECTORS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed maintenance section closes a read the accountant does ship with",
+  (await asUserWith(DISPATCHER, ORG, "accountant", { maintenance: "none" }, SEE_INSPECTORS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the recruiter does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { maintenance: "view" }, SEE_INSPECTORS)).rows[0].n === 1,
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
