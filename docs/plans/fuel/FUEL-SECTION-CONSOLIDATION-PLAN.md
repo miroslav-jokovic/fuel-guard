@@ -1037,6 +1037,57 @@ line as caution, or never toning a stale one.
 why that suite pins queries and page counts rather than glyphs. What is pinned there is that the
 document asks the right question of the right rows; the wording is pinned in `packages/shared`.
 
+#### — SECOND BULLET, FEED HALF, SHIPPED 2026-09-02 (`claude/fuel-feed-freshness`). T5 stays OPEN.
+
+**What shipped.** `describeFeedFreshness` in `@silvicom/shared`, `GET /api/fueling/feed-freshness`, and
+a `FeedFreshnessLine` above the filters on **Transactions** and **Rejections**. Those two pages render
+EFS's own rows verbatim, so neither can show a WRONG row — only a missing one, and a stopped poller
+reads exactly like a quiet week.
+
+**⚠ THE PLAN NAMED THE WRONG COLUMN, and using it would have produced the confident lie this step
+exists to remove.** T5 says the poll time comes "from `posted_last_polled_at` / `rejected_last_polled_at`".
+`recordFeedFailure` stamps those **on failure too**, alongside the error text; only `recordFeedSuccess`
+sets `*_last_success_at` and clears `*_last_error`. So a feed EFS has refused for two days still carries
+a poll stamp from three minutes ago, and a line built on it would read *"purchases last arrived 3
+minutes ago"* while nothing had arrived at all. **The SUCCESS stamp is the source**; the poll stamp is
+used only to tell one state from another.
+
+**Three states, because they need three different actions** — never collected (unconfigured; waiting
+achieves nothing), running but refused (a credential or certificate, which no "last seen" timestamp can
+express), and late (may resolve itself). A fourth, *polled with nothing to send*, is explicitly NOT an
+alarm.
+
+**"Late" is a multiple of each feed's own promised cadence**, read from `EFS_SOAP_POSTED_POLL_MINUTES`
+(15) and `EFS_SOAP_REJECTED_POLL_MINUTES` (5) — measured from `efsSoapPoller.ts`, not from this plan. A
+fixed hour would call the rejected feed healthy after twelve missed passes.
+
+**Not the admin route, and nothing extra crosses the boundary.** `/efs-soap/config` is
+`requireRole("admin")` and returns endpoint, username, TLS metadata and cursors. This is
+`requireSection("fuel", "view")` — the reader of a short list is exactly who needs to know why it is
+short — and it returns two sentences and four timestamps. **The vendor error text is reduced to a
+boolean at the handler**: it can name a username or a certificate subject, and "it is refused" is the
+whole of what a fuel reader can act on.
+
+**Verified by:** `feedFreshness.test.ts` in `packages/shared` (11) — `reads the SUCCESS stamp, never the
+poll stamp — a failing feed is polled constantly`; `calls a refused feed FAILING rather than late — one
+needs a fix, the other needs patience`; `separates 'the vendor had nothing to send' from 'we never
+asked'`; `scales 'late' to each feed's own cadence`. In `apps/api` (8) — `refuses a driver, who is the
+subject of this data rather than its reader`; `never leaks the vendor error text, the endpoint, or a
+cursor`; `selects only the six freshness columns`. In `apps/web` (5).
+
+**Proved able to fail by twelve mutations.** ⚠ **Two initially passed, and both were leak assertions
+that could not fail** — the deny-list on the select string passes for `select("*")` (the string `"*"`
+contains none of the forbidden names while fetching all of them), and the "no vendor text" check could
+not fail because `FeedFreshness` has no error field to leak through. The first is now an ALLOW-LIST on
+the exact six columns; the second also asserts the response's key set, so a future field carrying vendor
+text fails here rather than in production.
+
+**⚠ STILL NOT DONE, and T5 stays open for it:** *share attributed to a vehicle* on all four pages, and
+the Fuel Log's line entirely. Both need a window-wide aggregate — `fuel_range_totals` (0289) returns
+`fills` but not "fills naming a truck", and Transactions/Rejections key on a text `unit` rather than a
+`vehicle_id` — so both need a migration. Deferred deliberately while the permissions work is claiming
+migration numbers. And the **Cards** page's third fact is still under-specified (HANDOFF-2026-09-02 §5).
+
 ---
 
 ## Phase P — parity

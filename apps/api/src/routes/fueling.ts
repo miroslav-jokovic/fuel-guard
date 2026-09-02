@@ -6,6 +6,7 @@ import { registerStatementRoutes } from "../modules/fuel-spend/index.js";
 import { registerDiscountRuleRoutes } from "../modules/fuel/index.js";
 import { registerSpendRoutes } from "../modules/fuel-spend/index.js";
 import { registerExceptionRoutes } from "../modules/fuel-spend/index.js";
+import { registerFeedFreshnessRoutes } from "../modules/efs/index.js";
 
 /**
  * Fueling / route-planning routes, assembled from cohesive modules (P2 split — was one 546-line file):
@@ -28,5 +29,8 @@ export function fuelingRouter(): Router {
   registerStationRoutes(router);
   registerSpendRoutes(router);
   registerExceptionRoutes(router);
+  // A7 / FUEL-T5 — when each EFS feed last delivered. Mounted here rather than on the admin-only
+  // integration router because its readers are the ones looking at Transactions and Rejections.
+  registerFeedFreshnessRoutes(router);
   return router;
 }

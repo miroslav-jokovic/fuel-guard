@@ -25,4 +25,5 @@ export { buildIngestSource } from "./services/efsAutoIngest.js";
 export { ingestReport } from "./services/efsIngest.js";
 export { previewReport, type ReportPreview } from "./services/efsPreview.js";
 export { registerEfsSoapIntegrationRoutes } from "./routes/integrationSoap.js";
+export { registerFeedFreshnessRoutes, type FeedFreshnessResponse } from "./routes/feedFreshness.js";
 export { registerEfsSoapCertRoutes } from "./routes/integrationSoapCerts.js";

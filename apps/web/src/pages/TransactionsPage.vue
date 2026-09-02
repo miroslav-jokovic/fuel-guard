@@ -8,6 +8,7 @@ import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
@@ -107,6 +108,11 @@ const columns: DataTableColumn[] = [
 <template>
   <div class="space-y-6">
     <PageHeader description="Every line from your uploaded EFS Transaction reports, exactly as received." />
+
+    <!-- A7 / FUEL-T5. These rows are EFS's own, so this page cannot show a wrong one — only a
+         missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
+         a reader meets it before drawing a conclusion from a short list. -->
+    <FeedFreshnessLine feed="posted" />
 
     <DataWorkspace>
     <FilterBar
