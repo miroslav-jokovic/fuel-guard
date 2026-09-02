@@ -551,6 +551,50 @@ to observe until the scheduler process runs it. S6 is where that is measured.
 **Done when.** `samsara_recon_status is null` approaches zero for the period Samsara still serves, and
 whatever remains is *reported* per month rather than left as an unexplained gap.
 
+#### — THE OPENING MEASUREMENT, taken 2026-09-02 in production. S4 stays OPEN; this answers what it opens with.
+
+S3 said the wall-clock of one tick was **not** measured and that S4's real question had become "do we
+raise `SAMSARA_RECON_BATCH`, and what does one tick actually cost". Both are now measured, from the
+`jobs` ledger rather than from a run anybody started.
+
+**The tier has run, and it works.** Two `backfill` ticks, both `done`, both claiming the full batch
+(`stats.batch = 250`, `count = 250`).
+
+| | Measured |
+|---|---|
+| One tick, wall-clock | **112.5 s** and **119.5 s** → ~**0.46 s per fill** |
+| Duty cycle at the 60-minute cadence | **~3.2%** — two minutes of every hour |
+| Fills reconciled in those two hours | **249** and **244** |
+| The same figure BEFORE the tier deployed | **2 and 3 per hour** (the side-effect-of-scoring path) |
+| Backlog remaining (`samsara_recon_at is null`, fills with a vehicle) | **10,815** of 14,514 |
+
+**So the answer to S4's question is that runtime is not the constraint — the batch size is.** At 250/h
+the hole drains in ~43 hours; at 1,000 it costs ~8 minutes a tick (13% duty) and drains in ~11 hours;
+at 2,500, ~19 minutes (32%) and ~4 hours. **The number that decides it is not wall-clock, it is how
+much of the Samsara backfill lane we are willing to spend** — see **Q-SAM6**.
+
+**⚠ And check 1 needs qualifying: the history is NOT uniformly available, and the shortfall is at the
+oldest edge.** §0.5 sampled 8 vehicles and concluded "the whole gap is recoverable". At full-fleet
+scale that holds for recent months and does not for January:
+
+| Fill month | Attempted | `no_data` | Still to do |
+|---|---|---|---|
+| 2026-01 | 733 | **79 — 10.8%** | 1,299 |
+| 2026-02 | 23 | 3 | 1,396 |
+| 2026-03 | 0 | — | **2,004** |
+| 2026-04 | 0 | — | 1,134 |
+| 2026-05 | 272 | **0** | 1,340 |
+| 2026-06 | 0 | — | **1,951** |
+| 2026-07 | 0 | — | 1,670 |
+| 2026-08 | 1,541 | **10 — 0.6%** | 20 |
+| 2026-09 | 65 | 1 | 1 |
+
+The oldest-first claim is why January dominates the attempted column, and why the ~13% `no_data` seen
+in the raw hourly figures is a **January artifact rather than a fleet rate** — August is 0.6%. This is
+exactly the per-month reporting the Done-when asks for, and it means S4 should expect a floor of a few
+hundred permanently-unrecoverable January/February fills rather than zero. **"Approaches zero" has to
+mean "approaches the reported floor", or S4 can never be marked done honestly.**
+
 ### S5 · Freshness becomes a number with a threshold
 
 **Prerequisites:** S2, S3. **Needs Q-SAM1 answered** for the targets; ships the mechanism regardless,
@@ -588,6 +632,7 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
 | **Q-SAM2** | **Do we handle the five `RouteStop*` events or unsubscribe them?** They imply a dispatch/ETA feature nobody has asked for. Handling them is real work; leaving them is a permanent 404 generator against our own endpoint. | Miki | Unsubscribe. An event type with no handler is not a feature. |
 | **Q-SAM3** | **What is the `Fleetpal Webhook` on this account, and is it ours to touch?** It receives `VehicleCreated`/`VehicleUpdated`/`DvirSubmitted` at a third-party URL. `ARCHITECTURE.md` names a future `fleetpal` collector, so this may be a live integration outside this codebase. | Miki | Left strictly alone. Nothing in this plan modifies a webhook we did not create. |
 | **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | S1 fixes the path on the service already configured and changes no deployment topology. |
+| **Q-SAM6** | **NEW, 2026-09-02, raised by S4's opening measurement.** **How much of the Samsara backfill lane may the recon tier spend?** One tick costs 112–120 s for 250 fills — **3.2% of its hour** — so the 43-hour drain is a `SAMSARA_RECON_BATCH` choice, not a runtime limit. **1,000** costs ~8 min/tick (13% duty) and drains in ~11 h; **2,500** costs ~19 min (32%) and drains in ~4 h. What it trades against is the live lane: the backfill priority gets `1 − SAMSARA_LIVE_RPS_FRACTION` of `SAMSARA_MAX_RPS`, and the measured 2.2 fills/s is well inside it, so the ceiling is a policy about vendor load and shared pacing rather than a technical one. **Recommendation: 1,000.** It clears the hole inside a working day, keeps the tier under one sixth of its window so a slow tick cannot overrun the next, and leaves the live lane the majority share it was given on purpose. | Miki | Stays at 250. The hole still closes — in ~43 hours rather than ~11 — and nothing is at risk, so this is a speed decision and not a correctness one. |
 | **Q-SAM5** | **NEW, 2026-09-01, raised by S2 merge 1.** **Where does an intermediate sample go?** S2's Done-when asks that "a value that changes twice between two polls produces two records rather than one", but the stats tier's only sink is `vehicles.current_odometer` / `samsara_fuel_percent` — one current value per truck, last-sample-wins. **The feed's completeness is real and lands nowhere.** Three candidates: **(a)** file the intermediate *fuel-level drops* into `fuel_events`, whose `fuel_pct_before` / `fuel_pct_after` columns have sat unused since 0021 and were plainly designed for exactly this, gated on the learned-reliable sensor the way `ruleEligible` already gates `tank_fill_short`, and sized against `resolveCapacity` rather than a new blanket threshold; **(b)** a general per-vehicle telematics sample store — honest but expensive, ~195 vehicles at telematics ping rates, and it duplicates what `stats/history` already serves S4; **(c)** accept that the cursor buys *guaranteed delivery of the latest value* and nothing more, and strike the Done-when. **Recommendation: (a).** It is the only one that makes the Done-when literally true, it reuses two learners the product already paid for instead of inventing a threshold, and it is D-SAM2's own words — the cursor feed sitting *underneath* the webhook as the reconciler that makes completeness a property rather than a hope. ⚠ Note `fuel_events` is operator-facing: it renders on `/fuel-events` and is counted as "Siphoning" in the weekly digest, so (a) must **not** reuse the webhook's `notifyFuelDrop` path, and its suppressed-by-gate count must be reported into the `jobs` ledger so S6 can measure what the gate cost. | Miki | ~~open~~ **ANSWERED 2026-09-01: (a).** Merge 2 ships the cursor, the endpoint swap, and the feed-derived `fuel_events` sink under the reliability gate. |
 
 ---
