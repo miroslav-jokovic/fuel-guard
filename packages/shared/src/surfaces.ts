@@ -196,10 +196,12 @@ export const SURFACES: readonly Surface[] = [
   { key: "admin.settings", label: "Settings", path: "/settings", group: "admin", gate: section("settings") },
   { key: "admin.users", label: "Users", path: "/settings/users", group: "admin", gate: ADMIN },
 
-  // ── detail routes: never in the sidebar, never separately grantable (D-SURF8) ─────────────────
-  // They carry no `label` in the nav because they carry no nav entry; they exist so S2's guard can
-  // resolve `/loads/:id` to the permission its list surface already states. `parent` is what makes
-  // "deny Loads" also deny the load a bookmark points at.
+  // ── NON-NAV surfaces: never in the sidebar, never separately grantable (D-SURF8) ──────────────
+  // A `parent` means "this screen is reached from another one and shares its grant". They exist so
+  // the router guard can resolve `/loads/:id` — or `/settings/data` — to a permission, which is what
+  // makes "deny Loads" also deny the load a bookmark points at. They carry their OWN gate, because a
+  // child is not always the parent's level: `/settings` asks `view` and `/settings/data` asks
+  // `manage`, and inheriting the gate rather than stating it would quietly widen the second.
   { key: "dispatch.loads.detail", label: "Load", path: "/loads/:id", group: "dispatch", gate: section("dispatch"), module: "dispatch", parent: "dispatch.loads" },
   { key: "fleet.drivers.detail", label: "Driver", path: "/drivers/:id", group: "fleet", gate: section("roster"), parent: "fleet.drivers" },
   { key: "safety.driver-qualification.detail", label: "Driver Qualification", path: "/compliance/:id", group: "safety", gate: section("roster"), parent: "safety.driver-qualification" },
@@ -207,6 +209,40 @@ export const SURFACES: readonly Surface[] = [
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
+
+  // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
+  { key: "dispatch.loads.new", label: "New Load", path: "/loads/new", group: "dispatch", gate: manage("dispatch"), module: "dispatch", parent: "dispatch.loads" },
+  { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), parent: "admin.settings" },
+  // `roster` and not `settings`: this console decides what DRIVERS see, and `driverAppSettings.ts`
+  // gates on rolesThatManage("roster"). The card, the route and the endpoint ask one question —
+  // before R0 all three asked the same global boolean and agreed by accident rather than by design.
+  { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), parent: "admin.settings" },
+
+  /**
+   * ── the reporting and detection-health screens, which had NO route gate at all ────────────────
+   * Reached from the "Reports & detection health" cards on the settings page, which show on
+   * `session.can("settings") || session.readOnly`. That expression resolves to exactly
+   * [admin, fleet_manager, auditor] — which IS `rolesThatCanView("settings")`, because the auditor is
+   * the only `readOnly` role and the only one holding `settings: "view"` without `manage`. So this is
+   * a transcription of the card's own gate, not a new opinion about who may read a report.
+   *
+   * ⚠ It IS a narrowing at the URL: today any staff role can type `/reports` and get the page. That
+   * is the 28-route defect wearing different clothes — the card is hidden and the address still
+   * works — and closing it is what this step is for.
+   */
+  { key: "admin.reports", label: "Reports", path: "/reports", group: "admin", gate: section("settings"), parent: "admin.settings" },
+  { key: "admin.coverage", label: "Detection coverage", path: "/coverage", group: "admin", gate: section("settings"), parent: "admin.settings" },
+  { key: "admin.reefer-coverage", label: "Reefer coverage", path: "/reefer-coverage", group: "admin", gate: section("settings"), parent: "admin.settings" },
+  { key: "admin.recall-audit", label: "Recall audit", path: "/recall-audit", group: "admin", gate: section("settings"), parent: "admin.settings" },
+
+  /**
+   * The hazmat evidence workspace — reached from the dispatch load and from the review queue, never
+   * from a board of its own. Ungated at the route today; it takes the same gate as the review queue
+   * it is opened from, which under Q-SURF2 is still `staff` + the module rather than the `hazmat`
+   * section. ⚠ Adding the module IS a narrowing for an org that never bought HazmatGuard — the API
+   * already refuses those calls via `requireModule`, so this stops a page mounting only to 403.
+   */
+  { key: "safety.hazmat-load.detail", label: "Hazmat Load", path: "/hazmat/loads/:id", group: "safety", gate: STAFF, module: "hazmatguard", parent: "safety.hazmat-review" },
 ];
 
 /** The surfaces that render in the sidebar — everything except the detail routes (D-SURF8). */
@@ -220,14 +256,18 @@ export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent 
  */
 export const isEditableSurface = (s: Surface): boolean => s.gate.kind === "section";
 
-/** Does this caller pass the surface's gate, given their role, overrides and the org's modules? */
-export function canReachSurface(
-  s: Surface,
-  role: UserRole | null,
-  modules: ModuleSet | null,
-  sections: SectionClaim | null = null,
-): boolean {
-  if (s.module && !moduleEnabled(modules, s.module)) return false;
+/**
+ * The ROLE half of a surface's gate — does this caller's role (as the org may have re-answered it)
+ * reach this screen? Deliberately separate from the module half, because the two are known at
+ * different times: a role is in the token, and the org's modules arrive from a query.
+ *
+ * The router guard uses THIS one. It runs before any component mounts, and the modules query may not
+ * have resolved yet — `moduleEnabled(null, …)` is `false`, so a guard that also checked modules would
+ * bounce a hard refresh of `/loads` to the dashboard for reasons that have nothing to do with
+ * permissions. Module entitlement is enforced where it can be known: the sidebar (which has the
+ * query) and the API (`requireModule`, which has the org).
+ */
+export function surfaceGateAllows(s: Surface, role: UserRole | null, sections: SectionClaim | null = null): boolean {
   switch (s.gate.kind) {
     // No role requirement whatsoever — see the SurfaceGate comment for why this is not `staff`.
     case "always":
@@ -243,6 +283,17 @@ export function canReachSurface(
         ? callerCanManage(role, s.gate.section, sections)
         : callerCanView(role, s.gate.section, sections);
   }
+}
+
+/** Both halves — the role gate AND the org's modules. The sidebar uses this one. */
+export function canReachSurface(
+  s: Surface,
+  role: UserRole | null,
+  modules: ModuleSet | null,
+  sections: SectionClaim | null = null,
+): boolean {
+  if (s.module && !moduleEnabled(modules, s.module)) return false;
+  return surfaceGateAllows(s, role, sections);
 }
 
 /** The surface a declared route path belongs to, or undefined if the route is not catalogued. */

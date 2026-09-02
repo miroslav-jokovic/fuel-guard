@@ -677,7 +677,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "fuel",
       "title": "Fuel Spend",
     },
     "name": "fuel-spend",
@@ -767,7 +766,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "fuel",
       "title": "Import EFS Report",
     },
     "name": "import",
@@ -796,7 +794,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "dispatch",
       "title": "New Load",
     },
     "name": "load-new",
@@ -941,7 +938,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresView": "settings",
       "title": "Settings",
     },
     "name": "settings",
@@ -974,7 +970,6 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
-      "requiresManage": "settings",
       "title": "Data & Sync",
     },
     "name": "data-sync",
@@ -985,7 +980,6 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
-      "requiresManage": "roster",
       "title": "Driver App",
     },
     "name": "driver-app-settings",

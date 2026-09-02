@@ -4,10 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * The navigation guard's SECTION gates — `requiresManage` and the `requiresView` added 2026-09-02.
  *
  * Written because nothing drove the guard before. `routeTable.test.ts` pins which component a URL
- * resolves to, and `check-capabilities.mjs` pins that a meta names a real section, but neither one
- * ever asked the question a permission check exists to answer: *does this role get in?* That gap is
- * how `/settings` shipped gated at `manage` while its sidebar entry asked `view` — the two halves
- * disagreed for as long as both existed, and no test could tell.
+ * resolves to, and `check-surfaces.mjs` pins that every authenticated route is catalogued, but
+ * neither one ever asks the question a permission check exists to answer: *does this role get in?*
+ * That gap is how `/settings` shipped gated at `manage` while its sidebar entry asked `view` — the
+ * two halves disagreed for as long as both existed, and no test could tell.
+ *
+ * Since S2 the guard reads the SURFACE CATALOGUE rather than a per-route meta, so these assertions
+ * are now also the test that the catalogue's gates are the ones the product enforces. The 28 routes
+ * below had NO route gate at all before that change: their sidebar entry was hidden and the URL
+ * still worked.
  *
  * ⚠ The mocked session is deliberately the REAL shape: `can` is manage-only and `canView` is
  * view-or-manage, exactly as `stores/session.ts` derives them from the shared matrix. A mock that
@@ -100,5 +105,60 @@ describe("the section gates on the navigation guard", () => {
 
   it("still sends a driver to the driver app whatever they ask for", async () => {
     expect(await landsOn("driver", "/settings")).toBe("driver-app");
+  });
+
+  // ── S2: the 28 routes whose menu entry was hidden while the URL still worked ─────────────
+  // One per section, at the level the catalogue states, in both directions. The `landsOn`
+  // expectation is the ROUTE NAME, so "dashboard" means the guard turned them away.
+  const CLOSED: Array<[string, string, string, string]> = [
+    // path,                   section    a role that HOLDS it,  a role that does NOT
+    ["/transactions", "fuel", "auditor", "recruiter"],
+    ["/ifta", "fuel", "accountant", "recruiter"],
+    ["/loads", "dispatch", "dispatcher", "recruiter"],
+    ["/truck-stops", "dispatch", "auditor", "recruiter"],
+    ["/anomalies", "safety", "safety_manager", "technician"],
+    ["/driver-performance", "safety", "auditor", "technician"],
+    ["/drivers", "roster", "recruiter", "technician"],
+    ["/compliance", "roster", "safety_manager", "accountant"],
+    ["/vehicles", "equipment", "technician", "recruiter"],
+    ["/trailers", "equipment", "dispatcher", "recruiter"],
+    ["/recruitment", "recruitment", "recruiter", "dispatcher"],
+    ["/recruitment/inquiries", "recruitment", "auditor", "technician"],
+    ["/accounting", "accounting", "accountant", "dispatcher"],
+    ["/billing", "billing", "accountant", "fleet_manager"],
+    ["/shop", "maintenance", "technician", "dispatcher"],
+    ["/shop/inspectors", "maintenance", "accountant", "recruiter"],
+  ];
+  for (const [path, sec, allowed, denied] of CLOSED) {
+    it(`${path} (${sec}) admits ${allowed} and turns away ${denied}`, async () => {
+      expect(await landsOn(allowed, path)).not.toBe("dashboard");
+      expect(await landsOn(denied, path)).toBe("dashboard");
+    });
+  }
+
+  // ── D-SURF8: a detail route inherits its list surface's grant ────────────────────────────
+  it("a detail route is closed to a role its list surface is closed to", async () => {
+    // `/drivers/:id` had no gate of its own. Denying Drivers must deny the bookmark too, which is
+    // the whole reason a detail route is catalogued with a `parent` rather than left out.
+    expect(await landsOn("recruiter", "/drivers/x")).not.toBe("dashboard");
+    expect(await landsOn("technician", "/drivers/x")).toBe("dashboard");
+    expect(await landsOn("accountant", "/shop/inspections/x")).not.toBe("dashboard");
+    expect(await landsOn("recruiter", "/shop/inspections/x")).toBe("dashboard");
+  });
+
+  it("the reporting screens now ask what their settings card always asked", async () => {
+    // `/reports` and its three siblings had no route gate. Their card on the settings page shows on
+    // `can("settings") || readOnly`, which resolves to exactly rolesThatCanView("settings").
+    for (const p of ["/reports", "/coverage", "/reefer-coverage", "/recall-audit"]) {
+      expect(await landsOn("auditor", p)).not.toBe("dashboard");
+      expect(await landsOn("dispatcher", p)).toBe("dashboard");
+    }
+  });
+
+  it("an uncatalogued authenticated route still resolves — the gate, not the guard, is the net", async () => {
+    // The guard falls through to `true` for a route with no surface, on purpose: failing closed
+    // would turn every waiver in check-surfaces.mjs into a locked-out page. `/settings/audit` is
+    // waived there (admin OR readOnly is not a section) and keeps its own meta.
+    expect(await landsOn("auditor", "/settings/audit")).toBe("audit");
   });
 });

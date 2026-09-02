@@ -1,39 +1,25 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import type { AppSection } from "@silvicom/shared";
+import { surfaceForPath, surfaceGateAllows } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * Route meta, TYPED — added with R0 (D-ROS7).
+ * Route meta, TYPED — added with R0 (D-ROS7), and narrowed by S2.
  *
- * `requiresManage` used to be a bare `true` resolved against one global boolean, and `meta` was
- * untyped, so neither the value nor its absence could be checked. It now names the SECTION the route
- * requires, and typing it on `AppSection` means a misspelled or retired section name is a compile
- * error rather than a route that silently admits everybody — which is the failure mode a permission
- * check must never have.
+ * `requiresManage` and `requiresView` used to name the section a route needed. They are GONE: that
+ * fact now lives once, in `SURFACES` (`packages/shared/src/surfaces.ts`), and the guard below reads
+ * it. Two metas naming a section and a catalogue naming the same section is the restatement D-SURF3
+ * exists to prevent — and the reason it matters is measured: while both existed, 28 routes had a
+ * sidebar entry gated on a section and no route gate at all, and `/settings` had the mismatch
+ * reversed and bounced the one role it was added for.
+ *
+ * What remains here are the gates that are NOT section questions, and so have no catalogue entry to
+ * read: `requiresAdmin` (a role test — D-PERM7 makes the `admin` section ungrantable, so it can
+ * never be answered from the matrix) and `requiresAuditAccess` (admin OR the read-only reviewer).
  */
 declare module "vue-router" {
   interface RouteMeta {
     requiresAuth?: boolean;
     requiresAdmin?: boolean;
-    /** The section whose `manage` access this route needs. */
-    requiresManage?: AppSection;
-    /**
-     * The section this route needs to be READABLE — `view` or `manage`, the question
-     * `canViewSection` asks.
-     *
-     * Added 2026-09-02 for a defect the SURFACE-ENTITLEMENTS-PLAN review measured: 28 routes carry a
-     * sidebar entry gated on `canViewSection(...)` and no route gate at all, and `/settings` carried
-     * the opposite mismatch — gated at `manage` while its sidebar entry asked `view`, so the one role
-     * holding `settings: "view"` without `manage` (the auditor) saw the item and was bounced by the
-     * guard. There was no meta that could express "readable", which is why the mismatch had nowhere
-     * to be written correctly.
-     *
-     * ⚠ This is the SMALL half of that finding. The other 27 routes are not backfilled here on
-     * purpose: SURFACE-ENTITLEMENTS-PLAN.md §5 S1/S2 resolves a route to its section through the
-     * surface catalogue, so hand-writing 27 metas now would be 27 copies of a fact that step makes
-     * derivable. This meta is expected to be SUBSUMED by that guard, not extended to the rest.
-     */
-    requiresView?: AppSection;
     requiresAuditAccess?: boolean;
     title?: string;
     parent?: string;
@@ -120,15 +106,23 @@ router.beforeEach(async (to) => {
   if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
     return { name: "dashboard" };
   if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
-  // `requiresManage` NAMES a section since R0 — it used to be a bare `true` resolved against one
-  // global boolean, which is why /recruitment could never use it without bouncing the recruiter
-  // the section exists for.
-  if (to.meta.requiresManage && !session.can(to.meta.requiresManage)) return { name: "dashboard" };
-  // `requiresView` is the read-level twin, and it must be checked with `canView` rather than `can`:
-  // `can` is manage-only, so resolving a view gate through it would reintroduce the exact bounce
-  // this meta was added to fix.
-  if (to.meta.requiresView && !session.canView(to.meta.requiresView)) return { name: "dashboard" };
   if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly))
     return { name: "dashboard" };
+
+  /**
+   * The section gate, read from the catalogue rather than from a per-route meta (S2, D-SURF3).
+   *
+   * `to.matched[0].path` is the DECLARED path — `/drivers/:id`, not `/drivers/abc` — which is what
+   * the catalogue is keyed on. The route table is flat (no `children`), so `matched[0]` is always
+   * the route itself; a nested table would need `matched.at(-1)` and `lint:surfaces` would catch
+   * the mismatch as an uncatalogued path.
+   *
+   * An uncatalogued route falls through to `true` deliberately. It is NOT a silent hole: the same
+   * gate that checks the catalogue's paths also fails the build on an authenticated route missing
+   * from it, so "not catalogued" is a state that cannot reach main without a waiver saying why.
+   * Failing closed here instead would turn every such waiver into a locked-out page.
+   */
+  const surface = surfaceForPath(to.matched[0]?.path ?? to.path);
+  if (surface && !surfaceGateAllows(surface, session.role, session.sections)) return { name: "dashboard" };
   return true;
 });

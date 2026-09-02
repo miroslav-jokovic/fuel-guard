@@ -32,7 +32,7 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/fuel-spend",
     name: "fuel-spend",
     component: () => import("@/pages/FuelReconciliationPage.vue"),
-    meta: { requiresAuth: true, requiresManage: "fuel", title: "Fuel Spend" },
+    meta: { requiresAuth: true, title: "Fuel Spend" },
   },
   {
     path: "/fuel-spend/exceptions",
@@ -62,7 +62,7 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/import",
     name: "import",
     component: () => import("@/pages/ImportPage.vue"),
-    meta: { requiresAuth: true, requiresManage: "fuel", title: "Import EFS Report" },
+    meta: { requiresAuth: true, title: "Import EFS Report" },
   },
   {
     path: "/transactions",
