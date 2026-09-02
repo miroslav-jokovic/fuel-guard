@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   analyzeContractCapture,
   analyzePolicyExceptions,
+  describeRollupFreshness,
   fuelPolicyFromSettings,
   type FuelPolicy,
   type FuelPolicyRow,
@@ -66,7 +67,7 @@ export async function renderFuelSpendReport(
   input: FuelSpendReportInput,
 ): Promise<{ pdf: Buffer; periods: number; carrier: string; pages: number }> {
   const vehicleIds = input.vehicleIds ?? [];
-  const [days, lines, carrier, units, idle, policy] = await Promise.all([
+  const [days, lines, carrier, units, idle, policy, builtAt] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
     readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
@@ -76,7 +77,12 @@ export async function renderFuelSpendReport(
     // trucks against a fleet-wide baseline would be the more misleading of the two options.
     readFleetIdleVerdict(admin, input.orgId, input.from, input.to),
     readFuelPolicy(admin, input.orgId),
+    readRollupBuiltAt(admin, input.orgId, input.from, input.to, vehicleIds),
   ]);
+  // The same sentence the screen prints, from the same pure function — `readSpendLines` above carries
+  // a scar about exactly this: its query drifted from the page's and the document went on saying "no
+  // fill could be matched to a posted price" while the screen measured 1,201 of them.
+  const freshness = describeRollupFreshness(builtAt, new Date(input.generatedAt));
 
   // The requested window, so an edge bucket is labelled by the days it holds rather than by the
   // calendar week it belongs to — see `spendSeries`.
@@ -111,6 +117,11 @@ export async function renderFuelSpendReport(
         { label: "Reported", value: GRAIN_LABEL[input.grain] },
         { label: "Scope", value: fleet },
         { label: "Fills", value: plural(lines.length, "fill") },
+        // A6 / D-FUI18. On the letterhead rather than in a footnote: a document is forwarded and
+        // quoted back months later, so how current its figures are belongs beside its period, not
+        // below its conclusions. Omitted entirely when the window holds no rows — there is nothing to
+        // qualify, and "built never" is not a fact about freshness.
+        ...(freshness.short ? [{ label: "Figures built", value: freshness.short }] : []),
       ],
     });
 
@@ -250,6 +261,28 @@ function supportLine(
 }
 
 // ── reads ───────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The OLDEST `fuel_spend_days.updated_at` in the window — when the least-recently-derived figure in
+ * this document was last built (FUEL-T5, A6, D-FUI18).
+ *
+ * The rollup rebuilds only the trailing 14 days, so a report reaching further back contains figures
+ * derived once and never re-derived through any correction since. A PDF is the worst place for that to
+ * be invisible: it outlives the session that made it and gets quoted back months later, which is the
+ * same argument the fuel-policy read above already makes about hardcoded constants.
+ *
+ * One ordered row, not a fold over the pages `readSpendDays` walks — the answer is one timestamp.
+ */
+async function readRollupBuiltAt(
+  admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[],
+): Promise<string | null> {
+  const q = admin.from("fuel_spend_days").select("updated_at")
+    .eq("org_id", orgId).gte("day", from).lte("day", to);
+  const { data, error } = await (vehicleIds.length > 0 ? q.in("vehicle_id", vehicleIds) : q)
+    .order("updated_at", { ascending: true }).limit(1);
+  if (error) throw new Error(error.message);
+  return ((data ?? [])[0] as { updated_at?: string } | undefined)?.updated_at ?? null;
+}
 
 async function readSpendDays(admin: SupabaseClient, orgId: string, from: string, to: string, vehicleIds: string[]): Promise<SpendDay[]> {
   const out: SpendDay[] = [];

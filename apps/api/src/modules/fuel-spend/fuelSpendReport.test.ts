@@ -21,6 +21,9 @@ const day = (d: string, i: number, o: Partial<Record<string, unknown>> = {}) => 
   spend_tractor: 500, spend_reefer: 0, spend_def: 0,
   miles: 750, mpg_gallons: 100, miles_rejected: 0,
   drive_sec: 28800, idle_sec: 28800, off_sec: 0, coverage_sec: 86400,
+  // When this truck-day was last DERIVED, not when it happened (A6). The recorder returns one fixture
+  // for every read of a table, so this is what `readRollupBuiltAt` sees too.
+  updated_at: "2026-08-24T05:00:00Z",
   ...o,
 });
 
@@ -210,5 +213,69 @@ describe("renderFuelSpendReport", () => {
   it("falls back to a neutral carrier name rather than printing 'undefined' on a letterhead", async () => {
     const rec = seed({ organizations: { data: null } });
     expect((await render(rec)).carrier).toBe("Carrier");
+  });
+});
+
+/**
+ * A6 / D-FUI18 — the document says when its figures were derived.
+ *
+ * `fuel_spend_days` rebuilds only the trailing 14 days, so a report reaching further back prints
+ * figures built once and never re-derived through any correction since. A PDF is the worst place for
+ * that to be invisible: it is forwarded, and quoted back months later, by which time nobody can tell
+ * whether a number was current when it was written.
+ *
+ * ⚠ The rendered SENTENCE cannot be asserted here — pdfkit compresses its content streams, which is
+ * why this suite pins queries and page counts rather than glyphs (see the note above). The wording is
+ * `describeRollupFreshness`'s, tested in `packages/shared`; what is testable HERE is that the document
+ * asks the right question, of the right rows, scoped to the right carrier.
+ */
+describe("renderFuelSpendReport — how current its figures are", () => {
+  /** The build-stamp read: the only `fuel_spend_days` query that selects `updated_at`. */
+  const buildStampQuery = (rec: SupabaseRecorder) =>
+    rec.queries.find(
+      (q) => q.table === "fuel_spend_days" &&
+        q.ops.some((o) => o.method === "select" && String(o.args[0]).includes("updated_at")),
+    );
+
+  it("asks when the oldest row in the window was built — ordered ascending, one row", async () => {
+    const rec = seed();
+    await render(rec);
+    const q = buildStampQuery(rec)!;
+    expect(q).toBeDefined();
+    // Ascending + limit 1 IS the "oldest" — a window straddling the rebuild boundary holds rows built
+    // last night and rows built weeks ago, and only the oldest is a promise about all of them.
+    expect(q.ops.some((o) => o.method === "order" && o.args[0] === "updated_at" &&
+      (o.args[1] as { ascending?: boolean })?.ascending === true)).toBe(true);
+    expect(q.ops.some((o) => o.method === "limit" && o.args[0] === 1)).toBe(true);
+  });
+
+  it("windows the build stamp on the same days as the figures it qualifies", async () => {
+    const rec = seed();
+    await render(rec);
+    const q = buildStampQuery(rec)!;
+    expect(q.ops.some((o) => o.method === "gte" && o.args[0] === "day" && o.args[1] === "2026-08-10")).toBe(true);
+    expect(q.ops.some((o) => o.method === "lte" && o.args[0] === "day" && o.args[1] === "2026-08-24")).toBe(true);
+  });
+
+  it("narrows with the truck filter — a build stamp from a truck the reader excluded is not their answer", async () => {
+    const rec = seed();
+    await renderFuelSpendReport(rec.client, {
+      orgId: ORG, from: "2026-08-10", to: "2026-08-24", grain: "week",
+      generatedAt: "2026-08-25T05:00:00Z", vehicleIds: ["v1", "v2"],
+    });
+    const q = buildStampQuery(rec)!;
+    expect(q.ops.some((o) => o.method === "in" && o.args[0] === "vehicle_id")).toBe(true);
+  });
+
+  // Org scope is NOT re-asserted here: `scopes every tenant query to one organization` above already
+  // walks every query this render makes, so the build-stamp read is covered the moment it exists. A
+  // second copy would pass for the same reason and add a place for the exemption list to drift.
+
+  it("still renders when the window holds no rows — there is simply nothing to qualify", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { fuel_spend_days: [], fuel_transactions: [], organizations: { data: { name: "Silvicom Inc" } } },
+    });
+    const { pdf } = await render(rec);
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });

@@ -995,6 +995,48 @@ green: `pnpm test`, `typecheck`, `lint`, `build`, `lint:ui-adoption`, `lint:ui-c
 
 **Done when.** No figure in the section reads as a claim about everything without saying what it covers.
 
+#### — FIRST BULLET SHIPPED 2026-09-02 (`claude/fuel-spend-freshness`). T5 stays OPEN for the other two.
+
+**What shipped.** `describeRollupFreshness` in `@silvicom/shared`, and both spend surfaces print from
+it: a line above the tabs on Fuel Reconciliation, and a **"Figures built"** row on the spend PDF's
+letterhead. A6 / D-FUI18 closed.
+
+**Why the OLDEST build in the window, not the newest.** A window straddling the 14-day rebuild boundary
+holds rows built last night AND rows built in August. The newest would describe the freshest corner of
+the answer and flatter the rest; the average would describe nothing that exists. **Only the oldest is a
+promise** — every figure here is at least this current. Same argument `readSamsaraWebhookStatus` makes
+about an all-time denominator.
+
+**One derivation, two surfaces, on purpose.** `fuelSpendReport.ts` already carries a scar about exactly
+this: its price-line query drifted from the screen's, so the document said "no fill could be matched to
+a posted price" while the page beside it measured 1,201 of them. Both now call one pure function.
+
+**Only the warning form is toned.** A rebuild that happened yesterday is context, not an alert; touching
+every freshness line with the caution colour is how a caution colour stops meaning anything.
+
+**Two things deliberately NOT done.** The rebuild policy itself is untouched — A6 is a labelling fix and
+whether `REBUILD_DAYS` should change is **Q-FUI9**, the owner's. And `oldestBuildAt`, written as a fold
+helper, was **deleted before merge**: the query does the ordering (`order by updated_at asc limit 1`),
+so it was tested-but-unused code, which is the dead-code smell this plan complains about elsewhere.
+
+**Verified by:** `rollupFreshness.test.ts` (7) — `changes what it says, not just the number, once the
+build predates the rebuild window`; `keeps the warning in the compact form the PDF's meta block prints`;
+`floors the age rather than rounding it`; `never reports a negative age when a row was built in the
+future`. `useSpendFreshness.test.ts` (7) — `takes the OLDEST build in the window, not the newest`;
+`narrows with the truck filter`; `asks about the whole fleet when no truck is chosen, rather than about
+none of it`. `fuelSpendReport.test.ts` (+4) and `FuelReconciliationPage.test.ts` (+3).
+
+**Proved able to fail by fourteen mutations** across the four layers, each breaking one to two
+assertions: `>=` for the stale threshold; rounding the age; dropping the warning from the compact form;
+allowing a negative age; the PDF asking for the newest build, ignoring the truck filter, or windowing on
+nothing; the web query taking the newest, ignoring the truck filter, dropping the day window, or
+narrowing to no trucks when the fleet is unfiltered; the page never rendering the line, toning every
+line as caution, or never toning a stale one.
+
+**⚠ The PDF's rendered sentence CANNOT be asserted** — pdfkit compresses its content streams, which is
+why that suite pins queries and page counts rather than glyphs. What is pinned there is that the
+document asks the right question of the right rows; the wording is pinned in `packages/shared`.
+
 ---
 
 ## Phase P — parity

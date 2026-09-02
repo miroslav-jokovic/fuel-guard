@@ -16,6 +16,7 @@ import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useBuyFillsQuery } from "@/features/reconcile/useBuyFills";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
+import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -72,6 +73,16 @@ const truckOptions = computed(() =>
 );
 
 const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value }));
+
+/**
+ * How current the spend rollup is for THIS window (FUEL-T5, A6, D-FUI18).
+ *
+ * `fuel_spend_days` rebuilds only the trailing 14 days, so a window reaching further back shows figures
+ * derived once and never re-derived through any correction since — 29,114 production rows all built
+ * inside one week in August. Every number on the tabs below is a claim about how things stood when the
+ * rollup last ran, and until now nothing said when that was.
+ */
+const freshness = useSpendFreshnessQuery(queryFilters);
 
 // ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
 const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(queryFilters);
@@ -218,6 +229,18 @@ const stateNote = computed(() => {
       class="rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100"
     >
       {{ f.windowNotice.value }}
+    </p>
+
+    <!-- WHEN the figures below were derived, above the figures rather than under them (T5). A stale
+         rollup is not a smaller number, it is an older one, and a reader cannot infer it from anything
+         on screen. Only the warning form gets a tone: a fresh rebuild is context, not an alert. -->
+    <p
+      v-if="freshness.data.value?.lead && tab !== 'reconcile'"
+      :class="freshness.data.value.stale
+        ? 'rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100'
+        : 'text-xs text-ink-tertiary'"
+    >
+      {{ freshness.data.value.lead }}
     </p>
 
     <!-- How much of this window the page can speak about, in one line. Every figure below is a claim
