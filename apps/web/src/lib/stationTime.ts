@@ -1,4 +1,5 @@
-import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@silvicom/shared";
+import { stateTimeZone, isNoonSentinelIso, zonedWallTimeToUtcIso, EFS_REJECT_TZ } from "@silvicom/shared";
+import { exclusiveEnd } from "./dateWindow";
 
 /**
  * Fueling times must be shown in the STATION's local timezone so they match the printed EFS report. On import,
@@ -109,4 +110,30 @@ export function stationLocalNote(iso: string | null | undefined, state: string |
   } catch {
     return null;
   }
+}
+
+/**
+ * The UTC instants that bound a range of EFS REJECT business days (FUEL-T1, D-FUI11).
+ *
+ * ── WHY DECLINES GET A COMPUTED WINDOW AND FILLS GOT A STORED COLUMN ─────────────────────────────
+ * A fill's day depends on WHERE it happened — the station's state — so it varies row by row and
+ * cannot be expressed as one instant range. That is why `fuel_transactions` needed a stored,
+ * trigger-maintained `business_date` (migration 0287).
+ *
+ * A decline's day does not vary: EFS documents reject times in CENTRAL regardless of where the
+ * station is (the guide's own words; `EFS_REJECT_TZ`, and the reason `stationDeclineTime` below
+ * renders them with a "CT" label). One fixed zone means the whole window is a pure computation, so
+ * declines need no column, no migration and no backfill — deriving beats storing when the derivation
+ * is constant.
+ *
+ * Returns a half-open range: `gte` is the first instant of `fromDay` in Central, `lt` is the first
+ * instant of the day AFTER `toDay`. Half-open rather than an inclusive `lte` because "the last
+ * moment of a day" has no exact representation — `23:59:59` silently drops the final second, which is
+ * the class of hack this step exists to remove (`dateWindow.ts` makes the same argument).
+ */
+export function efsRejectDayWindow(fromDay: string, toDay: string): { gte: string; lt: string } {
+  return {
+    gte: zonedWallTimeToUtcIso(fromDay.slice(0, 10), "00:00:00", EFS_REJECT_TZ),
+    lt: zonedWallTimeToUtcIso(exclusiveEnd(toDay), "00:00:00", EFS_REJECT_TZ),
+  };
 }

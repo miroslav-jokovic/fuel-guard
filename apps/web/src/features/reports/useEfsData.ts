@@ -2,6 +2,7 @@ import { type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import type { EfsTransactionRow, DeclinedTransactionRow } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { efsRejectDayWindow } from "@/lib/stationTime";
 
 export const EFS_PAGE_SIZE = 20;
 
@@ -83,8 +84,21 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       if (f.state) q = q.eq("state", f.state);
       if (f.driver) q = q.eq("driver_name", f.driver);
       if (f.policy) q = q.eq("policy_name", f.policy);
-      if (f.from) q = q.gte("declined_at", f.from);
-      if (f.to) q = q.lte("declined_at", f.to);
+      // FUEL-T1 / D-FUI11. `declined_at` is a correct UTC instant, and the page renders it in CENTRAL
+      // because that is the zone EFS prints rejects in whatever the station's own zone is. Filtering
+      // the raw instant against bare date strings therefore asked a UTC question of a Central answer:
+      // a decline at 19:00 CT on 31 August is 2026-09-01T00:00Z and fell outside an August window
+      // while the row above it read "Aug 31". `efsRejectDayWindow` converts the picked DAYS into the
+      // instants that bound them in Central — no column needed, because unlike a fill's station zone,
+      // this one does not vary row to row.
+      if (f.from && f.to) {
+        const w = efsRejectDayWindow(f.from, f.to);
+        q = q.gte("declined_at", w.gte).lt("declined_at", w.lt);
+      } else if (f.from) {
+        q = q.gte("declined_at", efsRejectDayWindow(f.from, f.from).gte);
+      } else if (f.to) {
+        q = q.lt("declined_at", efsRejectDayWindow(f.to, f.to).lt);
+      }
       if (f.search) {
         const t = f.search.replace(/[%,()]/g, "");
         q = q.or(

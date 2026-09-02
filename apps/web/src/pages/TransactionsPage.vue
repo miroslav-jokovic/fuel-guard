@@ -131,6 +131,10 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
+    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
+         the section had four answers to “what is a day” and no surface admitted to having one. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the EFS business date printed on the report line.</p>
+
     <DataTable
       embedded
       :columns="columns"

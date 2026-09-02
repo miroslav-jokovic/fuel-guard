@@ -211,6 +211,11 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
+    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
+         the section had four answers to “what is a day” and no surface admitted to having one. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the decline day in Central time, which is how EFS records a reject whatever the
+        station’s own zone is.</p>
+
     <DataTable
       :columns="columns"
       :rows="rows"
