@@ -785,6 +785,42 @@ implementations apart*:
 can never fire. It is kept as a statement of intent and the matrix says so rather than inserting a null
 the database would reject.
 
+#### — T3a MERGE 2 of 2 SHIPPED 2026-09-02 (`claude/fuel-range-totals-reader`). **T3a is DONE. T3b remains.**
+
+**What shipped.** `useFuelRangeTotals` now takes `fillUps`, `totalGallons`, `totalCost`, `hasCost`,
+`flagged` and `clear` from one `fuel_range_totals` call. Those four tiles no longer depend on the paging
+loop finishing, so no `max_rows` change can make them read low.
+
+**What deliberately did NOT move, and this is the step's substance.** Fleet MPG and total miles still
+page and are still derived in TypeScript. Both carry judgement — the MPG plausibility band, and
+`robustWindowMiles` returning null rather than 0 for a non-advancing window — and D-AG1's ruling is that
+judgement stays where a unit test can reach it. **They therefore still depend on the loop finishing, and
+that limitation is now stated in the code rather than implied.** FUEL-T3b is the spike that asks whether
+a per-vehicle odometer aggregate could feed them without copying a constant into SQL, and is allowed to
+conclude that it cannot.
+
+**One sanitiser, one term, two callers.** `searchTerm()` is extracted and used by both `searchOr` (the
+list's PostgREST `.or()` grammar) and the RPC call. The RPC does not need the strip — 0289 escapes
+server-side — but it must be given the SAME string, or a search containing `%,()` would count a
+different set than the rows beneath it. That is the disagreement T3a exists to end, so it is asserted.
+
+**Held until the function existed in production.** `select proname from pg_proc` was checked before
+merging, exactly as #448 did for its column.
+
+**Verified by:** `fuelRangeTotals.test.ts` (7) — `takes fills, gallons, spend, flagged and clear from
+the RPC, not from the paged rows`; `still derives miles and fleet MPG in TypeScript, from the rows —
+D-AG1`; `passes every filter the list uses, so the tiles and the rows describe one set`; `sanitises the
+search term the same way the list does`; `surfaces an RPC failure instead of rendering zeros`. Proved
+able to fail by five mutations: taking `fills` from the loop again; handing the RPC the raw search term;
+swallowing the RPC error; dropping the tank-type filter; and deriving miles from the RPC.
+
+**One existing suite this changed, and why it is not a weakened test.** `fuelWindow.test.ts` mocked
+`supabase` with no `rpc`, so the totals query threw before it filtered anything and the suite reported
+the change as a windowing regression it was not. Its assertion — *the tiles window on exactly the same
+column as the rows beneath them* — now checks BOTH halves: the RPC's `p_from`/`p_to` arguments and the
+loop's `business_date` filters. The property is unchanged; there are simply two mechanisms to hold to it
+now.
+
 ---
 
 ### T4 · The Trailer column comes off the Fuel Log

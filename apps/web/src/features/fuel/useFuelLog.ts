@@ -40,10 +40,25 @@ export interface FuelFilters {
   sortDir?: "asc" | "desc";
 }
 
-/** Build the PostgREST `.or(...)` term for the smart search across location/card + resolved vehicle/driver. */
-function searchOr(f: FuelFilters): string | null {
+/**
+ * The search term, sanitised ONCE, for both the list and the tiles above it.
+ *
+ * `%,()` are stripped because PostgREST's `.or(...)` grammar is comma- and paren-delimited and treats
+ * `%` as a wildcard — an unstripped term is a syntax error or a filter that matches the whole fleet.
+ * `fuel_range_totals` does not need the strip (0289 escapes the term server-side), but it must be given
+ * the SAME term anyway: the tiles sit directly above the table, and a tile counting a different set
+ * than the rows beneath it is precisely the disagreement FUEL-T3a exists to end. One sanitiser, one
+ * term, two callers.
+ */
+export function searchTerm(f: FuelFilters): string | null {
   if (!f.search) return null;
   const t = f.search.replace(/[%,()]/g, "").trim();
+  return t || null;
+}
+
+/** Build the PostgREST `.or(...)` term for the smart search across location/card + resolved vehicle/driver. */
+function searchOr(f: FuelFilters): string | null {
+  const t = searchTerm(f);
   if (!t) return null;
   const ors = [`location_text.ilike.%${t}%`, `card_ref.ilike.%${t}%`];
   if (f.searchVehicleIds?.length) ors.push(`vehicle_id.in.(${f.searchVehicleIds.join(",")})`);
@@ -122,20 +137,49 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<FuelRangeTotals> => {
       const f = toValue(filters);
+
+      // ── The four figures that are pure addition: summed in the database (FUEL-T3a, migration 0289) ──
+      // These used to be accumulated by the paging loop below, which made them silently dependent on
+      // that loop finishing. PostgREST's `max_rows` is a server setting this code does not control and
+      // this carrier is already fifteen pages into it; the day that ceiling moves, or a request fails
+      // mid-loop, every one of these read LOW with no error beside it. There is no page here, so there
+      // is no page to be capped.
+      const { data: sums, error: sumErr } = await supabase.rpc("fuel_range_totals", {
+        p_from: f.from ?? null,
+        p_to: f.to ?? null,
+        p_vehicle: f.vehicleId ?? null,
+        p_driver: f.driverId ?? null,
+        p_tank_type: f.tankType ?? null,
+        // The SAME sanitised term the list uses — see `searchTerm`. A tile filtering on a different
+        // string than the rows beneath it is the disagreement this step exists to end.
+        p_search: searchTerm(f),
+        p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
+        p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
+      });
+      if (sumErr) throw new Error(sumErr.message);
+      // `returns table` gives PostgREST an array; one row, always.
+      const t = (Array.isArray(sums) ? sums[0] : sums) as {
+        fills: number; gallons: number | string; spend: number | string;
+        has_cost: boolean; flagged: number; clear: number;
+      } | null;
+
+      // ── The two that are JUDGEMENT, and therefore still page (D-AG1, migration 0252) ──────────────
+      // "THIS SUMS. IT DOES NOT DERIVE." Fleet MPG applies a plausibility band, and `robustWindowMiles`
+      // prefers an OBD span, falls back to the entered span only when it is monotonic within ±1, and
+      // returns null rather than 0 for a non-advancing window. Re-expressing either in SQL would put a
+      // second copy of a rule where no unit test can reach it, so both stay here and both still depend
+      // on this loop finishing. **That is a known, deliberate limitation, and FUEL-T3b is the spike
+      // that asks whether a per-vehicle odometer aggregate can feed them without copying a constant
+      // into SQL.** It is allowed to conclude that it cannot.
       const PAGE = 1000;
       // Group in-range fills by vehicle, OLDEST→NEWEST (robustWindowMiles expects that order).
       const byVehicle = new Map<string, { enteredOdometer: number | null; samsaraOdometer: number | null; samsaraSource: string | null }[]>();
-      let fillUps = 0;
-      let totalGallons = 0;
-      let totalCost = 0;
-      let hasCost = false;
-      let flagged = 0;
       let mpgWeighted = 0; // Σ(mpg·gallons) over plausible fills → gallon-weighted fleet MPG
       let mpgGallons = 0;
       for (let start = 0; ; start += PAGE) {
         let q = supabase
           .from("fuel_transactions")
-          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons, total_cost, computed_mpg, has_anomaly")
+          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons, computed_mpg")
           .eq("is_canonical", true)
           // vehicle_id then fueled_at keeps each truck's readings contiguous AND ordered → stable paging.
           .order("vehicle_id", { ascending: true })
@@ -144,9 +188,7 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
         if (f.driverId) q = q.eq("driver_id", f.driverId);
         if (f.tankType) q = q.eq("tank_type", f.tankType);
-        // Same window as the list above, and it has to be the same one: these tiles sit directly above
-        // that table, so a tile counting a different set than the rows beneath it is the disagreement
-        // this step exists to end.
+        // Same window as the list and as the RPC above — all three window on `business_date`.
         if (f.from) q = q.gte("business_date", f.from);
         if (f.to) q = q.lte("business_date", f.to);
         const or = searchOr(f);
@@ -159,19 +201,10 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
           samsara_odometer: number | string | null;
           samsara_odometer_source: string | null;
           gallons: number | string | null;
-          total_cost: number | string | null;
           computed_mpg: number | string | null;
-          has_anomaly: boolean | null;
         }[];
         for (const r of batch) {
-          fillUps++;
           const gallons = r.gallons == null ? 0 : Number(r.gallons);
-          totalGallons += gallons;
-          if (r.total_cost != null) {
-            totalCost += Number(r.total_cost);
-            hasCost = true;
-          }
-          if (r.has_anomaly) flagged++;
           // Gallon-weight only plausible per-fill MPG (same guard the dashboard uses), so a bogus
           // computed_mpg can't distort the fleet number.
           if (r.computed_mpg != null && gallons > 0) {
@@ -193,13 +226,13 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         totalMiles += robustWindowMiles(rows).miles ?? 0; // null (data-quality) → contributes 0
       }
       return {
-        fillUps,
+        fillUps: Number(t?.fills ?? 0),
         totalMiles,
-        totalGallons,
-        totalCost,
-        hasCost,
-        flagged,
-        clear: fillUps - flagged,
+        totalGallons: Number(t?.gallons ?? 0),
+        totalCost: Number(t?.spend ?? 0),
+        hasCost: t?.has_cost ?? false,
+        flagged: Number(t?.flagged ?? 0),
+        clear: Number(t?.clear ?? 0),
         fleetMpg: mpgGallons > 0 ? mpgWeighted / mpgGallons : null,
       };
     },
