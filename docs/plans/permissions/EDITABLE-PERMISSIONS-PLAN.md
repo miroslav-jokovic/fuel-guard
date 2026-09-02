@@ -135,27 +135,54 @@ and the matrix stops being editable for that table alone — silently, which is 
 
 ---
 
-## §2 Open questions — **these block P3 and must be answered by the owner**
+## §2 Owner rulings, 2026-09-02 — these were the open questions; they are answered
 
-- **Q1. How fast must a permission change take effect?** D-PERM2 buys its performance with
-  staleness bounded by the access-token TTL (1h by default; a page reload does not refresh it).
-  Candidates: (a) accept it and say so in the UI — matches how role changes already behave, zero
-  extra machinery; (b) shorten the token TTL org-wide, which multiplies refresh traffic for
-  everyone to serve a rare event; (c) revoke the affected users' sessions on save, which is
-  correct-and-immediate but signs people out mid-task. **Recommendation: (a)**, with (c) offered as
-  an explicit "sign them out now" checkbox on the save.
-- **Q2. Does an org get to widen a role beyond its shipped default, or only narrow it?** The ruling
-  said "fully editable", which reads as widening allowed. But widening `recruiter` to
-  `equipment: manage` walks straight back into the leak `RECRUITER-ROLE-SCOPE.md` closed, and
-  widening anything to `admin: manage` is a privilege-escalation path that does not exist today.
-  **Recommendation: widening allowed EXCEPT into `admin`**, which stays admin-only and is the
-  section that grants user management. Needs an explicit ruling because it is a security boundary.
-- **Q3. Is `driver` editable?** It is `none` everywhere by design — drivers use the driver app and
-  the web guard bounces them (`router/index.ts:97`). Granting a driver a web section would put
-  them on a dashboard the guard refuses to render. **Recommendation: `driver` is not editable**,
-  for the same structural reason `admin` is not.
+Recorded verbatim in intent so no session re-litigates them. All three were the recommendation
+attached to the question, and all three are security boundaries rather than preferences.
 
----
+### D-PERM6 — A permission change lands on the next token refresh, and the UI says so
+Ruled: accept the staleness D-PERM2 buys, and state it at the point of saving. Rejected: shortening
+the org's token TTL (it multiplies refresh traffic for every user, permanently, to serve a rare
+event), and force-revoking sessions on save (it signs people out mid-task).
+
+This is not a new contract. Changing a member's ROLE already behaves exactly this way, and
+`SettingsUsersPage.vue:132` already warns about it. The save confirmation must therefore say the
+same thing in the same register:
+
+> Takes effect the next time each dispatcher's session refreshes — within an hour, or immediately
+> if they sign out and back in.
+
+⚠ The corollary a future step must not forget: **revoking** access is subject to the same delay. A
+member whose section is taken away keeps it until their token turns over. Where that is not
+acceptable for a specific act — removing somebody entirely, say — the existing member-removal path
+is the instrument, not this page.
+
+### D-PERM7 — An org may widen a role as well as narrow it, but never into `admin`
+Ruled: "fully editable" means what it says — an org that needs its dispatchers to read Safety may
+grant it. Two locks stand:
+
+- **The `admin` SECTION is not grantable to any role.** It is the section that carries user
+  management, so granting it is a privilege-escalation path that does not exist in the product
+  today, and an editable matrix must not invent one. An org that wants a second administrator
+  promotes a member to the `admin` ROLE on the Users page, which is audited and already exists.
+- **The `admin` ROLE is not editable** and holds `manage` everywhere (D-PERM1). Something must be
+  able to restore a matrix edited into a corner.
+
+Widening is therefore allowed across eleven of the twelve sections. This *is* a real re-opening of
+narrowings the product made deliberately — `recruiter` was cut off from `equipment` (D-ROS12) and
+`dispatcher` from `recruitment` (§391.53(a)(1)) for stated reasons — so the editable page must show
+those reasons where the org is about to overrule them: a cell that departs from its shipped default
+is marked, and the sections carrying a regulatory argument carry it in a hover. An org may overrule
+us; it may not do so without being told what it is overruling.
+
+### D-PERM8 — The `driver` role is not editable
+Ruled: locked at `none` everywhere. `router/index.ts:97` redirects `role === "driver"` to
+`/use-the-app` before any section check runs, so a section granted to a driver would be a permission
+that visibly does nothing — the worst kind, because it reads as a product that lies. Making it mean
+something is a different project (putting drivers on the web dashboard), not a permissions feature.
+
+Together with D-PERM7 the editable surface is exactly **8 roles × 11 sections**: every role except
+`admin` and `driver`, every section except `admin`.
 
 ## §3 Steps
 
@@ -184,9 +211,10 @@ ship in two merges — `lint:migration-ordering` enforces it and this plan has f
   `auth_can_manage('x') or auth_role() = ANY (ARRAY[…])`. Batched by owning module so each PR's
   PGlite matrix covers one blast radius, not all of them. The `rls` matrix (459 assertions) is the
   net.
-- **P5 — The editable page.** P0's table becomes editable per role × section, admin-only, with the
-  staleness sentence from Q1, a diff-against-default indicator, and a "reset to default" per row.
-  Every save writes an audit row.
+- **P5 — The editable page.** P0's table becomes editable across the 8 × 11 surface D-PERM7/D-PERM8
+  define, admin-only, with D-PERM6's sentence on the save, a marker on every cell that departs from
+  its shipped default, the regulatory argument in a hover where one exists, and "reset to default"
+  per row. Every save writes an audit row.
 - **P6 — Drop the fallbacks.** Only after a full token TTL has elapsed past P4's deployment. The
   `or auth_role() = ANY (…)` half comes out and `lint:section-policies` starts refusing new role
   lists (D-PERM5).
