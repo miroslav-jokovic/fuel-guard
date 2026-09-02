@@ -66,6 +66,24 @@ const EnvSchema = z.object({
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
   // Tier 1 — live stats (current odometer + fuel level): cheap, refresh often. Minutes.
   SAMSARA_STATS_SYNC_MINUTES: z.coerce.number().min(1).default(20),
+  // Tier 5 — per-fill telematics (SAM-S3). The tier that makes collection independent of scoring.
+  //
+  // Before this existed, per-fill Samsara data was fetched only as a SIDE EFFECT of scoring, and the
+  // bulk path set `skipRecon` to protect the vendor rate limit — so measured 2026-09-01, 10,644 of
+  // 13,711 tractor fills (77.6%) had never had telematics fetched at all, and nothing incidental was
+  // ever going to fill them. That starves the tank-capacity and sensor-reliability learners, which is
+  // most of the 2.9% alert precision (docs/plans/samsara/SAMSARA-COLLECTION-PLAN.md §0.3–§0.4).
+  //
+  // The batch is a RATE BUDGET, not a target: Samsara caps /stats/history at 10 req/s per token and one
+  // bucket covers up to 96 h of a single truck, so a tick of this size finishes well inside its own
+  // interval and leaves the rest for the next one. Raising it is how SAM-S4 closes the historical hole;
+  // 0 disables the tier without disabling the rest of Samsara sync.
+  SAMSARA_RECON_SYNC_MINUTES: z.coerce.number().min(0).default(60),
+  SAMSARA_RECON_BATCH: z.coerce.number().min(0).default(250),
+  // How long before a fill whose attempt returned nothing is tried again. Without a cooldown the 32
+  // fills Samsara has no history for would be re-claimed on every tick and, oldest-first, would wedge
+  // the tier on them forever — see `BackfillOpts.reconClaim`.
+  SAMSARA_RECON_RETRY_HOURS: z.coerce.number().min(1).default(72),
   // Tier 2 — identity (vehicles, drivers, assignments): changes slowly, refresh rarely. Hours.
   SAMSARA_IDENTITY_SYNC_HOURS: z.coerce.number().min(0.1).default(12),
   SAMSARA_DRIVER_SCORE_SYNC_HOURS: z.coerce.number().min(0.1).default(6),

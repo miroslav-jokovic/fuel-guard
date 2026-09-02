@@ -351,6 +351,69 @@ missed its chance is retried rather than abandoned.
 **Verified by.** A test asserting `skipRecon: true` leaves an enqueued item; org-scoping via
 `expectOrgScoped`.
 
+#### — DONE 2026-09-01 (PR #449, `claude/samsara-recon-tier`)
+
+**What shipped.** A sixth tier, `recon`, in `samsaraScheduler.ts`. Every
+`SAMSARA_RECON_SYNC_MINUTES` (60) it dispatches the existing `backfill` kind per org with
+`reconBatch: SAMSARA_RECON_BATCH` (250) and `reconRetryAfterHours` (72). `BackfillOpts.reconClaim`
+turns that into one bounded, oldest-first claim; `backfillOrg`'s existing bucketing, `reconHealth`
+counters and `BACKFILL_ABORT_AFTER` guard carry it, unchanged.
+
+**⚠ D-SAM3 was based on a wrong reading of the code, and the correction makes it SIMPLER.** The
+decision says `skipRecon` "stops meaning 'never fetch'. It becomes 'not on this pass — enqueue it'".
+That assumed a bulk rebuild writes a terminal marker. It does not: the `skipRecon` branch in
+`resolveReconciliation` is empty — *"Rules-only rebuild: stored reconciliation is authoritative"* — so
+a skipped fill keeps a **null** `samsara_recon_at`. The hole was never permanent because rows were
+marked done; it was permanent because **nothing ever claimed them**. So no second queue was built:
+the claim predicate IS the queue, and the rows in it are the backlog. `skipRecon` is untouched.
+
+**⚠ The claim needs two conditions, and finding out why is the substance of this step.**
+- `samsara_recon_at is null` alone (10,644 fills) **never clears** for the 32 rows Samsara has no
+  history for — they come back `no_data`, keep a null `recon_at`, and claimed oldest-first would be
+  re-fetched every single tick while the other 10,612 were never reached. A scheduler that runs hourly
+  and makes no progress is worse than none: it looks busy.
+- `samsara_recon_checked_at is null` alone would be wrong the other way — **1,087 fills** carry stored
+  telematics from before that column existed and would be re-fetched for data we already hold.
+
+  The claim is therefore "needs data **and** not attempted inside the cooldown", which is also exactly
+  what makes the Done-when's *retried rather than abandoned* true.
+
+**⚠ `samsara -> anomalies` is deliberately NOT in the boundary allow-list**, so the tier **dispatches**
+the `backfill` kind rather than importing `backfillOrg` — `startRebuildOnBoot`'s pattern. A message,
+not a dependency, and the layering the plan calls correct (§1.2) stays correct. `dispatchJob` also
+supplies the per-org scoring mutex free, so a tick can never overlap a manual rebuild.
+
+**Measured 2026-09-01 (production), and the plan's §0.3 figure reproduces exactly** — unlike the fuel
+plan's, which did not: `samsara_recon_status is null` on **10,522** tractor fills, as stated. Beside
+it, `samsara_recon_at is null` = 10,644 and `samsara_recon_checked_at is null` = 11,699 of 13,711.
+Those three predicates differ by over a thousand rows, which is why the claim names the one it means.
+
+**A number S4 should start from.** At the shipped defaults the tier claims 250 fills an hour, so the
+existing 10,644-fill hole drains in roughly **43 ticks ≈ 43 hours of runtime** without anybody running
+anything. That does not make S4 unnecessary — S4 still opens with a measurement, and **the wall-clock
+of one tick is still NOT measured** — but it changes S4's question from "how do we run a backfill" to
+"do we raise `SAMSARA_RECON_BATCH`, and what does one tick actually cost".
+
+**One thing this forced, named because it is a real change to a file it did not set out to touch.**
+The tier pushed `startSamsaraScheduler` past the 200-line function budget. `lint:funcsize`'s own
+message is "split into an orchestrator + stage helpers", so each tier is now its own function. It was
+split WHOLE rather than by evicting the largest tier — squeezing back under leaves the next tier to
+hit the same wall with no headroom, the argument `mountApiRouters` in `app.ts` already had to make.
+
+**Verified by:** `the per-fill telematics claim > takes ONE bounded bite, oldest first — a rate budget,
+not a target`; `> skips a fill attempted inside the cooldown, and takes one attempted before it`;
+`> claims only fills that still have no stored telematics`; `> is org-scoped, like every other
+service-role read` (`expectOrgScoped`); `> refuses to be a scoring pass — reconClaim with skipRecon
+throws rather than fetching nothing`; and `backfillHandler — the payload decides the sweep > a
+scheduled tick claims a BOUNDED batch, never the whole history` plus `> 'Re-check all history' is
+still unbounded — the manual button did not change`. Proved able to fail by three mutations: dropping
+the cooldown, reversing the claim order, and making a scheduled tick an unbounded sweep. Gates:
+`pnpm test`, `typecheck`, `lint`, `build`, and the CI list run individually — `lint:boundaries` and
+`lint:funcsize` included, since those are the two this step moves.
+
+**Not verifiable until it is deployed.** The tier's effect is a falling claim count; there is nothing
+to observe until the scheduler process runs it. S6 is where that is measured.
+
 ### S4 · Close the historical hole
 
 **Prerequisites:** S3. **Opens with a measurement, not a run.**

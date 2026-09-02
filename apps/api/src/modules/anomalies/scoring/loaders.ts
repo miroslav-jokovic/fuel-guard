@@ -299,6 +299,28 @@ export interface BackfillOpts extends ScoreOpts {
   onlyUnreconciled?: boolean;
   /** Only fills within the last N days — bounds auto rebuilds so they don't re-score the whole history. */
   sinceDays?: number;
+  /**
+   * The COLLECTOR TIER's claim (SAM-S3): the oldest `limit` fills that still have no stored telematics
+   * and have not been attempted within `retryAfterHours`.
+   *
+   * ── WHY IT IS TWO CONDITIONS AND NOT ONE ─────────────────────────────────────────────────────────
+   * "Needs data" is `samsara_recon_at is null` — 10,644 of 13,711 tractor fills, measured 2026-09-01.
+   * On its own that predicate NEVER CLEARS for a fill Samsara has no history for: 32 rows come back
+   * `no_data`, keep a null `samsara_recon_at`, and would therefore be re-claimed on every single tick.
+   * Oldest-first would then wedge the tier on the same 32 rows forever and the other 10,612 would never
+   * be reached — a scheduler that runs every hour and makes no progress, which is worse than none
+   * because it looks busy.
+   *
+   * "Not attempted recently" is the cooldown, read from `samsara_recon_checked_at`, which
+   * `resolveReconciliation` stamps on EVERY attempt including a failed or empty one. That is what lets
+   * an attempt clear the claim while still allowing a genuine retry later — the Done-when's "a fill
+   * that missed its chance is retried rather than abandoned".
+   *
+   * ⚠ Claiming on `samsara_recon_checked_at is null` ALONE would be wrong in the other direction:
+   * 1,087 fills carry stored telematics from before that column existed, so they would be re-fetched
+   * for data we already hold. Both halves are load-bearing.
+   */
+  reconClaim?: { limit: number; retryAfterHours: number };
 }
 
 /** How far back the AUTOMATIC (nightly / on-boot) rules-rebuild reaches. Manual /rebuild is unbounded. */

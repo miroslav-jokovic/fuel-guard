@@ -43,15 +43,56 @@ interface TxnMeta {
 
 /** Collect fill metadata (id + vehicle + time + precision), ordered by vehicle then time so consecutive
  *  same-vehicle fills are adjacent for bucketing. Paged past PostgREST's 1000-row cap (like collectTxnIds). */
+type MetaRow = { id: string; vehicle_id: string | null; fueled_at: string; fueled_at_precision: string | null };
+const META_COLS = "id, vehicle_id, fueled_at, fueled_at_precision";
+const toMeta = (r: MetaRow): TxnMeta => ({
+  id: r.id,
+  vehicleId: r.vehicle_id,
+  centerMs: new Date(r.fueled_at).getTime(),
+  precise: r.fueled_at_precision === "instant",
+});
+
+/**
+ * The collector tier's bounded claim (SAM-S3) — see `BackfillOpts.reconClaim` for why the predicate has
+ * two halves. ONE page, never the paging loop below: the whole point of this path is that it takes a
+ * bite it can finish inside its rate budget and leaves the rest for the next tick.
+ *
+ * Ordered OLDEST-FIRST, which is the opposite of what a "catch up" instinct suggests and is deliberate:
+ * the hole is historical (measured 2026-09-01 — 2026-03, 2026-04 and 2026-06 have ZERO successful
+ * reconciliations while 2026-08 onward is ~100%), so newest-first would spend every tick re-confirming
+ * the part that already works. The result is re-sorted by (vehicle, time) before it is returned, because
+ * the caller buckets consecutive same-vehicle fills into one Samsara fetch.
+ */
+async function claimReconBatch(
+  admin: SupabaseClient,
+  orgId: string,
+  claim: { limit: number; retryAfterHours: number },
+): Promise<TxnMeta[]> {
+  const cutoff = new Date(Date.now() - claim.retryAfterHours * 3_600_000).toISOString();
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select(META_COLS)
+    .eq("org_id", orgId)
+    .is("samsara_recon_at", null)
+    .or(`samsara_recon_checked_at.is.null,samsara_recon_checked_at.lt.${cutoff}`)
+    .order("fueled_at", { ascending: true })
+    .order("id", { ascending: true }) // stable claim order when many fills share an instant
+    .limit(claim.limit);
+  return ((data ?? []) as MetaRow[])
+    .map(toMeta)
+    .sort((a, b) => (a.vehicleId ?? "").localeCompare(b.vehicleId ?? "") || a.centerMs - b.centerMs);
+}
+
 async function collectTxnMeta(
   admin: SupabaseClient,
   orgId: string,
-  opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {},
+  opts: { onlyUnreconciled?: boolean; sinceDays?: number; reconClaim?: { limit: number; retryAfterHours: number } } = {},
 ): Promise<TxnMeta[]> {
+  if (opts.reconClaim) return claimReconBatch(admin, orgId, opts.reconClaim);
   const PAGE = 1000;
   const out: TxnMeta[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    let q = admin.from("fuel_transactions").select("id, vehicle_id, fueled_at, fueled_at_precision").eq("org_id", orgId);
+    let q = admin.from("fuel_transactions").select(META_COLS).eq("org_id", orgId);
     if (opts.onlyUnreconciled) q = q.is("samsara_recon_at", null);
     if (opts.sinceDays != null) q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
     const { data } = await q
@@ -59,8 +100,8 @@ async function collectTxnMeta(
       .order("fueled_at", { ascending: true })
       .order("created_at", { ascending: true })
       .range(offset, offset + PAGE - 1);
-    const rows = (data ?? []) as { id: string; vehicle_id: string | null; fueled_at: string; fueled_at_precision: string | null }[];
-    for (const r of rows) out.push({ id: r.id, vehicleId: r.vehicle_id, centerMs: new Date(r.fueled_at).getTime(), precise: r.fueled_at_precision === "instant" });
+    const rows = (data ?? []) as MetaRow[];
+    for (const r of rows) out.push(toMeta(r));
     if (rows.length < PAGE) break;
   }
   return out;
@@ -150,7 +191,7 @@ export async function backfillOrg(
   onProgress?: ProgressFn,
   shouldCancel?: () => Promise<boolean>,
 ): Promise<number> {
-  const { onlyUnreconciled, sinceDays, ...scoreOpts } = opts;
+  const { onlyUnreconciled, sinceDays, reconClaim, ...scoreOpts } = opts;
   // Maximize driver attribution before scoring: auto-create driver records for EFS names that have none and
   // link the previously-unattributed fills. Best-effort + idempotent, so a rebuild also repairs attribution.
   try {
@@ -169,6 +210,12 @@ export async function backfillOrg(
   const ctxBase = { thresholds: await loadThresholds(admin, orgId), operatingHours: await loadOperatingHours(admin, orgId) };
 
   // Rebuild path (skipRecon): reuse stored Samsara values, no live fetch — simple sequential re-score.
+  // A `reconClaim` run is a COLLECTION pass by definition, so it can never take this branch: the whole
+  // point of SAM-S3 is that fetching stopped being a side effect of scoring, and `skipRecon` is the flag
+  // that made collection optional. Asserting it here is cheaper than discovering it as an empty batch.
+  if (scoreOpts.skipRecon && reconClaim) {
+    throw new Error("backfillOrg: reconClaim is a collection pass and cannot be combined with skipRecon");
+  }
   if (scoreOpts.skipRecon) {
     return runRebuildBackfill(
       admin,
@@ -189,7 +236,7 @@ export async function backfillOrg(
   const token = await loadSamsaraToken(admin, env, orgId);
   const ctx = { ...ctxBase, samsaraToken: token };
   const vehMap = await loadVehicleSamsaraMap(admin, orgId);
-  const meta = await collectTxnMeta(admin, orgId, { onlyUnreconciled, sinceDays });
+  const meta = await collectTxnMeta(admin, orgId, { onlyUnreconciled, sinceDays, reconClaim });
   const total = meta.length;
   const winMsOf = (m: TxnMeta) => (m.precise ? 18 : 30) * 3_600_000;
 
