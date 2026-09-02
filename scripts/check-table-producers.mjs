@@ -32,13 +32,6 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
-  // Added 2026-09-01 by SAM-S2 merge 1 of 2, and it leaves in merge 2. The stats tier's move to
-  // /fleet/vehicles/stats/feed is a table (0288) plus a reader that cannot exist without it, and the
-  // deploy window puts ~9 minutes between a merge being SERVED and its migration being APPLIED — so the
-  // reader ships in the following merge, per docs/plans/HANDOFF-2026-09-01.md §4. This entry is the
-  // interval, not a promise anybody is deferring: SAMSARA-COLLECTION-PLAN §5 S2 owes the producer and is
-  // the next PR. If it is still here after that, the step did not finish.
-  ["samsara_feed_cursors", "SAM-S2 merge 1 of 2 — the reader lands in merge 2 (SAMSARA-COLLECTION-PLAN §5 S2)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

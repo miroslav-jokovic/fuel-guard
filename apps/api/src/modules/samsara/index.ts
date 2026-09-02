@@ -5,7 +5,7 @@
  * The collector PROCESSES live here: driver/vehicle/trailer roster syncs (which defer to McLeod
  * on identity when `mcleod`'s `isTmsRosterMaster` says so — the one cross-module import, carried
  * in API_ALLOW with that reason), IFTA jurisdiction-mile fetches, the reconciliation sweep, the
- * diagnostics probe, and the scheduler that paces them. Owns `samsara_ifta_fetches` and
+ * diagnostics probe, and the scheduler that paces them. Owns `samsara_feed_cursors`, `samsara_ifta_fetches` and
  * `samsara_ifta_jurisdiction_miles`.
  *
  * One debt paid, one named so the next carve-outs inherit it knowingly:
@@ -22,10 +22,14 @@
 export { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 export {
   syncVehiclesFromSamsara,
-  syncVehicleStatsFromSamsara,
   NoSamsaraTokenError,
   type VehicleSyncResult,
 } from "./samsaraVehicleSync.js";
+export {
+  syncVehicleStatsFromSamsara,
+  VEHICLE_STATS_FEED,
+  type VehicleStatsFeedResult,
+} from "./samsaraStatsFeed.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
 export { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 export { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
