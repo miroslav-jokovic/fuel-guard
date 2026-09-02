@@ -396,8 +396,9 @@ export function createApp(env: Env): Express {
     /**
      * ⚠ The screen answers must NEVER be able to break this endpoint. `/api/me` is the identity the
      * web bootstraps from, and it answered before surfaces existed; a Supabase-admin misconfiguration
-     * turning it into a 500 would take the whole app down for a permissions refinement — which
-     * `auth.test.ts` caught the moment this was written without the guard.
+     * turning it into a 500 would take the whole app down for a permissions refinement. That is not
+     * hypothetical: written without this guard, it broke
+     * "/api/me returns the principal for a valid token" in `middleware/auth.test.ts` immediately.
      *
      * Falling back to `{}` is the same fail-OPEN `surfaceClaimFor` documents, applied one layer out
      * where `getSupabaseAdmin` itself can throw. It is safe for the same reason: a surface answer may
