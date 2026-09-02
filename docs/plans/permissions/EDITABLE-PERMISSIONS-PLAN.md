@@ -282,8 +282,12 @@ draft of this plan said "~90 remaining" for exactly this reason and was wrong.
   merge: `rls` 461, `restricted-records` 50, `hire-applicant` 17, `employer-inquiries` 21,
   `annual-inspections` 42, `merge-driver-dqf` 21, all unchanged; `org-section-access` 69 → 92.
   **P4 is complete: every section gate an org can edit now asks the org.**
-- **P5 — the editable page**, and not before B2 and B3. Shipping it earlier saves permissions the
-  database does not honour, which §4 below names as the workaround to avoid.
+- **P5 — the editable page.** B2 and B3 have shipped, so it is unblocked — but read
+  `SURFACE-ENTITLEMENTS-PLAN.md` first. The owner's 2026-09-02 follow-up asked for per-USER setup
+  and per-SCREEN granularity, neither of which the section matrix can express, and that plan's §0
+  measures why: 27 routes whose sidebar entry knows a section their route does not gate on, and one
+  page (Annual Inspections) that legitimately reads the table another page owns. P5 as scoped here
+  is the Roles half of that plan's S5.
 - **P6 — the gate.** Q-PERM11 below is now part of its scope and should be read first: the gate is
   currently blind to one of the two spellings of a role list, and un-blinding it surfaces nine
   pre-existing disagreements between SQL and `SECTION_ACCESS` that have to be ruled on before it can
