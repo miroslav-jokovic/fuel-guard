@@ -320,6 +320,9 @@
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
   ],
+  "org_role_surface_access": [
+    "apps/api/src/modules/org/routes/surfaceAccess.ts"
+  ],
   "org_section_access": [
     "apps/api/src/modules/org/routes/sectionAccess.ts"
   ],

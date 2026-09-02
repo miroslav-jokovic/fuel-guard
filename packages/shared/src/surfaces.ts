@@ -296,6 +296,38 @@ export function canReachSurface(
   return surfaceGateAllows(s, role, sections);
 }
 
+/**
+ * An org's answers, sparse: `role → surface key → allowed` (D-SURF6). A key that is absent is not
+ * denied — it is UNCHANGED, and the surface's own gate answers.
+ */
+export type SurfaceOverrides = Partial<Record<UserRole, Record<string, boolean>>>;
+
+/** One caller's slice of that: the answers for THEIR role, which is all the client needs. */
+export type SurfaceClaim = Record<string, boolean>;
+
+/**
+ * The whole question, in the order that makes D-SURF2 true by construction: the SECTION gate first,
+ * then the org's answer.
+ *
+ * The order is the safety argument, not a style choice. A surface may only ever narrow within its
+ * section, so an org's `allowed: true` must never lift a role past a section it does not hold — and
+ * checking the gate first is what guarantees that, rather than a rule someone has to remember when
+ * they add the next layer. S4's per-user answers resolve into `override` before this is called, so
+ * this function stays the one place the precedence is written down.
+ */
+export function surfaceAllowed(
+  s: Surface,
+  role: UserRole | null,
+  sections: SectionClaim | null,
+  surfaces: SurfaceClaim | null,
+): boolean {
+  if (!surfaceGateAllows(s, role, sections)) return false;
+  // A detail route is never separately grantable (D-SURF8): denying Loads must also deny the load a
+  // bookmark points at, so it answers to its parent's key rather than to one of its own.
+  const key = s.parent ?? s.key;
+  return surfaces?.[key] ?? true;
+}
+
 /** The surface a declared route path belongs to, or undefined if the route is not catalogued. */
 export function surfaceForPath(path: string): Surface | undefined {
   return SURFACES.find((s) => s.path === path);

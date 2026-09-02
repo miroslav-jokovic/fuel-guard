@@ -27,6 +27,7 @@ const session = vi.hoisted(() => ({
   readOnly: false,
   can: (_s: string): boolean => false,
   canView: (_s: string): boolean => false,
+  surfaces: null as Record<string, boolean> | null,
   init: vi.fn(),
 }));
 
@@ -57,6 +58,7 @@ beforeEach(() => {
   session.initialized = true;
   session.isAuthenticated = true;
   session.hasOrg = true;
+  session.surfaces = null;
 });
 
 describe("the section gates on the navigation guard", () => {
@@ -153,6 +155,43 @@ describe("the section gates on the navigation guard", () => {
       expect(await landsOn("auditor", p)).not.toBe("dashboard");
       expect(await landsOn("dispatcher", p)).toBe("dashboard");
     }
+  });
+
+  // ── S3: the org's own answers about which screens a role may reach ───────────────────────
+  // The owner's worked example, end to end at the router: "Technician shop should see only annual
+  // inspection page and nothing else."
+  it("an org that denies two maintenance screens to technicians is obeyed by the router", async () => {
+    session.surfaces = { "maintenance.repair-spend": false, "maintenance.inspectors": false };
+    expect(await landsOn("technician", "/shop")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/inspectors")).toBe("dashboard");
+    // …and the one screen they were left keeps working, which is the whole point of the exercise.
+    expect(await landsOn("technician", "/shop/inspections")).not.toBe("dashboard");
+  });
+
+  it("…and the denial is per ROLE, not per org — a fleet manager still reaches them", async () => {
+    session.surfaces = null; // a fleet_manager's own claim carries no denials
+    expect(await landsOn("fleet_manager", "/shop/inspectors")).not.toBe("dashboard");
+  });
+
+  it("a denial reaches the detail route through its parent (D-SURF8)", async () => {
+    // `/shop/inspections/:id` has no key of its own. Denying Annual Inspections must close the
+    // bookmark too, or the deny is a menu tidy rather than a permission.
+    session.surfaces = { "maintenance.inspections": false };
+    expect(await landsOn("technician", "/shop/inspections")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/inspections/abc")).toBe("dashboard");
+  });
+
+  it("a surface answer can only NARROW — it never lifts a role past its section (D-SURF2)", async () => {
+    // A recruiter holds `maintenance: none`. An org saying "allowed" about a maintenance screen
+    // must not become a way to hand them the section, which is why the gate is checked first.
+    session.surfaces = { "maintenance.inspectors": true, "maintenance.repair-spend": true };
+    expect(await landsOn("recruiter", "/shop/inspectors")).toBe("dashboard");
+    expect(await landsOn("recruiter", "/shop")).toBe("dashboard");
+  });
+
+  it("an empty answer denies nothing — the fail-open the store documents", async () => {
+    session.surfaces = {};
+    expect(await landsOn("technician", "/shop/inspectors")).not.toBe("dashboard");
   });
 
   it("an uncatalogued authenticated route still resolves — the gate, not the guard, is the net", async () => {

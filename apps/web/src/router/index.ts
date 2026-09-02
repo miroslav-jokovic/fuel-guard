@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import { surfaceForPath, surfaceGateAllows } from "@silvicom/shared";
+import { surfaceForPath, surfaceAllowed } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -123,6 +123,7 @@ router.beforeEach(async (to) => {
    * Failing closed here instead would turn every such waiver into a locked-out page.
    */
   const surface = surfaceForPath(to.matched[0]?.path ?? to.path);
-  if (surface && !surfaceGateAllows(surface, session.role, session.sections)) return { name: "dashboard" };
+  if (surface && !surfaceAllowed(surface, session.role, session.sections, session.surfaces))
+    return { name: "dashboard" };
   return true;
 });

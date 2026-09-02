@@ -1597,6 +1597,121 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
 ]
 `;
 
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's SCREEN answers narrow the sidebar, per role (S3/D-SURF1) 1`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Annual inspections → /shop/inspections",
+    ],
+  },
+]
+`;
+
+exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's SCREEN answers narrow the sidebar, per role (S3/D-SURF1) 2`] = `
+[
+  {
+    "group": null,
+    "items": [
+      "Dashboard → /",
+      "Ask AI → /ask",
+    ],
+  },
+  {
+    "group": "Fuel",
+    "items": [
+      "Fuel Log → /fuel-log",
+      "Transactions → /transactions",
+      "Rejections → /rejections",
+      "Cards → /fuel-cards",
+      "Import → /import",
+      "Fuel Spend → /fuel-spend",
+      "Exceptions → /fuel-spend/exceptions",
+      "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Loads → /loads",
+      "Messages → /messages",
+      "Assignments → /assignments",
+      "Fuel Planning → /fuel-planning",
+      "Truck Stops → /truck-stops",
+    ],
+  },
+  {
+    "group": "Safety",
+    "items": [
+      "Alerts → /anomalies",
+      "Driver Performance → /driver-performance",
+      "Idling → /idling",
+      "Driver Qualification → /compliance",
+      "Placard calculator → /hazmat/calculator",
+      "Hazmat review → /hazmat/review",
+    ],
+  },
+  {
+    "group": "Recruitment",
+    "items": [
+      "Applicants → /recruitment",
+      "Screening readiness → /recruitment/screening",
+      "Safety-history inquiries → /recruitment/inquiries",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Vehicles → /vehicles",
+      "Trailers → /trailers",
+      "Drivers → /drivers",
+      "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Maintenance",
+    "items": [
+      "Repair spend → /shop",
+      "Annual inspections → /shop/inspections",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
+]
+`;
+
 exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the sections claim still narrows and widens (P3/D-PERM2) 1`] = `
 {
   "narrowed": [
