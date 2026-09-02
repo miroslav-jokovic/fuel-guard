@@ -36,8 +36,19 @@ function recorder(): unknown {
   });
 }
 
+// `rpc` records its arguments and answers one row, the shape `returns table` gives PostgREST. Added at
+// FUEL-T3a: the tiles' four summed figures now come from `fuel_range_totals` (migration 0289) instead
+// of the paging loop, so a mock with no `rpc` makes the totals query throw before it filters anything —
+// which is how this suite first reported the change as a windowing regression it was not.
+const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: (table: string) => { calls.push({ method: "from", args: [table] }); return recorder(); } },
+  supabase: {
+    from: (table: string) => { calls.push({ method: "from", args: [table] }); return recorder(); },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      return { data: [{ fills: 0, gallons: 0, spend: 0, has_cost: false, flagged: 0, clear: 0 }], error: null };
+    },
+  },
 }));
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ orgId: "org-1" }) }));
@@ -61,7 +72,7 @@ async function run(composable: "list" | "totals", filters: FuelFilters) {
 const filtersFor = (m: string, col: string) =>
   calls.filter((c) => c.method === m && c.args[0] === col).map((c) => c.args[1]);
 
-beforeEach(() => { calls.length = 0; });
+beforeEach(() => { calls.length = 0; rpcCalls.length = 0; });
 
 describe("the fuel window is a window of days", () => {
   it("the list filters business_date, inclusive at both ends, with the days as picked", async () => {
@@ -79,6 +90,12 @@ describe("the fuel window is a window of days", () => {
 
   it("the tiles window on exactly the same column as the rows beneath them", async () => {
     await run("totals", { from: "2026-08-01", to: "2026-08-31" });
+    // The four summed tiles go through the RPC, which windows on `business_date` in SQL (0289) — so
+    // the days are asserted on the arguments it was given.
+    expect(rpcCalls.map((c) => c.fn)).toEqual(["fuel_range_totals"]);
+    expect(rpcCalls[0]!.args).toMatchObject({ p_from: "2026-08-01", p_to: "2026-08-31" });
+    // Miles and MPG still page, and that loop must window identically or the two halves of one tile
+    // row would describe different sets.
     expect(filtersFor("gte", "business_date")).toEqual(["2026-08-01"]);
     expect(filtersFor("lte", "business_date")).toEqual(["2026-08-31"]);
     expect(filtersFor("lte", "fueled_at")).toEqual([]);
