@@ -413,6 +413,10 @@
       "module": "org",
       "layer": "core"
     },
+    "org_section_access": {
+      "module": "org",
+      "layer": "core"
+    },
     "org_usage_month": {
       "module": "org",
       "layer": "derived"

@@ -357,3 +357,75 @@ export function filterRestrictedRows<T extends { kind: string }>(
 ): T[] {
   return rows.filter((r) => canReadRestrictedKind(r.kind, role));
 }
+
+// ── Per-org overrides of the matrix (D-PERM1, EDITABLE-PERMISSIONS-PLAN.md) ───
+
+/**
+ * The roles an organisation may edit. Seven of the nine, and the two exclusions are RULINGS rather
+ * than oversights (D-PERM7/D-PERM8, owner 2026-09-02):
+ *
+ *  · `admin` holds `manage` everywhere, permanently. Something has to be able to restore a matrix
+ *    that has been edited into a corner, and an admin who can revoke their own access is an org
+ *    locking itself out with no support path.
+ *  · `driver` is locked at `none`. `router/index.ts` redirects `role === "driver"` to the app before
+ *    any section check runs, so a section granted to a driver would be a permission that visibly
+ *    does nothing — the worst kind, because it reads as a product that lies.
+ *
+ * Derived by SUBTRACTION from `USER_ROLES` rather than hand-listed, so a role added to the product
+ * is editable by default and its exclusion has to be an explicit decision made here.
+ */
+export const UNEDITABLE_ROLES = ["admin", "driver"] as const satisfies readonly UserRole[];
+export const EDITABLE_ROLES: UserRole[] = USER_ROLES.filter(
+  (r) => !(UNEDITABLE_ROLES as readonly string[]).includes(r),
+);
+
+/**
+ * The sections an organisation may edit — every one except `admin`.
+ *
+ * `admin` carries user management, so granting it to another role is a privilege-escalation path
+ * the product does not have today, and an editable matrix must not invent one (D-PERM7). An org that
+ * wants a second administrator promotes a member to the `admin` ROLE on the Users page, which is
+ * audited and already exists.
+ */
+export const UNEDITABLE_SECTIONS = ["admin"] as const satisfies readonly AppSection[];
+export const EDITABLE_SECTIONS: AppSection[] = APP_SECTIONS.filter(
+  (s) => !(UNEDITABLE_SECTIONS as readonly string[]).includes(s),
+);
+
+export const isEditableRole = (role: string): role is UserRole =>
+  (EDITABLE_ROLES as string[]).includes(role);
+export const isEditableSection = (section: string): section is AppSection =>
+  (EDITABLE_SECTIONS as string[]).includes(section);
+
+/**
+ * One org's overrides, keyed `role` → `section` → access. SPARSE (D-PERM4): a pair with no entry is
+ * not denied, it is UNCHANGED, and its answer is the shipped default in `SECTION_ACCESS`.
+ *
+ * The sparseness is the whole design. A complete matrix would have to be stored somewhere, which
+ * means the database needing its own copy of the defaults, which means codegen and a drift gate to
+ * keep the copy equal to this file. Every consumer already holds the defaults: the API and the web
+ * hold `SECTION_ACCESS` at compile time, and SQL holds them as the `auth_role() = ANY (ARRAY[…])`
+ * list already written into each policy — lists `lint:section-policies` has checked against this
+ * matrix since 0260.
+ */
+export type SectionOverrides = Partial<Record<UserRole, Partial<Record<AppSection, SectionAccess>>>>;
+
+/**
+ * The access a role actually has, given an org's overrides. THE function every consumer asks; the
+ * bare `sectionAccess` above answers only "what does this role ship with".
+ *
+ * An override for an uneditable role or section is IGNORED rather than honoured. It cannot be
+ * written — the CHECK constraints in 0291 refuse it and the endpoint refuses it first — so reaching
+ * this branch means a row exists that should not, and the two locks must hold anyway. A resolver
+ * that trusted its input would turn a bad row into an escalation.
+ */
+export const effectiveSectionAccess = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  overrides: SectionOverrides | null | undefined,
+): SectionAccess => {
+  const shipped = sectionAccess(role, section);
+  if (!role || !overrides) return shipped;
+  if (!isEditableRole(role) || !isEditableSection(section)) return shipped;
+  return overrides[role]?.[section] ?? shipped;
+};
