@@ -595,6 +595,61 @@ exactly the per-month reporting the Done-when asks for, and it means S4 should e
 hundred permanently-unrecoverable January/February fills rather than zero. **"Approaches zero" has to
 mean "approaches the reported floor", or S4 can never be marked done honestly.**
 
+#### — THE REPORTING HALF SHIPPED 2026-09-02 (`claude/samsara-telematics-coverage`). S4 stays OPEN on Q-SAM6.
+
+S4's Done-when has two halves. The first — the hole approaching its floor — the S3 tier does on its own
+at 250 fills/hour, with no run for anybody to start. The second, *"whatever remains is **reported** per
+month rather than left as an unexplained gap"*, was the part that needed building, and it is this.
+
+**What shipped.** `GET /api/integrations/samsara/telematics-coverage` (gate derived from
+`rolesThatCanView("settings")`) and a **Telematics history** card on *Settings → Data & sync*, beside
+S1's webhook card. `computeTelematicsCoverage` in `@silvicom/shared` is the pure aggregator.
+
+**⚠ ALL-TIME, with no window control, and the route cannot be given one.** This is D-SAM7 made
+concrete. The Coverage page computes the same idea over its 90-day window and reads ~95%; across the
+whole history it was ~23%, because 76.8% of fills had never been fetched. **Both figures were correct
+and one of them was useless** — a coverage figure whose scope hides the gap converts an unanswered
+question into a reassuring answer, which is worse than showing nothing.
+
+**Three states, not two, because they need different actions.** *Checked* / *no history at Samsara* /
+*to fetch*. Only the last improves by waiting. Blending them is how a transient backlog at the new end
+and a permanent vendor gap at the old end get mistaken for each other — and the measurement above shows
+they are genuinely different populations (January 10.8% `no_data`, August 0.6%).
+
+The card also prints **where coverage lands** once the backlog clears, extrapolated from the rate the
+already-attempted fills came back at, and prints nothing at all when nothing has been attempted — a
+ceiling extrapolated from no evidence is a guess dressed as a measurement.
+
+**⚠ A predicate this step had to get right, and a test that initially could not tell.** *Attempted*
+means `samsara_recon_at is not null` — the stamp the recon path writes whether or not Samsara had
+anything. Judging by `samsara_recon_status` instead calls a stamped row done and never re-queues it.
+**124 production rows carry a status with no stamp** (measured 2026-09-02), so the two predicates
+genuinely disagree; the first version of the test suite passed under BOTH until a fixture for that case
+was added.
+
+**Verified by:** `computeTelematicsCoverage` (9, `packages/shared`) — including `a status with no stamp
+is still PENDING — the stamp is what 'we asked' means`, `reports where coverage LANDS if the backlog
+resolves at the rate already observed`, `refuses to extrapolate a ceiling from nothing`, and `puts a
+December fill in December — the UTC month boundary is not the local one`. `readTelematicsCoverage` (6,
+`apps/api`) — `takes no window — nothing in the query bounds fueled_at`, `excludes fills with no truck —
+an unmapped fill is a roster problem, not a collection one`, `surfaces a read failure rather than
+reporting 0% coverage`, and `is org-scoped` (`expectOrgScoped`). `DataSyncPage` (10, `apps/web`).
+
+**Proved able to fail by eight mutations**, each breaking exactly one assertion: windowing the read to
+90 days; counting unmapped fills; swallowing the read error; judging attempts by status rather than the
+stamp; extrapolating a ceiling with no evidence; showing the landing figure with no backlog; hiding the
+truncation warning; swallowing the card's error. ⚠ **Two of these initially passed** — the
+status-vs-stamp one for want of a discriminating fixture, as above.
+
+**One thing this broke and fixed properly.** `DataSyncPage.test.ts` answered *every* `apiFetch` with the
+webhook payload, so a second card on the page silently received the wrong shape and took the whole page
+down — four existing assertions failed for a reason none of them was about. The fake now dispatches on
+the path.
+
+**What remains for S4:** Q-SAM6 (the batch size), and then watching the number this card now prints
+reach its floor. `lint:ui-adoption` also rejected a hand-written `<table>` here and was right to —
+the card renders through `DataTable`.
+
 ### S5 · Freshness becomes a number with a threshold
 
 **Prerequisites:** S2, S3. **Needs Q-SAM1 answered** for the targets; ships the mechanism regardless,
