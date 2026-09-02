@@ -29,11 +29,25 @@ interface Response { posted: FeedFreshness; rejected: FeedFreshness }
 const state = ref<FeedFreshness | null>(null);
 const failed = ref(false);
 onMounted(async () => {
-  const res = await apiFetch<Response>("/api/fueling/feed-freshness");
-  if (res.ok && res.data) state.value = res.data[props.feed];
-  // A freshness line that cannot be read is not worth an error of its own — the rows below are still
-  // the vendor's rows. It simply says nothing, which is what it said before this existed.
-  else failed.value = true;
+  // ⚠ The try/catch is not defensive noise, and it was missing. `apiFetch` returns `{ ok: false }`
+  // for an HTTP error but does not wrap the `fetch` call itself, so a TRANSPORT failure — offline,
+  // DNS, a dropped connection — REJECTS. In an async `onMounted` with no catch that is an unhandled
+  // promise rejection, which is the one outcome this component's whole design rules out: the rows
+  // below are still the vendor's rows, and a freshness line that cannot be read says nothing rather
+  // than turning a caveat into an error. Found 2026-09-02 by mounting this on the Fuel Log, where a
+  // suite that does not stub the API made it visible; the two pages that shipped it first have no
+  // tests, so it had been silently possible in production since this component landed
+  // (`claude/fuel-feed-freshness`, 2026-09-02).
+  //
+  // ⚠ The branch is named rather than the PR because a bare hash-plus-three-digits is a valid hex
+  // colour, and `lint:tokens` reads it as one. This comment failed CI on exactly that.
+  try {
+    const res = await apiFetch<Response>("/api/fueling/feed-freshness");
+    if (res.ok && res.data) state.value = res.data[props.feed];
+    else failed.value = true;
+  } catch {
+    failed.value = true;
+  }
 });
 
 const tone = computed(() =>

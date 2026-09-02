@@ -995,7 +995,8 @@ green: `pnpm test`, `typecheck`, `lint`, `build`, `lint:ui-adoption`, `lint:ui-c
 
 **Done when.** No figure in the section reads as a claim about everything without saying what it covers.
 
-#### — FIRST BULLET SHIPPED 2026-09-02 (`claude/fuel-spend-freshness`). T5 stays OPEN for the other two.
+#### — FIRST BULLET SHIPPED 2026-09-02 (`claude/fuel-spend-freshness`). ~~T5 stays OPEN for the other two.~~
+#### ⇒ **T5 CLOSED 2026-09-02.** All three bullets shipped across five PRs; the last note in this step is the summary.
 
 **What shipped.** `describeRollupFreshness` in `@silvicom/shared`, and both spend surfaces print from
 it: a line above the tabs on Fuel Reconciliation, and a **"Figures built"** row on the spend PDF's
@@ -1082,7 +1083,7 @@ not fail because `FeedFreshness` has no error field to leak through. The first i
 the exact six columns; the second also asserts the response's key set, so a future field carrying vendor
 text fails here rather than in production.
 
-**⚠ STILL NOT DONE, and T5 stays open for it:** *share attributed to a vehicle* on all four pages, and
+**⚠ ~~STILL NOT DONE, and T5 stays open for it~~ — CLOSED 2026-09-02, see the two notes below:** *share attributed to a vehicle* on all four pages, and
 the Fuel Log's line entirely. Both need a window-wide aggregate — `fuel_range_totals` (0289) returns
 `fills` but not "fills naming a truck", and Transactions/Rejections key on a text `unit` rather than a
 `vehicle_id` — so both need a migration. Deferred deliberately while the permissions work is claiming
@@ -1162,7 +1163,7 @@ keeps its vue-query subscription alive, and a refetch from an earlier case lands
 `beforeEach` has cleared it. That produced an assertion about a date window reading a chain built by a
 previous test's unfiltered query — a failure that looks like a bug in the code under test.
 
-**⚠ STILL NOT DONE, and T5 stays open for it:** the **Fuel Log's line entirely** — rows in window,
+**⚠ ~~STILL NOT DONE, and T5 stays open for it~~ — CLOSED 2026-09-02, see the note below:** the **Fuel Log's line entirely** — rows in window,
 share attributed, and the posted feed's last delivery. It is the only part that needs the migration
 Segment D owns: `fuel_range_totals` (0289) returns `fills` but not "fills naming a truck", and
 `create or replace` cannot change a `returns table` shape, so it is `drop function` + `create` in one
@@ -1234,6 +1235,64 @@ assertion exists at all: the difference only shows on a window with nothing in i
 ⚠ **`fills_with_vehicle` is appended LAST in the `returns table`.** PostgREST hands the browser named
 keys so position is nothing to it, but the matrix and any future positional reader get the columns
 they already knew, in the order they already knew them.
+
+#### — T5 IS DONE. The Fuel Log's line shipped 2026-09-02 (`claude/fuel-log-coverage-line`), one merge behind 0297.
+
+**What shipped.** `describeRowCoverage` gained a `fuelLog` surface, `useFuelRangeTotals` returns
+`fillsWithVehicle`, and the page carries `FeedFreshnessLine feed="posted"` and `RowCoverageLine` above
+its filters — the same two lines, in the same order, as Transactions and Rejections. **All four fuel
+lists now say what they cover, and T5's Done-when is met.**
+
+**The Fuel Log's consequence clause is not a rewording of the other two, and that is the point.** The
+raw-feed pages say the unattributed rows are *"absent from any figure counted per truck"*, which is
+the whole truth there. Here the reader can check the claim against tiles two inches below, so the
+sentence names them: the unattributed fills are *"counted in the gallons and the spend above, and in
+none of the miles"*. A consistent generic clause would have been consistent and would have described
+nothing — which is the failure mode this plan's thesis is about.
+
+**The feed line is `posted`, and that is a measurement rather than an assumption.** Every canonical
+fill in this carrier's data is `source = 'fuel_card'` — 14,868 of 14,868, measured 2026-09-02 — so
+there is no manual-entry population whose freshness the posted feed would fail to describe. If that
+stops being true the line needs a second clause, not a different column. The scoring stage was checked
+for the same reason and needs no caveat either: 0 of 14,868 fills carry a null `case_level`, including
+the 3,055 belonging to 46 imports whose `efs_processing_runs` row has been stuck at `running` since
+2026-08-09.
+
+**⚠ THE HAND-CHECKED ORDERING IS NOW BELT AND BRACES, NOT THE ONLY THING BETWEEN US AND A LIE.**
+`fillsWithVehicle` is `number | null`, and `?? 0` is deliberately NOT written anywhere on its path.
+It is the one field on that object whose absence and whose zero mean opposite things: 0 is "not one
+fill in this window names a truck", which is alarming for a fleet and false for a deploy window.
+A reader that reached production ahead of its schema now renders NOTHING — which is what the page said
+before this existed — instead of "0% of the 14,868 fill-ups in this list name a truck". A genuine
+zero still passes through as zero, because an org whose fills name no truck is a real answer.
+
+**⚠ A DEFECT IN `FeedFreshnessLine` THAT SHIPPED WITH #481, FOUND BY MOUNTING IT HERE.** `apiFetch`
+returns `{ ok: false }` for an HTTP error but does not wrap the `fetch` call itself, so a TRANSPORT
+failure — offline, DNS, a dropped connection — rejects. In an async `onMounted` with no catch that is
+an unhandled promise rejection, which is the one outcome that component's design rules out: it exists
+to say nothing when it cannot read. Transactions and Rejections have no tests, so it had been silently
+possible since it shipped; `FuelLogPage.test.ts` does not stub the API and made it visible immediately.
+Fixed here.
+
+⚠ **That test's first form could not have failed.** The RENDER is identical whether the rejection is
+caught or not — nothing is shown either way — so an assertion on `html()` alone passes with the catch
+deleted. The assertion is on a `process.on("unhandledRejection")` listener instead, because what
+differs is whether the rejection escapes, and confirmed by mutation.
+
+**Verified by:** `rowCoverage.test.ts` (11) — `tells the Fuel Log's reader which tiles the unattributed
+fills are in and which they are not`. `fuelRangeTotals.test.ts` (13) — `reports NULL, never 0, when the
+function has not got its 0297 column yet`; `passes a genuine zero through as zero — an org whose fills
+name no truck is a real answer`. `fuelCoverageLine.test.ts` (6) — `puts both lines on the Fuel Log,
+whose tiles are the figures they qualify`; `says nothing on the Fuel Log while the function has no
+attributed count to give`; `gives the Fuel Log its own consequence clause, not the raw-feed pages'`.
+`FeedFreshnessLine.test.ts` (6) — `says nothing when the request never completes at all, and lets no
+rejection escape the page`.
+
+**Proved able to fail by eleven mutations:** collapsing the null to 0 and treating a genuine 0 as
+absent, on the composable; reading `fills` as the numerator; deleting the line from the page, pointing
+its feed at `rejected`, and dropping the null guard so a missing column renders as 0%; naming the page
+`transactions` so it takes the wrong clause; giving the Fuel Log the raw-feed clause, the raw-feed
+pages the Fuel Log's, and the Fuel Log the wrong noun; and letting the freshness rejection escape.
 
 ---
 

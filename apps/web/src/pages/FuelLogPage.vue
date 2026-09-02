@@ -5,7 +5,7 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fuelTxnStatus, explainCaseOutcome, formatRuleId, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
+import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -19,6 +19,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
+import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
@@ -179,6 +181,22 @@ const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
 const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
 const hasCost      = computed(() => rangeTotals.value?.hasCost ?? false);
 const avgMpg       = computed(() => rangeTotals.value?.fleetMpg ?? null);
+/**
+ * FUEL-T5 — what the tiles directly beneath this actually cover.
+ *
+ * BOTH numbers come from the same `fuel_range_totals` row, not from two queries: the denominator here
+ * is the RPC's `fills` rather than the list query's `total`, so the numerator and denominator are one
+ * measurement taken at one instant. Two queries with independent cache lifetimes can be one poll
+ * apart, and a share assembled from halves of different moments is arithmetic, not a fact.
+ *
+ * `null` until the query lands, which is what `RowCoverageLine` renders as nothing at all.
+ */
+const coverage = computed(() => {
+  const t = rangeTotals.value;
+  // A null `fillsWithVehicle` is the function without its 0297 column — a state that can only exist
+  // inside a deploy window, and one where saying nothing is right and saying "0%" is a lie.
+  return t == null || t.fillsWithVehicle == null ? null : describeRowCoverage("fuelLog", t.fillUps, t.fillsWithVehicle);
+});
 const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
@@ -235,6 +253,17 @@ const columns: DataTableColumn[] = [
         </BaseButton>
       </template>
     </PageHeader>
+
+    <!--
+      FUEL-T5. Arrival, then composition, then the controls.
+
+      The feed line is the POSTED feed's, and that is a measurement rather than an assumption: every
+      canonical fill in this carrier's data is `source = 'fuel_card'` (14,868 of 14,868, measured
+      2026-09-02), so there is no manual-entry population whose freshness this line would fail to
+      describe. If that ever stops being true the line needs a second clause, not a different column.
+    -->
+    <FeedFreshnessLine feed="posted" />
+    <RowCoverageLine :coverage="coverage" />
 
     <FilterBar
       v-model:search="searchBind"

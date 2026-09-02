@@ -56,8 +56,9 @@ function recorder(): unknown {
   });
 }
 
+let rpcRow: Record<string, unknown> = {};
 // Figures nothing in the loop rows could produce, so a tile carrying them can only have come from here.
-const RPC_ROW = { fills: 4321, gallons: 98_765, spend: 456_789, has_cost: true, flagged: 77, clear: 4244 };
+const RPC_ROW = { fills: 4321, gallons: 98_765, spend: 456_789, has_cost: true, flagged: 77, clear: 4244, fills_with_vehicle: 4001 };
 let rpcError: { message: string } | null = null;
 let milesError: { message: string } | null = null;
 
@@ -68,7 +69,7 @@ vi.mock("@/lib/supabase", () => ({
       rpcCalls.push({ fn, args });
       if (rpcError) return { data: null, error: rpcError };
       if (fn === "fuel_range_miles_inputs" && milesError) return { data: null, error: milesError };
-      return { data: fn === "fuel_range_totals" ? [RPC_ROW] : MILES_ROWS, error: null };
+      return { data: fn === "fuel_range_totals" ? [rpcRow] : MILES_ROWS, error: null };
     },
   },
 }));
@@ -92,7 +93,7 @@ async function totals(filters: FuelFilters = {}) {
   return out as Record<string, unknown> | undefined;
 }
 
-beforeEach(() => { calls.length = 0; rpcCalls.length = 0; rpcError = null; milesError = null; });
+beforeEach(() => { calls.length = 0; rpcCalls.length = 0; rpcError = null; milesError = null; rpcRow = { ...RPC_ROW }; });
 
 describe("useFuelRangeTotals — four tiles that cannot be capped, two that still can", () => {
   it("takes fills, gallons, spend, flagged and clear from the RPC, not from the paged rows", async () => {
@@ -105,7 +106,26 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
       hasCost: true,
       flagged: 77,
       clear: 4244,
+      fillsWithVehicle: 4001,
     });
+  });
+
+  // ⚠ FUEL-T5 / migration 0297. `fills_with_vehicle` is the one field here whose ABSENCE and whose
+  // ZERO mean opposite things. Zero is "not one fill in this window names a truck" — alarming for a
+  // fleet, and a lie for a deploy window. `lint:migration-ordering` reads columns and cannot see a
+  // function's return shape, so nothing mechanical stops a reader reaching production in the nine
+  // minutes before its schema does; this is what makes that window silent instead of confident.
+  it("reports NULL, never 0, when the function has not got its 0297 column yet", async () => {
+    delete (rpcRow as { fills_with_vehicle?: number }).fills_with_vehicle;
+    expect((await totals({}))!.fillsWithVehicle).toBeNull();
+
+    rpcRow = { ...RPC_ROW, fills_with_vehicle: null };
+    expect((await totals({}))!.fillsWithVehicle).toBeNull();
+  });
+
+  it("passes a genuine zero through as zero — an org whose fills name no truck is a real answer", async () => {
+    rpcRow = { ...RPC_ROW, fills_with_vehicle: 0 };
+    expect((await totals({}))!.fillsWithVehicle).toBe(0);
   });
 
   it("still applies the miles and MPG JUDGEMENT in TypeScript — D-AG1", async () => {
