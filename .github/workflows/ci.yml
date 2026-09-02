@@ -113,6 +113,14 @@ jobs:
       - name: Surface catalogue
         run: pnpm lint:surfaces
 
+      # `lint:comment-claims` has existed in package.json since the comment discipline was written
+      # and has never been run by CI — a gate nobody executes is a gate that is not there. It was
+      # found on 2026-09-02 by running it by hand: the repo was clean except for one comment added
+      # that same day, which named a test file the checker could not resolve. Turned on at one
+      # violation, which is the only moment turning a gate on is cheap.
+      - name: Comment proof-claims cite real tests
+        run: pnpm lint:comment-claims
+
       # Added 2026-08-26 (re-founding, docs/ARCHITECTURE.md §6). Four tables merged two days
       # earlier with zero application code; this would have failed that merge.
       - name: Every table has a producer
