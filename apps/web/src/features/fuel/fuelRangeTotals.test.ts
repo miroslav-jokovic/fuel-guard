@@ -24,16 +24,25 @@ interface Call { method: string; args: unknown[] }
 const calls: Call[] = [];
 const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
 
-/** Rows the paging loop sees. One truck, two fills, 100 miles apart at 10 mpg. */
-const LOOP_ROWS = [
-  { vehicle_id: "v1", odometer: 1000, samsara_odometer: 1000, samsara_odometer_source: "obd", gallons: 10, computed_mpg: 6 },
-  { vehicle_id: "v1", odometer: 1100, samsara_odometer: 1100, samsara_odometer_source: "obd", gallons: 10, computed_mpg: 8 },
+/** Per-vehicle measurements, as `fuel_range_miles_inputs` returns them (migration 0290, FUEL-T3b). */
+interface MilesRow {
+  vehicle_id: string | null;
+  obd_count: number; obd_min: number | null; obd_max: number | null;
+  entered_count: number; entered_min: number | null; entered_max: number | null;
+  entered_worst_step: number | null;
+  mpg_weighted: number; mpg_gallons: number;
+}
+const MILES_ROWS: MilesRow[] = [
+  // A truck with a clean 100-mile OBD span, and MPG sums already banded by the database.
+  { vehicle_id: "v1", obd_count: 2, obd_min: 1000, obd_max: 1100, entered_count: 2, entered_min: 1000, entered_max: 1100, entered_worst_step: 0, mpg_weighted: 140, mpg_gallons: 20 },
+  // A fill attributed to NO truck: contributes to fleet MPG and to nothing else.
+  { vehicle_id: null, obd_count: 0, obd_min: null, obd_max: null, entered_count: 0, entered_min: null, entered_max: null, entered_worst_step: null, mpg_weighted: 0, mpg_gallons: 0 },
 ];
 
 function recorder(): unknown {
   const target = {
     then(resolve: (v: unknown) => void) {
-      resolve({ data: LOOP_ROWS, error: null, count: LOOP_ROWS.length });
+      resolve({ data: [], error: null, count: 0 });
     },
   };
   return new Proxy(target, {
@@ -50,18 +59,22 @@ function recorder(): unknown {
 // Figures nothing in the loop rows could produce, so a tile carrying them can only have come from here.
 const RPC_ROW = { fills: 4321, gallons: 98_765, spend: 456_789, has_cost: true, flagged: 77, clear: 4244 };
 let rpcError: { message: string } | null = null;
+let milesError: { message: string } | null = null;
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: (table: string) => { calls.push({ method: "from", args: [table] }); return recorder(); },
     rpc: async (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
-      return rpcError ? { data: null, error: rpcError } : { data: [RPC_ROW], error: null };
+      if (rpcError) return { data: null, error: rpcError };
+      if (fn === "fuel_range_miles_inputs" && milesError) return { data: null, error: milesError };
+      return { data: fn === "fuel_range_totals" ? [RPC_ROW] : MILES_ROWS, error: null };
     },
   },
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ orgId: "org-1" }) }));
 
+import { MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX } from "@silvicom/shared";
 import { useFuelRangeTotals, type FuelFilters } from "./useFuelLog";
 
 async function totals(filters: FuelFilters = {}) {
@@ -79,7 +92,7 @@ async function totals(filters: FuelFilters = {}) {
   return out as Record<string, unknown> | undefined;
 }
 
-beforeEach(() => { calls.length = 0; rpcCalls.length = 0; rpcError = null; });
+beforeEach(() => { calls.length = 0; rpcCalls.length = 0; rpcError = null; milesError = null; });
 
 describe("useFuelRangeTotals — four tiles that cannot be capped, two that still can", () => {
   it("takes fills, gallons, spend, flagged and clear from the RPC, not from the paged rows", async () => {
@@ -95,17 +108,50 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     });
   });
 
-  it("still derives miles and fleet MPG in TypeScript, from the rows — D-AG1", async () => {
+  it("still applies the miles and MPG JUDGEMENT in TypeScript — D-AG1", async () => {
     const t = await totals({});
-    // 1000 → 1100 on the OBD span. If this ever starts coming from the RPC it will not be 100.
+    // The database returned a span (1000→1100) and banded sums. TypeScript decided that the span is
+    // real and divided the sums; neither verdict came from SQL.
     expect(t!.totalMiles).toBe(100);
-    // Gallon-weighted mean of 6 and 8 over equal gallons.
     expect(t!.fleetMpg).toBe(7);
   });
 
-  it("asks the database for exactly one thing, and it is the totals function", async () => {
+  // ⚠ NOT ASSERTED HERE, and the reason is worth stating rather than leaving as a gap. A non-advancing
+  // span makes `robustWindowMiles` return null rather than 0 — the guard its header calls the most
+  // important one it makes — but this composable SUMS, and `null ?? 0` and `0` both contribute nothing.
+  // The suppression is therefore **unobservable at the fleet total**: it matters to the over-fuel
+  // ceiling, where a 0-mile window makes `burnable` 0 and every purchase clears it. A test here would
+  // pass whether the guard existed or not, which is not a test. `windowMilesAggregate.test.ts` pins it
+  // where it is falsifiable, against `robustWindowMiles` itself.
+
+  it("refuses the entered span when it steps back further than the tolerance", async () => {
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_count: 0, obd_min: null, obd_max: null, entered_worst_step: -100 };
+    expect((await totals({}))!.totalMiles).toBe(0);
+    // …and accepts it when the step is inside the tolerance, so it is the STEP that decided.
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, entered_worst_step: -0.5 };
+    expect((await totals({}))!.totalMiles).toBe(100);
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_count: 2, obd_min: 1000, obd_max: 1100, entered_worst_step: 0 };
+  });
+
+  it("counts an unattributed fill toward fleet MPG and toward no truck's miles", async () => {
+    MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 60, mpg_gallons: 10 };
+    const t = await totals({});
+    expect(t!.fleetMpg).toBe((140 + 60) / (20 + 10)); // both fills weigh in
+    expect(t!.totalMiles).toBe(100);                   // …and it adds no distance
+    MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 0, mpg_gallons: 0 };
+  });
+
+  it("asks the database for both functions, and never pages fuel_transactions itself", async () => {
     await totals({});
-    expect(rpcCalls.map((c) => c.fn)).toEqual(["fuel_range_totals"]);
+    expect(rpcCalls.map((c) => c.fn).sort()).toEqual(["fuel_range_miles_inputs", "fuel_range_totals"]);
+    // The loop that made every tile depend on `max_rows` is gone; nothing here reads the table directly.
+    expect(calls.filter((c) => c.method === "from")).toEqual([]);
+  });
+
+  it("sends the plausibility band as an argument, so SQL never holds a copy of it", async () => {
+    await totals({});
+    const miles = rpcCalls.find((c) => c.fn === "fuel_range_miles_inputs")!;
+    expect(miles.args).toMatchObject({ p_mpg_min: MPG_PLAUSIBLE_MIN, p_mpg_max: MPG_PLAUSIBLE_MAX });
   });
 
   it("passes every filter the list uses, so the tiles and the rows describe one set", async () => {
@@ -114,7 +160,7 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
       vehicleId: "veh-1", driverId: "drv-1", tankType: "reefer",
       search: "Pilot", searchVehicleIds: ["veh-9"], searchDriverIds: ["drv-9"],
     });
-    expect(rpcCalls[0]!.args).toEqual({
+    expect(rpcCalls.find((c) => c.fn === "fuel_range_totals")!.args).toEqual({
       p_from: "2026-08-01",
       p_to: "2026-08-31",
       p_vehicle: "veh-1",
@@ -132,13 +178,16 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
   // FUEL-T3a exists to end.
   it("sanitises the search term the same way the list does", async () => {
     await totals({ search: "  Pi%lot,(TX)  " });
-    expect(rpcCalls[0]!.args.p_search).toBe("PilotTX");
+    // BOTH functions must receive it, or the two halves of one tile row describe different sets.
+    for (const c of rpcCalls) expect(c.args.p_search).toBe("PilotTX");
   });
 
   it("sends null rather than an empty term when nothing is searched", async () => {
     await totals({ search: "%%%" });
-    expect(rpcCalls[0]!.args.p_search).toBeNull();
-    expect(rpcCalls[0]!.args.p_search_vehicles).toBeNull();
+    for (const c of rpcCalls) {
+      expect(c.args.p_search).toBeNull();
+      expect(c.args.p_search_vehicles).toBeNull();
+    }
   });
 
   it("surfaces an RPC failure instead of rendering zeros", async () => {
@@ -146,5 +195,13 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     rpcError = { message: "function fuel_range_totals does not exist" };
     const t = await totals({});
     expect(t).toBeUndefined();
+  });
+
+  // The two calls fail independently, and the second one needs its own case: `fuel_range_totals` runs
+  // first, so a shared error fixture never reaches the miles call at all and a swallowed error there
+  // would go unnoticed.
+  it("surfaces a failure of the MILES call too, not just the totals one", async () => {
+    milesError = { message: "function fuel_range_miles_inputs does not exist" };
+    expect(await totals({})).toBeUndefined();
   });
 });

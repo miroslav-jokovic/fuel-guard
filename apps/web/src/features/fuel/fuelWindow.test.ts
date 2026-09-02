@@ -90,15 +90,17 @@ describe("the fuel window is a window of days", () => {
 
   it("the tiles window on exactly the same column as the rows beneath them", async () => {
     await run("totals", { from: "2026-08-01", to: "2026-08-31" });
-    // The four summed tiles go through the RPC, which windows on `business_date` in SQL (0289) — so
-    // the days are asserted on the arguments it was given.
-    expect(rpcCalls.map((c) => c.fn)).toEqual(["fuel_range_totals"]);
-    expect(rpcCalls[0]!.args).toMatchObject({ p_from: "2026-08-01", p_to: "2026-08-31" });
-    // Miles and MPG still page, and that loop must window identically or the two halves of one tile
-    // row would describe different sets.
-    expect(filtersFor("gte", "business_date")).toEqual(["2026-08-01"]);
-    expect(filtersFor("lte", "business_date")).toEqual(["2026-08-31"]);
-    expect(filtersFor("lte", "fueled_at")).toEqual([]);
+    // Every tile now goes through SQL — the sums via `fuel_range_totals` (0289) and the odometer /
+    // MPG measurements via `fuel_range_miles_inputs` (0290), both windowing on `business_date` there.
+    // So the days are asserted on the arguments BOTH were given: one of them drifting would put two
+    // halves of the same tile row on different windows, which is the disagreement T3a/T3b end.
+    expect(rpcCalls.map((c) => c.fn).sort()).toEqual(["fuel_range_miles_inputs", "fuel_range_totals"]);
+    for (const c of rpcCalls) {
+      expect(c.args).toMatchObject({ p_from: "2026-08-01", p_to: "2026-08-31" });
+    }
+    // …and the tiles no longer read `fuel_transactions` at all, so there is no client-side window left
+    // to get wrong.
+    expect(calls.filter((c) => c.method === "from")).toEqual([]);
   });
 
   // `fueled_at` keeps the job it is good at — ordering and time-of-day — and only loses the filter.

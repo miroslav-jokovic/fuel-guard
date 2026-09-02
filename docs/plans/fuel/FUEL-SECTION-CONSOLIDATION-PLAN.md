@@ -894,6 +894,37 @@ to fail by six mutations: judging monotonicity in SQL; `LEAST` without the null 
 rows rather than non-null ones; dropping the null-vehicle group; letting the band dilute instead of
 filter; counting non-OBD readings as OBD.
 
+#### — T3b MERGE 2 of 2 SHIPPED 2026-09-02 (`claude/fuel-miles-mpg-reader`). **T3b is DONE, and so is T3.**
+
+**What shipped.** `useFuelRangeTotals` calls `fuel_range_miles_inputs` with the band from
+`@silvicom/shared` and runs `windowMilesFromAggregate` over the returned measurements. **The paging loop
+is gone.** Every tile on the Fuel Log is now independent of how many fills there are — which is what
+T3a set out to do and could only half-finish.
+
+**The judgement did not move.** `robustWindowMiles`'s preference order, its ±1 tolerance and its
+null-not-zero guard, and the MPG plausibility band, are all still in TypeScript. SQL returns spans,
+counts and the worst backward step; TypeScript decides what they mean.
+
+**⚠ One assertion was DELETED rather than kept, and this is the honest half of the step.** A test that
+"a non-advancing span is suppressed rather than counted as 0 miles" **cannot fail at this layer**: the
+composable SUMS, and `null ?? 0` and `0` both contribute nothing. The guard is real and important — a
+0-mile window makes the over-fuel `burnable` 0 and every purchase clears the ceiling — but its effect is
+**unobservable in a fleet total**. Keeping the assertion would have been a test that passes whether the
+guard exists or not. It is removed, the reason is written where it was, and the guard stays pinned in
+`windowMilesAggregate.test.ts` against `robustWindowMiles` itself, where it is falsifiable.
+
+**Verified by:** `fuelRangeTotals.test.ts` (11) and `fuelWindow.test.ts` (4). Named cases include
+`asks the database for both functions, and never pages fuel_transactions itself`; `sends the
+plausibility band as an argument, so SQL never holds a copy of it`; `refuses the entered span when it
+steps back further than the tolerance`; `counts an unattributed fill toward fleet MPG and toward no
+truck's miles`; `surfaces a failure of the MILES call too, not just the totals one`.
+
+**Proved able to fail by four mutations:** reversing the loop's order so unattributed fills miss MPG;
+hardcoding the band instead of sending the shared constant; forgetting the search term on the miles
+call; swallowing the miles RPC error. ⚠ **That last one initially passed** — `fuel_range_totals` runs
+first, so a shared error fixture never reached the miles call and a swallowed error there would have
+gone unnoticed. It has its own fixture now.
+
 ---
 
 ### T4 · The Trailer column comes off the Fuel Log
