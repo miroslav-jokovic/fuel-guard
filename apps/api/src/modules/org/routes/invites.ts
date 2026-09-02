@@ -26,11 +26,27 @@ export interface InviteDelivery {
 }
 
 /**
- * Deliver an invite through OUR mailer (Resend) instead of Supabase's built-in email. We ask Supabase
- * to GENERATE the action link (which also creates the auth user) without sending, then send a branded
- * email ourselves — reliable for external addresses and not subject to Supabase's default-email limits.
- * Falls back to a recovery link when the user already exists. The link is ALWAYS returned so invites work
- * even when email delivery is misconfigured (the admin can copy + share it directly).
+ * Deliver an invite through OUR mailer (Resend/Brevo) instead of Supabase's built-in email. We ask
+ * Supabase to GENERATE the action link (which also creates the auth user) without sending, then send
+ * a branded email ourselves — reliable for external addresses and not subject to Supabase's
+ * default-email limits. Falls back to a recovery link when the user already exists.
+ *
+ * ── WHY WE EMAIL OUR OWN URL AND NOT `action_link` (2026-09-02) ─────────────────────────────────
+ * `properties.action_link` is `…/auth/v1/verify?token=…&type=invite&redirect_to=…`, and GoTrue
+ * consumes that token on the FIRST HTTP GET — whoever makes it. Corporate mail security fetches
+ * every link in an inbound message before the recipient sees it (Defender Safe Links, Proofpoint URL
+ * Defense), so on those tenants the scanner spends the invite and the human's click arrives at
+ * `/accept-invite#error=access_denied&error_code=otp_expired`. With no session, the SPA's router
+ * guard sent them to /login with no explanation — which is the bug this replaces, and the reason
+ * "the invite link just goes to the login page" was never reproducible in-house.
+ *
+ * So we email `${WEB_APP_URL}/accept-invite?token_hash=…&type=…` instead. A scanner's GET on that
+ * lands on our own SPA route and consumes nothing; the token is redeemed by `verifyOtp` from the
+ * page, which needs JavaScript the scanner does not run. `hashed_token` is the same credential the
+ * action link carries — this changes WHO redeems it and when, not what it is.
+ *
+ * The link is ALWAYS returned so invites work even when email delivery is misconfigured (the admin
+ * can copy + share it directly).
  */
 export async function deliverInvite(
   admin: SupabaseClient,
@@ -39,22 +55,27 @@ export async function deliverInvite(
   email: string,
 ): Promise<InviteDelivery> {
   const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
+  // `type` travels with the token because the two are not interchangeable: `verifyOtp` must be told
+  // which one it is holding, and a re-invite to an already-confirmed address is a RECOVERY token.
+  const acceptUrl = (hashedToken: string, type: "invite" | "recovery") =>
+    `${redirectTo}?token_hash=${encodeURIComponent(hashedToken)}&type=${type}`;
+
   let link: string | null = null;
   const invite = await admin.auth.admin.generateLink({
     type: "invite",
     email,
     options: { redirectTo },
   });
-  if (!invite.error && invite.data?.properties?.action_link) {
-    link = invite.data.properties.action_link;
+  if (!invite.error && invite.data?.properties?.hashed_token) {
+    link = acceptUrl(invite.data.properties.hashed_token, "invite");
   } else {
     const recovery = await admin.auth.admin.generateLink({
       type: "recovery",
       email,
       options: { redirectTo },
     });
-    if (!recovery.error && recovery.data?.properties?.action_link)
-      link = recovery.data.properties.action_link;
+    if (!recovery.error && recovery.data?.properties?.hashed_token)
+      link = acceptUrl(recovery.data.properties.hashed_token, "recovery");
     else
       console.error(
         `[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`,
@@ -179,7 +200,12 @@ export function invitesRouter(): Router {
         entityId: invite.id,
         meta: { email, role, emailSent: delivery.sent, reason: delivery.reason },
       });
-      res.status(201).json({ invite, emailSent: delivery.sent, reason: delivery.reason });
+      // `link` is returned to the ADMIN who created the invite, deliberately. The comment on
+      // InviteDelivery.link has promised this since the mailer was written and the response never
+      // carried it, so "email didn't arrive" had no recovery path but a resend into the same void.
+      // Admin-only (requireRole above) and org-scoped, and the token is the same one already in the
+      // recipient's inbox — this exposes nothing the invite did not already put on the wire.
+      res.status(201).json({ invite, emailSent: delivery.sent, reason: delivery.reason, link: delivery.link });
     }),
   );
 
@@ -288,7 +314,7 @@ export function invitesRouter(): Router {
         meta: { email: existing.email, emailSent },
       });
 
-      res.json({ ok: true, emailSent, reason: delivery.reason });
+      res.json({ ok: true, emailSent, reason: delivery.reason, link: delivery.link });
     }),
   );
 

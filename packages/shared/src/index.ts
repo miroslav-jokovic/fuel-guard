@@ -3,6 +3,7 @@ export * from "./anomalyRules/index.js";
 export * from "./fillConfidence.js";
 export * from "./fillAttribution.js";
 export * from "./auth.js";
+export * from "./inviteLink.js";
 export * from "./apiContract.js";
 export * from "./hazmatApi.js";
 export * from "./hazmatLifecycle.js";

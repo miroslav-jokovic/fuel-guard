@@ -34,11 +34,25 @@ export const authRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/ApplyPage.vue"),
     meta: { public: true, layout: "apply", title: "Driver application", noindex: true },
   },
+  /**
+   * The invited user's landing page. `public: true` since 2026-09-02, and that is the fix rather
+   * than a side effect of one: it was `requiresAuth: true`, so the guard above converted EVERY way
+   * an invite link can fail — spent by a mail scanner, expired, or simply carrying a `token_hash`
+   * the client had not redeemed yet — into a silent redirect to /login. The page's own "link
+   * expired" branch could never render, because the guard ran first.
+   *
+   * Nothing is exposed by making it public. The page renders a password form only after redeeming
+   * the token itself (`verifyOtp`), and `POST /api/invites/accept` independently re-checks that the
+   * caller's email is confirmed before it will create a membership.
+   *
+   * `allowNoOrg` stays: an accepted invite has no membership until the POST lands, so the user is
+   * briefly authenticated with no org while still on this page.
+   */
   {
     path: "/accept-invite",
     name: "accept-invite",
     component: () => import("@/pages/auth/AcceptInvitePage.vue"),
-    meta: { requiresAuth: true, allowNoOrg: true, layout: "auth" },
+    meta: { public: true, allowNoOrg: true, layout: "auth" },
   },
   {
     path: "/pending",
