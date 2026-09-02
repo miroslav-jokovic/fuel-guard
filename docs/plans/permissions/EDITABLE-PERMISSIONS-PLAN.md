@@ -212,6 +212,67 @@ Together with D-PERM7 the editable surface is exactly **7 roles × 11 sections**
 `dispatcher`, `safety_manager`, `auditor`, `recruiter`, `accountant`, `technician`, across every
 section except `admin`. (Nine roles ship; `admin` and `driver` are the two locks above.)
 
+## §2b Position, measured 2026-09-02 at `origin/main` = de9a8eb (live: schema 0293)
+
+**P0, P1, P2, P3 and P4 batch 1 are SHIPPED and DEPLOYED.** Merged as #463, #467, #465, #466, #469.
+(#464 was closed unmerged — GitHub closes a stacked PR when its base branch is deleted rather than
+retargeting it, and a closed PR cannot have its base changed. #467 is the same commit rebased.)
+
+An org can record an override, the token carries it, the API and the web read it, and the database
+honours it for **dispatch, hazmat, roster and equipment**. Nothing is editable in the UI yet, so no
+override row exists in production and every one of these paths is currently taking its default
+branch — which is why applying all of it changed no behaviour.
+
+### The remaining P4 inventory, exact
+
+Counted by the pattern that matters — a policy carrying `auth_role() = ANY (ARRAY[…])` whose table
+maps to an EDITABLE section. **17 wrapped, 35 remaining.**
+
+| section | policies | tables |
+| --- | ---: | --- |
+| `fuel` | 12 | `anomalies`, `declined_transactions`, `efs_transactions`, `fuel_cards`, `fuel_discount_rules`, `fuel_transactions`, `import_rows`, `imports`, `route_fuel_settings`, `station_geocode_learned` |
+| `safety` | 9 | `certifications`, `documents`, `dq_exports`, `psp_requests`, `qualification_records` |
+| `maintenance` | 8 | `maintenance_inspectors`, `maintenance_print_profiles`, `vehicle_inspection_items`, `vehicle_inspections` |
+| `recruitment` | 6 | `driver_authorizations`, `driver_employment_history`, `employer_inquiries`, `seven_day_statements` |
+
+⚠ **Do not count `auth_role()` mentions.** The applied schema has 109 of them and only 58 are section
+role lists; the rest are `auth_role() <> 'driver'` guards and driver-scoping predicates, which are
+not section questions and must NOT be wrapped — doing so would put an org-editable answer on "is
+this caller the driver app". Six further role-list policies are excluded because their section is
+uneditable (`org` → `admin`) or absent (`samsara`, `mcleod`, `messaging`, `driver-app`). An early
+draft of this plan said "~90 remaining" for exactly this reason and was wrong.
+
+### The recipe, established by #469 and to be repeated verbatim
+
+1. Wrap each policy with the helper 0293 introduced:
+   `auth_section_or_default('<section>', 'manage'|'view', auth_role() = any (array[…]))`.
+   The level is `manage` for write policies and `view` for SELECT.
+2. **Keep the role list.** It IS the shipped default (D-PERM4) and `lint:section-policies` checks it
+   against `auth.ts`. It is not scaffolding and is never removed.
+3. Leave every non-section conjunct outside the wrapper — `reviewer_id = auth_user_id()`,
+   `driver_id = auth_driver_id()`, `org_id = auth_org_id()`. Those are not an org's to configure.
+4. The migration needs a `-- cross-module-waiver:` line; batching is by SECTION and sections do not
+   line up with modules.
+5. Regenerate `supabase/schema.generated.sql`.
+6. **The evidence is the existing matrices passing UNCHANGED** for a claim-less token. Run them and
+   quote the numbers.
+7. Add override assertions to `supabase/tests/org-section-access.test.mjs` (47 today): narrowing
+   obeyed, widening obeyed, `view` ≠ `manage` both ways, sparseness, and the admin/driver locks.
+8. Mutation-test before claiming: break the helper three ways and confirm assertions fail.
+
+### Remaining batches
+
+- **B2 — fuel (12) + safety (9) = 21.** Matrices: `rls` (461), `restricted-records` (50), the fuel
+  matrices. ⚠ `safety` includes the §391.51 evidence tables, which are append-only and pinned in
+  `RETENTION_FORBIDDEN`; wrapping a policy does not change that and must not appear to.
+- **B3 — recruitment (6) + maintenance (8) = 14.** Matrices: `hire-applicant`,
+  `employer-inquiries`, `rls`. ⚠ The two PSP gates are an INTERSECTION with
+  `canReadInvestigationHistory` (§391.53(a)(1)) — a regulatory test that is NOT an org's to edit; it
+  stays a role check beside the section gate, exactly as P3 left it in the API.
+- **P5 — the editable page**, and not before B2 and B3. Shipping it earlier saves permissions the
+  database does not honour, which §4 below names as the workaround to avoid.
+- **P6 — the gate.**
+
 ## §3 Steps
 
 Each step is one PR, in order, and each must work against the **previous** schema for the ~9-minute
