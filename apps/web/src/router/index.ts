@@ -17,6 +17,23 @@ declare module "vue-router" {
     requiresAdmin?: boolean;
     /** The section whose `manage` access this route needs. */
     requiresManage?: AppSection;
+    /**
+     * The section this route needs to be READABLE — `view` or `manage`, the question
+     * `canViewSection` asks.
+     *
+     * Added 2026-09-02 for a defect the SURFACE-ENTITLEMENTS-PLAN review measured: 28 routes carry a
+     * sidebar entry gated on `canViewSection(...)` and no route gate at all, and `/settings` carried
+     * the opposite mismatch — gated at `manage` while its sidebar entry asked `view`, so the one role
+     * holding `settings: "view"` without `manage` (the auditor) saw the item and was bounced by the
+     * guard. There was no meta that could express "readable", which is why the mismatch had nowhere
+     * to be written correctly.
+     *
+     * ⚠ This is the SMALL half of that finding. The other 27 routes are not backfilled here on
+     * purpose: SURFACE-ENTITLEMENTS-PLAN.md §5 S1/S2 resolves a route to its section through the
+     * surface catalogue, so hand-writing 27 metas now would be 27 copies of a fact that step makes
+     * derivable. This meta is expected to be SUBSUMED by that guard, not extended to the rest.
+     */
+    requiresView?: AppSection;
     requiresAuditAccess?: boolean;
     title?: string;
     parent?: string;
@@ -107,6 +124,10 @@ router.beforeEach(async (to) => {
   // global boolean, which is why /recruitment could never use it without bouncing the recruiter
   // the section exists for.
   if (to.meta.requiresManage && !session.can(to.meta.requiresManage)) return { name: "dashboard" };
+  // `requiresView` is the read-level twin, and it must be checked with `canView` rather than `can`:
+  // `can` is manage-only, so resolving a view gate through it would reintroduce the exact bounce
+  // this meta was added to fix.
+  if (to.meta.requiresView && !session.canView(to.meta.requiresView)) return { name: "dashboard" };
   if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly))
     return { name: "dashboard" };
   return true;

@@ -76,10 +76,11 @@ A further seven detail routes have neither a gate nor a nav entry, and inherit n
 
 `/settings` is one of the three routes that IS gated — and it is gated at the wrong level. The
 sidebar shows it on `canViewSection("settings")`; the route demands `requiresManage: "settings"`.
-`auditor` is the only role holding `settings: "view"` without `manage`, so **an auditor sees a
-Settings menu item today that bounces them to the dashboard.** It is shipped, it is one line, and S2
-fixes it as a side effect of making the two agree — but it is recorded here because it is the exact
-failure mode this plan exists to make impossible, already in production.
+`auditor` is the only role holding `settings: "view"` without `manage`, so **an auditor saw a
+Settings menu item that bounced them to the dashboard.** ~~Recorded as Q-SURF5~~ — **fixed
+2026-09-02** by dropping the route to `view` (option (a)); the account stays here because it is the
+exact failure mode this plan exists to make impossible, found in production by this plan's own
+review rather than by a report, and because the remaining 27 are the same defect unfixed.
 
 **This is fixable without any of the machinery below** — see S2, which closes all 28 plus the seven
 detail routes in one change once S1's catalogue exists.
@@ -356,10 +357,13 @@ after — the harness `routeTable.test.ts` already established for the route-tab
 
 ### S2 · The router guard reads the catalogue — the 28-route gap closes
 The guard resolves `to.matched[0].path` → surface → `section` + `level`, and calls the
-`session.canView` / `session.can` that already exist. No `requiresView` meta is introduced and no
-route file is edited 28 times. The six existing `requiresManage` metas and the one
-`requiresAuditAccess` are reconciled with the catalogue and removed where they merely restate it;
+`session.canView` / `session.can` that already exist. No FURTHER `requiresView` meta is written and
+no route file is edited 28 times. The six existing `requiresManage` metas, the one
+`requiresView` that Q-SURF5 added for `/settings`, and the one `requiresAuditAccess` are reconciled
+with the catalogue and **removed where they merely restate it** — the `/settings` meta is the first
+one to subsume, since the catalogue will say `settings:view` for that surface anyway.
 `requiresAdmin` (9) stays as it is, being a role test rather than a section one.
+`sectionGuard.test.ts` already exists and is extended rather than written.
 
 **This step also fixes the shipped `/settings` defect** — the auditor bounce in §0 — because the
 guard and the sidebar stop being able to disagree by construction.
@@ -451,13 +455,22 @@ permissions page look broken, and Q-SURF2 shows what happens when nav and matrix
 Fallback: cap the claim and fail the write with a named error rather than mint a token that some
 proxy silently truncates.
 
-**Q-SURF5 — `/settings` is gated at `manage` while its sidebar entry asks `view`.** Found by this
-plan's own review; an auditor (`settings: "view"`, the only such role) sees the item and is bounced.
-Which is right? Candidates: (a) the route drops to `view` and `SettingsPage.vue` hides the controls an
-auditor may not use — matches `auditor: "view"`'s stated intent in `auth.ts:112` ("the audit log card
-is on this page and a read-only reviewer is its reader"); (b) the sidebar entry rises to `manage` and
-the auditor loses the link. Recommendation: **(a)** — the comment in `auth.ts` says the page was meant
-to be reachable by an auditor, so the route is the half that is wrong. Fix inside S2.
+~~**Q-SURF5 — `/settings` is gated at `manage` while its sidebar entry asks `view`.**~~
+**ANSWERED 2026-09-02 — option (a), owner's ruling; shipped.** The route dropped to `view`.
+`SettingsPage.vue` needed no change: every card already carried its own `show`, `manageOrRead`
+already existed for the read-only case, `Fleet readiness` already sat behind `session.can('settings')`
+and the empty state was already there — which is itself the evidence about which half was wrong. An
+auditor now sees the Audit log card and the four read-only report cards, and every link they see
+resolves.
+
+A `requiresView?: AppSection` meta was added beside `requiresManage` and resolved through
+`session.canView`, because nothing could express "readable" before — that is why the mismatch had
+nowhere to be written correctly. `lint:capabilities` now polices both metas on one rule.
+⚠ **The other 27 routes were deliberately not backfilled**, and the meta's own comment says so: S1/S2
+resolves a route to its section through the catalogue, so 27 hand-written metas now would be 27
+copies of a fact that step makes derivable. **This meta is expected to be subsumed by S2's guard, not
+extended.** `sectionGuard.test.ts` was written with the fix — nothing drove the guard before, which
+is how the two halves disagreed unnoticed.
 
 **Q-SURF6 — what does a denied surface do to a deep link that is already open?** A user viewing
 `/shop/inspectors` when an admin revokes it keeps the mounted page until they navigate; the guard

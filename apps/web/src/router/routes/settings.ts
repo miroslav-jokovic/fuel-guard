@@ -14,10 +14,24 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Card control", parent: "/settings" },
   },
   {
+    /**
+     * `requiresView`, not `requiresManage` (2026-09-02, Q-SURF5 in SURFACE-ENTITLEMENTS-PLAN.md).
+     *
+     * The sidebar has always offered this page on `canViewSection("settings")` while the route
+     * demanded `manage`. `auditor` is the only role holding `settings: "view"` without `manage`, so
+     * an auditor saw a Settings entry and was bounced to the dashboard by the guard — a menu item
+     * that has never worked for the one role it was added for.
+     *
+     * The route was the wrong half, and `auth.ts` says so in words: `auditor: "view"` is there
+     * because "the audit log card is on this page and a read-only reviewer is its reader". The page
+     * was already built for this visitor — every card carries its own `show`, `manageOrRead` exists
+     * for exactly the read-only case, Fleet readiness sits behind `session.can('settings')`, and
+     * there is a "No settings available for your role" empty state. Nothing on it had to change.
+     */
     path: "/settings",
     name: "settings",
     component: () => import("@/pages/SettingsPage.vue"),
-    meta: { requiresAuth: true, requiresManage: "settings", title: "Settings" },
+    meta: { requiresAuth: true, requiresView: "settings", title: "Settings" },
   },
   {
     path: "/settings/users",
