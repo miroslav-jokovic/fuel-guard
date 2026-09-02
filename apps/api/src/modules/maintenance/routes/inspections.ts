@@ -4,14 +4,12 @@ import {
   INSPECTION_CATALOGUE_VERSION,
   inspectionCreateSchema,
   inspectionPatchSchema,
-  rolesThatCanView,
-  rolesThatManage,
   type InspectionCreateRequest,
   type InspectionPatchRequest,
   inspectionDeleteRequestSchema,
   type InspectionDeleteRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -61,8 +59,8 @@ const listSchema = z.object({
 export function inspectionsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
-  const canView = requireRole(...rolesThatCanView("maintenance"));
-  const canManage = requireRole(...rolesThatManage("maintenance"));
+  const canView = requireSection("maintenance", "view");
+  const canManage = requireSection("maintenance");
 
   router.get(
     "/",
@@ -434,7 +432,7 @@ export function inspectionPrintingRouter(): Router {
   router.get(
     "/registration-sheet.pdf",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const profileId = typeof req.query.profile === "string" ? req.query.profile : null;

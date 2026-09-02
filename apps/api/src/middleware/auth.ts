@@ -1,5 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
-import type { UserRole } from "@silvicom/shared";
+import {
+  callerCanManage,
+  callerCanView,
+  type AppSection,
+  type SectionAccess,
+  type UserRole,
+} from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { verifyAccessToken, getProjectJwks, projectTokenAudience } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -45,6 +51,67 @@ export function requireOrg(req: Request, res: Response, next: NextFunction): voi
     return;
   }
   next();
+}
+
+/**
+ * Require a level of access to a SECTION, resolved against the caller's org overrides (D-PERM3,
+ * EDITABLE-PERMISSIONS-PLAN.md P3).
+ *
+ * This is what `requireRole(...rolesThatManage("fuel"))` meant all along, and the difference matters
+ * now that the matrix is editable per org: the spread form computes its role list ONCE, at module
+ * load, from the compile-time constant — so an org that granted its dispatchers Safety would still
+ * be refused by a gate that decided who was allowed before the process had served a request.
+ *
+ * Falls back to the shipped default for a token minted before migration 0292, which is every token
+ * in existence on the day it applies. Swapping a call site is therefore behaviour-preserving until
+ * an override row exists, and that is the property that makes a 71-site rewrite reviewable.
+ *
+ * ⚠ Keep the `gateKind` marker. `routeGates.test.ts` (P4.2, D-SEP10) walks the mounted middleware
+ * stacks to prove every router carries a gate, and it can only see one that declares itself — a gate
+ * without the marker reads to that fitness function as an ungated route.
+ */
+export function requireSection(section: AppSection, level: SectionAccess = "manage") {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
+    const role = req.auth?.role ?? null;
+    const sections = req.auth?.sections ?? null;
+    const allowed =
+      level === "manage"
+        ? callerCanManage(role, section, sections)
+        : callerCanView(role, section, sections);
+    if (!allowed) {
+      res.status(403).json(apiError("forbidden", "Insufficient role"));
+      return;
+    }
+    next();
+  };
+  return Object.assign(handler, { gateKind: "role" as const, section, level });
+}
+
+/**
+ * Require access to ANY ONE of several sections — a union, where stacking two `requireSection`
+ * middlewares would give an intersection.
+ *
+ * One caller today: the roster archive door, open to somebody who can see the roster OR somebody who
+ * can see the applicant board, because the two lists share a table and have different owners. A
+ * named export rather than an options bag, because the name is the documentation — "any" is the
+ * whole difference, and it is invisible in a call that merely takes more arguments.
+ */
+export function requireAnySection(...specs: Array<[AppSection, SectionAccess?]>) {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
+    const role = req.auth?.role ?? null;
+    const sections = req.auth?.sections ?? null;
+    const allowed = specs.some(([section, level = "manage"]) =>
+      level === "manage"
+        ? callerCanManage(role, section, sections)
+        : callerCanView(role, section, sections),
+    );
+    if (!allowed) {
+      res.status(403).json(apiError("forbidden", "Insufficient role"));
+      return;
+    }
+    next();
+  };
+  return Object.assign(handler, { gateKind: "role" as const, specs });
 }
 
 /** Require one of the given app roles. */

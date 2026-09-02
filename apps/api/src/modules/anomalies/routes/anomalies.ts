@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, rolesThatManage, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -20,7 +20,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/thresholds",
     requireOrg,
-    requireRole(...rolesThatManage("admin")),
+    requireSection("admin"),
     validateBody(thresholdsFormSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -103,7 +103,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/:id/sweep",
     requireOrg,
-    requireRole(...rolesThatManage("safety")),
+    requireSection("safety"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -125,7 +125,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/:id/transition",
     requireOrg,
-    requireRole(...rolesThatManage("safety")),
+    requireSection("safety"),
     validateBody(anomalyTransitionSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

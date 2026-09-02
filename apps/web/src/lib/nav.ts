@@ -44,10 +44,11 @@ import {
   type Icon,
 } from "@silvicom/ui/icons";
 import {
-  canViewSection,
-  canManageSection,
+  callerCanView,
+  callerCanManage,
   isAdmin,
   moduleEnabled,
+  type SectionClaim,
   type UserRole,
   type ModuleSet,
 } from "@silvicom/shared";
@@ -85,8 +86,23 @@ export interface NavGroup {
  * canManageSection gates the write surfaces (Import, Fuel Planning). Dashboard + Fuel Log stay ungated so
  * drivers keep them; Ask AI is any signed-in staff role (not driver).
  */
-export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null, counts: NavCounts = {}): NavGroup[] {
+export function buildNavGroups(
+  role: UserRole | null,
+  modules: ModuleSet | null,
+  counts: NavCounts = {},
+  /**
+   * The org's overrides of this role, from the caller's token (D-PERM2). Optional, and omitting it
+   * means the shipped matrix — which is what every pre-0291 token carries, and what the permissions
+   * page passes when previewing a role rather than a person.
+   */
+  sections: SectionClaim | null = null,
+): NavGroup[] {
   const isStaff = role != null && role !== "driver";
+  // Local aliases so the ~40 call sites below read exactly as they did before the claim existed.
+  // The alternative — threading `sections` through each one — would have made the diff for this
+  // change forty lines of noise around one real decision.
+  const canViewSection = (s: Parameters<typeof callerCanView>[1]) => callerCanView(role, s, sections);
+  const canManageSection = (s: Parameters<typeof callerCanManage>[1]) => callerCanManage(role, s, sections);
   return [
     {
       label: null,
@@ -100,41 +116,41 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: BeakerIcon,
       items: [
         { name: "Fuel Log", to: "/fuel-log", icon: PetrolPumpIcon, show: true },
-        { name: "Transactions", to: "/transactions", icon: TransactionIcon, show: canViewSection(role, "fuel") },
-        { name: "Rejections", to: "/rejections", icon: RejectionIcon, show: canViewSection(role, "fuel") },
+        { name: "Transactions", to: "/transactions", icon: TransactionIcon, show: canViewSection("fuel") },
+        { name: "Rejections", to: "/rejections", icon: RejectionIcon, show: canViewSection("fuel") },
         // EFS card inventory + control. Read-only until the write entitlement is confirmed; the
         // page itself explains that, so the nav entry does not need to know.
-        { name: "Cards", to: "/fuel-cards", icon: FuelCardIcon, show: canViewSection(role, "fuel") },
-        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection(role, "fuel") },
+        { name: "Cards", to: "/fuel-cards", icon: FuelCardIcon, show: canViewSection("fuel") },
+        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection("fuel") },
         // D-FX8: five of its seven tabs are spend analytics; reconciliation is one of them.
-        { name: "Fuel Spend", to: "/fuel-spend", icon: ReconciliationIcon, show: canManageSection(role, "fuel") },
+        { name: "Fuel Spend", to: "/fuel-spend", icon: ReconciliationIcon, show: canManageSection("fuel") },
         // The ledger is a READ surface for anyone who can see fuel — a controller checking what was
         // recovered does not need the permission to upload a statement. Moving a finding is gated
         // at the route, not here.
-        { name: "Exceptions", to: "/fuel-spend/exceptions", icon: ExceptionLedgerIcon, show: canViewSection(role, "fuel") },
-        { name: "IFTA", to: "/ifta", icon: IftaLedgerIcon, show: canViewSection(role, "fuel") },
+        { name: "Exceptions", to: "/fuel-spend/exceptions", icon: ExceptionLedgerIcon, show: canViewSection("fuel") },
+        { name: "IFTA", to: "/ifta", icon: IftaLedgerIcon, show: canViewSection("fuel") },
       ],
     },
     {
       label: "Dispatch",
       icon: MapIcon,
       items: [
-        { name: "Loads", to: "/loads", icon: LoadsIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
+        { name: "Loads", to: "/loads", icon: LoadsIcon, show: canViewSection("dispatch") && moduleEnabled(modules, "dispatch") },
         // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
-        { name: "Messages", to: "/messages", icon: PaperAirplaneIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "messages"), badge: counts.messagesUnread },
-        { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
+        { name: "Messages", to: "/messages", icon: PaperAirplaneIcon, show: canViewSection("dispatch") && moduleEnabled(modules, "messages"), badge: counts.messagesUnread },
+        { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection("dispatch") && moduleEnabled(modules, "dispatch") },
 
-        { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection(role, "dispatch") },
-        { name: "Truck Stops", to: "/truck-stops", icon: TruckStopIcon, show: canViewSection(role, "dispatch") },
+        { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection("dispatch") },
+        { name: "Truck Stops", to: "/truck-stops", icon: TruckStopIcon, show: canViewSection("dispatch") },
       ],
     },
     {
       label: "Safety",
       icon: ShieldCheckIcon,
       items: [
-        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: canViewSection(role, "safety") },
-        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: canViewSection(role, "safety") },
-        { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection(role, "safety") },
+        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: canViewSection("safety") },
+        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: canViewSection("safety") },
+        { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection("safety") },
         // The driver qualification file (§391.51) — certifications, the DQF event history, and the
         // scans behind both. Named for what it is rather than "Compliance", which said nothing, and
         // rather than "Safety", which is the section it already sits in. Keeps the existing Fleet
@@ -144,7 +160,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // ⚠ U5/D-UI6: it wore ClipboardDocumentCheckIcon, which Assignments also wears — one glyph on
         // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
         // licence and a medical card, so LicenseIcon says what it holds.
-        { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection(role, "roster") },
+        { name: "Driver Qualification", to: "/compliance", icon: LicenseIcon, show: canViewSection("roster") },
         /**
          * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is
          * gone. H-C4 cut five items to one because four of them duplicated Loads, Trailers and
@@ -182,14 +198,14 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // ⚠ U5/D-UI6: this rendered Building02Icon — a BUILDING, for the person applying. The LABEL
         // is deliberately untouched: RECRUITING-SYSTEM-PLAN R9 owns the word and renames it when the
         // recruiter board lands (D-UI8).
-        { name: "Applicants", to: "/recruitment", icon: UserListIcon, show: canViewSection(role, "recruitment") },
+        { name: "Applicants", to: "/recruitment", icon: UserListIcon, show: canViewSection("recruitment") },
         // U1/D-UI1: both routes were REGISTERED on 2026-08-20 to close a P0b incident (the URLs fell
         // through to nothing) and still had no nav entry, so they were reachable only from two
         // buttons on the Applicants page. A recruiter arriving from a notification had no way back,
         // and neither page was discoverable by anyone who had not been shown it. The buttons stay:
         // one answers "from here", the other answers "at all".
-        { name: "Screening readiness", to: "/recruitment/screening", icon: CheckCircleIcon, show: canViewSection(role, "recruitment") },
-        { name: "Safety-history inquiries", to: "/recruitment/inquiries", icon: ArrowsRightLeftIcon, show: canViewSection(role, "recruitment") },
+        { name: "Screening readiness", to: "/recruitment/screening", icon: CheckCircleIcon, show: canViewSection("recruitment") },
+        { name: "Safety-history inquiries", to: "/recruitment/inquiries", icon: ArrowsRightLeftIcon, show: canViewSection("recruitment") },
       ],
     },
     {
@@ -201,11 +217,11 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       // `equipment: none` and therefore sees this group containing Drivers alone, which is exactly
       // right and was not previously expressible.
       items: [
-        { name: "Vehicles", to: "/vehicles", icon: VehicleIcon, show: canViewSection(role, "equipment") },
-        { name: "Trailers", to: "/trailers", icon: TrailerIcon, show: canViewSection(role, "equipment") },
-        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection(role, "roster") },
+        { name: "Vehicles", to: "/vehicles", icon: VehicleIcon, show: canViewSection("equipment") },
+        { name: "Trailers", to: "/trailers", icon: TrailerIcon, show: canViewSection("equipment") },
+        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection("roster") },
         // A reading taken off a truck, corrected against a truck's history — equipment, not roster.
-        { name: "Odometer", to: "/odometer", icon: OdometerIcon, show: canViewSection(role, "equipment") },
+        { name: "Odometer", to: "/odometer", icon: OdometerIcon, show: canViewSection("equipment") },
       ],
     },
     {
@@ -214,19 +230,19 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       label: "Finance",
       icon: CurrencyDollarIcon,
       items: [
-        { name: "Money in & out", to: "/accounting", icon: CurrencyDollarIcon, show: canViewSection(role, "accounting") },
-        { name: "Cost per mile", to: "/cpm", icon: ChartAverageIcon, show: canViewSection(role, "accounting") },
-        { name: "Truck fixed costs", to: "/cost-schedule", icon: InvoiceIcon, show: canViewSection(role, "accounting") },
-        { name: "Revenue & margin", to: "/billing", icon: DocumentTextIcon, show: canViewSection(role, "billing") },
+        { name: "Money in & out", to: "/accounting", icon: CurrencyDollarIcon, show: canViewSection("accounting") },
+        { name: "Cost per mile", to: "/cpm", icon: ChartAverageIcon, show: canViewSection("accounting") },
+        { name: "Truck fixed costs", to: "/cost-schedule", icon: InvoiceIcon, show: canViewSection("accounting") },
+        { name: "Revenue & margin", to: "/billing", icon: DocumentTextIcon, show: canViewSection("billing") },
       ],
     },
     {
       label: "Maintenance",
       icon: WrenchIcon,
       items: [
-        { name: "Repair spend", to: "/shop", icon: GaugeIcon, show: canViewSection(role, "maintenance") },
-        { name: "Annual inspections", to: "/shop/inspections", icon: ChecklistIcon, show: canViewSection(role, "maintenance") },
-        { name: "Inspectors", to: "/shop/inspectors", icon: CertificateIcon, show: canViewSection(role, "maintenance") },
+        { name: "Repair spend", to: "/shop", icon: GaugeIcon, show: canViewSection("maintenance") },
+        { name: "Annual inspections", to: "/shop/inspections", icon: ChecklistIcon, show: canViewSection("maintenance") },
+        { name: "Inspectors", to: "/shop/inspectors", icon: CertificateIcon, show: canViewSection("maintenance") },
       ],
     },
     {
@@ -234,7 +250,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: Cog6ToothIcon,
       items: [
         // Settings = org config (admin + fleet_manager); Users = admin only. Department roles get neither.
-        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: canViewSection(role, "settings") },
+        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: canViewSection("settings") },
         { name: "Users", to: "/settings/users", icon: UsersIcon, show: isAdmin(role) },
       ],
     },

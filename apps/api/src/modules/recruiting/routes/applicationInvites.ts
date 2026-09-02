@@ -4,11 +4,9 @@ import {
   INVITE_TTL_DAYS_DEFAULT,
   applicationInviteCreateSchema,
   renderApplicationInviteEmail,
-  rolesThatCanView,
-  rolesThatManage,
   type ApplicationInviteCreate,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -101,8 +99,8 @@ export function recruitmentApplicationInvitesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("recruitment"));
-  const canInvite = requireRole(...rolesThatManage("recruitment"));
+  const canView = requireSection("recruitment", "view");
+  const canInvite = requireSection("recruitment");
 
   // ⚠ `submitted_at` and not `used_at` since A5. 0225 replaced the single-use fuse with dated phase
   // stamps and kept `used_at` as a mirror for exactly three readers, of which this was one; the

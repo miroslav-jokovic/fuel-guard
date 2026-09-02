@@ -6,12 +6,11 @@ import {
   documentExportRequestSchema,
   type DocumentExportRequest,
   dqExportListQuerySchema,
-  rolesThatManage,
   canReadAllRestricted,
   canReadRestrictedKind,
   DQ_ITEMS,
 } from "@silvicom/shared";
-import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -35,7 +34,7 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 export function complianceExportsRouter(): Router {
   const router = Router();
 
-  const canManage = requireRole(...rolesThatManage("roster"));
+  const canManage = requireSection("roster");
   /**
    * Who may see the export LEDGER. Wider than who may create an export — an internal auditor's whole
    * job is reading the record of what left the building — and narrower than the fleet section's

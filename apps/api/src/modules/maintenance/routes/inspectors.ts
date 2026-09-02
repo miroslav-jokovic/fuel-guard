@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { inspectorQualificationBasisSchema, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { inspectorQualificationBasisSchema } from "@silvicom/shared";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -49,7 +49,7 @@ export function inspectorsRouter(): Router {
   router.get(
     "/",
     requireOrg,
-    requireRole(...rolesThatCanView("maintenance")),
+    requireSection("maintenance", "view"),
     asyncHandler(async (req, res) => {
       const parsed = listSchema.safeParse(req.query);
       if (!parsed.success) {
@@ -72,7 +72,7 @@ export function inspectorsRouter(): Router {
   router.post(
     "/",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
     validateBody(createSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -113,7 +113,7 @@ export function inspectorsRouter(): Router {
   router.patch(
     "/:id",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
     validateBody(periodSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -146,7 +146,7 @@ export function inspectorsRouter(): Router {
   router.delete(
     "/:id",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;

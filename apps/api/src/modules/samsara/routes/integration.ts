@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -11,7 +11,6 @@ import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { runSamsaraDiagnostics } from "../samsaraDiagnostics.js";
 import { readSamsaraWebhookStatus } from "../fuelEventsWebhook.js";
 import { readTelematicsCoverage } from "../telematicsCoverage.js";
-import { rolesThatCanView } from "@silvicom/shared";
 
 /** Samsara integration admin routes — token set/rotate/clear, the manual sync buttons, and the
  *  diagnostics probe. Moved here from routes/integrations.ts at the P1.6 split (2026-08-27): the
@@ -224,7 +223,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.get(
     "/samsara/webhook",
     requireOrg,
-    requireRole(...rolesThatCanView("settings")),
+    requireSection("settings", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -244,7 +243,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.get(
     "/samsara/telematics-coverage",
     requireOrg,
-    requireRole(...rolesThatCanView("settings")),
+    requireSection("settings", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

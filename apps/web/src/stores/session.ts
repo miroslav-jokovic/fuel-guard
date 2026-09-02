@@ -3,13 +3,14 @@ import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
 import type { UserRole } from "@silvicom/shared";
 import {
-  canManageSection,
-  canViewSection,
+  callerCanManage,
+  callerCanView,
   canReadAllRestricted,
   canReadRestrictedKind,
   isAdmin,
   isReadOnly,
   type AppSection,
+  type SectionClaim,
 } from "@silvicom/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
@@ -57,6 +58,15 @@ export const useSessionStore = defineStore("session", () => {
   const email = computed(() => session.value?.user.email ?? null);
   const orgId = computed(() => claims.value?.org_id ?? null);
   const role = computed<UserRole | null>(() => claims.value?.user_role ?? null);
+  /**
+   * The org's overrides of this user's role, off the same verified token as `role` (D-PERM2).
+   *
+   * `null` for a token minted before migration 0292 — which is every token in existence on the day
+   * it applies — and that reads as "no overrides", never as "deny everything". `can()` below falls
+   * through to the shipped matrix in that case, so this store answered exactly the same questions
+   * the same way before the claim existed.
+   */
+  const sections = computed<SectionClaim | null>(() => claims.value?.sections ?? null);
 
   const isAuthenticated = computed(() => !!session.value);
   const hasOrg = computed(() => !!orgId.value); // false ⇒ "account pending" (audit B3)
@@ -75,9 +85,14 @@ export const useSessionStore = defineStore("session", () => {
    *
    * `can(section)` and `canView(section)` are thin on purpose — the matrix is the source of truth
    * and this is a Vue-shaped door onto it, never a second opinion about it.
+   *
+   * Since P3 they resolve the ORG'S matrix rather than the shipped one: `callerCanManage` layers the
+   * `sections` claim over `SECTION_ACCESS`, which is the same function the API's `requireSection`
+   * gate calls. One rule, asked from two places — the alternative, a web-side reimplementation of
+   * the layering, is precisely the second opinion this comment has always warned against.
    */
-  const can = (section: AppSection): boolean => canManageSection(role.value, section);
-  const canView = (section: AppSection): boolean => canViewSection(role.value, section);
+  const can = (section: AppSection): boolean => callerCanManage(role.value, section, sections.value);
+  const canView = (section: AppSection): boolean => callerCanView(role.value, section, sections.value);
   const admin = computed(() => isAdmin(role.value));
   const readOnly = computed(() => isReadOnly(role.value));
   /**
@@ -136,6 +151,7 @@ export const useSessionStore = defineStore("session", () => {
     email,
     orgId,
     role,
+    sections,
     isAuthenticated,
     hasOrg,
     can,

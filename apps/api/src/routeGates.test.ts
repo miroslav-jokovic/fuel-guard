@@ -206,10 +206,29 @@ describe("fuel-section route gates derive from SECTION_ACCESS (FUEL-T2, D-FUI12)
           continue;
         }
         const section = FILE_SECTION[rel]!;
-        const wanted = verb === "get" ? `rolesThatCanView("${section}")` : `rolesThatManage("${section}")`;
-        if (!middle.includes(`requireRole(...${wanted})`)) {
-          const got = /requireRole\(([\s\S]*?)\),/.exec(middle)?.[1]?.trim() ?? "no role gate";
-          offenders.push(`${key}\n      wanted requireRole(...${wanted})\n      got    requireRole(${got})`);
+        /**
+         * TWO accepted shapes since P3 (D-PERM3, EDITABLE-PERMISSIONS-PLAN.md), and the new one is
+         * the stronger of the pair rather than a loosening of this gate.
+         *
+         * `requireRole(...rolesThatManage("fuel"))` derives its role list from the matrix ONCE, at
+         * module load. That was the whole point when this fitness function was written, and it is no
+         * longer sufficient: the matrix is per-org now, so a list computed before the process served
+         * a request cannot honour an org that granted its dispatchers Safety.
+         * `requireSection("fuel")` asks the matrix per request, with the caller's overrides layered
+         * over it. Both derive; only one still derives correctly.
+         *
+         * The old shape stays accepted because 81 hand-listed `requireRole` gates elsewhere are not
+         * section questions at all, and because accepting both is what let the 71-site rewrite land
+         * without this gate going dark for a commit.
+         */
+        const level = verb === "get" ? "view" : "manage";
+        const legacy = level === "view" ? `rolesThatCanView("${section}")` : `rolesThatManage("${section}")`;
+        const derived =
+          level === "view" ? `requireSection("${section}", "view")` : `requireSection("${section}")`;
+        if (!middle.includes(`requireRole(...${legacy})`) && !middle.includes(derived)) {
+          const got =
+            /require(?:Role|Section|AnySection)\(([\s\S]*?)\),/.exec(middle)?.[1]?.trim() ?? "no role gate";
+          offenders.push(`${key}\n      wanted ${derived}  (or the legacy requireRole(...${legacy}))\n      got    ${got}`);
         }
       }
     }

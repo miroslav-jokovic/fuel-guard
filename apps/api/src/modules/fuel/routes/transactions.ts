@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
-import { rolesThatManage } from "@silvicom/shared";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 // Every route in this file is a WRITE, so every gate is `rolesThatManage("fuel")` — which is the same
 // two roles the hand-written lists named. Nothing widened here; what changed is that the answer is now
 // read from the matrix rather than agreed with it by hand (FUEL-T2, D-FUI12).
@@ -36,7 +35,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/:id/score",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -87,7 +86,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/score-import",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -117,7 +116,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/ingest-efs",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -142,7 +141,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/import-preview",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -173,7 +172,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/import-report",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -252,7 +251,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/rebuild",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -274,7 +273,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/score-declined-import",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -296,7 +295,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/rescore-declined",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -318,7 +317,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/sync-from-efs",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -373,7 +372,7 @@ export function transactionsRouter(): Router {
   router.post(
     "/backfill",
     requireOrg,
-    requireRole(...rolesThatManage("fuel")),
+    requireSection("fuel"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

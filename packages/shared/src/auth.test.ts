@@ -259,7 +259,19 @@ describe("claimsToContext", () => {
   it("maps a fully-claimed JWT", () => {
     expect(
       claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000 }),
-    ).toEqual({ userId: "u1", email: "a@b.com", orgId: "o1", role: "fleet_manager", issuedAt: 1_700_000_000 });
+    ).toEqual({
+      userId: "u1",
+      email: "a@b.com",
+      orgId: "o1",
+      role: "fleet_manager",
+      sections: null,
+      issuedAt: 1_700_000_000,
+    });
+  });
+  it("carries the org's overrides through from the same verified token (D-PERM2)", () => {
+    expect(
+      claimsToContext({ sub: "u1", org_id: "o1", user_role: "dispatcher", sections: { safety: "view" } }).sections,
+    ).toEqual({ safety: "view" });
   });
   it("nulls org/role when the user has no membership (audit B3)", () => {
     expect(claimsToContext({ sub: "u1" })).toEqual({
@@ -267,6 +279,13 @@ describe("claimsToContext", () => {
       email: null,
       orgId: null,
       role: null,
+      /**
+       * Null, and read as "no overrides" — the OPPOSITE of `issuedAt` below, deliberately. Every
+       * token minted before migration 0292 is in this state, so failing closed here would refuse
+       * the whole product for one token lifetime, while failing closed on freshness is the entire
+       * point of that gate.
+       */
+      sections: null,
       // A token with no `iat` yields null, and every step-up gate reads null as "not fresh". Failing
       // closed on an absent claim is the property, not an accident — see middleware/requireFreshAuth.ts.
       issuedAt: null,

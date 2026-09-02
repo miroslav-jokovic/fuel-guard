@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { rolesThatCanView } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -33,7 +32,7 @@ const spendSchema = z.object({
 export function maintenanceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
-  const canView = requireRole(...rolesThatCanView("maintenance"));
+  const canView = requireSection("maintenance", "view");
 
   // The §396.17 annual inspection (ANNUAL-INSPECTION-PLAN.md, step A4) — the module's first owned
   // tables, mounted beside the repair-spend read it was born with. Each sub-router carries its own

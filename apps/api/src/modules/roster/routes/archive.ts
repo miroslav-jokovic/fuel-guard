@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { canArchiveDriver, rolesThatCanView } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { canArchiveDriver } from "@silvicom/shared";
+import { requireAuth, requireOrg, requireAnySection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -43,7 +43,11 @@ export function rosterArchiveRouter(): Router {
 
   // View-level gate at the door; the act-level gate is `canArchiveDriver` below, which needs the
   // driver's status and so cannot be a middleware.
-  const canSeeRoster = requireRole(...rolesThatCanView("roster"), ...rolesThatCanView("recruitment"));
+  // A UNION, and `requireAnySection` says so in its name. Two chained `requireSection` calls would
+  // quietly mean "both", which is a narrowing nobody decided — the door is open to whoever can see
+  // the roster OR whoever can see the applicant board, because the two lists share a table and have
+  // different owners.
+  const canSeeRoster = requireAnySection(["roster", "view"], ["recruitment", "view"]);
 
   /**
    * Archive (`POST /:id/archive`) and un-archive (`POST /:id/unarchive`) are one handler: they differ
