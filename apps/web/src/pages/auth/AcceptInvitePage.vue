@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { hasSessionMaterial, inviteLinkErrorMessage, parseInviteUrl } from "@silvicom/shared";
+import {
+  hasSessionMaterial,
+  inviteLinkErrorMessage,
+  parseInviteUrl,
+  type InviteLinkParams,
+} from "@silvicom/shared";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
@@ -13,25 +18,41 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 /**
  * Where an invited user sets their password and gets their membership.
  *
- * ── WHY THIS PAGE OWNS ITS OWN AUTH (2026-09-02) ────────────────────────────────────────────────
- * It used to be `requiresAuth: true` and do nothing but read `session.session`, trusting supabase-js
- * `detectSessionInUrl` to have already turned the URL into a session. That works for exactly one of
- * the four shapes an invite arrives in (the implicit-grant fragment), and for none of the ways one
- * can fail. Every other outcome — a spent link, an expired link, a `token_hash` needing `verifyOtp`
- * — left `isAuthenticated` false, and the router guard turns that into a redirect to /login. So the
- * reported symptom ("the invite link sends me to the login page") was every failure mode at once,
- * and the "Link expired" branch this file already had was unreachable: the guard ran first.
+ * ── WHY THE TOKEN IS REDEEMED ON SUBMIT AND NOT ON LOAD (2026-09-02) ────────────────────────────
+ * Measured on production, three sends in a row:
  *
- * The route is `public: true` now and the page resolves the link itself. That is not a loosening —
- * nothing here is readable without a session; the password form is behind a token this page
- * verifies, and `/api/invites/accept` re-checks email confirmation server-side regardless.
+ *   invite sent 20:51:02 → email CONFIRMED 20:51:17   (15s)
+ *   link  sent 14:26:09 → sign-in recorded 14:26:56   (47s)
+ *   link  sent 15:14:27 → sign-in recorded 15:14:52   (25s)
+ *
+ * Nobody receives, opens and clicks an email in fifteen seconds. The recipient's mail security is
+ * opening these links automatically — and it EXECUTES JAVASCRIPT, because `verifyOtp` only ever ran
+ * from this page. So the scanner redeemed the one-time token, took a session it threw away, and the
+ * human who clicked minutes later got "this link has expired". Every time, for two days.
+ *
+ * That is also why the earlier fix did not help. Moving off Supabase's `action_link` onto a
+ * `token_hash` URL of our own removed the danger from a plain HTTP GET, which is what most scanners
+ * do — but this one renders the page. A link that spends itself on RENDER cannot survive a scanner
+ * that renders.
+ *
+ * So nothing is redeemed here until somebody types a password and presses the button. Loading the
+ * page is inert: it parses the URL, decides whether the link is even the right shape, and shows a
+ * form. A detonating scanner gets a form and stops, because it has no password to submit. The token
+ * is spent by the one action a machine will not take on the recipient's behalf.
+ *
+ * ⚠ The consequence to keep in mind when editing: a link's validity is now UNKNOWN until submit, so
+ * every failure that used to surface on load surfaces after typing instead. That is the trade — a
+ * worse error moment for the rare broken link, in exchange for the common case working at all.
  */
 const session = useSessionStore();
 const router = useRouter();
 
-type Step = "verifying" | "password" | "unusable";
-const step = ref<Step>("verifying");
+type Step = "checking" | "password" | "unusable";
+const step = ref<Step>("checking");
 const linkError = ref<string | null>(null);
+
+/** The parsed link, held from mount to submit — this is what makes redemption a deliberate act. */
+const link = ref<InviteLinkParams | null>(null);
 
 const password = ref("");
 const confirm = ref("");
@@ -39,18 +60,22 @@ const error = ref<string | null>(null);
 const loading = ref(false);
 
 const RESEND_HINT = "Ask your administrator to resend the invitation.";
+const SPENT =
+  "This invitation link has already been used or has expired. " + RESEND_HINT;
 
 /**
- * Redeem whatever the link carried. Runs once, before anything is shown, so the user never sees a
- * password form they cannot submit.
+ * Decide whether this link is worth showing a form for — WITHOUT spending it.
  *
- * An EXISTING session wins over a missing token: supabase-js may already have consumed the fragment
- * on its way through `session.init()`, which leaves the URL bare but the user signed in. Treating
- * that as "not an invitation link" would lock out the exact case that used to work.
+ * The only rejections here are ones that need no network call: an error fragment GoTrue redirected
+ * with, or a URL carrying nothing redeemable and no existing session. Everything else is optimistic
+ * on purpose; asking Supabase "is this token good?" is the same call as spending it.
  */
-async function resolveLink() {
+function prepare() {
   const params = parseInviteUrl(window.location.href);
+  link.value = params;
 
+  // Already signed in with a bare URL: supabase-js may have consumed a fragment during
+  // `session.init()`, or the person reloaded after redeeming. Either way there is nothing to spend.
   if (!params.errorDescription && !hasSessionMaterial(params) && session.session) {
     step.value = "password";
     return;
@@ -62,59 +87,34 @@ async function resolveLink() {
     step.value = "unusable";
     return;
   }
-
-  try {
-    if (params.accessToken && params.refreshToken) {
-      const { error: e } = await supabase.auth.setSession({
-        access_token: params.accessToken,
-        refresh_token: params.refreshToken,
-      });
-      if (e) throw e;
-    } else if (params.code) {
-      const { error: e } = await supabase.auth.exchangeCodeForSession(params.code);
-      if (e) throw e;
-    } else if (params.verifyTokenHash) {
-      const { error: e } = await supabase.auth.verifyOtp({
-        type: (params.verifyType ?? "invite") as EmailOtpType,
-        token_hash: params.verifyTokenHash,
-      });
-      if (e) throw e;
-    }
-  } catch {
-    linkError.value = "This invitation link has expired or was already used.";
-    step.value = "unusable";
-    return;
-  }
-
-  /**
-   * ADOPT the session the client now holds — do not rotate it.
-   *
-   * This block called `session.refresh()` until 2026-09-02 and locked a real user out. `refresh()`
-   * is `refreshSession()`, which ROTATES a refresh token that `verifyOtp` had issued seconds
-   * earlier; when that raced with supabase-js's own auto-refresh it failed, `refresh()` swallowed
-   * the error, the store stayed null, and this branch told somebody their link had expired while
-   * the server had already recorded their sign-in. Their password was never set and no membership
-   * was ever created, because the page gave up before reaching either.
-   *
-   * The client is the authority on whether redemption worked, so ask IT, not a fresh round trip.
-   */
-  await session.syncFromClient();
-  if (!session.session) {
-    // Genuinely no session: redemption reported success but produced nothing to sign in with.
-    // Distinct wording from the spent-link case above, because "try again" is the wrong advice for
-    // a link that was already consumed and the right advice for this.
-    linkError.value = "We couldn't sign you in from this link.";
-    step.value = "unusable";
-    return;
-  }
-
-  // Strip the credential out of the address bar before the user can bookmark or share it. `replace`
-  // so Back does not walk into a URL whose token has since been spent.
-  window.history.replaceState(window.history.state, "", window.location.pathname);
   step.value = "password";
 }
 
-onMounted(resolveLink);
+onMounted(prepare);
+
+/** Spend the token. Called once, from the submit handler, and never on load. */
+async function redeem(params: InviteLinkParams): Promise<void> {
+  if (params.accessToken && params.refreshToken) {
+    const { error: e } = await supabase.auth.setSession({
+      access_token: params.accessToken,
+      refresh_token: params.refreshToken,
+    });
+    if (e) throw e;
+    return;
+  }
+  if (params.code) {
+    const { error: e } = await supabase.auth.exchangeCodeForSession(params.code);
+    if (e) throw e;
+    return;
+  }
+  if (params.verifyTokenHash) {
+    const { error: e } = await supabase.auth.verifyOtp({
+      type: (params.verifyType ?? "invite") as EmailOtpType,
+      token_hash: params.verifyTokenHash,
+    });
+    if (e) throw e;
+  }
+}
 
 const canSubmit = computed(() => !loading.value && password.value.length > 0);
 
@@ -130,6 +130,33 @@ async function onSubmit() {
   }
   loading.value = true;
   try {
+    const params = link.value;
+    // Redeem FIRST: without a session there is nothing to set a password on. A bare URL with an
+    // existing session skips this — there is no token left to spend.
+    if (params && hasSessionMaterial(params)) {
+      try {
+        await redeem(params);
+      } catch {
+        // The one failure that is worth its own screen: the link really is spent, and no amount of
+        // retyping fixes it. Everything else below is a retryable error on this form.
+        linkError.value = SPENT;
+        step.value = "unusable";
+        return;
+      }
+      // ADOPT the session the client now holds — do not rotate it. `refresh()` is
+      // `refreshSession()`, which rotates a refresh token issued moments earlier; when that raced it
+      // failed silently, the store stayed null, and this page told somebody their link had expired
+      // while the server had already recorded their sign-in.
+      await session.syncFromClient();
+      // The credential is spent and must not sit in the address bar to be bookmarked or shared.
+      window.history.replaceState(window.history.state, "", window.location.pathname);
+    }
+
+    if (!session.session) {
+      error.value = "We couldn't sign you in from this link. " + RESEND_HINT;
+      return;
+    }
+
     const { error: pwErr } = await supabase.auth.updateUser({ password: password.value });
     if (pwErr) throw pwErr;
 
@@ -150,7 +177,7 @@ async function onSubmit() {
 
 <template>
   <div>
-    <template v-if="step === 'verifying'">
+    <template v-if="step === 'checking'">
       <h2 class="mb-1 text-lg font-semibold text-ink">Checking your invitation…</h2>
       <p class="text-sm text-ink-muted">One moment.</p>
     </template>
@@ -158,7 +185,6 @@ async function onSubmit() {
     <template v-else-if="step === 'unusable'">
       <h2 class="mb-1 text-lg font-semibold text-ink">This link can't be used</h2>
       <p class="text-sm text-ink-muted">{{ linkError }}</p>
-      <p class="mt-2 text-sm text-ink-muted">{{ RESEND_HINT }}</p>
       <RouterLink to="/login" class="mt-6 inline-block text-sm text-brand-700 underline">
         Back to sign in
       </RouterLink>
