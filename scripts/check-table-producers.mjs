@@ -32,6 +32,18 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
+  // Added 2026-09-02 with 0296, and it is the ONE case this gate's requirement and
+  // docs/MIGRATION-DISCIPLINE.md pull in opposite directions. SURFACE-ENTITLEMENTS-PLAN.md D-SURF9
+  // splits this table from its producer ON PURPOSE: the producer is `/api/me`, which every page load
+  // fetches, so shipping both together would serve the reader nine minutes before the table exists
+  // and break bootstrap for the whole org. `lint:migration-ordering` exempts new tables on the
+  // grounds that "its readers are new code paths — a feature nobody is using yet", which is exactly
+  // what is untrue here.
+  //
+  // This waiver is therefore short-lived by construction: S3 part 2 adds the producer, and the
+  // `stale` check below FAILS until this line is removed in the same PR. It is a promise with an
+  // enforced expiry rather than an exception.
+  ["org_role_surface_access", "S3 part 1 of SURFACE-ENTITLEMENTS-PLAN.md — the producer (/api/me) ships one merge later, per D-SURF9; the stale check removes this waiver when it does"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
