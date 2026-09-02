@@ -30,6 +30,7 @@ const configCards = [
   { name: "Organization", to: "/settings/org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", show: session.admin },
   { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "Who gets emailed when high/critical anomalies are detected.", show: session.admin },
   { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
+  { name: "Permissions", to: "/settings/permissions", icon: LockIcon, desc: "What each role can reach, and exactly what a given member sees.", show: session.admin },
   // `roster` and not `settings`: this console decides what DRIVERS see, its route requires the same
   // section, and driverAppSettings.ts gates on rolesThatManage("roster"). The card, the route and the
   // endpoint now ask one question — before R0 all three asked the same global boolean and agreed by
