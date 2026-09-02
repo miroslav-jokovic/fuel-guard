@@ -247,36 +247,47 @@ that need the extra merge.)
 Shape (illustrative — the real literal lands in S1):
 
 ```ts
+/** The three questions a sidebar entry can ask today. Measured, not invented — see Q-SURF3. */
+export type SurfaceGate =
+  | { kind: "section"; section: AppSection; level: SectionAccess } // the editable kind
+  | { kind: "staff" }   // any signed-in non-driver role  — Ask AI, the two hazmat surfaces
+  | { kind: "admin" };  // the admin role only            — Users
+
 export interface Surface {
-  key: string;           // "maintenance.inspectors" — stable, storable, the override's primary key
-  label: string;         // "Inspectors" — the sidebar name
-  path: string;          // "/shop/inspectors" — the DECLARED route path, params and all
-  section: AppSection;   // the DATA it needs; a surface can never exceed this (D-SURF2)
-  level: SectionAccess;  // "view" | "manage" — the level within that section
-  parent?: string;       // detail routes point at their list surface (D-SURF8)
-  editable?: false;      // product constants an org may not deny — see Q-SURF3
+  key: string;        // "maintenance.inspectors" — stable, storable, the override's primary key
+  label: string;      // "Inspectors" — the sidebar name
+  path: string;       // "/shop/inspectors" — the DECLARED route path, params and all
+  gate: SurfaceGate;  // a surface can never exceed its section (D-SURF2)
+  module?: ModuleKey; // AND-ed with the gate; today: hazmatguard ×2, dispatch ×2, messages ×1
+  parent?: string;    // detail routes point at their list surface (D-SURF8)
 }
+
+/** Editable is DERIVED — a section gate is the only thing an org's matrix can move (Q-SURF3). */
+export const isEditableSurface = (s: Surface): boolean => s.gate.kind === "section";
 ```
 
-No `icon` (D-SURF3 — shared is built for React Native) and no `exclusiveEndpoints` (D-SURF5 — the
-endpoint names its own surface). `path` is the declared path rather than a resolved URL because that
-is what `to.matched[0].path` gives the router guard, which is how a surface is found without a
-per-route meta.
+No `icon` (D-SURF3 — shared is built for React Native), no `exclusiveEndpoints` (D-SURF5 — the
+endpoint names its own surface) and no stored `editable` (Q-SURF3 — a section gate already says it).
+`path` is the declared path rather than a resolved URL because that is what `to.matched[0].path`
+gives the router guard, which is how a surface is found without a per-route meta. `module` moves here
+from `nav.ts`, which states it three times today.
 
 Seeded from the measured join of `nav.ts` and the route snapshot: **37 nav entries + 7 detail
 routes**, across 11 sections; every one of the 37 nav paths resolves to a real route record (checked
 — there are zero orphans). The maintenance section, the owner's worked example:
 
-| key | label | path | section:level |
+| key | label | path | gate |
 | --- | --- | --- | --- |
-| `maintenance.repair-spend` | Repair spend | `/shop` | maintenance:view |
-| `maintenance.inspections` | Annual inspections | `/shop/inspections` | maintenance:view |
+| `maintenance.repair-spend` | Repair spend | `/shop` | section maintenance:view |
+| `maintenance.inspections` | Annual inspections | `/shop/inspections` | section maintenance:view |
 | `maintenance.inspections.detail` | — | `/shop/inspections/:id` | parent: `maintenance.inspections` |
-| `maintenance.inspectors` | Inspectors | `/shop/inspectors` | maintenance:view |
+| `maintenance.inspectors` | Inspectors | `/shop/inspectors` | section maintenance:view |
 
-Six items sit **outside** the section matrix and need a ruling before they can be catalogued —
-`Dashboard` and `Fuel Log` (`show: true`), `Ask AI` (`isStaff`), `Placard calculator` and `Hazmat
-review` (`isStaff` + module), `Users` (`isAdmin`). Registered as **Q-SURF3**.
+Six items sit **outside** the section matrix — `Dashboard` and `Fuel Log` (no gate), `Ask AI`
+(`isStaff`), `Placard calculator` and `Hazmat review` (`isStaff` + module), `Users` (`isAdmin`).
+**Q-SURF3 is answered:** all six are catalogued with a `staff` or `admin` gate, which makes them
+non-editable by derivation. They render in the preview so a reader sees the whole sidebar, and no
+cell offers to change them.
 
 ⚠ `show: true` on Dashboard and Fuel Log means "no role gate", **not** "drivers see it". An earlier
 draft of this plan said drivers were included and that is wrong: `router/index.ts:99` redirects
@@ -315,7 +326,7 @@ they are the acts most worth being able to reconstruct.
 
 | step | needs | blocked by | may run in parallel with |
 | --- | --- | --- | --- |
-| S1 catalogue | Q-SURF3 answered | — | S5, S7 |
+| S1 catalogue | ~~Q-SURF3~~ — **answered, unblocked** | — | S5, S7 |
 | S2 router guard | S1 | S1 | S5, S7 |
 | S3 per-role surfaces | S1, S2 | S2 | S5, S7 |
 | S4 per-user surfaces | S3 | S3 | S5, S7 |
@@ -348,8 +359,8 @@ over it instead of hand-listing 37 entries. The web-side `Record<surfaceKey, Ico
 `nav.ts`. **Nav output must be byte-identical for all nine roles** — that equality is the review, and
 it is testable before the change because `buildNavGroups` is a pure function.
 
-**Prerequisite:** Q-SURF3 answered, or the six non-matrix items catalogued with `editable: false` as
-that question recommends — otherwise the fold has nothing to say about them.
+**Prerequisite:** ~~Q-SURF3 answered~~ — **met 2026-09-02.** The six non-matrix items carry a `staff`
+or `admin` gate and are non-editable by derivation. **S1 is unblocked.**
 **Gate:** `lint:surfaces` — every catalogued path is a real route in the snapshot, every catalogued
 key has an icon, no surface's `level` exceeds what its `section` can grant.
 **Verified by:** a `buildNavGroups` snapshot per role, captured **before** the change and unchanged
@@ -444,11 +455,56 @@ the editable matrix. Recommendation: (a), inside S2, where the other 28 are bein
 NARROWING for any role holding the `hazmatguard` module but not the `hazmat` section, so it wants
 saying out loud rather than slipping in with a refactor.
 
-**Q-SURF3 — the six items outside the matrix.** Dashboard and Fuel Log carry no role gate (not,
-as an earlier draft said, because drivers see them — a driver never renders the sidebar, see §3); Ask AI, Placard calculator and Hazmat review are any staff role; Users is admin-only. Are
-these surfaces an org may deny, or product constants? Recommendation: catalogue all six with an
-`editable: false` flag so they appear in the preview and cannot be edited — invisible items make a
-permissions page look broken, and Q-SURF2 shows what happens when nav and matrix disagree quietly.
+⚠ **Evidence found while answering Q-SURF3, and it is close to decisive.** The web ALREADY asks the
+hazmat section question — just for the wrong half of the same feature. `AppShell.vue:37` gates the
+pending-review COUNT on `session.canView("hazmat") && moduleEnabled(...)`, while `nav.ts:179/185`
+gates the ITEM on `isStaff && moduleEnabled(...)`. So a role with `hazmat: "none"` sees "Hazmat
+review" in the sidebar, permanently without its badge, and can open the queue. Two adjacent files
+answering the same question differently is the drift this plan exists to end, and it is already here.
+
+~~**Q-SURF3 — the six items outside the matrix.**~~
+**ANSWERED 2026-09-02 — owner's ruling: catalogue all six, none of them editable.** They appear in
+the permissions preview so a reader can see the whole sidebar, and no cell offers to change them.
+Working through what that implies moved two things in §3, and neither departs from the ruling:
+
+**1. The six do not share one gate, so the catalogue needs three kinds rather than one.** Measured:
+
+| surface | path | gate today | route gate today |
+| --- | --- | --- | --- |
+| Dashboard | `/` | none | `requiresAuth` |
+| Fuel Log | `/fuel-log` | none | `requiresAuth` |
+| Ask AI | `/ask` | `isStaff` | `requiresAuth` |
+| Placard calculator | `/hazmat/calculator` | `isStaff` + module `hazmatguard` | `requiresAuth` |
+| Hazmat review | `/hazmat/review` | `isStaff` + module `hazmatguard` | `requiresAuth` |
+| Users | `/settings/users` | `isAdmin` | `requiresAdmin` |
+
+So `SurfaceGate` is a discriminated union — `section` / `staff` / `admin` — with `module` AND-ed on
+top. `ModuleKey` already lives in `packages/shared/src/entitlements.ts`, so this adds no dependency,
+and moving the module condition into the catalogue REMOVES a restatement: `nav.ts` states it three
+times today.
+
+**2. `editable` is DERIVED, not stored.** A surface is editable exactly when its gate is a section
+gate, because a section is the only thing an org's matrix can move. Storing an `editable: false`
+beside a gate that already says so would be a second home for one fact — the rule D-SURF3 states, and
+the one this plan's own review caught it breaking once already. The ruling is honoured in substance
+(all six are non-editable, and the page renders them as such); only the mechanism is derived rather
+than written down twice.
+
+**3. ⚠ `editable: false` does not mean ungated, and must not be read that way.** Five of the six have
+no route gate at all. Two things make that less alarming than it looks, both measured rather than
+assumed. The `staff` gate is currently EQUIVALENT to `requiresAuth`, because `isStaff` is
+`role != null && role !== "driver"` and `router/index.ts:99` sends every driver to `/use-the-app`
+before any route renders — no non-staff user can reach a web route at all. And the `module` half IS
+enforced server-side by `requireModule` (`middleware/requireModule.ts`, applied at the hazmat and
+dispatch routers), so an org without `hazmatguard` opening `/hazmat/calculator` by URL gets a page
+that mounts and then 403s. That is the same class as the 28-route gap in §0 — a broken page rather
+than a leak — and S2 closes it for these six along with the rest, because the guard reads their gate
+out of the catalogue like any other surface's.
+
+**4. The count is six TODAY, and Q-SURF2 is what could reduce it.** If Q-SURF2 is answered (a), the
+Placard calculator and Hazmat review move from a `staff` gate to a `section` gate and become
+editable, leaving four. That is a sequencing fact rather than a contradiction: this ruling describes
+the surfaces that have no section, and Q-SURF2 decides whether two of them should acquire one.
 
 **Q-SURF4 — user-override blast radius on the token.** A per-user *section* override enters the JWT
 (D-SURF7). Sparse keeps it small, but there is no measured bound yet. Owner: engineering, during S5.
