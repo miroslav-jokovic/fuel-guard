@@ -20,6 +20,11 @@
 //      different facts and the tile renders them differently — "—" against "$0".
 //   4. ORG SCOPE, and it must hold with `p_org` OMITTED, because that is the call a browser makes
 //      (D-FC1; three functions shipped unreachable on exactly this in 0258).
+//   5. `fills_with_vehicle` IS A SHARE OF THE ROWS ON SCREEN (migration 0297, FUEL-T5), not of the
+//      fleet. It is the numerator of the sentence the Fuel Log prints about what its per-truck
+//      figures cover — Total miles counts only attributed fills while Gallons and Spend count them
+//      all — so a count taken outside the filters would be a different question wearing this one's
+//      clothes, and would read as reassuring exactly when the window is narrow.
 //
 // Run:  node supabase/tests/fuel-range-totals.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -122,6 +127,14 @@ ok(
 ok("gallons match the row-by-row accumulation exactly", Number(total.gallons) === expected.gallons, `${total.gallons} vs ${expected.gallons}`);
 ok("spend matches, with the cost-less fills contributing nothing rather than zero-filling", Number(total.spend) === expected.spend, `${total.spend} vs ${expected.spend}`);
 ok("flagged matches", Number(total.flagged) === expected.flagged, `${total.flagged} vs ${expected.flagged}`);
+// Every fixture row names one of the two trucks, so this is the shape the line renders as "All N
+// fill-ups ... name a truck". Asserted before any unattributed row exists, so the two counts moving
+// apart later is a change this file can see rather than a difference it started with.
+ok(
+  "fills_with_vehicle equals fills while every row names a truck",
+  Number(total.fills_with_vehicle) === expected.fills,
+  `${total.fills_with_vehicle} vs ${expected.fills}`,
+);
 
 // ── 2. flagged + clear = fills, by construction ─────────────────────────────────────────────────
 ok(
@@ -140,6 +153,15 @@ const withNull = await call();
 ok(
   "an unflagged fill lands in clear and never in flagged",
   Number(withNull.flagged) === expected.flagged && Number(withNull.clear) === expected.clear + 1,
+);
+// That row carries no `vehicle_id`. It is exactly the case FUEL-T5 exists for: it counts toward
+// gallons and spend and toward the denominator, and toward nothing per-truck. If the two counts move
+// together here, `fills_with_vehicle` is `count(*)` wearing a filter that never fires.
+ok(
+  "a fill with no truck raises fills and leaves fills_with_vehicle where it was",
+  Number(withNull.fills) === Number(total.fills) + 1 &&
+    Number(withNull.fills_with_vehicle) === Number(total.fills_with_vehicle),
+  `${withNull.fills}/${withNull.fills_with_vehicle} vs ${total.fills}/${total.fills_with_vehicle}`,
 );
 // A ZERO-GALLON unflagged fill. Without it, `clear` counted by any incidental extra condition — say
 // `gallons > 0` — is indistinguishable from the true complement, because every other fixture row has
@@ -186,11 +208,30 @@ const empty = await one(
   `select * from fuel_range_totals(p_from => '2030-01-01', p_to => '2030-12-31', p_org => $1)`, [ORG]);
 ok("an empty window is zeros and false, never nulls — bool_or over no rows is null and would render as 'unknown'",
   Number(empty.fills) === 0 && Number(empty.gallons) === 0 && Number(empty.spend) === 0 && empty.has_cost === false);
+// `count(*) filter` over no rows is 0, not null — but stating it here means a future rewrite using
+// `sum(case ...)`, which IS null over no rows, fails at this line instead of printing "null% of the 0
+// fill-ups in this list name a truck".
+ok("an empty window reports zero attributed fills rather than null",
+  Number(empty.fills_with_vehicle) === 0 && empty.fills_with_vehicle !== null);
+// The org whose only fills carry no truck at all — the far end of the same scale, and the shape that
+// makes the Fuel Log's sentence read "0% of the N fill-ups in this list name a truck".
+ok("an org whose fills name no truck reports none attributed, not none at all",
+  Number(zeroCost.fills_with_vehicle) === 0 && Number(zeroCost.fills) === 2,
+  `${zeroCost.fills_with_vehicle}/${zeroCost.fills}`);
 
 // ── 5. the filters, each one ────────────────────────────────────────────────────────────────────
 const perVehicle = await call(`, p_vehicle => '${VEH}'`);
 ok("filtering to one truck counts only that truck's fills",
   Number(perVehicle.fills) === N / 2, `${perVehicle.fills} vs ${N / 2}`);
+// ⚠ The assertion that distinguishes "share of the rows on screen" from "share of the fleet". Scoped
+// to one truck, every matching fill names it — and the unattributed rows added above, which are still
+// in this org, must NOT be in either count. A numerator taken outside the filters would keep counting
+// them and report a share below 100% for a window where nothing is missing at all.
+ok(
+  "scoped to one truck, every counted fill is attributed — the numerator lives inside the filters",
+  Number(perVehicle.fills_with_vehicle) === Number(perVehicle.fills),
+  `${perVehicle.fills_with_vehicle} vs ${perVehicle.fills}`,
+);
 // A fill ON the closing date, so "inclusive" is actually exercised. Every fixture row sits on the
 // 15th, so a `<` bound would have changed nothing and the assertion would have passed either way —
 // the vacuous shape this repo keeps finding.
@@ -246,6 +287,13 @@ const asBrowser = (await db.query(
 await db.exec("rollback");
 ok("a signed-in user gets their OWN org's totals with p_org omitted, which is the only call the browser can make",
   Number(asBrowser.fills) === Number(mineBefore.fills), `${asBrowser?.fills} vs ${mineBefore.fills}`);
+// The attributed count travels the browser's call too, and it must be a real subset by now — this org
+// has both kinds of row. `< fills` rather than `<= fills` is deliberate: `<=` would pass for a
+// numerator that had silently become `count(*)`.
+ok("the attributed count reaches the browser's call, and is a strict subset once unattributed fills exist",
+  Number(asBrowser.fills_with_vehicle) === Number(mineBefore.fills_with_vehicle) &&
+    Number(asBrowser.fills_with_vehicle) < Number(asBrowser.fills),
+  `${asBrowser?.fills_with_vehicle} vs ${mineBefore.fills_with_vehicle} of ${asBrowser?.fills}`);
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
