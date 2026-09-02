@@ -21,7 +21,7 @@ policies. That ruling is the premise of everything below. (→ D-PERM1)
 
 ### What exists
 
-- `SECTION_ACCESS` in `packages/shared/src/auth.ts:118` is a **compile-time literal**: 10 roles ×
+- `SECTION_ACCESS` in `packages/shared/src/auth.ts:118` is a **compile-time literal**: 9 roles ×
   12 sections. `canManageSection` / `canViewSection` / `rolesThatManage` / `rolesThatCanView` read
   it and nothing else.
 - **The database does not read that literal.** `0078_role_department_rls.sql` and its successors
@@ -121,11 +121,38 @@ readable.
 list is removed only in the step **after** every live token can be assumed to carry the claim. A
 policy that drops the fallback early logs every existing session out of its own data.
 
-### D-PERM4 — The shipped defaults are generated from `auth.ts`, never retyped
-`SECTION_ACCESS` stays the source of truth for what a role means **out of the box**. A migration
-seeds `role_section_defaults` from it, and `pnpm gen:rules`-style codegen keeps them equal, gated.
-A second hand-maintained copy of the matrix in SQL is exactly the failure `docs/ARCHITECTURE.md`
-and this repo's no-workarounds rule name; the copy must be derived or it is debt with a delay fuse.
+### D-PERM4 — The claim is a SPARSE DELTA, so the defaults never need a second home
+**Revised 2026-09-02, before any of it was built.** The first draft of this decision had the auth
+hook resolve a COMPLETE matrix, which meant the database needed to know the shipped defaults, which
+meant a `role_section_defaults` table, which meant codegen and a drift gate to keep that table equal
+to `auth.ts`. All of that machinery exists only to give the defaults a second home — and a second
+home for a fact is the thing this repo's no-workarounds rule is about.
+
+So the claim carries **only the overrides**. `{"safety":"v"}` means "safety is overridden to view";
+a section that is absent is not "denied", it is "unchanged". Each consumer already holds the
+defaults, in the form it already uses:
+
+- **API and web** hold `SECTION_ACCESS` at compile time:
+  `effective(role, s) = claim[s] ?? SECTION_ACCESS[role][s]`.
+- **SQL** holds the default as the role list already written into the policy:
+
+  ```sql
+  case when auth_section('safety') is not null
+       then auth_section('safety') = 'm'
+       else auth_role() = ANY (ARRAY['admin','fleet_manager','safety_manager'])
+  end
+  ```
+
+The role list is not a transitional fallback to be removed later — it **is** the default branch, and
+it stays. That matters twice over: `lint:section-policies` (D-SEP10) already asserts those lists
+equal `rolesThatManage(section)`, so the SQL defaults stay honest **for free, under a gate that
+already exists**; and a token minted before any of this shipped carries no `sections` claim, takes
+the default branch on every section, and behaves exactly as it does today. There is no window in
+which old sessions lose access.
+
+What this deletes from the plan: the `role_section_defaults` table, its seed, its generator, its
+drift gate, and the entire P6 "drop the fallbacks" step — six pieces of machinery that existed to
+solve a problem the sparse form does not have.
 
 ### D-PERM5 — `lint:section-policies` is extended, not bypassed
 Today it checks that a migration's role lists match the matrix. It gains a second rule: a policy on
@@ -181,8 +208,9 @@ Ruled: locked at `none` everywhere. `router/index.ts:97` redirects `role === "dr
 that visibly does nothing — the worst kind, because it reads as a product that lies. Making it mean
 something is a different project (putting drivers on the web dashboard), not a permissions feature.
 
-Together with D-PERM7 the editable surface is exactly **8 roles × 11 sections**: every role except
-`admin` and `driver`, every section except `admin`.
+Together with D-PERM7 the editable surface is exactly **7 roles × 11 sections** — `fleet_manager`,
+`dispatcher`, `safety_manager`, `auditor`, `recruiter`, `accountant`, `technician`, across every
+section except `admin`. (Nine roles ship; `admin` and `driver` are the two locks above.)
 
 ## §3 Steps
 
@@ -195,35 +223,37 @@ ship in two merges — `lint:migration-ordering` enforces it and this plan has f
   per-member "what this person sees" view derived from `buildNavGroups`. No schema. It is the
   answer to "at least i dont see it" on its own, it is what the editable page is built on, and if
   P1–P6 stall it has still delivered.
-- **P1 — Tables.** `role_section_defaults` (generated from `auth.ts`) and `org_section_access`
-  (org_id, role, section, access). Both `enable row level security`; `org_section_access` readable
-  by the org, writable by nobody through PostgREST — writes go through the API so they carry an
-  audit row. New tables are exempt from the ordering gate. **No reader ships in this PR.**
-- **P2 — Resolution, unread.** `auth_section` / `auth_can_manage` / `auth_can_view`, the auth-hook
-  change that injects `sections`, and the codegen + gate that keep the defaults equal to `auth.ts`.
-  Policies are untouched. After this merge every newly minted token carries the claim; nothing
-  consults it yet. This is the deploy-window pair for P3.
+- **P1 — One table.** `org_section_access` (org_id, role, section, access) with the D-PERM7/D-PERM8
+  locks written as CHECK constraints, so the database states the rule rather than trusting the
+  endpoint to remember it. `enable row level security`; readable by the org, writable by nobody
+  through PostgREST — writes go through the API so they carry an audit row. New tables are exempt
+  from the ordering gate. **No reader ships in this PR.**
+- **P2 — Resolution, unread.** `auth_section()` and the auth-hook change that injects the sparse
+  `sections` claim. Policies are untouched. After this merge every newly minted token carries the
+  claim; nothing consults it yet. This is the deploy-window pair for P3.
 - **P3 — The API and the web read the claim.** `AuthContext` gains `sections`; `requireSection()`
   replaces the 157 `requireRole(...rolesThatManage(x))` spreads; `session.can()` reads the claim
   with the compile-time matrix as the fallback for a claim-less token. Behaviour is identical
   until an override row exists, which is what makes this reviewable.
-- **P4 — The policy rewrite, in module batches.** ~89 predicates become
-  `auth_can_manage('x') or auth_role() = ANY (ARRAY[…])`. Batched by owning module so each PR's
-  PGlite matrix covers one blast radius, not all of them. The `rls` matrix (459 assertions) is the
-  net.
-- **P5 — The editable page.** P0's table becomes editable across the 8 × 11 surface D-PERM7/D-PERM8
+- **P4 — The policy rewrite, in module batches.** ~89 predicates gain the `case … else <existing
+  role list> end` wrapper of D-PERM4. Batched by owning module so each PR's PGlite matrix covers one
+  blast radius, not all of them. The `rls` matrix (459 assertions) is the net, and every batch must
+  show it still passing unchanged for a claim-less token — that is the proof the default branch is
+  the current behaviour.
+- **P5 — The editable page.** P0's table becomes editable across the 7 × 11 surface D-PERM7/D-PERM8
   define, admin-only, with D-PERM6's sentence on the save, a marker on every cell that departs from
   its shipped default, the regulatory argument in a hover where one exists, and "reset to default"
   per row. Every save writes an audit row.
-- **P6 — Drop the fallbacks.** Only after a full token TTL has elapsed past P4's deployment. The
-  `or auth_role() = ANY (…)` half comes out and `lint:section-policies` starts refusing new role
-  lists (D-PERM5).
+- **P6 — The gate.** `lint:section-policies` starts refusing a new policy on a sectioned table that
+  asks a bare role list without the `auth_section()` branch (D-PERM5). No fallback is dropped —
+  under D-PERM4 the role list is the permanent default branch, not scaffolding.
 
 ## §4 What would make this a workaround, so it can be recognised
 
 - Shipping P5 before P3/P4 — a page that saves rows nothing enforces is a UI that lies about
   security, and it would take a real incident to discover.
-- Hand-writing the SQL defaults instead of generating them (D-PERM4).
+- Giving the defaults a second home — a table, a generated CASE, a plpgsql literal — instead of
+  reading them from the policy's own role list, which a gate already checks (D-PERM4).
 - Giving `auth_section()` a `set search_path` "for safety" (D-PERM3, §0).
 - Letting the web decide access from the override table directly rather than from the claim the
   API and the database both read — a third source of truth for the same question.

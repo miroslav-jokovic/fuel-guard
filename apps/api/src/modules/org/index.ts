@@ -15,6 +15,7 @@ export { invitesRouter, deliverInvite } from "./routes/invites.js";
 export { membersRouter } from "./routes/members.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { auditRouter } from "./routes/audit.js";
+export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 // The carrier's own identity, read by any module rendering a filing that must name it (0282).
 export { carrierCityStateZip, getCarrierIdentity } from "./carrierIdentity.js";
 export type { CarrierIdentity } from "./carrierIdentity.js";

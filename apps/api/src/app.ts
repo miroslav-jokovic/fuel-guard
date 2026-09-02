@@ -15,7 +15,7 @@ import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter } from "./modules/org/index.js";
+import { invitesRouter, sectionAccessRouter } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
@@ -227,6 +227,8 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
+  // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
+  app.use("/api/section-access", sectionAccessRouter());
   // A bookmark belonging to the caller — no role gate; see the router's header.
   app.use("/api/saved-views", savedViewsRouter());
   app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
