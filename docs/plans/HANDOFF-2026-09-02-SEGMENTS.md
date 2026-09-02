@@ -25,8 +25,10 @@ git fetch origin && git ls-tree --name-only origin/main supabase/migrations/ | t
 …and take the next number **only if you are about to commit within the hour**. If you are not, do the
 non-migration part of your segment first. A claimed-but-unpushed number is not claimed.
 
-**Highest at the time of writing: `0295`.** Three segments below want a migration; they are marked, and
-**only one of them should be in flight at a time.**
+~~**Highest at the time of writing: `0295`.**~~ **`0296` as of 2026-09-02** (`org_role_surface_access`,
+the permissions chat). Three segments below want a migration; they are marked, and **only one of them
+should be in flight at a time** — and one of the three, Segment D, turned out to need it for the Fuel
+Log alone rather than for three pages. Re-run the command above rather than trusting this line.
 
 ### 0.2 Files more than one segment will reach for
 
@@ -139,18 +141,41 @@ appear. Derive the facet from `efs_transactions.unit` (D-FUI16).
 
 **Small, self-contained, and the only fuel segment that needs a migration.**
 
+**⚠ THREE QUARTERS OF THIS IS DONE.** Transactions, Rejections and Cards shipped 2026-09-02
+(`claude/fuel-row-coverage`), and **neither raw-feed page needed a migration after all** — see the
+correction below. What is left is the **Fuel Log's line**, and that is the part the migration is for.
+
 | | |
 |---|---|
-| **Steps** | T5's remaining bullets: "share attributed to a vehicle" on the fuel list pages |
-| **Owns** | one migration, `apps/api/src/modules/fuel-spend/**`, the list pages' header lines |
+| **Steps** | ~~"share attributed to a vehicle" on the fuel list pages~~ → **the Fuel Log's line only**: rows in window, share attributed, and the posted feed's last delivery |
+| **Owns** | one migration, `apps/web/src/features/fuel/useFuelLog.ts`, `FuelLogPage.vue`'s header lines |
 | **Migration?** | **YES — see §0.1.** `fuel_range_totals` (0289) returns `fills` but not "fills naming a truck". `create or replace` **cannot** change a `returns table` shape: it is `drop function` + `create` in one transaction (safe — an extra column is ignored by the old reader). |
 | **Blocked by** | **Nothing — Q-FUI14 answered 2026-09-02: Cards DROPS the attribution fact.** It has no denominator there (a card is issued to a driver or truck as setup, not attributed per row), so Cards carries rows-in-window and last-feed-poll only. The remaining constraint is the migration protocol in §0.1. |
 | **Done when** | No figure in the section reads as a claim about everything without saying what it covers. |
 
+**⚠ THE MIGRATION NOTE ABOVE WAS RIGHT ABOUT ONE TABLE AND WRONG ABOUT TWO.** T5 says Transactions and
+Rejections "key on a text `unit` rather than a `vehicle_id`, so both need a migration".
+`declined_transactions` has carried `vehicle_id` since its scoring work — measured 2026-09-02, 2,749
+declines carry one and they are exactly the 2,749 whose `unit` matches a vehicle — so Rejections
+needed no schema change. Transactions has no vehicle column, but its attribution is a match against
+the fleet's own unit numbers, which the page already holds for its Unit filter; a second SQL function
+would have restated seven filters beside the seven the list applies, which is the drift
+`fuelSpendReport.ts` carries a scar about. **`fuel_range_totals` is the only function that still needs
+changing, and only the Fuel Log reads it.**
+
 **Already done and not to be redone:** the rollup build-age line on Fuel Spend and the spend PDF (#479),
-and the EFS feed-freshness line on Transactions and Rejections (#481). If Segment B has merged those two
-pages by then, the `FeedFreshnessLine` moves to the relevant tab — it takes a `feed` prop for exactly
-that reason.
+the EFS feed-freshness line on Transactions and Rejections (#481), and the attribution line on
+Transactions, Rejections and Cards (`claude/fuel-row-coverage`). If Segment B has merged those two
+pages by then, the `FeedFreshnessLine` and the `RowCoverageLine` move to the relevant tab — the first
+takes a `feed` prop and the second a plain `coverage` object, for exactly that reason.
+
+**Two measurements the Fuel Log half rests on, both taken 2026-09-02 in production, so neither has to
+be re-derived:** every canonical fill is `source = 'fuel_card'` (14,868 of 14,868), so the posted
+feed's freshness IS the Fuel Log's freshness and no manual-entry caveat is owed; and no fill is
+unscored (0 of 14,868 with a null `case_level`), so the Flagged tile needs no scoring-backlog caveat
+either — **despite 46 imports whose `efs_processing_runs` row has been stuck at `running` since
+2026-08-09**, holding 3,055 fills that are all scored regardless. That stuck-run count is a real
+operational oddity and belongs to nobody's segment yet; it is recorded here rather than acted on.
 
 ---
 
@@ -175,7 +200,8 @@ exist after Segment B. Whoever finishes B should check it.
 ```
 now, in parallel:   Segment A (Samsara)        Segment B (consolidation, 4 PRs)
 then:                                          Segment C (parity, 3 PRs)
-alongside C:        Segment D (T5) — unblocked; start when no other migration is in flight
+alongside C:        Segment D (T5) — 3 of 4 pages SHIPPED 2026-09-02; the Fuel Log's line remains,
+                    and it is the only part still needing the migration
 last:               Segment E — once Q-FUI3 / Q-FUI11 / Q-FUI1 are answered and S6 has measured
 ```
 

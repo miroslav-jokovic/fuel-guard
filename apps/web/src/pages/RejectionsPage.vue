@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import type { DeclinedTransactionRow } from "@silvicom/shared";
 import { rejectDateTime, stationLocalNote } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -11,6 +11,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
+import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppTable } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
@@ -43,6 +44,10 @@ const unitOptions = computed(() => [
 ]);
 
 const { data: facets } = useEfsFacets();
+
+// FUEL-T5. `declined_transactions.vehicle_id` already IS the attribution fact — see the composable's
+// header for why this needed no migration and the plan expected one.
+const { data: coverage } = useEfsRowCoverage("rejections", filters);
 
 // WP2 — read-only card→truck assignments (the ground truth the decline scorer uses).
 const cardsOpen = ref(false);
@@ -174,6 +179,11 @@ const columns: DataTableColumn[] = [
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
     <FeedFreshnessLine feed="rejected" />
+
+    <!-- FUEL-T5, and it matters more here than anywhere else in the section: one decline in five
+         resolves to no truck (696 of 3,445, measured 2026-09-02) on the page whose whole job is a
+         fraud signal. A reader scoping this to a unit was seeing four fifths of it, unannounced. -->
+    <RowCoverageLine :coverage="coverage" />
 
     <FilterBar
       v-model:search="search"

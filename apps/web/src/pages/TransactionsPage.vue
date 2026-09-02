@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useEfsTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useEfsTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
@@ -9,6 +9,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
+import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
@@ -33,6 +34,10 @@ const unitOptions = computed(() => [
 ]);
 
 const { data: facets } = useEfsFacets();
+
+// FUEL-T5. The filter bar below says how many rows there are; this says how many of them reach a
+// truck, which is what every per-unit figure in this section silently depends on.
+const { data: coverage } = useEfsRowCoverage("transactions", filters);
 
 /** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
 const bind = (key: "unit" | "search" | "item" | "state" | "driver") =>
@@ -113,6 +118,10 @@ const columns: DataTableColumn[] = [
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
     <FeedFreshnessLine feed="posted" />
+
+    <!-- FUEL-T5. Arrival, then composition: the line above says whether the list is short, this one
+         says how much of what is here can be reached by a unit filter or a per-truck total. -->
+    <RowCoverageLine :coverage="coverage" />
 
     <DataWorkspace>
     <FilterBar
