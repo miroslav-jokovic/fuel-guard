@@ -1,0 +1,209 @@
+# Handoff — the remaining fuel + Samsara work, split into segments for parallel chats
+
+**Read `HANDOFF-2026-09-02.md` first** for what shipped and the traps. This file is only the **split**:
+which segments exist, what each owns, what they must not touch, and the order they have to run in.
+
+**Why segments.** A fresh chat with a narrow brief outperforms a long one carrying everything. Each
+segment below is sized to be one chat: a coherent goal, its own file territory, and a done-when that
+does not depend on another chat finishing mid-flight.
+
+---
+
+## 0. The rules that make parallel chats safe
+
+These are not style preferences. Every one of them was paid for on 2026-09-02.
+
+### 0.1 ⚠ Migration numbers are the sharp edge
+
+Two chats took `0290` on the same day. One had to close its PR and renumber. **Before writing a
+migration:**
+
+```
+git fetch origin && git ls-tree --name-only origin/main supabase/migrations/ | tail -3
+```
+
+…and take the next number **only if you are about to commit within the hour**. If you are not, do the
+non-migration part of your segment first. A claimed-but-unpushed number is not claimed.
+
+**Highest at the time of writing: `0295`.** Three segments below want a migration; they are marked, and
+**only one of them should be in flight at a time.**
+
+### 0.2 Files more than one segment will reach for
+
+| File | Who else touches it | Rule |
+|---|---|---|
+| `supabase/schema.generated.sql` | every migration | regenerate + `git add` it, never hand-edit (`lint:table-writers` hides that check) |
+| `scripts/table-writers.json`, `scripts/table-modules.json` | every new table/writer | append only your rows; conflicts here are trivial to resolve, do not rebase around them |
+| `packages/shared/src/index.ts` | the permissions work | **do not add to it.** Export through a subpath barrel (`fuelSpend/index.ts`) as `rollupFreshness` and `feedFreshness` did |
+| `apps/web/src/router/routes/fuel.ts` | segments B and D | only B and D touch it, and B lands first |
+| `apps/web/src/lib/nav.ts` + its snapshot | segment B | B owns the Fuel group's shrink; nobody else edits it |
+| `packages/shared/src/auth.ts`, `apps/web/src/pages/Settings*`, `router/routes/settings.ts` | **the permissions chat** | **out of bounds.** Read `SECTION_ACCESS`, never edit it |
+
+### 0.3 Non-negotiable method (from `HANDOFF-2026-09-02.md` §8)
+
+- Branch from `origin/main` **explicitly**; check `git branch --show-current` **and `pwd`** before every
+  commit. (I built on an already-merged branch once today and had to move the work.)
+- **Mutate the subject of every new test and confirm it fails.** Ten assertions passed proving nothing on
+  2026-09-02; the cause is always a fixture too uniform to discriminate. If a mutation does not fail the
+  test, the test is the problem — fix the fixture, or delete the assertion and say why.
+- Hold a reader PR until its column **or function** exists in production (`information_schema.columns`,
+  `pg_proc`). `lint:migration-ordering` does not see functions.
+- `pnpm --filter @silvicom/shared build:rn` after pulling — a stale `dist` produces typecheck errors in
+  files you never touched.
+- Mark the step **DONE** in its plan with "What shipped" and "Verified by:" naming real test titles.
+
+---
+
+## 1. ⚠ One sequencing finding that changes the plan's order
+
+**Do C2 before P1.** The plan lists Phase P before Phase C and does not order them against each other.
+But **P1 adds multi-select to Fuel Log, Transactions and Rejections — and C2 merges those three pages
+into one.** Doing P first means building the same control three times and then deleting two of them.
+
+So: **Segment B (consolidation) runs before Segment C (parity)**, and P1 is then one control on one page.
+
+---
+
+## 2. The segments
+
+### Segment A — finish the Samsara collector · **S5, S6**
+
+**Independent of every fuel segment. Start it any time, in parallel with anything.**
+
+| | |
+|---|---|
+| **Steps** | SAM-S5 (freshness as a number with a threshold), SAM-S6 (retrain, re-score, measure) |
+| **Owns** | `apps/api/src/modules/samsara/**`, `apps/api/src/modules/org/notifications` path, the Dashboard coverage tile, Settings → Data & sync |
+| **Migration?** | **Probably not** — S5 reads the `jobs` ledger and `samsara_feed_cursors` (0288). Confirm before assuming. |
+| **Blocked by** | Q-SAM1 for the *targets* only. **Ship the mechanism with provisional numbers and no alert firing on a guess** — that is the plan's own fallback. S6 wants the backlog drained first (Q-SAM6). |
+| **Done when** | "Is our data fresh?" is answerable by looking; a stalled feed pages somebody. S6's before/after is **written into the plan**, and is allowed to conclude the backfill did not help. |
+
+**Start here:** `SAMSARA-COLLECTION-PLAN.md` §5 S5. The patterns to copy are already in the tree —
+`readSamsaraWebhookStatus` (all-time denominator), the **Telematics history** card (#454), and
+`describeFeedFreshness` (#481), which is the same shape S5 needs per feed.
+
+⚠ **D-SAM7 is part of S5:** the Dashboard's "Telematics coverage" tile computes over the *selected
+window* and reads ~95% while 76.8% of history had nothing. It gains an all-time denominator beside the
+windowed one. That tile is the last surviving instance of the bug #454 fixed elsewhere.
+
+---
+
+### Segment B — the fuel section stops being organised by where data came from · **C2 → C3 → C4 → C5**
+
+**The biggest segment, and strictly sequential. One chat, four PRs.**
+
+| | |
+|---|---|
+| **Steps** | C2 (Fuel Log absorbs Transactions + Rejections), C3 (every page sendable), C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
+| **Owns** | `apps/web/src/pages/{FuelLogPage,TransactionsPage,RejectionsPage,FuelCardsPage,ImportPage}.vue`, `apps/web/src/features/fuel/**`, `router/routes/fuel.ts`, `lib/nav.ts` + snapshots |
+| **Migration?** | **No.** Entirely web. |
+| **Blocked by** | Nothing. C1 and T1 are done. |
+| **Done when** | Fuel is five nav items; `/transactions`, `/rejections` and `/import` are query-preserving redirects; Fuel Spend has three tabs. |
+
+**Order is forced:** C3 needs C2 (do it once, on the merged page); C4 needs C2; C5 needs C4 and **must
+land before C6** so the policy tabs are removed by the step that replaces them.
+
+⚠ **The three pages C2 merges have no tests today** — C2 is the first time any of them is mounted under
+test. Expect the two traps from `FuelLogPage.test.ts`: `DataTable` renders as **cards** under jsdom
+(stub `useMediaQuery`, or an assertion about headers passes because there are none), and a spy inside a
+hoisted `vi.mock` factory must be `vi.hoisted`.
+
+⚠ **C5 keeps the three policy tab bodies in the tree, unmounted**, until C6 files their findings. A
+report deleted before its replacement exists is a capability gap, however brief.
+
+---
+
+### Segment C — parity across the merged section · **P1 → P2 → P3**
+
+**Runs AFTER Segment B.** See §1.
+
+| | |
+|---|---|
+| **Steps** | P1 (multi-select + data-derived facets), P2 (a scoped export on every list page), P3 (the ledger scopable by truck) |
+| **Owns** | the merged Fuel Log tabs, `useEfsFacets`, `apps/api/src/modules/fuel-spend/routes/**` (export routes), `ReportExportButton` |
+| **Migration?** | **No.** |
+| **Blocked by** | Segment B landing. P2 needs T3 (done) and P1; P3 needs P2. |
+| **Done when** | "Truck 654's fuel for August, as a file" is answerable from every list page, and `?trucks=` either scopes the ledger or is absent from its URL. |
+
+⚠ **P2 has exactly one acceptable shape (D-FUI15):** `spend-report.pdf`'s. Server-rendered from the same
+pure functions the screen uses, filters honoured, UUIDs validated before a service-role query, one audit
+row per export, and the scope line printed on the artefact. **Do not invent a second export shape.**
+
+⚠ **P1's facet fix is the point, not the multi-select.** The unit list is built from
+`vehicles.unit_number`; the four EFS units with no vehicle row are unfilterable while their rows still
+appear. Derive the facet from `efs_transactions.unit` (D-FUI16).
+
+---
+
+### Segment D — finish T5 · **the attribution half**
+
+**Small, self-contained, and the only fuel segment that needs a migration.**
+
+| | |
+|---|---|
+| **Steps** | T5's remaining bullets: "share attributed to a vehicle" on the fuel list pages |
+| **Owns** | one migration, `apps/api/src/modules/fuel-spend/**`, the list pages' header lines |
+| **Migration?** | **YES — see §0.1.** `fuel_range_totals` (0289) returns `fills` but not "fills naming a truck". `create or replace` **cannot** change a `returns table` shape: it is `drop function` + `create` in one transaction (safe — an extra column is ignored by the old reader). |
+| **Blocked by** | ⚠ **The Cards page's third fact is under-specified.** "Share attributed to a vehicle" has no meaning there — a card is issued to a driver or a truck as setup, not attributed per row, so there is no denominator. **Decide and name the rule, or drop the fact on that page and say so.** |
+| **Done when** | No figure in the section reads as a claim about everything without saying what it covers. |
+
+**Already done and not to be redone:** the rollup build-age line on Fuel Spend and the spend PDF (#479),
+and the EFS feed-freshness line on Transactions and Rejections (#481). If Segment B has merged those two
+pages by then, the `FeedFreshnessLine` moves to the relevant tab — it takes a `feed` prop for exactly
+that reason.
+
+---
+
+### Segment E — findings and the inbox · **C6 → C7 → C8 → C9**
+
+**Blocked on rulings. Do not start without them.**
+
+| | |
+|---|---|
+| **Steps** | C6 (policy detectors file findings), C7 (one Findings inbox), C8 (targets beside the policy), C9 (the Dashboard's fuel strip earns its links) |
+| **Migration?** | **Likely, for C6/C8.** Coordinate per §0.1. |
+| **Blocked by** | **Q-FUI3** (the unit of work for a policy finding) blocks C6. **Q-FUI11** (fix order for the three alert root causes) and **Q-FUI1** (where a fuel-card theft alert sits in the capability matrix) block C7. **SAM-S6 gates anything anomaly-related** — including C7 — because the current queue is measured at 2.9% precision. |
+| **Prerequisite** | C5 must land first (Segment B). |
+
+**C9 is the exception and can be done alone**: the Dashboard's fuel strip links to pages that no longer
+exist after Segment B. Whoever finishes B should check it.
+
+---
+
+## 3. Suggested running order
+
+```
+now, in parallel:   Segment A (Samsara)        Segment B (consolidation, 4 PRs)
+then:                                          Segment C (parity, 3 PRs)
+alongside C:        Segment D (T5) — once its Cards ruling exists and no other migration is in flight
+last:               Segment E — once Q-FUI3 / Q-FUI11 / Q-FUI1 are answered and S6 has measured
+```
+
+**A and B are the only two that should run at the same time.** They share no files. Adding a third
+concurrent chat puts two of them in `apps/web/src/pages/` at once, which is where the merge pain is.
+
+---
+
+## 4. Owner actions still outstanding
+
+Unchanged, and each one blocks something above.
+
+1. **Upload `~/Downloads/db139445F.pdf`** through *Fuel Spend → Reconcile a file*. `fuel_statements`,
+   `fuel_recon_runs` and `fuel_exceptions` are **still 0 rows** — the whole reason the Exceptions page
+   reads as pointless, and a precondition for C6/C7 meaning anything.
+2. **Fix the Samsara webhook** in the vendor console (the path the Data & sync card prints; subscribe to
+   the fuel-drop alert, not the five `RouteStop*` events).
+3. **Set `SAMSARA_WEBHOOK_SECRET`** in Railway. **SAM-S1 stays open until 2 and 3 are done.**
+
+### Rulings, by what they unblock
+
+| Question | Blocks | Fallback if unanswered |
+|---|---|---|
+| **Q-SAM6** — raise `SAMSARA_RECON_BATCH`? | S6's timing | stays 250; drains in ~43 h not ~11 |
+| **Cards' third fact** | Segment D | drop the fact on that page, stated |
+| **Q-FUI3** | C6 | C6 does not ship; policy views stay unmounted |
+| **Q-FUI11**, **Q-FUI1** | C7 | C7 does not ship; two inboxes remain |
+| **Q-SAM1** | S5's targets only | provisional numbers, no alert on a guess |
+| **Q-FUI9** | nothing — `REBUILD_DAYS` policy | unchanged; the label now says how old the figures are |
+| **Q-FUI10** | P2's owner-facing report | row-level CSV only |
+| **Q-SAM2**, **Q-SAM3** | nothing | unsubscribe / leave alone |
