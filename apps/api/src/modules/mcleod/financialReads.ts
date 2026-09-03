@@ -256,6 +256,8 @@ export interface StagedMovement {
   loaded_miles: number | string | null;
   fuel_miles: number | string | null;
   distance_unit: string;
+  /** McLeod's movement status; V = voided. Swept with the row since D-FIN5, excluded by the reader. */
+  external_status: string | null;
   settled_at: string | null;
   /** The ordered stop array, exactly as tmsStopFactSchema shaped it on the way in (0267). */
   stops: unknown;
@@ -271,8 +273,11 @@ export async function readMovementsWindow(
   return paged<StagedMovement>((from, to) =>
     admin
       .from("mcleod_movements")
-      .select("external_id, tractor_unit, trailer_unit, driver_external_ids, order_ids, loaded_miles, fuel_miles, distance_unit, settled_at, stops")
+      .select("external_id, tractor_unit, trailer_unit, driver_external_ids, order_ids, loaded_miles, fuel_miles, distance_unit, external_status, settled_at, stops")
       .eq("org_id", orgId)
+      // A voided trip (McLeod status V) is swept WITH its flag since D-FIN5 and excluded here: its
+      // miles were never run. `neq` alone would also drop rows whose status is null.
+      .or("external_status.is.null,external_status.neq.V")
       .gte("settled_at", fromIso)
       .lt("settled_at", toIso)
       .order("settled_at", { ascending: true })

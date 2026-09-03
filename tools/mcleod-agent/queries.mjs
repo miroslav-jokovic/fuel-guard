@@ -204,7 +204,8 @@ export function retirementQueries() {
  *    carrier runs teams. Joining drivers the same way as tractors emits those movements twice and
  *    double-counts their miles, so drivers are aggregated to a delimited list instead of joined.
  *  · **`status = 'V'` is a VOID movement** — 41 of 21,547 in 2026. They are excluded here for the
- *    same reason `is_void` is excluded from settlement (D-MC18): a voided trip's miles were never run.
+ *    same reason settlement carries `is_void` (D-MC18): a voided trip's miles were never run. Since
+ *    D-FIN5 the status is SWEPT rather than filtered, and the API reader excludes V.
  *  · **`move_distance` is LOADED miles only** (D-MC15). McLeod stores no empty miles anywhere; both
  *    manifest distance columns and `pay_distance` sum to exactly zero across the whole year. The name
  *    the agent sends is `loaded_miles`, never `total_miles`, so nothing downstream can assume the
@@ -245,7 +246,8 @@ export const MOVEMENT_FACTS = `
       LEFT JOIN dbo.equipment_item AS tl
         ON tl.equipment_group_id = m.equipment_group_id AND tl.equipment_type_id = 'L'
      WHERE m.company_id = @companyId
-       AND m.status <> 'V'
+       -- status travels as external_status (V = voided) rather than filtering here (D-FIN5): a trip
+       -- voided after its first sweep must reach the store as voided, not linger as run.
        AND m.xfer2settle_date >= @windowStart
        AND m.xfer2settle_date <  @windowEnd
      ORDER BY m.xfer2settle_date, m.id`;
@@ -282,7 +284,6 @@ export const MOVEMENT_STOPS = `
       JOIN dbo.movement AS m ON m.id = s.movement_id
      WHERE s.company_id = @companyId
        AND m.company_id = @companyId
-       AND m.status <> 'V'
        AND m.xfer2settle_date >= @windowStart
        AND m.xfer2settle_date <  @windowEnd
      ORDER BY s.movement_id, s.movement_sequence`;
@@ -509,7 +510,7 @@ export const AP_VOUCHERS = `
  *
  * Five decisions here, every one of which changes the number rather than raising an error:
  *
- *  · **`is_void = 'N'`.** 909 of June 2026's 3,363 rows are voided and carry $335,846.70 of pay that
+ *  · **`is_void`, carried as a column since D-FIN5 (it was a filter).** 909 of June 2026's 3,363 rows are voided and carry $335,846.70 of pay that
  *    never happened. The 21 date columns on this table do NOT discriminate — it is a history table, so
  *    every row has completed its whole lifecycle and every stage is populated. `is_void` is the only
  *    thing that separates money paid from money reversed (D-MC18).
@@ -546,10 +547,12 @@ export const SETTLEMENTS = `
       s.orig_posted_pay                             AS posted_pay,
       s.pay_distance                                AS pay_distance,
       LTRIM(RTRIM(s.accrual_key))                   AS accrual_key,
-      LTRIM(RTRIM(s.post_key))                      AS post_key
+      LTRIM(RTRIM(s.post_key))                      AS post_key,
+      -- Voids are SWEPT with their flag, not filtered (D-FIN5): a row voided after its first sweep
+      -- used to keep its live copy in the store forever. The store marks it; readers exclude it.
+      CASE WHEN s.is_void = 'Y' THEN 1 ELSE 0 END      AS is_void
       FROM dbo.drs_settle_hist AS s
      WHERE s.company_id = @companyId
-       AND s.is_void = 'N'
        AND s.accrual_date >= @windowStart
        AND s.accrual_date <  @windowEnd`;
 
@@ -605,10 +608,10 @@ export const SETTLEMENT_DEDUCTIONS = `
       -- The account is what tells an EARNING from a REPAYMENT from a cost RECOVERY; the deduct code
       -- cannot, and guessing from the code would be an attribution we invented (0274's header).
       NULLIF(LTRIM(RTRIM(d.glid)), '')              AS glid,
-      LTRIM(RTRIM(d.accrual_key))                   AS accrual_key
+      LTRIM(RTRIM(d.accrual_key))                   AS accrual_key,
+      CASE WHEN d.is_void = 'Y' THEN 1 ELSE 0 END      AS is_void   -- swept, not filtered (D-FIN5)
       FROM dbo.drs_deduct_hist AS d
      WHERE d.company_id = @companyId
-       AND d.is_void = 'N'
        AND d.transaction_date >= @windowStart
        AND d.transaction_date <  @windowEnd`;
 

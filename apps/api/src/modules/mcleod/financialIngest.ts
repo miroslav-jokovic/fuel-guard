@@ -18,11 +18,10 @@ import type {
  * case, not the exception. Full-row upserts (the lint:upserts rule): a swept row REPLACES the
  * stored row wholesale, because McLeod is the source of truth for its own staging table.
  *
- * ⚠ Void-after-sweep is invisible by design, for now: the extraction excludes voided rows
- * (`is_void = 'N'` / `void_date IS NULL` in the agent's SQL — D-MC18, a voided trip's miles
- * were never run), so a row voided AFTER a sweep simply stops re-appearing and its stored copy
- * stays `is_void = false`. The dedicated void-sweep is named follow-up work in the program
- * plan; until it lands, reports built on these tables inherit McLeod's own void lag.
+ * Settlements, deductions and movements arrive WITH their void state since D-FIN5 (the agent SQL
+ * no longer filters `is_void` / `status = V`), so a row voided after its first sweep flips to void
+ * on the next one. AP vouchers still arrive void-filtered until their staging table carries a
+ * void column (F5b, FINANCE-GO-LIVE-PLAN §6).
  *
  * Deductions gained their staging table in 0268 (they shipped without one in 0257, and this
  * header said so honestly until the table existed) — `ingestDeductions` below is the landing.
@@ -59,7 +58,7 @@ export async function ingestSettlements(
       total_pay: s.total_pay,
       posted_pay: s.posted_pay,
       pay_distance: s.pay_distance ?? null,
-      is_void: false,
+      is_void: s.is_void ?? false,
       accrual_key: s.accrual_key ?? null,
       post_key: s.post_key ?? null,
     }));
@@ -130,7 +129,7 @@ export async function ingestDeductions(
       deduction_type: d.deduction_type ?? null,
       transacted_at: d.transacted_at ?? null,
       amount: d.amount,
-      is_void: false,
+      is_void: d.is_void ?? false,
       accrual_key: d.accrual_key ?? null,
     }));
     const { data, error } = await admin
