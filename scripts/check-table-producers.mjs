@@ -32,6 +32,11 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
+  // D-SURF9 split, deliberately: 0301 ships the table one merge ahead of its writers (invite
+  // acceptance and the Users page rename, SURFACE-ENTITLEMENTS-PLAN.md S9), because the directory
+  // function it also creates is read by GET /api/members and a reader deployed ahead of its schema
+  // is the nine-minute outage. The next PR adds both writers and deletes this line.
+  ["user_profiles", "written by S9's second PR (invites.ts on accept, members.ts on rename) — this waiver leaves with it"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

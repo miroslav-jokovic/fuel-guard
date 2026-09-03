@@ -2195,6 +2195,8 @@ async function main() {
     "end_duty_session",
     "emit_notification",
     "revoke_push_tokens",
+    // 0301: joins auth.users for every member's email, so it must never be a browser's to call.
+    "org_member_directory",
   ]) {
     const row = definers.rows.find((r) => r.proname === fn);
     ok(
