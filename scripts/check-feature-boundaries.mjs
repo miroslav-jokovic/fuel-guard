@@ -152,6 +152,9 @@ const API_ALLOW = new Set([
   // decision exercised): the harness reads monthly vehicle miles through samsara's exported
   // reader — never the raw jurisdiction table.
   "financial -> samsara",
+  // D-FIN12: the FUEL tie-out reads EFS card lines BY PRODUCT through the collector's exported
+  // reader (efsLineItems.ts) — the derived fill has already folded a fill's lines together.
+  "financial -> efs",
   // The three P5 surfaces read the money store through financial's interface — the deny-all RLS
   // posture (D-SEP7) makes these routers THE read path; none of them owns a table.
   "accounting -> financial",
