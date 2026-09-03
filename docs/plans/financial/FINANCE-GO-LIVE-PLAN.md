@@ -105,6 +105,15 @@ was derived from.
 > idempotent by file hash and no-ops.
 
 **Step F2.** Ingest guard + rejects + re-queue (owner runs the one-line dispatch, as for R6).
+The re-queue is one statement in the Supabase SQL editor, after the guard has deployed (the claim
+rule of 0095 takes `queued` rows whose `run_after` has passed):
+
+```sql
+update jobs set status = 'queued', attempts = 0, error = null, locked_by = null,
+  lease_expires_at = null, started_at = null, finished_at = null, run_after = now()
+where kind = 'efs_window_refetch' and status = 'failed';
+```
+
 **Done when:** April and May canonical fuel sit inside the band the complete months show
 (D-FIN12 names the band), the job reads `done`, and `rejects` lists the row that overflowed with
 its reason.
@@ -426,9 +435,9 @@ Correctness before operations before presentation; the owner/carrier items run i
 | # | Step | Decision | Blocks |
 |---|---|---|---|
 | 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test — **BUILT 2026-09-03** (`cpmTieOut.ts`, `apportion.ts`; page reads `glTieOut` in F15) | D-FIN1, D-FIN11 | every all-in figure |
-| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch | D-FIN2 | April/May fuel |
+| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch — **BUILT 2026-09-03** (`efsIngestRejects.ts`; rejects on `import_rows`; the re-queue is the owner's one statement, §1.2) | D-FIN2 | April/May fuel |
 | 3 | F10 — null per-mile, measured-only fleet figure — **BUILT 2026-09-03** (rates are `number | null`; the page prints a dash; `fleet.unmeasured` is its own line) | D-FIN10 | trust in the table |
-| 4 | F6 — zero rows never delete; one RPC | D-FIN6 | fleet truth surviving a bad sweep |
+| 4 | F6 — zero rows never delete; one RPC — **F6a BUILT 2026-09-03** (reader guard + `replace_mcleod_gl_month` in 0302, function only); **F6b** = the reader calls the RPC, one merge after 0302 has applied | D-FIN6 | fleet truth surviving a bad sweep |
 | 5 | F3 — last-synced, "as of", failure findings | D-FIN3 | knowing 2–4 held |
 | 6 | F4 — scheduled agent, 75-day window, hardening pass, agent tests | D-FIN4 | everything monthly |
 | 7 | F5 — voids swept with their flag | D-FIN5 | precision after edits |
@@ -452,6 +461,21 @@ T2–T6 from the parent plan follow their rulings and are unchanged by this docu
   (D-FIN6).
 - No tie-out that only displays. A residual is a finding or the month does not harden (D-FIN14).
 - No question left in this file. If one appears, it gets a decision here before any code moves.
+
+## 6. Progress log — append here, never edit the §4 table
+
+Three PRs in one afternoon each marked their own row of the §4 table "BUILT", and every pair
+conflicted on merge because the rows are adjacent lines. The table is the plan; this list is the
+record. One dated line per step, appended at the end, so parallel PRs never touch the same line.
+
+- 2026-09-03 · #504 — the plan itself. Merged.
+- 2026-09-03 · #506 — F1 + F11: schedule leaves the pool; largest-remainder; `glTieOut`. Merged.
+- 2026-09-03 · #507 — F2: `efsIngestRejects.ts`, rejects on `import_rows`; the owner's re-queue
+  statement is in §1.2 and runs AFTER this has deployed.
+- 2026-09-03 · #509 — F10: rates are `number | null`, the page prints a dash, `fleet.unmeasured`,
+  `sortRows` keeps blanks last.
+- 2026-09-03 · F6a — reader refuses an empty payload; `replace_mcleod_gl_month` lands in 0302 as
+  the function only. **F6b owed:** the reader calls the RPC one merge after 0302 has applied.
 - 2026-09-03 · F4 — the agent gains `npm run financial` / `financial:harden`; the trailing window
   is 75 days; the 1st–3rd of each month re-read the two previous months whole (`windows.mjs`,
   pure, with the agent's first `node:test` suite, run by CI through `lint:agent-syntax`). The

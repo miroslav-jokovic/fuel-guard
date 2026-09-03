@@ -22,6 +22,7 @@ type Tables = {
   efs_transactions: Row[];
   fuel_transactions: Row[];
   declined_transactions: Row[];
+  import_rows: Row[];
   vehicles: Row[];
   drivers: Row[];
 };
@@ -32,10 +33,13 @@ class FakeDb {
     efs_transactions: [],
     fuel_transactions: [],
     declined_transactions: [],
+    import_rows: [],
     vehicles: [],
     drivers: [],
   };
   seq = 0;
+  /** Stands in for a constraint Postgres enforces: a write containing a row this returns a message for fails with it. */
+  refuse: (table: string, row: Row) => string | null = () => null;
   from(table: string): FakeQuery {
     return new FakeQuery(this, table);
   }
@@ -120,6 +124,10 @@ class FakeQuery implements PromiseLike<QueryResult> {
       return { data, error: null };
     }
     if (this.op === "upsert") {
+      for (const r of this.payload) {
+        const refused = this.db.refuse(this.table, r);
+        if (refused) return { data: null, error: { message: refused } };
+      }
       const keys = this.onConflict ? this.onConflict.split(",").map((s) => s.trim()) : [];
       for (const r of this.payload) {
         const dup = keys.length > 0 && t.some((e) => keys.every((k) => e[k] === r[k]));
@@ -411,5 +419,61 @@ describe("ingestReport — reject report", () => {
     // Standard reject export carries no EFS alert fields — stored as null, never fabricated.
     expect(d.card_assigned_unit).toBeNull();
     expect(d.efs_proximity_miles).toBeNull();
+  });
+});
+
+describe("ingestReport — a bad row costs one row, never the window (D-FIN2)", () => {
+  // The 2026-08-28 refetch: one row overflowed numeric(10,1) and the whole April window was
+  // refused with it, $368k of fuel stayed out of the ledger tie-out, and the row was never named.
+  it("a row Postgres refuses lands on import_rows with the error, and every other row commits", async () => {
+    const db = new FakeDb();
+    db.refuse = (table, row) =>
+      table === "efs_transactions" && row.item === "SCLE" ? "numeric field overflow" : null;
+    const { deps } = spyDeps();
+    const res = await ingestReport(db as unknown as SupabaseClient, env, txnInput("h-reject-1"), deps);
+    expect(res.rejectedRows).toBe(1);
+    // The two lines of the fuel invoice landed in the faithful store; only the refused scale ticket is absent.
+    expect(db.tables.efs_transactions.map((r) => r.item).sort()).toEqual(["DEFD", "ULSD"]);
+    const rejects = db.tables.import_rows.filter((r) => r.status === "error");
+    expect(rejects).toHaveLength(1);
+    expect(rejects[0]!.error_message).toBe("numeric field overflow");
+    expect((rejects[0]!.raw as Row).item).toBe("SCLE"); // verbatim — the row names itself
+    expect(db.tables.imports[0]!.error_rows).toBe(1);
+    // The derived fills were never refused, so every fuel event is there.
+    expect(db.tables.fuel_transactions.length).toBeGreaterThan(0);
+  });
+
+  it("an odometer that cannot fit its column is stored as null, recorded, and the fill still lands", async () => {
+    const db = new FakeDb();
+    const { deps } = spyDeps();
+    const rows = txnRows.map((r, i) => (i === 0 ? { ...r, Odometer: "29358012345" } : r)); // eleven digits
+    const res = await ingestReport(
+      db as unknown as SupabaseClient,
+      env,
+      { ...txnInput("h-odo-1"), rows },
+      deps,
+    );
+    expect(res.rejectedRows).toBe(0);
+    const fill = db.tables.fuel_transactions.find((r) => r.card_ref === "94507" && r.tank_type === "tractor")!;
+    expect(fill).toBeDefined();
+    expect(fill.odometer).toBeNull();
+    expect(fill.gallons).toBe(141.7); // the fact columns are untouched
+    const notes = db.tables.import_rows.filter((r) => r.status === "committed");
+    // Both stores carry the odometer, so both guards record it — once per row per store.
+    expect(notes.length).toBeGreaterThanOrEqual(1);
+    expect(notes.every((n) => String(n.error_message).includes("odometer 29358012345"))).toBe(true);
+    expect(db.tables.imports[0]!.error_rows ?? 0).toBe(0);
+  });
+
+  it("a derived price per gallon that cannot fit its column is null rather than a refused fill", async () => {
+    const db = new FakeDb();
+    const { deps } = spyDeps();
+    // 0.001 gal for $598.91 → $598,910/gal, past numeric(8,3). The fill's dollars are real.
+    const rows = txnRows.map((r, i) => (i === 0 ? { ...r, Qty: "0.001", "Unit Price": "" } : r));
+    await ingestReport(db as unknown as SupabaseClient, env, { ...txnInput("h-ppg-1"), rows }, deps);
+    const fill = db.tables.fuel_transactions.find((r) => r.gallons === 0.001)!;
+    expect(fill).toBeDefined();
+    expect(fill.price_per_gal).toBeNull();
+    expect(fill.total_cost).toBe(598.91);
   });
 });
