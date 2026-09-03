@@ -534,7 +534,7 @@ the member's next token refresh — up to an hour, `jwt_expiry = 3600` — where
 change lands on the next page load. D-PERM6 and D-SURF4 make that difference real and S6's page must
 not average the two.
 
-### S6 · The permissions page becomes editable — DONE 2026-09-03 (#PR; no migration)
+### S6 · The permissions page becomes editable — DONE 2026-09-03 (#496; no migration)
 `EDITABLE-PERMISSIONS-PLAN.md` P5, extended: a **Roles** tab (the 7 × 11 section matrix plus each
 role's surfaces) and a **People** tab (search a member, see their resolved access with each cell
 marked *default* / *org override* / *user override*, reset per row). Keep the live sidebar preview
@@ -615,19 +615,111 @@ finding only this way:
   first manage-level screen out of the catalogue now: a screen retiring is not a reason for this test
   to fail, but a `level` that stopped travelling is.
 
-### S7 · Audit the gates the page cannot reach
+### S7 · Audit the gates the page cannot reach — DONE 2026-09-03 (#498; no migration)
 Q-SURF1: the ~24 hard-coded `requireRole` lists and the 65 endpoints with no authorization. Each
 either derives from the matrix, gains a surface gate, or gets a comment saying why it is open.
 Independent of S1–S6 and shippable at any point. Until it lands, the permissions page governs most
 of the product rather than all of it, and **S6 must say which surfaces are not yet governed** instead
 of implying completeness.
 
+**What the audit actually found, measured by walking the built app rather than parsing it.** §0's
+figures were a static parse and said so; one half held and the other was four times too large.
+
+| | §0 said | measured 2026-09-03 |
+| --- | --- | --- |
+| routes in the API | ~312–321 call sites | **351** |
+| no gate of any kind | 65 | **40** — of which **27** sit under mounts already pinned public or machine-authenticated (`/api/tms` alone is 17 agent-ingest routes) |
+| genuinely unexamined | — | **13** |
+| literal `requireRole` lists that are not `requireRole("admin")` | ~24 | **25**, of which **18 equalled a section's derived set** |
+
+The gap is one thing a static parse cannot see: a gate applied through a local const —
+`const canHire = requireRole(...)`, `const canView = requireSection(...)` — makes every route under
+it look ungated. The plan was right to say "±10 and a shape, not a census", and right to say do not
+re-derive it by grep: the truthful version builds the real express app and walks the real middleware
+stacks, which is what `routeGates.test.ts` already did one grain coarser.
+
+**What shipped.**
+
+- **18 gates now derive.** `requireRole("admin", "fleet_manager", "dispatcher")` and friends became
+  `requireSection(...)` at every call site whose literal list EQUALLED its section's derived set:
+  `insights/reports` (settings), `org/audit` (settings — the Recall audit and Reports screens,
+  which is where the section comes from rather than from the path), `org/jobs` (settings),
+  `samsara/integration` (settings), `routing/plans` and `posted-prices/networks` (dispatch),
+  `evidence/complianceExports` (safety). Behaviour is identical for a claim-less token, which is the
+  property that made an 18-site rewrite reviewable; what changes is that an org that re-answers the
+  matrix now moves the API with it (D-PERM3).
+- **7 literal lists stay, each with its argument** in `ROLE_LIST_WAIVERS`: the two driver-app role
+  tests, the credential and identity-merge acts granted by NAME (their routers already made the
+  argument at length — S7 only made it checkable), and Ask AI, whose list equals `hazmat/view` by
+  pure coincidence and is recorded below as Q-SURF7.
+- **3 of the 13 unexamined routes are now gated** — `GET /api/fueling/stations`,
+  `/geocode-suggest` and `/vehicle-location` at `dispatch: view`. ⚠ **This is a narrowing and it is
+  said out loud**: they were `requireOrg` alone, so any signed-in member could read the org's station
+  prices or spend its geocoder quota. Both callers are Fuel Planning and Truck Stops, catalogued
+  `dispatch`, and since S2's guard no role without `dispatch: view` can open either screen — so
+  nothing a person can reach today stops working.
+- **10 stay open, each with its argument** in `OPEN_ROUTES`: `GET /api/me` (the identity every page
+  bootstraps from — a role gate there would be a gate on finding out what your role is), the
+  map-config/tile proxies (no tenant data; `requireAuth` protects a vendor quota, not a row),
+  `GET /api/jobs/latest` (a progress ping for one known job kind in the caller's own org, polled by
+  every section's screens), invite acceptance (the one act a person with no org yet must perform), a
+  driver's own push-token revoke, and the four Q-FUI12 reads — which are left as Q-FUI12 rather than closed in passing, because that
+  question has an owner and a recommendation and answering it here would be doing so silently.
+- **Two fitness functions, so this cannot rot** (`routeGateLedger.test.ts`): COVERAGE walks the built
+  app per ROUTE — including the one route declared straight on the app rather than inside a mounted
+  router, `GET /api/me`, which a mount-reading walker would never have reported and which is the
+  endpoint every page bootstraps from — and fails on one with no gate that the ledger has not
+  accounted for; FORM reads the
+  source and fails on a literal multi-role list that is not waived — because a set comparison cannot
+  tell a derived answer from a coincidence, which is precisely the Ask AI case. Both ledgers are
+  SHRINK-ONLY: an entry that stops applying fails the build, so a route that gains a gate must lose
+  its entry in the same PR.
+- `AUTH_ONLY_MOUNTS` moved out of `routeGates.test.ts` into `testing/routeLedger.ts` beside the two
+  new maps. Three files answering "what is deliberately open" is the restatement this programme
+  exists to remove.
+- **S6's caveat came out**, as this plan said it would. The page no longer says the product is not
+  fully governed; it names the short list of what is decided elsewhere and why.
+
+**Verified by:** `pnpm test` (unit + all 52 matrices — this step touches no SQL and every matrix is
+unchanged; the api suite is 2756 including the three new fitness assertions), `pnpm typecheck`,
+`pnpm build`, `pnpm lint`, and the whole CI gate list extracted from `ci.yml` plus the chained
+`lint:rls` and `lint:migration-ordering`.
+
+**Mutation-tested, subject not test.** Seven mutations, each failing a different assertion: reverting
+one converted gate to its literal list (FORM), deleting a ledger entry (COVERAGE's unaccounted
+clause), removing the gate S7 added to `/stations` (COVERAGE plus the named-narrowing test), a waiver
+that no longer applies (FORM's stale clause), a walker that ignores `router.use` gates (COVERAGE, and
+this is the one that matters — without it every route under a router-level gate reads as ungated), a
+walker that finds nothing (the >300 completeness guard), and turning off comment-stripping, which
+resurrects `app.ts`'s prose mention of `requireRole("admin", "fleet_manager")` as a call site. That
+last one is the third time in this programme a gate has read its own comments; it is why the stripper
+exists rather than being tidiness.
+
 ## §6 Open questions
 
-**Q-SURF1 — the gates an org's permissions page cannot reach.** ~24 endpoints on hard-coded role
-lists, 65 with nothing beyond `requireAuth`. Owner: engineering. Recommendation: fold into S6; do not
-let S6 claim completeness before it. Fallback if S7 slips: S6's page states plainly which surfaces
-are not yet governed.
+~~**Q-SURF1 — the gates an org's permissions page cannot reach.** ~24 endpoints on hard-coded role
+lists, 65 with nothing beyond `requireAuth`.~~
+**ANSWERED 2026-09-03 by S7, and the measurement corrected the question.** 351 routes, 39 with no
+gate of any kind, 27 of those under mounts already pinned public or machine-authenticated — so the
+genuinely unexamined set was 12, not 65. The role-list half held: 25 literal lists, 18 of which
+equalled a section's derived set and now call `requireSection`. Every remaining one is in
+`apps/api/src/testing/routeLedger.ts` with its argument, and two fitness functions fail the build if
+a new route or a new literal list appears unexamined. See S7's entry for the split.
+
+**Q-SURF7 — Ask AI answers for five roles that are nobody's derived set.** Found while answering
+Q-SURF1 and left open deliberately. `POST /api/insights/ask` is gated
+`requireRole("admin", "fleet_manager", "auditor", "dispatcher", "safety_manager")`, which equals
+`rolesThatCanView("hazmat")` **by coincidence** — the assistant has nothing to do with hazmat, and
+that coincidence is the exact reason S7's FORM check reads source rather than comparing sets. The
+screen itself is catalogued `staff` (Q-SURF3) and is therefore not an org's to deny, so today the
+list is the only thing deciding who may ask. Candidates: (a) leave it — the assistant reads across
+fuel, dispatch and safety, so the union of those readers is defensible and the list is that union
+minus `accountant`, `recruiter` and `technician`; (b) gate it on a section the assistant's answers
+actually come from, which would be a union nobody has written; (c) make Ask AI an editable surface by
+giving it a section, which is a product decision about a tool with no data of its own. Owner:
+product. Recommendation: **(a)**, with the list waived and named as S7 has done, until somebody wants
+Ask AI to be per-role configurable — at which point (c) is the honest answer and it costs a catalogue
+entry, not a mechanism.
 
 **Q-SURF2 — `hazmat` is editable but governs no screen.** The section gates RLS (0293 wrapped five
 policies) but both hazmat nav items use `isStaff && moduleEnabled(...)`, and their routes are
