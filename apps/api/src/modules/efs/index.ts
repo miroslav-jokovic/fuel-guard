@@ -24,6 +24,7 @@ export { cardRefHmac } from "./services/efsCardMirror.js";
 export { buildIngestSource } from "./services/efsAutoIngest.js";
 export { ingestReport } from "./services/efsIngest.js";
 export { previewReport, type ReportPreview } from "./services/efsPreview.js";
+export { readEfsLineItemsWindow, type EfsLineItemRow } from "./services/efsLineItems.js";
 export { registerEfsSoapIntegrationRoutes } from "./routes/integrationSoap.js";
 export { registerFeedFreshnessRoutes, type FeedFreshnessResponse } from "./routes/feedFreshness.js";
 export { registerEfsSoapCertRoutes } from "./routes/integrationSoapCerts.js";
