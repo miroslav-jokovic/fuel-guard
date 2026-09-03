@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@silvicom/ui";
-import { analyzePolicyExceptions, avoidedBrandsLabel, avoidedStatesLabel, listStates, type SpendLine } from "@silvicom/shared";
+import { computed, ref } from "vue";
+import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, AppIcon, type TabItem } from "@silvicom/ui";
+import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
+import { type SpendLine } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import ReconcileTab from "@/features/reconcile/ReconcileTab.vue";
+import ReconcileDrawer from "@/features/reconcile/ReconcileDrawer.vue";
 import StatementsCard from "@/features/reconcile/StatementsCard.vue";
-import DiscountCaptureTab from "@/features/reconcile/DiscountCaptureTab.vue";
+import DiscountCaptureCard from "@/features/reconcile/DiscountCaptureCard.vue";
 import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
-import ExceptionsTab from "@/features/reconcile/ExceptionsTab.vue";
 import BuyDisciplineTab from "@/features/reconcile/BuyDisciplineTab.vue";
 import SpendTrendTab from "@/features/reconcile/SpendTrendTab.vue";
 import { useStatementsQuery, useStatementLinesQuery } from "@/features/reconcile/useStatements";
@@ -21,30 +21,46 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useFuelPolicy } from "@/composables/useRouteFuelSettings";
-import { usd, usd3, pct1 } from "@/features/reconcile/format";
+import { usd, pct1 } from "@/features/reconcile/format";
 
 /**
  * Fuel spend — what the fuel bill is, why it moved, and where the policy is not being followed.
+ *
+ * ── THREE TABS, DOWN FROM EIGHT (FUEL-C5, D-FUI4) ───────────────────────────────────────────────
+ * `Spend & trend | Buy discipline | Statements`. What went where, and why:
+ *
+ * · **Reconcile a file** is an upload, and every other upload in this plan is a drawer (D-FUI3). It
+ *   is also the tab that had to be excepted from the rest of the page three separate times — the
+ *   filter bar, the freshness line and the coverage line were all suppressed on it, because a period
+ *   control means nothing while you are reading a file. Three special cases for one tab is the page
+ *   saying it is not a view of the same data. It opens from Statements now, next to the empty state
+ *   that asks for it.
+ * · **Discount capture** folds into Spend & trend as a KPI that discloses the fills behind it. "Were
+ *   we billed what Pilot quoted" is a question about the fuel bill, and it belongs beside the bill
+ *   rather than behind a tab somebody has to know to visit.
+ * · **The three policy reports** — the avoided brands, the avoided states, off-network — stop being
+ *   tabs and become finding kinds in C6 (D-FUI5). ⚠ Their bodies are KEPT IN THE TREE, unmounted:
+ *   `ExceptionsTab.vue` and `features/reconcile/policyReports.ts`, the latter written in this step
+ *   precisely so the titles, the blurbs and the buy-minimum note did not die with this page's markup.
+ *   A report deleted before its replacement produces anything is a capability gap, however brief.
+ *
+ * Eight tabs was not a long list, it was three different jobs wearing one strip: a cost report, a
+ * policy audit and two file surfaces. What is left is the cost report, the discipline check, and the
+ * vendor's own paperwork.
  *
  * ── TWO SOURCES, AND EVERY TAB SAYS WHICH ONE IT IS ON ───────────────────────────────────────────
  * The EFS feed is continuous and covers every fill; the vendor's weekly statement is uploaded by hand
  * and covers whatever weeks somebody remembered. So each tab is fed by whichever can actually answer
  * its question:
  *
- *   FEED       Spend & trend, ONE9 & off-brand, California, Off-network, Discount capture. Brand, state
- *              and distance came with the station backfill; the POSTED price — which EFS never records —
- *              now comes from the daily price reports, kept since 0245 and joined per station-day by
- *              `fuel_spend_lines` (0246).
+ *   FEED       Spend & trend, including the discount KPI. Brand, state and distance came with the
+ *              station backfill; the POSTED price — which EFS never records — comes from the daily
+ *              price reports, kept since 0245 and joined per station-day by `fuel_spend_lines` (0246).
  *   STATEMENT  The statement list and the vendor's own market-vs-discount decomposition. What is left
  *              that only a statement can answer: what the vendor BILLED, line by line.
  *
  * Every tab but the first used to read statements, which is why they were empty until somebody uploaded
  * a PDF — for questions the carrier asks weekly and a document that arrives monthly.
- *
- * ── WHY "SPEND & TREND" IS FIRST ─────────────────────────────────────────────────────────────────
- * It is the tab that answers the question actually being asked — "fuel cost more this week, why".
- * Reconcile keeps its place beside it because it is still the one that catches a fill we were billed
- * for and never recorded — the fuel-theft surface, which is a different job from cost.
  *
  * ── WHY THE TAB AND WINDOW ARE IN THE URL ────────────────────────────────────────────────────────
  * A page whose state dies on refresh cannot be sent to anybody, and this one exists to be sent to
@@ -52,9 +68,12 @@ import { usd, usd3, pct1 } from "@/features/reconcile/format";
  */
 
 const f = useSpendFilters();
-// Falls back to the trend for anything this org cannot show: a stale link, a hand-edited one, or a tab
-// whose policy list has since been emptied (see `tabs`). `visibleTabs` is declared below and read
-// lazily, which is what a computed is for.
+/**
+ * Falls back to the trend for anything this page cannot show — and after C5 that includes the FIVE
+ * retired `?tab=` values. A link to `?tab=discount` or `?tab=avoid_brand` sent last week lands on
+ * Spend & trend rather than on nothing, which is the same fallback the unknown-tab case always took.
+ * `visibleTabs` is declared below and read lazily, which is what a computed is for.
+ */
 const tab = computed<string>({
   get: () => (visibleTabs.value.has(f.tab.value) ? f.tab.value : "spend"),
   set: (v) => { f.tab.value = v; },
@@ -85,13 +104,12 @@ const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehic
 const freshness = useSpendFreshnessQuery(queryFilters);
 
 // ── the feed source: every recorded fill, with its brand ────────────────────────────────────────
-const { data: feedData, isLoading: feedLoading, isError: feedError, error: feedErr } = useSpendLinesQuery(queryFilters);
+const { data: feedData } = useSpendLinesQuery(queryFilters);
 const feedLines = computed<SpendLine[]>(() => feedData.value ?? []);
 // This org's own policy, from `route_fuel_settings` — the same three columns the route planner has
-// honoured since 0058. The report used to measure a hardcoded {CA} / {one9} instead, so a carrier who
-// added Oregon got a planner that avoided it and a compliance report that said the policy held.
+// honoured since 0058. Read here for Buy discipline; `policyReports.ts` reads it for the three
+// reports C6 will file, which is where the rest of this page's use of it went.
 const policy = useFuelPolicy();
-const exceptions = computed(() => analyzePolicyExceptions(feedLines.value, policy.value));
 
 // ── the buy-discipline source ───────────────────────────────────────────────────────────────────
 // A SECOND read of the same fills, and it has to be: `fuel_spend_lines` returns a business date (two
@@ -115,37 +133,24 @@ const { data: stmtLineData, isLoading: stmtLinesLoading } = useStatementLinesQue
 const statementLines = computed<SpendLine[]>(() => stmtLineData.value ?? []);
 
 /**
- * The two policy tabs name the policy they measure, and disappear when there is none.
+ * Three tabs, and the list is now FIXED where it used to vary with the org's policy.
  *
- * "California" and "ONE9 & off-brand" were literal strings beside an analyzer reading a hardcoded
- * constant — true of one carrier and of no other. Both halves now come from `route_fuel_settings`, so
- * a tab cannot be headed with a state the org does not avoid. An EMPTY list is a policy too: a carrier
- * who clears `avoid_states` is saying there is no state to avoid, and the honest answer is no tab
- * rather than an empty report under a heading they did not choose.
+ * Two of the eight only existed when `route_fuel_settings` named a brand or a state to avoid, so the
+ * strip changed shape per carrier. Nothing here does: every carrier has a fuel bill, a fill sequence
+ * and a vendor. The policy-dependent half moved to `policyReports.ts`, which still returns a list
+ * whose length varies — because that variability was right, it was just wrong in a tab strip.
  */
-const stateLabel = computed(() => avoidedStatesLabel(policy.value.avoidStates));
-const brandLabel = computed(() => avoidedBrandsLabel(policy.value.avoidBrands));
-
 const tabs = computed<TabItem[]>(() => [
   { value: "spend", label: "Spend & trend" },
-  ...(brandLabel.value
-    ? [{ value: "avoid_brand", label: `${brandLabel.value} & off-brand`, badge: exceptions.value.avoidedBrands.lines || undefined }]
-    : []),
-  ...(stateLabel.value
-    ? [{ value: "california", label: stateLabel.value, badge: exceptions.value.avoidedStates.lines || undefined }]
-    : []),
-  { value: "off_network", label: "Off-network", badge: exceptions.value.offNetwork.lines || undefined },
   { value: "buy_discipline", label: "Buy discipline" },
-  { value: "discount", label: "Discount capture" },
-  { value: "reconcile", label: "Reconcile a file" },
-  { value: "statements", label: "Statements", badge: (statements.value ?? []).length || undefined },
+  { value: "statements", label: "Statements", badge: scopedStatements.value.length || undefined },
 ]);
 
-// A link to a tab this org's policy no longer has must not land on a blank page — the same fallback
-// the unknown-tab case already takes.
+// A link to a tab this page no longer has must not land on a blank page — see `tab` above.
 const visibleTabs = computed(() => new Set(tabs.value.map((t) => t.value)));
 
-const isFeedTab = computed(() => ["avoid_brand", "california", "off_network", "discount"].includes(tab.value));
+/** The reconcile drawer, opened from Statements. */
+const reconcileOpen = ref(false);
 
 /**
  * X8 — the count is the count of what THIS tab is showing.
@@ -153,17 +158,14 @@ const isFeedTab = computed(() => ["avoid_brand", "california", "off_network", "d
  * It was `feedLines.length` on every tab: the unfiltered fill count sitting beside statement data on
  * one tab, beside a deliberately smaller measured-fills figure on another, and beside three exception
  * reports each of which selects a fraction of it. A number in a filter bar is read as "this is what
- * you are looking at", and on four of the six tabs it was not.
+ * you are looking at", and on four of the six tabs it was not. Three tabs, three answers, and the
+ * cases this switch lost went with the tabs that needed them.
  */
 const barCount = computed<{ n: number; label: string }>(() => {
   switch (tab.value) {
-    case "avoid_brand": return { n: exceptions.value.avoidedBrands.lines, label: "fills off-brand" };
-    case "california": return { n: exceptions.value.avoidedStates.lines, label: "fills in state" };
-    case "off_network": return { n: exceptions.value.offNetwork.lines, label: "fills off-network" };
     // The legs the truck drove, not the fills — this tab counts pairs, and a fill count beside it
     // would be the X8 defect again (a number in a filter bar reads as "this is what you are seeing").
     case "buy_discipline": return { n: buyFills.value.filter((x) => x.inWindow !== false).length, label: "fills in sequence" };
-    case "discount": return { n: feedLines.value.length, label: "fills" };
     case "statements": return { n: scopedStatements.value.length, label: "statements" };
     default: return { n: feedLines.value.length, label: "fills" };
   }
@@ -188,28 +190,8 @@ const coverageLine = computed(() => {
     spend,
     pricedShare: spend > 0 ? pricedSpend / spend : null,
     resolvedShare: lines.length > 0 ? resolved / lines.length : null,
-    statements: (statements.value ?? []).length,
+    statements: scopedStatements.value.length,
   };
-});
-
-/**
- * The avoided-state blurb, written from the policy rather than about California.
- *
- * The CARB-and-fuel-tax sentence was true and specific to one state, on a tab that measures whichever
- * states the org listed. Naming them is both more useful and the only version that stays true — but
- * the WHY differs per state and we do not know it, so the copy states the policy and the mechanism it
- * asks for, which is what the report actually measures.
- */
-const stateBlurb = computed(() => {
-  const names = listStates(policy.value.avoidStates);
-  return `Every gallon bought in ${names} costs more — state fuel taxes, and in some of them a reformulated diesel — which is why the policy is to cross on as little fuel as possible.`;
-});
-
-const stateNote = computed(() => {
-  const f = exceptions.value.avoidedStateFillSize;
-  const names = listStates(policy.value.avoidStates);
-  if (f.inside == null || f.outside == null) return null;
-  return `Average fill inside ${names} is ${f.inside.toFixed(0)} gallons against ${f.outside.toFixed(0)} elsewhere — the buy-minimum discipline the policy asks for, and the gap to watch.`;
 });
 </script>
 
@@ -217,7 +199,7 @@ const stateNote = computed(() => {
   <div class="space-y-6">
     <PageHeader description="What fuel is costing, why it moved, and where the fuel policy is not being followed." />
 
-    <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" scrollable />
+    <AppTabs v-model="tab" :tabs="tabs" label="Fuel spend views" />
 
     <!-- X4. `normalizeWindow` REPORTS what it corrected rather than correcting silently, and its own
          header says the page can therefore say so — and then nothing rendered it, so a link with a
@@ -233,9 +215,14 @@ const stateNote = computed(() => {
 
     <!-- WHEN the figures below were derived, above the figures rather than under them (T5). A stale
          rollup is not a smaller number, it is an older one, and a reader cannot infer it from anything
-         on screen. Only the warning form gets a tone: a fresh rebuild is context, not an alert. -->
+         on screen. Only the warning form gets a tone: a fresh rebuild is context, not an alert.
+
+         ⚠ No `tab !== 'reconcile'` guard any more, and that is C5's done-when: the freshness line and
+         the coverage line below it now render above ALL THREE tabs, because all three read data from
+         the same window. The one surface they did not describe was the file reader, and it is a
+         drawer now. -->
     <p
-      v-if="freshness.data.value?.lead && tab !== 'reconcile'"
+      v-if="freshness.data.value?.lead"
       :class="freshness.data.value.stale
         ? 'rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100'
         : 'text-xs text-ink-tertiary'"
@@ -245,7 +232,7 @@ const stateNote = computed(() => {
 
     <!-- How much of this window the page can speak about, in one line. Every figure below is a claim
          about some subset of it, and without this they all read as claims about the whole. -->
-    <p v-if="coverageLine && tab !== 'reconcile'" class="text-xs text-ink-tertiary">
+    <p v-if="coverageLine" class="text-xs text-ink-tertiary">
       This window covers <strong class="text-ink-secondary">{{ usd(coverageLine.spend) }}</strong> of tractor fuel —
       <strong :class="(coverageLine.pricedShare ?? 0) < 0.75 ? 'text-caution-800' : 'text-ink-secondary'">{{
         pct1(coverageLine.pricedShare)
@@ -254,10 +241,10 @@ const stateNote = computed(() => {
       {{ coverageLine.statements }} statement{{ coverageLine.statements === 1 ? "" : "s" }} on file.
     </p>
 
-    <!-- ONE filter bar for every view that reads data. Dates, trucks and grain are the page's, so a
-         figure read on one tab is the same period as a figure read on the next, and the export sends
-         exactly these to the server. -->
-    <FilterBar v-if="tab !== 'reconcile'" :count="barCount.n" :count-label="barCount.label">
+    <!-- ONE filter bar for every view. Dates, trucks and grain are the page's, so a figure read on one
+         tab is the same period as a figure read on the next, and the export sends exactly these to
+         the server. -->
+    <FilterBar :count="barCount.n" :count-label="barCount.label">
       <!-- ⚠ These MUST be in the #filters slot. FilterBar has no default slot — only #filters, #more
            and #actions — so controls placed as plain children are silently dropped and the bar renders
            empty. That is exactly how this whole filter row went missing on a live page.
@@ -283,9 +270,16 @@ const stateNote = computed(() => {
       </template>
     </FilterBar>
 
-    <SpendTrendTab v-if="tab === 'spend'" :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />
-
-    <ReconcileTab v-else-if="tab === 'reconcile'" @saved="refetch()" />
+    <!-- ── Spend & trend: the bill, then whether it was the bill we were quoted ──────────────── -->
+    <template v-if="tab === 'spend'">
+      <SpendTrendTab :filters="queryFilters" :grain="f.grain.value" :query="f.asQuery.value" />
+      <DiscountCaptureCard
+        :lines="feedLines"
+        :from="f.from.value"
+        :to="f.to.value"
+        @narrow="(from, to) => f.setWindow(from, to)"
+      />
+    </template>
 
     <!-- Fuel carried out of a dearer state. Its own source (`fuel_buy_fills`), because the sequence
          needs an instant, a vehicle id and the tank — none of which `fuel_spend_lines` carries. -->
@@ -299,65 +293,29 @@ const stateNote = computed(() => {
       <BuyDisciplineTab v-else :fills="buyFills" :policy="policy" :loading="buyLoading" />
     </template>
 
-    <!-- ── feed-fed policy reports ──────────────────────────────────────────────────────────── -->
-    <template v-else-if="isFeedTab">
-      <p v-if="feedLoading" class="text-sm text-ink-muted">Loading…</p>
-
-      <p v-if="feedError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-        Couldn't load your fills: {{ feedErr instanceof Error ? feedErr.message : "unknown error" }}
-      </p>
-
-      <template v-else>
-        <ExceptionsTab
-          v-if="tab === 'avoid_brand'"
-          :title="`${brandLabel} and other off-brand sites`"
-          :blurb="`Networks your fuel policy says to avoid. Across this window they cost ${usd3(exceptions.avoidedBrands.netPerGal)} a gallon against ${usd3(exceptions.avoidedBrands.baselinePerGal)} for the rest of the fleet.`"
-          :report="exceptions.avoidedBrands"
-          slug="off-brand"
-        />
-        <ExceptionsTab
-          v-else-if="tab === 'california'"
-          :title="stateLabel ?? ''"
-          :blurb="stateBlurb"
-          :report="exceptions.avoidedStates"
-          slug="avoided-states"
-          :note="stateNote"
-        />
-        <DiscountCaptureTab
-          v-else-if="tab === 'discount'"
-          :lines="feedLines"
-          :from="f.from.value"
-          :to="f.to.value"
-          @narrow="(from, to) => f.setWindow(from, to)"
-        />
-        <ExceptionsTab
-          v-else
-          title="Off the preferred network"
-          blurb="Fills outside Pilot and Flying J, including sites we could not identify — an unidentified site is certainly not a preferred one, so it counts here rather than being assumed compliant."
-          :report="exceptions.offNetwork"
-          slug="off-network"
-        />
-      </template>
-    </template>
-
     <!-- ── statement-fed views ──────────────────────────────────────────────────────────────── -->
     <template v-else>
-      <p class="text-sm text-ink-muted">
-        {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }} on file
-        <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
-        <template v-if="stmtLinesLoading"> · loading…</template>
-      </p>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-ink-muted">
+          {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }} on file
+          <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
+          <template v-if="stmtLinesLoading"> · loading…</template>
+        </p>
+        <BaseButton variant="secondary" @click="reconcileOpen = true">
+          <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Reconcile a file
+        </BaseButton>
+      </div>
 
       <p v-if="stmtError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         Couldn't load your statements.
       </p>
 
-      <BaseCard v-else-if="!(statements ?? []).length && !stmtLoading">
+      <BaseCard v-else-if="!scopedStatements.length && !stmtLoading">
         <h3 class="text-sm font-semibold text-ink">No statements for {{ f.from.value }} → {{ f.to.value }}</h3>
         <p class="mt-1 text-sm text-ink-muted">
           This view needs the vendor's weekly statement, because it is the only source that prints the POSTED price
-          beside what we paid — the EFS feed records what we paid and never what was on the sign. Upload one on
-          <strong>Reconcile a file</strong> and it stays here. Every other tab reads the feed and works without it.
+          beside what we paid — the EFS feed records what we paid and never what was on the sign. Use
+          <strong>Reconcile a file</strong> above and it stays here. Every other view reads the feed and works without it.
         </p>
       </BaseCard>
 
@@ -366,11 +324,13 @@ const stateNote = computed(() => {
              only it can support, and the non-fuel charges it bundles onto a fuel ticket. -->
         <SpendOverviewTab :lines="statementLines" />
         <StatementsCard
-          :statements="statements ?? []"
+          :statements="scopedStatements"
           :loading="stmtLoading"
           :error="stmtError ? 'Could not load statements' : null"
         />
       </template>
     </template>
+
+    <ReconcileDrawer :open="reconcileOpen" @close="reconcileOpen = false" @saved="refetch()" />
   </div>
 </template>

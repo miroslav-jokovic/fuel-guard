@@ -2,15 +2,6 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import BaseModal from "@/components/ui/BaseModal.vue";
 
-// Headless UI's Dialog observes its panel; jsdom has no ResizeObserver. Without this the assertions
-// all pass and the RUN still fails on unhandled rejections — the worst kind of green.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-(globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= ResizeObserverStub;
-
 /**
  * B5 — the centred dialog's two escape hatches, pinned. Headless UI closes on Escape and on a
  * click outside the panel; both must emit `close` or the modal is a trap. `printable` is what the

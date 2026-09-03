@@ -49,7 +49,6 @@ const FEED: SpendLine[] = [
 const seen = {
   spendLineFilters: null as Ref<{ from: string; to: string; vehicleIds: string[] }> | null,
   statementWindow: null as Ref<{ from: string; to: string }> | null,
-  policyArgs: [] as unknown[][],
   buyWindow: null as Ref<{ from: string; to: string }> | null,
 };
 
@@ -139,26 +138,18 @@ vi.mock("@/features/reconcile/ReconcileTab.vue", () => ({
   default: { name: "ReconcileTab", template: "<div>RECONCILE TAB</div>" },
 }));
 
-// `analyzePolicyExceptions` is spied rather than replaced: the tabs below render its real output, and
-// what is being pinned is that the page passes a policy at all (B4a) — the argument F3 replaces with
-// the org's own `route_fuel_settings`.
-vi.mock("@silvicom/shared", async (orig) => {
-  const actual = await orig<typeof import("@silvicom/shared")>();
-  return {
-    ...actual,
-    analyzePolicyExceptions: (...args: unknown[]) => {
-      seen.policyArgs.push(args);
-      return (actual.analyzePolicyExceptions as (...a: unknown[]) => unknown)(...args);
-    },
-  };
-});
+// ⚠ `analyzePolicyExceptions` used to be spied here, because the page called it for its three policy
+// tabs. FUEL-C5 removed those tabs and moved the call — with the titles, the blurbs and the
+// buy-minimum note — to `features/reconcile/policyReports.ts`, kept in the tree unmounted until C6
+// files their findings. Every assertion that depended on the spy moved with it to
+// `policyReports.test.ts`; deleting them here without moving them is how "kept in the tree" would
+// have quietly become "kept and never checked again".
 
 import FuelReconciliationPage from "./FuelReconciliationPage.vue";
 
 beforeEach(() => {
   seen.spendLineFilters = null;
   seen.statementWindow = null;
-  seen.policyArgs = [];
   seen.buyWindow = null;
   policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true };
   // DataTable branches on matchMedia; jsdom has none.
@@ -179,10 +170,6 @@ async function mountPage(query = "") {
   });
   await router.push(`/fuel-spend${query}`);
   await router.isReady();
-  // Vue Test Utils does not unmount between tests, so a component from an earlier `it` is still alive
-  // and still reactive: changing `policy` re-runs ITS computeds too, and those calls land in `seen`
-  // before this mount's do. Clearing here makes every assertion about the page being mounted now.
-  seen.policyArgs = [];
   // The export button reads the toast store, so the page needs a Pinia even to render.
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -191,9 +178,21 @@ async function mountPage(query = "") {
   return { w, router };
 }
 
-const TABS = ["spend", "avoid_brand", "california", "off_network", "buy_discipline", "discount", "reconcile", "statements"];
+/**
+ * Three, down from eight (FUEL-C5, D-FUI4). The five that went: `reconcile` is a drawer on
+ * Statements, `discount` is a KPI on Spend & trend, and the three policy reports become finding kinds
+ * in C6 with their bodies kept in the tree. Every one of those five values still resolves — a link
+ * sent last week must land somewhere — which is what `falls back` below asserts.
+ */
+const TABS = ["spend", "buy_discipline", "statements"];
+const RETIRED_TABS = ["reconcile", "discount", "avoid_brand", "california", "off_network"];
 
 describe("FuelReconciliationPage", () => {
+  it("is three tabs, and names them", async () => {
+    const labels = (await mountPage()).w.findAll('[role="tab"]').map((b) => b.text().trim());
+    expect(labels).toEqual(["Spend & trend", "Buy discipline", "Statements"]);
+  });
+
   it("renders every tab without throwing or printing NaN", async () => {
     for (const tab of TABS) {
       const { w } = await mountPage(`?tab=${tab}`);
@@ -232,63 +231,38 @@ describe("FuelReconciliationPage", () => {
     expect(seen.spendLineFilters?.value.vehicleIds).toEqual(["v1", "v2"]);
   });
 
-  it("measures the org's own policy rather than the analyzer's default", async () => {
-    // The report and the route planner read the same three `route_fuel_settings` columns; until F3
-    // only the planner did, so a carrier who added a state got a planner that avoided it and a
-    // compliance report that said the policy held.
+  it("no longer heads a tab with a policy list, whatever the org configured", async () => {
+    // The strip used to change shape per carrier: two of the eight only existed when
+    // `route_fuel_settings` named a brand or a state. Those reports are not gone — see
+    // `policyReports.test.ts`, which owns every assertion about what they SAY — but the tab strip is
+    // fixed now, because every carrier has a fuel bill, a fill sequence and a vendor.
     policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"], alwaysFillFull: true };
-    await mountPage();
-    expect(seen.policyArgs.length).toBeGreaterThan(0);
-    expect(seen.policyArgs[0]![1]).toMatchObject({ avoidStates: ["OR", "WA"], avoidBrands: ["pride"] });
-  });
-
-  it("names the avoided-state tab after the states the org actually listed", async () => {
-    policy.value = { ...policy.value, avoidStates: ["CA", "OR"] };
-    const t = (await mountPage("?tab=california")).w.text();
-    expect(t).toContain("California and Oregon");
-    expect(t).toContain("bought in California, Oregon"); // the blurb lists them in full
-  });
-
-  it("names the avoided-brand tab after the brands the org actually listed", async () => {
-    policy.value = { ...policy.value, avoidBrands: ["pride"] };
-    const t = (await mountPage("?tab=avoid_brand")).w.text();
-    expect(t).toContain("Pride and other off-brand sites");
-    expect(t).not.toContain("ONE9");
-  });
-
-  it("hides a policy tab the org has deliberately emptied, rather than heading a report they did not ask for", async () => {
-    policy.value = { ...policy.value, avoidStates: [] };
-    const { w } = await mountPage();
-    expect(w.text()).not.toContain("California");
-  });
-
-  it("falls back rather than blanking when a link points at a tab the policy no longer has", async () => {
-    policy.value = { ...policy.value, avoidStates: [] };
-    // A link sent last month, to a tab this org has since stopped having.
-    expect((await mountPage("?tab=california")).w.text()).toContain("SPEND TREND TAB");
+    const labels = (await mountPage()).w.findAll('[role="tab"]').map((b) => b.text().trim());
+    expect(labels).toEqual(["Spend & trend", "Buy discipline", "Statements"]);
   });
 
   // ── the URL is the page's state, because the page exists to be sent to somebody ────────────────
-  it("opens on the tab the link names, and falls back rather than blanking on one it does not know", async () => {
-    expect((await mountPage("?tab=discount")).w.text()).toContain("Billed against contract");
+  /**
+   * ⚠ Five `?tab=` values stopped existing in one step, and every one of them is in somebody's
+   * bookmark or somebody's ticket. A link that opens on nothing is worse than one that opens on the
+   * wrong thing, so they all resolve to the trend — the same fallback the unknown-tab case has always
+   * taken, now doing considerably more work.
+   */
+  it("lands every retired tab value on the trend rather than on nothing", async () => {
+    for (const tab of RETIRED_TABS) {
+      const t = (await mountPage(`?tab=${tab}`)).w.text();
+      expect(t, `?tab=${tab} rendered nothing`).toContain("SPEND TREND TAB");
+    }
     // An unknown tab is a hand-edited or stale link, not an error state.
     expect((await mountPage("?tab=not_a_tab")).w.text()).toContain("SPEND TREND TAB");
   });
 
   it("writes the tab back to the URL so the view can be linked", async () => {
-    const { w, router } = await mountPage("?tab=california");
-    expect(w.text()).toContain("California");
-    await router.replace({ query: { tab: "off_network" } });
+    const { w, router } = await mountPage("?tab=buy_discipline");
+    expect(w.text()).toContain("Fuel carried out of dearer states");
+    await router.replace({ query: { tab: "statements" } });
     await flushPromises();
-    expect(w.text()).toContain("Off the preferred network");
-  });
-
-  // ── the figures the tabs introduce themselves with ────────────────────────────────────────────
-  it("quotes per-gallon prices in cents, not rounded to the dollar", async () => {
-    // This read "they cost $4 a gallon against $4 for the rest of the fleet" — the sentence
-    // introducing the tab refuting the tab, because `usd()` sets maximumFractionDigits to 0.
-    const t = (await mountPage("?tab=avoid_brand")).w.text();
-    expect(t).toMatch(/\$\d+\.\d{3} a gallon against \$\d+\.\d{3}/);
+    expect(w.text()).toContain("statement");
   });
 
   it("says so when it corrected the window in a link it was sent", async () => {
@@ -299,10 +273,79 @@ describe("FuelReconciliationPage", () => {
     expect(t).toMatch(/round|order|swap|corrected|adjust/i);
   });
 
-  it("shows the filter bar on every tab that reads data, and not on the upload tab", async () => {
-    // "Clear filters" only appears once a filter is active, so the count label is the stable marker.
-    expect((await mountPage("?tab=off_network")).w.text()).toContain("fills");
-    expect((await mountPage("?tab=reconcile")).w.text()).not.toContain("Export report");
+  /**
+   * C5's done-when, in one test: "the page has three tabs and the coverage line still renders above
+   * all of them."
+   *
+   * It used to render above only some. The file reader was excepted from the filter bar, the
+   * rollup-freshness line AND the coverage line — three `tab !== 'reconcile'` guards for one tab —
+   * because a period control means nothing while you are reading a file. That tab is a drawer now,
+   * so every remaining view reads the same window and every one of them says so.
+   */
+  it("puts the window's coverage and freshness above ALL THREE tabs", async () => {
+    for (const tab of TABS) {
+      const t = (await mountPage(`?tab=${tab}`)).w.text();
+      expect(t, `${tab} lost the coverage line`).toContain("of tractor fuel");
+      expect(t, `${tab} lost the freshness line`).toContain("Figures rebuilt");
+      expect(t, `${tab} lost the export`).toContain("Export report");
+    }
+  });
+});
+
+/**
+ * FUEL-C5 — the two capabilities that stopped being tabs without stopping being capabilities.
+ */
+describe("FuelReconciliationPage — reconcile is a drawer, discount is a KPI", () => {
+  it("offers the file reader from Statements, where its absence is felt", async () => {
+    const { w } = await mountPage("?tab=statements");
+    const open = w.findAll("button").find((b) => b.text().trim() === "Reconcile a file");
+    expect(open, "no Reconcile action on the Statements tab").toBeTruthy();
+
+    // The empty state above it points at the button by name, so the one sentence that says this view
+    // needs a statement also says how to supply one.
+    expect(w.text()).toContain("Use Reconcile a file above");
+
+    // ⚠ Asserted on the drawer COMPONENT rather than on `w.text()`: Headless UI's `Dialog` teleports
+    // its panel to `document.body`, so the open drawer's markup is outside the wrapper's subtree
+    // entirely and a text assertion would report "closed" for a drawer that is plainly open.
+    const drawer = w.findComponent({ name: "ReconcileDrawer" });
+    expect(drawer.exists()).toBe(true);
+    expect(drawer.props("open")).toBe(false);
+    await open!.trigger("click");
+    await flushPromises();
+    expect(w.findComponent({ name: "ReconcileDrawer" }).props("open")).toBe(true);
+    // …and it holds the reader itself, not an empty panel.
+    expect(document.body.textContent).toContain("RECONCILE TAB");
+  });
+
+  it("does not offer it from the other two tabs — it belongs to the statement, not to the page", async () => {
+    for (const tab of ["spend", "buy_discipline"]) {
+      const { w } = await mountPage(`?tab=${tab}`);
+      expect(w.findAll("button").find((b) => b.text().trim() === "Reconcile a file"), tab).toBeFalsy();
+    }
+  });
+
+  /**
+   * The KPI states its own scope, which is the whole reason it is not in `SpendTrendTab`'s tile row:
+   * that row is captioned "these describe the last complete week" and this figure covers the window.
+   */
+  it("puts discount capture on Spend & trend as a KPI that says what it measured over", async () => {
+    const t = (await mountPage()).w.text();
+    expect(t).toContain("Billed against contract");
+    expect(t).toMatch(/of this window's fuel priced/);
+  });
+
+  it("keeps the fills behind the KPI until they are asked for", async () => {
+    const { w } = await mountPage();
+    // `Quoted / gal` is a column of the exceptions table — the report itself, not the tile.
+    expect(w.text()).not.toContain("Quoted / gal");
+    const tile = w.findAll("button").find((b) => b.text().includes("Billed against contract"));
+    expect(tile, "the KPI tile is not pressable").toBeTruthy();
+    // The disclosure state is the primitive's own, announced rather than implied (D-UI5).
+    expect(tile!.attributes("aria-pressed")).toBe("false");
+    await tile!.trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain("Quoted / gal");
   });
 });
 

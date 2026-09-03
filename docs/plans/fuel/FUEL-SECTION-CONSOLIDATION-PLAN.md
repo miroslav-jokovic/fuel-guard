@@ -445,7 +445,7 @@ before it is built, not during.
 | C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
 | C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
 | C4 | **BUILT 2026-09-03** | The permission finding held: the drawer carries `can("fuel")`, and the Truck Stops one carries `can("dispatch")` for the same reason. What the shape row missed is that `/import` had **three** capabilities, not two — Repair fuel data is the third, and it gained progress and freshness by landing beside the other repair actions. |
-| C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. No permission question here — Fuel Spend is one page behind one gate. |
+| C5 | **BUILT 2026-09-03** | No permission question, as the shape row said. What it missed: "kept in the tree, unmounted" needed a NEW file, not just an untouched one — the reports' titles, blurbs and note lived in the tab strip, and `policyReports.ts` is where they went so C6 finds them. Also: no route-table change at all, because the tab is a query parameter. |
 | C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
 | C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
@@ -1726,6 +1726,97 @@ deleted before its replacement produces anything is a capability gap, however br
 
 **Verified by.** The existing `spendTabs.test.ts` suite, extended for the drawer; route-table snapshot
 (the `?tab=` values change).
+
+#### — DONE 2026-09-03 (`claude/fuel-spend-three-tabs`). **Segment B is complete.**
+
+**What shipped.** `Spend & trend | Buy discipline | Statements`. The page is 336 lines, down from 376,
+and the five tabs that went did not take their capabilities with them:
+
+| was a tab | is |
+|---|---|
+| Reconcile a file | `ReconcileDrawer`, opened from Statements |
+| Discount capture | `DiscountCaptureCard` — a KPI on Spend & trend that discloses the fills behind it |
+| ONE9 & off-brand · California · Off-network | `ExceptionsTab.vue` + `policyReports.ts`, **kept in the tree, unmounted**, for C6 |
+
+**Eight tabs was not a long list — it was three different jobs wearing one strip:** a cost report, a
+policy audit, and two file surfaces. What is left is the cost report, the discipline check and the
+vendor's own paperwork.
+
+**⚠ The reconcile tab was already telling us it did not belong.** It had to be excepted from the rest
+of the page THREE separate times — `tab !== 'reconcile'` on the filter bar, on the rollup-freshness
+line and on the coverage line — because a period control means nothing while you are reading a file.
+Three special cases for one tab is the page saying it is not a view of the same data. All three
+guards are gone with it, which is exactly C5's done-when: **the coverage line now renders above all
+three tabs**, and so do the freshness line, the filter bar and the export.
+
+**Why the discount drill-down is inline and the reconcile one is a drawer.** C4's drawers hold
+ACTIONS — an upload, a repair — where a 512px panel is right and any table in it is incidental.
+Discount capture is a REPORT: two tables at seven and five columns, plus the price-coverage strip,
+and every other report in this section is full width. Reading is not acting, so it discloses in
+place. The tile is `StatCard :pressed`, the primitive's own toggle — hand-rolling a KPI card is the
+drift `StatCard` was extracted to end, and `SpendTrendTab`'s comment names the four it replaced.
+
+**⚠ And why the KPI is NOT in `SpendTrendTab`'s tile row**, which is where it most obviously belongs:
+that row is captioned "these describe the last complete week" and this figure covers the whole
+window. A tile whose scope differs from the caption above it is X8's defect in a smaller box. It sits
+below the trend and states its own scope in its `sub` — beside the figure, never a paragraph away,
+which is the FUEL-T5 rule that this page has now broken and repaired twice.
+
+**⚠ "KEPT IN THE TREE, UNMOUNTED" TURNED OUT TO NEED MORE THAN LEAVING A FILE ALONE.**
+`ExceptionsTab.vue` is the report's BODY and survives untouched, still covered by `spendTabs.test.ts`,
+which mounts it directly and never went through the page. But a body is not a report: what made each
+of the three MEAN something lived in the page's tab strip — which title, which blurb, which policy
+list it reads, and the buy-minimum note the avoided-state report carries. Deleting the page section
+would have deleted all of it, and every line is text this plan has already paid for once (the
+`stateBlurb` rewrite off "CARB and fuel tax", the per-gallon formatting fix, the fill-size discipline
+check). It moves to `features/reconcile/policyReports.ts` as one pure function — **dead code on
+purpose**, and C6 is the importer.
+
+Its assertions moved with it rather than being deleted: `measures the org's own policy rather than
+the analyzer's default`, `names the avoided-state report after the states the org actually listed`,
+`names the avoided-brand report…`, `omits a report the org has deliberately emptied`, and `quotes
+per-gallon prices in cents, not rounded to the dollar` all now live in `policyReports.test.ts`.
+Deleting them with the tab strip is how "kept in the tree" would have quietly become "kept and never
+checked again".
+
+**Five `?tab=` values stopped existing in one step**, and every one of them is in somebody's bookmark
+or somebody's ticket. All five resolve to the trend — the same fallback the unknown-tab case has
+always taken, now doing considerably more work — and that is asserted for each value by name rather
+than for the class.
+
+**One harness fix, because this was the third occurrence.** Headless UI's `Dialog` observes its panel
+and jsdom has no `ResizeObserver`; without a stub the assertions pass and the RUN fails on an
+unhandled rejection that names none of them. `BaseModal.test.ts` carried the stub, C4 copied it, and
+C5 would have been the third — so it is promoted to `apps/web/vitest.setup.ts` and the two copies are
+deleted. ⚠ A second teleport trap surfaced with it and is worth knowing: an open `SlideOver`'s markup
+is **outside the wrapper's subtree**, so `w.text()` reports "closed" for a drawer that is plainly
+open. Assert on the drawer COMPONENT's `open` prop, or on `document.body.textContent`.
+
+**No permission question here**, unlike C2 and C4: `/fuel-spend` is catalogued `manage("fuel")`, so
+every caller who can open the page can already do everything on it. This relocation moves within one
+page.
+
+**Verified by:** `pages/FuelReconciliationPage.test.ts` (21) — `is three tabs, and names them`; `no
+longer heads a tab with a policy list, whatever the org configured`; `lands every retired tab value
+on the trend rather than on nothing`; `puts the window's coverage and freshness above ALL THREE
+tabs`; `offers the file reader from Statements, where its absence is felt`; `does not offer it from
+the other two tabs — it belongs to the statement, not to the page`; `puts discount capture on Spend &
+trend as a KPI that says what it measured over`; `keeps the fills behind the KPI until they are asked
+for`. Plus `features/reconcile/policyReports.test.ts` (9), which includes `hands ExceptionsTab
+everything it needs, with no page in between` — the actual promise of "kept in the tree" is not that
+a module compiles but that C6 can render the report from it without first reverse-engineering what
+the page used to pass.
+
+**Proved able to fail — fourteen mutations:** a fourth tab returning (5 tests); a retired tab value
+not falling back (3); the coverage line skipping a tab (1); the freshness line skipping a tab (1);
+the filter bar skipping a tab (1); the reconcile drawer not reconnected (1); the reconcile action
+offered from every tab (1); the discount KPI removed from Spend & trend (2); the KPI dropping the
+scope it measured over (1); the KPI opening unasked (2); the policy reports ignoring the org's policy
+(1); an emptied policy list producing a report anyway (1); the buy-minimum note dropped (1); the brand
+blurb rounding to the dollar (1).
+
+**Gates green — the full `ci.yml` list.** No migration in this step, and no route or surface change:
+the tab is a query parameter, so nothing in the router or the catalogue moved.
 
 ---
 
