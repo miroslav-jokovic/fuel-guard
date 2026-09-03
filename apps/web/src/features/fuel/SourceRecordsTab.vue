@@ -210,7 +210,7 @@ const columns: DataTableColumn[] = [
       :retrying="isFetching"
       :sort="sort"
       pin-first-column
-      empty-text="No transactions match — upload an EFS Transaction report from the Import page, or adjust filters."
+      empty-text="No transactions match — adjust the filters, or use Backfill EFS reports in the page header."
       @sort="onSort"
       @retry="refetch"
     >

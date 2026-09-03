@@ -58,12 +58,16 @@ export const fuelRoutes: RouteRecordRaw[] = [
   { path: "/fuel-reconciliation", redirect: "/fuel-spend" },
   { path: "/fuel-exceptions", redirect: "/fuel-spend/exceptions" },
 
-  {
-    path: "/import",
-    name: "import",
-    component: () => import("@/pages/ImportPage.vue"),
-    meta: { requiresAuth: true, title: "Import EFS Report" },
-  },
+  /**
+   * FUEL-C4, D-FUI3 — `/import` is retired as a page and its three capabilities are drawers now:
+   * the EFS backfill on Fuel Log, the price and locations uploads on Truck Stops, and Repair fuel
+   * data on Settings → Data & sync. Nothing was deleted, and the section no longer has a page whose
+   * title is a verb applied to a file format.
+   *
+   * A plain string redirect, unlike the two C2 added: this path carried no filters — it was a form,
+   * not a list — so there is no query worth translating and nothing to name a tab with.
+   */
+  { path: "/import", redirect: "/fuel-log" },
   /**
    * FUEL-C2, D-FUI1 — Transactions and Rejections are tabs of the Fuel Log, not pages.
    *

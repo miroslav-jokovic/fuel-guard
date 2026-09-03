@@ -291,7 +291,7 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-exceptions",
   },
   {
-    "name": "import",
+    "name": "",
     "params": {},
     "url": "/import",
   },
@@ -764,13 +764,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Import EFS Report",
-    },
-    "name": "import",
+    "meta": {},
+    "name": "",
     "path": "/import",
-    "redirect": null,
+    "redirect": "/fuel-log",
   },
   {
     "meta": {

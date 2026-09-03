@@ -87,10 +87,14 @@ describe("the section gates on the navigation guard", () => {
     expect(await landsOn("admin", "/settings/data")).toBe("data-sync");
   });
 
-  it("keeps the fuel manage gates intact — the auditor reads fuel but may not import", async () => {
+  it("keeps the fuel manage gates intact — the auditor reads fuel but may not manage it", async () => {
     // `auditor` holds `fuel: "view"`, so this is the same shape as /settings and must NOT follow it.
-    expect(await landsOn("auditor", "/import")).toBe("dashboard");
-    expect(await landsOn("fleet_manager", "/import")).toBe("import");
+    // Was `/import` until FUEL-C4 retired that page; Fuel Spend is the section's other `manage` screen
+    // and asks the guard the same question. ⚠ The capability `/import` carried did not become
+    // ungated when it became a drawer — `FuelLogPage` checks `can("fuel")` before offering it, which
+    // is a COMPONENT check and therefore not this file's to make. `fuelLogBackfillGate.test.ts` has it.
+    expect(await landsOn("auditor", "/fuel-spend")).toBe("dashboard");
+    expect(await landsOn("fleet_manager", "/fuel-spend")).toBe("fuel-spend");
   });
 
   // ── The other gates the guard runs, unchanged by this addition ──────────────

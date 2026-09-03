@@ -130,7 +130,7 @@ describe("the route table survives being split by area", () => {
   });
 
   /**
-   * FUEL-C2 folded Transactions and Rejections into the Fuel Log. The snapshot above records only
+   * FUEL-C2 folded Transactions and Rejections into the Fuel Log, and C4 retired `/import`. The snapshot above records only
    * that a redirect RECORD matched — it cannot say where the redirect goes, and here that is the
    * entire promise: these two paths carry filters (`/transactions?unit=654` is a real link in real
    * tickets), so a redirect that lost the query, or landed on the wrong tab, would send somebody to a
@@ -150,6 +150,9 @@ describe("the route table survives being split by area", () => {
     };
     expect(target("/transactions")).toEqual({ path: "/fuel-log", query: { tab: "source" } });
     expect(target("/rejections")).toEqual({ path: "/fuel-log", query: { tab: "declines" } });
+    // C4's is a plain string, and that is the difference worth recording: `/import` was a FORM, so
+    // it carried no filters to translate and there is no tab to land its reader on.
+    expect(target("/import")).toBe("/fuel-log");
     // The filters a forwarded link carries survive the move, which is why the redirect is a function.
     expect(target("/transactions", { unit: "654", from: "2026-08-01" })).toEqual({
       path: "/fuel-log",

@@ -14,7 +14,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -232,7 +231,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -317,7 +315,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -399,7 +396,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -714,7 +710,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -986,7 +981,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1061,7 +1055,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1133,7 +1126,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1610,7 +1602,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Import → /import",
       "Fuel Spend → /fuel-spend",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",

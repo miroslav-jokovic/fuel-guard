@@ -94,8 +94,33 @@ windowed one. That tile is the last surviving instance of the bug #454 fixed els
 
 **The biggest segment, and strictly sequential. One chat, four PRs.**
 
-**✅ C2 AND C3 ARE DONE** — C2 2026-09-02 (`claude/fuel-log-tabs`), C3 2026-09-03
-(`claude/fuel-filters-in-url`). **C4 is next.**
+**✅ C2, C3 AND C4 ARE DONE** — C2 2026-09-02 (`claude/fuel-log-tabs`), C3 2026-09-03
+(`claude/fuel-filters-in-url`), C4 2026-09-03 (`claude/fuel-retire-import`). **C5 is the last one,
+and it MUST land before C6** so the three policy tabs are removed by the step that replaces them.
+
+**C4 in one line:** `/import` is a redirect, `ImportPage.vue` is deleted, and its three capabilities
+are drawers — EFS backfill on the Fuel Log, prices and locations on Truck Stops, Repair fuel data on
+Settings → Data & sync. Fuel is five nav items. Three things it learnt:
+
+1. ⚠ **C2's permission finding arrived a second time.** `/import` was `manage("fuel")` and its EFS
+   half now opens from a page catalogued `always`, so the button and the drawer are both behind
+   `can("fuel")` — MANAGE, not view, because it writes. Every relocation in C5 should be checked the
+   same way; **C5 itself does not have the shape** (Fuel Spend is one page behind one gate), but the
+   habit is what matters.
+2. **A gate on a moved capability is DERIVED, not chosen.** Truck Stops takes `can("dispatch")`
+   because `/api/fueling/prices`' `requireRole("admin","fleet_manager","dispatcher")` EQUALS
+   `dispatch: manage` in the shipped matrix. Repair keeps `can("fuel")` rather than inheriting Data &
+   sync's `manage("settings")` — the same two roles today, separately overridable per org tomorrow.
+3. **A retired page leaves nothing behind to notice**, so the "no capability is lost" done-when is
+   asserted as three findings, one per new home. If any had simply not been reconnected, every test
+   in the repo would still have passed.
+
+**⚠ Two test-harness notes for C5, which also mounts pages with drawers:** Headless UI's `Dialog`
+needs a `ResizeObserver` stub in jsdom (`BaseModal.test.ts` has the one to copy) or the assertions
+pass and the RUN fails on unhandled rejections; and a page that instantiates a drawer holding a
+vue-query mutation needs `VueQueryPlugin` in `global.plugins`.
+
+**C3's note, unchanged:**
 
 **C3 in one line:** every filter on Fuel Log, Cards and Alerts is a URL parameter now, `?vehicle=` on
 Alerts is written as well as read, and `useQueryState` gained `param(key, allowed?)` with
@@ -147,11 +172,11 @@ nothing can collide.
 
 | | |
 |---|---|
-| **Steps** | ~~C2 (Fuel Log absorbs Transactions + Rejections)~~ **DONE**, ~~C3 (every page sendable)~~ **DONE**, C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
+| **Steps** | ~~C2~~ **DONE**, ~~C3~~ **DONE**, ~~C4 (retire `/import`)~~ **DONE**, C5 (Fuel Spend, eight tabs to three) |
 | **Owns** | `apps/web/src/pages/{FuelLogPage,TransactionsPage,RejectionsPage,FuelCardsPage,ImportPage}.vue`, `apps/web/src/features/fuel/**`, `router/routes/fuel.ts`, `lib/nav.ts` + snapshots |
 | **Migration?** | **No.** Entirely web. |
 | **Blocked by** | Nothing. C1 and T1 are done. |
-| **Done when** | Fuel is five nav items; `/transactions`, `/rejections` and `/import` are query-preserving redirects; Fuel Spend has three tabs. |
+| **Done when** | ~~Fuel is five nav items; `/transactions`, `/rejections` and `/import` are query-preserving redirects~~ **all true as of C4**; Fuel Spend has three tabs (C5, the only one left). |
 
 **Order is forced:** C3 needs C2 (do it once, on the merged page); C4 needs C2; C5 needs C4 and **must
 land before C6** so the policy tabs are removed by the step that replaces them.
@@ -246,10 +271,11 @@ operational oddity and belongs to nobody's segment yet; it is recorded here rath
 | **Prerequisite** | C5 must land first (Segment B). |
 
 **C9 is the exception and can be done alone**: the Dashboard's fuel strip links to pages that no longer
-exist after Segment B. ~~Whoever finishes B should check it.~~ **Checked at C2, 2026-09-02:** the only
-tile pointing at a retired path was "Declined attempts" → `/rejections`, now `/fuel-log?tab=declines`.
-Every other fuel tile already pointed at `/fuel-log`, `/coverage` or `/reefer-coverage`. C4 retires
-`/import`, which no Dashboard tile links to — re-check after it lands anyway.
+exist after Segment B. ~~Whoever finishes B should check it.~~ **Checked twice, and it is settled.**
+At C2 (2026-09-02) the only tile pointing at a retired path was "Declined attempts" → `/rejections`,
+now `/fuel-log?tab=declines`; every other fuel tile already pointed at `/fuel-log`, `/coverage` or
+`/reefer-coverage`. At C4 (2026-09-03) no Dashboard tile pointed at `/import` at all — the one in-app
+link to it was `DiscountCaptureTab`'s "uploaded on Import", now pointing at Truck Stops.
 
 ---
 
