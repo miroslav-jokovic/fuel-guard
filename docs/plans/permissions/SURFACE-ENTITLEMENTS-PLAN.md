@@ -399,11 +399,71 @@ the new-table exemption was written for.
 router and the register's write endpoints all agree — while the New Inspection drawer still loads its
 inspector list, which is the §0 measurement turned into a test.
 
-### S4 · Per-user surface overrides
+### S4 · Per-user surface overrides — DONE 2026-09-02 (migration 0298)
 `user_surface_access (org_id, user_id, surface_key, allowed)`, resolved over S3's answer per D-SURF6,
-served the same way. **Two merges, per D-SURF9.**
+served the same way. ~~**Two merges, per D-SURF9.**~~ — **one merge**, see below.
 **Done when:** `xxx@silvicominc.com` on the `technician` role sees only Annual Inspections, and no
 other technician is affected.
+
+**What shipped.** Migration 0298 plus the resolver and the write endpoint, in one PR.
+
+- `surfaceClaimFor(admin, orgId, role, userId)` reads both layers concurrently and merges the
+  member's answers OVER the role's. Nothing else moved: `/api/me`, `session.init()`, the nav and the
+  guard already consume a resolved `SurfaceClaim` and never learn which layer produced it. That is
+  the payoff of D-SURF4's decision to resolve server-side, and it is why S4 touched no web file.
+- `PUT /api/surface-access/user`, admin-only and audited as `permissions.screen_changed_user`. It is
+  **not** symmetric with the role-level `PUT` and the asymmetry is the design, not an oversight: at
+  the role layer `allowed: true` is a RESET (a `true` there is inert, because the surface's own gate
+  is checked first — D-SURF2) so the row is deleted, while here both booleans are real answers —
+  `false` takes a screen from one member their role keeps, `true` gives one back to a member whose
+  role has lost it, which is the row 0296's boolean column was added for. "Unchanged" therefore needs
+  a third value and it is `allowed: null`, stored as the absence of a row.
+- **The D-PERM7/D-PERM8 lock could not be a CHECK here**, and 0298's header says so at length rather
+  than leaving a reader to find a gap: the table is keyed by `user_id` and a row does not know its
+  member's role, which lives in `memberships` and can change after the row is written. The lock lives
+  in the endpoint (an org-scoped `memberships` lookup, which doubles as the check that the target is
+  a member of the CALLER's org) and in the resolver's `EDITABLE_ROLES` guard, which still stands
+  first and answers `{}` before either table is read. The matrix asserts that SQL does **not** stop
+  such a row, so the missing constraint reads as a decision with two named guards rather than a hole.
+- What SQL *can* enforce, it does: `foreign key (org_id, user_id) references memberships` makes "an
+  override belongs to a member of this org" a database fact, cascades on org deletion through the
+  membership, and takes a departing member's overrides with them.
+
+**The D-SURF9 deviation, deliberately.** The plan said two merges — table first, reader second —
+because `/api/me` is on every page load and a reader deployed ~9 minutes ahead of its table would
+break bootstrap. **S3b already removed that failure:** `surfaceClaimFor` returns no denials on any
+query error and `app.ts` wraps the call in `try/catch`, so during the window the user layer simply
+does not apply and the role layer answers exactly as it did the minute before. Pinned, not hoped —
+`"returns the role's answers unchanged when the user table cannot be read"` was added in the same PR
+that relies on it, beside its mirror for the role table. D-SURF9 still holds for a reader with no
+such fallback.
+
+**Verified by:** `pnpm test` (unit + all 22 matrices; the new `user-surface-access` matrix is 20
+assertions and `rls` is 465 including this table's tenant-isolation and anon-lockout pair),
+`pnpm typecheck`, `pnpm build`, `pnpm lint`, and the whole CI gate list extracted from
+`ci.yml` — `lint:migrations`, `lint:rls`, `lint:migration-ordering`, `lint:surfaces`,
+`lint:capabilities`, `lint:upserts`, `lint:boundaries`, `lint:comment-claims`, `lint:filesize`,
+`lint:funcsize`, `lint:tests`, `lint:secrets`, `lint:codegen`, `lint:table-producers`,
+`lint:table-writers`, `lint:chart-colors`, `lint:cli-streams`, `lint:light-dark`, `lint:token-schema`,
+`lint:tokens-parity`, `lint:ui-adoption`, `lint:ui-contrast`, `--filter ./apps/web lint:tokens`.
+
+**Mutation-tested, subject not test.** Twelve mutations of the resolver, the endpoint and the
+migration; each failed a different assertion. Two of them changed what shipped rather than merely
+confirming it, and both are the kind this programme keeps finding only this way:
+
+- The user-layer fixture originally answered `[]` when no `user_id` filter was applied, so **dropping
+  `.eq("user_id")` from the query failed the same assertion as reversing the merge order** — the
+  "no other technician is affected" clause was proving nothing. The fixture now returns everything an
+  unfiltered read would return, which is what Postgres does, and the leak fails its own assertion.
+- The matrix's `org_id`-immutability assertion **passed with the trigger dropped**, because the
+  membership foreign key refused the update instead: the subject was not a member of the destination
+  org. It now moves a row between two orgs the person actually belongs to and checks the trigger's
+  own error, leaving the trigger as the only thing that can refuse.
+
+**Left for S6, deliberately.** There is no READ endpoint for per-user overrides. The write is what
+S4's Done-when needs and what `lint:table-producers` requires; the page that has to display a
+member's resolved access is S6, and it can add the read shaped the way its People tab wants rather
+than inheriting a guess made here.
 
 ### S5 · Per-user section overrides
 `user_section_access (org_id, user_id, section, access)`, read by `custom_access_token_hook` as one

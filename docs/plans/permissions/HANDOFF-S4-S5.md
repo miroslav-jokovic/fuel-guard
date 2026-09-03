@@ -21,7 +21,7 @@ checking** — see the migration note at the end of this section.
 | **S2** | **DONE** (#480) | The router guard resolves `to.matched[0].path` through the catalogue. **No section metas remain in the route files.** The 28-route gap is closed. |
 | **S3a** | **DONE** (#483) | Migration 0296 `org_role_surface_access`. |
 | **S3b** | **DONE** (#486) | `/api/me` serves the claim, `session.init()` loads it, nav + guard consult it, `requireSurface()` gates the three writes exclusive to the Inspectors register. |
-| **S4** | **YOURS** | Per-user surface overrides. |
+| **S4** | **DONE** (#TBD) | Migration 0298 `user_surface_access`, the resolver merging it over the role layer, and an audited admin-only `PUT /api/surface-access/user`. ONE merge, not two — the D-SURF9 deviation and the test that licenses it are recorded in the plan. No web file changed. |
 | **S5** | **YOURS** | Per-user section overrides. |
 | S6, S7 | a later session | The editable page; the audit of the ~24 hard-coded `requireRole` lists. |
 
@@ -118,6 +118,10 @@ against a recorder whose table returns an error, which is what a missing table i
 **Recommendation: ONE PR, and say this in the migration header** so the deviation from D-SURF9 is a
 recorded decision rather than a forgotten rule. Extend that test to cover the user-layer read on the
 same fixture, so the property that licenses the deviation is pinned by the PR that relies on it.
+
+✅ **Taken, 2026-09-02.** One PR. 0298's header carries the deviation, and the property is pinned by
+`"returns the role's answers unchanged when the user table cannot be read"` plus its mirror for the
+role table — each fails a different mutation, which is how the pair was found to be necessary.
 
 ---
 

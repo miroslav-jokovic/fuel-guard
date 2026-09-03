@@ -509,6 +509,10 @@
       "module": "financial",
       "layer": "core"
     },
+    "user_surface_access": {
+      "module": "org",
+      "layer": "core"
+    },
     "vehicle_engine_days": {
       "module": "idle",
       "layer": "derived"
