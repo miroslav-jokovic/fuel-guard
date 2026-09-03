@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
+import { financialWindow, monthsTouching } from "./windows.mjs";
 import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
@@ -57,7 +58,11 @@ const CFG = {
   // pipeline. Rolling accrual window; the ingest is idempotent on the McLeod row id, so overlap
   // is the normal case, not a hazard.
   financial: process.argv.includes("--financial"),
-  financialWindowDays: Number(process.env.FINANCIAL_WINDOW_DAYS ?? 45),
+  // 75, not 45 (D-FIN4): McLeod's manual entries land about a month late, and a late entry older than
+  // the window was never seen again. The first three days of each month also re-read the two
+  // previous months WHOLE (the hardening pass, windows.mjs); --harden forces that on any day.
+  financialWindowDays: Number(process.env.FINANCIAL_WINDOW_DAYS ?? 75),
+  harden: process.argv.includes("--harden"),
   // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
   //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
@@ -512,27 +517,14 @@ async function runRetire() {
   }
 }
 
-/** Every calendar month [first, first-of-next) that [windowStart, windowEnd) touches. */
-function monthsTouching(windowStart, windowEnd) {
-  const months = [];
-  let [y, m] = windowStart.split("-").map(Number);
-  for (;;) {
-    const periodStart = `${y}-${String(m).padStart(2, "0")}-01`;
-    if (periodStart >= windowEnd) break;
-    m === 12 ? ((y += 1), (m = 1)) : (m += 1);
-    months.push({ periodStart, periodEnd: `${y}-${String(m).padStart(2, "0")}-01` });
-  }
-  return months;
-}
-
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 /** Sweep one rolling accrual window of settlements + AP vouchers into FuelGuard (P3.2). */
 async function runFinancial() {
-  const end = new Date(Date.now() + 86_400_000); // tomorrow, so today's accruals are inside the window
-  const start = new Date(end.getTime() - CFG.financialWindowDays * 86_400_000);
-  const windowStart = start.toISOString().slice(0, 10);
-  const windowEnd = end.toISOString().slice(0, 10);
-  log(`financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}`);
+  const { windowStart, windowEnd, hardening } = financialWindow({ trailingDays: CFG.financialWindowDays, harden: CFG.harden });
+  log(
+    `financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}` +
+      (hardening ? " — HARDENING pass: the two previous months are re-read whole" : ""),
+  );
 
   const windowExtra = { window_start: windowStart, window_end: windowEnd };
 
