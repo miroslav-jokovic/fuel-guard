@@ -11,8 +11,17 @@ import type { TmsLedgerTotalsPayload, TmsGlAccountsPayload } from "@silvicom/sha
  *
  * The two steps are not atomic; between them a reader can see the month over-complete (old and new
  * rows together), never under-complete. For a reconciliation report re-swept nightly, a
- * seconds-wide over-complete window is acceptable; an RPC can make it atomic if a consumer ever
- * appears for whom it is not.
+ * seconds-wide over-complete window is acceptable. Migration 0302 ships `replace_mcleod_gl_month`,
+ * the same replace as one statement; this reader moves onto it one merge AFTER the migration has
+ * applied, because `lint:migration-ordering` cannot see a function and the deploy window would
+ * otherwise serve a caller of an RPC that does not exist yet for ~9 minutes.
+ *
+ * ZERO ROWS NEVER DELETE (D-FIN6, FINANCE-GO-LIVE-PLAN §1.6). Before 2026-09-03 an empty payload
+ * upserted nothing and then deleted every row of the month bearing an older stamp — which is every
+ * row. A transient empty read (wrong company id on the agent, a month past the sandbox's data
+ * edge, a query that returned before the ledger was posted) erased the month's control totals and
+ * took the CPM page's "fleet truth" with them. Zero rows is a MEASUREMENT of the source and is
+ * returned as `skipped: "empty"` for the caller to log and surface; the month keeps what it had.
  */
 
 const CHUNK = 500;
@@ -21,6 +30,8 @@ export interface LedgerTotalsIngestResult {
   received: number;
   upserted: number;
   staleRemoved: number;
+  /** Set when nothing was written and nothing deleted, and why. */
+  skipped?: "empty";
 }
 
 export async function ingestLedgerTotals(
@@ -28,6 +39,13 @@ export async function ingestLedgerTotals(
   orgId: string,
   payload: TmsLedgerTotalsPayload,
 ): Promise<LedgerTotalsIngestResult> {
+  if (payload.totals.length === 0) {
+    console.warn(
+      `[mcleod-financial] org ${orgId}: ledger-totals sweep for ${payload.period_start} returned zero rows — ` +
+        `month left untouched (D-FIN6); check the agent's company id and whether McLeod has posted the month`,
+    );
+    return { received: 0, upserted: 0, staleRemoved: 0, skipped: "empty" };
+  }
   const sweptAt = new Date().toISOString();
   let upserted = 0;
   for (let i = 0; i < payload.totals.length; i += CHUNK) {
