@@ -502,3 +502,142 @@ describe("surfaceClaimFor — the user layer over the role layer (D-SURF6)", () 
     expect(rec.forTable("user_surface_access")).toHaveLength(0);
   });
 });
+
+/**
+ * The per-user READ (S6) — the People tab's half of the screen answers.
+ *
+ * Its sibling in `sectionAccess.test.ts` explains why the layers travel unmerged. The extra thing
+ * this one carries is the catalogue: a cell cannot be drawn without knowing which SECTION the
+ * screen sits behind and at what level, because a screen inside a section the member does not hold
+ * is not a choice an admin has (D-SURF2) and the page has to say so rather than offer a control
+ * that changes nothing.
+ */
+describe("GET /api/surface-access/user/:userId", () => {
+  const layered = () =>
+    createSupabaseRecorder({
+      tables: {
+        org_role_surface_access: (q) => {
+          const rows = [
+            { role: "technician", surface_key: "maintenance.inspectors", allowed: false },
+            // A screen the ROLE loses and the member says nothing about, so the two layers do not
+            // answer the same key. Without it, merging one into the other is invisible — the merge
+            // mutation passed every assertion until this row existed.
+            { role: "technician", surface_key: "fuel.cards", allowed: false },
+            { role: "recruiter", surface_key: "recruitment.screening", allowed: false },
+          ];
+          const f = q.filters().find((x) => x.col === "role");
+          return f ? rows.filter((r) => r.role === f.val) : rows;
+        },
+        // Filters applied as Postgres would apply them — a fixture answering `[]` for an unfiltered
+        // read makes a handler that forgot `.eq("user_id")` or `.eq("org_id")` look correct.
+        user_surface_access: (q) => {
+          const rows = [
+            { org_id: ORG, user_id: SHOP_LEAD, surface_key: "maintenance.inspectors", allowed: true },
+            { org_id: ORG, user_id: OTHER_TECH, surface_key: "maintenance.repair-spend", allowed: false },
+            { org_id: "org-2", user_id: SHOP_LEAD, surface_key: "fuel.ifta", allowed: false },
+          ];
+          return q
+            .filters()
+            .reduce(
+              (acc, f) => acc.filter((r) => (r as Record<string, unknown>)[f.col] === f.val),
+              rows as Array<Record<string, unknown>>,
+            );
+        },
+        memberships: [{ role: "technician" }],
+      },
+    });
+
+  const get = async (userId: string) =>
+    withServer(async (base) => {
+      const res = await fetch(`${base}/api/surface-access/user/${userId}`);
+      return {
+        status: res.status,
+        body: (await res.json()) as {
+          role?: string;
+          roleOverrides?: Record<string, boolean>;
+          userOverrides?: Record<string, boolean>;
+          surfaces?: Array<{ key: string; section: string | null; level: string | null }>;
+        },
+      };
+    });
+
+  it("returns the two layers separately, never merged", async () => {
+    rec = layered();
+    const { status, body } = await get(SHOP_LEAD);
+    expect(status).toBe(200);
+    expect(body.role).toBe("technician");
+    expect(body.roleOverrides).toEqual({ "maintenance.inspectors": false, "fuel.cards": false });
+    expect(body.userOverrides).toEqual({ "maintenance.inspectors": true });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads only this member's ROLE's answers", async () => {
+    rec = layered();
+    const { body } = await get(SHOP_LEAD);
+    expect(body.roleOverrides).not.toHaveProperty("recruitment.screening");
+    expect(rec.forTable("org_role_surface_access")[0]!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "role", val: "technician" },
+      ]),
+    );
+  });
+
+  it("reads only this member's own answers", async () => {
+    rec = layered();
+    const { body } = await get(SHOP_LEAD);
+    expect(body.userOverrides).not.toHaveProperty("maintenance.repair-spend");
+    expect(rec.forTable("user_surface_access")[0]!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: SHOP_LEAD },
+      ]),
+    );
+  });
+
+  /** The service role bypasses RLS, so `.eq("org_id")` is the whole of the tenant boundary here. */
+  it("does not read another tenant's rows for the same person", async () => {
+    rec = layered();
+    const { body } = await get(SHOP_LEAD);
+    expect(body.userOverrides).not.toHaveProperty("fuel.ifta");
+  });
+
+  /**
+   * The catalogue travels with the answers, and it carries the SECTION and the LEVEL because the
+   * page cannot draw a cell without them: an Import cell for a role with `fuel: "view"` is not a
+   * choice, it is an explanation.
+   */
+  it("sends the catalogue with each screen's section and level, and no product constants", async () => {
+    rec = layered();
+    const { body } = await get(SHOP_LEAD);
+    const byKey = new Map(body.surfaces!.map((s) => [s.key, s]));
+    expect(byKey.get("maintenance.inspectors")).toMatchObject({ section: "maintenance", level: "view" });
+    // Import is the manage-level screen inside a section most roles only view.
+    expect(byKey.get("fuel.import")).toMatchObject({ section: "fuel", level: "manage" });
+    expect(byKey.has("dashboard")).toBe(false);
+    expect(byKey.has("admin.users")).toBe(false);
+  });
+
+  /** ⚠ The read does not apply the D-PERM7/D-PERM8 lock — see the section sibling's header. */
+  it("shows a locked member's screens rather than refusing to look", async () => {
+    rec = createSupabaseRecorder({
+      tables: { org_role_surface_access: [], user_surface_access: [], memberships: [{ role: "admin" }] },
+    });
+    const { status, body } = await get(SHOP_LEAD);
+    expect(status).toBe(200);
+    expect(body.role).toBe("admin");
+  });
+
+  it("refuses a person who is not a member of the caller's org", async () => {
+    rec = createSupabaseRecorder({ tables: { memberships: [] } });
+    const { status } = await get(OTHER_TECH);
+    expect(status).toBe(404);
+  });
+
+  it("refuses an id that is not a member id", async () => {
+    rec = layered();
+    const { status } = await get("not-a-uuid");
+    expect(status).toBe(400);
+    expect(rec.forTable("memberships")).toHaveLength(0);
+  });
+});

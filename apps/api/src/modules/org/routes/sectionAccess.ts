@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import {
   APP_SECTIONS,
   EDITABLE_ROLES,
@@ -8,6 +9,7 @@ import {
   userSectionAccessSetSchema,
   type AppSection,
   type SectionAccessSetRequest,
+  type SectionClaim,
   type SectionOverrides,
   type UserRole,
   type UserSectionAccessSetRequest,
@@ -17,6 +19,7 @@ import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { lookupMemberRole } from "../memberLookup.js";
 
 /**
  * The per-org permission overrides (D-PERM1, EDITABLE-PERMISSIONS-PLAN.md step P1).
@@ -68,6 +71,32 @@ export function toOverrides(rows: OverrideRow[]): SectionOverrides {
   return out;
 }
 
+const USER_OVERRIDE_COLS = "section, access";
+
+interface UserOverrideRow {
+  section: string;
+  access: string;
+}
+
+/**
+ * One MEMBER's rows, sparse (D-SURF7) — the shape the JWT claim takes, because it is the same
+ * question asked of one person instead of one role.
+ *
+ * Filtered on the same two grounds as `toOverrides` and for the same reason: a row naming an
+ * uneditable section or an access value outside the vocabulary cannot be written through this
+ * router, so one existing means something else wrote it, and honouring it would be an escalation
+ * the page would then display as though the org had chosen it.
+ */
+export function toUserSectionClaim(rows: UserOverrideRow[]): SectionClaim {
+  const out: SectionClaim = {};
+  for (const r of rows) {
+    if (!(EDITABLE_SECTIONS as string[]).includes(r.section)) continue;
+    if (r.access !== "none" && r.access !== "view" && r.access !== "manage") continue;
+    out[r.section as AppSection] = r.access;
+  }
+  return out;
+}
+
 export function sectionAccessRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -102,6 +131,72 @@ export function sectionAccessRouter(): Router {
           ]),
         ),
         editableRoles: EDITABLE_ROLES,
+        editableSections: EDITABLE_SECTIONS,
+      });
+    }),
+  );
+
+  /**
+   * One MEMBER's three layers, unresolved (S6, D-SURF6).
+   *
+   * ── WHY THIS RETURNS LAYERS AND NOT AN ANSWER ───────────────────────────────────────────────
+   * Everything else in this programme resolves and forgets: `custom_access_token_hook` merges the
+   * person over the role over the shipped matrix and mints one value, because a request only needs
+   * to know what the caller may do. The permissions PAGE needs the opposite — a cell that says
+   * `View` without saying WHICH layer answered is a control an admin cannot use, because "reset"
+   * and "set to view" look identical on it and do different things. So the three layers travel
+   * separately and the page marks each cell with the one that answered.
+   *
+   * ── BOTH HALVES IN ONE RESPONSE ─────────────────────────────────────────────────────────────
+   * `shipped` is sent rather than left to the client, for `GET /`'s reason (D-PERM4): a client that
+   * reconstructs the defaults is a second copy of `SECTION_ACCESS`. It is this member's ROLE's row
+   * of the matrix, which is the only row their fallback can come from.
+   *
+   * ⚠ Read-only, and it does NOT apply D-PERM7/D-PERM8's lock. An admin looking at an `admin` or
+   * `driver` member must still see what that person can reach — the lock is about who may be
+   * CHANGED, and refusing to show a locked member's access would leave the page unable to explain
+   * why it offers no controls.
+   */
+  router.get(
+    "/user/:userId",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const parsedId = z.uuid().safeParse(req.params.userId);
+      if (!parsedId.success) {
+        res.status(400).json(apiError("bad_request", "That is not a member id"));
+        return;
+      }
+      const userId = parsedId.data;
+
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "db_error") {
+          res.status(500).json(apiError("db_error", "Could not load permissions"));
+        } else {
+          res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
+        }
+        return;
+      }
+
+      const [roleRes, userRes] = await Promise.all([
+        admin.from("org_section_access").select(OVERRIDE_COLS).eq("org_id", orgId).eq("role", member.role),
+        admin.from("user_section_access").select(USER_OVERRIDE_COLS).eq("org_id", orgId).eq("user_id", userId),
+      ]);
+      if (roleRes.error || userRes.error) {
+        res.status(500).json(apiError("db_error", "Could not load permissions"));
+        return;
+      }
+
+      res.json({
+        userId,
+        role: member.role,
+        // The shipped matrix, for this member's role only — the row their fallback comes from.
+        shipped: Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess(member.role as UserRole, s)])),
+        roleOverrides: toOverrides((roleRes.data ?? []) as OverrideRow[])[member.role as UserRole] ?? {},
+        userOverrides: toUserSectionClaim((userRes.data ?? []) as UserOverrideRow[]),
         editableSections: EDITABLE_SECTIONS,
       });
     }),
@@ -206,21 +301,16 @@ export function sectionAccessRouter(): Router {
       const orgId = req.auth!.orgId!;
       const { userId, section, access } = res.locals.body as UserSectionAccessSetRequest;
 
-      const { data: member, error: memberErr } = await admin
-        .from("memberships")
-        .select("role")
-        .eq("org_id", orgId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (memberErr) {
-        res.status(500).json(apiError("db_error", "Could not update permissions"));
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "db_error") {
+          res.status(500).json(apiError("db_error", "Could not update permissions"));
+        } else {
+          res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
+        }
         return;
       }
-      if (!member) {
-        res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
-        return;
-      }
-      const memberRole = (member as { role: string }).role;
+      const memberRole = member.role;
       if (!(EDITABLE_ROLES as string[]).includes(memberRole)) {
         res
           .status(400)

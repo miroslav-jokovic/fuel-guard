@@ -1,104 +1,336 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { sectionAccess } from "@silvicom/shared";
+import { ref } from "vue";
+import {
+  APP_SECTIONS,
+  EDITABLE_ROLES,
+  EDITABLE_SECTIONS,
+  NAV_SURFACES,
+  USER_ROLE_LABELS,
+  isEditableSurface,
+  sectionAccess,
+} from "@silvicom/shared";
 import SettingsPermissionsPage from "@/pages/SettingsPermissionsPage.vue";
 
 /**
- * The permissions page (EDITABLE-PERMISSIONS-PLAN.md P0).
+ * The permissions page (SURFACE-ENTITLEMENTS-PLAN.md S6).
  *
- * Two claims are worth pinning, and they are the two that would rot silently.
+ * ── WHAT IS WORTH PINNING, AND WHY IT IS THESE ──────────────────────────────────────────────────
+ * The transport is mocked and everything else is real: the tabs, the matrix, the screen grid, the
+ * three-state per-person controls and the sidebar preview are the shipped components, so these
+ * assertions fail when the page changes what it SAYS or what it SENDS.
  *
- * First, the matrix is DERIVED from `packages/shared/src/auth.ts` rather than retyped. A page that
- * hand-lists what each role may do is the "copy is a workaround with a delay fuse" failure — it
- * would keep rendering yesterday's answer confidently after the matrix changed, and nothing would
- * notice. So the assertions below read the shared matrix rather than hard-coding cells.
- *
- * Second, "what one member sees" is built by `buildNavGroups` — the same function the real sidebar
- * calls. If it ever became a separate list, this page would be a second opinion about the product's
- * navigation, which is exactly the question it exists to answer authoritatively.
+ *  · **The two staleness contracts must not be averaged.** A section change lands on the member's
+ *    next token refresh — up to an hour (D-PERM6); a screen change lands on their next page load
+ *    (D-SURF4). One sentence for both would be wrong for one of them, and which one is wrong depends
+ *    on which control was used.
+ *  · **The per-user write takes THREE values.** `access: null` / `allowed: null` is "inherit", and it
+ *    is stored as the absence of a row. A two-state control here would be unable to express what the
+ *    API takes, and an admin could never undo an answer.
+ *  · **A cell has to say which layer answered.** Shipped default → org role override → person
+ *    override (D-SURF6); without the marker "reset" and "set to this value" are the same control.
+ *  · **A surface may only narrow within its section (D-SURF2).** A screen whose section the role does
+ *    not hold offers no control — it explains itself.
+ *  · **The page must not imply it governs everything** while S7 is outstanding.
  */
-const members = vi.hoisted(() => ({
-  value: [
-    { userId: "u-disp", email: "dana@silvicom.test", role: "dispatcher", joinedAt: "2026-01-01T00:00:00Z" },
-    { userId: "u-rec", email: "rae@silvicom.test", role: "recruiter", joinedAt: "2026-01-02T00:00:00Z" },
-  ] as Array<Record<string, unknown>>,
+const ROLE = "technician";
+/** "Technician (shop)" — read from shared so a relabelled role does not silently unhook these tests. */
+const ROLE_LABEL = USER_ROLE_LABELS[ROLE];
+
+/** Built the way the API builds it, so the fixture cannot drift from what the endpoint sends. */
+const defaults = Object.fromEntries(
+  EDITABLE_ROLES.map((r) => [r, Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess(r, s)]))]),
+);
+const catalogue = NAV_SURFACES.filter(isEditableSurface).map((s) => ({
+  key: s.key,
+  label: s.label,
+  group: s.group,
+  section: s.gate.kind === "section" ? s.gate.section : null,
+  level: s.gate.kind === "section" ? s.gate.level : null,
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(async () => ({ ok: true, data: { members: members.value } })),
+const state = vi.hoisted(() => ({
+  sections: null as unknown,
+  surfaces: null as unknown,
+  members: null as unknown,
+  memberSections: null as unknown,
+  memberSurfaces: null as unknown,
 }));
-vi.mock("@/composables/useModules", () => ({
-  useModulesQuery: () => ({ data: { value: null } }),
+const calls = vi.hoisted(() => ({
+  setRoleSection: [] as unknown[],
+  setRoleSurface: [] as unknown[],
+  setMemberSection: [] as unknown[],
+  setMemberSurface: [] as unknown[],
 }));
-vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ error: vi.fn(), success: vi.fn() }) }));
+const toasts = vi.hoisted(() => ({ success: [] as Array<[string, string?]>, error: [] as unknown[] }));
 
-const stubs = {
-  RouterLink: { template: "<a><slot /></a>" },
-  PageHeader: { template: "<div />" },
-  SettingsSection: { template: "<section><slot /></section>" },
-  AppCard: { template: "<div><slot /></div>" },
-  AppTable: { template: "<table><slot /></table>" },
-  AppSelect: { props: ["modelValue", "options"], template: "<select />" },
-};
+vi.mock("@/features/permissions/usePermissions", async () => {
+  const { ref: r, computed } = await import("vue");
+  const query = (get: () => unknown) => ({ data: computed(get), isPending: r(false) });
+  const mutation = (sink: unknown[]) => ({
+    mutateAsync: vi.fn(async (v: unknown) => {
+      sink.push(v);
+    }),
+    isPending: r(false),
+  });
+  return {
+    useSectionAccessQuery: () => query(() => state.sections),
+    useSurfaceAccessQuery: () => query(() => state.surfaces),
+    useMembersQuery: () => query(() => state.members),
+    useMemberSectionAccessQuery: () => query(() => state.memberSections),
+    useMemberSurfaceAccessQuery: () => query(() => state.memberSurfaces),
+    useSetRoleSection: () => mutation(calls.setRoleSection),
+    useSetRoleSurface: () => mutation(calls.setRoleSurface),
+    useSetMemberSection: () => mutation(calls.setMemberSection),
+    useSetMemberSurface: () => mutation(calls.setMemberSurface),
+  };
+});
+vi.mock("@/composables/useModules", () => ({ useModulesQuery: () => ({ data: ref(null) }) }));
+vi.mock("@/stores/toast", () => ({
+  useToastStore: () => ({
+    success: (t: string, m?: string) => toasts.success.push([t, m]),
+    error: (t: string, m?: string) => toasts.error.push([t, m]),
+  }),
+}));
 
-function mountPage() {
-  return mount(SettingsPermissionsPage, { global: { plugins: [createPinia()], stubs } });
-}
+const stubs = { PageHeader: { template: "<div />" }, RouterLink: { template: "<a><slot /></a>" } };
+const mountPage = () => mount(SettingsPermissionsPage, { global: { plugins: [createPinia()], stubs } });
 
-beforeEach(() => setActivePinia(createPinia()));
+beforeEach(() => {
+  setActivePinia(createPinia());
+  calls.setRoleSection = [];
+  calls.setRoleSurface = [];
+  calls.setMemberSection = [];
+  calls.setMemberSurface = [];
+  toasts.success = [];
+  toasts.error = [];
+  state.sections = {
+    // ⚠ The overridden cell is one whose shipped default is NOT the value being written, and not
+    // `none` either. With `safety` (shipped `none`) here, a "reset" that wrote `none` instead of the
+    // shipped answer passed every assertion — the fixture could not tell the two apart.
+    overrides: { [ROLE]: { equipment: "none" } },
+    defaults,
+    editableRoles: EDITABLE_ROLES,
+    editableSections: EDITABLE_SECTIONS,
+  };
+  state.surfaces = {
+    overrides: { [ROLE]: { "maintenance.inspectors": false } },
+    surfaces: catalogue,
+    editableRoles: EDITABLE_ROLES,
+  };
+  state.members = [
+    { userId: "u-tech", email: "shop@silvicom.test", role: ROLE, joinedAt: "2026-01-01T00:00:00Z" },
+    { userId: "u-admin", email: "boss@silvicom.test", role: "admin", joinedAt: "2026-01-02T00:00:00Z" },
+  ];
+  state.memberSections = {
+    userId: "u-tech",
+    role: ROLE,
+    shipped: Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess(ROLE, s)])),
+    roleOverrides: { safety: "view" },
+    userOverrides: { maintenance: "manage" },
+    editableSections: EDITABLE_SECTIONS,
+  };
+  state.memberSurfaces = {
+    userId: "u-tech",
+    role: ROLE,
+    roleOverrides: { "maintenance.inspectors": false },
+    userOverrides: { "maintenance.repair-spend": false },
+    surfaces: catalogue,
+  };
+});
 
-describe("SettingsPermissionsPage", () => {
-  it("renders one row per role and one column per section, read from the shared matrix", async () => {
+const selects = (w: ReturnType<typeof mountPage>) => w.findAll("select");
+const byLabel = (w: ReturnType<typeof mountPage>, label: string) =>
+  w.findAll("select, input").find((el) => el.attributes("aria-label") === label);
+
+describe("the Roles tab", () => {
+  it("renders the seven editable roles against the eleven editable sections, and nothing locked", async () => {
     const w = mountPage();
     await flushPromises();
-    const rows = w.findAll("tbody tr");
-    expect(rows.length).toBeGreaterThan(0);
-    // A recruiter's row is the one the matrix documents most carefully (RECRUITER-ROLE-SCOPE.md):
-    // recruitment manage, roster view, equipment none. Read from the matrix so the test cannot
-    // outlive a deliberate change to it.
-    expect(sectionAccess("recruiter", "recruitment")).toBe("manage");
-    expect(sectionAccess("recruiter", "roster")).toBe("view");
-    expect(sectionAccess("recruiter", "equipment")).toBe("none");
-    const recruiterRow = rows.find((r) => r.text().startsWith("Recruiter"));
-    expect(recruiterRow, "a Recruiter row is rendered").toBeTruthy();
-    expect(recruiterRow!.text()).toContain("Manage");
-    expect(recruiterRow!.text()).toContain("View");
-    expect(recruiterRow!.text()).toContain("—");
+    expect(EDITABLE_ROLES).toHaveLength(7);
+    expect(EDITABLE_SECTIONS).toHaveLength(11);
+    const header = w.find("thead").text();
+    expect(header).toContain("Fuel");
+    expect(header).not.toContain("Admin");
+    // The FIRST table is the section matrix; the second is the screen grid, whose group headers are
+    // also rows and would otherwise answer for it.
+    const rows = w.findAll("table")[0]!.findAll("tbody tr");
+    expect(rows).toHaveLength(EDITABLE_ROLES.length);
+    expect(rows.some((r) => r.text().startsWith(ROLE_LABEL))).toBe(true);
+    // D-PERM7/D-PERM8: the two locked roles are explained, never rendered as dead controls.
+    expect(rows.some((r) => r.text().startsWith(USER_ROLE_LABELS.admin))).toBe(false);
+    expect(rows.some((r) => r.text().startsWith(USER_ROLE_LABELS.driver))).toBe(false);
+    expect(w.text()).toContain("not an organisation's to change");
   });
 
-  it("says the matrix cannot be edited here, rather than implying it can", async () => {
+  it("shows what a changed cell would revert to, so `reset` means something", async () => {
     const w = mountPage();
     await flushPromises();
-    expect(w.text()).toContain("These permissions are fixed");
-    expect(w.text()).toContain("not built yet");
+    // The org took Equipment from the technician; the shipped answer is View, which is what reset
+    // would restore and what the marker has to say.
+    expect(sectionAccess(ROLE, "equipment")).toBe("view");
+    expect(w.text()).toContain("Default: View");
+  });
+
+  it("saves a section change and says it lands within the hour, not on the next page load", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const cell = byLabel(w, `${ROLE_LABEL} — Fuel`)!;
+    await cell.setValue("view");
+    await flushPromises();
+    expect(calls.setRoleSection).toEqual([{ role: ROLE, section: "fuel", access: "view" }]);
+    expect(toasts.success[0]![1]).toMatch(/hour/i);
+    expect(toasts.success[0]![1]).not.toMatch(/page/i);
+  });
+
+  it("saves a screen change and says it lands on the next page load, not within the hour", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const box = byLabel(w, `${ROLE_LABEL} — Annual inspections`)!;
+    await box.setValue(false);
+    await flushPromises();
+    expect(calls.setRoleSurface).toEqual([
+      { role: ROLE, surfaceKey: "maintenance.inspections", allowed: false },
+    ]);
+    expect(toasts.success[0]![1]).toMatch(/page/i);
+    expect(toasts.success[0]![1]).not.toMatch(/hour/i);
   });
 
   /**
-   * The half that answers the actual question — "control exactly what they can see on dashboard".
-   * A dispatcher holds `dispatch: manage` and `equipment: view`, so Loads and Vehicles are in their
-   * sidebar; they hold `recruitment: none` and `accounting: none`, so Applicants and Money in & out
-   * are not. Reading those four from the same nav builder the shell uses is the whole point.
+   * D-SURF2 at the cell. A technician holds no `fuel` access, so IFTA is not a screen an org can
+   * hand them here — widening is a section edit, one card above, where it is visible as one.
    */
-  it("shows a member's real sidebar, including what is hidden from them", async () => {
+  it("offers no control for a screen inside a section the role does not hold", async () => {
+    const w = mountPage();
+    await flushPromises();
+    expect(sectionAccess(ROLE, "fuel")).toBe("none");
+    expect(byLabel(w, `${ROLE_LABEL} — IFTA`)).toBeUndefined();
+    expect(w.text()).toContain("No section");
+  });
+
+  it("resets a row by writing each changed cell back to its shipped default", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const reset = w.findAll("button").find((b) => b.text() === "Reset row");
+    expect(reset, "the overridden role has a reset control").toBeTruthy();
+    await reset!.trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSection).toEqual([
+      { role: ROLE, section: "equipment", access: sectionAccess(ROLE, "equipment") },
+    ]);
+    expect(sectionAccess(ROLE, "equipment")).not.toBe("none");
+  });
+});
+
+describe("the People tab", () => {
+  const openPeople = async () => {
+    const w = mountPage();
+    await flushPromises();
+    const tab = w.findAll('[role="tab"]').find((t) => t.text() === "People")!;
+    await tab.trigger("click");
+    await flushPromises();
+    return w;
+  };
+
+  it("marks each cell with the layer that answered it", async () => {
+    const w = await openPeople();
+    const rows = w.findAll("tbody tr");
+    const safety = rows.find((r) => r.text().startsWith("Safety"))!;
+    const maintenance = rows.find((r) => r.text().startsWith("Maintenance"))!;
+    const fuel = rows.find((r) => r.text().startsWith("Fuel") && r.text().includes("Follow their role"))!;
+    expect(safety.text()).toContain("Role override");
+    expect(maintenance.text()).toContain("Person override");
+    expect(fuel.text()).toContain("Default");
+  });
+
+  /**
+   * The three-state control. "Follow their role" is not a reset button that writes today's answer —
+   * it is `null` on the wire and the absence of a row, which is what keeps the person tracking their
+   * role after an admin changes it (D-SURF7).
+   */
+  it("sends `access: null` when a section is handed back to the role", async () => {
+    const w = await openPeople();
+    const cell = byLabel(w, "Maintenance access")!;
+    await cell.setValue("__inherit__");
+    await flushPromises();
+    expect(calls.setMemberSection).toEqual([
+      { userId: "u-tech", section: "maintenance", access: null },
+    ]);
+    expect(toasts.success[0]![1]).toMatch(/hour/i);
+  });
+
+  it("sends `allowed: null` when a screen is handed back to the role", async () => {
+    const w = await openPeople();
+    const cell = byLabel(w, "Repair spend visibility")!;
+    await cell.setValue("__inherit__");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([
+      { userId: "u-tech", surfaceKey: "maintenance.repair-spend", allowed: null },
+    ]);
+    expect(toasts.success[0]![1]).toMatch(/page/i);
+  });
+
+  it("gives one person back a screen their whole role has lost", async () => {
+    const w = await openPeople();
+    const cell = byLabel(w, "Inspectors visibility")!;
+    await cell.setValue("true");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([
+      { userId: "u-tech", surfaceKey: "maintenance.inspectors", allowed: true },
+    ]);
+  });
+
+  /**
+   * The preview is `buildNavGroups` — the same function the real sidebar calls — so it answers with
+   * this member's RESOLVED claims. The technician's own `maintenance: manage` is why the shop
+   * screens appear at all, and `maintenance.repair-spend: false` is why one of them does not.
+   */
+  it("previews the sidebar this member will actually get", async () => {
+    const w = await openPeople();
+    const text = w.text();
+    expect(text).toContain("Annual inspections");
+    expect(text).not.toContain("Repair spend visibility\nShown");
+    // The six product constants render in the preview and are named as unchangeable (Q-SURF3) —
+    // and the sentence names THOSE, not every screen, or it would be telling an admin that the
+    // controls above do nothing.
+    const alwaysOn = w.findAll("p").find((el) => el.text().startsWith("Always available"))!;
+    expect(alwaysOn.text()).toContain("Dashboard");
+    expect(alwaysOn.text()).toContain("Ask AI");
+    expect(alwaysOn.text()).not.toContain("Inspectors");
+  });
+
+  it("explains why an admin gets no controls instead of showing dead ones", async () => {
+    state.memberSections = { ...(state.memberSections as object), role: "admin" } as unknown;
+    state.memberSurfaces = { ...(state.memberSurfaces as object), role: "admin" } as unknown;
+    state.members = [{ userId: "u-admin", email: "boss@silvicom.test", role: "admin", joinedAt: "x" }];
+    const w = await openPeople();
+    expect(w.text()).toContain("cannot be given a custom setup");
+    expect(w.findAll("select").filter((s) => s.attributes("disabled") !== undefined).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the page itself", () => {
+  it("says which parts of the product it does not govern yet, rather than implying completeness", async () => {
+    const w = mountPage();
+    await flushPromises();
+    // Q-SURF1 / S7: ~24 endpoints on hand-written role lists and ~65 with nothing beyond requireAuth.
+    expect(w.text()).toContain("Not every part of the product is governed from this page yet");
+  });
+
+  it("states both staleness contracts up front, and does not conflate them", async () => {
     const w = mountPage();
     await flushPromises();
     const text = w.text();
-    expect(text).toContain("Vehicles");
-    expect(text).toContain("Drivers");
-    expect(text).not.toContain("Applicants");
-    expect(text).toContain("Hidden from them:");
-    expect(text).toContain("Recruitment");
-    expect(text).toContain("Accounting");
+    expect(text).toContain("within an hour");
+    expect(text).toContain("next time they load a page");
   });
 
-  it("copes with an org that has no members yet instead of rendering an empty sidebar as fact", async () => {
-    members.value = [];
+  it("renders both tabs and nothing from the other one at a time", async () => {
     const w = mountPage();
     await flushPromises();
-    expect(w.text()).toContain("No members yet");
-    members.value = [
-      { userId: "u-disp", email: "dana@silvicom.test", role: "dispatcher", joinedAt: "2026-01-01T00:00:00Z" },
-    ];
+    expect(selects(w).length).toBeGreaterThan(0);
+    expect(w.text()).toContain("What each role can reach");
+    expect(w.text()).not.toContain("What they can work with");
   });
 });
