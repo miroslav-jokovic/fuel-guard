@@ -228,3 +228,18 @@ describe("ingestOfficeLines", () => {
     expect(call?.ops.some((o) => o.method === "upsert" && JSON.stringify(o.args).includes("org_id,external_id"))).toBe(true);
   });
 });
+
+describe("company_id reaches every staging row (D-FIN8)", () => {
+  it("settlements, vouchers and billing carry the McLeod company the agent sent", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [] } });
+    await ingestSettlements(rec.client, ORG, tmsSettlementsPayloadSchema.parse({
+      settlements: [settlement({ company_id: "TMS2" })], window_start: "2026-06-01", window_end: "2026-07-01",
+    }));
+    expect(rec.writtenRows("mcleod_settlements")[0]).toMatchObject({ company_id: "TMS2" });
+    await ingestApVouchers(rec.client, ORG, tmsApVouchersPayloadSchema.parse({
+      vouchers: [voucher({ company_id: "TMS3" })], window_start: "2026-06-01", window_end: "2026-07-01",
+    }));
+    expect(rec.writtenRows("mcleod_ap_vouchers")[0]).toMatchObject({ company_id: "TMS3" });
+    expectOrgScoped(rec, ORG);
+  });
+});

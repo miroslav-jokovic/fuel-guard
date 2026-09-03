@@ -64,3 +64,18 @@ describe("ingestLedgerTotals — zero rows never delete (D-FIN6)", () => {
     expect(del).toBeUndefined();
   });
 });
+
+describe("ingestLedgerTotals — company_id (D-FIN8)", () => {
+  it("stamps the month's rows with the company the agent swept for, and null when it did not say", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
+    await ingestLedgerTotals(rec.client, ORG, tmsLedgerTotalsPayloadSchema.parse({
+      period_start: "2026-06-01", period_end: "2026-07-01", company_id: "TMS", totals: [total()],
+    }));
+    expect(rec.writtenRows("mcleod_gl_totals")[0]).toMatchObject({ company_id: "TMS" });
+    const rec2 = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
+    await ingestLedgerTotals(rec2.client, ORG, tmsLedgerTotalsPayloadSchema.parse({
+      period_start: "2026-06-01", period_end: "2026-07-01", totals: [total()],
+    }));
+    expect(rec2.writtenRows("mcleod_gl_totals")[0]).toMatchObject({ company_id: null });
+  });
+});

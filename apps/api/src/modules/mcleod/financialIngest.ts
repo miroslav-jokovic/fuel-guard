@@ -44,6 +44,7 @@ export async function ingestSettlements(
     const rows = payload.settlements.slice(i, i + CHUNK).map((s) => ({
       org_id: orgId,
       external_id: s.external_id,
+      company_id: s.company_id ?? null,
       tractor_unit: s.tractor_unit ?? null,
       trailer_unit: s.trailer_unit ?? null,
       driver_external_id: s.driver_external_id ?? null,
@@ -82,6 +83,7 @@ export async function ingestApVouchers(
     const rows = payload.vouchers.slice(i, i + CHUNK).map((v) => ({
       org_id: orgId,
       external_id: v.external_id,
+      company_id: v.company_id ?? null,
       voucher_no: v.voucher_no ?? null,
       voucher_type: v.voucher_type ?? null,
       vendor_id: v.vendor_id ?? null,
@@ -119,6 +121,7 @@ export async function ingestDeductions(
     const rows = payload.deductions.slice(i, i + CHUNK).map((d) => ({
       org_id: orgId,
       external_id: d.external_id,
+      company_id: d.company_id ?? null,
       payee_id: d.payee_id ?? null,
       payee_type: d.payee_type,
       // NULL is the source's own statement — 317 of June's 699 type-'D' rows carry a tractor and
@@ -152,6 +155,7 @@ export async function ingestBilling(
     const rows = payload.billing.slice(i, i + CHUNK).map((b) => ({
       org_id: orgId,
       external_id: b.external_id,
+      company_id: b.company_id ?? null,
       invoice_no: b.invoice_no ?? null,
       customer_id: b.customer_id ?? null,
       order_external_id: b.order_external_id ?? null,
@@ -207,6 +211,7 @@ export async function ingestOfficeLines(
     const rows = payload.lines.slice(i, i + CHUNK).map((l) => ({
       org_id: orgId,
       external_id: l.external_id,
+      company_id: l.company_id ?? null,
       payee_id: l.payee_id ?? null,
       glid: l.glid,
       descr: l.descr ?? null,

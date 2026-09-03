@@ -589,6 +589,7 @@ async function runFinancial() {
   for (const { periodStart, periodEnd } of monthsTouching(windowStart, windowEnd)) {
     const lc = await fetchLedgerControl({ ...CFG.sql, windowStart: periodStart, windowEnd: periodEnd });
     const rl = await postToFuelGuard("/api/tms/ledger-totals", {
+      company_id: CFG.sql.companyId, // the books are per legal entity (D-FIN8)
       period_start: periodStart,
       period_end: periodEnd,
       totals: lc.totals,
