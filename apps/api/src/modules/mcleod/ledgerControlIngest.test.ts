@@ -49,3 +49,18 @@ describe("ingestLedgerTotals", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+describe("ingestLedgerTotals — zero rows never delete (D-FIN6)", () => {
+  // Before 2026-09-03 an empty payload upserted nothing and then deleted every row of the month
+  // bearing an older stamp — which is every row. A transient empty read erased a month's control
+  // totals and the CPM page's fleet truth with them.
+  it("an empty payload leaves the month untouched and says why, instead of erasing it", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
+    const payload = tmsLedgerTotalsPayloadSchema.parse({ period_start: "2026-06-01", period_end: "2026-07-01", totals: [] });
+    const r = await ingestLedgerTotals(rec.client, ORG, payload);
+    expect(r).toEqual({ received: 0, upserted: 0, staleRemoved: 0, skipped: "empty" });
+    expect(rec.writtenRows("mcleod_gl_totals")).toHaveLength(0);
+    const del = rec.queries.find((q) => q.table === "mcleod_gl_totals" && q.ops.some((o) => o.method === "delete"));
+    expect(del).toBeUndefined();
+  });
+});
