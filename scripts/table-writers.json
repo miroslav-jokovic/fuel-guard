@@ -125,6 +125,9 @@
   "employer_inquiries": [
     "apps/api/src/modules/recruiting/employerInquiry.ts"
   ],
+  "finance_month_closes": [
+    "apps/api/src/modules/financial/monthClose.ts"
+  ],
   "financial_entries": [
     "apps/api/src/modules/financial/projection.ts"
   ],

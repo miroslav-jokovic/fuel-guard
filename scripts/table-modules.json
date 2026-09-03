@@ -173,6 +173,10 @@
       "module": "financial",
       "layer": "core"
     },
+    "finance_month_closes": {
+      "module": "financial",
+      "layer": "core"
+    },
     "fuel_cards": {
       "module": "fuel",
       "layer": "core"
