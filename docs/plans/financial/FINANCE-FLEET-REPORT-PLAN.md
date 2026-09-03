@@ -146,7 +146,23 @@ McLeod truncates `gl_account.descr` at **28 characters at source**, so three dis
 accounts all read `Gross Trucking Income` and two expense accounts read
 `Subcontracted Labor: Bonus`. The account code prints beside the name (G3).
 
-### 1.5 Dispatchers compute today
+### 1.5 Finance and Fuel will print different fuel numbers, and that is correct
+
+A consequence of D-FLEET4 that has to be stated on the page rather than discovered by a reader.
+Finance shows what McLeod booked; the Fuel section shows what the card was charged. July 2026:
+
+| | July $ | What it is |
+|---|---:|---|
+| EFS card lines, ULSD | 1,018,807.92 | retail, before the card discount |
+| GL `40050000 Fuel for Hired Vehicles` | 972,820.53 | what the carrier owed and the ledger recorded |
+
+The difference is the fuel-card discount, and both numbers are right for their own question. So
+the income statement's fuel row carries the hover *"as booked in McLeod, after card discounts —
+the Fuel section shows card charges before discount"*, and the Fuel section carries the mirror of
+it. Two numbers with two labels is honest; two numbers with one label is how a boss stops trusting
+a report.
+
+### 1.6 Dispatchers compute today
 
 `mcleod_billing` carries `dispatcher_name`, `total_charges` and `distance` on **all 1,415** July
 bills. July, top six of ~14:
