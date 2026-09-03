@@ -55,6 +55,7 @@ export async function fetchLedgerControl({
       })),
       officeLines: officeRows.recordset.map((r) => ({
         external_id: String(r.external_id || "").trim(),
+        company_id: companyId, // the sweep's own company filter, carried onto the row (D-FIN8)
         glid: r.glid,
         descr: r.descr ?? null,
         payee_id: r.payee_id ?? null,

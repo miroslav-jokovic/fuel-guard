@@ -40,6 +40,8 @@ export const tmsLedgerTotalsPayloadSchema = z.object({
   /** First day of the NEXT month — half-open, like every window in this integration. */
   period_end: z.string().regex(/^\d{4}-\d{2}-01$/),
   totals: z.array(glModuleTotalSchema).max(5000),
+  /** The McLeod company the month was swept for (0303, D-FIN8) — the books are per legal entity. */
+  company_id: z.string().min(1).max(4).nullish(),
 });
 export type TmsLedgerTotalsPayload = z.infer<typeof tmsLedgerTotalsPayloadSchema>;
 
@@ -206,6 +208,8 @@ export const tmsOfficeSettlementLineSchema = z.object({
   payee_id: z.string().trim().min(1).max(8).nullish(),
   transacted_at: z.string().nullish(),
   amount: z.number().default(0),
+  /** The McLeod company the line belongs to (0303, D-FIN8). */
+  company_id: z.string().min(1).max(4).nullish(),
 });
 export type TmsOfficeSettlementLine = z.infer<typeof tmsOfficeSettlementLineSchema>;
 
