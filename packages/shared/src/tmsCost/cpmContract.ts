@@ -180,6 +180,28 @@ export interface CpmInputs {
 /** Which denominator this report's figures stand on. One basis per report, never mixed. */
 export type MilesBasis = "samsara_actual" | "mcleod_loaded_plus_deadhead_estimate";
 
+/**
+ * The buckets a GL-anchored report sorts the income statement into. They sum to `glExpenseTotal`
+ * when `anchored`; `residual` is the proof, and it is 0.00 or the report is wrong.
+ *
+ *   glExpenseTotal = attributedDirect + fixedCharged + ownerOperatorSettlement
+ *                  + allocatedOverhead + unallocatedOverhead + residual
+ *
+ * `fixedCostOnOwnerOperatorTrucks` is informational: those dollars sit INSIDE the pool (they were
+ * never charged to a row of this table), so they are not a separate term of the sum.
+ */
+export interface CpmGlTieOut {
+  anchored: boolean;
+  glExpenseTotal: number;
+  attributedDirect: number;
+  fixedCharged: number;
+  allocatedOverhead: number;
+  unallocatedOverhead: number;
+  ownerOperatorSettlement: number;
+  fixedCostOnOwnerOperatorTrucks: number;
+  residual: number;
+}
+
 export interface TruckCpm {
   tractor_unit: string;
   movements: number;
@@ -239,12 +261,29 @@ export interface CpmReport {
    */
   ownerOperators: OwnerOperatorSummary[];
   /**
+   * Every dollar of the income statement in exactly one bucket — present whenever the caller
+   * anchored the report on a GL total (D-FIN11, FINANCE-GO-LIVE-PLAN). `residual` is 0.00 when the
+   * anchor held; when it was refused, `anchored` is false and `residual` is the over-attribution.
+   * This is what "100% precise" means for one report, and the monthly close (D-FIN14) is this
+   * block persisted per month.
+   */
+  glTieOut: CpmGlTieOut | null;
+  /**
    * Everything the per-truck figures do NOT contain. This is the honesty ledger, and it is the first
    * thing a reviewer should read.
    */
   excluded: {
-    /** Overhead left unassigned — the whole pool under the default `none` basis. */
+    /**
+     * Overhead left unassigned — the whole pool under the `none` basis, and under any other basis
+     * whatever could not be weighed (a pool with no miles to spread it over). Never silently zero.
+     */
     unallocatedOverhead: number;
+    /**
+     * Schedule dollars for units that ran only for an owner-operator this window. Those trucks are
+     * outside the table (D-MC20), so their lease is charged to no row here; it stays in the shared
+     * pool and is named rather than spread unannounced.
+     */
+    fixedCostOnOwnerOperatorTrucks: number;
     /**
      * Where the pool came from. `gl_remainder` is the income statement minus what this report
      * attributed, so nothing the carrier spent falls outside the report; `ap_vouchers` is the
