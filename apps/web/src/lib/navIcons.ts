@@ -1,6 +1,7 @@
 import {
   ArrowsRightLeftIcon,
   BeakerIcon,
+  BooksCheckIcon,
   CheckCircleIcon,
   CurrencyDollarIcon,
   DocumentTextIcon,
@@ -95,6 +96,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "finance.accounting": CurrencyDollarIcon,
   "finance.cpm": ChartAverageIcon,
   "finance.cost-schedule": InvoiceIcon,
+  "finance.books-check": BooksCheckIcon,
   "finance.billing": DocumentTextIcon,
 
   "maintenance.repair-spend": GaugeIcon,

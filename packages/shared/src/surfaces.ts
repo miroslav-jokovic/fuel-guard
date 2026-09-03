@@ -202,6 +202,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "finance.accounting", label: "Money in & out", path: "/accounting", group: "finance", gate: section("accounting") },
   { key: "finance.cpm", label: "Cost per mile", path: "/cpm", group: "finance", gate: section("accounting") },
   { key: "finance.cost-schedule", label: "Truck fixed costs", path: "/cost-schedule", group: "finance", gate: section("accounting") },
+  { key: "finance.books-check", label: "Books check", path: "/books-check", group: "finance", gate: section("accounting") },
   { key: "finance.billing", label: "Revenue & margin", path: "/billing", group: "finance", gate: section("billing") },
 
   // ── maintenance ───────────────────────────────────────────────────────────────────────────────

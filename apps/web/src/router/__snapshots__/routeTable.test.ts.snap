@@ -254,6 +254,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/cost-schedule",
   },
   {
+    "name": "books-check",
+    "params": {},
+    "url": "/books-check",
+  },
+  {
     "name": "billing",
     "params": {},
     "url": "/billing",
@@ -515,6 +520,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "billing",
     "path": "/billing",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Books check",
+    },
+    "name": "books-check",
+    "path": "/books-check",
     "redirect": null,
   },
   {
