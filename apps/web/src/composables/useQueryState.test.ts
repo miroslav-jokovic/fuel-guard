@@ -83,6 +83,54 @@ describe("useQueryState", () => {
   });
 });
 
+/**
+ * FUEL-C3 added `param`, and the reason it is here rather than written out per page is that nine
+ * pages had already written the `"" ⇄ absent` half of it by hand. The `allowed` half is newer and
+ * sharper: a `ref` could only ever hold what its own dropdown offered, and a URL parameter holds
+ * whatever somebody typed — so the day a filter moves into the URL is the day it needs a vocabulary.
+ */
+describe("useQueryState().param", () => {
+  it("speaks the filter controls' empty string and the URL's absence", async () => {
+    const { s, router } = await mountState();
+    const item = s.param("item");
+    expect(item.value).toBe("");
+
+    item.value = "ULSD";
+    await settle();
+    expect(router.currentRoute.value.query.item).toBe("ULSD");
+
+    item.value = "";
+    await settle();
+    expect(router.currentRoute.value.query.item).toBeUndefined();
+  });
+
+  /**
+   * ⚠ The case the vocabulary exists for. A sort key reaches PostgREST's `.order()`, so a column
+   * name pasted from another table's URL is not a filter that matches nothing — it is a query that
+   * errors, and the page renders its failure state instead of its data.
+   */
+  it("reads a value outside the caller's vocabulary as no choice at all", async () => {
+    const { s } = await mountState("/t?sort=drop_table&risk=alert");
+    expect(s.param("sort", ["unit", "declined_at"]).value).toBe("");
+    expect(s.param("risk", ["alert", "review", "clear"]).value).toBe("alert");
+  });
+
+  it("holds no opinion when no vocabulary is given, because the caller has not stated one", async () => {
+    const { s } = await mountState("/t?driver=Anyone%20At%20All");
+    expect(s.param("driver").value).toBe("Anyone At All");
+  });
+
+  it("goes through the same buffer, so two facets set in one tick both land", async () => {
+    const { s, router } = await mountState();
+    const a = s.param("state");
+    const b = s.param("policy");
+    a.value = "TX";
+    b.value = "P1";
+    await settle();
+    expect(router.currentRoute.value.query).toMatchObject({ state: "TX", policy: "P1" });
+  });
+});
+
 describe("oneParam", () => {
   it("treats an empty string the same as an absent parameter", () => {
     // `?cols=` is what a cleared filter leaves behind, and it must not read as a real value.

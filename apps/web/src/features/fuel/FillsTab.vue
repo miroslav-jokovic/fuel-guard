@@ -33,7 +33,7 @@ import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
-import { toggleSort, type SortState } from "@/lib/sort";
+import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdForUnit } from "./unitFilter";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
@@ -44,17 +44,55 @@ const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
 /**
- * The facets this tab alone has. `driverId` stays local for the reason `useFuelLogFilters`' header
- * gives: it is an ID here and a NAME on the two raw-feed tabs, and one shared `?driver=` would put
- * one into the other.
+ * The facets this tab alone owns, each its own URL parameter (FUEL-C3, D-FUI8). Not shared with the
+ * other two tabs and cleared on a tab change, for the reason `useFuelLogFilters`' header gives:
+ * `driver` is an ID here and a NAME on the two raw-feed tabs, and `sort` names a column of
+ * `fuel_transactions` that `declined_transactions` does not have.
+ *
+ * `tank` rather than `tankType`, because the parameter is what a reader pastes into a ticket.
  */
-const local = ref<Omit<FuelFilters, "vehicleId" | "from" | "to">>({});
+const tankTypeFilter = props.shared.facet("tank", ["tractor", "reefer"]);
+const driverFilter = props.shared.facet("driver");
+const searchBind = props.shared.facet("search");
+
+/**
+ * ⚠ The sortable columns, as the vocabulary a forwarded link is checked against — a sort key reaches
+ * PostgREST's `.order()`, so an unrecognised one is an error state rather than an empty list. This
+ * is the list that refuses `declined_at` arriving from the declines tab's URL.
+ */
+const SORTABLE = ["fueled_at", "odometer", "miles_since_last", "gallons", "price_per_gal", "computed_mpg"] as const;
+const sortKey = props.shared.facet("sort", SORTABLE);
+const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
+const { sort, onSort } = useUrlSort(sortKey, sortDir);
 
 const unit = computed(() => props.shared.unit.value);
 const { vehicleId, pending: unitPending } = useVehicleIdForUnit(unit);
 
+/**
+ * The smart search resolves the typed text against the fleet and the driver roster HERE, so the
+ * query can OR a unit number or a driver name into a location/card match. It is derived from the URL
+ * parameter rather than written beside it: a link carrying `?search=654` must resolve the same way a
+ * keystroke does, and two writers for one fact is how they stop agreeing.
+ */
+const searchIds = computed(() => {
+  const t = searchBind.value.trim();
+  if (!t) return { search: undefined, searchVehicleIds: undefined, searchDriverIds: undefined };
+  const low = t.toLowerCase();
+  const vIds = (vehicles.value ?? []).filter((v) => v.unit_number.toLowerCase().includes(low)).map((v) => v.id);
+  const dIds = (drivers.value ?? []).filter((d) => d.full_name.toLowerCase().includes(low)).map((d) => d.id);
+  return {
+    search: t,
+    searchVehicleIds: vIds.length ? vIds : undefined,
+    searchDriverIds: dIds.length ? dIds : undefined,
+  };
+});
+
 const filters = computed<FuelFilters>(() => ({
-  ...local.value,
+  ...searchIds.value,
+  tankType: tankTypeFilter.value === "tractor" || tankTypeFilter.value === "reefer" ? tankTypeFilter.value : undefined,
+  driverId: driverFilter.value || undefined,
+  sortKey: sortKey.value || undefined,
+  sortDir: sortDir.value === "desc" ? "desc" : "asc",
   vehicleId: vehicleId.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
@@ -62,12 +100,6 @@ const filters = computed<FuelFilters>(() => ({
 
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
-
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-  local.value = { ...local.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
-}
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const { data: rangeTotals } = useFuelRangeTotals(filters);
@@ -101,10 +133,6 @@ const driverName = (id: string | null) =>
 const setFrom = (v: string | undefined) => props.shared.setFrom(v);
 const setTo = (v: string | undefined) => props.shared.setTo(v);
 
-const tankTypeFilter = computed<string>({
-  get: () => local.value.tankType ?? "",
-  set: (v) => (local.value = { ...local.value, tankType: v === "tractor" || v === "reefer" ? v : undefined }),
-});
 const tankTypeOptions = [
   { value: "", label: "All fuel" },
   { value: "tractor", label: "Tractor" },
@@ -119,10 +147,6 @@ const unitFilter = computed<string>({
 const unitOptions = useUnitOptions();
 
 // Driver is a secondary (popover) filter.
-const driverFilter = computed<string>({
-  get: () => local.value.driverId ?? "",
-  set: (v) => (local.value = { ...local.value, driverId: v || undefined }),
-});
 const driverOptions = computed(() => [
   { value: "", label: "All drivers" },
   ...[...(drivers.value ?? [])]
@@ -130,41 +154,25 @@ const driverOptions = computed(() => [
     .map((d) => ({ value: d.id, label: d.full_name })),
 ]);
 
-// Smart search: matches location & card server-side, plus vehicle unit / driver name resolved here (so the
-// box narrows by any of those). Resolved id-lists ride along in the filters for the query's OR term.
-const searchBind = computed<string>({
-  get: () => local.value.search ?? "",
-  set: (raw) => {
-    const t = raw.trim();
-    if (!t) {
-      local.value = { ...local.value, search: undefined, searchVehicleIds: undefined, searchDriverIds: undefined };
-      return;
-    }
-    const low = t.toLowerCase();
-    const vIds = (vehicles.value ?? []).filter((v) => v.unit_number.toLowerCase().includes(low)).map((v) => v.id);
-    const dIds = (drivers.value ?? []).filter((d) => d.full_name.toLowerCase().includes(low)).map((d) => d.id);
-    local.value = {
-      ...local.value,
-      search: t,
-      searchVehicleIds: vIds.length ? vIds : undefined,
-      searchDriverIds: dIds.length ? dIds : undefined,
-    };
-  },
-});
-
 // Chips surface the secondary (popover) filter; inline triggers show their own value.
 const chips = computed<FilterChip[]>(() => {
   const out: FilterChip[] = [];
-  if (local.value.driverId) out.push({ key: "driver", label: "Driver", value: driverName(local.value.driverId) });
+  if (driverFilter.value) out.push({ key: "driver", label: "Driver", value: driverName(driverFilter.value) });
   return out;
 });
-const moreCount = computed(() => (local.value.driverId ? 1 : 0));
+const moreCount = computed(() => (driverFilter.value ? 1 : 0));
 function removeChip(key: string) {
-  if (key === "driver") local.value = { ...local.value, driverId: undefined };
+  if (key === "driver") driverFilter.value = "";
 }
-/** Clears BOTH halves: "Clear filters" means the screen, not this component's share of it. */
+/**
+ * Clears BOTH halves: "Clear filters" means the screen, not this component's share of it. The sort
+ * stays — it is how the list is ordered, not how it is narrowed. Every assignment is one `set` in
+ * the same tick, which `useQueryState`'s buffer coalesces into one navigation.
+ */
 function clearAll() {
-  local.value = { sortKey: local.value.sortKey, sortDir: local.value.sortDir };
+  tankTypeFilter.value = "";
+  driverFilter.value = "";
+  searchBind.value = "";
   props.shared.clear();
 }
 

@@ -443,7 +443,8 @@ before it is built, not during.
 | P3 | **verified** | `ExceptionQuery`/`qs()`/the route all lack a vehicle field; `assignedTo` exists server-side and is unsent. |
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
 | C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
-| C3–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. C3 now starts from a page whose window, truck and tab are already in the URL; what remains is the per-tab facets and the other two pages. |
+| C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
+| C4–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. ⚠ C4 inherits C2's permission finding: `/import` is `manage("fuel")` and becomes a drawer on a page catalogued `always`, so the drawer carries the check the route was carrying. C5 does not — Fuel Spend is one page behind one gate. |
 | C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
 | C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
@@ -1518,6 +1519,99 @@ pasted into a ticket.
 
 **Verified by.** A test per page asserting round-trip through the query string, including the
 two-`v-model`-in-one-tick case that welded the spend window to 90 days.
+
+#### — DONE 2026-09-03 (`claude/fuel-filters-in-url`).
+
+**What shipped.** Every filter on the three remaining fuel surfaces is a URL parameter: the Fuel
+Log's per-tab facets (C2 put the tab, the window and the truck there and said in writing that the
+facets were next), all nine on Fuel Cards, and all six on Alerts. Sort too — a list sorted by MPG and
+the same list sorted by date are different answers to "look at this", and the interesting row is
+usually the first one.
+
+**Two small shared pieces, because the alternative was fourteen copies of the same four lines.**
+`useQueryState` gains `param(key, allowed?)` — the `"" ⇄ absent` conversion every filtered page in
+this app had already written by hand, nine times on the cards page alone. `@/composables/useUrlSort`
+holds the two-parameter sort over `lib/sort.ts`' existing none → asc → desc → none cycle.
+
+**⚠ THE PART THAT IS A CORRECTNESS CHANGE AND NOT A REFACTOR: a `ref` could only ever hold what its
+own dropdown offered, and a URL parameter holds whatever somebody typed.** Every facet moved into the
+URL therefore gained a vocabulary, and one of them is not merely useful:
+
+- **A sort key is a column name that reaches PostgREST's `.order()`.** Every other filter in this
+  section fails safe on a value the page does not know — an empty list, with the chip saying why. A
+  sort key does not: `fueled_at` is the Fills tab's own column and one tab away from
+  `declined_transactions`, where it is a query that ERRORS and the page renders its failure state
+  instead of its data. Both halves are read through the caller's own column list.
+- `status` on Fuel Cards is forwarded to the vendor-facing route, so it is checked against
+  `EFS_CARD_STATUSES` — the shared catalogue, not a list retyped on the page.
+- The yes/no facets (`override`, `linked`, `health`) are checked against their own two values. That
+  one is not about the query: an unrecognised value narrows nothing either way, but WITHOUT the check
+  the bar renders "Exception: None" over a list it has not narrowed — a chip describing a filter that
+  is not on. It is asserted on the chip, not the row count, for exactly that reason.
+
+**The Fuel Log's cross-tab rule, which is the reason C2 deferred this rather than doing it quickly.**
+Three parameters are shared (`tab`, `from`, `to`, `unit`) and everything else belongs to the OPEN TAB
+and is cleared when the tab changes — derived by exclusion from `SHARED_FUEL_LOG_KEYS`, not from a
+per-tab list of keys, because a list would be a second copy of what each tab already declares at its
+`facet()` calls. `driver` is a driver ID on Fills and a driver NAME on the two raw feeds, so one
+shared parameter would carry a UUID into a name filter and return an empty list with no error
+anywhere; `sort` is the error case above. The cost is that a facet does not survive a round trip
+through another tab, which is what happened before C2 anyway, and it is the right direction to fail:
+a filter that is not on the screen must not be narrowing the list.
+
+**⚠ Alerts had a third state hiding in an absent parameter, and it nearly got flattened.**
+`/anomalies?vehicle=<id>` was already a deep link — a flagged Fuel Log row sends a reviewer here —
+but it was READ ONCE at setup and never written back, so the moment the reviewer changed the truck in
+the picker the address bar described a different screen. C3's job was the write. The trap is what an
+absent `status` means: with no truck it is the WORK QUEUE (`open`), and with a truck it is that
+truck's whole history including resolved cases, because a reviewer following a link to a case must
+see it even if somebody has already closed it. So "the reader chose All" cannot ALSO be absence — it
+is written `status=all`. Three states, three spellings, four assertions.
+
+**`Clear filters` on Alerts clears the parameter rather than writing `open` into it**, which is what
+makes it correct from both entry points: the truck goes too, so absence resolves to the work queue
+either way, and the URL is left saying nothing rather than saying the default out loud. On all three
+surfaces "Clear filters" keeps the SORT — it is how the list is ordered, not how it is narrowed, and
+a clear that also reshuffled the rows reads as the button doing too much.
+
+**What this deliberately did NOT adopt from `useSpendFilters`, and it is not an oversight.** The
+DEFAULT window. That composable opens on 90 days because a spend chart over all time is meaningless;
+these three lists have never had a default and "no window" means every day there is. Adding one
+changes what an unfiltered Fuel Log shows, which is a product decision rather than a refactor. The
+consequence is that a backwards hand-edited range still produces an empty list here rather than
+`normalizeWindow`'s corrected-and-reported one — recorded in `useFuelLogFilters`' header and left for
+whoever rules on the default.
+
+**Verified by:** `pages/fuelLogFiltersInUrl.test.ts` (10) — `puts a facet chosen on the Fills tab
+into the URL, and the query`; `reads that facet back out of a link, without the reader touching a
+control`; `puts each raw-feed tab's own facets in the URL under its own names`; `keeps both ends of a
+window set in one tick`; `keeps a shared filter and a tab-owned one set in the same tick`; `clears
+the screen — both halves — and leaves the tab where it is`; `carries the window and the truck, and
+drops the outgoing tab's facets`; `does not carry a driver ID into a tab whose driver filter is a
+name`; `refuses another table's sort key, whether it crosses a tab or arrives in a link`; `sorts by a
+column the open tab does have, and says so in the URL`. `pages/fuelCardsFiltersInUrl.test.ts` (8) and
+`pages/anomaliesFiltersInUrl.test.ts` (9), including `distinguishes the reader choosing All from the
+URL saying nothing` and `shows a linked truck's WHOLE history, resolved cases included`. Plus
+`composables/useUrlSort.test.ts` (6) and four new cases in `composables/useQueryState.test.ts`.
+
+**Proved able to fail — fourteen mutations**, each naming what it broke: the vocabulary ignored (8
+tests); the tab change keeping the outgoing tab's facets (3); the query-state buffer removed, i.e.
+the lost-write bug restored (12); the Fills tab not reading `search` (1); the card status losing its
+catalogue (1); Alerts forgetting that a truck link means every status (1); Alerts writing an absent
+status instead of `all` (1); the cleared sort leaving its direction behind (1); Alerts not writing
+the truck back (2); `Clear filters` not clearing the shared half (1); `param` not writing at all
+(20); `param` not reading at all (23); the cards page losing its yes/no vocabularies (1).
+
+**⚠ Two assertions were found VACUOUS by that pass and rewritten**, which is the whole reason for
+running it: `refuses a yes/no facet whose value is neither` passed either way (an unrecognised value
+narrows nothing whether it was refused or merely not understood) and now asserts the CHIP; `falls
+back to the default order when a link names a column this table does not sort by` passed either way
+against a fixture whose two orders were identical, and its cards now carry `last4` values that make
+the two orders differ by a row.
+
+**Gates green — the full `ci.yml` list**, including `pnpm --filter ./apps/web lint:tokens` and
+`node scripts/check-migration-ordering.mjs` with its `--self-test`. No migration in this step.
+`FuelCardsPage.vue` was brought back under the 450-line warn after the new comments pushed it to 471.
 
 ---
 

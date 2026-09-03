@@ -5,7 +5,7 @@
  * New surface: until now Silvicom 360 has only ever INFERRED card state from fill history
  * (learnCardAssignments), so "is this card locked?" had no answer. These rows come from the vendor.
  */
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type WritableComputedRef } from "vue";
 import { useRouter } from "vue-router";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -23,30 +23,38 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { EFS_CARD_STATUSES } from "@silvicom/shared";
 
 const PAGE_SIZE = 20;
 
 const router = useRouter();
 
-const search = ref("");
-const status = ref("");
+/**
+ * FUEL-C3, D-FUI8 — every filter here is a URL parameter. "Which cards can currently buy outside
+ * their limits" is what an auditor opens this page for; it is `?override=active`, and it used to be
+ * a screenshot. ⚠ The vocabularies are not decoration — a `ref` could only hold what its dropdown
+ * offered and a parameter holds whatever somebody typed, so `status`, which reaches the vendor-facing
+ * route, is checked against the SHARED catalogue rather than a list retyped here (`param`'s header).
+ */
+const { param } = useQueryState();
+
+const search = param("search");
+const status = param("status", EFS_CARD_STATUSES);
 /**
  * The secondary facets. Applied CLIENT-side, deliberately: the route returns the whole inventory in
  * one response and this page already paginates in the browser, so filtering here is instant and adds
  * no vendor-adjacent API surface. Search and status stay server-side because they were already.
+ * `driver`, `unit` and `policy` carry no vocabulary: theirs comes from the data (`optionsFrom`).
  */
-const driver = ref("");
-const unit = ref("");
-const policy = ref("");
-const override = ref("");
-const linked = ref("");
-const health = ref("");
+const driver = param("driver");
+const unit = param("unit");
+const policy = param("policy");
+const override = param("override", ["active", "none"]);
+const linked = param("linked", ["linked", "unlinked"]);
+const health = param("health", ["errors", "ok"]);
 const page = ref(1);
-/**
- * `assignment` is the DEFAULT order, not a column: cards nobody is using sink to the bottom and the
- * working fleet keeps card order above them. Clicking any header replaces it with that column.
- */
-const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "assignment", dir: "asc" });
 
 const query = useEfsCards({ search, status });
 
@@ -90,6 +98,31 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
   }
   return null;
 });
+
+const columns: DataTableColumn[] = [
+  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
+  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
+  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
+  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
+  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
+  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
+  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
+];
+
+/**
+ * `assignment` is the DEFAULT order, not a column: cards nobody is using sink to the bottom and the
+ * working fleet keeps card order above them. Clicking any header replaces it with that column.
+ *
+ * The vocabulary is DERIVED from the columns above plus that default: a second list is a second
+ * place to add a sortable column to, and the forgotten one stops accepting links in silence.
+ */
+const SORT_KEYS = ["assignment", ...columns.filter((c) => c.sortable).map((c) => c.key)];
+const sortKey = param("sort", SORT_KEYS);
+const sortDir = param("dir", SORT_DIRECTIONS);
+const sort = computed<{ key: string; dir: "asc" | "desc" }>(
+  () => ({ key: sortKey.value || "assignment", dir: sortDir.value === "desc" ? "desc" : "asc" }),
+);
 
 watch([search, status, driver, unit, policy, override, linked, health], () => { page.value = 1; });
 
@@ -156,10 +189,12 @@ const sorted = computed(() => {
 
 const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
+/** Two states per column, never none — hence asc ⇄ desc here rather than `useUrlSort`'s three-state
+ *  cycle: this table always has an order, and `assignment` is what it falls back to. */
 function onSort(key: string): void {
-  sort.value = sort.value.key === key
-    ? { key, dir: sort.value.dir === "asc" ? "desc" : "asc" }
-    : { key, dir: "asc" };
+  const flipped = sort.value.key === key && sort.value.dir === "asc" ? "desc" : "asc";
+  sortKey.value = key;
+  sortDir.value = flipped;
 }
 
 /** True when the API had more cards than it returned — see the limit note on the read route. */
@@ -183,17 +218,6 @@ const oldestSync = computed(() => reachableSyncFloor(rows.value));
  * colour — the same reservation `FeedFreshnessLine` makes, for the same reason.
  */
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
-
-const columns: DataTableColumn[] = [
-  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, width: "md" },
-  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
-  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
-  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
-  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
-  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
-  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
-];
 
 /**
  * The operations worth offering for one row (Step 6.3).
@@ -234,23 +258,19 @@ const chips = computed(() => [
   ...(health.value ? [{ key: "health", label: "Sync", value: health.value === "errors" ? "With errors" : "Clean" }] : []),
 ]);
 
-const FACETS: Record<string, { value: string }> = {
-  status: status as unknown as { value: string },
-  driver: driver as unknown as { value: string },
-  unit: unit as unknown as { value: string },
-  policy: policy as unknown as { value: string },
-  override: override as unknown as { value: string },
-  linked: linked as unknown as { value: string },
-  health: health as unknown as { value: string },
-};
+/** The chip key → the parameter it removes; the casts went with the `ref`s, `param()` is already one. */
+const FACETS: Record<string, WritableComputedRef<string>> = { status, driver, unit, policy, override, linked, health };
 
 function onRemoveChip(key: string): void {
   const facet = FACETS[key];
   if (facet) facet.value = "";
 }
 
+/** Search included, unlike `FACETS` — a chip removes one facet, this clears the screen. The sort is
+ *  kept: it is how the list is ordered, not how it is narrowed. */
 function clearAll(): void {
   for (const facet of Object.values(FACETS)) facet.value = "";
+  search.value = "";
 }
 
 

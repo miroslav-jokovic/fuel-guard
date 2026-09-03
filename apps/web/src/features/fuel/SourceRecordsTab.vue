@@ -29,7 +29,7 @@ import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { toggleSort, type SortState } from "@/lib/sort";
+import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { stationTime, businessDate } from "@/lib/stationTime";
 import { useUnitOptions } from "./unitFilter";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
@@ -37,33 +37,44 @@ import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
 
 /**
- * The facets this tab alone has, held locally rather than in the URL.
+ * The facets this tab alone owns, each its own URL parameter (FUEL-C3, D-FUI8).
  *
- * `state` and `driver` exist on the declines tab too and mean the same thing there — but `driver` is
- * a name here and a driver ID on the fills tab, so promoting either to a shared parameter is the
- * cross-tab collision `useFuelLogFilters`' header refuses. C3 is the step that makes each tab's own
- * facets survive a refresh; C2 keeps them exactly as linkable as the page they came from, which is
- * to say not at all.
+ * They are NOT shared with the other two tabs and the tab switch clears them, for the reason
+ * `useFuelLogFilters`' header gives: `driver` is a name here and a driver ID on the fills tab, and
+ * `sort` names a column of `efs_transactions` that does not exist on `declined_transactions`.
  */
-const local = ref<Pick<EfsFilters, "search" | "item" | "state" | "driver" | "sortKey" | "sortDir">>({});
+const search = props.shared.facet("search");
+const item = props.shared.facet("item");
+const state = props.shared.facet("state");
+const driver = props.shared.facet("driver");
+
+/**
+ * ⚠ The sortable columns, as the vocabulary a forwarded link is checked against. Every other facet
+ * on this tab fails safe on an unknown value — an empty list, with the chip saying why. A sort key
+ * does not: it reaches PostgREST's `.order()`, so an unrecognised one is an error state rather than
+ * an empty one. Kept beside the column list below, which is the only other place these names appear.
+ */
+const SORTABLE = ["unit", "tran_date", "driver_name", "odometer", "qty", "amt"] as const;
+const sortKey = props.shared.facet("sort", SORTABLE);
+const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
+const { sort, onSort } = useUrlSort(sortKey, sortDir);
 
 const filters = computed<EfsFilters>(() => ({
-  ...local.value,
+  search: search.value || undefined,
+  item: item.value || undefined,
+  state: state.value || undefined,
+  driver: driver.value || undefined,
+  sortKey: sortKey.value || undefined,
+  sortDir: sortDir.value === "desc" ? "desc" : "asc",
   unit: props.shared.unit.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
 }));
 
 const page = ref(1);
-// Deep, because `filters` is rebuilt on every change to either half — a reader who narrows the
+// Deep, because `filters` is rebuilt on every change to any of them — a reader who narrows the
 // window while on page 7 must not be left looking at a page that no longer exists.
 watch(filters, () => (page.value = 1), { deep: true });
-
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-  local.value = { ...local.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
-}
 
 const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
 
@@ -74,17 +85,6 @@ const { data: facets } = useEfsFacets();
 // FUEL-T5. The filter bar below says how many rows there are; this says how many of them reach a
 // truck, which is what every per-unit figure in this section silently depends on.
 const { data: coverage } = useEfsRowCoverage("transactions", filters);
-
-/** Two-way proxy into the LOCAL facets for one key ("" ⇄ undefined). */
-const bind = (key: "search" | "item" | "state" | "driver") =>
-  computed({
-    get: () => local.value[key] ?? "",
-    set: (v: string) => (local.value = { ...local.value, [key]: v || undefined }),
-  });
-const search = bind("search");
-const item = bind("item");
-const state = bind("state");
-const driver = bind("driver");
 
 /** The shared half, proxied for the controls that write it back to the URL. */
 const unit = computed<string>({
@@ -105,19 +105,27 @@ const driverOptions = computed(() => withAll("All drivers", facets.value?.txnDri
 // Chips surface only the popover (secondary) filters — the inline triggers
 // already display their own active value.
 const chips = computed<FilterChip[]>(() => {
-  const f = local.value;
   const out: FilterChip[] = [];
-  if (f.state) out.push({ key: "state", label: "State", value: f.state });
-  if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
+  if (state.value) out.push({ key: "state", label: "State", value: state.value });
+  if (driver.value) out.push({ key: "driver", label: "Driver", value: driver.value });
   return out;
 });
-const moreCount = computed(() => (local.value.state ? 1 : 0) + (local.value.driver ? 1 : 0));
+const moreCount = computed(() => (state.value ? 1 : 0) + (driver.value ? 1 : 0));
 function removeChip(key: string) {
-  local.value = { ...local.value, [key]: undefined };
+  if (key === "state") state.value = "";
+  if (key === "driver") driver.value = "";
 }
-/** Clears BOTH halves: a reader pressing "Clear filters" means the screen, not this component's share of it. */
+/**
+ * Clears BOTH halves: a reader pressing "Clear filters" means the screen, not this component's share
+ * of it. The sort is deliberately kept — it is how the list is ordered, not how it is narrowed, and
+ * a clear that also reshuffled the rows reads as the button doing too much. Every assignment here is
+ * one `set` in the same tick, which `useQueryState`'s buffer coalesces into one navigation.
+ */
 function clearAll() {
-  local.value = { sortKey: local.value.sortKey, sortDir: local.value.sortDir };
+  search.value = "";
+  item.value = "";
+  state.value = "";
+  driver.value = "";
   props.shared.clear();
 }
 
