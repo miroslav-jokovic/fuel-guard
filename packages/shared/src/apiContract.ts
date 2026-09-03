@@ -49,18 +49,50 @@ export type SectionAccessSetRequest = z.infer<typeof sectionAccessSetSchema>;
  * Dashboard, Ask AI, Users — are product constants an org may not deny (Q-SURF3, owner's ruling
  * 2026-09-02), and `isEditableSurface` derives that from the gate rather than from a stored flag.
  */
-export const surfaceAccessSetSchema = z.object({
-  role: z.string().refine(isEditableRole, "That role's access cannot be changed"),
-  surfaceKey: z
+const answerableSurfaceKey = () =>
+  z
     .string()
     .refine((k) => SURFACES.some((s) => s.key === k), "No such screen")
     .refine(
       (k) => SURFACES.some((s) => s.key === k && isEditableSurface(s) && s.parent === undefined),
       "That screen is not an organisation's to change",
-    ),
+    );
+
+export const surfaceAccessSetSchema = z.object({
+  role: z.string().refine(isEditableRole, "That role's access cannot be changed"),
+  surfaceKey: answerableSurfaceKey(),
   allowed: z.boolean(),
 });
 export type SurfaceAccessSetRequest = z.infer<typeof surfaceAccessSetSchema>;
+
+/**
+ * `PUT /api/surface-access/user` — one answer about one screen for one MEMBER (S4, D-SURF7).
+ *
+ * The sibling of `surfaceAccessSetSchema`, sharing its key validation rather than restating it —
+ * "which screens may be answered" is one fact and D-SURF3 says it has one home.
+ *
+ * Two deliberate differences from the role-level schema, both of which follow from the table being
+ * keyed by a person rather than by a role:
+ *
+ * ⚠ **`allowed` is nullable, and `null` means "no answer — inherit the role's".** At the role layer
+ * `allowed: true` IS the reset, because a `true` there is inert (the surface's own gate is checked
+ * first, so an allow can never widen past the section — D-SURF2) and `surfaceAccess.ts` deletes the
+ * row. Here BOTH booleans are real answers: `false` takes a screen from one member their role keeps,
+ * and `true` gives one back to a member whose role has lost it — which is the row 0296's boolean
+ * column exists for. So "unchanged" needs a third value, and it is the absence of a row.
+ *
+ * ⚠ **There is no `role` field, and the admin/driver lock therefore cannot live in this schema.** A
+ * row does not know its member's role — that lives in `memberships` and can change after the row is
+ * written — so D-PERM7/D-PERM8 are enforced by the endpoint, which looks the membership up in the
+ * caller's org, and again by `surfaceClaimFor`, which answers `{}` for a locked role before reading
+ * either table. Migration 0298's header records why a CHECK constraint cannot do it here.
+ */
+export const userSurfaceAccessSetSchema = z.object({
+  userId: z.uuid(),
+  surfaceKey: answerableSurfaceKey(),
+  allowed: z.boolean().nullable(),
+});
+export type UserSurfaceAccessSetRequest = z.infer<typeof userSurfaceAccessSetSchema>;
 
 // ── Invites ───────────────────────────────────────────────────────────────────
 export const inviteCreateSchema = z.object({

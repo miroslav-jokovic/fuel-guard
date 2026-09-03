@@ -401,6 +401,9 @@
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
+  "user_surface_access": [
+    "apps/api/src/modules/org/routes/surfaceAccess.ts"
+  ],
   "vehicle_inspection_items": [
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],

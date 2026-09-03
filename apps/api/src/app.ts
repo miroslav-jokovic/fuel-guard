@@ -407,7 +407,12 @@ export function createApp(env: Env): Express {
     let surfaces: SurfaceClaim = {};
     if (orgId) {
       try {
-        surfaces = await surfaceClaimFor(getSupabaseAdmin(env), orgId, req.auth!.role as UserRole | null);
+        surfaces = await surfaceClaimFor(
+          getSupabaseAdmin(env),
+          orgId,
+          req.auth!.role as UserRole | null,
+          req.auth!.userId,
+        );
       } catch {
         surfaces = {};
       }

@@ -27,6 +27,9 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  */
 const ORG = "org-1";
 const USER = "user-1";
+/** The technician the owner's example names, and a colleague on the same role who must be untouched. */
+const SHOP_LEAD = "00000000-0000-4000-8000-000000000010";
+const OTHER_TECH = "00000000-0000-4000-8000-000000000011";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -42,7 +45,9 @@ vi.mock("../../../middleware/auth.js", () => ({
 }));
 vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => undefined) }));
 
-const { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } = await import("./surfaceAccess.js");
+const { surfaceAccessRouter, toSurfaceOverrides, toUserSurfaceClaim, surfaceClaimFor } = await import(
+  "./surfaceAccess.js"
+);
 const { writeAudit } = await import("../../../lib/audit.js");
 
 async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
@@ -73,6 +78,20 @@ beforeEach(() => {
       org_role_surface_access: [
         { role: "technician", surface_key: "maintenance.inspectors", allowed: false },
       ],
+      // The table holds rows for ONE member, and the fixture applies the `user_id` filter the query
+      // actually asked for — returning EVERYTHING when it asked for none, which is what Postgres
+      // would do. A fixture that answered `[]` for an unfiltered read would make a handler that
+      // forgot `.eq("user_id")` look correct; this one hands the shop lead's answers to every
+      // technician, which is the "no other technician is affected" half of S4.
+      user_surface_access: (q) => {
+        const rows = [
+          { user_id: SHOP_LEAD, surface_key: "maintenance.inspectors", allowed: true },
+          { user_id: SHOP_LEAD, surface_key: "maintenance.repair-spend", allowed: false },
+        ];
+        const filter = q.filters().find((f) => f.col === "user_id");
+        return filter ? rows.filter((r) => r.user_id === filter.val) : rows;
+      },
+      memberships: [{ role: "technician" }],
     },
   });
 });
@@ -231,5 +250,228 @@ describe("surfaceClaimFor", () => {
 
   it("returns no denials for a role that cannot hold one", async () => {
     expect(await surfaceClaimFor(rec.client as never, ORG, "admin")).toEqual({});
+  });
+});
+
+// ── S4: the per-USER layer (D-SURF7) ──────────────────────────────────────────────────────────
+//
+// What distinguishes S4 from S3 is one clause of the plan's Done-when: "and no other technician is
+// affected". A role-level answer applied to the wrong person looks identical to a working feature
+// on the screen of the person who asked for it, so the fixture above varies by the `user_id` filter
+// the query actually applied — a handler that dropped that filter reads one member's answers for
+// everybody, and only an assertion about a DIFFERENT member can see it.
+
+const putUser = (base: string, body: unknown) =>
+  fetch(`${base}/api/surface-access/user`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+describe("PUT /api/surface-access/user", () => {
+  it("denying a screen for one member writes one row, org- and user-scoped, and audits it", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: SHOP_LEAD,
+        surfaceKey: "maintenance.repair-spend",
+        allowed: false,
+      });
+      expect(res.status).toBe(200);
+    });
+    const inserted = rec.writtenRows("user_surface_access");
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      org_id: ORG,
+      user_id: SHOP_LEAD,
+      surface_key: "maintenance.repair-spend",
+      allowed: false,
+      updated_by: USER,
+    });
+    expectOrgScoped(rec, ORG);
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        orgId: ORG,
+        action: "permissions.screen_changed_user",
+        meta: expect.objectContaining({ userId: SHOP_LEAD, role: "technician", allowed: false }),
+      }),
+    );
+  });
+
+  /**
+   * The row 0296's boolean column exists for, and the reason this endpoint is NOT symmetric with the
+   * role-level one above: an org denies Inspectors to `technician`, then gives it back to the shop
+   * lead alone. At the role layer a `true` is inert and therefore a reset; here it is the answer.
+   */
+  it("allowing a screen back for one member STORES `true` rather than deleting the row", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: SHOP_LEAD,
+        surfaceKey: "maintenance.inspectors",
+        allowed: true,
+      });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("user_surface_access")).toMatchObject([{ user_id: SHOP_LEAD, allowed: true }]);
+  });
+
+  it("`allowed: null` is the reset — it deletes the row and stores nothing", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: SHOP_LEAD,
+        surfaceKey: "maintenance.inspectors",
+        allowed: null,
+      });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+    expect(rec.forTable("user_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
+  });
+
+  /**
+   * D-PERM7/D-PERM8 cannot be a CHECK constraint on a user-keyed table — a row does not know its
+   * member's role, and 0298's header says so at length. This is one of the two places the lock
+   * actually lives; the other is `surfaceClaimFor`, below.
+   */
+  it("refuses a member whose role is locked (D-PERM7/D-PERM8)", async () => {
+    for (const role of ["admin", "driver"]) {
+      rec = createSupabaseRecorder({ tables: { memberships: [{ role }] } });
+      await withServer(async (base) => {
+        const res = await putUser(base, {
+          userId: SHOP_LEAD,
+          surfaceKey: "maintenance.inspectors",
+          allowed: false,
+        });
+        expect(res.status, `${role} is not editable`).toBe(400);
+      });
+      expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+    }
+  });
+
+  /**
+   * The membership lookup is org-scoped as well as user-scoped, and that is not tidiness: the
+   * service role bypasses RLS, so without the `org_id` filter an admin could answer for a member of
+   * another tenant and the composite foreign key would be the only thing left — a 500, not a
+   * refusal.
+   */
+  it("refuses a person who is not a member of the caller's org", async () => {
+    rec = createSupabaseRecorder({ tables: { memberships: [] } });
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: OTHER_TECH,
+        surfaceKey: "maintenance.inspectors",
+        allowed: false,
+      });
+      expect(res.status).toBe(404);
+    });
+    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+    const lookup = rec.forTable("memberships");
+    expect(lookup).toHaveLength(1);
+    expect(lookup[0]!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: OTHER_TECH },
+      ]),
+    );
+  });
+
+  it("refuses a key the catalogue does not have, and a product constant, before any lookup", async () => {
+    for (const surfaceKey of ["maintenance.ghost", "admin.users", "maintenance.inspections.detail"]) {
+      await withServer(async (base) => {
+        const res = await putUser(base, { userId: SHOP_LEAD, surfaceKey, allowed: false });
+        expect(res.status, `${surfaceKey} should not be answerable`).toBe(400);
+      });
+    }
+    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+  });
+});
+
+describe("toUserSurfaceClaim", () => {
+  /**
+   * The mirror of `toSurfaceOverrides`'s guard, and it matters more here: a `true` for a retired key
+   * is not merely inert, it would be a stored GRANT pointing at whatever screen later reuses the
+   * name. Keeping both booleans otherwise is the point — this layer is the only one where `true`
+   * says something.
+   */
+  it("keeps both answers but drops a key the catalogue no longer has", () => {
+    expect(
+      toUserSurfaceClaim([
+        { surface_key: "maintenance.inspectors", allowed: true },
+        { surface_key: "maintenance.repair-spend", allowed: false },
+        { surface_key: "a.screen.that.was.retired", allowed: true },
+      ]),
+    ).toEqual({ "maintenance.inspectors": true, "maintenance.repair-spend": false });
+  });
+});
+
+describe("surfaceClaimFor — the user layer over the role layer (D-SURF6)", () => {
+  /**
+   * The owner's example, resolved: the org has taken Inspectors from `technician`, and the shop lead
+   * keeps it while also losing Repair spend that the role still has.
+   */
+  it("merges the member's own answers OVER their role's", async () => {
+    expect(await surfaceClaimFor(rec.client as never, ORG, "technician", SHOP_LEAD)).toEqual({
+      "maintenance.inspectors": true,
+      "maintenance.repair-spend": false,
+    });
+    expectOrgScoped(rec, ORG);
+  });
+
+  /** The clause that distinguishes S4 from S3. */
+  it("leaves every other member of the same role untouched", async () => {
+    expect(await surfaceClaimFor(rec.client as never, ORG, "technician", OTHER_TECH)).toEqual({
+      "maintenance.inspectors": false,
+    });
+  });
+
+  /**
+   * Fail OPEN, one layer at a time. This is the property that licenses S4 shipping its table and its
+   * reader in ONE merge against D-SURF9's two-merge rule: for the ~9 minutes between a deploy being
+   * served and its migration being applied, the user table does not exist, which is a query error,
+   * so the role layer answers exactly as it did the minute before.
+   */
+  it("returns the role's answers unchanged when the user table cannot be read", async () => {
+    const broken = createSupabaseRecorder({
+      tables: {
+        org_role_surface_access: [
+          { role: "technician", surface_key: "maintenance.inspectors", allowed: false },
+        ],
+        user_surface_access: { data: null, error: { message: "relation does not exist" } },
+      },
+    });
+    expect(await surfaceClaimFor(broken.client as never, ORG, "technician", SHOP_LEAD)).toEqual({
+      "maintenance.inspectors": false,
+    });
+  });
+
+  /** …and the mirror: the role table failing does not discard the member's own answers. */
+  it("keeps the member's answers when the ROLE table cannot be read", async () => {
+    const broken = createSupabaseRecorder({
+      tables: {
+        org_role_surface_access: { data: null, error: { message: "boom" } },
+        user_surface_access: [{ surface_key: "maintenance.inspectors", allowed: false }],
+      },
+    });
+    expect(await surfaceClaimFor(broken.client as never, ORG, "technician", SHOP_LEAD)).toEqual({
+      "maintenance.inspectors": false,
+    });
+  });
+
+  /**
+   * The READ half of the lock 0298 cannot state as a CHECK. A row for a locked role can only exist
+   * through a restore, a support action or a future writer — and this is the last place that can
+   * decline to honour it, so it must refuse before either table is read rather than after.
+   */
+  it("reads neither table for a role that cannot hold an override", async () => {
+    expect(await surfaceClaimFor(rec.client as never, ORG, "admin", SHOP_LEAD)).toEqual({});
+    expect(rec.forTable("user_surface_access")).toHaveLength(0);
+  });
+
+  /** A caller with no user id — the shape `/api/me` had before S4 — still gets the role's answers. */
+  it("answers with the role alone when no member is named", async () => {
+    expect(await surfaceClaimFor(rec.client as never, ORG, "technician")).toEqual({
+      "maintenance.inspectors": false,
+    });
+    expect(rec.forTable("user_surface_access")).toHaveLength(0);
   });
 });
