@@ -223,13 +223,26 @@ export interface TruckCpm {
   revenue: number;
   /** Revenue minus every cost IN THIS REPORT (direct + allocated + fixed) — the caveat names what is not. */
   netTotal: number;
-  /** Cents per mile. Direct, allocated and fixed kept apart; `total` is their sum. */
-  directCpm: number;
-  allocatedCpm: number;
-  fixedCpm: number;
-  totalCpm: number;
-  revenueCpm: number;
-  netCpm: number;
+  /**
+   * Cents per mile. Direct, allocated and fixed kept apart; `total` is their sum. NULL when the
+   * truck has no miles in this window (D-FIN10) — never 0, because $0.00 per mile is a plausible
+   * number and this one is not computed. The dollars above are still real; only the rate is absent.
+   */
+  directCpm: number | null;
+  allocatedCpm: number | null;
+  fixedCpm: number | null;
+  totalCpm: number | null;
+  revenueCpm: number | null;
+  netCpm: number | null;
+}
+
+/** Dollars sitting on trucks the report cannot rate — no miles in the window. Named, never smeared. */
+export interface CpmUnmeasured {
+  trucks: number;
+  directTotal: number;
+  fixedTotal: number;
+  allocatedTotal: number;
+  revenueTotal: number;
 }
 
 export interface CpmReport {
@@ -247,12 +260,18 @@ export interface CpmReport {
     fixedTotal: number;
     revenueTotal: number;
     netTotal: number;
-    directCpm: number;
-    allocatedCpm: number;
-    fixedCpm: number;
-    totalCpm: number;
-    revenueCpm: number;
-    netCpm: number;
+    /**
+     * Per-mile over MEASURED trucks only: the dollars of trucks that have miles, divided by those
+     * miles (D-FIN10). The `*Total` fields above cover every truck, including `unmeasured`, so the
+     * tie-out still holds; the rates exclude what cannot be rated. Null when no truck has miles.
+     */
+    directCpm: number | null;
+    allocatedCpm: number | null;
+    fixedCpm: number | null;
+    totalCpm: number | null;
+    revenueCpm: number | null;
+    netCpm: number | null;
+    unmeasured: CpmUnmeasured;
   };
   /**
    * The owner-operator side, per payee. Empty when the rules include them in the truck figures.

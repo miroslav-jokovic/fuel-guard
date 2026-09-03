@@ -29,4 +29,3 @@ export { startDigestScheduler } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
 export { stampIntegrationSynced } from "./integrationSync.js";
-export { displayNameFor } from "./displayName.js";

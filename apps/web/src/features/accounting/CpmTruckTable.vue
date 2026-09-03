@@ -31,8 +31,11 @@ defineEmits<{ sort: [key: string]; retry: []; "update:page": [n: number] }>();
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
-// Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
-const fmtCpm = (n: number) => `$${(n / 100).toFixed(2)}`;
+// Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢. A rate the
+// harness could not compute (no miles this window, D-FIN10) is a dash, never $0.00: the dollars in the
+// row are real, the rate is absent, and $0.00 would read as cheap.
+const NO_RATE = "—";
+const fmtCpm = (n: number | null) => (n == null ? NO_RATE : `$${(n / 100).toFixed(2)}`);
 
 // The miles columns follow the report's basis (owner ruling: Samsara actuals are the fleet's
 // mileage truth; McLeod loaded stays as reference). The estimate columns appear only when the
@@ -95,10 +98,18 @@ const columns = computed<DataTableColumn[]>(() => [
     <template #cell-directTotal="{ value }">{{ fmtUsd(value) }}</template>
     <template #cell-fixedCost="{ value }">{{ fmtUsd(value) }}</template>
     <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-totalCpm="{ value }">{{ fmtCpm(value) }}</template>
-    <template #cell-revenueCpm="{ value }">{{ fmtCpm(value) }}</template>
+    <template #cell-totalCpm="{ value }">
+      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtCpm(value) }}</span>
+    </template>
+    <template #cell-revenueCpm="{ value }">
+      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtCpm(value) }}</span>
+    </template>
     <template #cell-netCpm="{ value }">
-      <span class="font-semibold" :class="value >= 0 ? 'text-ink' : 'text-danger-600'">{{ fmtCpm(value) }}</span>
+      <span
+        class="font-semibold"
+        :class="value == null ? 'text-ink-tertiary' : value >= 0 ? 'text-ink' : 'text-danger-600'"
+        :title="value == null ? 'No miles this window — rate not computed' : undefined"
+      >{{ fmtCpm(value) }}</span>
     </template>
     <template #footer>
       <TablePagination
