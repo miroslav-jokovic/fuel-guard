@@ -362,3 +362,162 @@ describe("PUT /api/section-access/user", () => {
     expect(rec.writtenRows("user_section_access")).toHaveLength(0);
   });
 });
+
+/**
+ * The per-user READ (S6). It is what the People tab draws, and the one thing it must never do is
+ * hand back a resolved answer: an admin looking at `View` has to know whether it came from the
+ * shipped matrix, from the org's answer for that role, or from this person's own row, because
+ * "reset" and "set to view" are different acts that would otherwise look identical.
+ */
+describe("GET /api/section-access/user/:userId", () => {
+  const layered = () =>
+    createSupabaseRecorder({
+      tables: {
+        // Both fixtures apply the filter the query actually asked for and return EVERYTHING when it
+        // asked for none — which is what Postgres does. A fixture answering `[]` for an unfiltered
+        // read would let a handler that forgot `.eq("role")` or `.eq("user_id")` look correct.
+        org_section_access: (q) => {
+          const rows = [
+            { role: "dispatcher", section: "safety", access: "view" },
+            // A section the ROLE is answered for and the member is not, so the two layers do not
+            // answer the same key. Without it, merging one into the other is invisible.
+            { role: "dispatcher", section: "equipment", access: "none" },
+            { role: "recruiter", section: "fuel", access: "manage" },
+          ];
+          const f = q.filters().find((x) => x.col === "role");
+          return f ? rows.filter((r) => r.role === f.val) : rows;
+        },
+        user_section_access: (q) => {
+          const rows = [
+            { org_id: ORG, user_id: DISPATCHER, section: "safety", access: "manage" },
+            { org_id: ORG, user_id: OUTSIDER, section: "billing", access: "view" },
+            // The same person, in a tenant this admin has no business reading. The service role
+            // bypasses RLS, so the `org_id` filter is the only thing that excludes this row.
+            { org_id: "org-2", user_id: DISPATCHER, section: "hazmat", access: "manage" },
+          ];
+          return q
+            .filters()
+            .reduce(
+              (acc, f) => acc.filter((r) => (r as Record<string, unknown>)[f.col] === f.val),
+              rows as Array<Record<string, unknown>>,
+            );
+        },
+        memberships: [{ role: "dispatcher" }],
+      },
+    });
+
+  const get = async (userId: string) =>
+    withServer(async (base) => {
+      const res = await fetch(`${base}/api/section-access/user/${userId}`);
+      return {
+        status: res.status,
+        body: (await res.json()) as {
+          role?: string;
+          shipped?: Record<string, string>;
+          roleOverrides?: Record<string, string>;
+          userOverrides?: Record<string, string>;
+        },
+      };
+    });
+
+  it("returns the three layers separately, never merged", async () => {
+    rec = layered();
+    const { status, body } = await get(DISPATCHER);
+    expect(status).toBe(200);
+    expect(body.role).toBe("dispatcher");
+    // The shipped matrix, read from `auth.ts` rather than retyped here.
+    expect(body.shipped!.dispatch).toBe(sectionAccess("dispatcher", "dispatch"));
+    expect(body.roleOverrides).toEqual({ safety: "view", equipment: "none" });
+    expect(body.userOverrides).toEqual({ safety: "manage" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  /**
+   * The role filter, asserted on its own because losing it is invisible in the merged view: the
+   * page would show a recruiter's override as though the org had written it for this dispatcher.
+   */
+  it("reads only this member's ROLE's overrides", async () => {
+    rec = layered();
+    const { body } = await get(DISPATCHER);
+    expect(body.roleOverrides).not.toHaveProperty("fuel");
+    const q = rec.forTable("org_section_access")[0]!;
+    expect(q.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "role", val: "dispatcher" },
+      ]),
+    );
+  });
+
+  /**
+   * And the user filter, for the reason S5's mutation pass found the hard way on the DELETE: a
+   * missing `user_id` here shows one member another member's answers, and an admin would then
+   * "reset" a cell that was never theirs.
+   */
+  it("reads only this member's own overrides", async () => {
+    rec = layered();
+    const { body } = await get(DISPATCHER);
+    expect(body.userOverrides).not.toHaveProperty("billing");
+    const q = rec.forTable("user_section_access")[0]!;
+    expect(q.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: DISPATCHER },
+      ]),
+    );
+  });
+
+  /**
+   * The worst read in this router, and the one RLS cannot stop: the API holds the service role, so
+   * `.eq("org_id")` is the whole of the tenant boundary on a per-user read.
+   */
+  it("does not read another tenant's rows for the same person", async () => {
+    rec = layered();
+    const { body } = await get(DISPATCHER);
+    expect(body.userOverrides).not.toHaveProperty("hazmat");
+  });
+
+  it("drops a row naming a section an org may not answer for", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        org_section_access: [],
+        user_section_access: [
+          { section: "admin", access: "manage" },
+          { section: "safety", access: "none" },
+        ],
+        memberships: [{ role: "dispatcher" }],
+      },
+    });
+    const { body } = await get(DISPATCHER);
+    expect(body.userOverrides).toEqual({ safety: "none" });
+  });
+
+  /**
+   * ⚠ The read does NOT apply D-PERM7/D-PERM8. The lock says who may be CHANGED; an admin still has
+   * to be able to see what an admin or a driver can reach, or the page cannot explain why it offers
+   * no controls for them.
+   */
+  it("shows a locked member's access rather than refusing to look", async () => {
+    rec = createSupabaseRecorder({
+      tables: { org_section_access: [], user_section_access: [], memberships: [{ role: "admin" }] },
+    });
+    const { status, body } = await get(DISPATCHER);
+    expect(status).toBe(200);
+    expect(body.role).toBe("admin");
+    expect(body.shipped!.fuel).toBe(sectionAccess("admin", "fuel"));
+  });
+
+  it("refuses a person who is not a member of the caller's org", async () => {
+    rec = createSupabaseRecorder({ tables: { memberships: [] } });
+    const { status } = await get(OUTSIDER);
+    expect(status).toBe(404);
+  });
+
+  /** A malformed id is a 400, not a Postgres cast error surfacing as an unexplained 500. */
+  it("refuses an id that is not a member id", async () => {
+    rec = layered();
+    const { status } = await get("not-a-uuid");
+    expect(status).toBe(400);
+    expect(rec.forTable("memberships")).toHaveLength(0);
+  });
+});

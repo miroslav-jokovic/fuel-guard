@@ -534,7 +534,7 @@ the member's next token refresh — up to an hour, `jwt_expiry = 3600` — where
 change lands on the next page load. D-PERM6 and D-SURF4 make that difference real and S6's page must
 not average the two.
 
-### S6 · The permissions page becomes editable
+### S6 · The permissions page becomes editable — DONE 2026-09-03 (#PR; no migration)
 `EDITABLE-PERMISSIONS-PLAN.md` P5, extended: a **Roles** tab (the 7 × 11 section matrix plus each
 role's surfaces) and a **People** tab (search a member, see their resolved access with each cell
 marked *default* / *org override* / *user override*, reset per row). Keep the live sidebar preview
@@ -545,6 +545,75 @@ D-PERM6's staleness sentence appears on **section** saves (up to an hour) and **
 saves (next page load). The difference is real and the UI must not average it.
 **Prerequisite:** S3 and S4 shipped. S5 too, if the People tab offers section overrides — if S5 slips,
 the tab ships with surfaces only and says so, rather than showing a control that saves nothing.
+
+**What shipped.** Two read endpoints, a two-tab page, and no schema at all — every table this page
+writes already existed.
+
+- **The reads that were left for this step, shaped the way the People tab needs them.**
+  `GET /api/section-access/user/:userId` and `GET /api/surface-access/user/:userId`, admin-only,
+  org-scoped, mirroring the existing `GET /`s: each answers with the overrides AND the matrix or
+  catalogue they are read against, so the client reconstructs no defaults (D-PERM4, D-SURF3).
+- **They answer with the LAYERS UNMERGED, which is the one thing this endpoint does that no other
+  consumer wants.** Everything else resolves and forgets — the auth hook mints one value,
+  `surfaceClaimFor` merges the person over the role — because a request only needs to know what the
+  caller may do. A cell reading `View` without saying which layer produced it is a control an admin
+  cannot use: "reset" and "set to view" look identical on it and behave differently afterwards.
+- ⚠ **Neither read applies the D-PERM7/D-PERM8 lock, deliberately.** That rule says who may be
+  CHANGED. An admin still has to see what an `admin` or a `driver` member reaches, or the page cannot
+  explain why it offers them no controls. The writes refuse them exactly as before.
+- `lookupMemberRole` (`modules/org/memberLookup.ts`) — the membership lookup the two new GETs and the
+  two per-user PUTs all need. It was six identical lines in four places, and the lines are where the
+  role lock reads its role and where an admin's request is confined to their own tenant; a fifth copy
+  written slightly differently is a cross-tenant read nothing refuses.
+- **The catalogue now carries `level` as well as `section`.** A page cannot draw a screen cell
+  without it: Import inside `fuel: "view"` is not a choice an admin has (D-SURF2), and saying *why*
+  is the difference between a disabled control and a broken one.
+- **The page**: a **Roles** tab — the 7 × 11 matrix with each departing cell showing what it would
+  revert to, reset per row, plus a screens × roles grid and a role preview — and a **People** tab —
+  one member's sections and screens with every cell marked *Default* / *Role override* / *Person
+  override*, and their resolved sidebar. `buildNavGroups` draws both previews, so the page cannot
+  become a second opinion about the product's navigation.
+- **The two staleness contracts are said separately and never averaged** (D-PERM6 vs D-SURF4): a
+  section save says it lands within the hour, a screen save says it lands on the next page load, and
+  `SettingsPermissionsPage.test.ts` asserts each toast carries its own sentence and not the other's.
+- **The per-person controls have three values** — "Follow their role" is `null` on the wire and the
+  absence of a row, not a write of today's answer, which is what keeps a person tracking a role an
+  admin changes later.
+- **The page states what it does not govern** (Q-SURF1's fallback, twice required by this plan) and
+  names the six screens no org may deny (Q-SURF3) beneath the preview that renders them.
+
+⚠ **The 7 × 11 matrix renders seven rows and eleven columns and not nine by twelve.** `admin` and
+`driver` are not rows and `admin` is not a column, and they are explained in a sentence rather than
+rendered as disabled controls: a greyed row invites "why can't I", and the answer is a ruling
+(D-PERM7/D-PERM8), not a permission. It also keeps the page reading exactly what `GET /` sends —
+`defaults` covers the editable roles only, so a ninth row would have had to reconstruct the matrix.
+
+**Verified by:** `pnpm test` (unit + all 52 matrices, `rls` 467, `org-section-access` 92,
+`user-section-access` 26, `user-surface-access` 20, `org-surface-access` 18 — all unchanged, this
+step touches no SQL), `pnpm typecheck`, `pnpm build`, `pnpm lint` (0 errors), and the whole CI gate
+list extracted from `ci.yml` — `lint:migrations`, `lint:rls`, `lint:migration-ordering`,
+`lint:surfaces`, `lint:capabilities`, `lint:upserts`, `lint:boundaries`, `lint:comment-claims`,
+`lint:filesize`, `lint:funcsize`, `lint:tests`, `lint:secrets`, `lint:codegen`,
+`lint:table-producers`, `lint:table-writers`, `lint:chart-colors`, `lint:cli-streams`,
+`lint:light-dark`, `lint:token-schema`, `lint:tokens-parity`, `lint:ui-adoption`, `lint:ui-contrast`,
+`--filter ./apps/web lint:tokens`. **Both snapshots are untouched** — this step changes no route and
+no sidebar entry, so `navEquivalence.test.ts.snap` and `routeTable.test.ts.snap` show an EMPTY diff,
+which is the review it was supposed to be.
+
+**Mutation-tested, subject not test.** Twenty mutations — seven of the section read, seven of the
+surface read, thirteen of the page and its cell logic — each failing a different assertion. Three
+changed what shipped rather than confirming it, and all three are the same class this programme keeps
+finding only this way:
+
+- **Both per-user fixtures answered the same key at both layers**, so merging the role layer INTO the
+  person's passed every assertion in both files. Each fixture now has a key only the role layer
+  answers, and the merge fails on it.
+- **The reset-row test overrode a section whose shipped default was already `none`**, so a reset that
+  wrote `none` instead of the shipped value was indistinguishable from a correct one. It now overrides
+  `equipment`, whose default is `view`.
+- **The `level` assertion named `fuel.import`**, which FUEL-C4 retired the next day. It reads the
+  first manage-level screen out of the catalogue now: a screen retiring is not a reason for this test
+  to fail, but a `level` that stopped travelling is.
 
 ### S7 · Audit the gates the page cannot reach
 Q-SURF1: the ~24 hard-coded `requireRole` lists and the 65 endpoints with no authorization. Each

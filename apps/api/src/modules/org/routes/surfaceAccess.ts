@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import {
   EDITABLE_ROLES,
   NAV_SURFACES,
@@ -17,6 +18,7 @@ import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { lookupMemberRole } from "../memberLookup.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -128,6 +130,26 @@ export async function surfaceClaimFor(
   return { ...fromRole, ...fromUser };
 }
 
+/**
+ * The screens an org may actually answer for, sent with every read (D-SURF3).
+ *
+ * Only the editable ones: a `staff` or `admin` gated screen is a product constant an org may not
+ * deny (Q-SURF3), and offering it as a cell would be a control that saves nothing.
+ *
+ * `section` and `level` travel with each entry because the page cannot draw the cell without them —
+ * a screen inside a section the role does not hold is not a choice an admin has (D-SURF2), and
+ * saying "hidden, because they have no Maintenance access" is the difference between a disabled
+ * control and a broken one. Derived from the catalogue rather than restated, so a screen that moves
+ * section moves here with it.
+ */
+const EDITABLE_CATALOGUE = NAV_SURFACES.filter(isEditableSurface).map((s) => ({
+  key: s.key,
+  label: s.label,
+  group: s.group,
+  section: s.gate.kind === "section" ? s.gate.section : null,
+  level: s.gate.kind === "section" ? s.gate.level : null,
+}));
+
 export function surfaceAccessRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -155,15 +177,67 @@ export function surfaceAccessRouter(): Router {
       }
       res.json({
         overrides: toSurfaceOverrides((data ?? []) as SurfaceRow[]),
-        // Only the editable ones: a `staff` or `admin` gated screen is a product constant an org may
-        // not deny (Q-SURF3), and offering it as a cell would be a control that saves nothing.
-        surfaces: NAV_SURFACES.filter(isEditableSurface).map((s) => ({
-          key: s.key,
-          label: s.label,
-          group: s.group,
-          section: s.gate.kind === "section" ? s.gate.section : null,
-        })),
+        surfaces: EDITABLE_CATALOGUE,
         editableRoles: EDITABLE_ROLES,
+      });
+    }),
+  );
+
+  /**
+   * One MEMBER's two layers of screen answers, unresolved (S6, D-SURF6).
+   *
+   * The sibling of `GET /api/section-access/user/:userId`, and it separates the layers for that
+   * endpoint's reason: `surfaceClaimFor` above merges them and forgets which one answered, because
+   * that is all a request needs. A page whose cell cannot say whether a screen is hidden for the
+   * whole ROLE or for this PERSON is a page an admin cannot use — "reset" and "hide" would be the
+   * same control.
+   *
+   * ⚠ There is no `shipped` half to send, and its absence is the design rather than an omission. A
+   * surface has no per-screen shipped default: the shipped answer is the surface's own GATE, which
+   * is the section question, and it travels in `surfaces[].section` / `.level` for the page to ask
+   * against the member's section access. An org's row can only narrow within that (D-SURF2).
+   *
+   * ⚠ Read-only, and it does NOT apply the D-PERM7/D-PERM8 lock — see the section sibling's header.
+   */
+  router.get(
+    "/user/:userId",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const parsedId = z.uuid().safeParse(req.params.userId);
+      if (!parsedId.success) {
+        res.status(400).json(apiError("bad_request", "That is not a member id"));
+        return;
+      }
+      const userId = parsedId.data;
+
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "db_error") {
+          res.status(500).json(apiError("db_error", "Could not load screen permissions"));
+        } else {
+          res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
+        }
+        return;
+      }
+
+      const [roleRes, userRes] = await Promise.all([
+        admin.from("org_role_surface_access").select(ROW_COLS).eq("org_id", orgId).eq("role", member.role),
+        admin.from("user_surface_access").select(USER_ROW_COLS).eq("org_id", orgId).eq("user_id", userId),
+      ]);
+      if (roleRes.error || userRes.error) {
+        res.status(500).json(apiError("db_error", "Could not load screen permissions"));
+        return;
+      }
+
+      res.json({
+        userId,
+        role: member.role,
+        roleOverrides: toSurfaceOverrides((roleRes.data ?? []) as SurfaceRow[])[member.role as UserRole] ?? {},
+        userOverrides: toUserSurfaceClaim((userRes.data ?? []) as UserSurfaceRow[]),
+        surfaces: EDITABLE_CATALOGUE,
       });
     }),
   );
@@ -256,21 +330,16 @@ export function surfaceAccessRouter(): Router {
       const orgId = req.auth!.orgId!;
       const { userId, surfaceKey, allowed } = res.locals.body as UserSurfaceAccessSetRequest;
 
-      const { data: member, error: memberErr } = await admin
-        .from("memberships")
-        .select("role")
-        .eq("org_id", orgId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (memberErr) {
-        res.status(500).json(apiError("db_error", "Could not update screen permissions"));
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "db_error") {
+          res.status(500).json(apiError("db_error", "Could not update screen permissions"));
+        } else {
+          res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
+        }
         return;
       }
-      if (!member) {
-        res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
-        return;
-      }
-      if (!(EDITABLE_ROLES as string[]).includes((member as { role: string }).role)) {
+      if (!(EDITABLE_ROLES as string[]).includes(member.role)) {
         res
           .status(400)
           .json(apiError("role_locked", "That member's screens cannot be changed (D-PERM7/D-PERM8)"));
@@ -314,7 +383,7 @@ export function surfaceAccessRouter(): Router {
         // carries the shipped default.
         meta: {
           userId,
-          role: (member as { role: string }).role,
+          role: member.role,
           surfaceKey,
           allowed,
           resetToRole: allowed === null,

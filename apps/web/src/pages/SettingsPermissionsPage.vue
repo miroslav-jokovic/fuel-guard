@@ -1,191 +1,69 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import {
-  APP_SECTIONS,
-  USER_ROLES,
-  USER_ROLE_LABELS,
-  sectionAccess,
-  type AppSection,
-  type OrgMember,
-  type UserRole,
-} from "@silvicom/shared";
-import { AppCard as BaseCard, AppSelect, AppTable } from "@silvicom/ui";
+import { ref } from "vue";
+import { AppCallout, AppTabs, type TabItem } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import SettingsSection from "@/components/ui/SettingsSection.vue";
-import { apiFetch } from "@/lib/api";
-import { buildNavGroups } from "@/lib/nav";
-import { useModulesQuery } from "@/composables/useModules";
-import { useToastStore } from "@/stores/toast";
+import RolesTab from "@/features/permissions/RolesTab.vue";
+import PeopleTab from "@/features/permissions/PeopleTab.vue";
 
 /**
- * Permissions (EDITABLE-PERMISSIONS-PLAN.md P0, D-PERM1).
+ * Permissions (SURFACE-ENTITLEMENTS-PLAN.md S6; EDITABLE-PERMISSIONS-PLAN.md P5).
  *
- * The matrix used to render as a collapsed panel at the bottom of `/settings/users` — no route, no
- * nav entry, no title, and reachable only by an admin who already knew to press "Show". The owner's
- * report on 2026-09-02 was, in full, "we dont have permissions page … at least i dont see it", and
- * that is a fair reading of a page that is not addressable.
+ * ── WHAT THIS PAGE BECAME ───────────────────────────────────────────────────────────────────────
+ * P0 shipped it read-only, with a card saying in as many words that the matrix could not be changed
+ * here — honest at the time, because the matrix was a compile-time literal mirrored into ~89 RLS
+ * predicates and an "edit" control would have changed what the UI hid and nothing about what the
+ * database allowed. S1–S5 removed that reason: an org's answers now live in four tables, travel in
+ * the JWT (sections) and in `/api/me` (screens), and are enforced by RLS, the API, the router guard
+ * and the sidebar. Until this step the only way to write one was a `PUT` with curl.
  *
- * ⚠ READ-ONLY, and it says so on screen. The matrix is a compile-time literal
- * (`packages/shared/src/auth.ts`) mirrored by hand into ~89 RLS predicates, so an "edit" control
- * here would change what the UI hides and nothing about what the database allows — a page that
- * lies about security. Making it genuinely editable is P1–P6 of the plan; this step is what that
- * page is built on, and it is worth shipping alone because it answers the discoverability half now.
+ * ── TWO TABS, BECAUSE THEY ANSWER TWO DIFFERENT QUESTIONS ───────────────────────────────────────
+ * Roles is the default setup — the 7 × 11 matrix and the screens each role opens. People is the
+ * custom setup the owner asked for on 2026-09-02, and it is not a shortcut into the same rows: a
+ * person's answer outlives their role changing underneath them, and it is the only layer where
+ * "shown" is a real answer rather than a reset (D-SURF6, D-SURF7).
  *
- * The second table is the point of the page rather than a decoration: the matrix says what a ROLE
- * may do, and the question actually asked was "control exactly what they can see on dashboard".
- * That is answered by `buildNavGroups` — the same function the sidebar calls — so this shows the
- * real nav a given member gets, not a second opinion about it.
+ * ── WHAT THIS PAGE DOES NOT GOVERN, SAID OUT LOUD ───────────────────────────────────────────────
+ * ⚠ Q-SURF1 (step S7) is not done: roughly two dozen API endpoints still ask a hand-written list of
+ * roles, and about sixty ask only that the caller is signed in. Those are mostly correct by design —
+ * provider webhooks, the driver app's own surfaces, participation-scoped messaging — but "mostly" is
+ * not a measurement, and a permissions page that implied completeness before that audit landed would
+ * be making a promise the product has not yet checked. The callout below says so, and it comes out
+ * when S7 does.
  */
-const toast = useToastStore();
-const modules = useModulesQuery();
-
-const SECTION_LABELS: Record<AppSection, string> = {
-  fuel: "Fuel",
-  dispatch: "Dispatch",
-  safety: "Safety",
-  hazmat: "HazmatGuard",
-  roster: "Roster",
-  equipment: "Equipment",
-  recruitment: "Recruitment",
-  admin: "Admin",
-  settings: "Settings",
-  accounting: "Accounting",
-  billing: "Billing",
-  maintenance: "Maintenance",
-};
-
-const permMatrix = computed(() =>
-  USER_ROLES.map((r) => ({
-    role: r,
-    label: USER_ROLE_LABELS[r],
-    cells: APP_SECTIONS.map((s) => ({ section: s, access: sectionAccess(r, s) })),
-  })),
-);
-const accessText = (a: string) => (a === "manage" ? "Manage" : a === "view" ? "View" : "—");
-const accessCls = (a: string) =>
-  a === "manage" ? "font-medium text-success-700" : a === "view" ? "text-ink-secondary" : "text-ink-tertiary";
-
-// ── What one member actually sees ────────────────────────────────────────────
-const members = ref<OrgMember[]>([]);
-const loading = ref(false);
-const selectedUserId = ref<string | null>(null);
-
-async function load() {
-  loading.value = true;
-  const res = await apiFetch<{ members: OrgMember[] }>("/api/members");
-  if (res.ok && res.data) {
-    members.value = res.data.members;
-    selectedUserId.value ??= members.value[0]?.userId ?? null;
-  } else {
-    toast.error("Could not load members", res.error?.message);
-  }
-  loading.value = false;
-}
-onMounted(load);
-
-const memberOptions = computed(() =>
-  members.value.map((m) => ({ value: m.userId, label: `${m.email ?? m.userId} — ${USER_ROLE_LABELS[m.role as UserRole]}` })),
-);
-const selectedMember = computed(() => members.value.find((m) => m.userId === selectedUserId.value) ?? null);
-
-/**
- * The member's sidebar, built by the function that builds the real one. Hazmat review and Messages
- * carry live count badges in the real nav; passing none here is correct — a count is not a
- * permission, and a zero badge would read as "this item is hidden".
- */
-const memberNav = computed(() => {
-  const role = (selectedMember.value?.role ?? null) as UserRole | null;
-  if (!role) return [];
-  return buildNavGroups(role, modules.data.value ?? null);
-});
-
-const hiddenSections = computed(() => {
-  const role = (selectedMember.value?.role ?? null) as UserRole | null;
-  if (!role) return [];
-  return APP_SECTIONS.filter((s) => sectionAccess(role, s) === "none").map((s) => SECTION_LABELS[s]);
-});
+const tabs: TabItem[] = [
+  { value: "roles", label: "Roles" },
+  { value: "people", label: "People" },
+];
+const tab = ref("roles");
 </script>
 
 <template>
-  <div class="space-y-8">
-    <PageHeader description="What each role can reach, and exactly what a given member sees in the sidebar." />
+  <div class="space-y-6">
+    <PageHeader
+      description="What each role can reach, what one person can reach, and exactly what they see in the sidebar."
+    />
 
-    <BaseCard as="section">
-      <h3 class="text-base font-semibold text-ink">These permissions are fixed</h3>
-      <p class="mt-1 text-sm text-ink-muted">
-        Access is decided by a member's role, and the roles below are built in. To change what
-        someone can reach, change their role on the
-        <RouterLink to="/settings/users" class="text-brand-700 underline">Users page</RouterLink>.
-        Editing the roles themselves is planned and not built yet.
-      </p>
-    </BaseCard>
+    <AppCallout tone="info">
+      Sections decide what the database itself will hand over, so a change to one applies within an
+      hour, when the person's sign-in refreshes. Screens decide what appears in the sidebar and which
+      addresses open, and apply the next time they load a page. A screen can only narrow what a
+      section already allows — it can never hand out data the section refuses.
+    </AppCallout>
 
-    <SettingsSection title="What each role can reach">
-      <BaseCard as="section">
-        <p class="mb-3 text-sm text-ink-muted">
-          <span class="font-medium text-success-700">Manage</span> = view and edit. View = read-only.
-          — = the section is hidden entirely.
-        </p>
-        <div class="overflow-x-auto">
-          <AppTable class="min-w-full text-sm">
-            <thead class="text-ink-muted">
-              <tr>
-                <th class="py-2 pr-4 text-left font-medium">Role</th>
-                <th v-for="s in APP_SECTIONS" :key="s" class="px-3 py-2 text-center font-medium">
-                  {{ SECTION_LABELS[s] }}
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-edge-subtle">
-              <tr v-for="prow in permMatrix" :key="prow.role">
-                <td class="py-2 pr-4 font-medium text-ink">{{ prow.label }}</td>
-                <td
-                  v-for="c in prow.cells"
-                  :key="c.section"
-                  class="px-3 py-2 text-center"
-                  :class="accessCls(c.access)"
-                >
-                  {{ accessText(c.access) }}
-                </td>
-              </tr>
-            </tbody>
-          </AppTable>
-        </div>
-      </BaseCard>
-    </SettingsSection>
+    <AppTabs v-model="tab" :tabs="tabs" label="Permission views" id-prefix="permissions" />
 
-    <SettingsSection title="What one member sees">
-      <BaseCard as="section">
-        <div class="max-w-md">
-          <AppSelect v-model="selectedUserId" :options="memberOptions" :disabled="loading" />
-        </div>
+    <div v-if="tab === 'roles'" id="permissions-panel-roles" role="tabpanel" aria-labelledby="permissions-tab-roles">
+      <RolesTab />
+    </div>
+    <div v-else id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
+      <PeopleTab />
+    </div>
 
-        <p v-if="loading" class="mt-4 text-sm text-ink-muted">Loading members…</p>
-        <p v-else-if="!selectedMember" class="mt-4 text-sm text-ink-muted">
-          No members yet. Invite one from the Users page.
-        </p>
-
-        <template v-else>
-          <p class="mt-4 text-sm text-ink-muted">
-            Signed in as {{ selectedMember.email ?? selectedMember.userId }}, they see these sidebar
-            items:
-          </p>
-          <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="g in memberNav" :key="g.label ?? 'top'" class="rounded-surface bg-surface-subtle p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                {{ g.label ?? "Top level" }}
-              </p>
-              <ul class="mt-2 space-y-1">
-                <li v-for="i in g.items" :key="i.to" class="text-sm text-ink-secondary">{{ i.name }}</li>
-              </ul>
-            </div>
-          </div>
-
-          <p v-if="hiddenSections.length" class="mt-4 text-sm text-ink-muted">
-            Hidden from them: {{ hiddenSections.join(", ") }}.
-          </p>
-        </template>
-      </BaseCard>
-    </SettingsSection>
+    <AppCallout tone="caution">
+      Not every part of the product is governed from this page yet. A handful of API endpoints still
+      decide access from a fixed list of roles rather than from the matrix above, so denying someone a
+      screen hides it and closes its address, and a few background or integration endpoints will still
+      answer. Those are being worked through; nothing on this page overstates what it controls.
+    </AppCallout>
   </div>
 </template>
