@@ -23,11 +23,14 @@
  * and logging a fill-up, which is an act on the fuel log rather than on one of its views.
  *
  * ── THE GATE, WHICH IS NOT COSMETIC ─────────────────────────────────────────────────────────────
- * ⚠ `/fuel-log` is catalogued `always` and the two pages absorbed here were `section("fuel")`.
- * Merging them without a check would widen who can read a decline — `recruiter` and `technician` both
- * carry `fuel: "none"` and both reach this path today. So the two absorbed tabs render only for a
- * caller who can view the fuel section, read from the same matrix the catalogue reads (D-FUI12), and
- * a URL naming a tab this caller cannot see falls back to Fills rather than to a blank page.
+ * ⚠ `/fuel-log` was catalogued `always` and the two pages absorbed here were `section("fuel")`.
+ * Merging them without a check would have widened who can read a decline — `recruiter` and
+ * `technician` both carry `fuel: "none"` and both reached this path then. So the two absorbed tabs
+ * render only for a caller who can view the fuel section, read from the same matrix the catalogue
+ * reads (D-FUI12), and a URL naming a tab this caller cannot see falls back to Fills rather than to
+ * a blank page. Since D-SURF10 (2026-09-03) the page itself is `section("fuel")` — a page in a
+ * section's group follows the section — so the router turns those two roles away before this
+ * check runs, and the check is the belt under the braces rather than the only thing holding.
  *
  * That gate is UI only, as every `show:` in this app is: `declined_transactions` and
  * `efs_transactions` are org-scoped in RLS and not section-scoped, so this hides a screen and does
@@ -35,7 +38,7 @@
  * not invent one.
  *
  * ⚠ **C4 brings the same question a second time, and the answer is the same.** `/import` was
- * catalogued `manage("fuel")` and is now a drawer opened from this `always` page, so the button that
+ * catalogued `manage("fuel")` and is now a drawer opened from this `view`-level page, so the button that
  * opens it is gated on `can("fuel")` — MANAGE, not view, because it is a write. The API refuses the
  * roles that lack it either way; an action offered and then refused is still a defect.
  */

@@ -840,5 +840,150 @@ ok(
   (await asUserWith(DISPATCHER, ORG, "recruiter", { maintenance: "view" }, SEE_INSPECTORS)).rows[0].n === 1,
 );
 
+// ── P6 (0300): every default branch agrees with the matrix, or is a named grant ────────────────
+// Each ruling in 0300 is asserted twice: once claim-less (the default branch is now the matrix's
+// answer) and once with a `sections` claim (the override still reaches the policy, and reaches it in
+// the section the policy now names). Fixtures are seeded with the service role, and where an
+// assertion depends on a row existing, an admin touches it first — for the reason given above
+// TOUCH_DRIVER: an update matching nothing is indistinguishable from a refusal.
+const SAFETY = "00000000-0000-4000-8000-000000000008";
+await db.query(`insert into auth.users (id, email) values ($1,'safety@example.com')`, [SAFETY]);
+await db.query(`insert into memberships (org_id, user_id, role) values ($1,$2,'safety_manager')`, [ORG, SAFETY]);
+// 0103's RESTRICTIVE module gate AND-combines with every hazmat policy: without this row the org's
+// hazmat tables refuse everyone, and a section assertion would be reading the wrong refusal.
+await db.query(`insert into org_modules (org_id, module_key) values ($1, 'hazmatguard')`, [ORG]);
+
+// A. hazmat management — hazmat manage includes the safety manager, and now SQL agrees.
+const NEW_HAZMAT_LOAD = `insert into hazmat_loads (id, org_id, status, created_by) values (gen_random_uuid(), $1, 'draft', $2)`;
+ok(
+  "a claim-less safety manager creates a hazmat load — the list now equals hazmat manage (0300 A)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_HAZMAT_LOAD, [ORG, SAFETY]),
+);
+ok(
+  "…and an org that drops its safety managers to hazmat: view is still obeyed",
+  !(await wrote(SAFETY, ORG, "safety_manager", { hazmat: "view" }, NEW_HAZMAT_LOAD, [ORG, SAFETY])),
+);
+ok(
+  "a technician holds no hazmat and still cannot",
+  !(await wrote(SAFETY, ORG, "technician", null, NEW_HAZMAT_LOAD, [ORG, SAFETY])),
+);
+
+// A. roster — the assignment is a roster act (D-ROS12), and roster manage includes the safety manager.
+const NEW_DVA = `insert into driver_vehicle_assignments (org_id, vehicle_samsara_id, driver_samsara_id, start_at) values ($1, 'v-p6', 'd-p6', now())`;
+ok(
+  "a claim-less safety manager records a vehicle assignment (0300 A)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_DVA, [ORG]),
+);
+ok(
+  "…and roster: view takes it away again",
+  !(await wrote(SAFETY, ORG, "safety_manager", { roster: "view" }, NEW_DVA, [ORG])),
+);
+ok(
+  "a dispatcher (roster: view) still cannot",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DVA, [ORG])),
+);
+
+// B. A named grant is not a section question (D-PERM10): no hazmat override widens who signs a review.
+const HZ_LOAD = (await one(
+  `insert into hazmat_loads (id, org_id, status, created_by) values (gen_random_uuid(), $1, 'draft', $2) returning id`,
+  [ORG, BOSS],
+)).id;
+const HZ_RUN = (await one(
+  `insert into hazmat_runs (org_id, load_id, engine_version, dataset_version, verdict, outcome, input_hash) values ($1,$2,'0.6.0','2026.07.1','{}','green','p6') returning id`,
+  [ORG, HZ_LOAD],
+)).id;
+const NEW_REVIEW = `insert into hazmat_reviews (org_id, load_id, run_id, reviewer_id, action) values ($1, $2, $3, $4, 'cleared')`;
+ok(
+  "a safety manager signs their own review with no claim (HAZMAT_REVIEW_ROLES)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_REVIEW, [ORG, HZ_LOAD, HZ_RUN, SAFETY]),
+);
+ok(
+  "a dispatcher granted hazmat: manage still cannot sign one — the grant is by NAME, not by section (D-PERM10)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { hazmat: "manage" }, NEW_REVIEW, [ORG, HZ_LOAD, HZ_RUN, DISPATCHER])),
+);
+ok(
+  "the recruiter's roster write still stands by name (0212) with no claim",
+  await wrote(DISPATCHER, ORG, "recruiter", null, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "…and an org that takes roster from its recruiters closes it — the wrapper stays on drivers_write",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID])),
+);
+
+// C. A table belongs to the section whose page edits it (D-PERM11).
+await db.query(`insert into idle_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
+const TOUCH_IDLE = `update idle_settings set comfort_low_f = 21 where org_id = $1`;
+ok(
+  "the fixture is real — an admin touches the org's idle settings",
+  await wrote(BOSS, ORG, "admin", null, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "a claim-less safety manager adopts a comfort band — idle settings are a SAFETY act (0300 C)",
+  await wrote(SAFETY, ORG, "safety_manager", null, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "taking EQUIPMENT from them changes nothing here — the table is not equipment's any more",
+  await wrote(SAFETY, ORG, "safety_manager", { equipment: "none" }, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "taking SAFETY manage from them closes it",
+  !(await wrote(SAFETY, ORG, "safety_manager", { safety: "view" }, TOUCH_IDLE, [ORG])),
+);
+ok(
+  "a dispatcher granted safety: manage gains it",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, TOUCH_IDLE, [ORG]),
+);
+
+const NEW_DISCOUNT = `insert into fuel_discount_rules (org_id, brand, cents_off) values ($1, 'p6-brand', 3)`;
+ok(
+  "a claim-less dispatcher writes a discount rule — the 0078 list, now under DISPATCH (0300 C)",
+  await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DISCOUNT, [ORG]),
+);
+ok(
+  "taking FUEL from the dispatcher changes nothing — the planner's inputs are dispatch's",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "none" }, NEW_DISCOUNT, [ORG]),
+);
+ok(
+  "taking DISPATCH manage from them closes it",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, NEW_DISCOUNT, [ORG])),
+);
+await db.query(`insert into route_fuel_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
+const TOUCH_ROUTE = `update route_fuel_settings set reserve_pct = 21 where org_id = $1`;
+ok(
+  "route fuel settings answer the same dispatch question, both ways",
+  (await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_ROUTE, [ORG])) &&
+    !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_ROUTE, [ORG])),
+);
+
+// D. A role that a RESTRICTIVE policy already refuses is dead text in a permissive list (D-PERM12).
+// 0135 closed the driver's PostgREST fill-up (`fuel_tx_driver_insert`: restrictive, `auth_role() <>
+// 'driver'`), so the `driver` 0004 listed in ftxn_insert has been unreachable since; 0300 removes it
+// and the office half is the fuel section's manage set. Both halves are pinned here.
+const P6_VEHICLE = (await one(
+  `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P6-1','diesel',100) returning id`,
+  [ORG],
+)).id;
+const NEW_FILL = `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1, $2, now(), 10, 'manual')`;
+ok(
+  "the fixture is real — an admin records a fill-up",
+  await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE]),
+);
+ok(
+  "a driver cannot record a fill-up through PostgREST — 0135's closure, which made the listed role dead (D-PERM12)",
+  !(await wrote(HAULER, ORG, "driver", null, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+ok(
+  "a dispatcher (fuel: view) cannot either",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+ok(
+  "…until an org grants them fuel: manage, which now reaches this policy",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE]),
+);
+ok(
+  "and an org that drops its fleet managers to fuel: view is obeyed here too",
+  !(await wrote(MANAGER, ORG, "fleet_manager", { fuel: "view" }, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

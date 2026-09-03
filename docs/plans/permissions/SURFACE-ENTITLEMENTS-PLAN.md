@@ -773,8 +773,9 @@ product. Recommendation: **(a)**, with the list waived and named as S7 has done,
 Ask AI to be per-role configurable — at which point (c) is the honest answer and it costs a catalogue
 entry, not a mechanism.
 
-**Q-SURF8 — The page shows eight default cells the database does not enforce, and cannot repair
-them.** Found by the 2026-09-03 audit that preceded S8, and verified LIVE in `pg_policies` rather than
+~~**Q-SURF8 — The page shows eight default cells the database does not enforce, and cannot repair
+them.**~~ **ANSWERED 2026-09-03 — (a), shipped as P6 / migration 0300; see EDITABLE-PERMISSIONS-PLAN.md
+D-PERM10–D-PERM13. The account below is kept as the finding.** Found by the 2026-09-03 audit that preceded S8, and verified LIVE in `pg_policies` rather than
 read from a plan. Eight applied policies keep a role list as their `auth_section_or_default(...)`
 fallback that disagrees with `SECTION_ACCESS` — the nine of `EDITABLE-PERMISSIONS-PLAN.md` Q-PERM11
 minus the explained `drivers` one. Three checked by hand: `hazmat_loads_manager_insert` /
@@ -794,7 +795,12 @@ rulings; then one migration. Recommendation: **(a), before any further work on t
 redesign makes those cells more legible, not less, and a legible wrong answer is worse than an
 illegible one.
 
-**Q-SURF2 — `hazmat` is editable but governs no screen.** The section gates RLS (0293 wrapped five
+~~**Q-SURF2 — `hazmat` is editable but governs no screen.**~~ **ANSWERED 2026-09-03 — (a), under
+D-SURF10 below; shipped with P6's PR.** Both hazmat pages and the hazmat load detail are
+`section("hazmat")` AND the module. A narrowing for `recruiter`, `accountant` and `technician`
+(shipped `hazmat: none`), recorded in `navEquivalence.test.ts.snap`. The original account:
+
+ The section gates RLS (0293 wrapped five
 policies) but both hazmat nav items use `isStaff && moduleEnabled(...)`, and their routes are
 `requiresAuth` only. An org setting `hazmat: none` today keeps both menu items and both pages, and
 only loses the writes. Candidates: (a) point the two items and routes at `hazmat:view`/`manage` —
@@ -891,6 +897,28 @@ window focus. Recommendation: **(a)**, stated in the UI, because (b) buys little
 model whose data half is already a token-refresh behind.
 
 ---
+
+### D-SURF10 — A page in a section's group follows that section (owner ruling, 2026-09-03)
+> "Fuel log is always displayed even if we restrict some role or user to not see Fuel section … if a
+> role or user is restricted to see some section or page we have to make sure all pages are included
+> not just for Fuel Log and fuel section, this have to be rule for all sections."
+
+Q-SURF3's ruling catalogued six items with no section gate. Three of them sat inside a section's
+sidebar group — Fuel Log under Fuel, the placard calculator and the review queue under Safety — and
+the owner's complaint is exactly what that produces: an org takes `fuel` from a role and the role's
+sidebar still says "Fuel Log", because `always` means what it says. The rule now: **a surface whose
+group is a section's group carries that section's gate**, at `view` unless the page writes. Fuel Log
+is `section("fuel")`; the two hazmat pages and the hazmat load detail are `section("hazmat")` plus
+the module. `lint:surfaces` cannot express "group implies section" because the sidebar groups are
+not sections (Safety holds roster pages; Fleet holds equipment and roster) — so the rule is held by
+the two snapshots and by the API's catalogue test, which now asserts the three ARE cells.
+
+What stays outside the matrix is three, not six: Dashboard (`always` — the home page), Ask AI
+(`staff` — Q-SURF7, a tool with no data of its own), Users (`admin`). Each sits in the top or admin
+group, which is no section's. The measured narrowing: `recruiter` and `technician` lose Fuel Log;
+`recruiter`, `accountant` and `technician` lose the two hazmat pages when the module is on. Nothing
+those roles could DO on those pages survives the section they lack — Fuel Log's own tabs already
+gated on `canView("fuel")`, and the review queue's write is HAZMAT_REVIEW_ROLES.
 
 ## §7 What would make this a workaround, so it can be recognised
 

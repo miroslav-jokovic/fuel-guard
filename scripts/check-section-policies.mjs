@@ -99,6 +99,17 @@ const TABLE_SECTIONS = {
   // its write lists exactly rolesThatManage("roster"); 0236 says it "takes the fleet lifecycle
   // roles", and `canWriteDriverLifecycle()` in auth.ts is literally canManageSection(role,"roster").
   seven_day_statements: "roster",
+  // Added with 0300 (P6, D-PERM11): a table belongs to the section whose PAGE edits it, and for these
+  // three the module default named the wrong one while the policy's list named the right one.
+  //
+  // `idle_settings` is written by the `idle` module (module default `equipment`) but edited from the
+  // Idling page — a safety surface — and its write lists exactly rolesThatManage("safety").
+  idle_settings: "safety",
+  // `route_fuel_settings` (module `routing`) and `fuel_discount_rules` (module `fuel`) are the fuel
+  // planner's inputs, edited from Fuel Planning — a dispatch surface — and both write lists are
+  // exactly rolesThatManage("dispatch"); Q-PERM10 had noticed the coincidence before it was a ruling.
+  route_fuel_settings: "dispatch",
+  fuel_discount_rules: "dispatch",
 };
 
 /** The section a table's policies are checked against: its own override, else its module's default. */
@@ -131,34 +142,72 @@ function expectedSets(matrix, section) {
   return { manage, view };
 }
 
-function checkNewPolicies(matrix, manifest, migrationsDir) {
-  const errors = [];
+/**
+ * Both spellings of a role list. Postgres renders `auth_role() in (a, b)` and
+ * `auth_role() = any (array[a, b])` identically in pg_policy; the detector read only the first until
+ * P6, and 0293 wrote all seventeen of its lists in the second — so the gate printed green having
+ * read none of them (Q-PERM11). One regex, two alternatives, no preferred spelling.
+ */
+const ROLE_LIST = /auth_role\(\)\s*(?:in\s*\(([^)]*)\)|=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\))/gi;
+
+/**
+ * Every `create policy` in one migration's text, with its table, the role lists in its body, and
+ * whether a per-policy waiver line precedes it. Comments are stripped BEFORE policies are read (so a
+ * header cannot be mistaken for a call site) but waivers are read from the comments themselves, on
+ * their own line, so a header that merely mentions the marker mid-sentence waives nothing — the trap
+ * 0294's first draft fell into.
+ */
+export function extractPolicies(sql) {
+  const waived = new Set([...sql.matchAll(/^\s*--\s*section-policy-waiver\(([a-z_][a-z0-9_]*)\):\s*\S/gim)].map((m) => m[1].toLowerCase()));
+  const fileWaived = /^\s*--\s*section-policy-waiver:\s*\S/im.test(sql);
+  const body = sql.replace(/--[^\n]*/g, "");
+  const policies = [];
+  for (const m of body.matchAll(/create\s+policy\s+"?([a-z_][a-z0-9_]*)"?\s+on\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)([\s\S]*?)(?=create\s+policy|$)/gi)) {
+    const policy = m[1].toLowerCase();
+    const table = m[2].toLowerCase();
+    const lists = [...m[3].matchAll(ROLE_LIST)].map((l) =>
+      new Set([...(l[1] ?? l[2]).matchAll(/'(\w+)'/g)].map((x) => x[1])),
+    );
+    policies.push({ policy, table, lists, waived: fileWaived || waived.has(policy) });
+  }
+  return policies;
+}
+
+/**
+ * The policies the live schema actually holds, as far as migrations above the boundary define them:
+ * the LATEST `create policy` for each (table, policy) wins, because an applied migration cannot be
+ * edited and a superseded definition is dead text (D-PERM13). Files at or below the boundary are
+ * grandfathered as before — but a policy they created and a later migration re-creates is checked,
+ * which is how 0300 brought `ftxn_insert` (0004) and the two 0078 lists into scope.
+ */
+function latestPolicies(migrationsDir) {
+  const latest = new Map();
   for (const f of readdirSync(migrationsDir).filter((x) => x.endsWith(".sql")).sort()) {
     const num = Number(f.slice(0, 4));
     if (!Number.isFinite(num) || num <= SQL_BOUNDARY) continue;
-    const raw = readFileSync(join(migrationsDir, f), "utf8");
-    if (/section-policy-waiver:/.test(raw)) continue;
-    const s = raw.replace(/--[^\n]*/g, "");
-    // pair each role list with the nearest preceding "on <table>" so the section can be derived
-    for (const m of s.matchAll(/create\s+policy\s+\S+\s+on\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)[\s\S]*?(?=create\s+policy|$)/gi)) {
-      const table = m[1].toLowerCase();
-      const body = m[0];
-      const lists = [...body.matchAll(/auth_role\(\)\s+in\s+\(([^)]*)\)/gi)];
-      if (!lists.length) continue;
-      const module = manifest.tables[table]?.module;
-      const section = sectionForTable(manifest, table);
-      for (const l of lists) {
-        const roles = new Set([...l[1].matchAll(/'(\w+)'/g)].map((x) => x[1]));
-        if (!section) {
-          errors.push(`${f}: policy on ${table} names roles but module ${module ?? "?"} maps to no section — add a "-- section-policy-waiver: <reason>" or extend MODULE_SECTIONS`);
-          continue;
-        }
-        const { manage, view } = expectedSets(matrix, section);
-        if (!setsEqual(roles, manage) && !setsEqual(roles, view))
-          errors.push(
-            `${f}: policy on ${table} lists [${[...roles].sort().join(", ")}] but section "${section}" derives manage=[${[...manage].sort().join(", ")}] view=[${[...view].sort().join(", ")}] — use the derived set or waive with a reason`,
-          );
+    for (const p of extractPolicies(readFileSync(join(migrationsDir, f), "utf8"))) {
+      latest.set(`${p.table}.${p.policy}`, { ...p, file: f });
+    }
+  }
+  return [...latest.values()];
+}
+
+function checkNewPolicies(matrix, manifest, migrationsDir) {
+  const errors = [];
+  for (const { file: f, table, policy, lists, waived } of latestPolicies(migrationsDir)) {
+    if (!lists.length || waived) continue;
+    const module = manifest.tables[table]?.module;
+    const section = sectionForTable(manifest, table);
+    for (const roles of lists) {
+      if (!section) {
+        errors.push(`${f}: policy ${policy} on ${table} names roles but module ${module ?? "?"} maps to no section — add a "-- section-policy-waiver(${policy}): <reason>" line above it or extend MODULE_SECTIONS`);
+        continue;
       }
+      const { manage, view } = expectedSets(matrix, section);
+      if (!setsEqual(roles, manage) && !setsEqual(roles, view))
+        errors.push(
+          `${f}: policy ${policy} on ${table} lists [${[...roles].sort().join(", ")}] but section "${section}" derives manage=[${[...manage].sort().join(", ")}] view=[${[...view].sort().join(", ")}] — use the derived set or waive it by name with a reason`,
+        );
     }
   }
   return errors;
@@ -175,6 +224,27 @@ function selfTest(matrix, manifest) {
   const sec = sectionForTable(manifest, table);
   const exp = expectedSets(matrix, sec);
   if (setsEqual(wrong, exp.manage) || setsEqual(wrong, exp.view)) fails.push("policy detector cannot fire — ['driver'] equals a derived set");
+
+  // The extractor must read BOTH spellings, honour a per-policy waiver only on its own line, and let a
+  // later definition supersede an earlier one — each of these was a way the gate went green having
+  // read nothing (Q-PERM11, D-PERM13).
+  const sample = `
+    -- a header that talks about the section-policy-waiver: marker in passing
+    create policy p_in on t1 for all using (auth_role() in ('admin', 'x'));
+    create policy p_any on t1 for all using (auth_role() = any (array['admin','y']));
+    -- section-policy-waiver(p_named): granted by name
+    create policy p_named on t1 for all using (auth_role() in ('admin','z'));
+  `;
+  const got = extractPolicies(sample);
+  const by = Object.fromEntries(got.map((p) => [p.policy, p]));
+  if (!by.p_in || ![...by.p_in.lists[0] ?? []].includes("x")) fails.push("extractor does not read the `in (...)` spelling");
+  if (!by.p_any || ![...by.p_any.lists[0] ?? []].includes("y")) fails.push("extractor does not read the `= any (array[...])` spelling");
+  if (!by.p_named?.waived) fails.push("a per-policy waiver line does not waive its policy");
+  if (by.p_in?.waived || by.p_any?.waived) fails.push("a header merely mentioning the marker waived the file");
+  const superseded = new Map();
+  for (const p of [...extractPolicies("create policy p on t for all using (auth_role() in ('admin','old'));"), ...extractPolicies("create policy p on t for all using (auth_role() in ('admin','new'));")])
+    superseded.set(`${p.table}.${p.policy}`, p);
+  if (![...superseded.get("t.p").lists[0]].includes("new")) fails.push("a later definition does not supersede an earlier one");
 
   // The TABLE_SECTIONS override must actually override, and must name a section the matrix knows.
   // Without this, a typo in the map would silently fall back to the module default and the gate

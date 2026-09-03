@@ -111,13 +111,19 @@ export const SURFACES: readonly Surface[] = [
    * until 2026-09-02 and are now TABS of the Fuel Log, so they are no longer separately grantable —
    * a screen an org cannot navigate to is not a permission an admin should be offered.
    *
-   * ⚠ They were `section("fuel")` and this is `always`, so the merge would have widened who can read
-   * a decline if the page did not gate the two absorbed tabs itself. It does, on `canView("fuel")`,
-   * read from this same matrix; the argument is in `FuelLogPage.vue`'s header. Rows an org already
-   * wrote against the two retired keys stay in `org_role_surface_access` and are inert — 0296's own
-   * note: a key the catalogue does not have matches no screen, and grants and denies nothing.
+   * Rows an org already wrote against the two retired keys stay in `org_role_surface_access` and
+   * are inert — 0296's own note: a key the catalogue does not have matches no screen, and grants
+   * and denies nothing.
+   *
+   * ⚠ `section("fuel")`, since 2026-09-03 (owner ruling, D-SURF10): a page that sits in a section's
+   * group follows that section. This was `always` — the one fuel page every office role could open
+   * whatever the matrix said — which is why an org that took `fuel` away from a role still saw
+   * "Fuel Log" in that role's sidebar, and why the page had to gate its own absorbed tabs on
+   * `canView("fuel")`. It still does, and that check is now redundant rather than load-bearing. This
+   * is a NARROWING for `recruiter` and `technician`, whose shipped `fuel` is `none`; both snapshots
+   * record it.
    */
-  { key: "fuel.log", label: "Fuel Log", path: "/fuel-log", group: "fuel", gate: ALWAYS },
+  { key: "fuel.log", label: "Fuel Log", path: "/fuel-log", group: "fuel", gate: section("fuel") },
   // EFS card inventory + control. Read-only until the write entitlement is confirmed; the page
   // itself explains that, so the catalogue entry does not need to know.
   { key: "fuel.cards", label: "Cards", path: "/fuel-cards", group: "fuel", gate: section("fuel") },
@@ -158,15 +164,16 @@ export const SURFACES: readonly Surface[] = [
    * the DUPLICATES, not the surfaces. These two duplicate nothing: the calculator is a tool with no
    * other home, and the review queue is a §172 work queue for a tighter role set than dispatch (D6).
    *
-   * ⚠ `staff`, not `section("hazmat")`, and that is a FAITHFUL transcription of today rather than an
-   * endorsement. Q-SURF2 has it: the `hazmat` section gates RLS and gates the review COUNT in
-   * `AppShell.vue`, but not these entries — so a role with `hazmat: "none"` sees "Hazmat review"
-   * permanently badge-less and can open the queue. Changing it here would be a narrowing for any org
-   * holding the module without the section, which S1 is explicitly not the place for: this step must
-   * not move a single role's access. Q-SURF2 decides it, and it is a one-line edit when it does.
+   * `section("hazmat")` AND the module, since 2026-09-03 — Q-SURF2 answered (a), under the same
+   * ruling as Fuel Log (D-SURF10). Until then these were `staff`: the `hazmat` section gated RLS and
+   * gated the review COUNT in `AppShell.vue`, but not the entries themselves — so a role with
+   * `hazmat: "none"` saw "Hazmat review" permanently badge-less and could open the queue, and the
+   * HazmatGuard column on the permissions page moved nothing a person could see. This is a NARROWING
+   * for `recruiter`, `accountant` and `technician`, whose shipped `hazmat` is `none`; the review
+   * queue's own write stays with HAZMAT_REVIEW_ROLES (D6), which a section grant never widens.
    */
-  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: STAFF, module: "hazmatguard" },
-  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: STAFF, module: "hazmatguard", badge: "hazmatReview" },
+  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: section("hazmat"), module: "hazmatguard" },
+  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: section("hazmat"), module: "hazmatguard", badge: "hazmatReview" },
 
   // ── recruitment ───────────────────────────────────────────────────────────────────────────────
   // The hiring half of §391, and its OWN section — not a corner of Fleet. Gating it on `fleet` (how
@@ -254,7 +261,7 @@ export const SURFACES: readonly Surface[] = [
    * section. ⚠ Adding the module IS a narrowing for an org that never bought HazmatGuard — the API
    * already refuses those calls via `requireModule`, so this stops a page mounting only to 403.
    */
-  { key: "safety.hazmat-load.detail", label: "Hazmat Load", path: "/hazmat/loads/:id", group: "safety", gate: STAFF, module: "hazmatguard", parent: "safety.hazmat-review" },
+  { key: "safety.hazmat-load.detail", label: "Hazmat Load", path: "/hazmat/loads/:id", group: "safety", gate: section("hazmat"), module: "hazmatguard", parent: "safety.hazmat-review" },
 ];
 
 /** The surfaces that render in the sidebar — everything except the detail routes (D-SURF8). */

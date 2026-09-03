@@ -353,7 +353,7 @@ arithmetic, not taste: a reader test's list equals NO section's derived set, whi
 section, wrapping it with that section changes no behaviour; when it matches none, wrapping it has to
 invent an answer.
 
-### Q-PERM10 — Three fuel policies disagree with the matrix, and wrapping them would freeze the drift
+### ~~Q-PERM10~~ — Three fuel policies disagree with the matrix — **ANSWERED 2026-09-03 by P6 (0300), see D-PERM11/D-PERM12**
 
 Not wrapped by 0294, and the reason is not taste:
 
@@ -388,7 +388,7 @@ Recommendation: take the first answer for the two dispatcher policies (a `TABLE_
 a wrapper, no behaviour change) and the third for `ftxn_insert`, as one PR after B3. It needs an
 owner ruling because it is a permission decision, not a mechanical edit.
 
-### Q-PERM11 — `lint:section-policies` reads only one of the two spellings, and 0293 used the other
+### ~~Q-PERM11~~ — `lint:section-policies` reads only one of the two spellings — **ANSWERED 2026-09-03 by P6 (0300), see D-PERM13**
 
 Measured while writing 0294. `check-section-policies.mjs` detects a role list with
 `/auth_role\(\)\s+in\s+\(/`. Postgres renders `auth_role() in (a,b)` and
@@ -434,6 +434,46 @@ repair it. `SURFACE-ENTITLEMENTS-PLAN.md` Q-SURF8 has the three policies checked
 therefore a correctness fix with a UI symptom, not a tidy-up, and the recommendation there is to
 rule on Q-PERM10 and this question before any further work on the page.
 
+### D-PERM10 — A named grant is not a section question, and a section override never widens it
+`hazmat_reviews_insert` / `_select` list HAZMAT_REVIEW_ROLES (D6, separation of duties: dispatchers
+create loads, they do not clear them), and the API's review route is `requireRole(...HAZMAT_REVIEW_ROLES)`
+— it does not consult the section either. 0293 had wrapped both in `auth_section_or_default('hazmat',…)`,
+which would have let an org that grants a dispatcher `hazmat: manage` widen who signs a review in SQL
+while the API still refused. 0300 removes the wrapper and waives both by name. `drivers_write` keeps
+its wrapper (an org that narrows `roster` narrows the recruiter too) and is waived by name for the
+recruiter 0212 added. Same class as D-PERM9; the matrix pins that a dispatcher granted `hazmat: manage`
+still cannot sign a review.
+
+### D-PERM11 — A table belongs to the section whose PAGE edits it, not to its module's default
+Three of the "disagreements" were correct lists under the wrong section: `idle_settings` is edited
+from the Idling page (a safety surface) and its list is exactly rolesThatManage('safety');
+`route_fuel_settings` and `fuel_discount_rules` are the fuel planner's inputs, edited from Fuel
+Planning (a dispatch surface), and both lists are exactly rolesThatManage('dispatch') — the
+coincidence Q-PERM10 had noticed. 0300 re-wraps each under the section its list derives from and the
+gate's `TABLE_SECTIONS` names all three. No token's answer changed; an override now reaches each
+policy through the section an admin would expect.
+
+### D-PERM12 — A role a RESTRICTIVE policy already refuses is dead text in a permissive list
+`ftxn_insert` listed `driver` beside the fuel managers. 0135 closed the driver's PostgREST fill-up
+with a restrictive `fuel_tx_driver_insert` (`auth_role() <> 'driver'`), so the listed role had been
+unreachable for 165 migrations. 0300 removes it and the policy becomes the fuel section's manage
+question, the shape `ftxn_update` / `ftxn_delete` already took in 0294. The matrix pins the driver's
+refusal so the closure cannot be undone here by accident. ⚠ The first draft of 0300 wrapped the
+office half and kept `or auth_role() = 'driver'` beside it, believing the driver path live; the
+matrix refused the driver and the restrictive policy was found by reading the refusal. A ruling that
+had not been run would have shipped a comment describing a path that does not exist.
+
+### D-PERM13 — The gate checks the LATEST definition of each policy, and waivers are per policy
+Un-blinding the detector to `= any (array[...])` makes it read 0293, which cannot be edited. So
+`check-section-policies.mjs` now (a) reads both spellings, (b) keeps the last `create policy` per
+(table, policy) across migrations above the boundary and checks only those — a superseded definition
+is dead text, and a policy created below the boundary and re-created above it comes into scope, which
+is how 0004's and 0078's lists were brought in — and (c) honours `-- section-policy-waiver(<policy>):`
+on its own line, so a header that merely mentions the marker waives nothing. Run against `main`
+without 0300 it reports the nine the audit found; run against 0300 with one list mutated it reports
+that one. `pnpm lint:rls` is now a CI step; it had never been in the workflow, which is how the section
+half ran blind through seven migrations.
+
 ## §3 Steps
 
 Each step is one PR, in order, and each must work against the **previous** schema for the ~9-minute
@@ -466,9 +506,22 @@ ship in two merges — `lint:migration-ordering` enforces it and this plan has f
   define, admin-only, with D-PERM6's sentence on the save, a marker on every cell that departs from
   its shipped default, the regulatory argument in a hover where one exists, and "reset to default"
   per row. Every save writes an audit row.
-- **P6 — The gate.** `lint:section-policies` starts refusing a new policy on a sectioned table that
-  asks a bare role list without the `auth_section()` branch (D-PERM5). No fallback is dropped —
-  under D-PERM4 the role list is the permanent default branch, not scaffolding.
+- **P6 — The gate. — DONE 2026-09-03 (migration 0300)** What shipped is larger than "turn the gate
+  on", as §2c predicted: eleven policies re-created so every default branch equals its section's
+  derived set or is waived by NAME (D-PERM10–D-PERM12), the gate un-blinded, made latest-wins and
+  per-policy (D-PERM13), and `pnpm lint:rls` added to CI. Every ruling was read off three
+  measurements — who writes the table through PostgREST, what the API gate derives from, and what a
+  migration already explains — and the migration's header records them per policy.
+  **Verified by:** `org-section-access` 116 (was 92; the 24 new assertions pin each ruling claim-less
+  and under an override), `rls` 467, `load-lifecycle` 61, `restricted-records` 50,
+  `equipment-section-split` 16, `user-section-access` 26 — all unchanged; `lint:rls` with its
+  self-test; the schema snapshot regenerated (13 lines). **Mutation-tested, subject not test:** three
+  mutations of 0300 (safety manager dropped from `dva_write`; `idle_settings` re-wrapped under
+  equipment; the review policy re-wrapped in the section) each failed a different assertion, and one
+  mutation of the gate script's detector was proven by running it against `main` without 0300.
+  ⚠ Not in scope, said out loud: `lint:section-policies` still checks nothing below 0260 that no
+  later migration re-creates. The eleven here are the ones the audit measured live; a pre-0260 list
+  nobody has re-created is still grandfathered.
 
 ## §4 What would make this a workaround, so it can be recognised
 

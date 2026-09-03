@@ -87,12 +87,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null role
       "Dashboard → /",
     ],
   },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
 ]
 `;
 
@@ -112,13 +106,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
-    ],
-  },
-  {
-    "group": "Safety",
-    "items": [
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -924,12 +911,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · a
       "Dashboard → /",
     ],
   },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
 ]
 `;
 
@@ -941,12 +922,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · d
       "Dashboard → /",
     ],
   },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
 ]
 `;
 
@@ -956,12 +931,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > driver · n
     "group": null,
     "items": [
       "Dashboard → /",
-    ],
-  },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
     ],
   },
 ]
@@ -1191,17 +1160,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     ],
   },
   {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
-  {
     "group": "Safety",
     "items": [
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1228,12 +1189,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
-    ],
-  },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
     ],
   },
   {
@@ -1266,12 +1221,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
-    ],
-  },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
     ],
   },
   {
@@ -1450,19 +1399,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     ],
   },
   {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
-  {
-    "group": "Safety",
-    "items": [
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
-    ],
-  },
-  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1488,12 +1424,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
-    ],
-  },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
     ],
   },
   {
@@ -1525,12 +1455,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     ],
   },
   {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
-  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1556,19 +1480,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
-    ],
-  },
-  {
-    "group": "Fuel",
-    "items": [
-      "Fuel Log → /fuel-log",
-    ],
-  },
-  {
-    "group": "Safety",
-    "items": [
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1707,17 +1618,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       ],
     },
     {
-      "group": "Fuel",
-      "items": [
-        "Fuel Log → /fuel-log",
-      ],
-    },
-    {
       "group": "Safety",
       "items": [
         "Driver Qualification → /compliance",
-        "Placard calculator → /hazmat/calculator",
-        "Hazmat review → /hazmat/review",
       ],
     },
     {
