@@ -773,3 +773,120 @@ describe("computeCpm — deduction income reaches the contractor margin", () => 
     expect(r.ownerOperators.find((o) => o.payeeId === "SWISSANM")!.netMargin).toBe(1200);
   });
 });
+
+describe("computeCpm — the schedule leaves the pool, and the pool adds back to the cent (D-FIN1, D-FIN11)", () => {
+  const fixedCosts = (byUnit: Record<string, number>) => ({
+    byUnit,
+    byCategory: { lease: Object.values(byUnit).reduce((a, b) => a + b, 0) },
+    total: Object.values(byUnit).reduce((a, b) => a + b, 0),
+    monthCount: 1,
+  });
+  const base = {
+    movements: [move("M1", "101", 1000), move("M2", "202", 1000)],
+    fuel: [fuel("F1", "101", 300), fuel("F2", "202", 300)],
+    settlements: [settle("S1", "101", 200), settle("S2", "202", 200)],
+  };
+
+  // The defect the 2026-09-03 audit found while the schedule was still empty: lease, insurance
+  // and GPS are INSIDE the income statement, so a pool computed as "GL minus fuel and pay" still
+  // held them, and the schedule charged them to each truck a second time — ~$573k/month.
+  it("with a GL anchor the schedule is charged once: to its truck, and never again as overhead", () => {
+    const r = computeCpm(
+      { ...base, fixedCosts: fixedCosts({ "101": 500, "202": 500 }), glExpenseTotal: 3000 },
+      PLAIN,
+    );
+    // 3000 − direct 1000 − schedule 1000 = 1000 of overhead, 500 each. Under the old arithmetic
+    // each truck drew 1000 and the table summed to 4000 against a 3000 income statement.
+    for (const t of r.trucks) {
+      expect(t.fixedCost).toBe(500);
+      expect(t.allocatedOverhead).toBe(500);
+      expect(t.directTotal + t.fixedCost + t.allocatedOverhead).toBe(1500);
+    }
+    expect(r.trucks.reduce((a, t) => a + t.directTotal + t.fixedCost + t.allocatedOverhead, 0)).toBe(3000);
+    expect(r.caveats.some((c) => c.includes("taken OUT of shared costs"))).toBe(true);
+  });
+
+  it("every dollar of the income statement lands in exactly one bucket, to the cent", () => {
+    // Odd cents and three unequal trucks so that nothing divides evenly.
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1234.5), move("M2", "202", 987.6), move("M3", "303", 10)],
+        fuel: [fuel("F1", "101", 301.11), fuel("F2", "202", 299.99), fuel("F3", "303", 0.01)],
+        settlements: [settle("S1", "101", 200.07), settle("S2", "999", 913.13, "owner_operator")],
+        fixedCosts: fixedCosts({ "101": 2500.55, "303": 3000.45, "999": 1200 }),
+        glExpenseTotal: 30000.01,
+      },
+      PLAIN,
+    );
+    const tie = r.glTieOut!;
+    expect(tie.anchored).toBe(true);
+    const buckets =
+      tie.attributedDirect +
+      tie.fixedCharged +
+      tie.ownerOperatorSettlement +
+      tie.allocatedOverhead +
+      tie.unallocatedOverhead;
+    expect(Math.round(buckets * 100) / 100).toBe(30000.01);
+    expect(tie.residual).toBe(0);
+    // The per-truck column IS the allocated bucket — not approximately.
+    expect(Math.round(r.trucks.reduce((a, t) => a + t.allocatedOverhead, 0) * 100) / 100).toBe(
+      tie.allocatedOverhead,
+    );
+    // The owner-operator's scheduled lease is charged to no row here; it is named, and it is
+    // still inside the pool rather than lost.
+    expect(tie.fixedCostOnOwnerOperatorTrucks).toBe(1200);
+    expect(tie.fixedCharged).toBe(5501);
+    expect(r.caveats.some((c) => c.includes("belongs to owner-operator trucks"))).toBe(true);
+  });
+
+  it("the tie-out fails the moment a term is dropped — the residual is the proof, not decoration", () => {
+    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 500 }), glExpenseTotal: 3000 }, PLAIN);
+    const tie = r.glTieOut!;
+    const without = tie.attributedDirect + tie.ownerOperatorSettlement + tie.allocatedOverhead + tie.unallocatedOverhead;
+    expect(without).not.toBe(tie.glExpenseTotal); // fixedCharged missing → 2500, not 3000
+    expect(without + tie.fixedCharged).toBe(tie.glExpenseTotal);
+  });
+
+  it("allocations add back to the pool to the cent, by largest remainder", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000), move("M2", "202", 1000), move("M3", "303", 1000)],
+        fuel: [],
+        settlements: [],
+        glExpenseTotal: 100,
+      },
+      PLAIN,
+    );
+    const parts = r.trucks.map((t) => t.allocatedOverhead).sort((a, b) => b - a);
+    expect(parts).toEqual([33.34, 33.33, 33.33]);
+    expect(r.excluded.unallocatedOverhead).toBe(0);
+    expect(r.fleet.allocatedCpm).toBe(3.3);
+  });
+
+  it("with a basis but no miles to weigh, the pool is reported unallocated rather than claimed as spread", () => {
+    const r = computeCpm(
+      { movements: [], fuel: [fuel("F1", "101", 100)], settlements: [], glExpenseTotal: 1000 },
+      PLAIN,
+    );
+    expect(r.trucks[0]!.allocatedOverhead).toBe(0);
+    expect(r.excluded.unallocatedOverhead).toBe(900);
+    expect(r.glTieOut!.unallocatedOverhead).toBe(900);
+    expect(r.glTieOut!.residual).toBe(0);
+    expect(r.caveats.some((c) => c.includes("could not be spread"))).toBe(true);
+  });
+
+  it("a refused anchor reports the over-attribution as the residual instead of hiding it", () => {
+    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 2500 }), glExpenseTotal: 3000 }, PLAIN);
+    // 1000 direct + 2500 schedule = 3500 attributed against a 3000 ledger.
+    expect(r.excluded.overheadSource).toBe("ap_vouchers");
+    expect(r.glTieOut!.anchored).toBe(false);
+    expect(r.glTieOut!.residual).toBe(-500);
+  });
+
+  it("without a GL anchor there is no tie-out and the direct figures are unchanged", () => {
+    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 500 }) }, PLAIN);
+    expect(r.glTieOut).toBeNull();
+    expect(r.trucks.find((t) => t.tractor_unit === "101")!.fixedCost).toBe(500);
+    expect(r.caveats.some((c) => c.includes("taken OUT of shared costs"))).toBe(false);
+  });
+});

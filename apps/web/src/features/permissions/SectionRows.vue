@@ -7,6 +7,11 @@ import type { RowTag } from "./rows";
 /**
  * One principal's DATA access, a row per editable section (P5 for a role, S5 for a person).
  *
+ * ⚠ The label column keeps a floor of 14rem. Without it a row carrying a reset link, a tag AND the
+ * control let the right cell take the width, and the Safety caveat wrapped into a five-line sliver
+ * beside a control that had room to spare — measured on the real page at 1440px, the first time it
+ * was seen in a browser rather than in jsdom. The right cell wraps its own items instead.
+ *
  * ── ONE ROW SHAPE FOR BOTH TABS ───────────────────────────────────────────────────────────────
  * A role and a person answer the same eleven questions with the same three words, so they share
  * one row and differ only in what the parent puts on it: which tag marks the row, whether the
@@ -49,7 +54,7 @@ function onSet(row: SectionRowModel, value: string) {
     <li
       v-for="row in rows"
       :key="row.section"
-      class="grid grid-cols-1 gap-x-4 gap-y-3 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      class="grid grid-cols-1 gap-x-4 gap-y-3 px-5 py-3 sm:grid-cols-[minmax(14rem,1fr)_auto] sm:items-center"
     >
       <div class="min-w-0">
         <p class="text-sm font-medium text-ink">{{ row.label }}</p>

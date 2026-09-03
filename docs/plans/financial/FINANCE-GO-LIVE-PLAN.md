@@ -434,7 +434,7 @@ Correctness before operations before presentation; the owner/carrier items run i
 
 | # | Step | Decision | Blocks |
 |---|---|---|---|
-| 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test | D-FIN1, D-FIN11 | every all-in figure |
+| 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test — **BUILT 2026-09-03** (`cpmTieOut.ts`, `apportion.ts`; page reads `glTieOut` in F15) | D-FIN1, D-FIN11 | every all-in figure |
 | 2 | F2 — ingest guard, rejects, re-queue the April/May refetch — **BUILT 2026-09-03** (`efsIngestRejects.ts`; rejects on `import_rows`; the re-queue is the owner's one statement, §1.2) | D-FIN2 | April/May fuel |
 | 3 | F10 — null per-mile, measured-only fleet figure | D-FIN10 | trust in the table |
 | 4 | F6 — zero rows never delete; one RPC | D-FIN6 | fleet truth surviving a bad sweep |

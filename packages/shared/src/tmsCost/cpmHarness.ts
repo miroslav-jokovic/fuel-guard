@@ -1,5 +1,7 @@
 import { inferDeadheadLegs } from "./movementFact.js";
 import { buildCpmCaveats } from "./cpmCaveats.js";
+import { apportionByWeight } from "./apportion.js";
+import { buildGlTieOut } from "./cpmTieOut.js";
 import type { SettlementPayeeType } from "./settlementFact.js";
 import {
   classifyOwnerOperatorUnits,
@@ -256,6 +258,24 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   const attributedDirect = round(
     [...buckets.values()].reduce((sum, b) => sum + b.fuel + b.settlement, 0),
   );
+  /**
+   * Scheduled fixed cost that this report charges to a truck in the table. It is ATTRIBUTED cost
+   * in exactly the sense fuel and pay are, and it leaves the pool for the same reason (D-FIN1,
+   * FINANCE-GO-LIVE-PLAN §1.1): lease, insurance and GPS are inside the income statement, so a
+   * pool computed as "GL minus fuel and pay" still contained them, and the day the office filled
+   * the schedule every scheduled dollar would have been charged to its truck AND spread again
+   * over every truck by miles — about $573k a month at this carrier, counted twice. Found by the
+   * 2026-09-03 audit while the schedule was still empty, which is the only reason the page had
+   * never shown it.
+   *
+   * Summed over the trucks that REMAIN after the purely owner-operator units leave: a scheduled
+   * unit that ran only for a contractor is charged nowhere in this table, so its schedule dollars
+   * stay inside the pool and are named in the tie-out rather than silently spread.
+   */
+  const fixedCharged = round(
+    [...buckets.keys()].reduce((sum, unit) => sum + (fixedByUnit[unit] ?? 0), 0),
+  );
+  const fixedCostOnOwnerOperatorTrucks = round((inputs.fixedCosts?.total ?? 0) - fixedCharged);
   // The caller supplies `glExpenseTotal` only for a month-aligned window — GL totals are
   // month-grained, and charging a whole month's overhead against part of a month's miles would
   // invent a figure the ledger never asserted. See `computeCpmForWindow`.
@@ -265,7 +285,9 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     // owner-operator units leave the buckets, so their fuel is already outside it — which is the
     // right side of the line, because McLeod booked that fuel to a receivable and the income
     // statement never carried it either. Adding it back here would credit the pool twice.
-    const remainder = round(inputs.glExpenseTotal - attributedDirect - ownerOperatorSettlement);
+    const remainder = round(
+      inputs.glExpenseTotal - attributedDirect - ownerOperatorSettlement - fixedCharged,
+    );
     // A negative remainder means more was attributed than the ledger booked. That is a staging
     // problem worth surfacing, never a credit worth spreading across trucks.
     if (remainder >= 0) {
@@ -291,25 +313,28 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   }
   const fleetTotal = useActual ? fleetActual : round(fleetLoaded + fleetDeadhead);
 
-  const basisTotal =
+  // The pool is spread by largest-remainder apportionment (D-FIN11), so the per-truck column adds
+  // back to the pool to the cent — `round(pool × share)` per row never did, and a table whose rows
+  // cannot be summed to its own total cannot take part in a tie-out. A basis with nothing to
+  // weigh (no miles at all under `total_miles`) apportions nothing, and the pool is then reported
+  // as UNALLOCATED below rather than claimed as spread.
+  const milesFor = (b: Bucket) =>
+    useActual ? (actualByUnit[b.tractor_unit] ?? 0) : round(b.loadedMiles + b.deadheadMiles);
+  const weights = list.map((b) =>
     rules.overheadBasis === "total_miles"
-      ? fleetTotal
+      ? milesFor(b)
       : rules.overheadBasis === "loaded_miles"
-        ? fleetLoaded
+        ? b.loadedMiles
         : rules.overheadBasis === "equal_per_truck"
-          ? list.length
-          : 0;
+          ? 1
+          : 0,
+  );
+  const allocations = apportionByWeight(overheadPool, weights);
 
-  const trucks: TruckCpm[] = list.map((b) => {
+  const trucks: TruckCpm[] = list.map((b, i) => {
     const actual = useActual ? (actualByUnit[b.tractor_unit] ?? 0) : null;
-    const totalMiles = useActual ? (actual ?? 0) : round(b.loadedMiles + b.deadheadMiles);
-    const share =
-      basisTotal <= 0
-        ? 0
-        : rules.overheadBasis === "equal_per_truck"
-          ? 1 / basisTotal
-          : (rules.overheadBasis === "total_miles" ? totalMiles : b.loadedMiles) / basisTotal;
-    const allocatedOverhead = round(overheadPool * share);
+    const totalMiles = milesFor(b);
+    const allocatedOverhead = allocations[i] ?? 0;
     const directTotal = round(b.fuel + b.settlement);
     const fixedCost = round(fixedByUnit[b.tractor_unit] ?? 0);
     const revenue = round(revenueByUnit[b.tractor_unit] ?? 0);
@@ -346,7 +371,8 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     fleetSettlement = round(fleetSettlement + b.settlement);
   }
   const fleetDirect = round(fleetFuel + fleetSettlement);
-  const allocatedTotal = rules.overheadBasis === "none" ? 0 : overheadPool;
+  const allocatedTotal = round(allocations.reduce((sum, a) => sum + a, 0));
+  const unallocatedOverhead = round(overheadPool - allocatedTotal);
   let fleetFixed = 0;
   let fleetRevenue = 0;
   for (const t of trucks) {
@@ -354,6 +380,19 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     fleetRevenue = round(fleetRevenue + t.revenue);
   }
   const fleetNet = round(fleetRevenue - fleetDirect - allocatedTotal - fleetFixed);
+
+  // Every dollar of the income statement in exactly one bucket, residual 0.00 or the report is
+  // wrong — see `cpmTieOut.ts` for the arithmetic and what a refused anchor reports instead.
+  const glTieOut = buildGlTieOut({
+    glExpenseTotal: inputs.glExpenseTotal,
+    anchored: glRemainder !== null,
+    attributedDirect,
+    fixedCharged,
+    allocatedTotal,
+    unallocatedOverhead,
+    ownerOperatorSettlement,
+    fixedCostOnOwnerOperatorTrucks,
+  });
 
   caveats.push(
     ...buildCpmCaveats({
@@ -372,7 +411,10 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       hasRevenue,
       revenueWithoutTruck,
       ownerOperatorRevenue,
-      netExcludedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,
+      netExcludedOverhead: unallocatedOverhead,
+      glAnchored: glRemainder !== null,
+      fixedCharged,
+      fixedCostOnOwnerOperatorTrucks,
       fixedCosts: inputs.fixedCosts,
       uncoveredActiveTrucks: inputs.fixedCosts
         ? list.filter(
@@ -420,8 +462,10 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
      * than as a suspiciously round number.
      */
     ownerOperators: summariseOwnerOperators(ownerOpByPayee, inputs.ownerOperatorDeductionIncome),
+    glTieOut,
     excluded: {
-      unallocatedOverhead: rules.overheadBasis === "none" ? overheadPool : 0,
+      unallocatedOverhead,
+      fixedCostOnOwnerOperatorTrucks,
       /**
        * Where the overhead pool came from. `gl_remainder` means it is the income statement minus
        * what this report attributed, so every dollar the carrier spent is accounted for somewhere;
