@@ -7,6 +7,7 @@ import {
   type DqExportKind,
   type DqExportRow,
 } from "@silvicom/shared";
+import { labelOf, memberLabels } from "../../lib/memberLabels.js";
 
 /**
  * The export ledger (migration 0152, D-BD9). Every binder and every single-document release writes a
@@ -192,14 +193,9 @@ export async function listExports(
   const userIds = [
     ...new Set(rows.map((r) => r.requested_by).filter((v): v is string => Boolean(v))),
   ];
-  const emailById = new Map<string, string>();
-  await Promise.all(
-    userIds.map(async (id) => {
-      const { data: u } = await admin.auth.admin.getUserById(id).catch(() => ({ data: null }));
-      const email = (u as { user?: { email?: string } } | null)?.user?.email;
-      if (email) emailById.set(id, email);
-    }),
-  );
+  // One directory call for every requester at once (0301); the field keeps its name because the
+  // contract does, and carries the person's name when they have one and their email when they do not.
+  const labelById = await memberLabels(admin, orgId, userIds);
 
   return {
     rows: rows.map((r): DqExportRow => ({
@@ -218,7 +214,7 @@ export async function listExports(
       pages: r.pages,
       bytes: r.bytes,
       error: r.error,
-      requested_by_email: r.requested_by ? (emailById.get(r.requested_by) ?? null) : null,
+      requested_by_email: r.requested_by ? labelOf(labelById.get(r.requested_by)) : null,
       created_at: r.created_at,
       completed_at: r.completed_at,
       purged: Boolean(r.purged_at),

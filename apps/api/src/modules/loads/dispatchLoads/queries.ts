@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
+import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 
 /**
  * Dispatch-side reads (P2 split). Wide by design — dispatch sees every status. The counterpart writes
@@ -70,9 +71,10 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
  * Resolve the humans behind a set of `actor_user_id`s.
  *
  * `load_events.actor_user_id` points at `auth.users`, which PostgREST does not expose, so there is no
- * embed that can do this. Drivers resolve from `drivers.user_id` in one query; staff (dispatchers,
- * fleet managers) need the auth admin API, which is per-id — bounded here by the number of DISTINCT
- * actors on a single load, which is a handful, not by the number of events.
+ * embed that can do this. Since 0301 the org's directory answers every current member — a driver by
+ * the roster's name, an office member by their profile's name or their email — in one call, and
+ * `memberLabels` asks the auth admin API only for somebody who has since left the org. A deleted
+ * login stays unresolved and must not blank out the whole timeline — the role is still shown.
  */
 async function resolveActorNames(
   admin: SupabaseClient,
@@ -81,28 +83,11 @@ async function resolveActorNames(
 ): Promise<Map<string, string>> {
   const names = new Map<string, string>();
   if (userIds.length === 0) return names;
-
-  const { data: drivers } = await admin
-    .from("drivers")
-    .select("user_id, full_name")
-    .eq("org_id", orgId)
-    .in("user_id", userIds);
-  for (const d of (drivers ?? []) as { user_id: string | null; full_name: string | null }[]) {
-    if (d.user_id && d.full_name) names.set(d.user_id, d.full_name);
+  const labels = await memberLabels(admin, orgId, userIds);
+  for (const [id, label] of labels) {
+    const text = labelOf(label);
+    if (text) names.set(id, text);
   }
-
-  const unresolved = userIds.filter((id) => !names.has(id));
-  await Promise.all(
-    unresolved.map(async (id) => {
-      try {
-        const { data } = await admin.auth.admin.getUserById(id);
-        const email = data?.user?.email;
-        if (email) names.set(id, email);
-      } catch {
-        // A deleted login must not blank out the whole timeline — the role is still shown.
-      }
-    }),
-  );
   return names;
 }
 

@@ -16,7 +16,10 @@ export interface CpmCaveatContext {
   fleetLoaded: number;
   fleetActual: number;
   fleetDeadhead: number;
+  /** Trucks carrying cost or revenue but no miles in the window — under ANY basis (D-FIN10). */
   trucksWithoutMeasuredMiles: number;
+  /** Their fuel, pay, fixed and shared dollars — outside every per-mile figure, inside every total. */
+  unmeasuredCost: number;
   ownerOperatorSettlement: number;
   fuelWithoutTruck: number;
   settlementWithoutTruck: number;
@@ -84,13 +87,16 @@ export function buildCpmCaveats(ctx: CpmCaveatContext): string[] {
             ? ` — measured miles run ${shift.toFixed(1)}% above loaded, which IS the measured empty/out-of-route share.`
             : ` — measured miles run ${(-shift).toFixed(1)}% BELOW loaded, which usually means some trucks in the loaded total have no Samsara device (owner-operators), not that trucks drove less than their loads.`),
     );
-    if (ctx.trucksWithoutMeasuredMiles > 0) {
-      caveats.push(
-        `${ctx.trucksWithoutMeasuredMiles} truck(s) carry McLeod activity but no Samsara miles in this ` +
-          `window; their cost per mile is NOT computed rather than computed on a different basis ` +
-          `than the rest of the fleet.`,
-      );
-    }
+  }
+  if (ctx.trucksWithoutMeasuredMiles > 0) {
+    // The same sentence under either basis: a rate needs miles, and a truck without them shows its
+    // dollars and a dash — never $0.00, which is a plausible number and a wrong one (D-FIN10).
+    caveats.push(
+      `${ctx.trucksWithoutMeasuredMiles} truck(s) carry $${ctx.unmeasuredCost.toFixed(2)} of cost but no ` +
+        (ctx.useActual ? `Samsara miles` : `miles`) +
+        ` in this window; their cost per mile is NOT computed (shown as a dash), and the fleet's per-mile ` +
+        `figures are over measured trucks only. Their dollars stay in every total.`,
+    );
   }
   if (!ctx.useActual && rules.deadhead === "estimate" && ctx.fleetDeadhead > 0) {
     caveats.push(
