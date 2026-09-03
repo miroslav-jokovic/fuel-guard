@@ -141,7 +141,7 @@ export async function computeCpmForWindow(
     loaded_miles: m.loaded_miles == null ? null : num(m.loaded_miles),
     fuel_miles: m.fuel_miles == null ? null : num(m.fuel_miles),
     distance_unit: m.distance_unit === "KM" ? "KM" : "MI",
-    external_status: null,
+    external_status: m.external_status ?? null,
     movement_type: null,
     settled_at: m.settled_at,
     // Re-validated on the way out — the exact round-trip the 0267 ingest test pins. A stop that
@@ -193,6 +193,7 @@ export async function computeCpmForWindow(
       pay_distance: null,
       accrual_key: s.accrual_key,
       post_key: null,
+      is_void: s.is_void,
     }));
 
   const report = computeCpm(

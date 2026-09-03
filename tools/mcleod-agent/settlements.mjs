@@ -46,6 +46,7 @@ function mapSettlement(row) {
     pay_distance: row.pay_distance == null ? null : Number(row.pay_distance),
     accrual_key: row.accrual_key || null,
     post_key: row.post_key || null,
+    is_void: Number(row.is_void) === 1,
   };
 }
 
@@ -62,6 +63,7 @@ function mapDeduction(row) {
     transacted_at: row.transacted_at ? `${row.transacted_at}Z` : null,
     amount: num(row.amount),
     accrual_key: row.accrual_key || null,
+    is_void: Number(row.is_void) === 1,
   };
 }
 
@@ -132,7 +134,11 @@ export function summarizeSettlements({ settlements, ledgerLines, deductions, win
   const tractors = new Set();
   const seenKeys = new Set();
 
-  for (const s of settlements) {
+  // Voids arrive WITH the rows since D-FIN5; the to-the-cent tie-out is over live rows, as it always
+  // was, and the voided count is reported beside it rather than silently dropped.
+  const live = settlements.filter((s) => !s.is_void);
+  const liveDeductions = deductions.filter((d) => !d.is_void);
+  for (const s of live) {
     posted += s.posted_pay;
     totalPay += s.total_pay;
     if (s.tractor_unit) tractors.add(s.tractor_unit);
@@ -152,13 +158,14 @@ export function summarizeSettlements({ settlements, ledgerLines, deductions, win
   const difference = round(posted - ledger);
 
   let deductionTotal = 0;
-  const deductionsWithTractor = deductions.filter((d) => d.tractor_unit).length;
-  for (const d of deductions) deductionTotal += d.amount;
+  const deductionsWithTractor = liveDeductions.filter((d) => d.tractor_unit).length;
+  for (const d of liveDeductions) deductionTotal += d.amount;
 
   return {
     window: `${window_start} .. ${window_end}`,
     settlements: {
-      rows: settlements.length,
+      rows: live.length,
+      voided: settlements.length - live.length,
       tractors: tractors.size,
       byPayeeType,
       /** What the payees received. The cost-per-mile figure. */
@@ -175,7 +182,8 @@ export function summarizeSettlements({ settlements, ledgerLines, deductions, win
       reconciled: difference === 0 && unmatched === 0 && payableByKey.size === seenKeys.size,
     },
     deductions: {
-      rows: deductions.length,
+      rows: liveDeductions.length,
+      voided: deductions.length - liveDeductions.length,
       total: round(deductionTotal),
       withTractor: deductionsWithTractor,
     },
