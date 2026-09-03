@@ -452,3 +452,8 @@ T2–T6 from the parent plan follow their rulings and are unchanged by this docu
   (D-FIN6).
 - No tie-out that only displays. A residual is a finding or the month does not harden (D-FIN14).
 - No question left in this file. If one appears, it gets a decision here before any code moves.
+- 2026-09-03 · F4 — the agent gains `npm run financial` / `financial:harden`; the trailing window
+  is 75 days; the 1st–3rd of each month re-read the two previous months whole (`windows.mjs`,
+  pure, with the agent's first `node:test` suite, run by CI through `lint:agent-syntax`). The
+  README says to schedule it daily. **Owed to the owner:** the Task Scheduler entry on the carrier
+  box — the code cannot create that.
