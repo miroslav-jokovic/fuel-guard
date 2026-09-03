@@ -121,7 +121,10 @@ export const SURFACES: readonly Surface[] = [
   // EFS card inventory + control. Read-only until the write entitlement is confirmed; the page
   // itself explains that, so the catalogue entry does not need to know.
   { key: "fuel.cards", label: "Cards", path: "/fuel-cards", group: "fuel", gate: section("fuel") },
-  { key: "fuel.import", label: "Import", path: "/import", group: "fuel", gate: manage("fuel") },
+  // `fuel.import` (`/import`) was here until FUEL-C4 (2026-09-03). Its three capabilities are drawers
+  // now — the EFS backfill on Fuel Log, prices and locations on Truck Stops, Repair on Settings →
+  // Data & sync — so there is no screen left to grant, and each drawer carries the `manage` check
+  // this entry used to carry at the route. Rows written against the retired key are inert (0296).
   // D-FX8: five of its seven tabs are spend analytics; reconciliation is one of them.
   { key: "fuel.spend", label: "Fuel Spend", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
   // The ledger is a READ surface for anyone who can see fuel — a controller checking what was

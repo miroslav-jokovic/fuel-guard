@@ -7,12 +7,25 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import PriceUploadDrawer from "@/features/fueling/PriceUploadDrawer.vue";
+import { AppCard as BaseCard, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
+import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 25;
 const { data, isLoading, isError, error } = useFuelStations();
+
+/**
+ * FUEL-C4, D-FUI3 — the price and locations uploads moved here from `/import`, which is gone.
+ *
+ * `can("dispatch")` and not `canView`: this page is catalogued at `section("dispatch")` VIEW, so an
+ * auditor reaches it and must not be offered a write. See `PriceUploadDrawer` for why that section
+ * is the honest reading of the route's `requireRole("admin", "fleet_manager", "dispatcher")`.
+ */
+const session = useSessionStore();
+const uploadOpen = ref(false);
 
 const search = ref("");
 const stateFilter = ref("");
@@ -72,7 +85,15 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every loaded truck stop and the diesel price currently used for planning. Net is your contracted price; posted is retail." />
+    <PageHeader description="Every loaded truck stop and the diesel price currently used for planning. Net is your contracted price; posted is retail.">
+      <template v-if="session.can('dispatch')" #actions>
+        <BaseButton variant="secondary" @click="uploadOpen = true">
+          <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Upload prices
+        </BaseButton>
+      </template>
+    </PageHeader>
+
+    <PriceUploadDrawer :open="uploadOpen" @close="uploadOpen = false" />
 
     <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
     <BaseCard v-else-if="isError" class="text-sm text-danger-600">{{ error instanceof Error ? error.message : "Could not load stations." }}</BaseCard>

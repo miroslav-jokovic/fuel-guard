@@ -295,7 +295,7 @@ const columns: DataTableColumn[] = [
       :sort="sort"
       pin-first-column
       :row-class="() => 'cursor-pointer'"
-      empty-text="No declined transactions match — upload an EFS Reject report from the Import page, or adjust filters."
+      empty-text="No declined transactions match — adjust the filters, or use Backfill EFS reports in the page header."
       @sort="onSort"
       @retry="refetch"
       @row-click="selectedRow = $event"

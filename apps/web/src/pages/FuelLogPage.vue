@@ -33,15 +33,21 @@
  * `efs_transactions` are org-scoped in RLS and not section-scoped, so this hides a screen and does
  * not defend a table. It restores the boundary the merge would otherwise have dissolved, and does
  * not invent one.
+ *
+ * ⚠ **C4 brings the same question a second time, and the answer is the same.** `/import` was
+ * catalogued `manage("fuel")` and is now a drawer opened from this `always` page, so the button that
+ * opens it is gated on `can("fuel")` — MANAGE, not view, because it is a write. The API refuses the
+ * roles that lack it either way; an action offered and then refused is still a defect.
  */
 import { computed, ref } from "vue";
 import { AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
-import { PlusIcon } from "@silvicom/ui/icons";
+import { ArrowUpTrayIcon, PlusIcon } from "@silvicom/ui/icons";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import type { FillUpInput } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
+import EfsImportDrawer from "@/features/import/EfsImportDrawer.vue";
 import FillsTab from "@/features/fuel/FillsTab.vue";
 import DeclinesTab from "@/features/fuel/DeclinesTab.vue";
 import SourceRecordsTab from "@/features/fuel/SourceRecordsTab.vue";
@@ -56,6 +62,8 @@ const shared = useFuelLogFilters();
 
 /** The two absorbed tabs, behind the section their old routes were catalogued under. */
 const canSeeFeeds = computed(() => session.canView("fuel"));
+/** The backfill drawer, behind the level `/import` asked for — manage, because it writes fills. */
+const canBackfill = computed(() => session.can("fuel"));
 
 const TAB_DESCRIPTIONS: Record<FuelLogTab, string> = {
   fills: "Every recorded fill-up with computed MPG and anomaly status.",
@@ -91,6 +99,7 @@ const tab = computed<FuelLogTab>({
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
 const drawerOpen = ref(false);
+const importOpen = ref(false);
 const createFillUp = useCreateFillUp();
 
 async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
@@ -108,6 +117,11 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
   <div class="space-y-6">
     <PageHeader :description="TAB_DESCRIPTIONS[tab]">
       <template #actions>
+        <!-- C4: `/import` is gone, and this is where its EFS half lives. Secondary, because it is
+             the exception path — every fill in production arrived through the feed, not this. -->
+        <BaseButton v-if="canBackfill" variant="secondary" @click="importOpen = true">
+          <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Backfill EFS reports
+        </BaseButton>
         <BaseButton variant="primary" @click="drawerOpen = true">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
         </BaseButton>
@@ -130,6 +144,10 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
     <div v-else id="fuel-log-panel-source" role="tabpanel" aria-labelledby="fuel-log-tab-source">
       <SourceRecordsTab :shared="shared" />
     </div>
+
+    <!-- `v-if` on the gate as well as on the button: the drawer holds a write mutation, and a
+         component nobody may use should not be instantiated to sit closed behind a hidden button. -->
+    <EfsImportDrawer v-if="canBackfill" :open="importOpen" @close="importOpen = false" />
 
     <SlideOver :open="drawerOpen" title="Log fill-up" @close="drawerOpen = false">
       <FillUpForm

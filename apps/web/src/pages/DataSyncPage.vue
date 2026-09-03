@@ -141,6 +141,34 @@ const webhookState = computed(() => {
 
 // Read-only integrity summary from the nightly self-heal job.
 const nightly = useJob("nightly_reconcile");
+
+/**
+ * FUEL-C4, D-FUI3 — "Repair fuel data" moved here from `/import`, which is gone.
+ *
+ * It belongs on this page because this is where the other repair actions already are, and it was
+ * only ever on the import page because the import page was where somebody first needed it. Two
+ * things changed with the address, both improvements the move made free:
+ *
+ * · **It gets progress and freshness.** The route has ALWAYS created a job (`efs_store_sync`, and
+ *   it 409s while one is running), but the old button ignored that and reported a toast — so a
+ *   repair that was still re-scoring in the background looked finished, and a second click looked
+ *   broken. `JobActionCard` polls the ledger the route already writes.
+ * · **It says what the last run did**, in the same shape every other card on this page does.
+ *
+ * ⚠ **It keeps `can("fuel")` and does NOT inherit this page's `manage("settings")`.** The route is
+ * `requireSection("fuel")` — manage — and in the shipped matrix `settings: manage` and
+ * `fuel: manage` happen to be the same two roles, so nothing changes today. They are separately
+ * overridable per org (D-PERM2), and an org that grants settings without fuel would otherwise see a
+ * button that 403s.
+ */
+function repairSummary(stats: Record<string, unknown>) {
+  const n = (v: unknown) => Number(v ?? 0);
+  const inserted = n(stats.inserted), updated = n(stats.updated), unchanged = n(stats.unchanged);
+  if (inserted === 0 && updated === 0) {
+    return { label: `Last run: all ${unchanged} fuel events already matched the stored EFS lines.`, warn: false };
+  }
+  return { label: `Last run: ${inserted} added, ${updated} corrected, ${unchanged} already correct.`, warn: true };
+}
 /** Turn the last efs_ingest run's stats into a plain outcome line so a "successful" sync that imported
  *  nothing (all quarantined, or none found) is visible instead of a silent green chip. */
 function efsSummary(stats: Record<string, unknown>) {
@@ -224,6 +252,15 @@ const integrity = computed(() => {
         endpoint="/api/integrations/samsara/sync-trailers"
         action-label="Sync trailers now"
         description="Pull the reefer/trailer assets and their tractor pairings from Samsara. Also runs with 'Sync fleet identity'."
+      />
+      <JobActionCard
+        v-if="session.can('fuel')"
+        title="Repair fuel data"
+        kind="efs_store_sync"
+        endpoint="/api/transactions/sync-from-efs"
+        action-label="Repair now"
+        :result-summary="repairSummary"
+        description="If the Fuel Log's source records show all your EFS data but dashboard graphs are missing days, the derived fuel events are out of sync with the stored report lines. This rebuilds them from the stored data — no file re-upload needed. Safe to run any time; it only adds or corrects rows."
       />
       <JobActionCard
         title="Reconcile fuel with telematics"

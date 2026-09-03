@@ -444,7 +444,8 @@ before it is built, not during.
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
 | C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
 | C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
-| C4–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. ⚠ C4 inherits C2's permission finding: `/import` is `manage("fuel")` and becomes a drawer on a page catalogued `always`, so the drawer carries the check the route was carrying. C5 does not — Fuel Spend is one page behind one gate. |
+| C4 | **BUILT 2026-09-03** | The permission finding held: the drawer carries `can("fuel")`, and the Truck Stops one carries `can("dispatch")` for the same reason. What the shape row missed is that `/import` had **three** capabilities, not two — Repair fuel data is the third, and it gained progress and freshness by landing beside the other repair actions. |
+| C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. No permission question here — Fuel Spend is one page behind one gate. |
 | C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
 | C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
@@ -1631,6 +1632,83 @@ to a file format.
 
 **Verified by.** Upload tests move with their components; route-table and nav snapshots;
 `lint:ui-adoption` on the two new drawers.
+
+#### — DONE 2026-09-03 (`claude/fuel-retire-import`).
+
+**What shipped.** `/import` is a redirect to `/fuel-log`, `ImportPage.vue` is deleted, and its three
+capabilities open from the pages they belong to:
+
+| was | is |
+|---|---|
+| EFS reports tab | `EfsImportDrawer`, from the Fuel Log's header — **"Backfill EFS reports"** |
+| Fuel prices tab (both cards) | `PriceUploadDrawer`, from Truck Stops' header — **"Upload prices"** |
+| Repair fuel data | a `JobActionCard` on Settings → Data & sync |
+
+Fuel is **five** nav items. The section no longer has a page whose title is a verb applied to a file
+format.
+
+**⚠ THE SAME PERMISSION FINDING AS C2, ARRIVING A SECOND TIME BY A DIFFERENT ROUTE.** `/import` was
+catalogued `manage("fuel")` and its EFS half now opens from `/fuel-log`, which is catalogued
+`always` — so without a check, `recruiter` and `technician` (both `fuel: "none"`) and the four roles
+holding `fuel: "view"` would all have been offered a write they cannot perform. The API refuses them
+either way (`requireSection("fuel")`, which is manage), so the failure mode was a button that 403s
+rather than a data leak; an action offered and then refused is still a defect. The button is gated on
+`can("fuel")` — **manage, not view** — and the drawer is behind the same `v-if`, so a component
+holding a write mutation is not instantiated for somebody who may not use it.
+
+**Each of the three landings carries its own gate, and each is DERIVED rather than chosen:**
+
+- **Fuel Log → `can("fuel")`.** The level `/import` asked for.
+- **Truck Stops → `can("dispatch")`.** `/api/fueling/prices` is
+  `requireRole("admin", "fleet_manager", "dispatcher")`, and those three are exactly the roles with
+  `dispatch: "manage"` in the shipped matrix — the section gate EQUALS the role list rather than
+  approximating it, which is the condition CLAUDE.md sets for reading one as the other. The page
+  itself is `section("dispatch")` at VIEW, so an auditor keeps the page and does not get the uploads.
+  (The hardcoded list in that route is the permissions plan's S7 to remove, not this step's.)
+- **Data & sync → `can("fuel")`, NOT the page's `manage("settings")`.** Those two happen to be the
+  same two roles today, so no behaviour changes — but they are separately overridable per org
+  (D-PERM2), and an org granting settings without fuel would otherwise get a button that 403s. The
+  test for this needs a role holding one and not the other, which no shipped role does; it is
+  asserted through a mocked session, and that is the honest way to express an override.
+
+**One capability got BETTER by moving, and it is worth recording why.** The Repair button called
+`POST /api/transactions/sync-from-efs`, which has ALWAYS created a job (`efs_store_sync`) and 409s
+while one is running — but the button ignored both and reported a toast. So a repair that was still
+re-scoring in the background looked finished, and a second click looked broken. As a `JobActionCard`
+it polls the ledger the route already writes, shows progress and freshness like every other card on
+that page, and says what the last run did (`repairSummary`). Nothing about the route changed.
+
+**Three references had to move with it**, and they are the kind that survive a deletion silently:
+`DiscountCaptureTab`'s "uploaded on Import" link now points at Truck Stops, and the two raw-feed
+tabs' empty states now name the drawer in the page header instead of a page that no longer exists.
+
+**Verified by:** `pages/importRetired.test.ts` — `offers it to a role that may manage fuel, and
+mounts the drawer behind the button`; `withholds it from every role that could not open /import`
+(six roles, and it asserts the component is not instantiated, not merely hidden); `still offers it to
+the other role that could — the fleet manager`; `offers one drawer to a role that may manage
+dispatch`; `withholds it from a role that may only read the page`; `carries both of the cards it
+absorbed, unchanged`; `is a job-backed card on the page where the other repair actions already are`;
+`asks for fuel and not for settings, so a settings-only grant is not offered a 403`. Plus
+`router/routeTable.test.ts` — the redirect assertion gained `/import`, and its note records why C4's
+is a plain string where C2's two are functions: `/import` was a FORM, so it carried no filters to
+translate and there is no tab to land its reader on. Both route snapshots and the `navEquivalence`
+snapshots updated (deletions only). `lib/nav.test.ts` and `router/sectionGuard.test.ts` each lost
+`/import` as their `manage("fuel")` example and use Fuel Spend instead.
+
+**Proved able to fail — ten mutations:** the backfill gate removed (1 test); the gate asking `view`
+instead of `manage` (1); the drawer not reconnected (1); the price drawer not reconnected (1); its
+gate removed (1); the upload drawer dropping one of its two cards (1); Repair not reconnected (2);
+Repair inheriting the page's `settings` gate (1); `/import` redirecting to `/` (2); the backfill
+offered to admins only rather than to every fuel manager (1).
+
+**⚠ Two test-harness notes for whoever mounts a page with a drawer next.** Headless UI's `Dialog`
+observes its panel and jsdom has no `ResizeObserver` — without the stub `BaseModal.test.ts` carries,
+the assertions pass and the RUN still fails on unhandled rejections. And a page that instantiates a
+drawer holding a vue-query mutation needs `VueQueryPlugin` in `global.plugins`, which is why the two
+C2/C3 Fuel Log suites gained it here.
+
+**Gates green — the full `ci.yml` list**, including `pnpm --filter ./apps/web lint:tokens` and
+`node scripts/check-migration-ordering.mjs` with its `--self-test`. No migration in this step.
 
 ---
 

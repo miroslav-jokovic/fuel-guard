@@ -1,6 +1,5 @@
 import {
   ArrowsRightLeftIcon,
-  ArrowUpTrayIcon,
   BeakerIcon,
   CheckCircleIcon,
   CurrencyDollarIcon,
@@ -61,7 +60,6 @@ export const SURFACE_ICONS: Record<string, Icon> = {
 
   "fuel.log": PetrolPumpIcon,
   "fuel.cards": FuelCardIcon,
-  "fuel.import": ArrowUpTrayIcon,
   "fuel.spend": ReconciliationIcon,
   "fuel.exceptions": ExceptionLedgerIcon,
   "fuel.ifta": IftaLedgerIcon,
