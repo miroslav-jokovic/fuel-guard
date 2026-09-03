@@ -118,12 +118,16 @@ describe("GET /api/surface-access", () => {
     );
     const keys = body.surfaces.map((s) => s.key);
     expect(keys).toContain("maintenance.inspectors");
-    // Q-SURF3: product constants are not offered as cells. Dashboard and Fuel Log carry no role
-    // gate, Ask AI is any staff role, Users is admin-only — none of them an org's to deny.
+    // Q-SURF3: product constants are not offered as cells. Dashboard carries no role gate, Ask AI
+    // is any staff role, Users is admin-only — none of them an org's to deny. Fuel Log and the two
+    // hazmat pages WERE on this list until D-SURF10 (2026-09-03) put every page in a section's group
+    // behind that section; they are cells now, and their absence here would be the old defect back.
     expect(keys).not.toContain("dashboard");
-    expect(keys).not.toContain("fuel.log");
     expect(keys).not.toContain("ask-ai");
     expect(keys).not.toContain("admin.users");
+    expect(keys).toContain("fuel.log");
+    expect(keys).toContain("safety.hazmat-review");
+    expect(keys).toContain("safety.placard-calculator");
     // D-SURF8: a detail route is never separately grantable, so it is never a cell either.
     expect(keys.every((k) => !k.endsWith(".detail"))).toBe(true);
     expect(body.editableRoles).not.toContain("admin");

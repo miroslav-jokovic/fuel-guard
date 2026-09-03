@@ -59,6 +59,13 @@ jobs:
       - name: Migration versions
         run: pnpm lint:migrations
 
+      # P6 (EDITABLE-PERMISSIONS-PLAN.md, D-PERM13). Every new table has RLS, and every role list in a
+      # policy above the 0260 boundary equals its section's derived set or is waived by name. Chained
+      # in package.json as lint:rls; it was never in this workflow, which is how the section half ran
+      # blind for seven migrations.
+      - name: RLS and section policies
+        run: pnpm lint:rls
+
       # Only on a pull request, and that is the point: this gate exists to STOP a merge that would
       # serve code against a schema it has not got yet. On a push to main the merge has already
       # happened and the deploy is already running, so failing there would paint main red over
