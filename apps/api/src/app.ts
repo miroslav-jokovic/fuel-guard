@@ -421,7 +421,7 @@ export function createApp(env: Env): Express {
     // on the bootstrap path must never be the thing that takes sign-in down. The try is around the
     // CLIENT too — `getSupabaseAdmin` itself can throw, and the first draft left it outside and broke
     // "/api/me returns the principal for a valid token" exactly as the surfaces guard above predicted.
-    let fullName: string | null = null;
+    let fullName: string | null;
     try {
       fullName = await displayNameFor(getSupabaseAdmin(env), req.auth!.userId, orgId, req.auth!.role);
     } catch {
