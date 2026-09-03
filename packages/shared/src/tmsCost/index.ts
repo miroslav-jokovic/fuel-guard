@@ -11,3 +11,4 @@ export * from "./fixedCosts.js";
 export * from "./cpmCaveats.js";
 export * from "./apportion.js";
 export * from "./cpmTieOut.js";
+export * from "./cpmFleet.js";

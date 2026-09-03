@@ -2,6 +2,7 @@ import { inferDeadheadLegs } from "./movementFact.js";
 import { buildCpmCaveats } from "./cpmCaveats.js";
 import { apportionByWeight } from "./apportion.js";
 import { buildGlTieOut } from "./cpmTieOut.js";
+import { summariseFleet } from "./cpmFleet.js";
 import type { SettlementPayeeType } from "./settlementFact.js";
 import {
   classifyOwnerOperatorUnits,
@@ -37,9 +38,14 @@ import {
 
 
 const round = (n: number) => Math.round(n * 100) / 100;
-/** Cents, to one decimal — beyond that is false precision on an allocated number. */
-const cents = (dollars: number, miles: number) =>
-  miles <= 0 ? 0 : Math.round((dollars / miles) * 100 * 10) / 10;
+/**
+ * Cents, to one decimal — beyond that is false precision on an allocated number. NULL when there
+ * are no miles to divide by (D-FIN10): a truck with $1,000 of fuel and no measured miles used to
+ * print $0.00 per mile, which is a plausible number and a wrong one, and only the collapsed
+ * explainer said "not computed". Null cannot be mistaken for cheap.
+ */
+const cents = (dollars: number, miles: number): number | null =>
+  miles <= 0 ? null : Math.round((dollars / miles) * 100 * 10) / 10;
 
 interface Bucket {
   tractor_unit: string;
@@ -301,15 +307,10 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   let fleetLoaded = 0;
   let fleetDeadhead = 0;
   let fleetActual = 0;
-  let trucksWithoutMeasuredMiles = 0;
   for (const b of list) {
     fleetLoaded = round(fleetLoaded + b.loadedMiles);
     fleetDeadhead = round(fleetDeadhead + b.deadheadMiles);
-    if (useActual) {
-      const a = actualByUnit[b.tractor_unit] ?? 0;
-      fleetActual = round(fleetActual + a);
-      if (a <= 0 && (b.loadedMiles > 0 || b.fuel > 0 || b.settlement > 0)) trucksWithoutMeasuredMiles++;
-    }
+    if (useActual) fleetActual = round(fleetActual + (actualByUnit[b.tractor_unit] ?? 0));
   }
   const fleetTotal = useActual ? fleetActual : round(fleetLoaded + fleetDeadhead);
 
@@ -362,24 +363,27 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     };
   });
 
-  trucks.sort((a, b) => b.totalCpm - a.totalCpm);
+  // Most expensive first; a truck with no rate sorts last, after every truck that has one.
+  trucks.sort((a, b) => (b.totalCpm ?? -Infinity) - (a.totalCpm ?? -Infinity));
 
-  let fleetFuel = 0;
-  let fleetSettlement = 0;
-  for (const b of list) {
-    fleetFuel = round(fleetFuel + b.fuel);
-    fleetSettlement = round(fleetSettlement + b.settlement);
-  }
-  const fleetDirect = round(fleetFuel + fleetSettlement);
-  const allocatedTotal = round(allocations.reduce((sum, a) => sum + a, 0));
-  const unallocatedOverhead = round(overheadPool - allocatedTotal);
-  let fleetFixed = 0;
-  let fleetRevenue = 0;
-  for (const t of trucks) {
-    fleetFixed = round(fleetFixed + t.fixedCost);
-    fleetRevenue = round(fleetRevenue + t.revenue);
-  }
-  const fleetNet = round(fleetRevenue - fleetDirect - allocatedTotal - fleetFixed);
+  // Whole-fleet sums, and the measured/unmeasured split behind the per-mile figures (D-FIN10) —
+  // see `cpmFleet.ts` for why a truck without miles stays in every total and out of every rate.
+  const {
+    fleetFuel,
+    fleetSettlement,
+    fleetDirect,
+    allocatedTotal,
+    unallocatedOverhead,
+    fleetFixed,
+    fleetRevenue,
+    fleetNet,
+    unmeasured,
+    measuredDirect,
+    measuredFixed,
+    measuredAllocated,
+    measuredRevenue,
+    measuredNet,
+  } = summariseFleet(trucks, allocations, overheadPool);
 
   // Every dollar of the income statement in exactly one bucket, residual 0.00 or the report is
   // wrong — see `cpmTieOut.ts` for the arithmetic and what a refused anchor reports instead.
@@ -403,7 +407,8 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       fleetLoaded,
       fleetActual,
       fleetDeadhead,
-      trucksWithoutMeasuredMiles,
+      trucksWithoutMeasuredMiles: unmeasured.trucks,
+      unmeasuredCost: round(unmeasured.directTotal + unmeasured.fixedTotal + unmeasured.allocatedTotal),
       ownerOperatorSettlement: rules.includeOwnerOperators ? 0 : ownerOperatorSettlement,
       fuelWithoutTruck,
       settlementWithoutTruck,
@@ -441,12 +446,13 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
       fixedTotal: fleetFixed,
       revenueTotal: fleetRevenue,
       netTotal: fleetNet,
-      directCpm: cents(fleetDirect, fleetTotal),
-      allocatedCpm: cents(allocatedTotal, fleetTotal),
-      fixedCpm: cents(fleetFixed, fleetTotal),
-      totalCpm: cents(round(fleetDirect + allocatedTotal + fleetFixed), fleetTotal),
-      revenueCpm: cents(fleetRevenue, fleetTotal),
-      netCpm: cents(fleetNet, fleetTotal),
+      directCpm: cents(measuredDirect, fleetTotal),
+      allocatedCpm: cents(measuredAllocated, fleetTotal),
+      fixedCpm: cents(measuredFixed, fleetTotal),
+      totalCpm: cents(round(measuredDirect + measuredAllocated + measuredFixed), fleetTotal),
+      revenueCpm: cents(measuredRevenue, fleetTotal),
+      netCpm: cents(measuredNet, fleetTotal),
+      unmeasured,
     },
     /**
      * The owner-operator side, kept apart because the arithmetic is not the same question.
