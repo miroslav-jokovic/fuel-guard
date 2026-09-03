@@ -476,3 +476,9 @@ record. One dated line per step, appended at the end, so parallel PRs never touc
   `sortRows` keeps blanks last.
 - 2026-09-03 · F6a — reader refuses an empty payload; `replace_mcleod_gl_month` lands in 0302 as
   the function only. **F6b owed:** the reader calls the RPC one merge after 0302 has applied.
+- 2026-09-03 · F3 — the financial routes stamp `org_integrations` provider `mcleod_financial`; the
+  CPM header prints "McLeod figures as of …"; `financialFreshness.ts` runs six-hourly and turns a
+  sweep older than 26 h or a failed finance job into a `system` finding for every `accounting`
+  manager plus one office email per run (dedupe keys: `finance:stale:<org>:<day>`,
+  `finance:job-failed:<job>`). A dedicated notification category is owed if the office ever wants
+  to mute it apart from other system findings.

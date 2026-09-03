@@ -178,6 +178,9 @@ const API_ALLOW = new Set([
   // growing a private notification path.
   "efs -> messaging",
   "evidence -> messaging",
+  // D-FIN3: a stale McLeod financial sweep or a failed finance job becomes a finding the office
+  // sees — the same notify() fabric, the dqAlertScheduler shape, through messaging's index.
+  "financial -> messaging",
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",

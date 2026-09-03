@@ -117,3 +117,34 @@ export function startQueueMetricsLogger(env: Env, intervalMs = 60_000): { stop: 
   void tick(); // emit one immediately so a boot is observable without waiting a full interval
   return { stop: () => clearInterval(handle) };
 }
+
+/**
+ * Jobs of the named kinds that ended `failed` since `sinceIso`, oldest first — for a pass that
+ * turns a failed repair into a finding somebody sees (D-FIN3). A failed `efs_window_refetch` sat
+ * in this table for six days in 2026-08 with nobody told; the queue reports it, the caller
+ * decides who hears. Org-scoped by argument, capped so a crash loop cannot fetch unboundedly.
+ */
+export interface FailedJobRow {
+  id: string;
+  kind: string;
+  error: string | null;
+  finished_at: string | null;
+}
+export async function recentFailedJobs(
+  admin: SupabaseClient,
+  orgId: string,
+  kinds: readonly string[],
+  sinceIso: string,
+): Promise<FailedJobRow[]> {
+  const { data, error } = await admin
+    .from("jobs")
+    .select("id, kind, error, finished_at")
+    .eq("org_id", orgId)
+    .eq("status", "failed")
+    .in("kind", [...kinds])
+    .gte("finished_at", sinceIso)
+    .order("finished_at", { ascending: true })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as FailedJobRow[];
+}
