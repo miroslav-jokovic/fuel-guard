@@ -44,6 +44,12 @@ export interface IngestResult {
   shortfallRows: number | null;
   /** Non-fatal scoring error — the import is committed; scoring can be retried. */
   scoreError: string | null;
+  /**
+   * Rows Postgres refused on their own after the batch failed — filed verbatim on `import_rows`
+   * with the database's error text and counted on `imports.error_rows` (D-FIN2). The rest of the
+   * file landed; a reject costs one row, never the window.
+   */
+  rejectedRows?: number;
 }
 
 export const loc = (...parts: (string | null)[]) => parts.filter(Boolean).join(", ") || null;
