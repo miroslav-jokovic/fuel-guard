@@ -7,6 +7,7 @@ import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.v
 import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
 import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
+import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -65,6 +66,16 @@ const {
   isLoading: statementLoading,
   isError: statementError,
 } = useIncomeStatementQuery(statementFilter);
+
+/**
+ * How many trucks this period measured, and whether that is all of them (G4 + G10).
+ *
+ * It rides beside every tab rather than inside one, because it is the answer to "can a per-mile
+ * figure be trusted for this period at all". Samsara telematics finished rolling out during 2026,
+ * so an early-2026 period measured fewer trucks than delivered loads and its cost per mile reads
+ * low on miles and high on cost. The banner is how that stops being invisible.
+ */
+const { data: coverage } = useMileageCoverageQuery(statementFilter);
 
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
@@ -235,6 +246,25 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :sub-tone="report.excluded.unallocatedOverhead > 0 ? 'text-danger-600' : undefined"
       />
     </div>
+
+    <!-- The coverage banner (G10). A period whose miles are short of its trucks cannot carry a
+         per-mile figure at all, and saying so once, at the top, beats a dash on every row. -->
+    <p
+      v-if="coverage?.reason"
+      class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
+    >
+      {{ coverage.reason }}
+    </p>
+    <p v-else-if="coverage?.trucks" class="text-sm text-ink-secondary">
+      <span class="font-semibold text-ink">{{ coverage.trucks }}</span> trucks ran in this period and
+      Samsara measured every one of them, over
+      <span class="font-semibold text-ink">{{ fmtMiles(coverage.miles ?? 0) }}</span> miles.
+      <template v-if="coverage.months[0]?.emptyPct !== null && coverage.months[0]?.emptyPct !== undefined">
+        <span class="text-ink-tertiary">
+          {{ coverage.months[0].emptyPct }}% of those miles carried no load.
+        </span>
+      </template>
+    </p>
 
     <AppTabs v-model="tab" :tabs="TABS" label="Cost per mile views" id-prefix="cpm" />
 

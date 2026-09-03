@@ -487,7 +487,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G1** | **The fleet harness** | `computeFleetReport` to the contract in §2.5 — pure, period-parameterised, every figure derived. Replaces `computeCpm`'s allocation path entirely. Ships with the §1 tables as fixtures over real staged rows, each mutation-tested. | nothing |
 | **G2** | **Dispatcher rate per mile** | **ALREADY BUILT** — verified end to end 2026-09-03 (§1.7). Migration 0275, the reader, the service and the page all use `distance`; the two empty columns are documented rather than deleted, by 0275's own decision. No work. | — |
 | **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
-| **G4** | **Active-truck rule** | A truck is active in a month if Samsara measured miles for it. Same source as the denominator, so the count and the miles can never disagree. Printed on every tab. July = 172 (163 company, 9 owner-operator). | nothing |
+| **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
 | **G5** | **Overview tab and the trend** | The six headline figures, the three-column split, the twelve-month chart, and the provenance line. | G1, G4 |
 | **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
 | **G7** | **The removals** | §4, as its own PR after G1–G5 are live. | G1–G5 |
@@ -497,10 +497,9 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
-| **G10** | **The mileage-coverage guard** | A month whose Samsara truck count is below its delivering-truck count reports per-mile figures as `null` with the reason, exactly as a truck without miles does (D-FIN10). Computed, never a hard-coded date — the rule survives a future gateway outage, a hard-coded "before March 2026" would not. | G4 |
+| **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 
-**Ordering:** G2 and G3 first — done. Then G4 and G10 (the truck count and the rule that refuses a
-per-mile figure computed over an incomplete fleet), then G1, G9 and G5 as the fleet model proper.
+**Ordering:** G2, G3, G4 and G10 — done. Next G1, then G9 and G5 as the fleet model proper.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
@@ -660,4 +659,21 @@ the record.
   mutation-tested: balance-sheet exclusion, unrecognised-class folding, ordering by description,
   a null share printing as zero, a dropped org filter, hidden missing months, a collapsed fiscal
   year, a removed account code, and always-on to-date columns — every mutant killed.
+- 2026-09-03 · **G4 + G10 — the truck count and the coverage guard**, built together because they
+  are one measurement. `mileageCoverage.ts` (shared, pure): a month is complete when Samsara
+  measured at least every truck that delivered a load, the truck count for a period is the busiest
+  month rather than a sum, and a short month yields `null` for miles, for the truck count and for
+  the empty-mile figure — with a reason naming which months and how many trucks, because "two
+  months are incomplete" sends a reader looking for which. More measured trucks than delivering
+  ones is HEALTHY, not an error: those ran without delivering. `getMileageCoverage` reads both
+  collectors through their own interfaces — `readMonthlyMileageByMonth` keeps months apart where
+  the existing reader collapses them, and `readBilledMilesByDeliveryMonth` buckets bills on
+  **delivery date**, since bucketing July on invoice date puts February's empty miles at −8.8%.
+  Cancelled bills are excluded. `GET /api/accounting/mileage-coverage`; a banner above the tabs
+  states either the truck count and the empty percentage, or the reason there is no rate.
+  19 tests, mutation-tested at both layers: every-month-complete, extra trucks counted as missing,
+  the truck count summed across months, empty miles computed for a short month, cancelled bills
+  counted, and bucketing on `bill_date` — all six killed. The API tests use filtering fixtures
+  rather than flat arrays, because the recorder records filters without applying them and a flat
+  array answers "April" with March's rows.
 

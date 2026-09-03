@@ -13,6 +13,7 @@ import {
   getGlMonthlyCosts,
   getMonthCloses,
   getIncomeStatement,
+  getMileageCoverage,
 } from "../../financial/index.js";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
@@ -198,6 +199,30 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, ...statement });
+    }),
+  );
+
+  /**
+   * Mileage coverage (G4 + G10) — the truck count, and whether the miles behind it are all of them.
+   *
+   * A page asks this before it prints a per-mile figure. Samsara telematics finished rolling out
+   * across this fleet during 2026, so early months measured fewer trucks than delivered loads, and
+   * a cost per mile over a short denominator reads low on miles and high on cost with nothing
+   * saying so. The answer carries either a denominator or a reason, never a smaller number.
+   */
+  router.get(
+    "/mileage-coverage",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const coverage = await getMileageCoverage(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...coverage });
     }),
   );
 

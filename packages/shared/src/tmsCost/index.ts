@@ -16,3 +16,4 @@ export * from "./apportion.js";
 export * from "./cpmTieOut.js";
 export * from "./cpmFleet.js";
 export * from "./incomeStatement.js";
+export * from "./mileageCoverage.js";

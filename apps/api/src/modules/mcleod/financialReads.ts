@@ -131,8 +131,8 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
       .from("mcleod_billing")
       .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
       .eq("org_id", orgId)
-      .gte("bill_date", fromIso)
-      .lt("bill_date", toIso)
+      .gte("delivery_date", fromIso)
+      .lt("delivery_date", toIso)
       .order("bill_date", { ascending: true })
       .order("id", { ascending: true }) // ~80 invoices share each bill_date; see the settlements tiebreaker
       .range(from, to),
@@ -166,6 +166,73 @@ export async function readBillingDispatchers(
     }
   }
   return out;
+}
+
+/**
+ * Delivering trucks and billed miles per DELIVERY month — the comparison side of the mileage
+ * coverage rule (G10) and the billed denominator behind revenue per billed mile (G9).
+ *
+ * Windowed on `delivery_date` rather than `bill_date`, and that is the whole reason this reader
+ * exists rather than reusing `readBillingWindow`. Measured 2026-09-03: bucketing July's bills by
+ * invoice date puts 225,415 miles of "empty" in the month and February's at MINUS 8.8%, which is
+ * physically impossible — an invoice is cut days after the truck ran, so the two sides of the
+ * comparison sit on different clocks. Delivery date is the day the miles happened, which is the
+ * clock Samsara is already on.
+ *
+ * Voided and cancelled bills are excluded: a cancelled load's miles were driven, but its BILLED
+ * miles were never billed, and this reader answers the billed question.
+ */
+export async function readBilledMilesByDeliveryMonth(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<Map<string, { trucks: number; miles: number; loads: number; revenue: number }>> {
+  const rows = await paged<{
+    delivery_date: string | null;
+    tractor_unit: string | null;
+    distance: number | string | null;
+    total_charges: number | string;
+    other_charge: number | string;
+    canceled: boolean | null;
+  }>((from, to) =>
+    admin
+      .from("mcleod_billing")
+      .select("delivery_date, tractor_unit, distance, total_charges, other_charge, canceled")
+      .eq("org_id", orgId)
+      .gte("delivery_date", fromIso)
+      .lt("delivery_date", toIso)
+      .order("delivery_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+
+  const acc = new Map<string, { trucks: Set<string>; miles: number; loads: number; revenue: number }>();
+  for (const r of rows) {
+    if (r.canceled) continue;
+    if (!r.delivery_date) continue;
+    const key = String(r.delivery_date).slice(0, 7);
+    let b = acc.get(key);
+    if (!b) {
+      b = { trucks: new Set<string>(), miles: 0, loads: 0, revenue: 0 };
+      acc.set(key, b);
+    }
+    b.loads++;
+    b.revenue += Number(r.total_charges) + Number(r.other_charge ?? 0);
+    if (r.tractor_unit) b.trucks.add(r.tractor_unit);
+    if (r.distance != null) b.miles += Number(r.distance);
+  }
+  return new Map(
+    [...acc].map(([k, v]) => [
+      k,
+      {
+        trucks: v.trucks.size,
+        miles: Math.round(v.miles * 10) / 10,
+        loads: v.loads,
+        revenue: Math.round(v.revenue * 100) / 100,
+      },
+    ]),
+  );
 }
 
 export interface StagedDeduction {
