@@ -110,8 +110,13 @@ export async function readApVouchersWindow(admin: SupabaseClient, orgId: string,
       .from("mcleod_ap_vouchers")
       .select("id, external_id, vendor_id, invoice_date, distribution_date, amount, ap_glid, is_paid, check_number, post_key, post_module")
       .eq("org_id", orgId)
-      .gte("distribution_date", fromIso)
-      .lt("distribution_date", toIso)
+      // ONE economic date (D-FIN7): coalesce(distribution_date, invoice_date), the same expression the
+      // agent sweeps on and the projection stamps occurred_at with. Spelled as PostgREST can say it —
+      // a distributed voucher by its distribution date, an undistributed one by its invoice date.
+      .or(
+        `and(distribution_date.gte.${fromIso},distribution_date.lt.${toIso}),` +
+          `and(distribution_date.is.null,invoice_date.gte.${fromIso},invoice_date.lt.${toIso})`,
+      )
       .order("distribution_date", { ascending: true })
       .order("id", { ascending: true }) // same-day vouchers tie; see the settlements tiebreaker
       .range(from, to),

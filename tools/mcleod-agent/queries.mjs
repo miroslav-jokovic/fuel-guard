@@ -445,8 +445,17 @@ export const FUEL_LEDGER_LINES = `
  * id is configuration, because a carrier that changes fuel-card provider must not silently start
  * double-counting.
  *
- * `void_date IS NULL` for the same reason settlement excludes `is_void` and movements exclude status
- * 'V': a voided voucher is money that was never paid, and counting it inflates cost.
+ * `void_date IS NULL` for the same reason settlement used to exclude `is_void` and movements status
+ * 'V': a voided voucher is money that was never paid, and counting it inflates cost. It stays a
+ * filter here until `mcleod_ap_vouchers` carries a void column (F5b, FINANCE-GO-LIVE-PLAN).
+ *
+ * ONE ECONOMIC DATE (D-FIN7). The window is on `COALESCE(distribution_date, invoice_date)` — the GL
+ * posting date, falling back to the invoice date for a voucher not yet distributed — and the API
+ * reads and projects on exactly the same expression. Until 2026-09-03 the sweep windowed on
+ * invoice_date and the projection on distribution_date, so a voucher whose distribution fell
+ * outside the projection window but inside the sweep was staged and never projected until a manual
+ * full run. COALESCE defeats the invoice_date index; voucher_hist is 88k rows and voucher a few
+ * hundred, so the scan is cheap, and correctness of the window is worth more than the seek.
  */
 export const AP_VOUCHERS = `
     SELECT
@@ -472,8 +481,8 @@ export const AP_VOUCHERS = `
      WHERE v.company_id = @companyId
        AND v.void_date IS NULL
        AND v.voucher_type <> 'P'
-       AND v.invoice_date >= @windowStart
-       AND v.invoice_date <  @windowEnd
+       AND COALESCE(v.distribution_date, v.invoice_date) >= @windowStart
+       AND COALESCE(v.distribution_date, v.invoice_date) <  @windowEnd
     UNION ALL
     -- The live half is thinner than the history half by EIGHT columns, not the three that
     -- fuel_detail differs by: is_paid, payment_method, post_key, post_module, posted_payment_no,
@@ -498,8 +507,8 @@ export const AP_VOUCHERS = `
       FROM dbo.voucher AS v
      WHERE v.company_id = @companyId
        AND v.voucher_type <> 'P'
-       AND v.invoice_date >= @windowStart
-       AND v.invoice_date <  @windowEnd`;
+       AND COALESCE(v.distribution_date, v.invoice_date) >= @windowStart
+       AND COALESCE(v.distribution_date, v.invoice_date) <  @windowEnd`;
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Settlement — C3 (docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md §5.3)
