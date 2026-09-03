@@ -310,3 +310,31 @@ export async function readGlAccounts(admin: SupabaseClient, orgId: string): Prom
       .range(from, to),
   );
 }
+
+/** One line per (company, month) the GL sweep has landed, with the newest stamp — what the monthly close recomputes from (D-FIN14). */
+export interface SweptMonth {
+  company_id: string | null;
+  period_start: string;
+  period_end: string;
+  swept_at: string;
+}
+
+export async function readSweptMonths(admin: SupabaseClient, orgId: string): Promise<SweptMonth[]> {
+  const rows = await paged<{ company_id: string | null; period_start: string; period_end: string; swept_at: string }>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("company_id, period_start, period_end, swept_at")
+      .eq("org_id", orgId)
+      .order("period_start", { ascending: true })
+      .order("glid", { ascending: true }) // (period, module, glid) is the row identity — a total order
+      .order("post_module", { ascending: true })
+      .range(from, to),
+  );
+  const byKey = new Map<string, SweptMonth>();
+  for (const r of rows) {
+    const key = `${r.company_id ?? ""}|${r.period_start}`;
+    const cur = byKey.get(key);
+    if (!cur || r.swept_at > cur.swept_at) byKey.set(key, { ...r });
+  }
+  return [...byKey.values()];
+}

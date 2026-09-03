@@ -11,6 +11,7 @@ import {
   getLedgerCoverage,
   computeCpmForWindow,
   getGlMonthlyCosts,
+  getMonthCloses,
 } from "../../financial/index.js";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
@@ -121,6 +122,20 @@ export function accountingRouter(): Router {
   // The missing-entries instrument (0269): McLeod's own monthly control totals against what our
   // staging holds, module by module. Coverage is a BREADTH signal — modules are lifecycle views
   // of the same dollars (D-MC13) — so the UI must present drift per module, never a summed total.
+  // The monthly close (D-FIN14): every (company, month) the sweeps have landed, with the buckets,
+  // the residuals and the verdict — hardened only when every tie-out reads 0.00. The Books check
+  // page (F15) renders it; the finance pages print a month's status from it.
+  router.get(
+    "/month-closes",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const closes = await getMonthCloses(admin, req.auth!.orgId!);
+      res.json({ ok: true, closes });
+    }),
+  );
+
   router.get(
     "/ledger-coverage",
     requireOrg,
