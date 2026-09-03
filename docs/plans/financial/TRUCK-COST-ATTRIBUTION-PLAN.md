@@ -3,6 +3,14 @@
 **Status:** ACTIVE — T1 in build. **Owner:** Miki. **Written:** 2026-08-28, from the June 2026
 income statement reviewed line-by-line against what the pipeline measures today.
 
+**Superseded in ordering, 2026-09-03, by [FINANCE-GO-LIVE-PLAN](./FINANCE-GO-LIVE-PLAN.md) §4b.**
+Two owner rulings moved underneath this document: the reporting era starts **2026-07-01**
+(D-FIN16), so every June figure below is now a regression fixture rather than a deliverable; and
+org-level precision comes before per-truck precision (D-FIN17), so T2 (0.7% of the month) and T3
+(netting inside a total that already ties) move to the END of the queue, behind the fixed-cost
+schedule, the office-lines backfill and the account→family catalogue. The steps themselves are
+unchanged. Read §4b of the go-live plan for the order, and its §6 for the collector evidence.
+
 The owner's requirement, verbatim in spirit: *precise numbers — no assuming, no improvising.* This
 plan is bound by that. Every step below either (a) attributes dollars to a truck from a MEASURED
 source, (b) attributes them by a RULE the owner signed, with the rule printed on the report, or

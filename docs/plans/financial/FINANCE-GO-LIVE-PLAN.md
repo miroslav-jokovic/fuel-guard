@@ -10,6 +10,26 @@ The goal this plan serves, in the owner's words: *when we connect to live McLeod
 everything production ready and 100% precise, accurate and reliable* — revenue per mile per
 truck, spend per mile per truck, and what is left per mile per truck.
 
+**Revised 2026-09-03 (second pass), on two owner rulings that change the shape of this plan:**
+
+- **D-FIN16 — the reporting era starts 2026-07-01.** July 2026 is month one. Nothing before it is
+  reported to the bosses, nothing before it has to tie, and no step is blocked on repairing a month
+  that will never be shown. June stays as the *proof* month (it is the month whose figures were
+  reconciled by hand on 2026-08-28 and is therefore the regression fixture), but it is a test
+  fixture from here on, not a deliverable.
+- **D-FIN17 — org-level precision first, per-truck precision second.** The bosses' question is
+  "did the company make money this month, and where did it go". That question is answerable *today*
+  to the cent (§0.1 proves it), and it is answerable without FleetPal, without a toll feed and
+  without the deduct-code taxonomy. Per-truck precision is the second deliverable, not the first,
+  and the steps are ordered by the dollars they move rather than by the elegance of the attribution.
+  A step that argues over 0.7% of the money does not precede a step that fixes 26% of it.
+
+Consequence for §4: the execution order below is re-sorted, and the work is re-expressed as a
+**collector and classification programme (the C-series)** rather than as harness work. The harness
+is largely built and is not the constraint. What is missing is *data that is collected but not
+posted*, *data that is posted but not classified*, and *data that nobody collects at all* — §6
+enumerates all three, exhaustively, against the July 2026 income statement.
+
 **Rule of this document: no open questions.** Every item below ends in a decision (`D-FIN*`) or
 a proposed ruling with a recommended answer. Where a decision is the owner's to sign (the R-series),
 the recommendation is written in full so signing is a yes/no, not a research task. A question left
@@ -55,6 +75,92 @@ Two facts in that table: April and May are missing the fuel the failed refetch w
 bring (D-FIN2), and every complete month runs 5–8% ABOVE the GL account, which nothing in code or
 plans explains yet (D-FIN12). January, which the vendor guide left unmeasured, IS reachable —
 1,971 fills landed — so the "McLeod-copy fuel staging for January" fallback is not needed.
+
+---
+
+## 0.1 July 2026, measured 2026-09-03 — the month the reporting era starts
+
+Every figure in this section came from `supabase db query --linked` against production staging on
+2026-09-03, and was checked line by line against the owner's printed `PROFIT LOSS JULY 2026.pdf`
+(McLeod Income Statement + Balance Sheet, printed 2026-08-20 09:59, Silvicom, Inc.).
+
+**The staged general ledger reproduces the printed income statement to the cent.**
+
+| | Printed P&L | `mcleod_gl_totals` |
+|---|---:|---:|
+| Total Revenue | 4,828,189.24 | **4,828,189.24** |
+| Total Operating Expenses | 3,549,112.89 | **3,549,112.89** |
+| Total General & Admin | 509,030.49 | **509,030.49** |
+| Total Expenses | 4,058,143.38 | **4,058,143.38** |
+| Net Income | 770,045.86 | **770,045.86** |
+
+94 expense account/module rows, 13 revenue account/module rows. This is the single most important
+measurement in this plan: **the company-level money is already complete and already ours.** Every
+claim below about what is "missing" is a claim about *grain*, never about dollars.
+
+**Where July's expense dollars sit, by the posting module McLeod used** — `mcleod_gl_totals` is
+grained `(org, company, month, glid, post_module)`, and the module is what says how finely McLeod
+itself can split an account (`glMonthlyCosts.ts` `GRAIN_BY_MODULE`, measured against June 2026):
+
+| Grain | Modules | July $ | % | What it is |
+|---|---|---:|---:|---|
+| **per truck** | SET, SETV, FUEL, DRS, DED | 2,465,737 | **60.8%** | driver pay, owner-op pay, every EFS product, deductions |
+| **company** | GJ, RJ | 1,057,724 | **26.1%** | VIP Lease 700,000 · insurance 177,208 · officer+office salaries 88,250 · payroll tax 54,415 · GPS 13,466 · IFTA/permits 22,580 |
+| **per person** | OFF | 289,921 | **7.1%** | office payroll, 31 named people |
+| **per vendor** | AP | 244,761 | **6.0%** | maintenance 141,000 · rent 32,050 · CPA/legal/utilities · IRP |
+
+**Where July's revenue dollars sit:**
+
+| Grain | Module | July $ | Route to a truck |
+|---|---|---:|---|
+| per truck | BILL | 4,807,522.63 (99.57%) | `mcleod_billing.tractor_unit` — populated on 1,412 of 1,415 July bills |
+| per truck | DRS | 20,666.61 (0.43%) | settlement payee (equipment rental, installment sale, O/O insurance collection, detention, out-of-service) |
+
+There is no revenue in this carrier's July that lacks a route to a truck. The earlier reading of
+the printed PDF — that Equipment Rental and Installment Sale are "non-trucking revenue that can
+never attribute" — was wrong: both post through DRS and carry a payee. Corrected here rather than
+left standing.
+
+**Denominators, July 2026:**
+
+| Measure | Value | Source |
+|---|---:|---|
+| Samsara measured miles | 1,552,337 over **172 vehicles** | `samsara_ifta_jurisdiction_miles` |
+| McLeod loaded miles | 1,336,507 over 2,634 movements | `mcleod_movements` (tractor on 2,614 of 2,634) |
+| Billed distance | present on 1,415 of 1,415 bills (`distance`) | `mcleod_billing` |
+| Trucks with billing | 160 | `mcleod_billing` |
+
+Samsara runs 16% above McLeod loaded miles, which is deadhead, and is the reason `total_miles`
+is the recommended overhead basis (R1).
+
+**Therefore the org-level answer already exists, today, with no new integration:**
+
+> **July 2026 — earned $3.11/mile · spent $2.61/mile · kept $0.50/mile.**
+> $770,045.86 net on 15.9% margin, $4,477 net per truck per month over 172 measured trucks.
+
+**Two data-quality facts found in the ledger itself while measuring the above:**
+
+- `40790002 Tolls OO` is typed **`Income Tax Expense`** in McLeod's own `gl_account` master, as is
+  `40220002 "2290 OO"` (heavy-highway-use tax, IRS form 2290). Both are operating costs. McLeod's
+  own P&L sectioning therefore misfiles real expenses, and the account→family catalogue (C6) must
+  be keyed on the account CODE and signed, never derived from McLeod's section or from `descr`.
+  `descr` cannot be a key either: it is truncated to 28 characters, so three distinct revenue
+  accounts all print as `Gross Trucking Income` and two expense accounts print as
+  `Subcontracted Labor: Bonus`.
+- `glIncome.ts` classifies on `type_id` against `PNL_REVENUE_TYPES` / `PNL_EXPENSE_TYPES`
+  (`ledgerControl.ts:65-66`). Four staged accounts carry `type_id = 'Other Expenses and Losses'`
+  (Driver Road Expenses, Theft, State Tax, Payroll Tax Adj) and one carries
+  `'Other Revenue and Gains'` (Investment Gain/Loss). A known-but-unlisted type matches neither set
+  and falls through all three branches — **silently dropped, not even counted in
+  `unclassifiedNet`**, which only catches `type == null`. Zero dollars have posted to those five
+  accounts in any staged month, so this is latent, not live. C7 fixes it.
+
+**One finding for the accountants, not for the code:** the printed July balance sheet does not
+foot. Total Assets $19,387,472.49 against Total Liabilities & Equity $19,021,729.85 — **out by
+$365,742.64**. Every subtotal on the page adds correctly and net income agrees with retained
+earnings, so the gap is inside McLeod's balance sheet, not in the printing. Raised because a
+balance sheet that is out by a third of a million says some account is misposted, and that account
+may be one the income statement uses.
 
 ---
 
@@ -428,29 +534,68 @@ These are the carrier/DBA items from `MCLEOD-CPM-DATA-SOURCE-SPEC.md` §7, decid
 
 ---
 
-## 4. Execution order — one PR each, gates green, no step skipped
+## 4. Execution order — org-level first, then per-truck, sorted by dollars moved
 
-Correctness before operations before presentation; the owner/carrier items run in parallel.
+**Re-sorted 2026-09-03 under D-FIN16/D-FIN17.** The original order was "correctness before
+operations before presentation", and it was right while the question was whether the pipeline
+worked. It is now the wrong order, because the pipeline works: §0.1 shows the ledger tying to the
+printed statement to the cent. The question is now *which grain each dollar can be reported at*,
+and that is a collector-and-classification question, not a harness question.
 
-| # | Step | Decision | Blocks |
+So the remaining work is re-expressed as the **C-series**. The F-series below is kept verbatim as
+the record of what shipped; nothing in it is re-opened.
+
+### 4a. F-series — the correctness programme. COMPLETE except where marked.
+
+| # | Step | Decision | State |
 |---|---|---|---|
-| 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test — **BUILT 2026-09-03** (`cpmTieOut.ts`, `apportion.ts`; page reads `glTieOut` in F15) | D-FIN1, D-FIN11 | every all-in figure |
-| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch — **BUILT 2026-09-03** (`efsIngestRejects.ts`; rejects on `import_rows`; the re-queue is the owner's one statement, §1.2) | D-FIN2 | April/May fuel |
-| 3 | F10 — null per-mile, measured-only fleet figure — **BUILT 2026-09-03** (rates are `number | null`; the page prints a dash; `fleet.unmeasured` is its own line) | D-FIN10 | trust in the table |
-| 4 | F6 — zero rows never delete; one RPC — **F6a BUILT 2026-09-03** (reader guard + `replace_mcleod_gl_month` in 0302, function only); **F6b** = the reader calls the RPC, one merge after 0302 has applied | D-FIN6 | fleet truth surviving a bad sweep |
-| 5 | F3 — last-synced, "as of", failure findings | D-FIN3 | knowing 2–4 held |
-| 6 | F4 — scheduled agent, 75-day window, hardening pass, agent tests | D-FIN4 | everything monthly |
-| 7 | F5 — voids swept with their flag | D-FIN5 | precision after edits |
-| 8 | F7 — one AP date | D-FIN7 | unprojected vouchers |
-| 9 | F8 — `company_id` (column first, readers one merge later) | D-FIN8 | per-entity tie-out |
-| 10 | F9 — org time zone (column first, readers one merge later) | D-FIN9 | month edges |
-| 11 | F12 — decomposed FUEL tie-out | D-FIN12 | the 5–8% |
-| 12 | F14 — monthly close table, Books check page | D-FIN14 | "100% precise" as a fact |
-| 13 | F15 — error states, page tests, selector, drill-downs, dispatcher rate | D-FIN15 | the handoff's three items |
-| ∥ | R1–R5 signatures; T1 schedule data entry; office-lines backfill; §3 items 1–6 | §2, §3 | T2–T6, live |
+| 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test | D-FIN1, D-FIN11 | BUILT |
+| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch | D-FIN2 | BUILT; re-queue **no longer blocking** under D-FIN16 — April/May are outside the reporting era |
+| 3 | F10 — null per-mile, measured-only fleet figure | D-FIN10 | BUILT |
+| 4 | F6 — zero rows never delete; one RPC | D-FIN6 | BUILT (F6a + F6b) |
+| 5 | F3 — last-synced, "as of", failure findings | D-FIN3 | BUILT |
+| 6 | F4 — scheduled agent, 75-day window, hardening pass, agent tests | D-FIN4 | BUILT; **Task Scheduler entry owed to the owner** |
+| 7 | F5 — voids swept with their flag | D-FIN5 | BUILT; **F5b owed** (AP void column, billing cancel vocabulary) |
+| 8 | F7 — one AP date | D-FIN7 | BUILT |
+| 9 | F8 — `company_id` | D-FIN8 | F8a/F8b BUILT; **F8c owed** (movements-only key change) |
+| 10 | F9 — one clock | D-FIN9 | BUILT; **owner runs one `financial_projection{full}`** |
+| 11 | F12 — decomposed FUEL tie-out | D-FIN12 | BUILT — residual $444/month; **F12b owed** (posting-lag term, needs C1) |
+| 12 | F14 — monthly close table, Books check page | D-FIN14 | BUILT; **hardening rule changes under D-FIN18, see C9** |
+| 13 | F15 — error states, page tests, dispatcher rate | D-FIN15 | F15a/F15b BUILT; **owed:** month/week selector with prorating, fixed-cost drill-down |
 
-T2–T6 from the parent plan follow their rulings and are unchanged by this document except where
-§2 rewrites how the ruling is expressed (R2, R4).
+### 4b. C-series — the collector and classification programme. This is the remaining work.
+
+Ordered by the dollars each step moves from "pooled" to "attributed", or from "unclassified" to
+"classified". §6 is the evidence for every row.
+
+| # | Step | Moves | Kind | Blocked on |
+|---|---|---:|---|---|
+| **C1** | **Stage `fuel_detail`** — the McLeod fuel purchase rows the agent already queries and then throws away (§6.1) | — (closes F12b; second source for 25% of expense) | collector | nothing |
+| **C2** | **Backfill office lines** — `mcleod_office_lines` is 0 rows against a live endpoint (§6.2) | $289,921/mo · 7.1% → per person | ops | nothing |
+| **C3** | **Truck fixed-cost schedule data entry** — lease, insurance, GPS, plating, per unit, from the contracts (T1) | $1,057,724/mo · 26.1% → per truck | owner data entry | owner |
+| **C4** | **Billed distance** — `billing_loaded_distance` / `billing_empty_distance` are 0-populated on all 1,415 July bills (§6.3) | the revenue-per-mile denominator | collector | nothing |
+| **C5** | **Revenue tie-out** — the expense invariant (D-FIN11) has no revenue twin (§6.6) | proves 100% of revenue, both grains | harness | C4 |
+| **C6** | **The account→family catalogue** — 226 accounts, signed, keyed on code, one family each (§6.7) | every page that groups money | classification | owner signature |
+| **C7** | **Classification fall-through** — a known-but-unlisted `type_id` is silently dropped (§0.1) | latent; 5 accounts | correctness | nothing |
+| **C8** | **Active-truck definition** — undefined today; 190 / 172 / 160 are all defensible divisors (§6.8) | ±20% on every per-truck figure | classification | nothing |
+| **C9** | **D-FIN18 — hardening without the two-month wait** (§6.9) | July closes in weeks, not October | correctness | nothing |
+| **C10** | **Trailer cost object** — trailer repair and tires have no truck; movements carry the trailer (§6.4) | $36,782/mo · 0.9% | collector + harness | C6 |
+| **C11** | **Toll collector** — ruling changed to weekly manual upload; nothing is built or specced (§6.5) | ~$52,000/mo · 1.3% | collector | owner ruling |
+| **C12** | **FleetPal** — maintenance per unit (T5) | $244,761/mo · 6.0% → per truck | collector | owner: API key |
+| **C13** | **T2 jurisdictional allocation** by measured state miles | $29,286/mo · 0.7% | harness | R4 signature |
+| **C14** | **T3 deduct-code semantics** by the derivation in R2 | netting only; already inside the GL | harness | R2 signature |
+
+**Read the order.** C1–C9 need no owner ruling and no third-party credential; together they take
+the report from "org-level correct" to "org-level proven, both sides, at a stated grain". C3 alone
+moves four times the dollars that C12 does, and it is an afternoon of data entry. C13 and C14 are
+last on purpose: they argue over 0.7% of the money and they are the two steps that stalled this
+programme for a week.
+
+**In parallel, owner and carrier:** R1–R5 signatures; §3 items 1–6 (production login, TLS, schema
+parity, figure parity, credential rotation, change tracking); the Task Scheduler entry; one
+`financial_projection{full}`.
+
+T2–T6 from the parent plan are unchanged except that T2 and T3 are now last rather than middle.
 
 ## 5. What this plan refuses to do
 
@@ -462,7 +607,245 @@ T2–T6 from the parent plan follow their rulings and are unchanged by this docu
 - No tie-out that only displays. A residual is a finding or the month does not harden (D-FIN14).
 - No question left in this file. If one appears, it gets a decision here before any code moves.
 
-## 6. Progress log — append here, never edit the §4 table
+## 6. The collector and classification inventory
+
+**Written 2026-09-03 (second pass)** against the July 2026 income statement, the agent's queries
+(`tools/mcleod-agent/queries.mjs`), the staging schema (production `information_schema`), and the
+EFS SOAP store. This section is the evidence behind the C-series and is meant to be exhaustive:
+if a dollar on the July P&L is not accounted for here, this section has a defect.
+
+The organising idea, and the reason the C-series replaced harness work: **a collector's job is to
+land the finest grain the source asserts, verbatim, and to say which fact family it belongs to.**
+Everything the harness does afterwards is arithmetic on facts that already carry their own grain.
+Where a report is imprecise today it is almost never because the arithmetic is wrong; it is
+because a fact arrived without its grain, or did not arrive at all.
+
+### 6.0 The three failure modes, named
+
+1. **Collected but not posted** — the agent runs the query and discards the rows (C1).
+2. **Posted but not classified** — the row is in staging, but nothing says which cost family it
+   belongs to, so it can only be summed, never grouped (C6).
+3. **Not collected at all** — no source exists (C11 tolls, C12 FleetPal).
+
+### 6.1 Collected but not posted: `fuel_detail` — **C1**
+
+`FUEL_PURCHASES` (`queries.mjs:348-402`) reads `dbo.fuel_detail` + `fuel_detail_hist` and returns
+27 columns per purchase: `tractor_id`, `driver_id`, `movement_id`, `order_id`, `trans_date_time`,
+truck-stop name/city/state, `fuel_card_id`, and the product split McLeod keeps —
+`tractor_gals`/`reefer_gals`/`def_gals`/`other_gals` and
+`tractor_cost`/`reefer_cost`/`def_cost`/`oil_cost`/`misc_cost`/`sales_tax`/`transaction_fee`,
+plus `total_amount`, `fuel_discount`, `direct_amount`, `funded_amount`, `post_key`, `post_module`.
+
+`expenses.mjs:108-122` runs it, and `agent.mjs`'s `--financial` sweep posts settlements,
+deductions, vouchers, movement-facts, billing, gl-accounts, office-lines and ledger-totals —
+**but never `ex.purchases`.** The rows are used for the in-agent reconciliation claim and then
+discarded. There is no `mcleod_fuel_purchases` table.
+
+Why it matters, three ways:
+
+- It is the **posting date** of each fill. F12's decomposed FUEL tie-out closed the old 5–8% drift
+  to $444/month and named the remaining term "posting lag, unproven until `fuel_detail` is staged".
+  This is that step.
+- It is an **independent second source** for 25% of the carrier's expense. EFS says what the card
+  bought; `fuel_detail` says what McLeod booked, keyed to the same purchase. Two sources that
+  agree are a proof; one source is an assertion.
+- It carries **`movement_id` and `order_id` on the fill**, which EFS does not. That is the only
+  path from a gallon of diesel to the load that burned it.
+
+**C1:** a `mcleod_fuel_purchases` staging table (new table — exempt from the deploy-window rule),
+`POST /api/tms/fuel-purchases`, the agent posting `ex.purchases`, and the projection treating it as
+**non-canonical reference** beside EFS (D-FS2 stands: EFS is canonical for fuel dollars). Done
+when: July's per-account fuel residual is decomposed into a named posting-lag term, and the
+FUEL claim's unexplained remainder is under $1.00.
+
+### 6.2 Posted but empty: `mcleod_office_lines` — **C2**
+
+The endpoint exists, the agent posts it (`agent.mjs:581`), the table is deployed (0276) — and
+production holds **0 rows**. July's OFF module is $289,921 over 290 ledger lines and 31 named
+people: the largest single overhead component in the carrier, and the report cannot name one
+person of it. Either the carrier box is running an agent build older than the office-lines step, or
+`OFFICE_SETTLEMENT_LINES` returned nothing on the 2026-08-28 sweep. **C2** is: find out which,
+from the sweep's own log, and re-run. Ops, not code — unless the query is wrong, in which case it
+becomes code and gets a fixture test like every other mapper.
+
+### 6.3 Posted but null: billed distance — **C4**
+
+`mcleod_billing` carries `billing_loaded_distance` and `billing_empty_distance`. On all **1,415**
+July bills both are **NULL**. `distance` is populated on all 1,415. The dispatcher rate-per-mile
+shipped in #522 reads billed distance and therefore prints a dash for every dispatcher.
+
+Three columns for distance is itself the defect: `distance`, `billing_loaded_distance`,
+`billing_empty_distance`, and nothing states which is authoritative. **C4:** measure what
+`billing_history` populates in the sandbox, keep the one McLeod actually fills, and drop or
+document the others. A column that is never non-null is a claim the store cannot support.
+
+### 6.4 Collected, attributable, unattributed: trailers — **C10**
+
+`mcleod_movements.trailer_unit` is populated on 2,588 of 2,634 July movements (98.3%) and
+`mcleod_billing.trailer_unit` on 1,411 of 1,415 bills. So the trailer↔truck↔month association
+**exists in staging today**. What does not exist is anything that uses it: Trailer Repair
+($33,844) and OTR Trailer Tires ($2,937) — $36,782 in July — fall into the company pool and are
+spread by tractor miles, which charges a dry-van tractor for a reefer trailer's repair.
+
+**C10:** the trailer becomes a cost object of its own. Trailer-family accounts (from C6's
+catalogue) attribute to a trailer, and the trailer's cost reaches a truck only through the
+movements that pulled it, pro-rata by that movement's miles. A trailer that no movement pulled in
+the month keeps its cost on the trailer, reported as such. This is small money and it is on the
+list because it is the difference between a report that is right and a report that is nearly right.
+
+### 6.5 Not collected: tolls — **C11**
+
+The plan's R3 says "read the AP vendor on the toll account, then obtain that provider's
+per-transponder export". The owner's ruling has since changed to **weekly manual upload**. Nothing
+is built and nothing is specced for either path.
+
+Two measurements make this urgent rather than tidy:
+
+- July's GL tolls (`40790000`) are **$184.40**, against $364,179.98 year-to-date — roughly
+  $52,000/month over the other six months. Something changed in July: reclassified, netted through
+  driver deductions, or simply not yet entered. **July is month one of the reporting era, and its
+  single most anomalous line is a cost family with no collector.** This must be answered by the
+  accountants before the July report is shown.
+- `40790002 Tolls OO` is typed `Income Tax Expense` (§0.1), so a family built from McLeod's own
+  sectioning will not even find all the toll money.
+
+**C11:** a spec before code — file shape, transponder→unit map, the economic date, and the dedup
+rule against the AP voucher for the same toll (the AP copy becomes non-canonical, D-FS2 pattern),
+plus what the report prints for a week nobody uploaded. Until it lands, tolls stay in the pool
+under R1's printed basis with their dollars named, never allocated as though measured.
+
+### 6.6 Missing invariant: revenue — **C5**
+
+The expense side has a to-the-cent invariant (D-FIN11, `cpmTieOut.ts`): every dollar of the income
+statement lands in exactly one named bucket, and the harness test fails the moment a term is
+dropped. **Revenue has no equivalent.** `mcleod_billing` is read, summed and shown; nothing proves
+the sum against `mcleod_gl_totals`' revenue accounts.
+
+Measured, July 2026: staged billing $4,877,410.27 against GL BILL-module revenue $4,807,522.63 —
+a difference of **$69,887.64 (1.45%)**, unexplained, and made of some mixture of bill-date versus
+posting-date timing, `canceled`/`rebilled` rows, and DRS-module revenue that billing never sees.
+That is exactly the shape of drift F12 decomposed on the fuel side and closed to $444.
+
+**C5:** `buildRevenueTieOut`, mirroring `buildFuelTieOut` — billing by posting month against the
+BILL revenue accounts, settlement-sourced revenue against the DRS revenue accounts, a named timing
+term, a named cancelled/rebilled term, and a residual with a target under $1.00. And the
+per-truck revenue column gets the same invariant the cost column has:
+`Σ truck revenue + unattributed == GL revenue`.
+
+### 6.7 The catalogue that does not exist: account → cost family — **C6**
+
+This is the classification gap, and it is the one the owner named. Today the store knows two
+things about a GL account:
+
+- **class** — `mcleod_gl_accounts.type_id`, McLeod's own (`Revenue`, `Operating Expenses`,
+  `General & Admin Expenses`, `Income Tax Expense`, …). 226 accounts staged.
+- **grain** — derived from `post_module` (`glMonthlyCosts.ts` `GRAIN_BY_MODULE`): per truck, per
+  person, per vendor, company.
+
+It does not know **family** — is this account fuel, maintenance, driver pay, truck fixed cost,
+jurisdictional tax, tolls, or company overhead. Every page that groups money therefore either
+sums everything into one number or hard-codes a list. §0.1's two findings prove why family cannot
+be inferred: McLeod's own sectioning misfiles at least two operating accounts into
+`Income Tax Expense`, and `descr` is truncated to 28 characters so it is not unique.
+
+**C6:** a `gl_account_families` table — `(org_id, company_id, glid, family, cost_behaviour,
+attribution_target, ruled_by, ruled_at)` — seeded as a PROPOSAL from July's 226 accounts and their
+modules, then signed by the owner once, account by account, in one sitting. Three fields carry
+the meaning:
+
+- **`family`** — the reporting group a boss reads: `fuel_and_fluids`, `driver_and_contractor_pay`,
+  `truck_fixed`, `maintenance`, `trailer`, `jurisdictional`, `tolls`, `company_overhead`,
+  `revenue_linehaul`, `revenue_accessorial`, `revenue_other`, `non_operating`.
+- **`cost_behaviour`** — `variable_with_miles` | `fixed_per_truck_per_month` |
+  `fixed_per_company_per_month`. This is what decides the allocation basis, and it is why a single
+  global basis (R1) is only ever right for the residual pool: a lease does not follow miles.
+- **`attribution_target`** — `truck` | `trailer` | `driver` | `person` | `vendor` | `company`,
+  which the collector must be able to satisfy or the family stays pooled and says so.
+
+An account with no signed row is `unruled`: its dollars are reported under their own line, never
+folded into a family, and the count of unruled dollars is printed on the Books check page. Ruling
+the derivation once beats ruling 226 rows forever — but unlike R2's deduct codes, there is no
+derivation available here, because the source's own classification is measurably wrong. This one
+is a signature.
+
+### 6.8 The undefined divisor: what is an active truck — **C8**
+
+Three defensible answers exist for July and they differ by 19%: **190** tractors active in McLeod
+roster, **172** vehicles Samsara measured miles for, **160** trucks that carried a bill. Nothing
+in the codebase states which is the divisor for "cost per truck", and the figure the bosses read
+moves with the choice.
+
+**C8:** a truck is **active in a month** if it has ANY of measured Samsara miles, a settled
+movement, a settlement, or a fill in that month — the union, computed per month, printed as a
+count on every page that divides by trucks. A truck that is only on the fixed-cost schedule and
+did nothing else is active too (its lease was still paid) and shows with zero miles and a dash
+per mile, which D-FIN10 already renders correctly.
+
+### 6.9 The hardening rule blocks month one — **D-FIN18 / C9**
+
+`planMonthClose` hardens a month only when it is **at least two months old**. Under D-FIN16, July
+2026 is month one — and would not harden until 2026-10-01. The two-month rule was a proxy for
+"McLeod has finished posting", and there is now a direct measurement of that: the hardening pass
+re-reads whole months (F4), so the ledger's own stability is observable.
+
+> **D-FIN18:** a month hardens when every residual reads 0.00 **and** the month's GL totals are
+> unchanged across two consecutive hardening passes. The two-month age becomes a fallback for
+> months with fewer than two passes on record, not the rule. A hardened month that later moves is
+> still a finding (unchanged from D-FIN14).
+
+### 6.10 What we already have — the complete positive inventory
+
+Stated as the counterpart to everything above, because a list of gaps read alone understates the
+position badly. Every row measured 2026-09-03.
+
+**McLeod, via the on-prem agent (outbound HTTPS only, read-only SQL):**
+
+| Fact family | Staging table | Grain it carries | July population |
+|---|---|---|---|
+| Movements | `mcleod_movements` | tractor, trailer, drivers, order ids, loaded + fuel miles, stops, status | 2,634 rows; tractor 2,614, trailer 2,588, miles 2,634 |
+| Settlements | `mcleod_settlements` | tractor, trailer, driver, movement, order, payee + payee type, pay method, accrued/paid/transferred, total + posted pay, pay distance, void, accrual + post key | 20,693 rows all-time |
+| Deductions | `mcleod_deductions` | payee, payee type, tractor, deduct code, D/R/E type, **glid**, amount, void | 10,158 rows all-time |
+| AP vouchers | `mcleod_ap_vouchers` | vendor, invoice no, PO, description, invoice/due/distribution dates, amount, discount, **ap_glid**, paid, check no, post key/module | 1,464 rows all-time |
+| Billing | `mcleod_billing` | invoice, customer, order, master order, tractor, trailer, driver, bill/ship/delivery/transfer dates, total + other charges, excise tax, **dispatcher**, distance, canceled, rebilled | 1,415 July rows |
+| GL month totals | `mcleod_gl_totals` | company, month, **glid × post_module**, line count, net + abs amount, sweep stamp | 1,421 rows, 2025-12 → 2026-08 |
+| GL account master | `mcleod_gl_accounts` | glid, descr, **type_id** | 226 accounts |
+| Office payroll lines | `mcleod_office_lines` | payee, glid, descr, amount, date | **0 rows — C2** |
+| Roster | `drivers`, `vehicles`, `trailers` | identity, active/service status, out-of-service dates | 164 / 190 / 235 |
+
+**EFS, via SOAP (canonical for fuel dollars, D-FS2):**
+
+| Fact | Table | Grain |
+|---|---|---|
+| Card line items | `efs_transactions` | **`item` product code**, `unit_price`, `qty`, `amt`, `fees`, card, unit, driver, trailer, odometer, hubometer, location, invoice, control id — one row per product line |
+| Fuel events | `fuel_transactions` (71 cols) | vehicle, driver, instant, odometer, gallons, price, settled cost, station, canonical flag, dedup, plus the whole anomaly/recon apparatus |
+| Cards, controls, mutations | `efs_cards`, `efs_card_mutations`, `efs_card_control_settings` | per card |
+
+July line items, every one carrying a unit: ULSD $1,018,807.92 (1,857) · DEFD $47,620.00 (1,337) ·
+ULSR $5,547.70 (58) · SCLE $5,404.78 (379) · WWFL, ADD, OIL, DEF, ANFR, STAX (~$420 across 60).
+Ten product codes, all attributed to a truck. **This is the best-classified feed we have and it is
+the model the others should be judged against.**
+
+**Samsara:**
+
+| Fact | Table | Grain |
+|---|---|---|
+| Jurisdiction miles | `samsara_ifta_jurisdiction_miles` | vehicle × jurisdiction × month, taxable + total meters — the CPM denominator AND T2's allocation key |
+| Engine days | `vehicle_engine_days` | vehicle × day |
+| Assignments | `driver_vehicle_assignments` | driver ↔ vehicle over time |
+
+**Derived / owned by us:**
+
+| Fact | Table | State |
+|---|---|---|
+| Money projection | `financial_entries` | 49,530 rows — direction, **category**, amount, occurred/settled, vehicle, driver, load, source + source row, dedup key, canonical + void flags, **ledger post key / module / account** |
+| Truck fixed costs | `truck_cost_schedules` | unit, category, label, monthly amount, effective range — **0 rows — C3** |
+| Monthly close | `finance_month_closes` | org, company, month, every bucket, every residual, verdict — awaiting the first hardening sweep |
+
+**What has no collector at all:** tolls (C11), FleetPal maintenance work orders (C12), and a
+per-unit lease/insurance/plating contract register (C3 — the schedule table exists; the data is
+the owner's to enter and no system holds it today).
+
+## 7. Progress log — append here, never edit the §4 table
 
 Three PRs in one afternoon each marked their own row of the §4 table "BUILT", and every pair
 conflicted on merge because the rows are adjacent lines. The table is the plan; this list is the
@@ -539,3 +922,11 @@ record. One dated line per step, appended at the end, so parallel PRs never touc
   selector with prorating; fixed-cost drill-down to office people and AP vendors.
 - 2026-09-03 · #525 — F6b: `ingestLedgerTotals` calls `replace_mcleod_gl_month` — one
   transaction, one stamp, company-scoped stale delete. D-FIN6 complete.
+
+
+---
+- 2026-09-03 · second-pass audit against the July income statement. D-FIN16 (reporting era starts
+  2026-07-01), D-FIN17 (org-level precision before per-truck), D-FIN18 (hardening on ledger
+  stability, not on a two-month age). §0.1 records July tying to the printed P&L to the cent and
+  the grain each dollar sits at; §4 is re-sorted into the C-series; §6 is the collector and
+  classification inventory the C-series is drawn from. Plan only — no code in this change.
