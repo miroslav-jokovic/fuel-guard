@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { START_LOCATION } from "vue-router";
 import { router } from "./index";
 
 /**
@@ -126,6 +127,34 @@ describe("the route table survives being split by area", () => {
     const workspace = router.resolve("/hazmat/loads/hz_1");
     expect(workspace.name).toBe("hazmat-load-detail");
     expect(workspace.params).toEqual({ id: "hz_1" });
+  });
+
+  /**
+   * FUEL-C2 folded Transactions and Rejections into the Fuel Log. The snapshot above records only
+   * that a redirect RECORD matched — it cannot say where the redirect goes, and here that is the
+   * entire promise: these two paths carry filters (`/transactions?unit=654` is a real link in real
+   * tickets), so a redirect that lost the query, or landed on the wrong tab, would send somebody to a
+   * different set of rows than the one they were sent.
+   *
+   * The function is called directly rather than pushed, because pushing would run the section guard
+   * and this file deliberately has no session.
+   */
+  it("the absorbed fuel pages redirect to their tab, carrying the filters they were sent with", () => {
+    const target = (path: string, query: Record<string, string> = {}) => {
+      const record = router.getRoutes().find((r) => r.path === path);
+      const redirect = record?.redirect;
+      if (typeof redirect !== "function") return redirect ?? null;
+      // `from` is the second argument vue-router passes and neither redirect reads it; START_LOCATION
+      // is the honest stand-in for "nowhere yet", which is where a forwarded link starts.
+      return redirect(router.resolve({ path, query }), START_LOCATION);
+    };
+    expect(target("/transactions")).toEqual({ path: "/fuel-log", query: { tab: "source" } });
+    expect(target("/rejections")).toEqual({ path: "/fuel-log", query: { tab: "declines" } });
+    // The filters a forwarded link carries survive the move, which is why the redirect is a function.
+    expect(target("/transactions", { unit: "654", from: "2026-08-01" })).toEqual({
+      path: "/fuel-log",
+      query: { unit: "654", from: "2026-08-01", tab: "source" },
+    });
   });
 
   /**

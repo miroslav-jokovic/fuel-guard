@@ -114,7 +114,9 @@ describe("the section gates on the navigation guard", () => {
   // expectation is the ROUTE NAME, so "dashboard" means the guard turned them away.
   const CLOSED: Array<[string, string, string, string]> = [
     // path,                   section    a role that HOLDS it,  a role that does NOT
-    ["/transactions", "fuel", "auditor", "recruiter"],
+    // Was `/transactions` until FUEL-C2 turned that path into a redirect with no surface of its own;
+    // Cards is the fuel section's other `view`-level screen and asks the guard the same question.
+    ["/fuel-cards", "fuel", "auditor", "recruiter"],
     ["/ifta", "fuel", "accountant", "recruiter"],
     ["/loads", "dispatch", "dispatcher", "recruiter"],
     ["/truck-stops", "dispatch", "auditor", "recruiter"],

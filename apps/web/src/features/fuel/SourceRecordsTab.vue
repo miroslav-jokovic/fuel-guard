@@ -1,37 +1,73 @@
 <script setup lang="ts">
+/**
+ * The Fuel Log's `Source records` tab — every line from the uploaded EFS Transaction reports,
+ * exactly as received (FUEL-C2, D-FUI1/D-FUI2).
+ *
+ * ── WHAT THIS IS AND WHY IT SURVIVED THE MERGE ──────────────────────────────────────────────────
+ * This was `/transactions`, a top-level nav item beside Fuel Log — two pages over the same fills,
+ * one enriched and one raw, and a reader had to already know which was which. D-FUI2 makes the
+ * DRAWER on a fill the normal path to its raw line; this tab remains for the case a drawer cannot
+ * serve, which is the reconciliation one: an EFS line with no fill behind it has no row to hang off.
+ *
+ * The body below is the old page's, moved rather than rewritten — the columns, the facets and the
+ * faithful `tran_date`/`tran_time` rendering are unchanged, so a controller reconciling an invoice
+ * sees the same table they always did. What changed is where the window and the truck come from.
+ *
+ * ⚠ **This tab is behind the fuel section (`canView("fuel")`), and the shell is what checks it.**
+ * `/transactions` was catalogued as `section("fuel")` while `/fuel-log` is `always`, so merging the
+ * two without a gate would hand every EFS line to a recruiter. The tab strip is built from the same
+ * matrix the surface catalogue reads; see `FuelLogPage.vue`.
+ */
 import { ref, computed, watch } from "vue";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useEfsTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useEfsTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { stationTime, businessDate } from "@/lib/stationTime";
+import { useUnitOptions } from "./unitFilter";
+import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
-const { data: vehicles } = useVehiclesQuery();
-const filters = ref<EfsFilters>({});
+const props = defineProps<{ shared: FuelLogSharedFilters }>();
+
+/**
+ * The facets this tab alone has, held locally rather than in the URL.
+ *
+ * `state` and `driver` exist on the declines tab too and mean the same thing there — but `driver` is
+ * a name here and a driver ID on the fills tab, so promoting either to a shared parameter is the
+ * cross-tab collision `useFuelLogFilters`' header refuses. C3 is the step that makes each tab's own
+ * facets survive a refresh; C2 keeps them exactly as linkable as the page they came from, which is
+ * to say not at all.
+ */
+const local = ref<Pick<EfsFilters, "search" | "item" | "state" | "driver" | "sortKey" | "sortDir">>({});
+
+const filters = computed<EfsFilters>(() => ({
+  ...local.value,
+  unit: props.shared.unit.value,
+  from: props.shared.from.value,
+  to: props.shared.to.value,
+}));
+
 const page = ref(1);
+// Deep, because `filters` is rebuilt on every change to either half — a reader who narrows the
+// window while on page 7 must not be left looking at a page that no longer exists.
 watch(filters, () => (page.value = 1), { deep: true });
 
 const sort = ref<SortState>({ key: null, dir: "asc" });
 function onSort(key: string) {
   sort.value = toggleSort(sort.value, key);
-  filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
+  local.value = { ...local.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
 }
 
 const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
 
-const unitOptions = computed(() => [
-  { value: "", label: "All units" },
-  ...[...new Set((vehicles.value ?? []).map((v) => v.unit_number))].sort().map((u) => ({ value: u, label: u })),
-]);
+const unitOptions = useUnitOptions();
 
 const { data: facets } = useEfsFacets();
 
@@ -39,19 +75,24 @@ const { data: facets } = useEfsFacets();
 // truck, which is what every per-unit figure in this section silently depends on.
 const { data: coverage } = useEfsRowCoverage("transactions", filters);
 
-/** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
-const bind = (key: "unit" | "search" | "item" | "state" | "driver") =>
+/** Two-way proxy into the LOCAL facets for one key ("" ⇄ undefined). */
+const bind = (key: "search" | "item" | "state" | "driver") =>
   computed({
-    get: () => filters.value[key] ?? "",
-    set: (v: string) => (filters.value = { ...filters.value, [key]: v || undefined }),
+    get: () => local.value[key] ?? "",
+    set: (v: string) => (local.value = { ...local.value, [key]: v || undefined }),
   });
-const unit = bind("unit");
 const search = bind("search");
 const item = bind("item");
 const state = bind("state");
 const driver = bind("driver");
-const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
-const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+/** The shared half, proxied for the controls that write it back to the URL. */
+const unit = computed<string>({
+  get: () => props.shared.unit.value ?? "",
+  set: (v) => props.shared.setUnit(v || undefined),
+});
+const setFrom = (v: string | undefined) => props.shared.setFrom(v);
+const setTo = (v: string | undefined) => props.shared.setTo(v);
 
 const withAll = (label: string, vals: string[] = []) => [
   { value: "", label },
@@ -64,18 +105,20 @@ const driverOptions = computed(() => withAll("All drivers", facets.value?.txnDri
 // Chips surface only the popover (secondary) filters — the inline triggers
 // already display their own active value.
 const chips = computed<FilterChip[]>(() => {
-  const f = filters.value;
+  const f = local.value;
   const out: FilterChip[] = [];
   if (f.state) out.push({ key: "state", label: "State", value: f.state });
   if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
   return out;
 });
-const moreCount = computed(() => (filters.value.state ? 1 : 0) + (filters.value.driver ? 1 : 0));
+const moreCount = computed(() => (local.value.state ? 1 : 0) + (local.value.driver ? 1 : 0));
 function removeChip(key: string) {
-  filters.value = { ...filters.value, [key]: undefined };
+  local.value = { ...local.value, [key]: undefined };
 }
+/** Clears BOTH halves: a reader pressing "Clear filters" means the screen, not this component's share of it. */
 function clearAll() {
-  filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
+  local.value = { sortKey: local.value.sortKey, sortDir: local.value.sortDir };
+  props.shared.clear();
 }
 
 const rows = computed(() => data.value?.rows ?? []);
@@ -112,9 +155,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every line from your uploaded EFS Transaction reports, exactly as received." />
-
-    <!-- A7 / FUEL-T5. These rows are EFS's own, so this page cannot show a wrong one — only a
+    <!-- A7 / FUEL-T5. These rows are EFS's own, so this tab cannot show a wrong one — only a
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
     <FeedFreshnessLine feed="posted" />
@@ -138,7 +179,7 @@ const columns: DataTableColumn[] = [
       <template #filters>
         <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
         <FilterSelect v-model="item" label="Item" :options="itemOptions" />
-        <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+        <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
         <FilterSelect v-model="state" label="State" :options="stateOptions" block />

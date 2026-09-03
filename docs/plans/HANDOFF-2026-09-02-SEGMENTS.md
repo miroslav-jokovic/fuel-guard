@@ -94,9 +94,39 @@ windowed one. That tile is the last surviving instance of the bug #454 fixed els
 
 **The biggest segment, and strictly sequential. One chat, four PRs.**
 
+**✅ C2 IS DONE, 2026-09-02 (`claude/fuel-log-tabs`).** Fuel Log is `?tab=fills|declines|source`,
+`FuelLogPage.vue` is a 143-line shell over three extracted tab components, `/transactions` and
+`/rejections` are function redirects that carry the query **and** name the tab, and Fuel is six nav
+items. C3 is next and starts from a page whose window, truck and tab are already in the URL.
+
+**Three things C2 learnt that the next three steps inherit:**
+
+1. ⚠ **The merge crossed a permission boundary and the plan did not say so.** `/fuel-log` is catalogued
+   `always`; `/transactions` and `/rejections` were `section("fuel")`. `recruiter` and `technician`
+   carry `fuel: "none"` and both reach `/fuel-log`, so absorbing the two pages without a check would
+   have handed a fraud signal to a recruiter. The two absorbed tabs are gated on `canView("fuel")`.
+   **C4 has the same shape**: `/import` is `manage("fuel")` and becomes a drawer on this `always` page,
+   so the drawer needs the manage check the route was carrying. **C5 does not** — Fuel Spend is one
+   page whose tabs all sit behind one gate.
+2. **`lint:boundaries` bites when a page body moves into `features/`.** A tab under `features/fuel/`
+   may not import `features/reports/` or `features/fueling/`, and the gate's own comment says promote,
+   never allow-list. `useEfsData.ts` + its test moved to `features/fuel/`, `useCardAssignments.ts` to
+   `@/composables/`, and `check-table-access.mjs`'s two grandfathered entries were repathed. **C4 moves
+   `PriceUploadCard` and `StationDataCard` — both `features/fueling/` — onto Truck Stops, so check the
+   destination's feature before assuming the move is free.**
+3. **`useQueryState` buffers per instance, so the URL owner is called ONCE and passed down.**
+   `useFuelLogFilters()` lives in the shell; the tabs take it as a prop and write through named setters
+   (`setFrom`/`setUnit`), because `vue/no-mutating-props` refuses `props.shared.unit.value = x` — an
+   ESLint error, not a warning, and it is the first thing that will bite C3.
+
+**And one thing C2 deliberately left for C3**, so it is not rediscovered as a bug: per-tab facets are
+LOCAL, not in the URL. `driver` is a driver ID on Fills and a driver NAME on the two raw feeds, so one
+shared `?driver=` puts a UUID into a name filter and returns an empty list with no error anywhere. C3
+needs a namespace per tab, or three differently-named parameters.
+
 | | |
 |---|---|
-| **Steps** | C2 (Fuel Log absorbs Transactions + Rejections), C3 (every page sendable), C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
+| **Steps** | ~~C2 (Fuel Log absorbs Transactions + Rejections)~~ **DONE**, C3 (every page sendable), C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
 | **Owns** | `apps/web/src/pages/{FuelLogPage,TransactionsPage,RejectionsPage,FuelCardsPage,ImportPage}.vue`, `apps/web/src/features/fuel/**`, `router/routes/fuel.ts`, `lib/nav.ts` + snapshots |
 | **Migration?** | **No.** Entirely web. |
 | **Blocked by** | Nothing. C1 and T1 are done. |
@@ -105,10 +135,12 @@ windowed one. That tile is the last surviving instance of the bug #454 fixed els
 **Order is forced:** C3 needs C2 (do it once, on the merged page); C4 needs C2; C5 needs C4 and **must
 land before C6** so the policy tabs are removed by the step that replaces them.
 
-⚠ **The three pages C2 merges have no tests today** — C2 is the first time any of them is mounted under
-test. Expect the two traps from `FuelLogPage.test.ts`: `DataTable` renders as **cards** under jsdom
-(stub `useMediaQuery`, or an assertion about headers passes because there are none), and a spy inside a
-hoisted `vi.mock` factory must be `vi.hoisted`.
+⚠ ~~**The three pages C2 merges have no tests today**~~ — they do now: `pages/FuelLogTabs.test.ts`
+mounts all three tabs. Both predicted traps fired, plus a **third** worth adding to the list for any
+future page-mount suite: `DataTable` renders its EMPTY STATE instead of the table when the fixture has
+zero rows, so a column assertion against `rows: []` passes by finding no headers at all. Give every
+list fixture at least one row. (The other two: `DataTable` renders as **cards** under jsdom — stub
+`useMediaQuery` — and a spy inside a hoisted `vi.mock` factory must be `vi.hoisted`.)
 
 ⚠ **C5 keeps the three policy tab bodies in the tree, unmounted**, until C6 files their findings. A
 report deleted before its replacement exists is a capability gap, however brief.
@@ -193,7 +225,10 @@ operational oddity and belongs to nobody's segment yet; it is recorded here rath
 | **Prerequisite** | C5 must land first (Segment B). |
 
 **C9 is the exception and can be done alone**: the Dashboard's fuel strip links to pages that no longer
-exist after Segment B. Whoever finishes B should check it.
+exist after Segment B. ~~Whoever finishes B should check it.~~ **Checked at C2, 2026-09-02:** the only
+tile pointing at a retired path was "Declined attempts" → `/rejections`, now `/fuel-log?tab=declines`.
+Every other fuel tile already pointed at `/fuel-log`, `/coverage` or `/reefer-coverage`. C4 retires
+`/import`, which no Dashboard tile links to — re-check after it lands anyway.
 
 ---
 

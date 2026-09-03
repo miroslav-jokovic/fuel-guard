@@ -296,12 +296,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/import",
   },
   {
-    "name": "transactions",
+    "name": "",
     "params": {},
     "url": "/transactions",
   },
   {
-    "name": "rejections",
+    "name": "",
     "params": {},
     "url": "/rejections",
   },
@@ -917,13 +917,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Rejections",
-    },
-    "name": "rejections",
+    "meta": {},
+    "name": "",
     "path": "/rejections",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -1123,13 +1120,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Transactions",
-    },
-    "name": "transactions",
+    "meta": {},
+    "name": "",
     "path": "/transactions",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
