@@ -948,7 +948,9 @@ copies of a fact that step makes derivable. **This meta is expected to be subsum
 extended.** `sectionGuard.test.ts` was written with the fix — nothing drove the guard before, which
 is how the two halves disagreed unnoticed.
 
-**Q-SURF6 — what does a denied surface do to a deep link that is already open?** A user viewing
+~~**Q-SURF6 — what does a denied surface do to a deep link that is already open?**~~ **ANSWERED
+2026-09-03 — (a).** The Screens card says it in its header — "Applies the next time they load a
+page" — which is the sentence the recommendation asked for, and the page test pins it. Original: A user viewing
 `/shop/inspectors` when an admin revokes it keeps the mounted page until they navigate; the guard
 only runs on navigation. Candidates: (a) accept it, the next navigation corrects it (the same
 contract D-PERM6 already set for sections, and the API refuses writes meanwhile); (b) re-check on

@@ -251,8 +251,9 @@ const memberColumns: DataTableColumn[] = [
 ];
 
 const inviteColumns: DataTableColumn[] = [
+  { key: "full_name", label: "Name", width: "lg" },
   { key: "email", label: "Email", width: "xl" },
-  { key: "role", label: "Role", width: "md", cellClass: "text-ink-secondary capitalize" },
+  { key: "role", label: "Role", width: "md", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", width: "md" },
 ];
 
@@ -409,6 +410,11 @@ onMounted(load);
     <section class="space-y-3">
       <h3 class="text-base font-semibold text-ink">Invitations</h3>
       <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
+        <template #cell-full_name="{ row }">
+          <span v-if="row.full_name" class="font-medium text-ink">{{ row.full_name }}</span>
+          <span v-else class="text-ink-tertiary">Not given</span>
+        </template>
+        <template #cell-role="{ row }">{{ USER_ROLE_LABELS[row.role as UserRole] ?? row.role }}</template>
         <template #cell-status="{ row }">
           <span :class="[BADGE_BASE, inviteTone(row.status), 'capitalize']">{{ row.status }}</span>
         </template>
