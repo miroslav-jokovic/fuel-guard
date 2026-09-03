@@ -13,8 +13,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -112,8 +110,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -159,8 +155,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -199,8 +193,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -239,8 +231,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -326,8 +316,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -410,8 +398,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -492,8 +478,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -575,8 +559,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -655,8 +637,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -733,8 +713,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -820,8 +798,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -870,8 +846,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -917,8 +891,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1013,8 +985,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -1090,8 +1060,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -1164,8 +1132,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -1352,8 +1318,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1403,8 +1367,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1452,8 +1414,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Exceptions → /fuel-spend/exceptions",
       "IFTA → /ifta",
@@ -1649,8 +1609,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Fuel",
     "items": [
       "Fuel Log → /fuel-log",
-      "Transactions → /transactions",
-      "Rejections → /rejections",
       "Cards → /fuel-cards",
       "Import → /import",
       "Fuel Spend → /fuel-spend",
@@ -1726,8 +1684,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": "Fuel",
       "items": [
         "Fuel Log → /fuel-log",
-        "Transactions → /transactions",
-        "Rejections → /rejections",
         "Cards → /fuel-cards",
         "Exceptions → /fuel-spend/exceptions",
         "IFTA → /ifta",

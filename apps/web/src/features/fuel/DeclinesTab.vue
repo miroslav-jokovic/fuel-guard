@@ -1,6 +1,22 @@
 <script setup lang="ts">
+/**
+ * The Fuel Log's `Declines` tab — declined fuel-card attempts from the EFS Reject reports
+ * (FUEL-C2, D-FUI1).
+ *
+ * ── WHY IT IS A TAB OF THE FUEL LOG AND NOT A PAGE ──────────────────────────────────────────────
+ * This was `/rejections`, and it answers a question the fills list cannot: what was ATTEMPTED and
+ * refused. That is the same truck, the same card and the same week as the fill above it, and reading
+ * the two required leaving one page for another with a different window control and a different idea
+ * of what a day is. Under one window and one truck filter, "what did 654 do in August" is one screen.
+ *
+ * Everything below is the old page's, moved rather than rewritten: the Central-time rendering, the
+ * driver-source note, the card-assignment drawer, the decline drill-down and the rescore action.
+ *
+ * ⚠ **Gated on `canView("fuel")` by the shell.** `/rejections` was catalogued `section("fuel")` and
+ * `/fuel-log` is `always`; a merge without the gate would hand a fraud signal to a recruiter.
+ */
 import { ref, computed, watch } from "vue";
-import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
 import type { DeclinedTransactionRow } from "@silvicom/shared";
 import { rejectDateTime, stationLocalNote } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -9,7 +25,6 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import PageHeader from "@/components/ui/PageHeader.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -21,27 +36,42 @@ import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
-import { useCardAssignments, maskCardRef } from "@/features/fueling/useCardAssignments";
+import { useCardAssignments, maskCardRef } from "@/composables/useCardAssignments";
+import { useUnitOptions } from "./unitFilter";
+import type { FuelLogSharedFilters } from "./useFuelLogFilters";
+
+const props = defineProps<{ shared: FuelLogSharedFilters }>();
 
 const session = useSessionStore();
 const toast = useToastStore();
-const filters = ref<EfsFilters>({});
+
+/**
+ * The facets this tab alone has. Local rather than in the URL, for the reason in
+ * `useFuelLogFilters`' header: `driver` here is a NAME derived from the card, and the fills tab's
+ * `driver` is a driver id, so one shared parameter would carry a UUID into a name filter.
+ */
+const local = ref<Pick<EfsFilters, "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy" | "sortKey" | "sortDir">>({});
+
+const filters = computed<EfsFilters>(() => ({
+  ...local.value,
+  unit: props.shared.unit.value,
+  from: props.shared.from.value,
+  to: props.shared.to.value,
+}));
+
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
 
 const sort = ref<SortState>({ key: null, dir: "asc" });
 function onSort(key: string) {
   sort.value = toggleSort(sort.value, key);
-  filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
+  local.value = { ...local.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
 }
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDeclinedTransactions(filters, page);
 
 const { data: vehicles } = useVehiclesQuery();
-const unitOptions = computed(() => [
-  { value: "", label: "All units" },
-  ...[...new Set((vehicles.value ?? []).map((v) => v.unit_number))].sort().map((u) => ({ value: u, label: u })),
-]);
+const unitOptions = useUnitOptions();
 
 const { data: facets } = useEfsFacets();
 
@@ -63,21 +93,26 @@ const cardList = computed(() =>
   })),
 );
 
-/** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
-const bind = (key: "unit" | "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy") =>
+/** Two-way proxy into the LOCAL facets for one key ("" ⇄ undefined). */
+const bind = (key: "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy") =>
   computed({
-    get: () => filters.value[key] ?? "",
-    set: (v: string) => (filters.value = { ...filters.value, [key]: v || undefined }),
+    get: () => local.value[key] ?? "",
+    set: (v: string) => (local.value = { ...local.value, [key]: v || undefined }),
   });
-const unit = bind("unit");
 const suspicion = bind("suspicion");
 const search = bind("search");
 const errorCode = bind("errorCode");
 const stateF = bind("state");
 const driver = bind("driver");
 const policy = bind("policy");
-const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
-const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+/** The shared half, proxied for the controls that write it back to the URL. */
+const unit = computed<string>({
+  get: () => props.shared.unit.value ?? "",
+  set: (v) => props.shared.setUnit(v || undefined),
+});
+const setFrom = (v: string | undefined) => props.shared.setFrom(v);
+const setTo = (v: string | undefined) => props.shared.setTo(v);
 
 const suspicionOptions = [
   { value: "", label: "All risk levels" },
@@ -100,7 +135,7 @@ const policyOptions = computed(() => withAll("All policies", facets.value?.rejPo
 // Chips surface only the popover (secondary) filters — the inline triggers
 // already display their own active value.
 const chips = computed<FilterChip[]>(() => {
-  const f = filters.value;
+  const f = local.value;
   const out: FilterChip[] = [];
   if (f.state) out.push({ key: "state", label: "State", value: f.state });
   if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
@@ -108,27 +143,29 @@ const chips = computed<FilterChip[]>(() => {
   return out;
 });
 const moreCount = computed(
-  () => (filters.value.state ? 1 : 0) + (filters.value.driver ? 1 : 0) + (filters.value.policy ? 1 : 0),
+  () => (local.value.state ? 1 : 0) + (local.value.driver ? 1 : 0) + (local.value.policy ? 1 : 0),
 );
 function removeChip(key: string) {
-  filters.value = { ...filters.value, [key]: undefined };
+  local.value = { ...local.value, [key]: undefined };
 }
+/** Clears BOTH halves: "Clear filters" means the screen, not this component's share of it. */
 function clearAll() {
-  filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
+  local.value = { sortKey: local.value.sortKey, sortDir: local.value.sortDir };
+  props.shared.clear();
 }
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 // Show declined times in the station's local timezone (matches the EFS report), not the browser's.
 // 2026-08: declines render in the zone the EFS reject report PRINTS (Central) so the page matches
-// the printout — the same principle the transactions page follows with its faithful tran_time column.
+// the printout — the same principle the source-records tab follows with its faithful tran_time column.
 const fmt = (iso: string | null, _state: string | null) => rejectDateTime(iso);
 
 // The EFS reject feed carries NO driver — verified against the live getTranRejects operation on
 // 2026-08-12: 110 records, ten fields, no driverName/driverId. So a name in this column is DERIVED
 // from the card (migration 0182 records which source), and the UI has to say so: a decline is
 // exactly the case where the card may not be with its assigned driver, and that gap is the fraud
-// signal this page exists to surface. An unmarked name would read as evidence of presence.
+// signal this tab exists to surface. An unmarked name would read as evidence of presence.
 const DRIVER_SOURCE_NOTE: Record<string, string> = {
   efs_report: "As printed on the uploaded EFS reject report.",
   card_mirror: "The driver this card is assigned to in EFS. NOT proof this person was at the pump.",
@@ -173,15 +210,13 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Declined fuel-card attempts from your uploaded EFS Reject reports (a fraud/control signal)." />
-
-    <!-- A7 / FUEL-T5. These rows are EFS's own, so this page cannot show a wrong one — only a
+    <!-- A7 / FUEL-T5. These rows are EFS's own, so this tab cannot show a wrong one — only a
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
     <FeedFreshnessLine feed="rejected" />
 
     <!-- FUEL-T5, and it matters more here than anywhere else in the section: one decline in five
-         resolves to no truck (696 of 3,445, measured 2026-09-02) on the page whose whole job is a
+         resolves to no truck (696 of 3,445, measured 2026-09-02) on the tab whose whole job is a
          fraud signal. A reader scoping this to a unit was seeing four fifths of it, unannounced. -->
     <RowCoverageLine :coverage="coverage" />
 
@@ -199,7 +234,7 @@ const columns: DataTableColumn[] = [
         <FilterSelect v-model="suspicion" label="Risk" :options="suspicionOptions" />
         <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
         <FilterSelect v-model="errorCode" label="Error" :options="errorOptions" />
-        <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+        <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
         <FilterSelect v-model="stateF" label="State" :options="stateOptions" block />

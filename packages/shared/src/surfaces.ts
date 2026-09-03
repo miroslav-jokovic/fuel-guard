@@ -106,9 +106,18 @@ export const SURFACES: readonly Surface[] = [
   { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: STAFF },
 
   // ── fuel ──────────────────────────────────────────────────────────────────────────────────────
+  /**
+   * FUEL-C2: `fuel.transactions` (`/transactions`) and `fuel.rejections` (`/rejections`) were here
+   * until 2026-09-02 and are now TABS of the Fuel Log, so they are no longer separately grantable —
+   * a screen an org cannot navigate to is not a permission an admin should be offered.
+   *
+   * ⚠ They were `section("fuel")` and this is `always`, so the merge would have widened who can read
+   * a decline if the page did not gate the two absorbed tabs itself. It does, on `canView("fuel")`,
+   * read from this same matrix; the argument is in `FuelLogPage.vue`'s header. Rows an org already
+   * wrote against the two retired keys stay in `org_role_surface_access` and are inert — 0296's own
+   * note: a key the catalogue does not have matches no screen, and grants and denies nothing.
+   */
   { key: "fuel.log", label: "Fuel Log", path: "/fuel-log", group: "fuel", gate: ALWAYS },
-  { key: "fuel.transactions", label: "Transactions", path: "/transactions", group: "fuel", gate: section("fuel") },
-  { key: "fuel.rejections", label: "Rejections", path: "/rejections", group: "fuel", gate: section("fuel") },
   // EFS card inventory + control. Read-only until the write entitlement is confirmed; the page
   // itself explains that, so the catalogue entry does not need to know.
   { key: "fuel.cards", label: "Cards", path: "/fuel-cards", group: "fuel", gate: section("fuel") },

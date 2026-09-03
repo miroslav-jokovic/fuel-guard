@@ -148,7 +148,10 @@ const trust = computed(() => [
     sub: "blocked at the pump",
     icon: RejectionIcon,
     tone: (s.value?.declinedCount ?? 0) > 0 ? "text-caution-700 bg-caution-50" : "text-ink-muted bg-surface-muted",
-    to: "/rejections",
+    // FUEL-C2: the declines are a TAB of the Fuel Log now. `/rejections` still redirects here and
+    // always will, but a tile in the product should name where the thing lives rather than lean on
+    // the compatibility path the outside world's old links use.
+    to: "/fuel-log?tab=declines",
   },
 ]);
 const metricStrip = computed(() => [...fuelingStats.value, ...trust.value]);
