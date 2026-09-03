@@ -298,6 +298,7 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :total="ownerOperators.length"
         :page-size="PAGE_SIZE"
         :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
         @update:page="page = $event"
       />
     </DataWorkspace>

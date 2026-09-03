@@ -22,6 +22,8 @@ defineProps<{
   pageSize: number;
   sort: SortState;
   loading: boolean;
+  /** The query's failure, shown in the table rather than swallowed (D-FIN15). */
+  error: string | null;
   swept: boolean;
   accountsStaged: boolean;
 }>();
@@ -63,7 +65,7 @@ const columns: DataTableColumn[] = [
     embedded
     row-key="glid"
     :loading="loading"
-    :error="null"
+    :error="error"
     :sort="sort"
     @sort="$emit('sort', $event)"
   >
