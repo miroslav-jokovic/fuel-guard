@@ -452,3 +452,9 @@ T2–T6 from the parent plan follow their rulings and are unchanged by this docu
   (D-FIN6).
 - No tie-out that only displays. A residual is a finding or the month does not harden (D-FIN14).
 - No question left in this file. If one appears, it gets a decision here before any code moves.
+- 2026-09-03 · F3 — the financial routes stamp `org_integrations` provider `mcleod_financial`; the
+  CPM header prints "McLeod figures as of …"; `financialFreshness.ts` runs six-hourly and turns a
+  sweep older than 26 h or a failed finance job into a `system` finding for every `accounting`
+  manager plus one office email per run (dedupe keys: `finance:stale:<org>:<day>`,
+  `finance:job-failed:<job>`). A dedicated notification category is owed if the office ever wants
+  to mute it apart from other system findings.

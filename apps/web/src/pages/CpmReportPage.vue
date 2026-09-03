@@ -119,6 +119,15 @@ const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
 const fmtCpm = (n: number) => `$${(n / 100).toFixed(2)}`;
 
+// The McLeod financial sweep's last landing, in the reader's own words. Null is said out loud.
+const figuresAsOf = computed(() => {
+  if (!provenance.value) return "";
+  const at = provenance.value.financialSweptAt;
+  if (!at) return " McLeod figures have never been swept for this organisation.";
+  const d = new Date(at);
+  return ` McLeod figures as of ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.`;
+});
+
 const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
 const visibleCount = computed(() => (tab.value === "trucks" ? trucks.value.length : ownerOperators.value.length));
 const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contractors"));
@@ -126,7 +135,9 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What each truck costs and earns for every mile it drives." />
+    <!-- "Figures as of" is the sweep's own stamp (D-FIN3), never the page's clock: a report that
+         looks current while its source stopped three weeks ago is the failure the audit found. -->
+    <PageHeader :description="`What each truck costs and earns for every mile it drives.${figuresAsOf}`" />
 
     <!--
       The method, one click away. Every sentence here used to sit in the page description or in

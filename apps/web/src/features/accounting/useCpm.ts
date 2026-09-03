@@ -19,6 +19,8 @@ export interface CpmProvenance {
   samsaraVehicles: number;
   scheduledUnits: number;
   bookedInvoices: number;
+  /** When the McLeod financial sweep last landed — the "figures as of" the header prints; null if never. */
+  financialSweptAt: string | null;
   glCheck: {
     revenue: number;
     expenses: number;

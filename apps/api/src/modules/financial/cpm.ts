@@ -9,7 +9,13 @@ import {
   type TmsFuelPurchaseFact,
   type TmsSettlementFact,
 } from "@silvicom/shared";
-import { readMovementsWindow, readSettlementsWindow, readApVouchersWindow, readBillingWindow } from "../mcleod/index.js";
+import {
+  readMovementsWindow,
+  readSettlementsWindow,
+  readApVouchersWindow,
+  readBillingWindow,
+  readFinancialSyncedAt,
+} from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readFixedCostsForMonths } from "./costSchedules.js";
 import { FUEL_AP_VENDOR_IDS } from "./projection.js";
@@ -57,6 +63,11 @@ export interface CpmWindowReport {
      * owner's 2026-08-28 reconciliation proved this number reproduces his P&L to the dollar.
      */
     glCheck: GlIncomeSummary & { netCpm: number };
+    /**
+     * When the McLeod financial sweep last landed (D-FIN3) — the "figures as of" the page prints.
+     * Null when it never has; the pages must never imply a month is complete from silence.
+     */
+    financialSweptAt: string | null;
     /** Named empty sources — what to run before believing an empty report. */
     pendingSources: string[];
     notes: string[];
@@ -119,6 +130,7 @@ export async function computeCpmForWindow(
   ]);
 
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
+  const financialSweptAt = await readFinancialSyncedAt(admin, orgId);
   const glIncome = await getGlIncomeForMonths(admin, orgId, monthsCovered(fromIso, toIso));
 
   // Who paid the carrier what, beyond the load share they kept — classified by McLeod's own
@@ -273,6 +285,7 @@ export async function computeCpmForWindow(
       samsaraVehicles: samsaraMiles.size,
       scheduledUnits: Object.keys(fixedCosts.byUnit).length,
       bookedInvoices,
+      financialSweptAt,
       glCheck: {
         ...glIncome,
         netCpm:
