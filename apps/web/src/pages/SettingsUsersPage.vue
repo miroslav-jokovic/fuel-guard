@@ -66,7 +66,7 @@ const REASON_TEXT: Record<string, string> = {
  * shown ONLY when delivery failed: an invite that was emailed does not need a second copy of its
  * own credential on screen.
  */
-const pendingLink = ref<{ email: string; link: string } | null>(null);
+const pendingLink = ref<{ email: string; link: string; emailed: boolean } | null>(null);
 const linkCopied = ref(false);
 
 async function copyPendingLink() {
@@ -80,13 +80,20 @@ async function copyPendingLink() {
   }
 }
 
+/**
+ * The link is kept on screen after a SUCCESSFUL send too, since 2026-09-03. "Emailed" means the
+ * provider handed the message to the recipient's mail server — and that server can still swallow it:
+ * an invitation to a silvicominc.com address was recorded delivered by Brevo at 12:22:08 and never
+ * reached the person, because the domain's Proofpoint front door accepted it and quarantined it. An
+ * admin who has to get somebody in today needs the link in hand, not a green toast; the API has
+ * always returned it, and it is the same credential the email carries (the route's own argument).
+ */
 function handleInviteResult(addr: string, data: InviteResult | undefined) {
+  pendingLink.value = data?.link ? { email: addr, link: data.link, emailed: Boolean(data.emailSent) } : null;
   if (data?.emailSent) {
-    pendingLink.value = null;
     toast.success("Invitation emailed", addr);
     return;
   }
-  pendingLink.value = data?.link ? { email: addr, link: data.link } : null;
   toast.error("Invitation not emailed", data?.reason ? (REASON_TEXT[data.reason] ?? data.reason) : undefined);
 }
 
@@ -309,9 +316,18 @@ onMounted(load);
           {{ submitting ? "Sending…" : "Send invite" }}
         </BaseButton>
       </form>
-      <div v-if="pendingLink" class="mt-4 rounded-control bg-warning-50 p-3 text-sm ring-1 ring-warning-200">
-        <p class="font-medium text-warning-800">Email didn't go out — send this link to {{ pendingLink.email }} yourself</p>
-        <p class="mt-1 text-xs text-warning-800">It sets their password and expires in 7 days. Treat it like a password.</p>
+      <div
+        v-if="pendingLink"
+        class="mt-4 rounded-control p-3 text-sm ring-1"
+        :class="pendingLink.emailed ? 'bg-info-50 ring-info-200' : 'bg-warning-50 ring-warning-200'"
+      >
+        <p class="font-medium" :class="pendingLink.emailed ? 'text-info-800' : 'text-warning-800'">
+          <template v-if="pendingLink.emailed">Emailed to {{ pendingLink.email }}. If it doesn't arrive, send them this link yourself</template>
+          <template v-else>Email didn't go out — send this link to {{ pendingLink.email }} yourself</template>
+        </p>
+        <p class="mt-1 text-xs" :class="pendingLink.emailed ? 'text-info-800' : 'text-warning-800'">
+          It sets their password and expires in 7 days. Treat it like a password.
+        </p>
         <div class="mt-2 flex items-center gap-2">
           <code class="min-w-0 flex-1 truncate rounded-control bg-surface px-2 py-1.5 text-xs text-ink-secondary">{{ pendingLink.link }}</code>
           <BaseButton size="sm" @click="copyPendingLink">{{ linkCopied ? "Copied" : "Copy" }}</BaseButton>
