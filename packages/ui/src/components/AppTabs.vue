@@ -149,8 +149,16 @@ const panelId = (value: string): string | undefined =>
       :tabindex="index === activeIndex ? 0 : -1"
       @click="select(index)"
     >
-      {{ tab.label }}
-      <span v-if="tab.badge !== undefined" class="ml-0.5 text-ink-tertiary">{{ tab.badge }}</span>
+      <!--
+        The default face is the label and its muted count. A caller that has more to say about a
+        tab than a word — the permissions rail draws each role's eleven section answers beside its
+        name — supplies the `tab` slot and keeps the strip, the roles and the keyboard; the slot
+        is the FACE only, never the button, so it cannot un-tab a tab.
+      -->
+      <slot name="tab" :tab="tab" :selected="tab.value === modelValue">
+        {{ tab.label }}
+        <span v-if="tab.badge !== undefined" class="ml-0.5 text-ink-tertiary">{{ tab.badge }}</span>
+      </slot>
     </button>
   </nav>
 </template>

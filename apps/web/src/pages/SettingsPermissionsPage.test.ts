@@ -183,6 +183,17 @@ describe("the Roles tab", () => {
     expect(group(w, "Admin access")).toBeUndefined();
   });
 
+  it("draws each role's eleven answers on the rail, and says them once in words", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const rail = w.find('[role="tablist"][aria-orientation="vertical"]');
+    const tech = rail.findAll('[role="tab"]').find((t) => t.text().startsWith(ROLE_LABEL))!;
+    // Eleven marks, decorative; one sentence, for a screen reader. The technician ships with one
+    // manage (maintenance), one view (equipment) — and the org's `equipment: none` takes that one.
+    expect(tech.findAll('[aria-hidden="true"]')).toHaveLength(EDITABLE_SECTIONS.length);
+    expect(tech.find(".sr-only").text()).toBe("Manage 1, view 0, none 10");
+  });
+
   it("marks a changed cell, says what reset would restore, and counts it on the rail", async () => {
     const w = mountPage();
     await flushPromises();
