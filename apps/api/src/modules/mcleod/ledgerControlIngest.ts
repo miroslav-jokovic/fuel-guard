@@ -53,6 +53,7 @@ export async function ingestLedgerTotals(
       org_id: orgId,
       period_start: payload.period_start,
       period_end: payload.period_end,
+      company_id: payload.company_id ?? null,
       post_module: t.post_module,
       glid: t.glid,
       line_count: t.lines,
