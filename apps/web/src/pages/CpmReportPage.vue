@@ -5,6 +5,8 @@ import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
 import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
 import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
+import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
+import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -40,13 +42,29 @@ const minMiles = ref("0");
  * used to be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check,
  * which read as one report with two footnotes rather than three answers to three questions.
  */
-type CpmTab = "trucks" | "contractors" | "fleet";
+type CpmTab = "trucks" | "contractors" | "fleet" | "statement";
 const TABS: TabItem[] = [
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
   { value: "fleet", label: "Company total" },
+  { value: "statement", label: "Income statement" },
 ];
 const tab = ref<CpmTab>("trucks");
+
+/**
+ * The income statement (G3) — the same period, read as the owner's printed McLeod P&L.
+ *
+ * Its own query rather than a field on the CPM report: the statement is the whole ledger for the
+ * period and the CPM report is a fleet calculation over part of it, they answer different
+ * questions, and loading ninety-four account rows to render a per-truck table would make every
+ * other tab slower for nothing. `useQuery` fetches it when the tab is opened and caches it after.
+ */
+const statementFilter = computed(() => ({ from: from.value, to: to.value }));
+const {
+  data: statement,
+  isLoading: statementLoading,
+  isError: statementError,
+} = useIncomeStatementQuery(statementFilter);
 
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
@@ -115,6 +133,8 @@ const ownerOpPage = computed(() =>
 );
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+/** The comparative line under a statement headline. Absent when the period has no wider window. */
+const statementToDateSub = (n: number | null) => (n === null ? undefined : `${fmtUsd(n)} year to date`);
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
 const fmtCpm = (n: number | null) => (n == null ? "—" : `$${(n / 100).toFixed(2)}`);
@@ -236,7 +256,59 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       McLeod sweep for this one.
     </p>
 
-    <DataWorkspace v-if="tab !== 'fleet'">
+    <!-- The income statement (G3): the period's ledger in the shape the owner's own printed P&L
+         takes. Sections in McLeod's order, accounts by code inside each, and a row opens to show
+         which parts of McLeod posted it. -->
+    <div v-if="tab === 'statement'" class="space-y-4">
+      <p v-if="statementError" class="text-sm text-danger-600">
+        The income statement could not be loaded. Try the period again in a moment.
+      </p>
+
+      <template v-else-if="statement">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Earned" :value="fmtUsd(statement.revenue)" :sub="statementToDateSub(statement.toDateRevenue)" />
+          <StatCard label="Spent" :value="fmtUsd(statement.expenses)" :sub="statementToDateSub(statement.toDateExpenses)" />
+          <StatCard
+            label="Kept"
+            :value="fmtUsd(statement.net)"
+            :sub="statementToDateSub(statement.toDateNet)"
+            :sub-tone="statement.net < 0 ? 'text-danger-600' : undefined"
+          />
+        </div>
+
+        <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
+          The McLeod sweep has not reached
+          {{ statement.monthsMissing.join(", ") }}, so
+          {{ statement.monthsMissing.length === 1 ? "that month is" : "those months are" }}
+          missing from these figures.
+        </p>
+        <p v-if="statement.unrecognisedNet !== 0" class="text-sm text-warning-700">
+          {{ fmtUsd(statement.unrecognisedNet) }} sits in an account group this report does not
+          recognise. It is shown below and counted in neither total.
+        </p>
+
+        <IncomeStatementTable
+          v-for="section in statement.sections"
+          :key="section.typeId ?? 'unclassified'"
+          :section="section"
+          :loading="statementLoading"
+          :show-to-date="statement.toDateRevenue !== null"
+        />
+
+        <p class="text-xs text-ink-tertiary">
+          Straight from McLeod's own ledger, grouped and ordered the way McLeod prints it. Money is
+          reported by whole calendar month, because that is the grain the ledger keeps — a period
+          that covers part of a month shows the whole month
+          <template v-if="statement.monthsCovered.length">
+            ({{ statement.monthsCovered.join(", ") }})</template
+          >. Year to date runs from {{ statement.toDateFrom }}.
+        </p>
+      </template>
+
+      <p v-else class="text-sm text-ink-secondary">Loading the income statement…</p>
+    </div>
+
+    <DataWorkspace v-if="tab !== 'fleet' && tab !== 'statement'">
       <FilterBar
         v-model:search="unitSearch"
         embedded

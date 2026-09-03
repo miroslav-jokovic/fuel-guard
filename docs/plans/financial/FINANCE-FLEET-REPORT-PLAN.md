@@ -293,9 +293,18 @@ bills. July, top six of ~14:
 | ROMAN | 129 | 457,669.69 | 124,489 | **3.68** |
 | kane | 128 | 500,815.54 | 136,431 | **3.67** |
 
-The rate-per-mile column shipped in #522 reads `billing_loaded_distance`, which is **NULL on all
-1,415 bills**, so it prints a dash for every dispatcher. `distance` is populated on all 1,415.
-That is G2, and it is a one-line change.
+**Correction, 2026-09-03, made while building G2:** an earlier draft of this plan said the
+rate-per-mile column reads `billing_loaded_distance` and therefore printed a dash for every
+dispatcher. It does not. Migration 0275 added plain `distance` for exactly this reason, the reader
+selects it (`financialReads.ts:132`), `dispatcherEarnings.ts` sums it, and `BillingPage.vue` shows
+both columns. Verified end to end against production July: all 1,415 bills booked, 1,383 carrying a
+distance, 1,326,922 billed miles over $4,994,450.85 — a rate of $3.76 per mile fleet-wide.
+
+**So G2 was already built and needed no change.** The two empty columns beside it are also already
+decided: 0275 keeps `billing_loaded_distance` and `billing_empty_distance` deliberately, as the
+record that McLeod asserts nothing in them, and deleting them would erase the measurement that says
+so. The plan claimed a defect that the code had already fixed; the claim is corrected here rather
+than left standing, and nothing was "repaired".
 
 ### 1.8 Weekly reporting — what each source would need
 
@@ -476,8 +485,8 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | # | Step | What it is | Blocked on |
 |---|---|---|---|
 | **G1** | **The fleet harness** | `computeFleetReport` to the contract in §2.5 — pure, period-parameterised, every figure derived. Replaces `computeCpm`'s allocation path entirely. Ships with the §1 tables as fixtures over real staged rows, each mutation-tested. | nothing |
-| **G2** | **Dispatcher rate per mile** | Read `distance`, not `billing_loaded_distance`. Then decide which of the three distance columns is authoritative and delete or document the other two — a column that is never non-null is a claim the store cannot support. | nothing |
-| **G3** | **Income statement tab** | Section + account code + name + month + YTD + % of revenue, ordered by `type_id` then `glid`. Account code printed beside the name (§1.4). Expand a row to its posting modules. | nothing |
+| **G2** | **Dispatcher rate per mile** | **ALREADY BUILT** — verified end to end 2026-09-03 (§1.7). Migration 0275, the reader, the service and the page all use `distance`; the two empty columns are documented rather than deleted, by 0275's own decision. No work. | — |
+| **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
 | **G4** | **Active-truck rule** | A truck is active in a month if Samsara measured miles for it. Same source as the denominator, so the count and the miles can never disagree. Printed on every tab. July = 172 (163 company, 9 owner-operator). | nothing |
 | **G5** | **Overview tab and the trend** | The six headline figures, the three-column split, the twelve-month chart, and the provenance line. | G1, G4 |
 | **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
@@ -490,8 +499,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | A month whose Samsara truck count is below its delivering-truck count reports per-mile figures as `null` with the reason, exactly as a truck without miles does (D-FIN10). Computed, never a hard-coded date — the rule survives a future gateway outage, a hard-coded "before March 2026" would not. | G4 |
 
-**Ordering:** G2 and G3 first — both are visible improvements with no dependencies, and G3 is the
-tab the bosses will use most. Then G4 and G10 (the truck count and the rule that refuses a
+**Ordering:** G2 and G3 first — done. Then G4 and G10 (the truck count and the rule that refuses a
 per-mile figure computed over an incomplete fleet), then G1, G9 and G5 as the fleet model proper.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
@@ -634,4 +642,22 @@ the record.
   one new collector and a vendor-capability check first. The finding that shapes the tab: 26.2% of
   July's cost is 44 journal lines averaging $24,210 — VIP lease, insurance, payroll — so D-FLEET10
   keeps monthly journals out of any weekly per-mile figure and names them instead of spreading them.
+- 2026-09-03 · **G2 — no change needed.** Building it found the plan wrong: the dispatcher rate
+  already reads `mcleod_billing.distance`, not the empty `billing_loaded_distance`, through 0275,
+  the reader, the service and the page. Verified against production July — 1,415 bills, 1,383 with
+  a distance, 1,326,922 miles, $3.76 per mile fleet-wide. §1.7 carries the correction.
+- 2026-09-03 · **G3 — the income statement.** `buildIncomeStatement` in
+  `packages/shared/src/tmsCost/incomeStatement.ts`: pure, sections in McLeod's printed order,
+  accounts by `glid` inside each (never by `descr`, which McLeod truncates to 28 characters so it
+  is not unique), revenue flipped exactly once, balance-sheet classes excluded by name so that
+  `unrecognisedNet` means "a class we have never seen", and a class matching neither the revenue nor
+  the expense set reported as its own visible section instead of falling through — the silent drop
+  §0.1 of the go-live plan found in `glIncome.ts`. `getIncomeStatement` widens a part-month window
+  to the calendar months it touches, because GL totals are month-grained and prorating would be an
+  allocation, and names the months the sweep has not reached. `GET /api/accounting/income-statement`
+  under the existing `accounting` view gate. `IncomeStatementTable.vue` is a card per section with a
+  row that opens to the posting modules behind it. 26 tests over three layers, each layer
+  mutation-tested: balance-sheet exclusion, unrecognised-class folding, ordering by description,
+  a null share printing as zero, a dropped org filter, hidden missing months, a collapsed fiscal
+  year, a removed account code, and always-on to-date columns — every mutant killed.
 

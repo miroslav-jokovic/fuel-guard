@@ -12,6 +12,7 @@ import {
   computeCpmForWindow,
   getGlMonthlyCosts,
   getMonthCloses,
+  getIncomeStatement,
 } from "../../financial/index.js";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
@@ -173,6 +174,30 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const costs = await getGlMonthlyCosts(admin, req.auth!.orgId!, parsed.data.period);
       res.json({ ok: true, ...costs });
+    }),
+  );
+
+  /**
+   * The income statement (G3) — the ledger in the shape the owner's own printed P&L takes.
+   *
+   * Windowed like every other finance read, then widened to the calendar months it touches,
+   * because GL totals are month-grained: a request for 14 July to 3 August is answered with July
+   * and August whole, and the response says which months it covered. Prorating a month's journal
+   * entries across days would be an allocation, and this section does not allocate (D-FLEET8).
+   */
+  router.get(
+    "/income-statement",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...statement });
     }),
   );
 

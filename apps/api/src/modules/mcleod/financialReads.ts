@@ -254,6 +254,37 @@ export async function readLedgerTotals(
   );
 }
 
+/**
+ * GL control totals across a RANGE of months, for the income statement (G3).
+ *
+ * `readLedgerTotals` reads one month because its caller — the coverage claim — checks one month at
+ * a time. The statement's to-date column spans a fiscal year, and issuing twelve round trips to
+ * build one page is the shape that makes a report feel slow for no reason. Half-open on
+ * `period_start`, like every window in this integration.
+ *
+ * Returns `period_start` with each row so the caller can bucket by month without a second read —
+ * the same rows serve the period column and the to-date column.
+ */
+export async function readLedgerTotalsRange(
+  admin: SupabaseClient,
+  orgId: string,
+  fromPeriodStart: string,
+  toPeriodStartExclusive: string,
+): Promise<Array<StagedGlTotal & { period_start: string }>> {
+  return paged<StagedGlTotal & { period_start: string }>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("period_start, post_module, glid, line_count, net_amount, abs_amount")
+      .eq("org_id", orgId)
+      .gte("period_start", fromPeriodStart)
+      .lt("period_start", toPeriodStartExclusive)
+      .order("period_start", { ascending: true })
+      .order("post_module", { ascending: true })
+      .order("glid", { ascending: true })
+      .range(from, to),
+  );
+}
+
 export interface StagedMovement {
   external_id: string;
   tractor_unit: string | null;
