@@ -484,7 +484,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 
 | # | Step | What it is | Blocked on |
 |---|---|---|---|
-| **G1** | **The fleet harness** | `computeFleetReport` to the contract in §2.5 — pure, period-parameterised, every figure derived. Replaces `computeCpm`'s allocation path entirely. Ships with the §1 tables as fixtures over real staged rows, each mutation-tested. | nothing |
+| **G1** | **The fleet harness** | **PURE HARNESS BUILT 2026-09-03** (`fleetReport.ts`). **Owed:** the service that feeds it, its route, and the page reading it — G5. | — |
 | **G2** | **Dispatcher rate per mile** | **ALREADY BUILT** — verified end to end 2026-09-03 (§1.7). Migration 0275, the reader, the service and the page all use `distance`; the two empty columns are documented rather than deleted, by 0275's own decision. No work. | — |
 | **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
 | **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
@@ -676,4 +676,22 @@ the record.
   counted, and bucketing on `bill_date` — all six killed. The API tests use filtering fixtures
   rather than flat arrays, because the recorder records filters without applying them and a flat
   array answers "April" with March's rows.
+- 2026-09-03 · **G1 (harness half) — `computeFleetReport`.** Pure, period-parameterised, no constant
+  in the file is a dollar, a truck count, a month or a rate. Totals come from the ledger unaltered;
+  the contractor column is DERIVED from the subledgers; the company column is the remainder — an
+  ordering chosen so that any derivation error lands in one named place with the contractor side's
+  own inputs printed beside it, rather than in a residual quietly absorbed. Contractor revenue
+  follows the ORDER, never the truck, and only deductions posting to a revenue account count as
+  income: July's $53,917.64 of fuel advances repaid is a receivable settling, and counting it would
+  overstate what contractors earn the carrier by about a quarter. Coverage gates every rate — a
+  period short of trucks reports its money in full and every per-mile figure as `null` with the
+  reason. Contractor miles need per-unit mileage; without it they show a dash rather than a split
+  the data cannot make.
+
+  **One mutant survived the first pass and that is the useful part of this entry.** Attributing
+  contractor revenue by TRUCK instead of by order changed nothing, because every fixture order
+  mapped one-to-one to a contractor truck. Four of this carrier's eight contractor tractors are
+  MIXED — the same truck ran for a contractor and for a company driver — so the fixture gained one,
+  and the mutant then killed four tests. Five of six mutants died on the first run; the sixth is
+  the reason the fixture is shaped the way it is.
 
