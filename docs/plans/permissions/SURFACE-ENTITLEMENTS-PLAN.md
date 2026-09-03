@@ -747,7 +747,7 @@ today, so a scale gap rather than a live one); Q-SURF6's "next navigation correc
 said in the UI. And the audit that preceded this step found the finding recorded as Q-SURF8 below,
 which no redesign can fix.
 
-### S9 · Members have names — table first, readers next — IN PROGRESS 2026-09-03 (migration 0301)
+### S9 · Members have names — table first, readers next — DONE 2026-09-03 (migration 0301, two PRs)
 Owner ruling 2026-09-03: "we should have users' name displayed instead of [email] and we need to add
 this in our settings and users feature and tables." Measured first: no member of an organisation has
 a name anywhere in the product except a driver (`drivers.full_name`, linked to the membership by
@@ -779,6 +779,32 @@ the cascade), `rls` 468 (the definer sweep now names the function), `lint:rls`, 
 **Mutation-tested:** swapping the coalesce order and granting the function to `authenticated` each
 failed their own assertion — and one assertion was found passing vacuously (the cross-org roster
 fixture was refused by 0098's unique index and the refusal swallowed), so it now pins that refusal.
+
+**Second half — what shipped.** One contract for a name (`fullNameSchema`: trimmed, 1–120) used by
+the invitation, the acceptance and the Users page. `GET /api/members` is one `org_member_directory`
+call and returns `fullName`; `PATCH /api/members/:id` takes a role, a name or both, asks the
+org-scoped membership question BEFORE writing the user-keyed profile (the only thing between an
+admin and a stranger's name), writes the whole row, and audits `member.renamed`. `POST /api/invites`
+stores the invitee's name; `POST /api/invites/accept` writes the profile from the person's own
+answer, else the invitation's, after the membership. `/api/me` returns `fullName` fail-open, with a
+driver member named by the roster. Web: the session carries the name; the account menu leads with
+it and shows the email beneath; the Users page has a Name column ("No name yet" when there is none),
+a required Name on the invite form, and an "Add name / Edit name" drawer per row that says what the
+roster does for a driver; the accept page asks "Your name" first and will not spend the link without
+it; the permissions People picker reads "Name · Role · email".
+
+**Verified by:** `members.test.ts` (one directory call and no per-member auth lookup; the rename is
+org-scoped through the membership and refused for a non-member with no write; a blank name stops at
+the contract; role and name in one request audit twice), the accept-page test (the name travels with
+the acceptance, trimmed; no name, no redemption), the new `SettingsUsersPage.test.ts`, the
+permissions page test's picker assertion, every `lint:*` gate in `ci.yml`, `pnpm test` in full,
+typecheck and build. The `user_profiles` producer waiver is deleted.
+
+⚠ **Still calling `auth.admin.getUserById` one at a time, deliberately left:** `dqBinder`,
+`dispatchLoads/queries`, `defensePacket`, `dqExports`, `fuelPlanHistory` and the accept route's
+own email-confirmation check. Each resolves ONE actor, not a list, and each should read the name
+through the directory when it next needs one — recorded here so the pattern is found, not
+rediscovered.
 
 ## §6 Open questions
 

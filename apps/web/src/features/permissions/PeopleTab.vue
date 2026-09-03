@@ -66,10 +66,11 @@ const setSurface = useSetMemberSurface();
 
 const busy = computed(() => setSection.isPending.value || setSurface.isPending.value);
 
+/** "Name · Role" when the person has a name (0301), else "email · Role"; the search matches either. */
 const memberOptions = computed(() =>
   (members.data.value ?? []).map((m) => ({
     value: m.userId,
-    label: `${m.email ?? m.userId} · ${USER_ROLE_LABELS[m.role as UserRole]}`,
+    label: `${m.fullName ?? m.email ?? m.userId} · ${USER_ROLE_LABELS[m.role as UserRole]}${m.fullName && m.email ? ` · ${m.email}` : ""}`,
   })),
 );
 
@@ -184,7 +185,7 @@ async function followRoleEverywhere() {
         v-model="selectedId"
         :options="memberOptions"
         :disabled="members.isPending.value"
-        placeholder="Search by email or role"
+        placeholder="Search by name, email or role"
         empty-text="No member matches. Invite one from the Users page."
       />
     </AppFormField>
@@ -196,9 +197,9 @@ async function followRoleEverywhere() {
     <template v-else>
       <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div class="min-w-0">
-          <h2 class="truncate text-lg font-semibold text-ink">{{ member.email ?? member.userId }}</h2>
-          <p class="mt-0.5 text-sm text-ink-muted">
-            {{ USER_ROLE_LABELS[member.role as UserRole] }}
+          <h2 class="truncate text-lg font-semibold text-ink">{{ member.fullName ?? member.email ?? member.userId }}</h2>
+          <p class="mt-0.5 truncate text-sm text-ink-muted">
+            <template v-if="member.fullName && member.email">{{ member.email }} · </template>{{ USER_ROLE_LABELS[member.role as UserRole] }}
             <template v-if="editable">
               · {{ personalCount > 0 ? `follows the role except in ${personalCount} places` : "follows the role everywhere" }}
             </template>

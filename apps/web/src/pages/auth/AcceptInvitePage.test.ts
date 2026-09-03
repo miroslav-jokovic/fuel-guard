@@ -96,9 +96,11 @@ beforeEach(() => {
 });
 
 /** Fill the form and submit — the only thing that may spend a token. */
-async function submitPassword(w: ReturnType<typeof mountAt>, pw = "correcthorse") {
-  await w.findAll("input")[0]!.setValue(pw);
+async function submitPassword(w: ReturnType<typeof mountAt>, pw = "correcthorse", name = "Nadia Named") {
+  // Name first (0301), then the password twice.
+  await w.findAll("input")[0]!.setValue(name);
   await w.findAll("input")[1]!.setValue(pw);
+  await w.findAll("input")[2]!.setValue(pw);
   await w.find("form").trigger("submit");
   await flushPromises();
 }
@@ -227,5 +229,26 @@ describe("AcceptInvitePage — submitting redeems", () => {
     const w = mountAt("/accept-invite");
     await flushPromises();
     expect(w.text()).toContain("doesn’t look like an invitation link");
+  });
+});
+
+describe("AcceptInvitePage — the person says who they are (0301)", () => {
+  it("sends the typed name with the acceptance, trimmed, and nothing else in the body", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
+    await flushPromises();
+    await submitPassword(w, "correcthorse", "  Nadia Named ");
+    expect(apiFetch).toHaveBeenCalledWith("/api/invites/accept", { method: "POST", body: { fullName: "Nadia Named" } });
+  });
+
+  it("will not redeem the link without a name — the token is spent only by a complete form", async () => {
+    const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
+    await flushPromises();
+    await w.findAll("input")[1]!.setValue("correcthorse");
+    await w.findAll("input")[2]!.setValue("correcthorse");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect(authCalls).toEqual([]);
+    expect(w.text()).toContain("Tell us your name.");
   });
 });

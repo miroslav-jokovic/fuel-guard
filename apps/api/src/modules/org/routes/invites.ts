@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import {
+  inviteAcceptSchema,
   inviteCreateSchema,
   isEmailDomainAllowed,
+  type InviteAcceptRequest,
   type InviteCreateRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
@@ -13,7 +15,7 @@ import { deliverInvite } from "../inviteDelivery.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { sendEmail } from "../../../lib/mailer.js";
 
-const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
+const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at, full_name";
 
 export function invitesRouter(): Router {
   const router = Router();
@@ -70,7 +72,7 @@ export function invitesRouter(): Router {
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
-      const { email, role } = res.locals.body as InviteCreateRequest;
+      const { email, role, fullName } = res.locals.body as InviteCreateRequest;
       const orgId = req.auth!.orgId!;
 
       const { data: org } = await admin
@@ -96,6 +98,7 @@ export function invitesRouter(): Router {
           org_id: orgId,
           email,
           role,
+          full_name: fullName ?? null,
           invited_by: req.auth!.userId,
           token,
           expires_at: expiresAt.toISOString(),
@@ -119,7 +122,7 @@ export function invitesRouter(): Router {
         action: "invite.created",
         entity: "invites",
         entityId: invite.id,
-        meta: { email, role, emailSent: delivery.sent, reason: delivery.reason },
+        meta: { email, role, fullName: fullName ?? null, emailSent: delivery.sent, reason: delivery.reason },
       });
       // `link` is returned to the ADMIN who created the invite, deliberately. The comment on
       // InviteDelivery.link has promised this since the mailer was written and the response never
@@ -320,8 +323,10 @@ export function invitesRouter(): Router {
   // Authorized by the JWT email matching a pending invite in an allowed domain (audit M2).
   router.post(
     "/accept",
+    validateBody(inviteAcceptSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { fullName: typedName } = (res.locals.body ?? {}) as InviteAcceptRequest;
       const email = req.auth!.email;
       if (!email) {
         res.status(400).json(apiError("no_email", "Authenticated user has no email"));
@@ -348,7 +353,7 @@ export function invitesRouter(): Router {
       const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")
-        .select("id, org_id, role, status, driver_id")
+        .select("id, org_id, role, status, driver_id, full_name")
         .eq("email", email)
         .eq("status", "pending")
         .or(`expires_at.is.null,expires_at.gt.${now}`)
@@ -414,6 +419,19 @@ export function invitesRouter(): Router {
           res.status(500).json(apiError("db_error", "Could not link driver"));
           return;
         }
+      }
+
+      // The person's name (0301, D-MEM1): what they typed on the accept page, else what the admin typed
+      // on the invitation, else nothing — a profile is never written with a name nobody said. Written
+      // AFTER the membership so a failure here cannot leave a person named but not admitted, and as a
+      // full-row upsert because the row is the whole answer, not a column of it.
+      const name = typedName ?? (invite.full_name as string | null) ?? null;
+      if (name) {
+        const { error: nameErr } = await admin.from("user_profiles").upsert(
+          { user_id: req.auth!.userId, full_name: name, updated_at: new Date().toISOString(), updated_by: req.auth!.userId },
+          { onConflict: "user_id" },
+        );
+        if (nameErr) console.error(`[invites] profile not written for ${req.auth!.userId}: ${nameErr.message}`);
       }
 
       await admin.from("invites").update({ status: "accepted" }).eq("id", invite.id);

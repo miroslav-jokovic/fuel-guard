@@ -200,6 +200,7 @@ async function signOut() {
                   <div class="sidebar-divider mt-4 border-t pt-3">
                     <SidebarProfileMenu
                       :email="session.email"
+                      :name="session.fullName"
                       :role="session.role"
                       :can-manage="session.can('settings')"
                       @sign-out="signOut"
@@ -305,6 +306,7 @@ async function signOut() {
           >
             <SidebarProfileMenu
               :email="session.email"
+              :name="session.fullName"
               :role="session.role"
               :collapsed="sidebarCollapsed"
               :can-manage="session.can('settings')"

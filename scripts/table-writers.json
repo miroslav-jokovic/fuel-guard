@@ -401,6 +401,10 @@
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
+  "user_profiles": [
+    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/routes/members.ts"
+  ],
   "user_section_access": [
     "apps/api/src/modules/org/routes/sectionAccess.ts"
   ],
