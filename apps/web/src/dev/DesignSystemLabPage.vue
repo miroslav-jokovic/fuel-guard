@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton, AppAvatar, AppCheckbox } from "@silvicom/ui";
+import { AppButton, AppAvatar, AppCheckbox, AppSegmentedControl } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
@@ -31,6 +31,12 @@ type SidebarMode = "dark" | "light";
 // Lab-only state for the checkbox rulers below — one of each so the checked and unchecked boxes can
 // be compared against the same baseline.
 const labCheckA = ref(false);
+const labSegment = ref("view");
+const labSegmentOptions = [
+  { value: "none", label: "None" },
+  { value: "view", label: "View" },
+  { value: "manage", label: "Manage" },
+];
 const labCheckB = ref(true);
 const labCheckC = ref(false);
 
@@ -372,6 +378,19 @@ const rows = [
           A deliberately long label that wraps onto a second line so the box can be seen holding its
           place beside the first one rather than drifting to the middle of the block
         </AppCheckbox>
+      </div>
+
+      <h3>Segmented control</h3>
+      <p class="lab-shipped-note">
+        One answer from a short fixed set, every option visible, one tap to change — a radio group
+        drawn as a strip, with the roving tabindex and arrow keys that role promises. The second one
+        is <code>inherited</code>: the chosen value is shown outlined because it came from a lower
+        layer (a person following their role), and choosing it anyway is still a real answer.
+      </p>
+      <div class="lab-shipped-row">
+        <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access" />
+        <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access, following the role" inherited />
+        <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access, locked" disabled />
       </div>
 
       <h3>Avatar</h3>

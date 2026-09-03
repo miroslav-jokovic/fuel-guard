@@ -49,8 +49,15 @@ const props = withDefaults(
     idPrefix?: string;
     /** Many tabs: scroll the strip instead of wrapping it. */
     scrollable?: boolean;
+    /**
+     * A vertical list of tabs — a master–detail rail, where picking a row swaps the panel beside it.
+     * Same widget, same roving tabindex; Up/Down move the selection instead of Left/Right, which is
+     * what WAI-ARIA's pattern prescribes for `aria-orientation="vertical"`. The strip's well and pill
+     * do not apply: a rail sits on the page ground and marks its selection with the selected surface.
+     */
+    orientation?: "horizontal" | "vertical";
   }>(),
-  { idPrefix: undefined, scrollable: false },
+  { idPrefix: undefined, scrollable: false, orientation: "horizontal" },
 );
 
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
@@ -77,11 +84,12 @@ function select(index: number): void {
 function onKey(event: KeyboardEvent): void {
   const last = props.tabs.length - 1;
   const i = activeIndex.value;
+  const vertical = props.orientation === "vertical";
   switch (event.key) {
-    case "ArrowRight":
+    case vertical ? "ArrowDown" : "ArrowRight":
       select(i === last ? 0 : i + 1);
       break;
-    case "ArrowLeft":
+    case vertical ? "ArrowUp" : "ArrowLeft":
       select(i === 0 ? last : i - 1);
       break;
     case "Home":
@@ -105,10 +113,16 @@ const panelId = (value: string): string | undefined =>
 
 <template>
   <nav
-    class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm"
-    :class="scrollable ? 'overflow-x-auto' : ''"
+    class="flex text-sm"
+    :class="[
+      orientation === 'vertical'
+        ? 'flex-col gap-0.5'
+        : 'gap-1 rounded-surface bg-surface-muted p-1',
+      scrollable ? 'overflow-x-auto' : '',
+    ]"
     role="tablist"
     :aria-label="label"
+    :aria-orientation="orientation === 'vertical' ? 'vertical' : undefined"
     @keydown="onKey"
   >
     <button
@@ -121,7 +135,14 @@ const panelId = (value: string): string | undefined =>
       class="rounded-control px-3 py-1.5 font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       :class="[
         scrollable ? 'shrink-0' : '',
-        tab.value === modelValue ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary',
+        orientation === 'vertical' ? 'flex w-full items-center justify-between gap-2 text-left' : '',
+        tab.value === modelValue
+          ? orientation === 'vertical'
+            ? 'bg-selected-surface text-ink'
+            : 'bg-surface text-ink'
+          : orientation === 'vertical'
+            ? 'text-ink-secondary hover:bg-surface-subtle hover:text-ink'
+            : 'text-ink-muted hover:text-ink-secondary',
       ]"
       :aria-selected="tab.value === modelValue"
       :aria-controls="panelId(tab.value)"
