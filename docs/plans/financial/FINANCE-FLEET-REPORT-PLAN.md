@@ -42,8 +42,14 @@ time — which is the test a simplification has to pass.
   therefore show revenue, expenses and net like every other month, and show **"—"** for every
   per-mile figure with the reason on hover. A per-mile number computed over an incomplete fleet is
   exactly the plausible-but-wrong figure D-FIN10 exists to refuse.
-- **D-FLEET6 — the grain is the calendar month.** Not a preference: the ledger is monthly and the
-  only per-vehicle mileage feed we have is monthly. A weekly view is a new collector, not a filter.
+- **D-FLEET6 — the period is a parameter of the harness, not a constant of the report.** The
+  harness takes a start and an end and computes from whatever rows fall inside them. What the
+  report can actually OFFER is decided by the collectors' grain, not by the harness — today that is
+  the calendar month, and §1.8 measures exactly what each source would need to offer a week.
+- **D-FLEET9 — collectors stage the finest grain the source asserts; the harness aggregates.**
+  A collector that pre-aggregates to a period has made a reporting decision inside an extraction
+  layer, and every later question about a different period becomes a schema change. Where we
+  currently aggregate in SQL and it costs us nothing to stop, we stop (§1.8.1).
 - **D-FLEET7 — owner-operators are their own column, derived and never configured.** Their trucks
   come from `payee_type`, their pay from the settlements, their revenue from the loads they ran,
   and the class of every deduction is read from the GL account it posts to (§1.3).
@@ -72,6 +78,15 @@ Five of the six owner rulings and every third-party credential leave the critica
 
 All figures from `supabase db query --linked`, checked against the owner's printed
 `PROFIT LOSS JULY 2026.pdf` (McLeod Income Statement, Silvicom, Inc., printed 2026-08-20).
+
+> **What these numbers are for, and what they are not.** Nothing in this section is a figure the
+> product prints, and nothing here is ever typed into code. Every number below was computed by hand
+> from staged data for exactly one purpose: to prove that the collectors already hold what the
+> harness needs, and to serve afterwards as the **acceptance fixture** that harness must reproduce.
+> The report is computed, always, from the collected rows — §2.5 states that contract. A plan that
+> carried the answers instead of the method would be a spreadsheet, and it would be stale the
+> morning after the next sweep. Where a step below says *"the harness reproduces §1.2"*, that is a
+> test, not an instruction to hard-code a table.
 
 ### 1.1 The ledger reproduces the printed statement to the cent — month AND year to date
 
@@ -282,12 +297,142 @@ The rate-per-mile column shipped in #522 reads `billing_loaded_distance`, which 
 1,415 bills**, so it prints a dash for every dispatcher. `distance` is populated on all 1,415.
 That is G2, and it is a one-line change.
 
+### 1.8 Weekly reporting — what each source would need
+
+Asked 2026-09-03. Answered per collector, because the answer is different for each and the
+difference is the whole point of D-FLEET9.
+
+#### 1.8.1 Money: the source is already daily. Our collector throws that away.
+
+`gl_ledger.transaction_date` is on **every line**. `GL_CONTROL_TOTALS`
+(`tools/mcleod-agent/queries.mjs:643`) groups by `(post_module, glid)` over a window the caller
+supplies, and `ledger.mjs` calls it once per calendar month. **The monthly grain is our
+aggregation, not the source's** — a textbook case of a collector making a reporting decision.
+
+The fix is small and it is D-FLEET9 applied: add the transaction date to the `GROUP BY`, stage at
+**daily** grain — `(org, company, date, glid, post_module, line_count, net, abs)` — and let the
+harness sum to a week, a month, a quarter or a custom range. Volume is not a concern: July's whole
+expense side is **10,254 ledger lines**, so daily grain is bounded by that and realistically lands
+near 2,000 rows a month against the 140 we store now.
+
+Doing this also retires the month-shaped plumbing around it — `monthsTouching`,
+`replace_mcleod_gl_month`'s month argument, and the month-aligned-window guard the old harness
+needed before it could anchor on a GL total.
+
+#### 1.8.2 Miles: monthly by the vendor's API, and we keep no history to derive from
+
+Two separate walls, both measured in the code:
+
+- **The IFTA endpoint is monthly by design.** `samsaraIftaSync.ts` fetches a named month, and
+  asking for the month in progress returns **HTTP 400** — a fact recorded in that file after a
+  backfill in which seven months landed and August failed. There is no week parameter to pass.
+- **The stats feed reads odometer and stores only the latest value.** `samsaraStatsFeed.ts`
+  patches `vehicles.current_odometer` and keeps no time series, so no daily or weekly distance can
+  be differenced out of what we hold. `vehicle_engine_days` carries drive, idle and off **seconds**
+  and no distance at all.
+
+So weekly miles is a **new collector**: daily odometer snapshots per vehicle, from which a week's
+distance is a subtraction, or Samsara's distance-over-range report if its API offers one — which
+must be verified against the vendor documentation before the table is designed, not assumed from
+the endpoint name. Either way it is one collector, and it is the only new one this plan would
+need for weekly.
+
+Deriving weekly miles by splitting a monthly figure is refused (D-FLEET8): that is an allocation
+wearing a measurement's clothes.
+
+#### 1.8.3 The finding that decides the shape: a quarter of cost is not event-dated
+
+This is the one that matters, and it is why "can we do weekly" is not the same question as "can we
+window smaller". July's expense side, by whether the posting module dates a real event or a
+bookkeeping entry:
+
+| | Amount | Lines | $/line |
+|---|---:|---:|---:|
+| **Event-dated** — SET, FUEL, DRS, DED, OFF, AP, and the small tail | 2,992,899.82 | 10,210 | 293 |
+| **Journal** — GJ, RJ | **1,065,243.56** | **44** | **24,210** |
+| | | | **26.2% of cost, on 44 lines** |
+
+VIP Lease posts as six journal lines totalling $700,000. Insurance, officer salaries and payroll
+tax are most of the rest. These are month-end batch entries, so a weekly cost per mile computed
+from them would show three cheap weeks and one enormous one — **arithmetically correct and
+operationally meaningless**, which is the most dangerous kind of wrong number a report can carry.
+
+> **D-FLEET10 — a weekly view reports what happens weekly, and names what does not.** Revenue,
+> miles, loads, empty percentage and the event-dated cost families are weekly figures. Costs that
+> post as monthly journals are shown as their own labelled block, at their monthly value, excluded
+> from the weekly cost-per-mile — never spread across weeks, because spreading is allocation and
+> D-FLEET8 refuses it. The weekly tab says in plain words which costs it contains and which it does
+> not. Monthly stays the P&L; weekly is the activity and revenue view.
+
+#### 1.8.4 What weekly costs, in order
+
+| | Step | Enables |
+|---|---|---|
+| 1 | Daily GL grain (§1.8.1) — agent query, staging column, RPC, reader | any money period; retires the month-aligned guard |
+| 2 | Weekly revenue, miles-free — billing by `delivery_date`, loads, revenue per billed mile | most of the value, before the mileage collector exists |
+| 3 | Daily vehicle-distance collector (§1.8.2) — **verify the Samsara API surface first** | weekly miles, and therefore weekly per-mile figures |
+| 4 | The weekly tab under D-FLEET10 | the view itself |
+
+Steps 1 and 2 are ours and unblocked. Step 3 is a vendor-capability question that gets answered
+before it gets designed. **None of it changes the harness's shape** — the period is already a
+parameter under D-FLEET6; these steps only widen what the collectors can offer it.
+
 ---
 
 ## 2. The report
 
 One Finance section, four tabs. Plain word leads, industry term in the hover, method behind
 `ExplainerPanel`. One table per tab, everything paginates.
+
+### 2.5 The harness contract — the thing that is actually built
+
+Stated before the tabs, because the tabs are a rendering of it and this is what the work is.
+
+Collectors and harness stay separated as they are. A collector lands what a source asserts,
+verbatim, at the source's own finest grain, and asserts nothing about periods or reports. The
+harness is pure — no clock, no randomness, no I/O — and takes a period and a set of collected rows
+and returns the whole report. Every figure on every tab comes out of one call.
+
+```
+computeFleetReport(
+  period:        { from: Date; to: Date },        // any range; the caller decides
+  ledger:        LedgerRow[],                     // glid, post_module, date, net, abs, line_count
+  accounts:      GlAccount[],                     // glid, descr, type_id   (sections + print order)
+  miles:         VehicleMiles[],                  // vehicle, period, measured miles
+  settlements:   SettlementRow[],                 // payee_type, tractor, pay      (owner-op split)
+  deductions:    DeductionRow[],                  // payee_type, glid, amount      (owner-op income)
+  bills:         BillRow[],                       // dispatcher, tractor, distance, charges, dates
+  rules:         FleetRules,                      // company scope; nothing to tune, by design
+) => FleetReport
+```
+
+and `FleetReport` carries, computed and never configured:
+
+| Output | Derived from | Refuses to guess |
+|---|---|---|
+| `revenue`, `expenses`, `net` | ledger × account class, summed over the period | an account whose class is unknown is its own reported line, never folded in |
+| `milesDriven`, `truckCount` | mileage rows in the period | `null` when coverage is incomplete (G10), never a smaller number |
+| `milesBilled`, `emptyMiles`, `emptyPct` | bills re-dated to delivery, against driven | `null` when either side is `null` |
+| `revenuePerMileDriven` / `PerMileBilled`, `costPerMileDriven`, `netPerMile` | the above | `null`, never 0, when a denominator is absent (D-FIN10) |
+| `ownerOperator` / `company` split | settlement `payee_type`; deduction class from the account it posts to | a deduction with no `glid` is reported unruled, with its dollars |
+| `incomeStatement[]` | ledger grouped by class then `glid`, month and period-to-date | print order is `type_id` then `glid`; never the description |
+| `dispatchers[]` | bills by dispatcher: loads, revenue, billed miles, rate per mile | `null` rate when a dispatcher's bills carry no distance |
+| `tieOut` | company + owner-operator against the ledger | **residual ≠ 0.00 and the report refuses to render** |
+
+Three properties this contract has to hold, each pinned by a test that must fail when the term is
+removed:
+
+1. **Every published figure is a pure function of collected rows.** No constant in this module is a
+   dollar amount, a truck count, a month, or a rate. The §1 measurements appear ONLY as fixtures.
+2. **The period is a parameter throughout.** Nothing inside computes a month boundary. What periods
+   the product offers is a collector question (§1.8), never a harness one.
+3. **The tie-out is a precondition, not a display.** §1.1 and §1.3 tie today; the harness asserts
+   the same identity on every call and refuses rather than prints when it fails.
+
+The acceptance fixtures are the §1 tables, loaded from a JSON snapshot of real staged rows:
+`computeFleetReport` over July's rows must return §1.3's split to the cent, over each of the seven
+months must return §1.2's row, and over January must return money with `null` rates (§1.5.3).
+Mutation-test each: drop the owner-operator term and the July fixture must fail.
 
 ### Tab 1 — Overview
 
@@ -330,7 +475,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 
 | # | Step | What it is | Blocked on |
 |---|---|---|---|
-| **G1** | **The fleet harness** | A new pure module: ledger revenue + ledger expenses + Samsara miles + truck count → the §1.2 and §1.3 tables. Replaces `computeCpm`'s allocation path entirely. The owner-operator split reads `payee_type`, the loads, and the deduction-account join of §1.3. Invariant test: company + owner-operator == ledger, to the cent, or the report refuses to render. | nothing |
+| **G1** | **The fleet harness** | `computeFleetReport` to the contract in §2.5 — pure, period-parameterised, every figure derived. Replaces `computeCpm`'s allocation path entirely. Ships with the §1 tables as fixtures over real staged rows, each mutation-tested. | nothing |
 | **G2** | **Dispatcher rate per mile** | Read `distance`, not `billing_loaded_distance`. Then decide which of the three distance columns is authoritative and delete or document the other two — a column that is never non-null is a claim the store cannot support. | nothing |
 | **G3** | **Income statement tab** | Section + account code + name + month + YTD + % of revenue, ordered by `type_id` then `glid`. Account code printed beside the name (§1.4). Expand a row to its posting modules. | nothing |
 | **G4** | **Active-truck rule** | A truck is active in a month if Samsara measured miles for it. Same source as the denominator, so the count and the miles can never disagree. Printed on every tab. July = 172 (163 company, 9 owner-operator). | nothing |
@@ -339,12 +484,20 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G7** | **The removals** | §4, as its own PR after G1–G5 are live. | G1–G5 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
 | **G9** | **Two denominators and the empty-mile figure** | Miles driven (Samsara) beside miles billed (`mcleod_billing.distance` re-dated to `delivery_date`), and the empty percentage between them, as a trailing three-month average beside the month (§1.5.4). Cost per mile driven and revenue per mile billed are separate columns, each labelled with its denominator. | G1, G2 |
+| **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
+| **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
+| **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
+| **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | A month whose Samsara truck count is below its delivering-truck count reports per-mile figures as `null` with the reason, exactly as a truck without miles does (D-FIN10). Computed, never a hard-coded date — the rule survives a future gateway outage, a hard-coded "before March 2026" would not. | G4 |
 
 **Ordering:** G2 and G3 first — both are visible improvements with no dependencies, and G3 is the
 tab the bosses will use most. Then G4 and G10 (the truck count and the rule that refuses a
 per-mile figure computed over an incomplete fleet), then G1, G9 and G5 as the fleet model proper.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
+
+The **W-series runs after G5** — the monthly report has to be right before a second period is
+offered — except W1, which can ship any time and is worth shipping early because it removes
+month-shaped plumbing from three places rather than adding to it.
 
 ---
 
@@ -439,6 +592,13 @@ leaves open, not a debt it creates.
 - **No page without its provenance.** Every tab states the sweep date and whether the month ties.
   Removing the Books check page removes the page, not the check (G8).
 - **No deletion before its replacement is live** (G7 runs last).
+- **No figure typed where a figure can be derived.** No dollar amount, truck count, month or rate
+  is a constant in the harness. The measurements in §1 are acceptance fixtures and nothing else
+  (§2.5).
+- **No collector that pre-aggregates to a reporting period** (D-FLEET9). Where one does today and
+  stopping is free, it stops (W1).
+- **No weekly figure for a cost that does not happen weekly** (D-FLEET10). A monthly journal is
+  named at its monthly value, never divided by four.
 - **No open question in this file.** One appears, it gets a decision here before code moves.
 
 ---
@@ -461,4 +621,17 @@ the record.
   own limit: coverage was 9 and 16 trucks short in January and February, so D-FLEET5 splits into
   two eras — money from 2025-12, per-mile from 2026-03 — and G10 makes that a computed rule rather
   than a date. G9 adds the second denominator and the empty-mile figure (July: 10.5%).
+- 2026-09-03 · plan re-framed after owner feedback that it read as a set of computed answers rather
+  than as a specification for computing them. §2.5 is now the harness contract — signature,
+  outputs, what each refuses to guess, and the three properties a test must pin — and §1 says
+  plainly that its tables are acceptance fixtures over real staged rows, never content.
+  D-FLEET6 restated: the period is a harness parameter, and what the product offers is a collector
+  question. D-FLEET9 added: collectors stage the finest grain the source asserts.
+- 2026-09-03 · weekly feasibility answered per collector (§1.8). Money is already daily at source —
+  `gl_ledger.transaction_date` is on every line and the monthly grain is ours, not McLeod's, so W1
+  removes it. Miles are monthly by Samsara's API (the IFTA endpoint takes a named month and 400s on
+  the month in progress) and the stats feed keeps only the latest odometer, so weekly miles needs
+  one new collector and a vendor-capability check first. The finding that shapes the tab: 26.2% of
+  July's cost is 44 journal lines averaging $24,210 — VIP lease, insurance, payroll — so D-FLEET10
+  keeps monthly journals out of any weekly per-mile figure and names them instead of spreading them.
 
