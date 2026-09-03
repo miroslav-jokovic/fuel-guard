@@ -508,3 +508,34 @@ record. One dated line per step, appended at the end, so parallel PRs never touc
   ~$337 unmapped; whole month EFS ≈ 1,017,158 vs the FUEL module's payable 1,017,601.81 → residual
   ≈ $444 (0.04%). The per-account residual is the posting-lag term until McLeod `fuel_detail` is
   staged with its posting dates (**F12b owed**).
+- 2026-09-03 · #519 — F8b: every financial staging writer carries `company_id` (the agent sends it
+  from its own company filter; `tmsLedgerTotalsPayloadSchema` and `tmsOfficeSettlementLineSchema`
+  take it nullish); `refuseCrossCompanyOverwrite` makes a movement chunk that would replace a row
+  carrying a different company throw, naming up to five ids, and write nothing. **F8c still owed:**
+  the movements-only key change once every stored row carries a company.
+- 2026-09-03 · #520 — 0304: `replace_mcleod_gl_month` takes `p_company_id`; the stale delete is
+  scoped to that company and to rows carrying no company (deploy-window rows). Function only; the
+  reader switch waited one merge (#525). Matrix `mcleod-gl-month-replace` at 16 checks.
+- 2026-09-03 · #521 — F9, **D-FIN9 revised by measurement:** McLeod stamps are date-valued wall
+  times; shifting them into America/Chicago would move 890 canonical entries ($1.29M) off the 1st of
+  a month, so they stay. The store's one clock is the org's local wall time labelled UTC (0305 is
+  comments only); `localWallClock` converts EFS `fueled_at` on the way in and the projection reads
+  fills a day wide on each side. The org tz is `organizations.operating_hours->>'tz'` — no column.
+  **Owner:** one `financial_projection{full}` job moves the older EFS entries into place.
+- 2026-09-03 · #522 — F15a: Revenue & margin → Per dispatcher gains `#` rank, `Billed miles`
+  and `Rate / mile` (null → dash when no booked load carried a distance); the billing, dispatcher,
+  fixed-cost and contractor tables show a failed fetch instead of `:error="null"`. First Finance
+  page test.
+- 2026-09-03 · #523 — F14: `finance_month_closes` (0306, new table) holds each (org, company,
+  month)'s GL revenue/expenses, the D-FIN11 buckets and every residual; `planMonthClose` (shared,
+  pure) hardens only when the month is ≥ 2 months old, the anchor held and every residual is 0.00,
+  otherwise names each open reason (a missing sweep is a reason, not a zero). `runMonthClosesOnce`
+  runs on the freshness timer, re-plans a month whose GL sweep is newer than its close, and reports
+  a hardened month that moved to `accounting` managers. `GET /api/accounting/month-closes`. The
+  first real row appears after the next hardening sweep from the carrier box.
+- 2026-09-03 · #524 — F15b: Finance → Books check (`/books-check`, `section("accounting")`): one
+  table of closes — month, books, verdict, earned, spent, left over, open reasons, sweep date —
+  with three cards and a plain-words explainer of "hardened". **F15 still owed:** month/week
+  selector with prorating; fixed-cost drill-down to office people and AP vendors.
+- 2026-09-03 · #525 — F6b: `ingestLedgerTotals` calls `replace_mcleod_gl_month` — one
+  transaction, one stamp, company-scoped stale delete. D-FIN6 complete.
