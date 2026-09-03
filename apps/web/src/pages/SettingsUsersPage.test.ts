@@ -22,7 +22,7 @@ vi.mock("@/lib/api", () => ({
     calls.push({ path, init });
     if (path === "/api/members" && !init?.method) return { ok: true, data: { members: state.members } };
     if (path === "/api/invites" && !init?.method) return { ok: true, data: { invites: state.invites } };
-    if (path === "/api/invites" && init?.method === "POST") return { ok: true, data: { emailSent: true } };
+    if (path === "/api/invites" && init?.method === "POST") return { ok: true, data: { emailSent: true, link: "https://app.example/accept-invite?token_hash=abc&type=invite" } };
     return { ok: true, data: {} };
   }),
 }));
@@ -68,6 +68,22 @@ describe("SettingsUsersPage — names", () => {
     await flushPromises();
     const post = calls.find((c) => c.path === "/api/invites" && c.init?.method === "POST")!;
     expect(post.init?.body).toEqual({ email: "jane@silvicom.test", role: "dispatcher", fullName: "Jane Dispatcher" });
+    w.unmount();
+  });
+
+  it("keeps the accept link on screen after a SUCCESSFUL send, so a delivered-but-unseen invite has a way in", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const form = w.find("form");
+    await form.find('input[type="text"]').setValue("Vinnie Dispatcher");
+    await form.find('input[type="email"]').setValue("vinnie@silvicominc.test");
+    await form.trigger("submit");
+    await flushPromises();
+    expect(w.text()).toContain("Emailed to vinnie@silvicominc.test");
+    expect(w.text()).toContain("token_hash=abc");
+    expect(w.findAll("button").some((b) => b.text() === "Copy")).toBe(true);
+    // …and the wording is not the failure wording.
+    expect(w.text()).not.toContain("didn't go out");
     w.unmount();
   });
 
