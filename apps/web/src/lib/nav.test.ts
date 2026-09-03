@@ -198,9 +198,10 @@ describe("buildNavGroups under an org's overrides", () => {
   });
 
   it("respects the view/manage distinction — a granted VIEW does not add the write surfaces", () => {
-    // Import and Fuel Spend are `canManageSection("fuel")`; Transactions is `canViewSection`.
+    // Import and Fuel Spend are `canManageSection("fuel")`; Cards is `canViewSection`. (It was
+    // Transactions until FUEL-C2 made that a tab of the Fuel Log rather than a grantable screen.)
     const viewOnly = names("recruiter", { fuel: "view" });
-    expect(viewOnly).toContain("Transactions");
+    expect(viewOnly).toContain("Cards");
     expect(viewOnly).not.toContain("Import");
     expect(names("recruiter", { fuel: "manage" })).toContain("Import");
   });

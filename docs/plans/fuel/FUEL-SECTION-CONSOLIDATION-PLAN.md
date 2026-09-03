@@ -442,7 +442,8 @@ before it is built, not during.
 | P2 | **partly assumption** | The `spend-report.pdf` pattern is verified as the standard. **What the report should SAY is not decided** — Q-FUI10. Row-level CSV is the fallback and is safe. |
 | P3 | **verified** | `ExceptionQuery`/`qs()`/the route all lack a vehicle field; `assignedTo` exists server-side and is unsent. |
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
-| C2–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. Filter/column parity is a per-page checklist that has not been enumerated line by line — do that in the step, not here. |
+| C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
+| C3–C5 | **verified as shape, unbuilt** | Routes, nav gate, snapshots and file budgets all read. C3 now starts from a page whose window, truck and tab are already in the URL; what remains is the per-tab facets and the other two pages. |
 | C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
 | C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
@@ -1415,6 +1416,92 @@ link to `/transactions?unit=654` lands on the source-records tab with unit 654 a
 **Verified by.** Page tests mounting all three tabs (the three pages have none today — this is the
 first time any of them is under test); both route-table snapshots updated; `nav.test.ts`;
 `lint:filesize` on the extracted files.
+
+#### — DONE 2026-09-02 (`claude/fuel-log-tabs`).
+
+**What shipped.** `/fuel-log?tab=fills|declines|source`, one `AppTabs`, tab in the URL.
+`FuelLogPage.vue` is a **143-line shell** — page header, the tab strip, and the one action that belongs
+to the page rather than to a view of it (`Log fill-up`). The three bodies are
+`features/fuel/{FillsTab,DeclinesTab,SourceRecordsTab}.vue` (396 / 408 / 228 lines), extracted from the
+three pages rather than rewritten: every column, facet, sort, drawer and drill-down came across
+unchanged. `TransactionsPage.vue` and `RejectionsPage.vue` are deleted; `/transactions` and
+`/rejections` are **function** redirects that carry the query AND name the tab. Fuel is six nav items.
+
+**One filter bar per tab, and that is the design rather than a shortcut.** C2 says "one filter bar, and
+the count is the count of what THIS tab shows". A reader sees exactly one bar in exactly one place; it
+is rendered by the tab, so the count beside the filters is structurally the count of the rows beneath
+them. A bar in the shell would have to be TOLD each tab's count, which is X8 rebuilt — the fuel-spend
+page's one shared count was the unfiltered fill total on four of its six tabs.
+
+**What IS shared is the window and the truck**, in the URL, via `useFuelLogFilters` — called ONCE in
+the shell and passed down, because `useQueryState` buffers per instance and two instances writing in
+one tick is the lost-write it exists to prevent. The truck is a **unit number**, not a vehicle id:
+`efs_transactions` and `declined_transactions` have no vehicle column, so the unit is the only key all
+three tabs can express — and it is what the inherited links already carry, which is why
+`/transactions?unit=654` lands on the source-records tab with 654 applied. `FillsTab` resolves it back
+to a `vehicle_id` against the fleet it already loads (`unitFilter.ts`).
+
+**⚠ A unit the fleet does not have narrows to nothing, not to everything.** Leaving `vehicleId`
+undefined when the lookup fails would show the WHOLE fleet's fills under a bar reading "999" — the
+confidently-wrong shape T5 spent five PRs removing. It resolves to the nil UUID instead, and the table
+renders as loading while the fleet query is still in flight so the empty state cannot flash.
+
+**⚠ THE MERGE WOULD HAVE WIDENED A PERMISSION, AND THIS IS THE PART TO READ.** `/transactions` and
+`/rejections` were catalogued `section("fuel")`; `/fuel-log` is `always`. `recruiter` and `technician`
+both carry `fuel: "none"` and both reach `/fuel-log` today, so absorbing the two pages without a check
+would have handed them a fraud signal and 28,620 EFS lines on a screen they already had. The two
+absorbed tabs render only for `canView("fuel")`, read from the same matrix the catalogue reads
+(D-FUI12), and `?tab=declines` falls back to Fills for a caller who cannot see it. This is UI gating
+only — both tables are org-scoped in RLS, not section-scoped — so it restores the boundary the merge
+would have dissolved and does not invent one.
+
+**Three modules moved, because `lint:boundaries` was right about the extraction.** Tab components under
+`features/fuel/` may not reach into `features/reports/` or `features/fueling/`, and the gate's own
+comment says to promote rather than allow-list. `useEfsData.ts` and `efsRowCoverage.test.ts` moved to
+`features/fuel/` (the fuel section is now their only consumer — "reports" was where they lived when the
+pages were called reports), and `useCardAssignments.ts` to `@/composables/`. `check-table-access.mjs`'s
+two grandfathered entries were repathed, not added to.
+
+**Also changed:** the Dashboard's "Declined attempts" tile now links to `/fuel-log?tab=declines` rather
+than leaning on the compatibility redirect — the C9 check the segment handoff asked B's finisher to do.
+The surface catalogue loses `fuel.transactions` and `fuel.rejections`; rows an org already wrote against
+those keys in `org_role_surface_access` are inert by 0296's own design, so nothing had to be migrated.
+
+**What C2 deliberately did NOT do.** Per-tab facets stay local rather than in the URL: `driver` is a
+driver ID on Fills and a driver NAME on the two raw feeds, so one shared `?driver=` would carry a UUID
+into a name filter and return an empty list with no error anywhere. **C3 is the step that makes each
+tab's own facets survive a refresh, and it inherits a page where the window, the truck and the tab
+already do.** D-FUI16's facet fix is likewise left for P1 rather than half-done here.
+
+**Verified by:** `pages/FuelLogTabs.test.ts` — `opens on Fills, and names the three tabs`; `takes the
+tab from the URL, so a link opens on what its sender was looking at`; `lands a stale or hand-edited tab
+name on Fills rather than on nothing`; `counts what the open tab is showing, in that tab's own noun`;
+`keeps every column each page had`; `hands the URL's truck to whichever tab is open, as a unit and as a
+vehicle id`; `shows no fills for a truck this fleet does not have, rather than all of them`; `carries
+the window and the truck across a tab switch`; `writes the tab back to the URL, so the view can be sent
+to somebody`; `shows a role without the fuel section the Fills tab only, and no tab strip`; `refuses a
+direct link to an absorbed tab, and lands on Fills instead of a blank page`; `still admits every role
+that could open the two pages before the merge`. Plus `router/routeTable.test.ts` — `the absorbed fuel
+pages redirect to their tab, carrying the filters they were sent with` — and both committed route
+snapshots, the `navEquivalence` snapshots (22 updated, deletions only), `lib/nav.test.ts` and
+`router/sectionGuard.test.ts`, whose fuel example moved from `/transactions` to `/fuel-cards`.
+`features/fuel/fuelCoverageLine.test.ts` moved with the pages it mounted and kept its assertions,
+which is the T5 handoff's prediction coming true: the lines took a `feed` prop and a plain `coverage`
+object precisely so they could move to a tab unchanged.
+
+**Proved able to fail — eight mutations, each naming the tests it broke:** the gate always passing (2);
+dropping `$/gal` from Fills (1); DeclinesTab ignoring the shared window and truck (2); an unknown tab
+falling back to Declines (1); the tab not written back to the URL (2); every tab counting in the same
+noun (1); an unknown unit widening to the whole fleet (1); a hidden tab rendering anyway (7). Every one
+of the twelve assertions failed under at least one mutation.
+
+**Gates green — the full `ci.yml` list**, including the two that are not root `pnpm lint:*`
+(`pnpm --filter ./apps/web lint:tokens`, `node scripts/check-migration-ordering.mjs` and its
+`--self-test`): `pnpm lint`, `lint:boundaries`, `lint:capabilities`, `lint:chart-colors`,
+`lint:cli-streams`, `lint:codegen`, `lint:comment-claims`, `lint:filesize`, `lint:funcsize`,
+`lint:light-dark`, `lint:migrations`, `lint:secrets`, `lint:surfaces`, `lint:table-producers`,
+`lint:table-writers`, `lint:tests`, `lint:token-schema`, `lint:tokens-parity`, `lint:ui-adoption`,
+`lint:ui-contrast`, `lint:upserts`, `typecheck`, `build`, `test`. No migration in this step.
 
 ---
 
