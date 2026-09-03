@@ -747,6 +747,39 @@ today, so a scale gap rather than a live one); Q-SURF6's "next navigation correc
 said in the UI. And the audit that preceded this step found the finding recorded as Q-SURF8 below,
 which no redesign can fix.
 
+### S9 · Members have names — table first, readers next — IN PROGRESS 2026-09-03 (migration 0301)
+Owner ruling 2026-09-03: "we should have users' name displayed instead of [email] and we need to add
+this in our settings and users feature and tables." Measured first: no member of an organisation has
+a name anywhere in the product except a driver (`drivers.full_name`, linked to the membership by
+`drivers.user_id` since 0102); every screen that has to say WHO prints the email, having fetched it
+one `auth.admin.getUserById` at a time (seven call sites; `GET /api/members` does one per member).
+
+**D-MEM1 — A name belongs to the PERSON, not the membership.** `user_profiles (user_id pk → auth.users,
+full_name, updated_at, updated_by)`, no `org_id`: one person, one name, however many organisations.
+The first user-keyed table since `notification_reads`, and a documented exemption in the
+tenant-isolation harness for the same reason.
+**D-MEM2 — Written only by the API, read only through `org_member_directory(p_org_id)`.** RLS on,
+zero policies; a `security definer` function, executable by the service role alone, joins
+`memberships`, `auth.users`, `user_profiles` and `drivers` and answers every member of one org with
+email, name, role and join date in one round trip — the read that replaces the per-member lookups.
+**D-MEM3 — A driver's name is the roster's, unless the person has said otherwise.**
+`coalesce(profile, roster)`. `invites.full_name` (nullable) carries the name the admin typed to the
+acceptance, where the person confirms it.
+
+**Two merges, per D-SURF9 and `lint:migration-ordering`.** 0301 (table, column, function, matrix)
+merges alone with a producer waiver naming this step; the second PR adds the writers (accept, rename),
+the readers (`GET /api/members` via the directory, `/api/me` fail-open), the Users page's Name column
+and edit, the invite form's Name field, the accept page's name confirmation, the account menu, and the
+People picker on the permissions page — and deletes the waiver.
+
+**First half verified by:** `user-profiles` matrix (20 assertions — the service-role-only posture from
+pg_policies and has_function_privilege, the three-source name order, the org scope, the constraints,
+the cascade), `rls` 468 (the definer sweep now names the function), `lint:rls`, `lint:migrations`,
+`lint:table-producers` (waived by name), `lint:migration-ordering` (one new column, no reader).
+**Mutation-tested:** swapping the coalesce order and granting the function to `authenticated` each
+failed their own assertion — and one assertion was found passing vacuously (the cross-org roster
+fixture was refused by 0098's unique index and the refusal swallowed), so it now pins that refusal.
+
 ## §6 Open questions
 
 ~~**Q-SURF1 — the gates an org's permissions page cannot reach.** ~24 endpoints on hard-coded role
