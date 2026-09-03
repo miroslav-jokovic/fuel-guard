@@ -1,6 +1,7 @@
 import type { JobHandler } from "../types.js";
 import { buildBinder } from "../../modules/evidence/index.js";
 import { markDone, markFailed, markRunning, storeBinder } from "../../modules/evidence/index.js";
+import { labelOf, memberLabels } from "../../lib/memberLabels.js";
 
 /**
  * `dq_binder` — assemble an auditor's sample into one PDF (DQ-BINDER-PLAN D-BD3).
@@ -37,14 +38,13 @@ export const dqBinderHandler: JobHandler = async (ctx, job, report) => {
   if (!exportRow) throw new Error(`export ${exportId} does not exist for this organization`);
   if (exportRow.status === "done") return { exportId, skipped: "already assembled" };
 
-  // Who asked, in the form the cover prints. Falls back to the id rather than to "unknown": a binder
-  // that cannot say who produced it is exactly the loose page §390.32 is about.
+  // Who asked, in the form the cover prints — their name since 0301, their email before that, and
+  // the id rather than "unknown" when neither is known: a binder that cannot say who produced it is
+  // exactly the loose page §390.32 is about.
   let generatedBy = exportRow.requested_by ?? "system";
   if (exportRow.requested_by) {
-    const { data: u } = await ctx.admin.auth.admin
-      .getUserById(exportRow.requested_by)
-      .catch(() => ({ data: null }));
-    generatedBy = (u as { user?: { email?: string } } | null)?.user?.email ?? generatedBy;
+    const labels = await memberLabels(ctx.admin, job.org_id, [exportRow.requested_by]);
+    generatedBy = labelOf(labels.get(exportRow.requested_by)) ?? generatedBy;
   }
 
   await markRunning(ctx.admin, exportId);
