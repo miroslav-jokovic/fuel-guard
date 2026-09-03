@@ -615,7 +615,7 @@ finding only this way:
   first manage-level screen out of the catalogue now: a screen retiring is not a reason for this test
   to fail, but a `level` that stopped travelling is.
 
-### S7 · Audit the gates the page cannot reach — DONE 2026-09-03 (#PR; no migration)
+### S7 · Audit the gates the page cannot reach — DONE 2026-09-03 (#498; no migration)
 Q-SURF1: the ~24 hard-coded `requireRole` lists and the 65 endpoints with no authorization. Each
 either derives from the matrix, gains a surface gate, or gets a comment saying why it is open.
 Independent of S1–S6 and shippable at any point. Until it lands, the permissions page governs most
