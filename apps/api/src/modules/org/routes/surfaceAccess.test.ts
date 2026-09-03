@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NAV_SURFACES } from "@silvicom/shared";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
@@ -612,8 +613,11 @@ describe("GET /api/surface-access/user/:userId", () => {
     const { body } = await get(SHOP_LEAD);
     const byKey = new Map(body.surfaces!.map((s) => [s.key, s]));
     expect(byKey.get("maintenance.inspectors")).toMatchObject({ section: "maintenance", level: "view" });
-    // Import is the manage-level screen inside a section most roles only view.
-    expect(byKey.get("fuel.import")).toMatchObject({ section: "fuel", level: "manage" });
+    // ⚠ The manage-level example is READ from the catalogue rather than named. `fuel.import` was
+    // named here for one day and retired by FUEL-C4 the next; a screen retiring is not a reason for
+    // this assertion to fail, but a `level` that stopped travelling is.
+    const managed = NAV_SURFACES.find((s) => s.gate.kind === "section" && s.gate.level === "manage")!;
+    expect(byKey.get(managed.key)).toMatchObject({ level: "manage" });
     expect(byKey.has("dashboard")).toBe(false);
     expect(byKey.has("admin.users")).toBe(false);
   });
