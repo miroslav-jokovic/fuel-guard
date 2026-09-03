@@ -51,8 +51,10 @@ watch([search, from, to, tab], () => (page.value = 1));
 
 const filter = computed(() => ({ q: search.value, from: from.value, to: to.value, page: page.value }));
 const { data, isLoading, isError, error, refetch, isFetching } = useInvoicesQuery(filter);
-const { data: margins, isLoading: marginsLoading } = useMarginByTruckQuery(from, to);
-const { data: dispatchers, isLoading: dispatchersLoading } = useDispatcherEarningsQuery(from, to);
+const { data: margins, isLoading: marginsLoading, isError: marginsIsError, error: marginsError } = useMarginByTruckQuery(from, to);
+const { data: dispatchers, isLoading: dispatchersLoading, isError: dispatchersIsError, error: dispatchersError } = useDispatcherEarningsQuery(from, to);
+// A failed fetch is shown in its table, never swallowed into an empty state (D-FIN15).
+const errText = (isErr: boolean, e: unknown) => (isErr ? (e instanceof Error ? e.message : "Failed to load") : null);
 const { data: vehicles } = useVehiclesQuery();
 
 const entries = computed(() => data.value?.entries ?? []);
@@ -82,9 +84,12 @@ const marginFiltered = computed(() =>
 
 // A bill whose order carried no operations user is its own row, for the same reason the
 // unattributed truck is: the money exists and hiding it would make the column stop summing.
+// Rank is by booked revenue, the API's own order — a sort on any other column keeps the number, so
+// the reader can re-sort by rate per mile and still see who booked the most.
 const dispatcherRows = computed(() =>
-  (dispatchers.value ?? []).map((d) => ({
+  (dispatchers.value ?? []).map((d, i) => ({
     ...d,
+    rank: i + 1,
     key: d.dispatcherUserId ?? "(unassigned)",
     name: d.dispatcherName ?? d.dispatcherUserId ?? "Unassigned",
   })),
@@ -131,8 +136,11 @@ const marginColumns: DataTableColumn[] = [
   { key: "entries", label: "Lines", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
 ];
 const dispatcherColumns: DataTableColumn[] = [
+  { key: "rank", label: "#", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
   { key: "name", label: "Dispatcher", cellClass: "font-medium text-ink", sortable: true },
   { key: "loads", label: "Loads", numeric: true, sortable: true },
+  { key: "miles", label: "Billed miles", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
+  { key: "ratePerMile", label: "Rate / mile", numeric: true, sortable: true },
   { key: "linehaul", label: "Freight", numeric: true, sortable: true },
   { key: "accessorial", label: "Extras", numeric: true, sortable: true },
   { key: "revenue", label: "Total booked", numeric: true, sortable: true },
@@ -232,7 +240,7 @@ const dispatcherColumns: DataTableColumn[] = [
           embedded
           row-key="key"
           :loading="marginsLoading"
-          :error="null"
+          :error="errText(marginsIsError, marginsError)"
           :sort="sort"
           @sort="onSort"
         >
@@ -262,7 +270,7 @@ const dispatcherColumns: DataTableColumn[] = [
           embedded
           row-key="key"
           :loading="dispatchersLoading"
-          :error="null"
+          :error="errText(dispatchersIsError, dispatchersError)"
           :sort="sort"
           @sort="onSort"
         >
@@ -272,6 +280,13 @@ const dispatcherColumns: DataTableColumn[] = [
           <template #cell-linehaul="{ value }">{{ fmtUsd(value) }}</template>
           <template #cell-accessorial="{ value }">{{ fmtUsd(value) }}</template>
           <template #cell-revenue="{ value }"><span class="font-semibold text-success-700">{{ fmtUsd(value) }}</span></template>
+          <template #cell-miles="{ value, row }">
+            <span :title="row.loadsWithoutMiles > 0 ? `${row.loadsWithoutMiles} booked load(s) carried no distance in McLeod and are not in these miles` : `McLeod's billed distance — the miles the loads were priced on`">{{ Math.round(value).toLocaleString() }}</span>
+          </template>
+          <template #cell-ratePerMile="{ value }">
+            <span v-if="value == null" class="text-ink-tertiary" title="No booked load carried a distance — no rate">—</span>
+            <span v-else class="font-semibold">${{ value.toFixed(2) }}</span>
+          </template>
           <template #footer>
             <TablePagination :page="page" :page-size="CLIENT_PAGE_SIZE" :total="dispatcherFiltered.length" @update:page="page = $event" />
           </template>

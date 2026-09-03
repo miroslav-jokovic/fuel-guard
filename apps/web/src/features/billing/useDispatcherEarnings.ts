@@ -18,6 +18,11 @@ export interface DispatcherEarnings {
   accessorial: number;
   revenue: number;
   unpostedLoads: number;
+  /** McLeod's billed miles over the booked loads — the miles each load was PRICED on (0275). */
+  miles: number;
+  loadsWithoutMiles: number;
+  /** Dollars per billed mile; null when no booked load carried a distance. */
+  ratePerMile: number | null;
 }
 
 export function useDispatcherEarningsQuery(from: Ref<string>, to: Ref<string>) {

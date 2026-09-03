@@ -73,3 +73,29 @@ describe("earningsByDispatcher", () => {
     expect(await earningsByDispatcher(rec.client, ORG, "2026-06-01", "2026-07-01")).toEqual([]);
   });
 });
+
+describe("earningsByDispatcher — rate per mile on McLeod's billed distance (F15)", () => {
+  it("sums billed miles over booked loads, prices revenue per mile, and counts loads that carried no distance", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        mcleod_billing: [
+          { ...BILLS[0], distance: "1000.0" },
+          { ...BILLS[1], distance: "600.0" },
+          { ...BILLS[2], distance: null }, // booked, no distance — counted apart, never given a mile
+          { ...BILLS[3], distance: "5000.0" }, // never booked — its miles do not count either
+        ],
+      },
+    });
+    const rows = await earningsByDispatcher(rec.client, ORG, "2026-06-01", "2026-07-01");
+    const vladi = rows.find((r) => r.dispatcherUserId === "vladi")!;
+    expect(vladi.miles).toBe(1600);
+    expect(vladi.ratePerMile).toBe(3.22); // (3150 + 2000) / 1600
+    expect(vladi.loadsWithoutMiles).toBe(0);
+    const chris = rows.find((r) => r.dispatcherUserId === "chris")!;
+    expect(chris.miles).toBe(0);
+    expect(chris.ratePerMile).toBeNull();
+    expect(chris.loadsWithoutMiles).toBe(1);
+    expect(chris.unpostedLoads).toBe(1);
+    expectOrgScoped(rec, ORG);
+  });
+});

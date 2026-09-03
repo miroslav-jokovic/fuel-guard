@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { rolesThatManage } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { notify } from "../messaging/index.js";
 import { readFinancialSyncedAt } from "../mcleod/index.js";
 import { recentFailedJobs, type FailedJobRow } from "../../queue/metrics.js";
+import { officeUserIds } from "./officeRecipients.js";
+import { runMonthClosesOnce } from "./monthClose.js";
 
 /**
  * Silence is a state the system reports, never a state it assumes (D-FIN3, FINANCE-GO-LIVE-PLAN
@@ -26,7 +27,6 @@ import { recentFailedJobs, type FailedJobRow } from "../../queue/metrics.js";
  */
 export const STALE_AFTER_HOURS = 26;
 export const FINANCE_JOB_KINDS = ["financial_projection", "efs_window_refetch", "efs_soap_posted"] as const;
-const OFFICE_ROLES = rolesThatManage("accounting");
 const CHECK_INTERVAL_MS = 6 * 3_600_000;
 
 export interface FreshnessFinding {
@@ -79,12 +79,6 @@ export function planFreshnessFindings(
     });
   }
   return findings;
-}
-
-async function officeUserIds(admin: SupabaseClient, orgId: string): Promise<string[]> {
-  const { data, error } = await admin.from("memberships").select("user_id").eq("org_id", orgId).in("role", OFFICE_ROLES);
-  if (error) throw new Error(error.message);
-  return [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
 }
 
 async function alreadySent(admin: SupabaseClient, orgId: string, keys: string[]): Promise<Set<string>> {
@@ -170,6 +164,14 @@ export function startFinancialFreshnessScheduler(env: Env): void {
           if (fresh.length) console.log(`[finance-freshness] org ${org.id}: ${fresh.length} new finding(s) — ${fresh.map((f) => f.title).join("; ")}`);
         } catch (e) {
           console.error(`[finance-freshness] org ${org.id} failed: ${e instanceof Error ? e.message : e}`);
+        }
+        // The monthly close rides the same timer (D-FIN14; the D-APP15 shape — one process, one
+        // clock, a second pass in its own try so one org's bad month never stops the next).
+        try {
+          const closes = await runMonthClosesOnce(admin, env, org.id);
+          if (closes.length) console.log(`[finance-close] org ${org.id}: ${closes.map((c) => `${c.period_start.slice(0, 7)} ${c.company_id} ${c.status}`).join("; ")}`);
+        } catch (e) {
+          console.error(`[finance-close] org ${org.id} failed: ${e instanceof Error ? e.message : e}`);
         }
       }
     } finally {

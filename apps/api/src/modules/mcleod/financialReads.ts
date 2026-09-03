@@ -68,6 +68,8 @@ export interface StagedBilling {
   total_charges: number | string;
   other_charge: number | string;
   excise_tax: number | string;
+  /** McLeod's billed distance for the order (0275) — the miles the load was PRICED on. Null on ~2% of bills. */
+  distance: number | string | null;
   post_key: string | null;
   post_module: string | null;
 }
@@ -127,7 +129,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
       .eq("org_id", orgId)
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)
@@ -307,4 +309,32 @@ export async function readGlAccounts(admin: SupabaseClient, orgId: string): Prom
       .order("glid", { ascending: true }) // glid is unique per org — a total order
       .range(from, to),
   );
+}
+
+/** One line per (company, month) the GL sweep has landed, with the newest stamp — what the monthly close recomputes from (D-FIN14). */
+export interface SweptMonth {
+  company_id: string | null;
+  period_start: string;
+  period_end: string;
+  swept_at: string;
+}
+
+export async function readSweptMonths(admin: SupabaseClient, orgId: string): Promise<SweptMonth[]> {
+  const rows = await paged<{ company_id: string | null; period_start: string; period_end: string; swept_at: string }>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("company_id, period_start, period_end, swept_at")
+      .eq("org_id", orgId)
+      .order("period_start", { ascending: true })
+      .order("glid", { ascending: true }) // (period, module, glid) is the row identity — a total order
+      .order("post_module", { ascending: true })
+      .range(from, to),
+  );
+  const byKey = new Map<string, SweptMonth>();
+  for (const r of rows) {
+    const key = `${r.company_id ?? ""}|${r.period_start}`;
+    const cur = byKey.get(key);
+    if (!cur || r.swept_at > cur.swept_at) byKey.set(key, { ...r });
+  }
+  return [...byKey.values()];
 }
