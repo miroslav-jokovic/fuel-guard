@@ -25,17 +25,23 @@ time — which is the test a simplification has to pass.
   the source the accountants already reconcile every month from the bank statements and the EFS
   reports. `mcleod_gl_totals` × `mcleod_gl_accounts` is the whole financial input.
 - **D-FLEET3 — every mile comes from Samsara.** One source for distance:
-  `samsara_ifta_jurisdiction_miles`, per vehicle per month.
+  `samsara_ifta_jurisdiction_miles`, per vehicle per month. Not a preference — §1.5 measures why
+  McLeod cannot supply the denominator at all: it holds no empty-mile figure anywhere, and the
+  mileage it does hold is on a settlement clock rather than a calendar one.
 - **D-FLEET4 — EFS keeps collecting, and is not a Finance source.** The SOAP feed continues in
   full for the Fuel section, anomalies, card control and driver work. Finance reads fuel as GL
   lines (`40050000 Fuel for Hired Vehicles`, `30220000 DEF`, `30340000 Reefer Fuel`) like every
   other expense. **This is what removes the reporting-era start date:** the old 2026-07-01 boundary
   existed only because EFS raw history begins 2026-02-04. McLeod's ledger goes back further, so
   the report goes back further.
-- **D-FLEET5 — the reporting era starts 2026-01-01.** Seven complete months are already staged and
-  the fiscal year-to-date ties to the printed income statement to the cent (§1.1). 2025-12 exists
-  in the ledger but has no Samsara miles, so it is available as a money-only comparison and not as
-  a per-mile month.
+- **D-FLEET5 — two eras, because the two inputs have different histories.** **Money from
+  2025-12**: the ledger is complete from there and the fiscal year-to-date ties to the printed
+  income statement to the cent (§1.1). **Per-mile figures from 2026-03**: Samsara telematics was
+  still being rolled out before that, and a denominator missing trucks inflates cost per mile
+  (§1.5.3 measures the gap — 16 trucks, 11% of the fleet, in February alone). January and February
+  therefore show revenue, expenses and net like every other month, and show **"—"** for every
+  per-mile figure with the reason on hover. A per-mile number computed over an incomplete fleet is
+  exactly the plausible-but-wrong figure D-FIN10 exists to refuse.
 - **D-FLEET6 — the grain is the calendar month.** Not a preference: the ledger is monthly and the
   only per-vehicle mileage feed we have is monthly. A weekly view is a new collector, not a filter.
 - **D-FLEET7 — owner-operators are their own column, derived and never configured.** Their trucks
@@ -98,6 +104,11 @@ promise of history later. January's loss is the figure that will be asked about 
 $2.57M against $3.46M in February on comparable miles. It is a real month, not a staging artefact
 — the ledger ties — and the page prints it as it is.
 
+⚠ **The per-mile columns for 2026-01 and 2026-02 are shown here for completeness and will NOT be
+printed on the page.** Samsara had not finished rolling out (§1.5.3), so those two denominators
+are missing 7% and 11% of the running fleet and their cost per mile is inflated by about as much.
+Under D-FLEET5 those two months print money and a dash. Per-mile reporting begins 2026-03.
+
 ### 1.3 Owner-operators separate cleanly, and their deductions classify themselves
 
 July 2026: **9 owner-operator trucks**, all nine carrying Samsara miles.
@@ -146,7 +157,98 @@ McLeod truncates `gl_account.descr` at **28 characters at source**, so three dis
 accounts all read `Gross Trucking Income` and two expense accounts read
 `Subcontracted Labor: Bonus`. The account code prints beside the name (G3).
 
-### 1.5 Finance and Fuel will print different fuel numbers, and that is correct
+### 1.5 Distance: why Samsara is the denominator and McLeod cannot be
+
+Measured 2026-09-03 in answer to two questions — do we collect McLeod's empty miles, and are
+Samsara's miles actually better.
+
+#### 1.5.1 McLeod holds no empty miles. Not uncollected — absent.
+
+D-MC15 said this and it was re-verified against staged July data, including the one column whose
+name suggests otherwise:
+
+| Candidate | July 2026 | Verdict |
+|---|---:|---|
+| `movement.move_distance` → `loaded_miles` | 1,336,507 | loaded legs only, by definition |
+| `movement.fuel_distance` → `fuel_miles` | 1,341,896 | **0.4% above loaded — not empty miles.** The name misleads |
+| `stop.move_dist_from_previous` | **null on every stop** | never populated |
+| `billing_empty_distance` | **null on all 1,415 bills** | never populated |
+| `settlement.pay_distance`, both manifest distance columns | 0 across the year (D-MC15) | never populated |
+
+So the answer to "do we also pull empty miles" is: **there is nothing to pull.** This is a
+property of the carrier's McLeod configuration, not a gap in the collector, and no extraction
+change reaches it. The only McLeod-side route to deadhead is to INFER it — `inferDeadheadLegs`
+computes leg distance between one movement's last stop and the next movement's first stop from the
+lat/lon that ARE present. That is an estimate, it was built for the per-truck harness, and under
+this plan nothing needs it.
+
+#### 1.5.2 Samsara is better on three counts, each measured
+
+1. **Actual, not routed.** `move_distance` is a routing estimate for the loaded leg. Samsara is
+   GPS and odometer.
+2. **It contains the empty miles McLeod cannot see.** July, over the 159 trucks both sources
+   cover: median truck **+17.1%**, fleet **+15.5%** (1,543,494 against 1,335,995).
+3. **It is calendar-month by construction, and McLeod's mileage is not.** This is the one that
+   decides the matter. McLeod movements are windowed on `xfer2settle_date` — a settlement transfer
+   date, median **4.3 days** after delivery, and **208 of July's 2,634 settled movements (7.9%)
+   were delivered in June**. Billing is windowed on `bill_date`, later still. The general ledger is
+   calendar-month. **Using McLeod mileage would divide calendar-month dollars by settlement-month
+   miles**, and the error would be invisible because it is small, one-sided and self-cancelling
+   across the year — which is precisely the class of error this programme exists to refuse.
+
+That timing mismatch also explains the 26 of 159 July trucks whose Samsara miles read BELOW their
+McLeod loaded miles, which is physically impossible: their loaded miles were driven in June and
+settled in July.
+
+#### 1.5.3 Samsara's own limit: coverage, and it bites the first two months
+
+Samsara is the better source and it is not a perfect one. Trucks that delivered a load in the
+month, against trucks Samsara measured in the same month:
+
+| Month | Trucks that delivered | Trucks Samsara measured | Gap |
+|---|---:|---:|---:|
+| 2026-01 | 139 | 130 | **−9** |
+| 2026-02 | 151 | 135 | **−16** |
+| 2026-03 | 149 | 149 | 0 |
+| 2026-04 | 155 | 157 | +2 |
+| 2026-05 | 154 | 158 | +4 |
+| 2026-06 | 155 | 170 | +15 |
+| 2026-07 | 160 | 172 | +12 |
+
+January and February are missing 7% and **11%** of the running fleet from the denominator, which
+inflates cost per mile by roughly the same proportion — February's $2.86 would fall near $2.59 on
+a complete denominator. From March the gap closes and then reverses, which is correct: Samsara
+measures trucks that ran without delivering (repositioning, shop, out-of-service moves) and
+billing does not see them.
+
+Hence D-FLEET5's two eras. Today the coverage question is closed: in July exactly **2** trucks
+that carried a load had no Samsara miles, between them **512 miles — 0.04% of the month**.
+
+#### 1.5.4 Two denominators, two questions, both printed — G9
+
+A single per-mile figure hides the most actionable number in the report. Miles driven (Samsara)
+against miles billed (`mcleod_billing.distance`, re-dated to `delivery_date` so both sides are on
+the driving clock, not the invoicing clock):
+
+| Month | Driven | Billed | Empty | Empty % |
+|---|---:|---:|---:|---:|
+| 2026-03 | 1,370,444 | 1,391,350 | −20,906 | −1.5% |
+| 2026-04 | 1,492,407 | 1,348,180 | 144,227 | 9.7% |
+| 2026-05 | 1,563,003 | 1,322,679 | 240,324 | 15.4% |
+| 2026-06 | 1,574,109 | 1,438,262 | 135,847 | 8.6% |
+| 2026-07 | 1,552,337 | 1,389,814 | 162,523 | **10.5%** |
+
+**Cost per mile driven** is what the fleet burned. **Revenue per mile billed** is what the loads
+were priced at. The gap between them is the cost of running empty, and it is the figure a boss can
+act on — July: $3.11 earned per mile driven against $3.64 per mile billed. Both print, each
+labelled with its own denominator, and neither is ever called "cost per mile" unqualified.
+
+March's −1.5% is the residual of the same clock problem: `delivery_date` re-dates the bill to the
+day the load was delivered, but a truck's empty run to the next pickup falls in whatever month it
+happens. The month-edge noise is small and stated; the figure is reported as a trailing
+three-month average alongside the month so an edge effect cannot read as a trend.
+
+### 1.6 Finance and Fuel will print different fuel numbers, and that is correct
 
 A consequence of D-FLEET4 that has to be stated on the page rather than discovered by a reader.
 Finance shows what McLeod booked; the Fuel section shows what the card was charged. July 2026:
@@ -162,7 +264,7 @@ the Fuel section shows card charges before discount"*, and the Fuel section carr
 it. Two numbers with two labels is honest; two numbers with one label is how a boss stops trusting
 a report.
 
-### 1.6 Dispatchers compute today
+### 1.7 Dispatchers compute today
 
 `mcleod_billing` carries `dispatcher_name`, `total_charges` and `distance` on **all 1,415** July
 bills. July, top six of ~14:
@@ -236,10 +338,13 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
 | **G7** | **The removals** | §4, as its own PR after G1–G5 are live. | G1–G5 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
+| **G9** | **Two denominators and the empty-mile figure** | Miles driven (Samsara) beside miles billed (`mcleod_billing.distance` re-dated to `delivery_date`), and the empty percentage between them, as a trailing three-month average beside the month (§1.5.4). Cost per mile driven and revenue per mile billed are separate columns, each labelled with its denominator. | G1, G2 |
+| **G10** | **The mileage-coverage guard** | A month whose Samsara truck count is below its delivering-truck count reports per-mile figures as `null` with the reason, exactly as a truck without miles does (D-FIN10). Computed, never a hard-coded date — the rule survives a future gateway outage, a hard-coded "before March 2026" would not. | G4 |
 
 **Ordering:** G2 and G3 first — both are visible improvements with no dependencies, and G3 is the
-tab the bosses will use most. Then G4, G1, G5 as the fleet model proper. G6 in parallel with the
-owner. G7 last, so nothing is deleted before its replacement is live.
+tab the bosses will use most. Then G4 and G10 (the truck count and the rule that refuses a
+per-mile figure computed over an incomplete fleet), then G1, G9 and G5 as the fleet model proper.
+G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
 ---
 
@@ -312,6 +417,10 @@ leaves open, not a debt it creates.
   a date. If per-truck cost returns, they return with it.
 - **A weekly or daily mileage feed.** D-FLEET6 is a constraint of the only mileage source we have.
   A weekly Finance view means a new Samsara collector; a filter cannot produce it.
+- **Deadhead inferred from McLeod stop coordinates** (`inferDeadheadLegs`). Built for the per-truck
+  harness and correct for what it does, but it is an estimate, and Samsara measures the same thing
+  directly (§1.5.2). It stays in the codebase for whatever still calls it and Finance does not use
+  it. If nothing calls it after G7, it goes with the rest of the allocation apparatus.
 
 ---
 
@@ -322,6 +431,11 @@ leaves open, not a debt it creates.
 - **No per-truck cost column**, however plausible. The columns on Tab 4 are the ones that are
   precise, and adding a cost column later requires a source, not a rule.
 - **No number where a measurement is absent:** a dash and a stated count, never a zero (D-FIN10).
+  This now covers a whole month: a per-mile figure over a denominator missing part of the fleet is
+  a measurement that is absent, not a measurement that is rough (G10).
+- **No per-mile figure without its denominator named.** "Cost per mile driven" and "revenue per
+  mile billed" are different questions with different divisors, and neither is ever printed as
+  "per mile" alone (G9).
 - **No page without its provenance.** Every tab states the sweep date and whether the month ties.
   Removing the Books check page removes the page, not the check (G8).
 - **No deletion before its replacement is live** (G7 runs last).
@@ -338,3 +452,13 @@ the record.
   plan in full. Measured first: the fiscal YTD ties to the printed statement to the cent on both
   sides, seven months of fleet cost-per-mile already exist in staged data, and the owner-operator
   deduction classes derive from the GL account join with no code table.
+- 2026-09-03 · distance analysis added as §1.5, in answer to "do we pull McLeod's empty miles, and
+  is Samsara really more precise". Both answered by measurement: McLeod holds no empty-mile figure
+  in any of five candidate columns (`fuel_distance` is 0.4% above loaded, not empty miles), and
+  Samsara wins on three counts — actual not routed, +15.5% fleet-wide because it contains the empty
+  miles, and calendar-month by construction where McLeod's mileage sits on a settlement clock 4.3
+  days late with 7.9% of July's movements delivered in June. The measurement also found Samsara's
+  own limit: coverage was 9 and 16 trucks short in January and February, so D-FLEET5 splits into
+  two eras — money from 2025-12, per-mile from 2026-03 — and G10 makes that a computed rule rather
+  than a date. G9 adds the second denominator and the empty-mile figure (July: 10.5%).
+
