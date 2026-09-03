@@ -166,8 +166,8 @@ async function discardDraft(row: InspectionSummary) {
 
     <DataWorkspace>
     <FilterBar
-      embedded
       v-model:search="search"
+      embedded
       search-placeholder="Search unit, decal or inspector…"
       :count="total"
       count-label="inspections"

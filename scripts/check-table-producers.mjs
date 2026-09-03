@@ -31,7 +31,7 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // Ratchet: entries leave when the table gains a producer or gets dropped; additions need a
 // justification in the commit that adds them.
 const WAIVERS = new Map([
-  ["import_rows", "the ingestion audit trail 0007 promised and nobody wired — drop or build in the manual-uploads carve-out"],
+  // import_rows left this list on 2026-09-03: efsIngestRejects.ts writes it (D-FIN2).
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -155,7 +155,7 @@ describe("computeCpm — deadhead", () => {
     expect(withDeadhead.trucks[0]!.deadheadMilesEstimated).toBeCloseTo(196.32, 1);
     expect(withDeadhead.trucks[0]!.totalMiles).toBeCloseTo(2196.32, 1);
     // More miles for the same money must mean a LOWER cost per mile.
-    expect(withDeadhead.trucks[0]!.directCpm).toBeLessThan(without.trucks[0]!.directCpm);
+    expect(withDeadhead.trucks[0]!.directCpm!).toBeLessThan(without.trucks[0]!.directCpm!);
     expect(without.trucks[0]!.directCpm).toBe(100);
     expect(withDeadhead.trucks[0]!.directCpm).toBeCloseTo(91.1, 1);
   });
@@ -227,7 +227,7 @@ describe("computeCpm — overhead allocation", () => {
     const t101 = r.trucks.find((t) => t.tractor_unit === "101")!;
     expect(t101.directTotal).toBe(500);
     expect(t101.allocatedOverhead).toBe(1000);
-    expect(t101.totalCpm).toBe(round1(t101.directCpm + t101.allocatedCpm));
+    expect(t101.totalCpm).toBe(round1(t101.directCpm! + t101.allocatedCpm!));
   });
 
   it("excludes vouchers outside the configured accounts rather than pooling them", () => {
@@ -295,18 +295,18 @@ describe("computeCpm — the honesty ledger", () => {
     expect(r.fleet.loadedMiles).toBe(1000);
   });
 
-  it("returns zeroes rather than dividing by zero on an empty window", () => {
+  it("returns null rates rather than dividing by zero on an empty window", () => {
     const r = computeCpm({ movements: [], fuel: [], settlements: [] }, PLAIN);
     expect(r.fleet.trucks).toBe(0);
-    expect(r.fleet.totalCpm).toBe(0);
+    expect(r.fleet.totalCpm).toBeNull();
     expect(r.trucks).toEqual([]);
   });
 
-  it("gives a truck with cost but no miles a zero rate rather than Infinity", () => {
-    // A fuel purchase on a truck that ran no recorded movement. Infinity would poison every rollup.
+  it("gives a truck with cost but no miles NO rate — null, not Infinity and not a fabricated zero (D-FIN10)", () => {
+    // A fuel purchase on a truck that ran no recorded movement. Infinity would poison every rollup;
+    // $0.00 would read as cheap. Null is the only honest rate.
     const r = computeCpm({ movements: [], fuel: [fuel("F1", "101", 500)], settlements: [] }, PLAIN);
-    expect(Number.isFinite(r.trucks[0]!.directCpm)).toBe(true);
-    expect(r.trucks[0]!.directCpm).toBe(0);
+    expect(r.trucks[0]!.directCpm).toBeNull();
     expect(r.trucks[0]!.directFuel).toBe(500);
   });
 });
@@ -352,7 +352,7 @@ describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () 
     const t202 = r.trucks.find((t) => t.tractor_unit === "202")!;
     expect(t202.actualMiles).toBe(0);
     expect(t202.totalMiles).toBe(0);
-    expect(t202.directCpm).toBe(0); // not computed on loaded miles — that would be a second basis
+    expect(t202.directCpm).toBeNull(); // not computed on loaded miles — that would be a second basis
     expect(r.caveats.some((c) => c.includes("no Samsara miles"))).toBe(true);
     // The fleet denominator is measured miles only; 202's loaded 500 never enters it.
     expect(r.fleet.totalMiles).toBe(1000);
@@ -419,7 +419,7 @@ describe("computeCpm — fixed costs from the office schedule (T1)", () => {
     const idle = r.trucks.find((t) => t.tractor_unit === "999")!;
     expect(idle.fixedCost).toBe(3000);
     expect(idle.totalMiles).toBe(0);
-    expect(idle.totalCpm).toBe(0); // no denominator — cost shown, rate not fabricated
+    expect(idle.totalCpm).toBeNull(); // no denominator — cost shown, rate not fabricated
   });
 
   it("names how many active trucks the schedule does not cover", () => {
@@ -550,7 +550,7 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
     const t = r.trucks.find((x) => x.tractor_unit === "777")!;
     expect(t.revenue).toBe(1500);
     expect(t.netTotal).toBe(1500);
-    expect(t.netCpm).toBe(0); // no miles — no fabricated rate
+    expect(t.netCpm).toBeNull(); // no miles — no fabricated rate
   });
 
   it("without a revenue input nothing changes and no revenue caveats appear", () => {
@@ -612,7 +612,7 @@ describe("computeCpm — the GL anchors the overhead pool (owner ruling 2026-08-
     const apOnly = computeCpm(withVouchers, PLAIN);
     const glAnchored = computeCpm({ ...withVouchers, glExpenseTotal: 3000 }, PLAIN);
     expect(apOnly.excluded.overheadSource).toBe("ap_vouchers");
-    expect(apOnly.fleet.totalCpm).toBeLessThan(glAnchored.fleet.totalCpm);
+    expect(apOnly.fleet.totalCpm!).toBeLessThan(glAnchored.fleet.totalCpm!);
   });
 
   it("does not double-count the vouchers that are already inside the GL total", () => {
@@ -888,5 +888,55 @@ describe("computeCpm — the schedule leaves the pool, and the pool adds back to
     expect(r.glTieOut).toBeNull();
     expect(r.trucks.find((t) => t.tractor_unit === "101")!.fixedCost).toBe(500);
     expect(r.caveats.some((c) => c.includes("taken OUT of shared costs"))).toBe(false);
+  });
+});
+
+describe("computeCpm — a truck without miles has no rate, and the fleet rate is over measured trucks (D-FIN10)", () => {
+  it("prints null, never $0.00, for a truck with cost and no miles — and sorts it last", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [fuel("F1", "101", 300), fuel("F2", "202", 1000)],
+        settlements: [],
+        actualMilesByUnit: { "101": 1000 },
+      },
+      PLAIN,
+    );
+    const idle = r.trucks.find((t) => t.tractor_unit === "202")!;
+    expect(idle.directTotal).toBe(1000); // the dollars are real
+    expect(idle.directCpm).toBeNull();
+    expect(idle.totalCpm).toBeNull();
+    expect(idle.netCpm).toBeNull();
+    expect(r.trucks[r.trucks.length - 1]!.tractor_unit).toBe("202");
+  });
+
+  it("keeps unmeasured dollars out of the fleet rate and names them as their own line", () => {
+    const r = computeCpm(
+      {
+        movements: [move("M1", "101", 1000)],
+        fuel: [fuel("F1", "101", 300), fuel("F2", "202", 1000)],
+        settlements: [settle("S1", "202", 500)],
+        actualMilesByUnit: { "101": 1000 },
+        revenueByUnit: { "101": 2000, "202": 700 },
+      },
+      PLAIN,
+    );
+    // Fleet rate: truck 101 only — $300 over 1,000 miles, not $1,800.
+    expect(r.fleet.directCpm).toBe(30);
+    expect(r.fleet.revenueCpm).toBe(200);
+    expect(r.fleet.netCpm).toBe(170);
+    // Totals still cover every truck, so the tie-out is untouched.
+    expect(r.fleet.directTotal).toBe(1800);
+    expect(r.fleet.revenueTotal).toBe(2700);
+    expect(r.fleet.unmeasured).toEqual({ trucks: 1, directTotal: 1500, fixedTotal: 0, allocatedTotal: 0, revenueTotal: 700 });
+    expect(r.caveats.some((c) => c.includes("1 truck(s) carry $1500.00 of cost but no Samsara miles"))).toBe(true);
+  });
+
+  it("applies the same rule under the estimate basis, and reads null when no truck has miles at all", () => {
+    const r = computeCpm({ movements: [], fuel: [fuel("F1", "101", 100)], settlements: [] }, PLAIN);
+    expect(r.trucks[0]!.directCpm).toBeNull();
+    expect(r.fleet.directCpm).toBeNull();
+    expect(r.fleet.unmeasured.trucks).toBe(1);
+    expect(r.caveats.some((c) => c.includes("no miles in this window"))).toBe(true);
   });
 });

@@ -49,7 +49,7 @@ const addingScopes = ref<CardControlScope[]>(["lock", "unlock"]);
 const addable = computed(() =>
   props.eligible
     .filter((m) => !props.approvers.some((a) => a.userId === m.userId))
-    .map((m) => ({ value: m.userId, label: `${m.email ?? m.userId} — ${m.role.replace(/_/g, " ")}` })),
+    .map((m) => ({ value: m.userId, label: `${m.name ?? m.email ?? m.userId} — ${m.role.replace(/_/g, " ")}` })),
 );
 
 const roleWords = computed(() => props.eligibleRoles.map((r) => r.replace(/_/g, " ")).join(" and "));
@@ -92,7 +92,8 @@ function add(): void {
     <div v-for="approver in props.approvers" :key="approver.userId" class="space-y-3 rounded-control border border-edge p-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-sm font-medium text-ink">{{ approver.email ?? approver.userId }}</span>
+          <span class="text-sm font-medium text-ink">{{ approver.name ?? approver.email ?? approver.userId }}</span>
+          <span v-if="approver.name && approver.email" class="ml-2 text-xs text-ink-muted">{{ approver.email }}</span>
           <span :class="[BADGE_BASE, toneClass('neutral')]">{{ (approver.role ?? "unknown").replace(/_/g, " ") }}</span>
           <span v-if="!approver.eligible" :class="[BADGE_BASE, toneClass('caution')]">
             Role no longer allows this

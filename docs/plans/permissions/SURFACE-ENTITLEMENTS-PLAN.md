@@ -800,11 +800,17 @@ the acceptance, trimmed; no name, no redemption), the new `SettingsUsersPage.tes
 permissions page test's picker assertion, every `lint:*` gate in `ci.yml`, `pnpm test` in full,
 typecheck and build. The `user_profiles` producer waiver is deleted.
 
-⚠ **Still calling `auth.admin.getUserById` one at a time, deliberately left:** `dqBinder`,
-`dispatchLoads/queries`, `defensePacket`, `dqExports`, `fuelPlanHistory` and the accept route's
-own email-confirmation check. Each resolves ONE actor, not a list, and each should read the name
-through the directory when it next needs one — recorded here so the pattern is found, not
-rediscovered.
+**Third PR (2026-09-03): the six display-purpose `getUserById` call sites are gone.** `memberLabels`
+(`apps/api/src/lib/memberLabels.ts` — `lib`, because six modules read it and a module may not
+import another's internals) answers every actor a request prints — the binder cover, a load's
+timeline, the export ledger, the hazmat packet, a fuel plan's history row, the card-control approver
+and eligible lists — from ONE directory call, and asks the auth API only for somebody who has since
+LEFT the org (a membership row gone, a binder still owing a name; §390.32). `labelOf` prefers the
+name, then the email. The accept route's own `getUserById` stays: it asks whether the email is
+confirmed, which is not a display question. The card-control API now returns `name` beside `email`
+and the approver list leads with it. Pinned in `memberLabels.test.ts`: one rpc and no auth call for a
+current member; one auth call for a departed one; a deleted login left unlabelled; the directory's
+own failure falling through to the per-person path.
 
 ## §6 Open questions
 

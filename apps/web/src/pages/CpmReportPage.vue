@@ -117,7 +117,14 @@ const ownerOpPage = computed(() =>
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
-const fmtCpm = (n: number) => `$${(n / 100).toFixed(2)}`;
+const fmtCpm = (n: number | null) => (n == null ? "—" : `$${(n / 100).toFixed(2)}`);
+
+// Dollars on trucks the report cannot rate (no miles this window, D-FIN10): still in every total,
+// outside every per-mile figure, and said so on the card rather than only in the explainer.
+const unmeasuredCost = computed(() => {
+  const u = report.value?.fleet.unmeasured;
+  return u ? u.directTotal + u.fixedTotal + u.allocatedTotal : 0;
+});
 
 // The McLeod financial sweep's last landing, in the reader's own words. Null is said out loud.
 const figuresAsOf = computed(() => {
@@ -179,8 +186,8 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <StatCard
         label="Left per mile"
         :value="fmtCpm(report.fleet.netCpm)"
-        :sub="report.fleet.netCpm >= 0 ? 'earned minus cost' : 'each mile is losing money'"
-        :sub-tone="report.fleet.netCpm >= 0 ? undefined : 'text-danger-700'"
+        :sub="report.fleet.netCpm == null ? 'no truck has miles this window' : report.fleet.netCpm >= 0 ? 'earned minus cost' : 'each mile is losing money'"
+        :sub-tone="report.fleet.netCpm != null && report.fleet.netCpm < 0 ? 'text-danger-700' : undefined"
       />
       <StatCard
         label="Miles driven"
@@ -190,7 +197,10 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <StatCard
         label="Total cost"
         :value="fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal)"
-        :sub="`against ${fmtUsd(report.fleet.revenueTotal)} earned on company trucks`"
+        :sub="report.fleet.unmeasured.trucks > 0
+          ? `${fmtUsd(unmeasuredCost)} of it sits on ${report.fleet.unmeasured.trucks} ${report.fleet.unmeasured.trucks === 1 ? 'truck' : 'trucks'} without miles, outside the per-mile figures`
+          : `against ${fmtUsd(report.fleet.revenueTotal)} earned on company trucks`"
+        :sub-tone="report.fleet.unmeasured.trucks > 0 ? 'text-warning-700' : undefined"
       />
       <!-- This card used to read "Not in these figures" over the money the report declined to
            place. That was the complaint: a number nobody could act on, holding 38.9% of the fleet's
