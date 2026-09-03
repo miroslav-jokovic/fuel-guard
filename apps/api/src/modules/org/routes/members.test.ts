@@ -43,7 +43,7 @@ vi.mock("../../messaging/index.js", () => ({ revokePushTokens: vi.fn(async () =>
 const { membersRouter } = await import("./members.js");
 const { writeAudit } = await import("../../../lib/audit.js");
 
-async function call(method: string, path: string, body?: unknown): Promise<{ status: number; json: any }> {
+async function call(method: string, path: string, body?: unknown): Promise<{ status: number; json: { members?: unknown[] } | null }> {
   const app = express();
   app.use(express.json());
   app.use("/api/members", membersRouter());
@@ -56,7 +56,7 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
       headers: { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return { status: res.status, json: await res.json().catch(() => null) };
+    return { status: res.status, json: (await res.json().catch(() => null)) as { members?: unknown[] } | null };
   } finally {
     await closeTestServer(server);
   }
@@ -85,7 +85,7 @@ describe("GET /api/members", () => {
   it("lists the org's members from the directory in ONE call — name beside email, no per-member auth lookup", async () => {
     const { status, json } = await call("GET", "");
     expect(status).toBe(200);
-    expect(json.members).toEqual([
+    expect(json?.members).toEqual([
       { userId: ADMIN, email: "admin@example.test", fullName: "Miki Admin", role: "admin", joinedAt: "2026-01-01T00:00:00Z" },
       { userId: MEMBER, email: "shop@example.test", fullName: null, role: "technician", joinedAt: "2026-01-02T00:00:00Z" },
     ]);
