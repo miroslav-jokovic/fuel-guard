@@ -15,5 +15,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.ts"],
+    // What jsdom is missing and any suite opening a dialog needs — see the file's own header for
+    // why it is here rather than copied into a fourth test file.
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

@@ -39,7 +39,7 @@ import SpendOverviewTab from "./SpendOverviewTab.vue";
  */
 const router = createRouter({
   history: createMemoryHistory(),
-  routes: [{ path: "/", component: { template: "<div/>" } }, { path: "/import", component: { template: "<div/>" } }],
+  routes: [{ path: "/", component: { template: "<div/>" } }, { path: "/truck-stops", component: { template: "<div/>" } }],
 });
 const withRouter = { global: { plugins: [router] } };
 

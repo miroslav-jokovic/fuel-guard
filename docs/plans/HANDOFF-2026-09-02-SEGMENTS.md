@@ -94,9 +94,35 @@ windowed one. That tile is the last surviving instance of the bug #454 fixed els
 
 **The biggest segment, and strictly sequential. One chat, four PRs.**
 
-**✅ C2, C3 AND C4 ARE DONE** — C2 2026-09-02 (`claude/fuel-log-tabs`), C3 2026-09-03
-(`claude/fuel-filters-in-url`), C4 2026-09-03 (`claude/fuel-retire-import`). **C5 is the last one,
-and it MUST land before C6** so the three policy tabs are removed by the step that replaces them.
+**✅ SEGMENT B IS COMPLETE — C2, C3, C4 and C5, all 2026-09-02/03.**
+
+`claude/fuel-log-tabs` · `claude/fuel-filters-in-url` · `claude/fuel-retire-import` ·
+`claude/fuel-spend-three-tabs`. Fuel is **five nav items**; Fuel Log is three tabs over one window;
+every filter in the section is in the URL; `/import` is gone; Fuel Spend is three tabs.
+
+**What the next chat needs to know before touching Segment C or E:**
+
+1. ⚠ **`policyReports.ts` is dead code ON PURPOSE, and C6 is its importer.** C5 removed the three
+   policy tabs and moved their titles, blurbs and the buy-minimum note into
+   `features/reconcile/policyReports.ts`, with `ExceptionsTab.vue` untouched beside it. The
+   assertions moved too (`policyReports.test.ts`), because "kept in the tree" with no suite is
+   "abandoned somewhere findable". **C6 should file findings FROM that function, not re-derive it.**
+2. ⚠ **Two of the four steps crossed a permission boundary the plan had not noticed** (C2 absorbing
+   two `section("fuel")` pages onto an `always` page; C4 moving a `manage("fuel")` upload onto the
+   same one). Any step that RELOCATES a capability should check the gate of where it came from
+   against the gate of where it is going. C5 did not need to — one page, one gate — but it is the
+   question to ask first.
+3. **Test-harness debt paid, and one trap left standing.** The `ResizeObserver` stub is now
+   `apps/web/vitest.setup.ts` and the two copies are gone. ⚠ Still live: an open `SlideOver` teleports
+   OUTSIDE the wrapper's subtree, so `w.text()` reports "closed" for a drawer that is plainly open —
+   assert on the component's `open` prop or on `document.body.textContent`. Also still live: a
+   zero-row fixture makes `DataTable` render its empty state with no `<thead>`, and `useMediaQuery`
+   must be stubbed or the table renders as cards.
+
+**The per-step notes below are kept as the record of what each one learnt.**
+
+**✅ C2, C3 AND C4** — C2 2026-09-02 (`claude/fuel-log-tabs`), C3 2026-09-03
+(`claude/fuel-filters-in-url`), C4 2026-09-03 (`claude/fuel-retire-import`).
 
 **C4 in one line:** `/import` is a redirect, `ImportPage.vue` is deleted, and its three capabilities
 are drawers — EFS backfill on the Fuel Log, prices and locations on Truck Stops, Repair fuel data on
@@ -172,11 +198,11 @@ nothing can collide.
 
 | | |
 |---|---|
-| **Steps** | ~~C2~~ **DONE**, ~~C3~~ **DONE**, ~~C4 (retire `/import`)~~ **DONE**, C5 (Fuel Spend, eight tabs to three) |
+| **Steps** | ~~C2~~ · ~~C3~~ · ~~C4~~ · ~~C5~~ — **ALL DONE 2026-09-03** |
 | **Owns** | `apps/web/src/pages/{FuelLogPage,TransactionsPage,RejectionsPage,FuelCardsPage,ImportPage}.vue`, `apps/web/src/features/fuel/**`, `router/routes/fuel.ts`, `lib/nav.ts` + snapshots |
 | **Migration?** | **No.** Entirely web. |
 | **Blocked by** | Nothing. C1 and T1 are done. |
-| **Done when** | ~~Fuel is five nav items; `/transactions`, `/rejections` and `/import` are query-preserving redirects~~ **all true as of C4**; Fuel Spend has three tabs (C5, the only one left). |
+| **Done when** | ~~Fuel is five nav items; `/transactions`, `/rejections` and `/import` are query-preserving redirects; Fuel Spend has three tabs.~~ **ALL TRUE.** |
 
 **Order is forced:** C3 needs C2 (do it once, on the merged page); C4 needs C2; C5 needs C4 and **must
 land before C6** so the policy tabs are removed by the step that replaces them.
@@ -188,8 +214,12 @@ zero rows, so a column assertion against `rows: []` passes by finding no headers
 list fixture at least one row. (The other two: `DataTable` renders as **cards** under jsdom — stub
 `useMediaQuery` — and a spy inside a hoisted `vi.mock` factory must be `vi.hoisted`.)
 
-⚠ **C5 keeps the three policy tab bodies in the tree, unmounted**, until C6 files their findings. A
-report deleted before its replacement exists is a capability gap, however brief.
+⚠ ~~**C5 keeps the three policy tab bodies in the tree, unmounted**, until C6 files their findings.~~
+**Done, and it needed more than leaving a file alone.** `ExceptionsTab.vue` is the body and survives
+untouched; what made each report MEAN something — its title, its blurb, which policy list it reads,
+the buy-minimum note — lived in the page's tab strip and would have died with it. That is
+`features/reconcile/policyReports.ts` now, one pure function, with `policyReports.test.ts` holding the
+five assertions that used to be on the page. **C6 imports it.**
 
 ---
 
@@ -282,11 +312,15 @@ link to it was `DiscountCaptureTab`'s "uploaded on Import", now pointing at Truc
 ## 3. Suggested running order
 
 ```
-now, in parallel:   Segment A (Samsara)        Segment B (consolidation, 4 PRs)
-then:                                          Segment C (parity, 3 PRs)
+(done)              Segment B — COMPLETE 2026-09-03, four PRs, no migration
 (done)              Segment D (T5) — COMPLETE 2026-09-02, three PRs, migration 0297
+now:                Segment A (Samsara)        Segment C (parity, 3 PRs) — B has landed, so it is unblocked
 last:               Segment E — once Q-FUI3 / Q-FUI11 / Q-FUI1 are answered and S6 has measured
 ```
+
+**A and C share no files, so they are the safe concurrent pair now** — the same argument that made A
+and B safe. C works in `apps/web/src/features/fuel/**` and the export routes; A is entirely
+`apps/api/src/modules/samsara/**` plus the Dashboard tile.
 
 **A and B are the only two that should run at the same time.** They share no files. Adding a third
 concurrent chat puts two of them in `apps/web/src/pages/` at once, which is where the merge pain is.

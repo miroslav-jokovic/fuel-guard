@@ -25,16 +25,6 @@ import { ref, type Component } from "vue";
  * defect, and it is what the gate assertions below are for.
  */
 
-// Headless UI's Dialog observes its panel and jsdom has no ResizeObserver, so a drawer that is
-// actually OPENED throws — the same stub `BaseModal.test.ts` carries, and for the reason its comment
-// gives: without it the assertions pass and the run still fails on unhandled rejections.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-(globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= ResizeObserverStub;
-
 const session = vi.hoisted(() => ({
   role: "admin" as string | null,
   admin: true,
