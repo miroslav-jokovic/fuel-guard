@@ -10,6 +10,7 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
+import RoleAccessStrip from "./RoleAccessStrip.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
 import SidebarPreview from "./SidebarPreview.vue";
@@ -76,6 +77,9 @@ const rail = computed({
     selected.value = v as UserRole;
   },
 });
+/** Each role's eleven answers, in the matrix's section order, for the rail's at-a-glance strip. */
+const levelsOf = (r: UserRole): SectionAccess[] =>
+  (sections.data.value?.editableSections ?? []).map((s) => current(r, s));
 
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────
 const shipped = (r: UserRole, s: AppSection): SectionAccess => sections.data.value?.defaults[r]?.[s] ?? "none";
@@ -196,7 +200,15 @@ const previewSurfaces = computed(() => (role.value ? (surfaces.data.value?.overr
       <AppTabs v-model="rail" :tabs="railTabs" label="Roles" scrollable />
     </div>
     <div class="hidden lg:block">
-      <AppTabs v-model="rail" :tabs="railTabs" label="Roles" orientation="vertical" id-prefix="role" />
+      <AppTabs v-model="rail" :tabs="railTabs" label="Roles" orientation="vertical" id-prefix="role">
+        <template #tab="{ tab }">
+          <span class="flex min-w-0 flex-col gap-1">
+            <span class="truncate">{{ tab.label }}</span>
+            <RoleAccessStrip :levels="levelsOf(tab.value as UserRole)" />
+          </span>
+          <span v-if="tab.badge !== undefined" class="shrink-0 text-xs text-ink-tertiary">{{ tab.badge }}</span>
+        </template>
+      </AppTabs>
       <p class="mt-4 px-3 text-xs text-ink-muted">
         Admin, Driver and the Admin section are not listed: they are not an organisation's to
         change. Admin carries user management, so granting it sideways would be a way around every
