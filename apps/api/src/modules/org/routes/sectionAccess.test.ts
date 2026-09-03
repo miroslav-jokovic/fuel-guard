@@ -24,6 +24,9 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  */
 const ORG = "org-1";
 const USER = "user-1";
+/** The member the per-user layer is about, and a person who is in no org of the caller's. */
+const DISPATCHER = "00000000-0000-4000-8000-000000000010";
+const OUTSIDER = "00000000-0000-4000-8000-000000000011";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -74,6 +77,7 @@ beforeEach(() => {
       org_section_access: [
         { role: "dispatcher", section: "safety", access: "view", updated_at: "2026-09-02T00:00:00Z", updated_by: USER },
       ],
+      memberships: [{ role: "dispatcher" }],
     },
   });
 });
@@ -206,5 +210,155 @@ describe("PUT /api/section-access", () => {
       (await put(base, { role: "dispatcher", section: "fuel", access: "sudo" })).status,
     );
     expect(status).toBe(400);
+  });
+});
+
+// ── S5: the per-USER layer (D-SURF7) ──────────────────────────────────────────────────────────
+//
+// The owner asked for "custom setup for each user", and this is that request applied to DATA rather
+// than to screens. The read path is entirely SQL — `custom_access_token_hook` merges these rows over
+// the role's at token mint, and `supabase/tests/user-section-access.test.mjs` is where that is
+// proved, because only a real Postgres can run the hook. What CAN only be proved here is the write:
+// the API reads with the service role, so the `.eq("org_id")` filters are the only isolation there
+// is, and the admin/driver role lock has nowhere else to live on the write path.
+
+const putUser = (base: string, body: unknown) =>
+  fetch(`${base}/api/section-access/user`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+describe("PUT /api/section-access/user", () => {
+  it("narrowing one member writes one row, org- and user-scoped, and audits it", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "none" });
+      expect(res.status).toBe(200);
+    });
+    const inserted = rec.writtenRows("user_section_access");
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      org_id: ORG,
+      user_id: DISPATCHER,
+      section: "safety",
+      access: "none",
+      updated_by: USER,
+    });
+    expectOrgScoped(rec, ORG);
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        orgId: ORG,
+        action: "permissions.changed_user",
+        // The member's role and what that role resolves to travel with the change, so the log reads
+        // years later without the reader reconstructing the matrix as it stood that day.
+        meta: expect.objectContaining({
+          userId: DISPATCHER,
+          role: "dispatcher",
+          roleDefault: sectionAccess("dispatcher", "safety"),
+        }),
+      }),
+    );
+  });
+
+  /**
+   * A person has no shipped default — their fallback is whatever their ROLE resolves to, and an
+   * admin can change that afterwards. Storing today's answer as a row would freeze it and stop
+   * tracking the role, which is the sparse-delta invariant D-PERM4 states for the layer above.
+   */
+  it("writing a member's access to their role's current answer still STORES a row", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: DISPATCHER,
+        section: "safety",
+        access: sectionAccess("dispatcher", "safety"),
+      });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("user_section_access")).toHaveLength(1);
+  });
+
+  /**
+   * The delete-then-insert pair (`lint:upserts`: never a partial upsert) clears exactly ONE cell.
+   * Without the `user_id` filter it clears that section for every member of the org, which is
+   * invisible on the screen of the person being edited and is how "custom setup for each user"
+   * would quietly become "custom setup for the last user edited".
+   */
+  it("clears exactly one member's cell — the delete carries org, user AND section", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "none" });
+      expect(res.status).toBe(200);
+    });
+    const del = rec.forTable("user_section_access").find((q) => q.write?.method === "delete");
+    expect(del).toBeDefined();
+    expect(del!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: DISPATCHER },
+        { col: "section", val: "safety" },
+      ]),
+    );
+  });
+
+  it("`access: null` is the reset — it deletes the row and stores nothing", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: null });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+    expect(rec.forTable("user_section_access").some((q) => q.write?.method === "delete")).toBe(true);
+  });
+
+  /**
+   * D-PERM7/D-PERM8 cannot be a CHECK constraint on a user-keyed table — a row does not know its
+   * member's role. This is one of the two places the lock lives; the other is the auth hook, proved
+   * in `supabase/tests/user-section-access.test.mjs`.
+   */
+  it("refuses a member whose role is locked (D-PERM7/D-PERM8)", async () => {
+    for (const role of ["admin", "driver"]) {
+      rec = createSupabaseRecorder({ tables: { memberships: [{ role }] } });
+      await withServer(async (base) => {
+        const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "manage" });
+        expect(res.status, `${role} is not editable`).toBe(400);
+      });
+      expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+    }
+  });
+
+  /**
+   * The membership lookup is org-scoped as well as user-scoped, and that is not tidiness: the
+   * service role bypasses RLS, so without the `org_id` filter an admin could answer for a member of
+   * another tenant and the composite foreign key would be the only thing left — a 500, not a
+   * refusal.
+   */
+  it("refuses a person who is not a member of the caller's org", async () => {
+    rec = createSupabaseRecorder({ tables: { memberships: [] } });
+    await withServer(async (base) => {
+      const res = await putUser(base, { userId: OUTSIDER, section: "safety", access: "manage" });
+      expect(res.status).toBe(404);
+    });
+    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+    const lookup = rec.forTable("memberships");
+    expect(lookup).toHaveLength(1);
+    expect(lookup[0]!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: OUTSIDER },
+      ]),
+    );
+  });
+
+  /**
+   * D-PERM7 as a SECURITY boundary rather than as manners: `admin` carries user management, so
+   * granting it sideways would be the escalation path the product deliberately does not have. It is
+   * refused here, by 0299's CHECK constraint, and by the hook — three layers, because this is the
+   * one field whose wrong value becomes authority.
+   */
+  it("refuses the admin section, which is nobody's to grant (D-PERM7)", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, { userId: DISPATCHER, section: "admin", access: "manage" });
+      expect(res.status).toBe(400);
+    });
+    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
   });
 });

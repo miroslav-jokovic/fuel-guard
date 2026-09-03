@@ -2241,6 +2241,13 @@ async function main() {
         `insert into samsara_ifta_jurisdiction_miles ` +
         `  (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction) ` +
         `select '${org}', id, 'rls-ifta', 2026, 4, 'TX' from v`,
+      // 0299 is 0298's twin for the DATA half, and carries the same composite membership FK — see
+      // the note below for why the generic synthesiser cannot build either of them.
+      user_section_access: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-usec@example.com') returning id), ` +
+        `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'dispatcher' from u returning user_id) ` +
+        `insert into user_section_access (org_id, user_id, section, access) ` +
+        `select '${org}', user_id, 'safety', 'none' from m`,
       // 0298's override belongs to a MEMBER, not merely to an org: `foreign key (org_id, user_id)
       // references memberships (org_id, user_id)`. The generic synthesiser reads single-column
       // foreign keys only, so it invents a user with no membership and the insert fails on the FK —

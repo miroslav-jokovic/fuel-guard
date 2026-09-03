@@ -37,6 +37,32 @@ export const sectionAccessSetSchema = z.object({
 export type SectionAccessSetRequest = z.infer<typeof sectionAccessSetSchema>;
 
 /**
+ * `PUT /api/section-access/user` — one answer about one section for one MEMBER (S5, D-SURF7).
+ *
+ * The sibling of `sectionAccessSetSchema`, and the same shape as `userSurfaceAccessSetSchema` below,
+ * for the same reason: a per-person layer needs THREE answers where a per-role layer needs two.
+ *
+ * ⚠ **`access: null` is the reset.** At the role layer, setting a cell back to its shipped default
+ * deletes the row, because the shipped matrix is a value the endpoint can compare against. A person
+ * has no shipped default — their fallback is whatever their ROLE resolves to, which can change
+ * underneath them — so "inherit" cannot be expressed as one of the three access values without
+ * freezing today's answer into a row. It is the absence of a row, and `null` is how a caller asks
+ * for it.
+ *
+ * ⚠ There is no `role` field, so D-PERM7/D-PERM8's role lock cannot live here — the endpoint looks
+ * the member's `memberships.role` up in the caller's org, and `custom_access_token_hook` refuses to
+ * mint a claim for a locked role whatever rows exist. Migration 0299's header records why a CHECK
+ * constraint cannot do it. The `admin` SECTION is refused here, in the table's CHECK and in the hook,
+ * because that one IS a security boundary rather than a matter of manners.
+ */
+export const userSectionAccessSetSchema = z.object({
+  userId: z.uuid(),
+  section: z.string().refine(isEditableSection, "That section's access cannot be changed"),
+  access: z.enum(["none", "view", "manage"]).nullable(),
+});
+export type UserSectionAccessSetRequest = z.infer<typeof userSectionAccessSetSchema>;
+
+/**
  * `PUT /api/surface-access` — one org-level answer about one screen for one role (S3, D-SURF1).
  *
  * `role` is validated against the EDITABLE set for D-PERM7/D-PERM8's reason. `surfaceKey` is

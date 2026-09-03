@@ -315,6 +315,33 @@ describe("PUT /api/surface-access/user", () => {
     expect(rec.writtenRows("user_surface_access")).toMatchObject([{ user_id: SHOP_LEAD, allowed: true }]);
   });
 
+  /**
+   * ⚠ Added while writing S5, whose identical endpoint had the identical gap: dropping the
+   * `user_id` filter from the delete passed every assertion in this file. The code was right; the
+   * test could not see it. Without that filter the write clears the screen for EVERY member of the
+   * org, which is invisible on the screen of the person being edited and turns "custom setup for
+   * each user" into "custom setup for the last user edited".
+   */
+  it("clears exactly one member's cell — the delete carries org, user AND surface", async () => {
+    await withServer(async (base) => {
+      const res = await putUser(base, {
+        userId: SHOP_LEAD,
+        surfaceKey: "maintenance.inspectors",
+        allowed: false,
+      });
+      expect(res.status).toBe(200);
+    });
+    const del = rec.forTable("user_surface_access").find((q) => q.write?.method === "delete");
+    expect(del).toBeDefined();
+    expect(del!.filters()).toEqual(
+      expect.arrayContaining([
+        { col: "org_id", val: ORG },
+        { col: "user_id", val: SHOP_LEAD },
+        { col: "surface_key", val: "maintenance.inspectors" },
+      ]),
+    );
+  });
+
   it("`allowed: null` is the reset — it deletes the row and stores nothing", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, {

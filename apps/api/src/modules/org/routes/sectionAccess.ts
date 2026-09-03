@@ -5,10 +5,12 @@ import {
   EDITABLE_SECTIONS,
   sectionAccess,
   sectionAccessSetSchema,
+  userSectionAccessSetSchema,
   type AppSection,
   type SectionAccessSetRequest,
   type SectionOverrides,
   type UserRole,
+  type UserSectionAccessSetRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
@@ -29,13 +31,17 @@ import { writeAudit } from "../../../lib/audit.js";
  * ⚠ The API reads with the SERVICE ROLE, which bypasses RLS, so every query below carries its own
  * `.eq("org_id", …)`. `sectionAccess.test.ts` asserts it with `expectOrgScoped`.
  *
- * ── WHAT THIS DOES NOT DO YET ───────────────────────────────────────────────────────────────────
- * Nothing reads these rows at authorization time. The auth hook that turns them into a JWT claim is
- * P2 and the policies that consult that claim are P4; until both land, an override is recorded and
- * inert. It ships now rather than with P5 because a table with no producer is the failure
- * `check-table-producers.mjs` was written for — "schema that nothing writes is not infrastructure,
- * it is a promise nobody is keeping" — and because the audit trail should exist from the first row
- * rather than be retrofitted around rows that predate it.
+ * ── WHAT READS THESE ROWS ───────────────────────────────────────────────────────────────────────
+ * Nothing here. `custom_access_token_hook` turns them into the sparse `sections` JWT claim at token
+ * mint (P2, migration 0292), and the policies P4 wrote branch on it through `auth_section()`. This
+ * router only writes. That asymmetry is why nothing in this file resolves anything: a resolver here
+ * would be a second opinion about a question SQL already answers, on the read path of every row.
+ *
+ * Two layers of one chain live here (D-SURF6): `PUT /` answers for a ROLE (0291) and `PUT /user`
+ * answers for a PERSON (0299), and the hook merges the second OVER the first. They are not
+ * symmetric — writing a cell back to its shipped default is a RESET at the role layer and a real
+ * answer at the user layer, because a person has no shipped default to compare against — and each
+ * says so where a reader will look.
  */
 
 const OVERRIDE_COLS = "role, section, access, updated_at, updated_by";
@@ -158,6 +164,115 @@ export function sectionAccessRouter(): Router {
         meta: { role, section, access, shipped, resetToDefault: isDefault },
       });
       res.json({ ok: true, role, section, access, isDefault });
+    }),
+  );
+
+  /**
+   * Set one cell for one MEMBER (S5, D-SURF7) — "custom setup for each user", for DATA rather than
+   * for screens.
+   *
+   * ── WHY `access: null` RATHER THAN THE ROLE ROUTE'S DELETE-ON-DEFAULT ────────────────────────
+   * Above, writing a cell back to its shipped value deletes the row, because `sectionAccess(role,
+   * section)` is a default the endpoint can compare against. A PERSON has no shipped default — their
+   * fallback is whatever their role resolves to, which an admin can change afterwards — so "inherit"
+   * cannot be one of the three access values without freezing today's answer into a row that would
+   * stop tracking the role. It is the absence of a row, and `null` is how a caller asks for it. Same
+   * three-valued shape as `surfaceAccess.ts`'s per-user write, for the same reason.
+   *
+   * ── WHAT ENFORCES WHAT, SINCE THIS IS THE SECURITY BOUNDARY AND NOT MERELY THE MENU ──────────
+   * ⚠ The `admin` SECTION is refused three times — by the schema, by 0299's CHECK constraint, and by
+   * `custom_access_token_hook`, which will not put it in a claim whatever rows exist. That is
+   * D-PERM7, and it is a boundary rather than manners: `admin` carries user management, so granting
+   * it sideways would be the privilege-escalation path the product deliberately does not have.
+   *
+   * ⚠ The admin/driver ROLE lock cannot be a CHECK on a user-keyed table (0299's header explains
+   * why), so it lives here — an org-scoped `memberships` lookup, which doubles as the check that the
+   * target belongs to the CALLER's org, since the service role bypasses RLS — and in the hook, which
+   * is the layer that actually matters because it is the one standing between a row and a claim.
+   *
+   * ── STALENESS ────────────────────────────────────────────────────────────────────────────────
+   * A section answer travels in the JWT (D-PERM2), so this change lands when the member's token next
+   * refreshes — up to `jwt_expiry`, which is 3600. That is D-PERM6's accepted contract and the UI is
+   * required to say so. It is NOT the contract for a SURFACE change, which lands on the next page
+   * load (D-SURF4); the difference is real and S6's page must not average the two.
+   */
+  router.put(
+    "/user",
+    requireOrg,
+    requireRole("admin"),
+    validateBody(userSectionAccessSetSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const { userId, section, access } = res.locals.body as UserSectionAccessSetRequest;
+
+      const { data: member, error: memberErr } = await admin
+        .from("memberships")
+        .select("role")
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (memberErr) {
+        res.status(500).json(apiError("db_error", "Could not update permissions"));
+        return;
+      }
+      if (!member) {
+        res.status(404).json(apiError("not_found", "That person is not a member of this organisation"));
+        return;
+      }
+      const memberRole = (member as { role: string }).role;
+      if (!(EDITABLE_ROLES as string[]).includes(memberRole)) {
+        res
+          .status(400)
+          .json(apiError("role_locked", "That member's access cannot be changed (D-PERM7/D-PERM8)"));
+        return;
+      }
+
+      // Never `.upsert()` with a partial payload (`lint:upserts`): Postgres checks NOT NULL before
+      // conflict arbitration. Delete-then-insert is the shape 0174/0175 settled on, and the primary
+      // key makes the pair idempotent.
+      const { error: delErr } = await admin
+        .from("user_section_access")
+        .delete()
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .eq("section", section);
+      if (delErr) {
+        res.status(500).json(apiError("db_error", "Could not update permissions"));
+        return;
+      }
+      if (access !== null) {
+        const { error: insErr } = await admin.from("user_section_access").insert({
+          org_id: orgId,
+          user_id: userId,
+          section,
+          access,
+          updated_by: req.auth!.userId,
+        });
+        if (insErr) {
+          res.status(500).json(apiError("db_error", "Could not update permissions"));
+          return;
+        }
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "permissions.changed_user",
+        entity: "user_section_access",
+        // The member's role and what that role would have resolved to travel with the change, so
+        // the log reads without the reader having to reconstruct the matrix as it stood that day —
+        // the same reason the role-level audit carries `shipped`.
+        meta: {
+          userId,
+          role: memberRole,
+          section,
+          access,
+          roleDefault: sectionAccess(memberRole as UserRole, section as AppSection),
+          resetToRole: access === null,
+        },
+      });
+      res.json({ ok: true, userId, section, access });
     }),
   );
 
