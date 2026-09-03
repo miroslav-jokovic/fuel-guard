@@ -509,6 +509,10 @@
       "module": "financial",
       "layer": "core"
     },
+    "user_section_access": {
+      "module": "org",
+      "layer": "core"
+    },
     "user_surface_access": {
       "module": "org",
       "layer": "core"

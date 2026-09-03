@@ -353,7 +353,10 @@ Building the catalogue **first** costs nothing (it is a pure refactor with byte-
 turns the gap fix from 28 edits into one guard that reads the catalogue, covering the seven detail
 routes for free via `parent`.
 
-### S1 · The catalogue, deriving the sidebar — no behaviour change
+### S1 · The catalogue, deriving the sidebar — no behaviour change — DONE 2026-09-02 (#478)
+**What shipped:** `SURFACES` in `packages/shared/src/surfaces.ts` — 52 surfaces, 37 in the sidebar,
+15 non-nav. `buildNavGroups` is a fold over it. Icons live web-side in `apps/web/src/lib/navIcons.ts`,
+because shared is compiled for React Native and cannot import Vue (D-SURF3).
 Introduce `SURFACES` in `packages/shared` (D-SURF3's shape, §3) and rewrite `buildNavGroups` to fold
 over it instead of hand-listing 37 entries. The web-side `Record<surfaceKey, Icon>` map lands beside
 `nav.ts`. **Nav output must be byte-identical for all nine roles** — that equality is the review, and
@@ -366,7 +369,10 @@ key has an icon, no surface's `level` exceeds what its `section` can grant.
 **Verified by:** a `buildNavGroups` snapshot per role, captured **before** the change and unchanged
 after — the harness `routeTable.test.ts` already established for the route-table split.
 
-### S2 · The router guard reads the catalogue — the 28-route gap closes
+### S2 · The router guard reads the catalogue — the 28-route gap closes — DONE 2026-09-02 (#480)
+**What shipped:** the guard resolves `to.matched[0].path` through the catalogue. **No section metas
+remain in the route files.** The 28-route gap is closed and the seven detail routes inherit via
+`parent`.
 The guard resolves `to.matched[0].path` → surface → `section` + `level`, and calls the
 `session.canView` / `session.can` that already exist. No FURTHER `requiresView` meta is written and
 no route file is edited 28 times. The six existing `requiresManage` metas, the one
@@ -385,7 +391,11 @@ not name a section) to fail any *authenticated, non-public* route absent from th
 waiver line. **Verified by:** a guard test per section at both levels, plus one per detail route
 asserting it inherits its parent.
 
-### S3 · Per-role surface entitlements
+### S3 · Per-role surface entitlements — DONE 2026-09-02 (#483 table, #486 reader; migration 0296)
+**What shipped:** migration 0296 `org_role_surface_access` in one merge, then `/api/me` serving the
+claim, `session.init()` loading it, nav and guard consulting it, and `requireSurface()` gating the
+three writes exclusive to the Inspectors register — in the next. Two merges, per D-SURF9, which was
+the right call for a reader with no fallback; S4 documents why the same rule was disapplied there.
 Table `org_role_surface_access (org_id, role, surface_key, allowed, updated_at, updated_by)`, sparse
 per D-SURF6, RLS-read by the org, written only through the audited API — 0291's arrangement, for
 0291's reason. Served by `/api/me` (D-SURF4), loaded in `session.init()` so the guard reads it
@@ -399,7 +409,7 @@ the new-table exemption was written for.
 router and the register's write endpoints all agree — while the New Inspection drawer still loads its
 inspector list, which is the §0 measurement turned into a test.
 
-### S4 · Per-user surface overrides — DONE 2026-09-02 (migration 0298)
+### S4 · Per-user surface overrides — DONE 2026-09-02 (#491; migration 0298)
 `user_surface_access (org_id, user_id, surface_key, allowed)`, resolved over S3's answer per D-SURF6,
 served the same way. ~~**Two merges, per D-SURF9.**~~ — **one merge**, see below.
 **Done when:** `xxx@silvicominc.com` on the `technician` role sees only Annual Inspections, and no
@@ -465,7 +475,7 @@ S4's Done-when needs and what `lint:table-producers` requires; the page that has
 member's resolved access is S6, and it can add the read shaped the way its People tab wants rather
 than inheriting a guess made here.
 
-### S5 · Per-user section overrides
+### S5 · Per-user section overrides — DONE 2026-09-02 (migration 0299)
 `user_section_access (org_id, user_id, section, access)`, read by `custom_access_token_hook` as one
 more sparse `jsonb_object_agg` merged **over** the role's answer, inside the existing
 `if v_role not in ('admin','driver')` guard. Needs `grant select on public.user_section_access to
@@ -479,6 +489,50 @@ been granted (D-SURF2's constraint expressed at the mint).
 **S5 is independent of S1–S4** — it touches no catalogue and no surface — so it may ship in parallel
 with them, and it is the half that answers "custom setup for each user" for *data* rather than for
 screens. It is placed last only because the screen half is what the owner's example asked for.
+
+**What shipped.** Migration 0299 — the table AND the hook change in one file — plus
+`PUT /api/section-access/user`.
+
+- **One file, and D-SURF9 does not bite.** That rule is about TypeScript readers deployed ~9 minutes
+  ahead of their schema. `custom_access_token_hook` is SQL in the same migration as the table it
+  reads: they apply in the same instant and there is no window in which one exists without the other.
+- **The read path was already built.** `sections` flows from the claim through `claimsToContext`
+  (`packages/shared/src/auth.ts`) into `stores/session.ts` and out to every consumer, so S5 changed
+  no TypeScript on the read side at all. The merge is `v_sections || v_user_sections` — the right
+  operand wins — inside the existing `if v_role not in ('admin','driver')` guard.
+- ⚠ **`jsonb_object_agg` over an empty set returns NULL, not `{}`**, so `role || user` is NULL
+  whenever either half is absent, and a NULL written into `{sections}` would ERASE the org's answer
+  rather than leave it alone. Both one-sided cases are asserted separately, because the naive merge
+  passes the two-sided one. This is the same three-valued trap 0292 paid for once in
+  `auth_section_view`; a different shape, the same lesson.
+- **`access: null` is the reset**, as with S4 and for a sharper reason: a person has no shipped
+  default to compare against. Their fallback is whatever their ROLE resolves to, which an admin can
+  change afterwards, so storing today's answer would freeze it and stop tracking the role.
+- **The `admin` section IS a CHECK constraint here**, where 0298's `surface_key` deliberately is not.
+  D-PERM7 is a security boundary and a bad row must not be able to become authority; a bad surface
+  key is inert. The role lock still cannot be a CHECK, for 0298's reason, and lives in the endpoint
+  and in the hook — the hook being the layer that matters, since it is the one standing between a row
+  and a claim.
+- The hook's own `and section <> 'admin'` is **unreachable while the CHECK stands**, which would make
+  it a line nothing exercises. The matrix drops the constraint, writes the row the schema forbids,
+  asserts the mint still refuses it, and puts the constraint back — modelling exactly the "restore, a
+  support action, a future writer" case 0292's header says the guard is for.
+
+**Verified by:** `pnpm test` (unit + all 24 matrices — the new `user-section-access` matrix is 26
+assertions and `rls` is 467 including this table), `pnpm typecheck`, `pnpm build`, `pnpm lint`, and
+the whole CI gate list extracted from `ci.yml`, plus the chained `lint:rls` and
+`lint:migration-ordering`.
+
+**Mutation-tested, subject not test.** Thirteen mutations of the hook, the table and the endpoint.
+One of them found a real gap **in S4's tests, not S5's**: dropping the `user_id` filter from the
+delete passed every assertion in both files, so a write that should clear one member's cell could
+have cleared that section for the whole org — invisible on the screen of the person being edited.
+The code was right in both; the tests could not see it, and both now assert the delete's filters.
+
+**Left for S6.** No read endpoint for per-user rows, and no UI. A per-user section change lands on
+the member's next token refresh — up to an hour, `jwt_expiry = 3600` — where a per-user SURFACE
+change lands on the next page load. D-PERM6 and D-SURF4 make that difference real and S6's page must
+not average the two.
 
 ### S6 · The permissions page becomes editable
 `EDITABLE-PERMISSIONS-PLAN.md` P5, extended: a **Roles** tab (the 7 × 11 section matrix plus each
@@ -566,10 +620,17 @@ Placard calculator and Hazmat review move from a `staff` gate to a `section` gat
 editable, leaving four. That is a sequencing fact rather than a contradiction: this ruling describes
 the surfaces that have no section, and Q-SURF2 decides whether two of them should acquire one.
 
-**Q-SURF4 — user-override blast radius on the token.** A per-user *section* override enters the JWT
-(D-SURF7). Sparse keeps it small, but there is no measured bound yet. Owner: engineering, during S5.
-Fallback: cap the claim and fail the write with a named error rather than mint a token that some
-proxy silently truncates.
+~~**Q-SURF4 — user-override blast radius on the token.**~~
+**ANSWERED 2026-09-02 — measured, and the cap is not needed.** The worst case is one person answered
+for on every editable section, and `supabase/tests/user-section-access.test.mjs` mints exactly that
+token: **219 bytes of JSON across 11 sections, ~292 bytes base64url in the JWT payload.** That is the
+ceiling, not a sample — 11 is the whole editable vocabulary (D-PERM7 removes the twelfth), the values
+are one of three short words, and the claim REPLACES the role's rather than adding to it, so a person
+with overrides is not larger than the role plus the person. Against an 8 KB header limit it is
+noise, and the fallback ("cap the claim and fail the write with a named error") is not built,
+deliberately: a cap that can never be reached is a branch nothing tests. If `APP_SECTIONS` ever grows
+by an order of magnitude, re-run that matrix — it prints the number on every run rather than
+asserting a threshold nobody has agreed.
 
 ~~**Q-SURF5 — `/settings` is gated at `manage` while its sidebar entry asks `view`.**~~
 **ANSWERED 2026-09-02 — option (a), owner's ruling; shipped.** The route dropped to `view`.
