@@ -16,6 +16,7 @@ import { ingestSettlements, ingestApVouchers, ingestBilling,
   ingestOfficeLines, ingestDeductions } from "../financialIngest.js";
 import { ingestMovementFacts } from "../movementFactIngest.js";
 import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
+import { stampFinancialSynced } from "../tmsIngest.js";
 
 /**
  * Financial staging endpoints for the on-prem agent (P3.2). Registered INSIDE tmsIngestRouter,
@@ -35,6 +36,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestSettlements(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -49,6 +53,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestApVouchers(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -63,6 +70,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestDeductions(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -80,6 +90,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestMovementFacts(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -94,6 +107,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestLedgerTotals(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -108,6 +124,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestGlAccounts(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -124,6 +143,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestOfficeLines(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );
@@ -138,6 +160,9 @@ export function registerTmsFinancialRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestBilling(admin, req.tms!.orgId, parsed.data);
+      // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
+      // finding read a fact rather than guessing from the roster stamp.
+      await stampFinancialSynced(admin, req.tms!.orgId);
       res.json({ ok: true, ...result });
     }),
   );

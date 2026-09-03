@@ -14,6 +14,13 @@
 export { projectFinancialWindow, type ProjectionResult } from "./projection.js";
 export { startFinancialProjectionScheduler } from "./projectionScheduler.js";
 export {
+  startFinancialFreshnessScheduler,
+  runFinancialFreshnessOnce,
+  planFreshnessFindings,
+  STALE_AFTER_HOURS,
+  FINANCE_JOB_KINDS,
+} from "./financialFreshness.js";
+export {
   searchEntries,
   summarizeByCategory,
   moneyByVehicle,
