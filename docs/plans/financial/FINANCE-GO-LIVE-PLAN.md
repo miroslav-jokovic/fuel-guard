@@ -105,6 +105,15 @@ was derived from.
 > idempotent by file hash and no-ops.
 
 **Step F2.** Ingest guard + rejects + re-queue (owner runs the one-line dispatch, as for R6).
+The re-queue is one statement in the Supabase SQL editor, after the guard has deployed (the claim
+rule of 0095 takes `queued` rows whose `run_after` has passed):
+
+```sql
+update jobs set status = 'queued', attempts = 0, error = null, locked_by = null,
+  lease_expires_at = null, started_at = null, finished_at = null, run_after = now()
+where kind = 'efs_window_refetch' and status = 'failed';
+```
+
 **Done when:** April and May canonical fuel sit inside the band the complete months show
 (D-FIN12 names the band), the job reads `done`, and `rejects` lists the row that overflowed with
 its reason.
@@ -426,7 +435,7 @@ Correctness before operations before presentation; the owner/carrier items run i
 | # | Step | Decision | Blocks |
 |---|---|---|---|
 | 1 | F1 + F11 — schedule leaves the pool; largest-remainder; invariant test | D-FIN1, D-FIN11 | every all-in figure |
-| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch | D-FIN2 | April/May fuel |
+| 2 | F2 — ingest guard, rejects, re-queue the April/May refetch — **BUILT 2026-09-03** (`efsIngestRejects.ts`; rejects on `import_rows`; the re-queue is the owner's one statement, §1.2) | D-FIN2 | April/May fuel |
 | 3 | F10 — null per-mile, measured-only fleet figure | D-FIN10 | trust in the table |
 | 4 | F6 — zero rows never delete; one RPC | D-FIN6 | fleet truth surviving a bad sweep |
 | 5 | F3 — last-synced, "as of", failure findings | D-FIN3 | knowing 2–4 held |

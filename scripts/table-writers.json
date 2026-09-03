@@ -227,7 +227,11 @@
   "idle_telemetry_windows": [
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
+  "import_rows": [
+    "apps/api/src/modules/efs/services/efsIngestRejects.ts"
+  ],
   "imports": [
+    "apps/api/src/modules/efs/services/efsIngestRejects.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts"
