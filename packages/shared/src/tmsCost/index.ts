@@ -9,3 +9,5 @@ export * from "./ownerOperators.js";
 export * from "./cpmHarness.js";
 export * from "./fixedCosts.js";
 export * from "./cpmCaveats.js";
+export * from "./apportion.js";
+export * from "./cpmTieOut.js";
