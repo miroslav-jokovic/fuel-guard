@@ -129,7 +129,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-idle",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -152,7 +152,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-hos",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -255,7 +255,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-driver-scores",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

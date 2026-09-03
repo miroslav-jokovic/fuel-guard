@@ -2,7 +2,7 @@ import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type DashboardTransaction, type DashboardAnomaly, type OdoRow, type DispositionCaseInput } from "@silvicom/shared";
 import { generateAndSendDigest } from "../../org/index.js";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -127,7 +127,10 @@ async function loadCaseDispositions(admin: SupabaseClient, orgId: string): Promi
 
 export function reportsRouter(): Router {
   const router = Router();
-  router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager", "auditor"));
+  // The reports and detection-health screens are catalogued under `settings` (S1: admin.reports,
+  // admin.coverage, admin.recall-audit), and this list was exactly that section's read set written
+  // out by hand. Derived now, so an org that re-answers `settings` moves the API with the page.
+  router.use(requireAuth, requireOrg, requireSection("settings", "view"));
 
   // detection-accuracy (JSON) — measured precision, confidence interval, FP rate, per-signal + trend.
   router.get(
@@ -152,7 +155,7 @@ export function reportsRouter(): Router {
   // Send the weekly theft digest NOW (for testing / on-demand). Emails the org's recipients.
   router.post(
     "/digest",
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

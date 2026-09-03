@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AUDIT_VERDICTS, CASE_RULE_ID, computeRecallMetrics } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, dbErrorResponse, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -38,10 +38,13 @@ export function auditRouter(): Router {
   router.use(requireAuth);
 
   // A fresh random sample of cleared, covered fills to review (never the same audited ones twice).
+  // ⚠ `settings`, and the section is not obvious from the path. This router backs the Recall audit
+  // and Reports screens (`useRecallAudit.ts`, `ReportsPage.vue`), both catalogued `settings` in S1 —
+  // and the two hand-written lists it carried were exactly that section's view and manage sets.
   router.get(
     "/sample",
     requireOrg,
-    requireRole("admin", "fleet_manager", "auditor"),
+    requireSection("settings", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -78,7 +81,7 @@ export function auditRouter(): Router {
   router.post(
     "/transaction/:id",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     validateBody(verdictSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -114,7 +117,7 @@ export function auditRouter(): Router {
   router.get(
     "/recall-metrics",
     requireOrg,
-    requireRole("admin", "fleet_manager", "auditor"),
+    requireSection("settings", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;

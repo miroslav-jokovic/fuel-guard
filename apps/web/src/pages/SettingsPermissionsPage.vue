@@ -23,12 +23,15 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
  * "shown" is a real answer rather than a reset (D-SURF6, D-SURF7).
  *
  * ── WHAT THIS PAGE DOES NOT GOVERN, SAID OUT LOUD ───────────────────────────────────────────────
- * ⚠ Q-SURF1 (step S7) is not done: roughly two dozen API endpoints still ask a hand-written list of
- * roles, and about sixty ask only that the caller is signed in. Those are mostly correct by design —
- * provider webhooks, the driver app's own surfaces, participation-scoped messaging — but "mostly" is
- * not a measurement, and a permissions page that implied completeness before that audit landed would
- * be making a promise the product has not yet checked. The callout below says so, and it comes out
- * when S7 does.
+ * ⚠ This paragraph was a warning that the audit had not happened; S7 has now happened, so it is a
+ * measurement. Every one of the API's 351 routes either derives its answer from the matrix above,
+ * carries a role gate an org cannot reach by design, or is recorded in `testing/routeLedger.ts` with
+ * the argument for why it is open — and two fitness functions fail the build if a new one appears
+ * unexamined. What remains outside this page is therefore a short, named list rather than an unknown:
+ * a handful of acts granted by NAME because a section is the wrong unit for them (issuing a driver's
+ * app login, merging two driver records, the driver app's own surfaces), and a handful of endpoints
+ * that are open for a stated reason (accepting an invitation before you belong to an organisation, a
+ * map-tile proxy carrying no tenant data). The callout below says that, in the reader's words.
  */
 const tabs: TabItem[] = [
   { value: "roles", label: "Roles" },
@@ -60,10 +63,11 @@ const tab = ref("roles");
     </div>
 
     <AppCallout tone="caution">
-      Not every part of the product is governed from this page yet. A handful of API endpoints still
-      decide access from a fixed list of roles rather than from the matrix above, so denying someone a
-      screen hides it and closes its address, and a few background or integration endpoints will still
-      answer. Those are being worked through; nothing on this page overstates what it controls.
+      A few things stay outside this page on purpose. Some acts are granted by name rather than by
+      section — issuing a driver's app login, merging two driver records — because taking them away
+      from one person should not depend on a whole section. Some endpoints are open on purpose too,
+      such as accepting an invitation before you belong to an organisation. Each one is recorded with
+      its reason; nothing else in the product decides access anywhere but here.
     </AppCallout>
   </div>
 </template>

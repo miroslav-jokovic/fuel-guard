@@ -311,11 +311,18 @@ describe("the People tab", () => {
 });
 
 describe("the page itself", () => {
-  it("says which parts of the product it does not govern yet, rather than implying completeness", async () => {
+  it("names what stays outside it, rather than implying it governs everything", async () => {
     const w = mountPage();
     await flushPromises();
-    // Q-SURF1 / S7: ~24 endpoints on hand-written role lists and ~65 with nothing beyond requireAuth.
-    expect(w.text()).toContain("Not every part of the product is governed from this page yet");
+    /**
+     * Q-SURF1 / S7. While the audit was outstanding this said the product was not fully governed;
+     * now that it has landed, the honest sentence is the short named list of what is deliberately
+     * decided elsewhere — the acts granted by NAME and the endpoints open for a stated reason. Both
+     * halves are asserted, because a page that named only one of them would read as though the other
+     * did not exist.
+     */
+    expect(w.text()).toContain("granted by name rather than by section");
+    expect(w.text()).toContain("Each one is recorded with its reason");
   });
 
   it("states both staleness contracts up front, and does not conflate them", async () => {
