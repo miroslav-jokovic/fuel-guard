@@ -3,13 +3,18 @@
 **Status:** ACTIVE — T1 in build. **Owner:** Miki. **Written:** 2026-08-28, from the June 2026
 income statement reviewed line-by-line against what the pipeline measures today.
 
-**Superseded in ordering, 2026-09-03, by [FINANCE-GO-LIVE-PLAN](./FINANCE-GO-LIVE-PLAN.md) §4b.**
-Two owner rulings moved underneath this document: the reporting era starts **2026-07-01**
-(D-FIN16), so every June figure below is now a regression fixture rather than a deliverable; and
-org-level precision comes before per-truck precision (D-FIN17), so T2 (0.7% of the month) and T3
-(netting inside a total that already ties) move to the END of the queue, behind the fixed-cost
-schedule, the office-lines backfill and the account→family catalogue. The steps themselves are
-unchanged. Read §4b of the go-live plan for the order, and its §6 for the collector evidence.
+**SUPERSEDED IN FULL, 2026-09-03, by
+[FINANCE-FLEET-REPORT-PLAN](./FINANCE-FLEET-REPORT-PLAN.md) §0.** The owner ruled that we do not
+have a precise enough source for per-truck cost and that Finance will be a fleet report instead —
+so T1 through T6 are not deferred, they are out of scope, and rulings R1, R3, R4 and R5 are not
+pending, they are moot. R2 survives, but as a JOIN rather than a table: the class of a deduction
+is the type of the GL account it posts to, and that derivation is now used only to count
+owner-operator income correctly (fleet plan §1.3, measured working on July 2026 data).
+
+This document stays in the tree because it is the honest record of what per-truck attribution
+would have required — a per-unit contract register for ≈$1.06M/month of lease and insurance, a
+FleetPal key, a toll provider export, and four owner rulings — and that record is what makes the
+decision to stop defensible. Nothing below is a queue any more.
 
 The owner's requirement, verbatim in spirit: *precise numbers — no assuming, no improvising.* This
 plan is bound by that. Every step below either (a) attributes dollars to a truck from a MEASURED

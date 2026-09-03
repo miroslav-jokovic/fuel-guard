@@ -1,6 +1,15 @@
 # Finance go-live — from "proven once" to "precise every month"
 
-**Status:** ACTIVE — audit complete, nothing built yet. **Owner:** Miki. **Written:** 2026-09-03,
+**Status:** SUPERSEDED IN SCOPE 2026-09-03 by
+[FINANCE-FLEET-REPORT-PLAN](./FINANCE-FLEET-REPORT-PLAN.md). This document remains the record of
+the correctness programme — D-FIN1 through D-FIN15, all built and merged, and every one of them
+still holds. What no longer holds is its §4 queue and its §6 collector inventory: the owner ruled
+that Finance is a FLEET report, so per-truck attribution, the fixed-cost schedule, FleetPal, the
+toll collector, jurisdictional allocation and the overhead basis are out of scope rather than
+pending, and the 2026-07-01 reporting era moves back to 2026-01-01 because Finance no longer reads
+EFS. Read the fleet plan for what is being built; read this one for why the numbers can be trusted.
+
+**Original status:** ACTIVE — audit complete, nothing built yet. **Owner:** Miki. **Written:** 2026-09-03,
 from a read-only audit of the collectors, the store, the harness, the Finance pages and the
 production database. **Parent:** [TRUCK-COST-ATTRIBUTION-PLAN](./TRUCK-COST-ATTRIBUTION-PLAN.md)
 (T1–T7, R1–R6) and `docs/plans/mcleod/FINANCIAL-STORE-PLAN.md` (D-FS1..8). This plan does not
