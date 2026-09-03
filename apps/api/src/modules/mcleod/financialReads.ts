@@ -68,6 +68,8 @@ export interface StagedBilling {
   total_charges: number | string;
   other_charge: number | string;
   excise_tax: number | string;
+  /** McLeod's billed distance for the order (0275) — the miles the load was PRICED on. Null on ~2% of bills. */
+  distance: number | string | null;
   post_key: string | null;
   post_module: string | null;
 }
@@ -127,7 +129,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
       .eq("org_id", orgId)
       .gte("bill_date", fromIso)
       .lt("bill_date", toIso)

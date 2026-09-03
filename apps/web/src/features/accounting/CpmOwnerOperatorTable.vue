@@ -19,6 +19,8 @@ defineProps<{
   total: number;
   pageSize: number;
   loading: boolean;
+  /** The query's failure, shown in the table rather than swallowed (D-FIN15). */
+  error: string | null;
 }>();
 defineEmits<{ "update:page": [n: number] }>();
 
@@ -42,7 +44,7 @@ const columns: DataTableColumn[] = [
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="rows" embedded row-key="payeeId" :loading="loading" :error="null">
+  <DataTable :columns="columns" :rows="rows" embedded row-key="payeeId" :loading="loading" :error="error">
     <template #empty>
       <p>No contractor settlements in this period.</p>
     </template>

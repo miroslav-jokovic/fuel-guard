@@ -56,7 +56,7 @@ const TABS: TabItem[] = [
 const tab = ref<CostTab>("schedule");
 
 const glPeriod = ref(previousMonth());
-const { data: glCosts, isLoading: glLoading } = useGlMonthlyCostsQuery(glPeriod);
+const { data: glCosts, isLoading: glLoading, isError: glIsError, error: glError } = useGlMonthlyCostsQuery(glPeriod);
 const toast = useToastStore();
 const { data, isLoading, isError, error, refetch, isFetching } = useCostSchedulesQuery();
 const create = useCreateScheduleMutation();
@@ -287,6 +287,7 @@ const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", c
         :page-size="PAGE_SIZE"
         :sort="accountSort"
         :loading="glLoading"
+        :error="glIsError ? (glError instanceof Error ? glError.message : 'Failed to load') : null"
         :swept="glCosts?.swept ?? false"
         :accounts-staged="glCosts?.accountsStaged ?? false"
         @sort="onAccountSort"
