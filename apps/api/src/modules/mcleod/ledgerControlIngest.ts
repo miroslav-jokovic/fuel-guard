@@ -9,12 +9,11 @@ import type { TmsLedgerTotalsPayload, TmsGlAccountsPayload } from "@silvicom/sha
  * would stand next to the new one's, which is precisely the kind of quiet double-count this table
  * exists to catch in others.
  *
- * The two steps are not atomic; between them a reader can see the month over-complete (old and new
- * rows together), never under-complete. For a reconciliation report re-swept nightly, a
- * seconds-wide over-complete window is acceptable. Migration 0302 ships `replace_mcleod_gl_month`,
- * the same replace as one statement; this reader moves onto it one merge AFTER the migration has
- * applied, because `lint:migration-ordering` cannot see a function and the deploy window would
- * otherwise serve a caller of an RPC that does not exist yet for ~9 minutes.
+ * Since 2026-09-03 the replace is ONE statement — `replace_mcleod_gl_month` (0302, company-scoped
+ * by 0304) — so the upsert and the stale delete share a transaction and a stamp. This reader moved
+ * onto it one merge after 0304 had applied in production (`pnpm verify:live`), because
+ * `lint:migration-ordering` cannot see a function and the deploy window would otherwise serve a
+ * caller of an RPC that did not exist yet for ~9 minutes.
  *
  * ZERO ROWS NEVER DELETE (D-FIN6, FINANCE-GO-LIVE-PLAN §1.6). Before 2026-09-03 an empty payload
  * upserted nothing and then deleted every row of the month bearing an older stamp — which is every
@@ -23,6 +22,7 @@ import type { TmsLedgerTotalsPayload, TmsGlAccountsPayload } from "@silvicom/sha
  * took the CPM page's "fleet truth" with them. Zero rows is a MEASUREMENT of the source and is
  * returned as `skipped: "empty"` for the caller to log and surface; the month keeps what it had.
  */
+
 
 const CHUNK = 500;
 
@@ -46,39 +46,26 @@ export async function ingestLedgerTotals(
     );
     return { received: 0, upserted: 0, staleRemoved: 0, skipped: "empty" };
   }
-  const sweptAt = new Date().toISOString();
-  let upserted = 0;
-  for (let i = 0; i < payload.totals.length; i += CHUNK) {
-    const rows = payload.totals.slice(i, i + CHUNK).map((t) => ({
-      org_id: orgId,
-      period_start: payload.period_start,
-      period_end: payload.period_end,
-      company_id: payload.company_id ?? null,
+  // One statement, one stamp (0302 → 0304, D-FIN6): the upsert and the stale delete share a
+  // transaction inside `replace_mcleod_gl_month`, scoped to the org, the company and the month, so a
+  // crash between them can no longer leave a month over-complete, and a sweep of one company can no
+  // longer remove another's rows for the same month. The two-call path this replaces is gone.
+  const { data, error } = await admin.rpc("replace_mcleod_gl_month", {
+    p_org: orgId,
+    p_company_id: payload.company_id ?? null,
+    p_period_start: payload.period_start,
+    p_period_end: payload.period_end,
+    p_rows: payload.totals.map((t) => ({
       post_module: t.post_module,
       glid: t.glid,
-      line_count: t.lines,
+      lines: t.lines,
       net_amount: t.net_amount,
       abs_amount: t.abs_amount,
-      swept_at: sweptAt,
-    }));
-    const { data, error } = await admin
-      .from("mcleod_gl_totals")
-      .upsert(rows, { onConflict: "org_id,period_start,post_module,glid" })
-      .select("id");
-    if (error) throw new Error(`mcleod_gl_totals upsert failed: ${error.message}`);
-    upserted += data?.length ?? rows.length;
-  }
-
-  const { data: stale, error: delErr } = await admin
-    .from("mcleod_gl_totals")
-    .delete()
-    .eq("org_id", orgId)
-    .eq("period_start", payload.period_start)
-    .lt("swept_at", sweptAt)
-    .select("id");
-  if (delErr) throw new Error(`mcleod_gl_totals stale delete failed: ${delErr.message}`);
-
-  return { received: payload.totals.length, upserted, staleRemoved: stale?.length ?? 0 };
+    })),
+  });
+  if (error) throw new Error(`replace_mcleod_gl_month failed: ${error.message}`);
+  const row = (Array.isArray(data) ? data[0] : data) as { upserted?: number; stale_removed?: number } | null;
+  return { received: payload.totals.length, upserted: row?.upserted ?? 0, staleRemoved: row?.stale_removed ?? 0 };
 }
 
 /**

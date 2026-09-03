@@ -281,9 +281,7 @@
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
-  "mcleod_gl_totals": [
-    "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
-  ],
+  "mcleod_gl_totals": [],
   "mcleod_movements": [
     "apps/api/src/modules/mcleod/movementFactIngest.ts"
   ],
