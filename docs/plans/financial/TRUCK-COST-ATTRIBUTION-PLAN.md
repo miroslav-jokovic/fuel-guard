@@ -150,6 +150,10 @@ tie between the three buckets and the GL, and any nonzero residual names its acc
 
 ## 4. Open rulings — each blocks the step named, nothing else
 
+*Every ruling below now has a complete recommended answer in
+[FINANCE-GO-LIVE-PLAN](./FINANCE-GO-LIVE-PLAN.md) §2 (2026-09-03), written so that ruling is a yes/no.
+R2 and R4 are re-expressed there as derivations rather than lists.*
+
 *R1, R2 and R4 have prepared worksheets — measured candidates with proposals to strike or confirm,
 from recon F6/F10 (2026-08-28): see [COST-RULING-WORKSHEETS](./COST-RULING-WORKSHEETS.md). R2's
 worksheet also surfaced that T3's taxonomy needs a FOURTH class: McLeod's type-R deduction rows are

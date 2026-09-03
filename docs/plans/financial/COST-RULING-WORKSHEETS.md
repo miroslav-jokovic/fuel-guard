@@ -105,4 +105,7 @@ ruled. No default flips until this line carries the owner's ruling and a date.
 
 ## Rulings, when made (append here, dated)
 
+*Recommended answers for R1–R5, with reasoning, are in [FINANCE-GO-LIVE-PLAN](./FINANCE-GO-LIVE-PLAN.md) §2
+(2026-09-03). Append the dated ruling below; the recommendation is not a ruling.*
+
 - *(pending)*
