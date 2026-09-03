@@ -1,4 +1,4 @@
-// Silvicom 360 — replace_mcleod_gl_month matrix (migration 0302, D-FIN6).
+// Silvicom 360 — replace_mcleod_gl_month matrix (migrations 0302 → 0304, D-FIN6 + D-FIN8).
 //
 // One org-month of GL control totals is replaced in one statement. What this matrix pins:
 //
@@ -9,6 +9,8 @@
 //   3. TENANT SCOPE IS THE ARGUMENT — another org's rows for the same month are untouched.
 //   4. OTHER MONTHS ARE UNTOUCHED — the stale delete is keyed on the month passed in.
 //   5. A MALFORMED PAYLOAD FAILS WHOLE — a non-array lands nothing and deletes nothing.
+//   6. THE COMPANY IS THE UNIT — a TMS sweep never removes TMS2's rows for the same month, and a
+//      row with no company (deploy-window) IS replaced; the four-argument 0302 function is gone.
 //
 // Run:  node supabase/tests/mcleod-gl-month-replace.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -73,11 +75,11 @@ const ORG_B = "22222222-2222-2222-2222-222222222222";
 await db.query(`insert into organizations (id, name) values ($1,'Carrier A'), ($2,'Carrier B')`, [ORG_A, ORG_B]);
 
 const JUNE = "2026-06-01", JULY = "2026-07-01", AUG = "2026-08-01";
-const replace = (org, start, end, rows) =>
-  db.query(`select * from replace_mcleod_gl_month($1, $2, $3, $4::jsonb)`, [org, start, end, JSON.stringify(rows)]);
+const replace = (org, start, end, rows, company = "TMS") =>
+  db.query(`select * from replace_mcleod_gl_month($1, $2, $3, $4, $5::jsonb)`, [org, company, start, end, JSON.stringify(rows)]);
 const month = async (org, start) =>
   (await db.query(
-    `select post_module, glid, line_count, net_amount::text, abs_amount::text, swept_at from mcleod_gl_totals
+    `select post_module, glid, line_count, net_amount::text, abs_amount::text, swept_at, company_id from mcleod_gl_totals
       where org_id=$1 and period_start=$2 order by post_module, glid`,
     [org, start],
   )).rows;
@@ -100,7 +102,7 @@ ok("a null payload is treated the same as empty", nul.rows[0].upserted === 0 && 
 
 // ── 5. malformed payload fails whole ──────────────────────────────────────────────────────────
 let threw = false;
-try { await db.query(`select * from replace_mcleod_gl_month($1,$2,$3,$4::jsonb)`, [ORG_A, JUNE, JULY, JSON.stringify({ not: "an array" })]); }
+try { await db.query(`select * from replace_mcleod_gl_month($1,$2,$3,$4,$5::jsonb)`, [ORG_A, "TMS", JUNE, JULY, JSON.stringify({ not: "an array" })]); }
 catch { threw = true; }
 const objRes = threw ? null : (await month(ORG_A, JUNE)).length;
 ok("a non-array payload lands nothing and deletes nothing", threw || objRes === 2);
@@ -120,6 +122,25 @@ ok("  every surviving row carries one stamp, newer than before", new Set(juneAft
 // ── 3 + 4. tenant and month scope ─────────────────────────────────────────────────────────────
 ok("org B's June is untouched by org A's sweeps", (await month(ORG_B, JUNE)).length === 1);
 ok("org A's July is untouched by a June sweep", (await month(ORG_A, JULY)).length === 1);
+
+// ── 6. the company is the unit ────────────────────────────────────────────────────────────────
+await replace(ORG_A, JUNE, JULY, [{ post_module: "SET", glid: "20500099", lines: 1, net_amount: 0, abs_amount: 1 }], "TMS2");
+const tms2Before = (await month(ORG_A, JUNE)).filter((r) => r.company_id === "TMS2").length;
+await replace(ORG_A, JUNE, JULY, [
+  { post_module: "SET", glid: "20500010", lines: 2761, net_amount: 0, abs_amount: 2530001 },
+  { post_module: "FUEL", glid: "20550000", lines: 57486, net_amount: 0, abs_amount: 2383148.18 },
+]);
+const tms2After = (await month(ORG_A, JUNE)).filter((r) => r.company_id === "TMS2").length;
+ok("a TMS sweep leaves TMS2's rows for the same month untouched", tms2Before === 1 && tms2After === 1);
+ok("  and every TMS row carries its company", (await month(ORG_A, JUNE)).filter((r) => r.company_id === "TMS").length === 2);
+await db.query(`insert into mcleod_gl_totals (org_id, period_start, period_end, post_module, glid, swept_at) values ($1,$2,$3,'GJ','99999999', now() - interval '1 day')`, [ORG_A, JUNE, JULY]);
+await replace(ORG_A, JUNE, JULY, [
+  { post_module: "SET", glid: "20500010", lines: 2761, net_amount: 0, abs_amount: 2530001 },
+  { post_module: "FUEL", glid: "20550000", lines: 57486, net_amount: 0, abs_amount: 2383148.18 },
+]);
+ok("a stale row with NO company (deploy-window) is replaced by the next sweep", !(await month(ORG_A, JUNE)).some((r) => r.glid === "99999999"));
+const fourArg = await db.query(`select count(*)::int n from pg_proc where proname='replace_mcleod_gl_month' and pronargs=4`);
+ok("the four-argument 0302 function is gone — a caller that forgets the company cannot fall back to it", fourArg.rows[0].n === 0);
 
 // ── grants ────────────────────────────────────────────────────────────────────────────────────
 const grants = await db.query(
