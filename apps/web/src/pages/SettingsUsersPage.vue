@@ -11,6 +11,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
+import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -24,6 +25,7 @@ const members = ref<OrgMember[]>([]);
 const loading = ref(false);
 
 const email = ref("");
+const inviteName = ref("");
 const role = ref<UserRole>("dispatcher");
 const submitting = ref(false);
 
@@ -108,11 +110,15 @@ async function sendMailTest() {
 async function invite() {
   submitting.value = true;
   const addr = email.value;
-  const res = await apiFetch<InviteResult>("/api/invites", { method: "POST", body: { email: addr, role: role.value } });
+  const res = await apiFetch<InviteResult>("/api/invites", {
+    method: "POST",
+    body: { email: addr, role: role.value, fullName: inviteName.value.trim() },
+  });
   if (res.ok) {
     handleInviteResult(addr, res.data);
     email.value = "";
-    role.value = "driver";
+    inviteName.value = "";
+    role.value = "dispatcher";
     await load();
   } else {
     toast.error("Could not send invite", res.error?.message);
@@ -184,12 +190,43 @@ async function changeRole(userId: string, newRole: string) {
   await load();
 }
 
+/**
+ * Rename a member (0301). A drawer rather than an inline cell: a name is typed once and confirmed,
+ * not toggled, and the drawer can say what the roster does for a driver (D-MEM3) where a cell could not.
+ */
+const renaming = ref<OrgMember | null>(null);
+const renameValue = ref("");
+const renameBusy = ref(false);
+function openRename(m: OrgMember) {
+  renaming.value = m;
+  renameValue.value = m.fullName ?? "";
+}
+async function saveRename() {
+  const m = renaming.value;
+  const name = renameValue.value.trim();
+  if (!m || name.length === 0) return;
+  renameBusy.value = true;
+  const res = await apiFetch(`/api/members/${m.userId}`, { method: "PATCH", body: { fullName: name } });
+  renameBusy.value = false;
+  if (res.ok) {
+    toast.success("Name updated", `${m.email ?? m.userId} is now ${name}`);
+    renaming.value = null;
+    await load();
+  } else {
+    toast.error("Could not update name", res.error?.message);
+  }
+}
 // ── search + multi-select (members) ─────────────────────────────────────────
 const search = ref("");
 const filteredMembers = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return members.value;
-  return members.value.filter((m) => (m.email ?? m.userId).toLowerCase().includes(q) || m.role.toLowerCase().includes(q));
+  return members.value.filter(
+    (m) =>
+      (m.fullName ?? "").toLowerCase().includes(q) ||
+      (m.email ?? m.userId).toLowerCase().includes(q) ||
+      m.role.toLowerCase().includes(q),
+  );
 });
 
 // DataTable owns the checkboxes + select-all; bulk remove never targets yourself.
@@ -207,6 +244,7 @@ async function bulkRemove() {
 }
 
 const memberColumns: DataTableColumn[] = [
+  { key: "fullName", label: "Name", width: "lg" },
   { key: "email", label: "Email", width: "xl" },
   { key: "role", label: "Role", width: "md", cellClass: "text-ink-secondary capitalize" },
   { key: "joinedAt", label: "Joined", width: "md", cellClass: "text-ink-muted" },
@@ -251,6 +289,9 @@ onMounted(load);
         </p>
       </div>
       <form class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="invite">
+        <FormField v-slot="{ id }" label="Name" class="flex-1">
+          <BaseInput :id="id" v-model="inviteName" type="text" required maxlength="120" placeholder="Jane Dispatcher" autocomplete="off" />
+        </FormField>
         <FormField v-slot="{ id }" label="Email" class="flex-1">
           <BaseInput
             :id="id"
@@ -307,16 +348,20 @@ onMounted(load);
         :selected="selectedIds"
         @update:selected="selectedIds = $event"
       >
+        <template #cell-fullName="{ row }">
+          <span v-if="row.fullName" class="font-medium text-ink">{{ row.fullName }}</span>
+          <span v-else class="text-ink-tertiary">No name yet</span>
+        </template>
         <template #cell-email="{ row }">{{ row.email ?? row.userId }}</template>
         <template #cell-role="{ row }">
           <AppSelect :model-value="row.role" :options="roleOptions" @update:model-value="changeRole(row.userId, String($event))" />
         </template>
         <template #cell-joinedAt="{ row }">{{ new Date(row.joinedAt).toLocaleDateString() }}</template>
         <template #actions="{ row }">
-          <KebabMenu v-if="row.userId !== session.userId">
-            <BaseButton class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</BaseButton>
+          <KebabMenu>
+            <BaseButton class="kebab-item" @click="openRename(row)">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
+            <BaseButton v-if="row.userId !== session.userId" class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</BaseButton>
           </KebabMenu>
-          <span v-else class="text-xs text-ink-tertiary">You</span>
         </template>
       </DataTable>
     </section>
@@ -335,6 +380,31 @@ onMounted(load);
         </p>
       </BaseCard>
     </section>
+
+    <SlideOver
+      :open="renaming !== null"
+      :title="renaming?.fullName ? 'Edit name' : 'Add name'"
+      :description="renaming?.email ?? undefined"
+      @close="renaming = null"
+    >
+      <form id="rename-member" class="space-y-4" @submit.prevent="saveRename">
+        <FormField
+          v-slot="{ id }"
+          label="Name"
+          :hint="renaming?.role === 'driver' ? 'A driver is named by the roster until you set a name here; the roster row itself is edited on the Drivers page.' : 'How this person appears across Silvicom 360.'"
+        >
+          <BaseInput :id="id" v-model="renameValue" type="text" required maxlength="120" autocomplete="off" />
+        </FormField>
+      </form>
+      <template #footer>
+        <div class="flex items-center justify-end gap-3">
+          <BaseButton :disabled="renameBusy" @click="renaming = null">Cancel</BaseButton>
+          <BaseButton variant="primary" type="submit" form="rename-member" :disabled="renameBusy || renameValue.trim().length === 0">
+            {{ renameBusy ? "Saving…" : "Save name" }}
+          </BaseButton>
+        </div>
+      </template>
+    </SlideOver>
 
     <section class="space-y-3">
       <h3 class="text-base font-semibold text-ink">Invitations</h3>

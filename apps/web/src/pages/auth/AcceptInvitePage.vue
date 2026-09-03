@@ -54,6 +54,7 @@ const linkError = ref<string | null>(null);
 /** The parsed link, held from mount to submit — this is what makes redemption a deliberate act. */
 const link = ref<InviteLinkParams | null>(null);
 
+const fullName = ref("");
 const password = ref("");
 const confirm = ref("");
 const error = ref<string | null>(null);
@@ -116,10 +117,14 @@ async function redeem(params: InviteLinkParams): Promise<void> {
   }
 }
 
-const canSubmit = computed(() => !loading.value && password.value.length > 0);
+const canSubmit = computed(() => !loading.value && password.value.length > 0 && fullName.value.trim().length > 0);
 
 async function onSubmit() {
   error.value = null;
+  if (fullName.value.trim().length === 0) {
+    error.value = "Tell us your name.";
+    return;
+  }
   if (password.value.length < 8) {
     error.value = "Password must be at least 8 characters.";
     return;
@@ -160,7 +165,10 @@ async function onSubmit() {
     const { error: pwErr } = await supabase.auth.updateUser({ password: password.value });
     if (pwErr) throw pwErr;
 
-    const res = await apiFetch("/api/invites/accept", { method: "POST", body: {} });
+    // The name travels with the acceptance (0301, D-MEM1): the person's own answer outranks the
+    // one the admin typed on the invitation, and the profile is written by the same request that
+    // admits them — so nobody is ever admitted nameless by a second call that did not happen.
+    const res = await apiFetch("/api/invites/accept", { method: "POST", body: { fullName: fullName.value.trim() } });
     if (!res.ok) {
       throw new Error(res.error?.message ?? "Could not accept the invitation.");
     }
@@ -195,6 +203,9 @@ async function onSubmit() {
       <p class="mb-6 text-sm text-ink-muted">Finish setting up your Silvicom 360 account.</p>
 
       <form class="space-y-5" @submit.prevent="onSubmit">
+        <FormField id="nm" v-slot="{ id }" label="Your name" hint="How colleagues will see you across Silvicom 360.">
+          <BaseInput :id="id" v-model="fullName" type="text" autocomplete="name" required maxlength="120" />
+        </FormField>
         <FormField id="pw" v-slot="{ id }" label="New password">
           <BaseInput :id="id" v-model="password" type="password" autocomplete="new-password" required />
         </FormField>

@@ -124,8 +124,8 @@ beforeEach(() => {
     editableRoles: EDITABLE_ROLES,
   };
   state.members = [
-    { userId: "u-tech", email: "shop@silvicom.test", role: ROLE, joinedAt: "2026-01-01T00:00:00Z" },
-    { userId: "u-admin", email: "boss@silvicom.test", role: "admin", joinedAt: "2026-01-02T00:00:00Z" },
+    { userId: "u-tech", email: "shop@silvicom.test", fullName: "Shop Lead", role: ROLE, joinedAt: "2026-01-01T00:00:00Z" },
+    { userId: "u-admin", email: "boss@silvicom.test", fullName: null, role: "admin", joinedAt: "2026-01-02T00:00:00Z" },
   ];
   state.memberSections = {
     userId: "u-tech",
@@ -301,6 +301,15 @@ describe("the People tab", () => {
     await flushPromises();
     return w;
   };
+
+  it("names the person by their name, with the email beside it — and by email alone when they have none", async () => {
+    const w = await openPeople();
+    expect(w.find("h2").text()).toBe("Shop Lead");
+    expect(w.text()).toContain("shop@silvicom.test · Technician");
+    const labels = w.findComponent(AppCombobox).props("options").map((o: { label: string }) => o.label);
+    expect(labels).toContain("Shop Lead · Technician (shop) · shop@silvicom.test");
+    expect(labels).toContain("boss@silvicom.test · Admin");
+  });
 
   it("marks each row with the layer that answered it", async () => {
     const w = await openPeople();

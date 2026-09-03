@@ -84,6 +84,8 @@ export const useSessionStore = defineStore("session", () => {
    * a section (D-SURF2), so the worst an empty answer can do is show the shipped catalogue.
    */
   const surfaces = ref<SurfaceClaim | null>(null);
+  /** The caller's display name from `/api/me` (0301); null until loaded or when they have none. */
+  const fullName = ref<string | null>(null);
 
   const isAuthenticated = computed(() => !!session.value);
   const hasOrg = computed(() => !!orgId.value); // false ⇒ "account pending" (audit B3)
@@ -135,6 +137,7 @@ export const useSessionStore = defineStore("session", () => {
       // with the old one must not outlive it. Cleared rather than refetched: `null` is "no denials",
       // which is the safe reading while the next `loadSurfaces()` is in flight.
       surfaces.value = null;
+      fullName.value = null;
     });
     // Before `initialized`, so the router guard — which awaits this whole function — never resolves
     // a route against an answer that has not arrived. A failure leaves `null`, which denies nothing.
@@ -145,8 +148,9 @@ export const useSessionStore = defineStore("session", () => {
   /** Fetch this caller's screen entitlements. Silent on failure, for the reason `surfaces` states. */
   async function loadSurfaces() {
     if (!session.value) return;
-    const res = await apiFetch<{ surfaces?: SurfaceClaim }>("/api/me");
+    const res = await apiFetch<{ surfaces?: SurfaceClaim; fullName?: string | null }>("/api/me");
     surfaces.value = res.ok ? (res.data?.surfaces ?? {}) : null;
+    fullName.value = res.ok ? (res.data?.fullName ?? null) : null;
   }
 
   async function signIn(emailAddr: string, password: string) {
@@ -207,6 +211,7 @@ export const useSessionStore = defineStore("session", () => {
     initialized,
     userId,
     email,
+    fullName,
     orgId,
     role,
     sections,

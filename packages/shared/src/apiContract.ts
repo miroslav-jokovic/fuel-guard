@@ -121,9 +121,18 @@ export const userSurfaceAccessSetSchema = z.object({
 export type UserSurfaceAccessSetRequest = z.infer<typeof userSurfaceAccessSetSchema>;
 
 // ── Invites ───────────────────────────────────────────────────────────────────
+/**
+ * A display name as the product accepts it (0301): trimmed, 1–120 characters, no format beyond that —
+ * a name is whatever the person says it is. One schema, three writers: the invitation, the
+ * acceptance and the Users page, so none of them can disagree about what a name is.
+ */
+export const fullNameSchema = z.string().trim().min(1).max(120);
+
 export const inviteCreateSchema = z.object({
   email: z.email(),
   role: roleSchema,
+  /** The admin usually knows who they are inviting; carried to the acceptance for confirmation. */
+  fullName: fullNameSchema.optional(),
 });
 export type InviteCreateRequest = z.infer<typeof inviteCreateSchema>;
 
@@ -131,6 +140,8 @@ export type InviteCreateRequest = z.infer<typeof inviteCreateSchema>;
 // allowed domain (audit M2); an optional token may be supplied for stricter matching.
 export const inviteAcceptSchema = z.object({
   token: z.string().min(10).optional(),
+  /** The person's own answer; absent, the invitation's name stands (D-MEM3's order, one layer up). */
+  fullName: fullNameSchema.optional(),
 });
 export type InviteAcceptRequest = z.infer<typeof inviteAcceptSchema>;
 
@@ -142,6 +153,7 @@ export const inviteSchema = z.object({
   status: z.enum(["pending", "accepted", "revoked", "expired"]),
   expires_at: z.string(),
   created_at: z.string(),
+  full_name: z.string().nullable().optional(),
 });
 export type Invite = z.infer<typeof inviteSchema>;
 
@@ -154,10 +166,18 @@ export type InviteListResponse = z.infer<typeof inviteListResponseSchema>;
 export const orgMemberSchema = z.object({
   userId: z.uuid(),
   email: z.string().nullable(),
+  /** From `org_member_directory()` (0301): the profile's name, else the roster's for a driver, else null. */
+  fullName: z.string().nullable(),
   role: roleSchema,
   joinedAt: z.string(),
 });
 export type OrgMember = z.infer<typeof orgMemberSchema>;
+
+/** `PATCH /api/members/:id` — a role change, a rename, or both; an empty body changes nothing. */
+export const memberUpdateSchema = z
+  .object({ role: roleSchema.optional(), fullName: fullNameSchema.optional() })
+  .refine((v) => v.role !== undefined || v.fullName !== undefined, { message: "Nothing to change" });
+export type MemberUpdateRequest = z.infer<typeof memberUpdateSchema>;
 
 export const memberListResponseSchema = z.object({
   members: z.array(orgMemberSchema),
@@ -168,6 +188,8 @@ export type MemberListResponse = z.infer<typeof memberListResponseSchema>;
 export const meResponseSchema = z.object({
   userId: z.uuid(),
   email: z.string().nullable(),
+  /** Read fail-open: a missing profile (or table, during a deploy window) is null, never an error. */
+  fullName: z.string().nullable().optional(),
   orgId: z.uuid().nullable(),
   role: roleSchema.nullable(),
 });

@@ -14,6 +14,8 @@ import KebabMenu from "@/components/KebabMenu.vue";
 
 const props = defineProps<{
   email: string | null;
+  /** The person's display name (0301); absent, the email stands where it always did. */
+  name?: string | null;
   role: UserRole | null;
   collapsed?: boolean;
   canManage?: boolean;
@@ -34,31 +36,35 @@ const SCHEME_OPTIONS: { value: ColorScheme; label: string; icon: typeof SchemeSy
 ];
 
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
+/** What the trigger and the menu head say first: the name if there is one, else the email. */
+const headline = computed(() => props.name ?? props.email);
+/** The second line: the role, and the email beside it when the first line was a name. */
+const subline = computed(() => (props.name && props.email ? `${props.email} · ${roleLabel.value}` : roleLabel.value));
 </script>
 
 <template>
   <KebabMenu
     :block="!collapsed"
     :placement="collapsed ? 'right-end' : 'top-start'"
-    :trigger-label="`Account menu for ${email ?? 'signed-in user'}`"
+    :trigger-label="`Account menu for ${headline ?? 'signed-in user'}`"
     tone="sidebar"
   >
     <template #trigger>
       <div
         v-if="collapsed"
         class="flex size-9 items-center justify-center rounded-surface transition-colors hover:bg-surface-muted"
-        :title="email ?? undefined"
+        :title="headline ?? undefined"
       >
-        <AppAvatar :label="email" size="sm" />
+        <AppAvatar :label="headline" size="sm" />
       </div>
       <div
         v-else
         class="group flex w-full items-center gap-2.5 rounded-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-muted"
       >
-        <AppAvatar :label="email" />
+        <AppAvatar :label="headline" />
         <span class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-semibold text-ink">{{ email }}</span>
-          <span class="sidebar-muted mt-0.5 block truncate text-xs">{{ roleLabel }}</span>
+          <span class="block truncate text-sm font-semibold text-ink">{{ headline }}</span>
+          <span class="sidebar-muted mt-0.5 block truncate text-xs">{{ subline }}</span>
         </span>
         <AppIcon
           :icon="ChevronUpDownIcon"
@@ -69,8 +75,8 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
     </template>
 
     <div class="sidebar-divider border-b px-3 py-2.5">
-      <p class="truncate text-sm font-semibold text-ink">{{ email }}</p>
-      <p class="sidebar-muted mt-0.5 text-xs">{{ roleLabel }}</p>
+      <p class="truncate text-sm font-semibold text-ink">{{ headline }}</p>
+      <p class="sidebar-muted mt-0.5 truncate text-xs">{{ subline }}</p>
     </div>
     <div class="sidebar-divider my-1 border-t" />
     <p class="sidebar-section-label px-3 pb-1 pt-1.5 text-2xs font-semibold uppercase tracking-wide">

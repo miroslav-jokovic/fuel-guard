@@ -16,7 +16,7 @@ import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
+import { displayNameFor, invitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
@@ -417,9 +417,20 @@ export function createApp(env: Env): Express {
         surfaces = {};
       }
     }
+    // The caller's display name (0301), fail-open for the reason `displayNameFor` states: a courtesy
+    // on the bootstrap path must never be the thing that takes sign-in down. The try is around the
+    // CLIENT too — `getSupabaseAdmin` itself can throw, and the first draft left it outside and broke
+    // "/api/me returns the principal for a valid token" exactly as the surfaces guard above predicted.
+    let fullName: string | null = null;
+    try {
+      fullName = await displayNameFor(getSupabaseAdmin(env), req.auth!.userId, orgId, req.auth!.role);
+    } catch {
+      fullName = null;
+    }
     res.json({
       userId: req.auth!.userId,
       email: req.auth!.email,
+      fullName,
       orgId,
       role: req.auth!.role,
       surfaces,
