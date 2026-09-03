@@ -695,6 +695,58 @@ resurrects `app.ts`'s prose mention of `requireRole("admin", "fleet_manager")` a
 last one is the third time in this programme a gate has read its own comments; it is why the stripper
 exists rather than being tidiness.
 
+### S8 · The page redrawn as a master–detail — DONE 2026-09-03 (no migration)
+S6 shipped the page as two grids: 77 selects in a 7 × 11 table, then 196 checkboxes in a 28 × 7
+grid, then a preview — ~1,100 px wide, sideways-scrolling under a laptop width, and bracketed by two
+paragraph-length callouts. The owner's verdict on 2026-09-03: "overwhelming, not really user
+friendly, and a nightmare for smaller screens". The data, the four writes, the two staleness
+contracts and every assertion's intent are unchanged; what changed is the shape.
+
+**What shipped.**
+
+- **One role, or one person, at a time.** The Roles tab is a rail of the seven editable roles (a
+  vertical `AppTabs` at `lg`, a scrolling strip below it) beside one column of answers for the one
+  picked; the rail counts each role's org answers ("2 custom") so a changed role is visible before
+  it is opened. The People tab opens with nobody chosen — the composable's comment said so and the
+  page contradicted it — and the picker is the form combobox every other page uses, which is a
+  search for free.
+- **The controls are the product's, not a narrower `<select>`.** `AppSegmentedControl` is new in
+  `@silvicom/ui`: a `role="radiogroup"` drawn as one strip, roving tabindex, arrows, and an
+  `inherited` state that draws the chosen segment outlined — for a person's row that is FOLLOWING
+  their role rather than holding its own value. Screens are `AppSwitch`. `AppTabs` gained
+  `orientation="vertical"` (Up/Down, `aria-orientation`) rather than the rail being a seventh
+  hand-rolled tablist.
+- **Provenance and reset only where a row departs.** A Roles row is untagged at its shipped default
+  and tagged *Changed* with a "Reset to View" link when the org answered; a People row always says
+  *Default* / *Role* / *Personal* and offers "Follow role (View)" only on a personal row. "Reset
+  role to defaults" now covers screens as well as sections, and "Follow role everywhere" is the
+  per-person mirror — both one write per row, for the reason S6 gave.
+- **A group no screen in which is reachable is named, not drawn.** A technician's page no longer
+  lists Recruitment, Finance and Settings as fifteen rows of refusals; it says "Not listed: …" under
+  the Screens card. A group with SOME unreachable screens keeps them, each reading "Needs Fuel ·
+  Manage" (D-SURF2 at the row).
+- **The preview is a sidebar** — one column, in the navigation surface, built twice by
+  `buildNavGroups` (with the principal's answers and with the shipped matrix) so an item the org
+  took away is struck through rather than silently absent.
+- **The copy moved to where it applies.** Each card's header carries its own staleness sentence
+  (D-PERM6 beside sections, D-SURF4 beside screens); the "outside this page" paragraph is a
+  disclosure at the foot. `SettingsPermissionsPage.test.ts` now asserts each sentence inside its own
+  card and absent from the other's, which is a stronger pin than "both appear somewhere on the page".
+
+**Verified by:** `pnpm --filter @silvicom/web test` (123 files, 1158 tests) and
+`pnpm --filter @silvicom/ui test` (the new `AppSegmentedControl.test.ts` pins the radio-group
+keyboard contract and that an inherited segment is still a working choice), `pnpm typecheck`,
+`pnpm build`, `pnpm lint`, the whole CI gate list extracted from `ci.yml`, and
+`--filter @silvicom/web lint:tokens`. Impeccable's mechanical detector over every changed file: no
+findings.
+
+**Left for the next steps, named so they are not mistaken for done.** The rail's at-a-glance strip
+(one mark per section, coloured by level) needs a `#tab` slot on `AppTabs` and is not built;
+`/api/members` is still e-mail only and one `auth.admin.getUserById` per membership (five members
+today, so a scale gap rather than a live one); Q-SURF6's "next navigation corrects it" is still not
+said in the UI. And the audit that preceded this step found the finding recorded as Q-SURF8 below,
+which no redesign can fix.
+
 ## §6 Open questions
 
 ~~**Q-SURF1 — the gates an org's permissions page cannot reach.** ~24 endpoints on hard-coded role
@@ -720,6 +772,27 @@ giving it a section, which is a product decision about a tool with no data of it
 product. Recommendation: **(a)**, with the list waived and named as S7 has done, until somebody wants
 Ask AI to be per-role configurable — at which point (c) is the honest answer and it costs a catalogue
 entry, not a mechanism.
+
+**Q-SURF8 — The page shows eight default cells the database does not enforce, and cannot repair
+them.** Found by the 2026-09-03 audit that preceded S8, and verified LIVE in `pg_policies` rather than
+read from a plan. Eight applied policies keep a role list as their `auth_section_or_default(...)`
+fallback that disagrees with `SECTION_ACCESS` — the nine of `EDITABLE-PERMISSIONS-PLAN.md` Q-PERM11
+minus the explained `drivers` one. Three checked by hand: `hazmat_loads_manager_insert` /
+`_update` fall back to `[admin, fleet_manager, dispatcher]` while hazmat `manage` includes
+`safety_manager`; `dva_write` falls back to `[admin, fleet_manager]` while roster `manage` includes
+`safety_manager`; `idle_settings_write` includes `safety_manager` while equipment `manage` does
+not. So the page reads "HazmatGuard: Manage" for a safety manager the database refuses.
+
+⚠ **And an admin cannot fix it from the page.** `PUT /api/section-access` DELETES the row when the
+value equals the shipped default (D-PERM4, by design) — so choosing the value already displayed
+writes nothing, and the mint keeps answering from the fallback list. The page's own vocabulary has
+no word for "the matrix, but really". Candidates: (a) P6 — fix the eight policies so the fallback
+equals the matrix, which is the honest answer and needs the Q-PERM10/Q-PERM11 rulings first; (b)
+mark the eight cells on the page as "not yet enforced", which is a workaround that would live for
+exactly as long as P6 is unshipped and would have to be maintained by hand. Owner: product, for the
+rulings; then one migration. Recommendation: **(a), before any further work on this page** — the
+redesign makes those cells more legible, not less, and a legible wrong answer is worse than an
+illegible one.
 
 **Q-SURF2 — `hazmat` is editable but governs no screen.** The section gates RLS (0293 wrapped five
 policies) but both hazmat nav items use `isStaff && moduleEnabled(...)`, and their routes are

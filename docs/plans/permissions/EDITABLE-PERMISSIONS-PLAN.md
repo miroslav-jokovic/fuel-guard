@@ -424,6 +424,16 @@ Only the `drivers` one is already explained — `auth.ts` says the recruiter's s
 exception and wants an exemption rather than a fix. The other eight are unexplained and each is a
 permission ruling. This is P6's real content, and it is larger than "turn the gate on".
 
+
+⚠ **Measured live 2026-09-03, and it is worse than a gate being off.** The eight unexplained rows
+above are not a lint finding waiting to happen — they are what production enforces today. The
+S6 page displays the matrix as each role's default, so for those cells it displays an answer the
+database refuses; and because `PUT /api/section-access` deletes the row when the value equals the
+shipped default (D-PERM4), an admin who selects the displayed value writes nothing and cannot
+repair it. `SURFACE-ENTITLEMENTS-PLAN.md` Q-SURF8 has the three policies checked by hand. P6 is
+therefore a correctness fix with a UI symptom, not a tidy-up, and the recommendation there is to
+rule on Q-PERM10 and this question before any further work on the page.
+
 ## §3 Steps
 
 Each step is one PR, in order, and each must work against the **previous** schema for the ~9-minute

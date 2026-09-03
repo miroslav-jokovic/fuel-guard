@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { AppCallout, AppTabs, type TabItem } from "@silvicom/ui";
+import { AppTabs, type TabItem } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import RolesTab from "@/features/permissions/RolesTab.vue";
 import PeopleTab from "@/features/permissions/PeopleTab.vue";
@@ -22,16 +22,18 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
  * person's answer outlives their role changing underneath them, and it is the only layer where
  * "shown" is a real answer rather than a reset (D-SURF6, D-SURF7).
  *
+ * ── WHY THE PAGE NO LONGER EXPLAINS ITSELF AT THE TOP ───────────────────────────────────────────
+ * The first editable version opened with a paragraph on the two staleness contracts and closed with
+ * a paragraph on what the page does not govern. Both were true and both were in the wrong place: the
+ * staleness sentence belongs beside the control it qualifies (each card's header says its own), and
+ * the "outside this page" list is a reference an admin needs once, so it folds away at the foot.
+ *
  * ── WHAT THIS PAGE DOES NOT GOVERN, SAID OUT LOUD ───────────────────────────────────────────────
- * ⚠ This paragraph was a warning that the audit had not happened; S7 has now happened, so it is a
- * measurement. Every one of the API's 351 routes either derives its answer from the matrix above,
+ * S7 measured it: every one of the API's 351 routes either derives its answer from the matrix,
  * carries a role gate an org cannot reach by design, or is recorded in `testing/routeLedger.ts` with
  * the argument for why it is open — and two fitness functions fail the build if a new one appears
- * unexamined. What remains outside this page is therefore a short, named list rather than an unknown:
- * a handful of acts granted by NAME because a section is the wrong unit for them (issuing a driver's
- * app login, merging two driver records, the driver app's own surfaces), and a handful of endpoints
- * that are open for a stated reason (accepting an invitation before you belong to an organisation, a
- * map-tile proxy carrying no tenant data). The callout below says that, in the reader's words.
+ * unexamined. What remains outside this page is therefore a short, named list rather than an unknown,
+ * and the disclosure below says it in the reader's words.
  */
 const tabs: TabItem[] = [
   { value: "roles", label: "Roles" },
@@ -46,13 +48,6 @@ const tab = ref("roles");
       description="What each role can reach, what one person can reach, and exactly what they see in the sidebar."
     />
 
-    <AppCallout tone="info">
-      Sections decide what the database itself will hand over, so a change to one applies within an
-      hour, when the person's sign-in refreshes. Screens decide what appears in the sidebar and which
-      addresses open, and apply the next time they load a page. A screen can only narrow what a
-      section already allows — it can never hand out data the section refuses.
-    </AppCallout>
-
     <AppTabs v-model="tab" :tabs="tabs" label="Permission views" id-prefix="permissions" />
 
     <div v-if="tab === 'roles'" id="permissions-panel-roles" role="tabpanel" aria-labelledby="permissions-tab-roles">
@@ -62,12 +57,15 @@ const tab = ref("roles");
       <PeopleTab />
     </div>
 
-    <AppCallout tone="caution">
-      A few things stay outside this page on purpose. Some acts are granted by name rather than by
-      section — issuing a driver's app login, merging two driver records — because taking them away
-      from one person should not depend on a whole section. Some endpoints are open on purpose too,
-      such as accepting an invitation before you belong to an organisation. Each one is recorded with
-      its reason; nothing else in the product decides access anywhere but here.
-    </AppCallout>
+    <details class="border-t border-edge-subtle pt-4">
+      <summary class="cursor-pointer text-sm font-medium text-ink-muted">What this page does not decide</summary>
+      <p class="mt-2 max-w-prose text-sm text-ink-muted">
+        A few acts are granted by name rather than by section — issuing a driver's app login, merging
+        two driver records — because taking them away from one person should not depend on a whole
+        section. A few endpoints are open on purpose, such as accepting an invitation before you
+        belong to an organisation. Each one is recorded with its reason; nothing else in the product
+        decides access anywhere but here.
+      </p>
+    </details>
   </div>
 </template>

@@ -26,12 +26,26 @@ import {
  */
 export type AccessLayer = "default" | "role" | "user";
 
-/** Sentence-case names, used on the cell markers and in the tests that pin them. */
+/**
+ * The words on a cell's marker, and in the tests that pin them. One word each, because the marker
+ * sits beside the control on every row and a two-word tag eleven times over is noise: "Default" is
+ * the shipped matrix, "Role" is what this organisation answered for the whole role, "Personal" is
+ * this one person's own row.
+ */
 export const LAYER_LABELS: Record<AccessLayer, string> = {
   default: "Default",
-  role: "Role override",
-  user: "Person override",
+  role: "Role",
+  user: "Personal",
 };
+
+/** The three answers a section takes, in the order the control shows them. */
+export const ACCESS_OPTIONS: ReadonlyArray<{ value: SectionAccess; label: string }> = [
+  { value: "none", label: "None" },
+  { value: "view", label: "View" },
+  { value: "manage", label: "Manage" },
+];
+export const accessLabel = (a: SectionAccess): string =>
+  ACCESS_OPTIONS.find((o) => o.value === a)?.label ?? a;
 
 export interface SectionCell {
   access: SectionAccess;
