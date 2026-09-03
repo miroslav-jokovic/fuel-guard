@@ -3,6 +3,9 @@
 **Status:** ACTIVE. **Owner:** Miki. **Written:** 2026-09-03, after two scope rulings that made
 the previous programme wrong rather than incomplete.
 
+**Session handoff:** [HANDOFF-2026-09-03-FLEET-REPORT](./HANDOFF-2026-09-03-FLEET-REPORT.md) —
+where the build stopped, what is proven, and the three traps that cost time. Read it first.
+
 **Supersedes** [FINANCE-GO-LIVE-PLAN](./FINANCE-GO-LIVE-PLAN.md) §4 and §6 and
 [TRUCK-COST-ATTRIBUTION-PLAN](./TRUCK-COST-ATTRIBUTION-PLAN.md) in full. Both stay in the tree:
 the go-live plan is the record of the correctness programme that shipped (D-FIN1–D-FIN15, all
