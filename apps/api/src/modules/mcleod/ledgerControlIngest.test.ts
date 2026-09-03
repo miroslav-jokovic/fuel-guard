@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { ingestLedgerTotals } from "./ledgerControlIngest.js";
 import { tmsLedgerTotalsPayloadSchema } from "@silvicom/shared";
 
@@ -15,38 +15,42 @@ const total = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("ingestLedgerTotals", () => {
-  it("upserts the month's totals under one batch stamp, then deletes the month's stale rows — org-scoped throughout", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
+  it("replaces the month in ONE statement — the RPC carries the org, the company, the month and every row", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { mcleod_gl_totals: [] },
+      rpc: { replace_mcleod_gl_month: [{ upserted: 2, stale_removed: 1 }] },
+    });
     const payload = tmsLedgerTotalsPayloadSchema.parse({
       period_start: "2026-06-01",
       period_end: "2026-07-01",
+      company_id: "TMS",
       totals: [total(), total({ post_module: "FUEL", glid: "20550000", lines: 57486, abs_amount: 2383148.18 })],
     });
     const r = await ingestLedgerTotals(rec.client, ORG, payload);
-    expect(r.received).toBe(2);
-    const rows = rec.writtenRows("mcleod_gl_totals");
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      org_id: ORG,
-      period_start: "2026-06-01",
-      post_module: "SET",
-      glid: "20500010",
-      line_count: 2751,
-      net_amount: 0,
-      abs_amount: 2525787.48,
-    });
-    // Every row of one ingest carries the SAME stamp — the stale delete keys on it, so a
-    // half-stamped batch would delete its own second chunk.
-    expect(rows[0]!.swept_at).toBe(rows[1]!.swept_at);
-    // The replace-set delete ran, scoped to org AND period AND older-than-stamp: a reclassified
-    // entry's abandoned (module, glid) row must go, but never another month's and never another
-    // org's (pinned by this test's expectOrgScoped over the delete query too).
-    const del = rec.queries.find((q) => q.table === "mcleod_gl_totals" && q.ops.some((o) => o.method === "delete"));
-    expect(del).toBeDefined();
-    const filters = Object.fromEntries(del!.ops.filter((o) => o.method === "eq").map((o) => o.args as [string, unknown]));
-    expect(filters).toMatchObject({ org_id: ORG, period_start: "2026-06-01" });
-    expect(del!.ops.some((o) => o.method === "lt" && (o.args as unknown[])[0] === "swept_at")).toBe(true);
-    expectOrgScoped(rec, ORG);
+    expect(r).toEqual({ received: 2, upserted: 2, staleRemoved: 1 });
+    // Nothing touches the table directly any more: no upsert, no delete — the function owns both.
+    expect(rec.queries.filter((q) => q.table === "mcleod_gl_totals" && q.write)).toHaveLength(0);
+    const call = rec.rpcs().find((c) => c.fn === "replace_mcleod_gl_month")!;
+    expect(call).toBeDefined();
+    const args = call.args as Record<string, unknown>;
+    expect(args).toMatchObject({ p_org: ORG, p_company_id: "TMS", p_period_start: "2026-06-01", p_period_end: "2026-07-01" });
+    expect(args.p_rows).toEqual([
+      { post_module: "SET", glid: "20500010", lines: 2751, net_amount: 0, abs_amount: 2525787.48 },
+      { post_module: "FUEL", glid: "20550000", lines: 57486, net_amount: 0, abs_amount: 2383148.18 },
+    ]);
+  });
+
+  it("a payload without a company passes null — the function scopes its stale delete to rows with no company", async () => {
+    const rec = createSupabaseRecorder({ rpc: { replace_mcleod_gl_month: [{ upserted: 1, stale_removed: 0 }] } });
+    await ingestLedgerTotals(rec.client, ORG, tmsLedgerTotalsPayloadSchema.parse({ period_start: "2026-06-01", period_end: "2026-07-01", totals: [total()] }));
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_company_id).toBeNull();
+  });
+
+  it("an RPC error fails the ingest by name", async () => {
+    const rec = createSupabaseRecorder({ rpc: () => ({ data: null, error: { message: "boom" } }) });
+    await expect(
+      ingestLedgerTotals(rec.client, ORG, tmsLedgerTotalsPayloadSchema.parse({ period_start: "2026-06-01", period_end: "2026-07-01", totals: [total()] })),
+    ).rejects.toThrow(/replace_mcleod_gl_month failed: boom/);
   });
 });
 
@@ -62,20 +66,5 @@ describe("ingestLedgerTotals — zero rows never delete (D-FIN6)", () => {
     expect(rec.writtenRows("mcleod_gl_totals")).toHaveLength(0);
     const del = rec.queries.find((q) => q.table === "mcleod_gl_totals" && q.ops.some((o) => o.method === "delete"));
     expect(del).toBeUndefined();
-  });
-});
-
-describe("ingestLedgerTotals — company_id (D-FIN8)", () => {
-  it("stamps the month's rows with the company the agent swept for, and null when it did not say", async () => {
-    const rec = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
-    await ingestLedgerTotals(rec.client, ORG, tmsLedgerTotalsPayloadSchema.parse({
-      period_start: "2026-06-01", period_end: "2026-07-01", company_id: "TMS", totals: [total()],
-    }));
-    expect(rec.writtenRows("mcleod_gl_totals")[0]).toMatchObject({ company_id: "TMS" });
-    const rec2 = createSupabaseRecorder({ tables: { mcleod_gl_totals: [{ id: "x" }] } });
-    await ingestLedgerTotals(rec2.client, ORG, tmsLedgerTotalsPayloadSchema.parse({
-      period_start: "2026-06-01", period_end: "2026-07-01", totals: [total()],
-    }));
-    expect(rec2.writtenRows("mcleod_gl_totals")[0]).toMatchObject({ company_id: null });
   });
 });
