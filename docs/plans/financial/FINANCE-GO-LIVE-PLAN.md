@@ -487,3 +487,24 @@ record. One dated line per step, appended at the end, so parallel PRs never touc
   pure, with the agent's first `node:test` suite, run by CI through `lint:agent-syntax`). The
   README says to schedule it daily. **Owed to the owner:** the Task Scheduler entry on the carrier
   box — the code cannot create that.
+- 2026-09-03 · #514 — F5 (settlements, deductions, movements): the agent SQL carries `is_void` /
+  `status` instead of filtering; the movement reader excludes V. Sandbox June: 3,894 settlements
+  (1,129 voided → 2,765 live = C3), 1,686 deductions (344 → 1,342 = C3), 3,347 movements (10 →
+  3,337 = C1). **F5b owed:** `mcleod_ap_vouchers` needs a void column before its filter can go;
+  billing's `canceled`/`rebilled` vocabulary is still recon F3.
+- 2026-09-03 · #515 — F7: AP windows on `coalesce(distribution_date, invoice_date)` on both sides;
+  projection window 75. Sandbox June by invoice date 183 vouchers / $1,443,207.52 → by posting date
+  202 / $1,492,888.52 (12 leave, 31 arrive) — the month as the GL closes it.
+- 2026-09-03 · #516 — F8a: `company_id` on the seven staging tables (0303), backfilled with the
+  measured value. Measured first: every financial id is instance-unique EXCEPT `movement.id`
+  (296,242 rows, 277,481 distinct, 18,761 repeat across TMS/TMS2/TMS3); production's staged rows
+  are all company TMS (400/400 sampled per table). So §1.8's key change is **movements-only**
+  (F8c), after every row carries a company; F8b (writers + a guard that refuses a cross-company
+  movement overwrite) follows one merge after 0303 applies.
+- 2026-09-03 · F12 — the FUEL tie-out decomposed (`buildFuelTieOut`; ledger coverage carries a
+  `fuel` block and a FUEL claim). **§1.12's 5–8% is explained:** production June — ULSD 913,477.77
+  vs 40050000 898,128.58; DEFD 46,480.43 vs 30220000 46,204.77; ULSR 5,810.12 vs 30340000 5,793.51;
+  SCLE 4,755.23 vs 40760000 5,287.91; owner-operator-unit fuel 46,243.48 vs 17000000 62,131.62;
+  ~$337 unmapped; whole month EFS ≈ 1,017,158 vs the FUEL module's payable 1,017,601.81 → residual
+  ≈ $444 (0.04%). The per-account residual is the posting-lag term until McLeod `fuel_detail` is
+  staged with its posting dates (**F12b owed**).
