@@ -31,7 +31,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppTable } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
-import { toggleSort, type SortState } from "@/lib/sort";
+import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -46,14 +46,41 @@ const session = useSessionStore();
 const toast = useToastStore();
 
 /**
- * The facets this tab alone has. Local rather than in the URL, for the reason in
- * `useFuelLogFilters`' header: `driver` here is a NAME derived from the card, and the fills tab's
- * `driver` is a driver id, so one shared parameter would carry a UUID into a name filter.
+ * The facets this tab alone owns, each its own URL parameter (FUEL-C3, D-FUI8). Not shared with the
+ * other two tabs, and cleared when the tab changes, for the reason in `useFuelLogFilters`' header:
+ * `driver` here is a NAME derived from the card while the fills tab's is a driver ID, and `sort`
+ * names a column of `declined_transactions` that `fuel_transactions` does not have.
+ *
+ * `risk` and `error` are shorter than the field names they set, because these are the parameters a
+ * reader pastes into a ticket — `?risk=alert&error=51` says what it does.
  */
-const local = ref<Pick<EfsFilters, "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy" | "sortKey" | "sortDir">>({});
+const suspicion = props.shared.facet("risk", ["alert", "review", "clear"]);
+const search = props.shared.facet("search");
+const errorCode = props.shared.facet("error");
+const stateF = props.shared.facet("state");
+const driver = props.shared.facet("driver");
+const policy = props.shared.facet("policy");
+
+/**
+ * ⚠ The sortable columns, as the vocabulary a forwarded link is checked against. Every other facet
+ * here fails safe on an unknown value — an empty list, with the chip saying why. A sort key does
+ * not: it reaches PostgREST's `.order()`, so an unrecognised one is an error state rather than an
+ * empty one. `fueled_at` off the fills tab is exactly the value this refuses.
+ */
+const SORTABLE = ["unit", "suspicion_level", "declined_at", "driver_name", "state", "error_code"] as const;
+const sortKey = props.shared.facet("sort", SORTABLE);
+const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
+const { sort, onSort } = useUrlSort(sortKey, sortDir);
 
 const filters = computed<EfsFilters>(() => ({
-  ...local.value,
+  suspicion: suspicion.value || undefined,
+  search: search.value || undefined,
+  errorCode: errorCode.value || undefined,
+  state: stateF.value || undefined,
+  driver: driver.value || undefined,
+  policy: policy.value || undefined,
+  sortKey: sortKey.value || undefined,
+  sortDir: sortDir.value === "desc" ? "desc" : "asc",
   unit: props.shared.unit.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
@@ -61,12 +88,6 @@ const filters = computed<EfsFilters>(() => ({
 
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
-
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-  local.value = { ...local.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
-}
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDeclinedTransactions(filters, page);
 
@@ -92,19 +113,6 @@ const cardList = computed(() =>
     updated: c.updated_at,
   })),
 );
-
-/** Two-way proxy into the LOCAL facets for one key ("" ⇄ undefined). */
-const bind = (key: "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy") =>
-  computed({
-    get: () => local.value[key] ?? "",
-    set: (v: string) => (local.value = { ...local.value, [key]: v || undefined }),
-  });
-const suspicion = bind("suspicion");
-const search = bind("search");
-const errorCode = bind("errorCode");
-const stateF = bind("state");
-const driver = bind("driver");
-const policy = bind("policy");
 
 /** The shared half, proxied for the controls that write it back to the URL. */
 const unit = computed<string>({
@@ -135,22 +143,32 @@ const policyOptions = computed(() => withAll("All policies", facets.value?.rejPo
 // Chips surface only the popover (secondary) filters — the inline triggers
 // already display their own active value.
 const chips = computed<FilterChip[]>(() => {
-  const f = local.value;
   const out: FilterChip[] = [];
-  if (f.state) out.push({ key: "state", label: "State", value: f.state });
-  if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
-  if (f.policy) out.push({ key: "policy", label: "Policy", value: f.policy });
+  if (stateF.value) out.push({ key: "state", label: "State", value: stateF.value });
+  if (driver.value) out.push({ key: "driver", label: "Driver", value: driver.value });
+  if (policy.value) out.push({ key: "policy", label: "Policy", value: policy.value });
   return out;
 });
 const moreCount = computed(
-  () => (local.value.state ? 1 : 0) + (local.value.driver ? 1 : 0) + (local.value.policy ? 1 : 0),
+  () => (stateF.value ? 1 : 0) + (driver.value ? 1 : 0) + (policy.value ? 1 : 0),
 );
 function removeChip(key: string) {
-  local.value = { ...local.value, [key]: undefined };
+  if (key === "state") stateF.value = "";
+  if (key === "driver") driver.value = "";
+  if (key === "policy") policy.value = "";
 }
-/** Clears BOTH halves: "Clear filters" means the screen, not this component's share of it. */
+/**
+ * Clears BOTH halves: "Clear filters" means the screen, not this component's share of it. The sort
+ * stays — it is how the list is ordered, not how it is narrowed. Every assignment is one `set` in
+ * the same tick, which `useQueryState`'s buffer coalesces into one navigation.
+ */
 function clearAll() {
-  local.value = { sortKey: local.value.sortKey, sortDir: local.value.sortDir };
+  suspicion.value = "";
+  search.value = "";
+  errorCode.value = "";
+  stateF.value = "";
+  driver.value = "";
+  policy.value = "";
   props.shared.clear();
 }
 

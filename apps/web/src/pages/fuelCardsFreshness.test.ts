@@ -35,7 +35,13 @@ vi.mock("@/features/fuelCards/useEfsCards", () => ({
 vi.mock("@/features/jobs/useJob", () => ({
   useJob: () => ({ latest: ref(null), lastDone: ref(null), isRunning: ref(false), refetch: () => {} }),
 }));
-vi.mock("vue-router", () => ({ useRouter: () => ({ push: () => {} }) }));
+// `useRoute` and `replace` as well as `push` since FUEL-C3: the page's filters live in the URL now,
+// so `useQueryState` reads the route at setup. An empty query is the unfiltered page, which is what
+// this suite is about.
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ push: () => {}, replace: async () => {} }),
+}));
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: null })) }));
 
 import FuelCardsPage from "./FuelCardsPage.vue";

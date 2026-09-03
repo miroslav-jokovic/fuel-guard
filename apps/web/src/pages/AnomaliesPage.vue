@@ -15,7 +15,7 @@ import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
 import { useAnomaliesPage } from "./useAnomaliesPage";
 
 const {
-  filters, search,
+  filters, search, reeferOnly, setReeferOnly,
   status, severity, vehicleId, statusOptions, severityOptions, unitOptions,
   setFrom, setTo, activeFilterCount, resetFilters,
   session,
@@ -36,21 +36,21 @@ const {
     <div class="flex w-fit gap-1 rounded-surface bg-surface-muted p-1 text-sm">
       <BaseButton
         class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="!filters.reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="filters = { ...filters, reeferOnly: undefined }"
+        :class="!reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="setReeferOnly(false)"
       >
         All alerts
       </BaseButton>
       <BaseButton
         class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="filters.reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="filters = { ...filters, reeferOnly: true }"
+        :class="reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="setReeferOnly(true)"
       >
         Reefer fueling
       </BaseButton>
     </div>
 
-    <BaseCard v-if="filters.reeferOnly" as="div">
+    <BaseCard v-if="reeferOnly" as="div">
       <p class="text-sm text-ink-secondary">
         Reefer-fueling alerts flag trucks that haul a reefer but may be fueling it with ULSD selected at the pump —
         a reefer-hauling truck buying little or no reefer (ULSR) fuel, or a ULSD fill that didn't fully enter the

@@ -94,6 +94,27 @@ windowed one. That tile is the last surviving instance of the bug #454 fixed els
 
 **The biggest segment, and strictly sequential. One chat, four PRs.**
 
+**✅ C2 AND C3 ARE DONE** — C2 2026-09-02 (`claude/fuel-log-tabs`), C3 2026-09-03
+(`claude/fuel-filters-in-url`). **C4 is next.**
+
+**C3 in one line:** every filter on Fuel Log, Cards and Alerts is a URL parameter now, `?vehicle=` on
+Alerts is written as well as read, and `useQueryState` gained `param(key, allowed?)` with
+`@/composables/useUrlSort` beside it. Three things it learnt:
+
+1. ⚠ **A `ref` could only hold what its dropdown offered; a parameter holds whatever somebody typed.**
+   Every facet that moves into the URL needs a vocabulary, and a SORT KEY is the one that does not
+   fail safe — it is a column name reaching PostgREST's `.order()`, so another table's column is a
+   query that errors rather than a filter that matches nothing.
+2. **An absent parameter can already mean two things.** On Alerts, no `status` means the work queue —
+   unless the URL names a truck, in which case it means that truck's whole history. So "the reader
+   chose All" needed its own spelling (`status=all`). Look for this before moving any defaulted filter
+   into a URL.
+3. **Two assertions in the new suites were VACUOUS and the mutation pass is what found them** — one
+   passed either way because the page tolerates junk regardless (now asserted on the CHIP), one
+   because the fixture's two sort orders were identical (the fixture now differs by a row).
+
+**C2's note, unchanged:**
+
 **✅ C2 IS DONE, 2026-09-02 (`claude/fuel-log-tabs`).** Fuel Log is `?tab=fills|declines|source`,
 `FuelLogPage.vue` is a 143-line shell over three extracted tab components, `/transactions` and
 `/rejections` are function redirects that carry the query **and** name the tab, and Fuel is six nav
@@ -119,14 +140,14 @@ items. C3 is next and starts from a page whose window, truck and tab are already
    (`setFrom`/`setUnit`), because `vue/no-mutating-props` refuses `props.shared.unit.value = x` — an
    ESLint error, not a warning, and it is the first thing that will bite C3.
 
-**And one thing C2 deliberately left for C3**, so it is not rediscovered as a bug: per-tab facets are
-LOCAL, not in the URL. `driver` is a driver ID on Fills and a driver NAME on the two raw feeds, so one
-shared `?driver=` puts a UUID into a name filter and returns an empty list with no error anywhere. C3
-needs a namespace per tab, or three differently-named parameters.
+~~**And one thing C2 deliberately left for C3**~~ — **done.** C3 gave each tab its own facets in the
+URL and made the tab change CLEAR them, derived by exclusion from `SHARED_FUEL_LOG_KEYS` rather than
+from a per-tab list of keys. Neither a namespace nor three names was needed: nothing crosses, so
+nothing can collide.
 
 | | |
 |---|---|
-| **Steps** | ~~C2 (Fuel Log absorbs Transactions + Rejections)~~ **DONE**, C3 (every page sendable), C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
+| **Steps** | ~~C2 (Fuel Log absorbs Transactions + Rejections)~~ **DONE**, ~~C3 (every page sendable)~~ **DONE**, C4 (retire `/import`), C5 (Fuel Spend, eight tabs to three) |
 | **Owns** | `apps/web/src/pages/{FuelLogPage,TransactionsPage,RejectionsPage,FuelCardsPage,ImportPage}.vue`, `apps/web/src/features/fuel/**`, `router/routes/fuel.ts`, `lib/nav.ts` + snapshots |
 | **Migration?** | **No.** Entirely web. |
 | **Blocked by** | Nothing. C1 and T1 are done. |
@@ -156,7 +177,7 @@ report deleted before its replacement exists is a capability gap, however brief.
 | **Steps** | P1 (multi-select + data-derived facets), P2 (a scoped export on every list page), P3 (the ledger scopable by truck) |
 | **Owns** | the merged Fuel Log tabs, `useEfsFacets`, `apps/api/src/modules/fuel-spend/routes/**` (export routes), `ReportExportButton` |
 | **Migration?** | **No.** |
-| **Blocked by** | Segment B landing. P2 needs T3 (done) and P1; P3 needs P2. |
+| **Blocked by** | Segment B landing. P2 needs T3 (done) and P1; P3 needs P2. ⚠ **P1 starts from a page whose facets are already in the URL (C3), so multi-select is a change to `param` → a list, not a new home for the state.** |
 | **Done when** | "Truck 654's fuel for August, as a file" is answerable from every list page, and `?trucks=` either scopes the ledger or is absent from its URL. |
 
 ⚠ **P2 has exactly one acceptable shape (D-FUI15):** `spend-report.pdf`'s. Server-rendered from the same
