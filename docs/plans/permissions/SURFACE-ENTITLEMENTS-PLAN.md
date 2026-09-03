@@ -628,8 +628,8 @@ figures were a static parse and said so; one half held and the other was four ti
 | | §0 said | measured 2026-09-03 |
 | --- | --- | --- |
 | routes in the API | ~312–321 call sites | **351** |
-| no gate of any kind | 65 | **39** — of which **27** sit under mounts already pinned public or machine-authenticated (`/api/tms` alone is 17 agent-ingest routes) |
-| genuinely unexamined | — | **12** |
+| no gate of any kind | 65 | **40** — of which **27** sit under mounts already pinned public or machine-authenticated (`/api/tms` alone is 17 agent-ingest routes) |
+| genuinely unexamined | — | **13** |
 | literal `requireRole` lists that are not `requireRole("admin")` | ~24 | **25**, of which **18 equalled a section's derived set** |
 
 The gap is one thing a static parse cannot see: a gate applied through a local const —
@@ -652,20 +652,24 @@ stacks, which is what `routeGates.test.ts` already did one grain coarser.
   tests, the credential and identity-merge acts granted by NAME (their routers already made the
   argument at length — S7 only made it checkable), and Ask AI, whose list equals `hazmat/view` by
   pure coincidence and is recorded below as Q-SURF7.
-- **3 of the 12 unexamined routes are now gated** — `GET /api/fueling/stations`,
+- **3 of the 13 unexamined routes are now gated** — `GET /api/fueling/stations`,
   `/geocode-suggest` and `/vehicle-location` at `dispatch: view`. ⚠ **This is a narrowing and it is
   said out loud**: they were `requireOrg` alone, so any signed-in member could read the org's station
   prices or spend its geocoder quota. Both callers are Fuel Planning and Truck Stops, catalogued
   `dispatch`, and since S2's guard no role without `dispatch: view` can open either screen — so
   nothing a person can reach today stops working.
-- **9 stay open, each with its argument** in `OPEN_ROUTES`: the map-config/tile proxies (no tenant
-  data; `requireAuth` protects a vendor quota, not a row), `GET /api/jobs/latest` (a progress ping
-  for one known job kind in the caller's own org, polled by every section's screens), invite
-  acceptance (the one act a person with no org yet must perform), a driver's own push-token revoke,
-  and the four Q-FUI12 reads — which are left as Q-FUI12 rather than closed in passing, because that
+- **10 stay open, each with its argument** in `OPEN_ROUTES`: `GET /api/me` (the identity every page
+  bootstraps from — a role gate there would be a gate on finding out what your role is), the
+  map-config/tile proxies (no tenant data; `requireAuth` protects a vendor quota, not a row),
+  `GET /api/jobs/latest` (a progress ping for one known job kind in the caller's own org, polled by
+  every section's screens), invite acceptance (the one act a person with no org yet must perform), a
+  driver's own push-token revoke, and the four Q-FUI12 reads — which are left as Q-FUI12 rather than closed in passing, because that
   question has an owner and a recommendation and answering it here would be doing so silently.
 - **Two fitness functions, so this cannot rot** (`routeGateLedger.test.ts`): COVERAGE walks the built
-  app per ROUTE and fails on one with no gate that the ledger has not accounted for; FORM reads the
+  app per ROUTE — including the one route declared straight on the app rather than inside a mounted
+  router, `GET /api/me`, which a mount-reading walker would never have reported and which is the
+  endpoint every page bootstraps from — and fails on one with no gate that the ledger has not
+  accounted for; FORM reads the
   source and fails on a literal multi-role list that is not waived — because a set comparison cannot
   tell a derived answer from a coincidence, which is precisely the Ask AI case. Both ledgers are
   SHRINK-ONLY: an entry that stops applying fails the build, so a route that gains a gate must lose

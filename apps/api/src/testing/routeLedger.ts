@@ -59,6 +59,12 @@ export const OPEN_ROUTES = new Map<string, string>([
     "a raster-tile proxy that exists to keep the HERE key server-side; the bytes are public map tiles, and requireAuth is there to stop it becoming an open relay against our quota, not to protect data",
   ],
 
+  // ── The bootstrap identity. ────────────────────────────────────────────────────────────────────
+  [
+    "GET /api/me",
+    "who the caller is: their own user id, email, org, role and resolved screen claim, and nothing about anybody else. Every page load asks it, including the ones that then discover the caller may see almost nothing — a role gate here would be a gate on finding out what your role is",
+  ],
+
   // ── Progress and lifecycle pings, each scoped to the caller by something other than a role. ────
   [
     "GET /api/jobs/latest",

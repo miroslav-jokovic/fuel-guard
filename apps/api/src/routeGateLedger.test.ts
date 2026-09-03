@@ -14,13 +14,13 @@ import { AUTH_ONLY_MOUNTS, OPEN_ROUTES, ROLE_LIST_WAIVERS } from "./testing/rout
  * ── WHAT WAS ACTUALLY WRONG, MEASURED RATHER THAN COUNTED ───────────────────────────────────────
  * The plan sized this at "~24 hand-written role lists and 65 endpoints with nothing beyond
  * requireAuth", from a static parse of 312 of 321 call sites, and said to treat it as a shape rather
- * than a census. It was right to. Walking the REAL express app finds **351 routes**, of which **39**
- * carry no gate of any kind — and **27 of those sit under mounts already pinned** as public or
+ * than a census. It was right to. Walking the REAL express app finds **351 routes**, of which **40**
+ * carried no gate of any kind — and **27 of those sit under mounts already pinned** as public or
  * machine-authenticated (`/api/auth`, `/api/version`, `/api/public/hazmat`, `/api/webhooks`,
  * `/api/tms`, `/api/saved-views` — `/api/tms` alone is seventeen on-prem-agent ingest routes). The
- * genuinely unexamined set was **twelve**, not sixty-five: a static parse cannot see a gate applied
+ * genuinely unexamined set was **thirteen**, not sixty-five: a static parse cannot see a gate applied
  * through a local const — `const canHire = requireRole(...)` — and counts every route under it as
- * ungated. Three of the twelve are now gated, nine carry an argument in the ledger.
+ * ungated. Three of the thirteen are now gated; the other ten carry an argument in the ledger.
  *
  * The role-list figure held almost exactly: **25** literal `requireRole(...)` lists that are not
  * `requireRole("admin")`. **18 of them equalled a section's derived set** and now call
@@ -105,6 +105,18 @@ function everyRoute(): Map<string, string[]> {
       if (Array.isArray(layer.handle?.stack)) walkRoutes(layer.handle.stack, mount, [], out);
     }
   }
+  /**
+   * ⚠ And the routes declared straight on the app rather than inside a mounted router. There is one
+   * — `GET /api/me` — and it is the identity every page bootstraps from, which is exactly the kind of
+   * endpoint a walker that only looked at mounts would never report. `mountedApiRouters()` reads
+   * `app.use(...)` lines, so an `app.get("/api/…")` is invisible to it by construction.
+   */
+  walkRoutes(
+    stack.filter((l) => typeof l.route?.path === "string" && l.route.path.startsWith("/api")),
+    "",
+    [],
+    out,
+  );
   return out;
 }
 
@@ -225,6 +237,14 @@ describe("no API route hand-lists roles without an argument (S7, Q-SURF1)", () =
    * surface shipped for a year. If it equals NO section's set it is a rule of some other kind, which
    * may be perfectly right (a driver-app surface, an irreversible act granted by name, a federal
    * confidentiality rule) and has to say so somewhere a reader will look.
+   */
+  /**
+   * ⚠ What this cannot see, stated so the next reader does not assume otherwise: a list hidden behind
+   * a constant — `requireRole(...HAZMAT_REVIEW_ROLES)` — reads as derived here whatever the constant
+   * holds. That one is a deliberate separation-of-duties rule with its argument in the router's
+   * header (dispatchers create hazmat loads; they do not clear them), and the shape is rare. Closing
+   * it would mean resolving identifiers, which is a type-checker's job rather than a regex's; the
+   * COVERAGE half above is what stops such a gate being absent altogether.
    */
   it("every literal multi-role list either derives from the matrix or is waived with its reason", () => {
     const offenders: string[] = [];
