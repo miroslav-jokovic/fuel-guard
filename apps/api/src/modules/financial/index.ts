@@ -33,6 +33,7 @@ export {
 } from "./reads.js";
 export { getLedgerCoverage } from "./ledgerCoverage.js";
 export { getFuelTieOut } from "./fuelTieOut.js";
+export { getMonthCloses, runMonthClosesOnce, computeMonthClose, type MonthCloseRow } from "./monthClose.js";
 export { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
 export {
