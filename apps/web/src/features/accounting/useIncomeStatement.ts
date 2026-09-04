@@ -10,6 +10,15 @@ import { apiFetch } from "@/lib/api";
  * for the total to be wrong, and the reason this statement can be trusted is that there is one.
  */
 
+/** One month's ledger state, as the API reports it. */
+export interface LedgerMonthState {
+  month: string;
+  periodEnd: string;
+  sweptAt: string | null;
+  complete: boolean;
+  shortfall: "absent" | "partial" | null;
+}
+
 export interface StatementModule {
   post_module: string;
   amount: number;
@@ -49,6 +58,14 @@ export interface IncomeStatementResponse {
   unrecognisedNet: number;
   monthsCovered: string[];
   monthsMissing: string[];
+  /**
+   * Months a McLeod sweep reached while they were still running (G11). Their rows are staged and
+   * real, and they are excluded from every figure — part of a month reported as the month is a
+   * precise, plausible answer to a question nobody asked.
+   */
+  monthsPartial: LedgerMonthState[];
+  /** What to print in place of the excluded months' figures. Null when nothing is short. */
+  ledgerReason: string | null;
   toDateFrom: string;
 }
 

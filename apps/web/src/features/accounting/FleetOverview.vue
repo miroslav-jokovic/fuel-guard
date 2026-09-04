@@ -20,6 +20,18 @@ import type { FleetReportResponse } from "./useFleetReport";
 
 const props = defineProps<{ report: FleetReportResponse; loading?: boolean }>();
 
+/**
+ * A period whose ledger months were all withheld has no figures — not zero ones (G11).
+ *
+ * Measured 2026-09-03: the page opens on the last full calendar month, which that morning was
+ * August, and August's ledger held eleven lines swept four days before the month ended. Every card
+ * below would have read $0 earned, $8,430 spent, −$8,430 kept: arithmetically correct over the rows
+ * that were there, and not a fact about August. A zero in a money column is a claim.
+ */
+const noReportableMonth = computed(
+  () => props.report.monthsCovered.length === 0 && props.report.ledgerReason !== null,
+);
+
 const fmtUsd = (n: number) =>
   n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fmtRate = (n: number | null) =>
@@ -88,6 +100,19 @@ const contractorNote = computed(() => {
 
 <template>
   <div class="space-y-4">
+    <div
+      v-if="noReportableMonth"
+      class="rounded-control bg-warning-50 px-4 py-3 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
+    >
+      <p class="font-semibold">There are no figures for this period yet.</p>
+      <p class="mt-1">{{ report.ledgerReason }}</p>
+      <p class="mt-1 text-warning-700/80">
+        Pick a period that ends in a finished month, or run the McLeod financial sweep again now that
+        this one has closed.
+      </p>
+    </div>
+
+    <template v-else>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard
         label="Earned"
@@ -163,6 +188,8 @@ const contractorNote = computed(() => {
       <template v-if="report.monthsMissing.length">
         The McLeod sweep has not reached {{ report.monthsMissing.join(", ") }} yet.
       </template>
+      <template v-if="report.ledgerReason">{{ report.ledgerReason }}</template>
     </p>
+    </template>
   </div>
 </template>

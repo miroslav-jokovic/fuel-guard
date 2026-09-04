@@ -308,6 +308,10 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       </template>
     </p>
 
+    <!-- The ledger's own shortfall (G11) is NOT a page-level banner, unlike the mileage one above.
+         It affects only the two tabs that read the ledger — the overview and the income statement —
+         and both say it themselves; a banner as well printed the same sentence twice on one screen.
+         The per-truck tabs come from the CPM harness and are unaffected by it. -->
     <AppTabs v-model="tab" :tabs="TABS" label="Cost per mile views" id-prefix="cpm" />
 
     <!-- Contractors get their headline as prose, because the two numbers are a sentence: what they
@@ -364,6 +368,10 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
           />
         </div>
 
+        <!-- A month the sweep reached mid-month is not a month the sweep has not reached: its rows
+             are staged and real, and they are left out because part of a month reported as the
+             month is a precise wrong answer (G11). -->
+        <p v-if="statement.ledgerReason" class="text-sm text-warning-700">{{ statement.ledgerReason }}</p>
         <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
           The McLeod sweep has not reached
           {{ statement.monthsMissing.join(", ") }}, so

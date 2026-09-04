@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import type { StatementSection } from "./useIncomeStatement";
+import type { StatementSection, LedgerMonthState } from "./useIncomeStatement";
 import type { MonthMileage } from "./useMileageCoverage";
 
 /**
@@ -57,6 +57,9 @@ export interface FleetReportResponse {
   tieOut: { revenue: number; expenses: number };
   monthsCovered: string[];
   monthsMissing: string[];
+  /** Months swept mid-month, excluded from every figure above with the reason beside them (G11). */
+  monthsPartial: LedgerMonthState[];
+  ledgerReason: string | null;
   toDateFrom: string;
   /** Present so a caller can show coverage month by month without a second read. */
   months?: MonthMileage[];

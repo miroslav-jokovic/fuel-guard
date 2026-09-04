@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeFleetTrend, type FleetTrend, type FleetTrendMonthInput } from "@silvicom/shared";
+import {
+  computeFleetTrend,
+  assessLedgerMonths,
+  type FleetTrend,
+  type FleetTrendMonthInput,
+  type LedgerMonth,
+} from "@silvicom/shared";
 import { readLedgerTotalsRange, readGlAccounts } from "../mcleod/index.js";
 import { monthStart, nextMonthStart, monthsBetween } from "./ledgerPeriod.js";
 import { getMileageCoverage } from "./mileageCoverage.js";
@@ -17,6 +23,13 @@ import { getMileageCoverage } from "./mileageCoverage.js";
  * into the report would widen every report read to a year for a chart the reader may never scroll
  * to, and folding the report into the trend would recompute twelve income statements to print one.
  *
+ * **A month swept before it ended is dropped, not drawn** (G11). The financial sweep runs by hand,
+ * so the newest month holds whatever had posted when the last run went — August 2026, measured on
+ * the 3rd of September, held eleven lines and no revenue at all. Plotted, that is a cliff to the
+ * axis on the final point of the chart, which is the most alarming shape a finance page can draw
+ * and would be an artefact of an unfinished sweep. Such months join `missing` and are named beneath
+ * the chart with the date they were swept.
+ *
  * **The window is whole months, always.** The ledger is month-grained, so a trend of part-months
  * would need the journal entries prorated across days — 26.2% of July's expenses arrived as 44
  * entries averaging $24,210 — and this section does not allocate (D-FLEET8). The last point is
@@ -27,6 +40,8 @@ import { getMileageCoverage } from "./mileageCoverage.js";
 export interface FleetTrendResult extends FleetTrend {
   /** The whole months the series covers, oldest first — what was ASKED for, not what came back. */
   monthsRequested: string[];
+  /** Months a sweep reached mid-month. Excluded from the series, named under it (G11). */
+  monthsPartial: LedgerMonth[];
 }
 
 /** The `YYYY-MM` month `count` months back from (and including) the month `toIso` falls in. */
@@ -62,6 +77,7 @@ export async function getFleetTrend(
   ]);
 
   const ledgerByMonth = new Map<string, FleetTrendMonthInput["ledger"]>();
+  const sweeps = new Map<string, { periodEnd: string; sweptAt: string | null }>();
   for (const r of rows) {
     const month = String(r.period_start).slice(0, 7);
     const bucket = ledgerByMonth.get(month);
@@ -73,7 +89,22 @@ export async function getFleetTrend(
     };
     if (bucket) bucket.push(row);
     else ledgerByMonth.set(month, [row]);
+
+    // The oldest sweep behind the month, for the reason `ledgerPeriod` gives: the month is only
+    // finished when every row behind it came from a run that saw a finished month.
+    const sweptAt = r.swept_at ? String(r.swept_at) : null;
+    const seen = sweeps.get(month);
+    if (!seen) sweeps.set(month, { periodEnd: String(r.period_end).slice(0, 10), sweptAt });
+    else if (!sweptAt || !seen.sweptAt || sweptAt < seen.sweptAt) seen.sweptAt = sweptAt;
   }
+
+  // A month whose sweep ran before it ended is handed to the harness as if the ledger had not
+  // reached it, which is exactly what it deserves: its rows are real, they are not the month, and
+  // the harness already knows how to name a month it cannot plot rather than drawing it at zero.
+  const partial = assessLedgerMonths(
+    [...sweeps.entries()].map(([month, v]) => ({ month, periodEnd: v.periodEnd, sweptAt: v.sweptAt })),
+  ).filter((m) => m.shortfall === "partial");
+  for (const m of partial) ledgerByMonth.delete(m.month);
   const coverageByMonth = new Map(coverage.months.map((m) => [m.month, m]));
 
   const trend = computeFleetTrend({
@@ -88,5 +119,5 @@ export async function getFleetTrend(
     accounts,
   });
 
-  return { ...trend, monthsRequested: asked.map((m) => m.slice(0, 7)) };
+  return { ...trend, monthsRequested: asked.map((m) => m.slice(0, 7)), monthsPartial: partial };
 }

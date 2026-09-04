@@ -14,17 +14,20 @@ const mi = (miles: number) => miles * 1609.344;
  * them below is filtered by the query the service actually issued, not handed back as a flat array.
  */
 const GL_TOTALS = [
-  { period_start: "2026-02-01", glid: "30000001", post_module: "BILL", net_amount: -2_000_000, line_count: 1, abs_amount: 2_000_000 },
-  { period_start: "2026-02-01", glid: "40000001", post_module: "SET", net_amount: 1_800_000, line_count: 1, abs_amount: 1_800_000 },
-  { period_start: "2026-03-01", glid: "30000001", post_module: "BILL", net_amount: -4_000_000, line_count: 1, abs_amount: 4_000_000 },
-  { period_start: "2026-03-01", glid: "40000001", post_module: "SET", net_amount: 3_500_000, line_count: 1, abs_amount: 3_500_000 },
+  { period_start: "2026-02-01", period_end: "2026-03-01", swept_at: "2026-03-03 04:00:00+00", glid: "30000001", post_module: "BILL", net_amount: -2_000_000, line_count: 1, abs_amount: 2_000_000 },
+  { period_start: "2026-02-01", period_end: "2026-03-01", swept_at: "2026-03-03 04:00:00+00", glid: "40000001", post_module: "SET", net_amount: 1_800_000, line_count: 1, abs_amount: 1_800_000 },
+  { period_start: "2026-03-01", period_end: "2026-04-01", swept_at: "2026-04-03 04:00:00+00", glid: "30000001", post_module: "BILL", net_amount: -4_000_000, line_count: 1, abs_amount: 4_000_000 },
+  { period_start: "2026-03-01", period_end: "2026-04-01", swept_at: "2026-04-03 04:00:00+00", glid: "40000001", post_module: "SET", net_amount: 3_500_000, line_count: 1, abs_amount: 3_500_000 },
   // April: two revenue rows in the same month, so a bucket that keeps only the last row is visible.
-  { period_start: "2026-04-01", glid: "30000001", post_module: "BILL", net_amount: -3_000_000, line_count: 1, abs_amount: 3_000_000 },
-  { period_start: "2026-04-01", glid: "30000001", post_module: "AP", net_amount: -1_000_000, line_count: 1, abs_amount: 1_000_000 },
-  { period_start: "2026-04-01", glid: "40000001", post_module: "SET", net_amount: 3_600_000, line_count: 1, abs_amount: 3_600_000 },
+  { period_start: "2026-04-01", period_end: "2026-05-01", swept_at: "2026-05-03 04:00:00+00", glid: "30000001", post_module: "BILL", net_amount: -3_000_000, line_count: 1, abs_amount: 3_000_000 },
+  { period_start: "2026-04-01", period_end: "2026-05-01", swept_at: "2026-05-03 04:00:00+00", glid: "30000001", post_module: "AP", net_amount: -1_000_000, line_count: 1, abs_amount: 1_000_000 },
+  { period_start: "2026-04-01", period_end: "2026-05-01", swept_at: "2026-05-03 04:00:00+00", glid: "40000001", post_module: "SET", net_amount: 3_600_000, line_count: 1, abs_amount: 3_600_000 },
+  // August as production held it on 2026-09-03: swept on the 28th, four days before the month
+  // ended, holding one expense line and no revenue. Plotted, it is a cliff to the axis (G11).
+  { period_start: "2026-08-01", period_end: "2026-09-01", swept_at: "2026-08-28 21:02:56.551+00", glid: "40000001", post_module: "SET", net_amount: 8430, line_count: 11, abs_amount: 8430 },
   // May is outside every window asked for below — it is here so a service that forgot its upper
   // bound plots a fourth point and fails rather than passing with an extra month nobody sees.
-  { period_start: "2026-05-01", glid: "30000001", post_module: "BILL", net_amount: -9_999_999, line_count: 1, abs_amount: 9_999_999 },
+  { period_start: "2026-05-01", period_end: "2026-06-01", swept_at: "2026-06-03 04:00:00+00", glid: "30000001", post_module: "BILL", net_amount: -9_999_999, line_count: 1, abs_amount: 9_999_999 },
 ];
 
 const ACCOUNTS = [
@@ -158,5 +161,19 @@ describe("getFleetTrend", () => {
   it("counts a whole month back over a year boundary", async () => {
     const t = await getFleetTrend(recorder().client, ORG, "2026-02-14", 3);
     expect(t.monthsRequested).toEqual(["2025-12", "2026-01", "2026-02"]);
+  });
+
+  /**
+   * The last point of a twelve-month chart is the month the reader is looking at, and on the 3rd of
+   * a month that is a month the sweep has not finished. Drawn, it is a collapse to the axis that
+   * never happened.
+   */
+  it("drops a month swept before it ended rather than drawing it at zero", async () => {
+    const t = await getFleetTrend(recorder().client, ORG, "2026-08-15", 3);
+    expect(t.monthsRequested).toEqual(["2026-06", "2026-07", "2026-08"]);
+    expect(t.points.map((p) => p.month)).not.toContain("2026-08");
+    expect(t.monthsPartial.map((m) => m.month)).toEqual(["2026-08"]);
+    // It joins the months with no ledger at all: not plotted, and named beneath the chart.
+    expect(t.missing).toContain("2026-08");
   });
 });

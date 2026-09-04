@@ -337,11 +337,14 @@ export async function readLedgerTotalsRange(
   orgId: string,
   fromPeriodStart: string,
   toPeriodStartExclusive: string,
-): Promise<Array<StagedGlTotal & { period_start: string }>> {
-  return paged<StagedGlTotal & { period_start: string }>((from, to) =>
+): Promise<Array<StagedGlTotal & { period_start: string; period_end: string; swept_at: string }>> {
+  // `period_end` and `swept_at` ride along because a month's figures cannot be read without them:
+  // a sweep that ran before the month ended staged part of a month, and part of a month reported as
+  // a month is what made the finance page open on "$0 earned, $8,430 spent" (G11, ledgerMonths.ts).
+  return paged<StagedGlTotal & { period_start: string; period_end: string; swept_at: string }>((from, to) =>
     admin
       .from("mcleod_gl_totals")
-      .select("period_start, post_module, glid, line_count, net_amount, abs_amount")
+      .select("period_start, period_end, swept_at, post_module, glid, line_count, net_amount, abs_amount")
       .eq("org_id", orgId)
       .gte("period_start", fromPeriodStart)
       .lt("period_start", toPeriodStartExclusive)

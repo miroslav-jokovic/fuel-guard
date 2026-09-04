@@ -16,8 +16,17 @@ const ACCOUNTS = [
 ];
 
 const GL_TOTALS = [
-  { period_start: "2026-07-01", post_module: "BILL", glid: "30000001", line_count: 1415, net_amount: "-4828189.24", abs_amount: "4828189.24" },
-  { period_start: "2026-07-01", post_module: "SET", glid: "40000001", line_count: 10254, net_amount: "4058143.38", abs_amount: "4058143.38" },
+  { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "BILL", glid: "30000001", line_count: 1415, net_amount: "-4828189.24", abs_amount: "4828189.24" },
+  { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "SET", glid: "40000001", line_count: 10254, net_amount: "4058143.38", abs_amount: "4058143.38" },
+];
+
+/**
+ * August as production held it on 2026-09-03 — swept on the 28th, four days before the month ended,
+ * so the ledger holds one expense line and no revenue at all. The finance page opens on the last
+ * full calendar month, which on that date is August, so this row IS what the page showed (G11).
+ */
+const AUGUST_PARTIAL = [
+  { period_start: "2026-08-01", period_end: "2026-09-01", swept_at: "2026-08-28 21:02:56.551+00", post_module: "RJ", glid: "40150000", line_count: 11, net_amount: "8430.00", abs_amount: "8430.00" },
 ];
 
 const SAMSARA = [
@@ -64,10 +73,10 @@ const between = (q: RecordedQuery, col: string, v: string) => {
   return (!gte || v >= gte) && (!lt || v < lt);
 };
 
-const recorder = () =>
+const recorder = (glTotals: unknown[] = GL_TOTALS) =>
   createSupabaseRecorder({
     tables: {
-      mcleod_gl_totals: GL_TOTALS,
+      mcleod_gl_totals: glTotals,
       mcleod_gl_accounts: ACCOUNTS,
       mcleod_settlements: SETTLEMENTS,
       mcleod_deductions: DEDUCTIONS,
@@ -147,5 +156,20 @@ describe("getFleetReport", () => {
     const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-09-15");
     expect(r.monthsCovered).toEqual(["2026-07"]);
     expect(r.monthsMissing).toEqual(["2026-08", "2026-09"]);
+  });
+
+  /**
+   * What the page actually showed on the morning of 2026-09-03: the default window is the last full
+   * calendar month, August, whose ledger held eleven lines and no revenue because the sweep had run
+   * on the 28th. "Earned $0, spent $8,430, kept −$8,430" was arithmetically correct and was not a
+   * fact about August.
+   */
+  it("reports no money at all for a month swept before it ended, and says why", async () => {
+    const r = await getFleetReport(recorder([...GL_TOTALS, ...AUGUST_PARTIAL]).client, ORG, "2026-08-01", "2026-08-31");
+    expect(r.total.revenue).toBe(0);
+    expect(r.total.expenses).toBe(0);
+    expect(r.monthsPartial.map((m) => m.month)).toEqual(["2026-08"]);
+    expect(r.ledgerReason).toContain("2026-08-28");
+    expect(r.monthsCovered).toEqual([]);
   });
 });

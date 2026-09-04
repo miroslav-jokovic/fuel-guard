@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LedgerTotalRow, LedgerAccount } from "@silvicom/shared";
+import {
+  assessLedgerMonths,
+  ledgerMonthsReason,
+  type LedgerTotalRow,
+  type LedgerAccount,
+  type LedgerMonth,
+} from "@silvicom/shared";
 import { readLedgerTotalsRange, readGlAccounts } from "../mcleod/index.js";
 
 /**
@@ -17,6 +23,14 @@ import { readLedgerTotalsRange, readGlAccounts } from "../mcleod/index.js";
  * does not allocate (D-FLEET8). Measured 2026-09-03, that is not a marginal concern: 26.2% of
  * July's expenses arrived as 44 journal lines averaging $24,210 — the lease, the insurance and the
  * payroll — so a prorated part-month would be three cheap weeks and one enormous one.
+ *
+ * **A month that was swept before it ended is not a month** (G11, `ledgerMonths.ts`). The financial
+ * sweep is run by hand, so between the 1st and the next run the newest month holds whatever had
+ * posted when the last sweep went — measured 2026-09-03, August held eleven lines, $8,430.00 of
+ * expense and no revenue, and the page that opens on the last full month reported exactly that as
+ * the month. Such months are excluded from BOTH the period and the year to date and returned in
+ * `monthsPartial` with the date they were swept, on the same principle as `monthsMissing`: a stated
+ * absence, never a figure that is real and is not the answer.
  *
  * **The comparative is fiscal-year-to-date** because that is the column McLeod prints and the
  * carrier's fiscal year is the calendar year — verified: July's printed YTD revenue of
@@ -52,6 +66,13 @@ export interface LedgerPeriod {
   monthsCovered: string[];
   /** Months the window asked for that no sweep has landed. A stated absence, never a zero row. */
   monthsMissing: string[];
+  /**
+   * Months a sweep reached while they were still running. Their rows are real and are excluded,
+   * because part of a month reported as the month is a precise and entirely wrong answer (G11).
+   */
+  monthsPartial: LedgerMonth[];
+  /** What a page prints in place of the excluded months' figures. Null when nothing is short. */
+  ledgerReason: string | null;
   toDateFrom: string;
 }
 
@@ -86,11 +107,34 @@ export async function readLedgerForPeriod(
     readGlAccounts(admin, orgId),
   ]);
 
+  // Which months the sweep actually finished, before a single figure is added up. `period_end` is
+  // McLeod's own exclusive bound for the month and `swept_at` the run that staged it; the rule that
+  // compares them lives in `@silvicom/shared`, where it is mutation-tested.
+  // The OLDEST sweep behind a month, not the newest. `mcleod_gl_totals` is keyed per company as
+  // well as per month, so a month can hold one company swept after it closed and another swept
+  // while it was still running — and a fleet total built from those is short by one company's
+  // books. The oldest stamp is the one that says whether every row behind the total saw a finished
+  // month. (Today this carrier stages one company, "TMS", so the two agree; the rule is written for
+  // the day it does not, which no assertion about today's data would catch.)
+  const seen = new Map<string, { periodEnd: string; sweptAt: string | null }>();
+  for (const r of rows) {
+    const month = String(r.period_start).slice(0, 7);
+    const cur = seen.get(month);
+    const sweptAt = r.swept_at ? String(r.swept_at) : null;
+    if (!cur) seen.set(month, { periodEnd: String(r.period_end).slice(0, 10), sweptAt });
+    else if (!sweptAt || !cur.sweptAt || sweptAt < cur.sweptAt) cur.sweptAt = sweptAt;
+  }
+  const assessed = assessLedgerMonths(
+    [...seen.entries()].map(([month, v]) => ({ month, periodEnd: v.periodEnd, sweptAt: v.sweptAt })),
+  );
+  const usable = new Set(assessed.filter((m) => m.complete).map((m) => m.month));
+
   const period: LedgerTotalRow[] = [];
   const toDate: LedgerTotalRow[] = [];
   const covered = new Set<string>();
   for (const r of rows) {
     const month = String(r.period_start).slice(0, 10);
+    if (!usable.has(month.slice(0, 7))) continue;
     toDate.push(toRow(r));
     if (month >= periodFrom && month < periodTo) {
       period.push(toRow(r));
@@ -99,12 +143,17 @@ export async function readLedgerForPeriod(
   }
 
   const asked = monthsBetween(periodFrom, periodTo).map((m) => m.slice(0, 7));
+  // Only the months the WINDOW asked for are reported as short. A fiscal year-to-date read reaches
+  // back to January, and a January the sweep never finished is not this period's news.
+  const partial = assessed.filter((m) => m.shortfall === "partial" && asked.includes(m.month));
   return {
     period,
     toDate,
     accounts,
     monthsCovered: asked.filter((m) => covered.has(m)),
-    monthsMissing: asked.filter((m) => !covered.has(m)),
+    monthsMissing: asked.filter((m) => !covered.has(m) && !partial.some((p) => p.month === m)),
+    monthsPartial: partial,
+    ledgerReason: ledgerMonthsReason(partial),
     toDateFrom,
   };
 }

@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import type { LedgerMonthState } from "./useIncomeStatement";
 
 /**
  * The trend behind the overview (G9) — the last twelve whole months of earned, spent and kept per
@@ -35,6 +36,12 @@ export interface FleetTrendResponse {
   missing: string[];
   rated: number;
   monthsRequested: string[];
+  /**
+   * Months a sweep reached mid-month. They are in `missing` too — the chart cannot plot them — but
+   * they need their own sentence, because "the sweep has not reached August" is not what happened
+   * to a month the sweep reached on the 28th (G11).
+   */
+  monthsPartial: LedgerMonthState[];
 }
 
 export function useFleetTrendQuery(to: Ref<string>, months: Ref<number>) {

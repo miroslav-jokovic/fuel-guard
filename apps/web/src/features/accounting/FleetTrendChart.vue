@@ -74,7 +74,23 @@ const config = computed<ChartConfiguration>(() => ({
  * names its own month, so nothing here restates which months are affected.
  */
 const gaps = computed(() => [...new Set(points.value.filter((p) => p.reason).map((p) => p.reason!))]);
-const missing = computed(() => data.value?.missing ?? []);
+/**
+ * Months a sweep reached mid-month get their own sentence and leave the "not reached" list (G11).
+ * They are both in `missing` — neither can be plotted — but "the sweep has not reached August" is
+ * not what happened to a month the sweep reached on the 28th, and a reader who acts on the wrong
+ * one waits for a run that has already happened.
+ */
+const partial = computed(() => data.value?.monthsPartial ?? []);
+const partialNote = computed(() => {
+  const p = partial.value;
+  if (!p.length) return null;
+  const named = p.map((m) => `${m.month} (swept ${m.sweptAt?.slice(0, 10) ?? "—"})`).join(", ");
+  return `${named} ${p.length === 1 ? "was" : "were"} swept before the month ended, so ${p.length === 1 ? "it is" : "they are"} not on the chart yet.`;
+});
+const missing = computed(() => {
+  const partialMonths = new Set(partial.value.map((m) => m.month));
+  return (data.value?.missing ?? []).filter((m) => !partialMonths.has(m));
+});
 const span = computed(() => {
   const p = points.value;
   return p.length ? `${fmtMonth(p[0]!.month)} – ${fmtMonth(p[p.length - 1]!.month)}` : "";
@@ -102,6 +118,7 @@ const span = computed(() => {
     <BaseChart v-else :config="config" :height="260" class="mt-4" />
 
     <p v-for="reason in gaps" :key="reason" class="mt-2 text-xs text-ink-tertiary">{{ reason }}</p>
+    <p v-if="partialNote" class="mt-2 text-xs text-ink-tertiary">{{ partialNote }}</p>
     <p v-if="missing.length" class="mt-2 text-xs text-ink-tertiary">
       The McLeod sweep has not reached {{ missing.join(", ") }}, so
       {{ missing.length === 1 ? "that month is" : "those months are" }} not on the chart at all.

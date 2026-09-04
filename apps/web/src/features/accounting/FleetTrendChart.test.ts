@@ -83,6 +83,7 @@ const respond = (o: Partial<FleetTrendResponse> = {}) => {
     missing: [],
     rated: 2,
     monthsRequested: ["2026-02", "2026-03", "2026-04"],
+    monthsPartial: [],
     ...o,
   };
 };
@@ -166,5 +167,26 @@ describe("FleetTrendChart", () => {
     const w = render();
     expect(w.find('[data-testid="chart"]').exists()).toBe(false);
     expect(w.text()).toContain("could not be loaded");
+  });
+
+  /**
+   * A month the sweep reached on the 28th is not a month the sweep has not reached, and the two
+   * need different sentences: one waits for a run that has not happened, the other for a re-run of
+   * one that has (G11).
+   */
+  it("separates a month swept mid-month from a month the sweep never reached", () => {
+    respond({
+      missing: ["2026-01", "2026-08"],
+      monthsPartial: [
+        { month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial" },
+      ],
+    });
+    const w = render();
+    expect(w.text()).toContain("swept before the month ended");
+    expect(w.text()).toContain("2026-08-28");
+    // The "not reached" sentence names January only — August was reached, and too early.
+    const notReached = w.text().slice(w.text().indexOf("has not reached"));
+    expect(notReached).toContain("2026-01");
+    expect(notReached).not.toContain("2026-08");
   });
 });

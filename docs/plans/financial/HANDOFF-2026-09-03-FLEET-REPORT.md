@@ -1,7 +1,7 @@
 # Handoff — Finance fleet report, 2026-09-03
 
 **Read this, then `FINANCE-FLEET-REPORT-PLAN.md`.** That plan is the queue; this file is where the
-work stopped, what is proven, and the six traps that cost time in this session.
+work stopped, what is proven, and the seven traps that cost time in this session.
 
 **Branch:** `claude/finance-collectors-july-start` · **PR:** #527 (open) · **Base:** `main` at
 `5617963`.
@@ -42,6 +42,7 @@ accepted because a deliberate break made them fail.
 | **G1** fleet harness | **Built** — pure harness, service, route | `fleetReport.ts` ×2 layers |
 | **G5** Overview tab | **Built** | `FleetOverview.vue`, first tab on the CPM page |
 | **G9** two denominators + trend | **Built** — the denominators inside `FleetReport`, the twelve-month trend beside it | `fleetTrend.ts` ×2 layers, `FleetTrendChart.vue` |
+| **G11** ledger-coverage guard | **Built** — not planned; a live defect found while measuring for G6 | `ledgerMonths.ts`, `ledgerPeriod.ts` |
 | **G6, G7, W1–W4** | Not started | — |
 
 **Files added this session**
@@ -141,7 +142,7 @@ February-only span where there is no line at all.
 
 ---
 
-## 4. Six traps this session hit — do not re-learn these
+## 4. Seven traps this session hit — do not re-learn these
 
 ### 4.1 The plan can be wrong about the code. Verify before you "fix".
 
@@ -195,6 +196,15 @@ assertion passes or fails for a reason that has nothing to do with the component
 inside the `vi.mock` factory (`await vi.importActual("vue")`); `FleetTrendChart.test.ts` is the
 worked example.
 
+### 4.7 "Has rows" is not "has the month".
+
+The McLeod financial sweep is run by hand behind the VPN, so it can land mid-month — 2026-08-28 for
+August, which staged $8,430 of expense and no revenue. The finance page opens on the last full
+calendar month, so on 2026-09-03 it opened on exactly that and reported it as August. **Every
+month-grained figure in this section must ask when its month was swept**, not whether rows exist:
+`period_end` against `swept_at`, oldest sweep wins, strictly after (G11, `ledgerMonths.ts`). The
+same shape of question as G4's mileage coverage, and it went unasked for a month.
+
 ---
 
 ## 5. Measured facts worth not re-deriving
@@ -202,6 +212,10 @@ worked example.
 All from `supabase db query --linked` on 2026-09-03, checked against
 `~/Downloads/PROFIT LOSS JULY 2026.pdf`.
 
+- **A ninth ledger month exists and is not a month.** 2026-08 holds eleven lines, $8,430.00 of
+  expense and no revenue, swept 2026-08-28 21:02 UTC — before the month ended. Every other month
+  (2025-12 through 2026-07) was swept by the same run, long after each had closed. **The sweep has
+  not run since 2026-08-28**, so August needs a re-run before it can be reported (§6).
 - **The staged ledger reproduces the printed statement to the cent**, month and fiscal year to date:
   July 4,828,189.24 / 4,058,143.38 / 770,045.86; YTD 28,687,090.14 / 25,126,042.28 / 3,561,047.86.
 - **Seven months of fleet cost per mile already exist**: Jan 2.10 earned vs 2.39 spent · Jul 3.11 vs
@@ -226,11 +240,14 @@ All from `supabase db query --linked` on 2026-09-03, checked against
 
 ---
 
-## 6. Two things owed to the owner, unrelated to code
+## 6. Three things owed to the owner, unrelated to code
 
-1. **July's tolls are $184.40** against $364,180 year to date (~$52k/month elsewhere). Reclassified,
+1. **The McLeod financial sweep needs re-running.** The last one was 2026-08-28, mid-August, so
+   August cannot be reported at all until a run happens after month end (it is VPN-gated and
+   manual). Every closed month before it is complete and unaffected.
+2. **July's tolls are $184.40** against $364,180 year to date (~$52k/month elsewhere). Reclassified,
    netted through driver deductions, or not yet entered — the accountants have to say which.
-2. **The printed July balance sheet does not foot** by **$365,742.64** (assets 19,387,472.49 vs
+3. **The printed July balance sheet does not foot** by **$365,742.64** (assets 19,387,472.49 vs
    liabilities and equity 19,021,729.85). Every subtotal adds and net income agrees with retained
    earnings, so the gap is inside McLeod.
 
@@ -256,4 +273,10 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** G2 (already was), G3, G4, G10, G1, G5, G9. **Remaining:** G6, G7, W1–W4.
+**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11. **Remaining:** G6, G7, W1–W4.
+
+**G6 is measured but unsigned.** The 100 P&L accounts that posted in 2026 are pulled and drafted
+into 14 families that tie to the ledger to the cent on both sides (§5 of the plan's progress log).
+What it needs is one owner sitting on the dozen judgement calls — where contractor pay, recruiting,
+financing fees and the jurisdictional accounts belong. Nothing about that map can be derived: McLeod
+types `40790002 Tolls OO` as `Income Tax Expense` and truncates `descr` to 28 characters.

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildIncomeStatement, type IncomeStatement } from "@silvicom/shared";
+import { buildIncomeStatement, type IncomeStatement, type LedgerMonth } from "@silvicom/shared";
 import { readLedgerForPeriod } from "./ledgerPeriod.js";
 
 /**
@@ -18,6 +18,9 @@ export interface IncomeStatementResult extends IncomeStatement {
   /** Months whose GL totals are staged, of the months the period asked for. */
   monthsCovered: string[];
   monthsMissing: string[];
+  /** Months a sweep reached mid-month; their rows are staged, real, and left out (G11). */
+  monthsPartial: LedgerMonth[];
+  ledgerReason: string | null;
   /** The fiscal-year window the to-date column covers, for the page to state. */
   toDateFrom: string;
 }
@@ -37,6 +40,8 @@ export async function getIncomeStatement(
     }),
     monthsCovered: ledger.monthsCovered,
     monthsMissing: ledger.monthsMissing,
+    monthsPartial: ledger.monthsPartial,
+    ledgerReason: ledger.ledgerReason,
     toDateFrom: ledger.toDateFrom,
   };
 }

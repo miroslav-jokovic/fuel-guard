@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeFleetReport, type FleetReport, type FleetDeduction } from "@silvicom/shared";
+import {
+  computeFleetReport,
+  type FleetReport,
+  type FleetDeduction,
+  type LedgerMonth,
+} from "@silvicom/shared";
 import {
   readSettlementsWindow,
   readBillingWindow,
@@ -41,6 +46,9 @@ import { getMileageCoverage } from "./mileageCoverage.js";
 export interface FleetReportResult extends FleetReport {
   monthsCovered: string[];
   monthsMissing: string[];
+  /** Months a sweep reached while they were still running, excluded from every figure (G11). */
+  monthsPartial: LedgerMonth[];
+  ledgerReason: string | null;
   toDateFrom: string;
 }
 
@@ -140,6 +148,8 @@ export async function getFleetReport(
     ...report,
     monthsCovered: ledger.monthsCovered,
     monthsMissing: ledger.monthsMissing,
+    monthsPartial: ledger.monthsPartial,
+    ledgerReason: ledger.ledgerReason,
     toDateFrom: ledger.toDateFrom,
   };
 }

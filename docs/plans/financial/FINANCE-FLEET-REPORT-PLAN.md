@@ -501,8 +501,9 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
+| **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** G2, G3, G4, G10, G1, G5 and G9 — done. Next G6, then G7.
+**Ordering:** G2, G3, G4, G10, G1, G5, G9 and G11 — done. Next G6, then G7.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
@@ -766,3 +767,44 @@ the record.
   the test asserted the QUERY — the `period_start` bounds the service issued, and the three Samsara
   month reads it made. A wasted read is not a wrong number, but it is the same class of defect: the
   service asking for something other than what it means.
+- 2026-09-03 · **G11 — the ledger-coverage guard. Not planned; found by measuring production for
+  G6.** Pulling the chart of accounts turned up a ninth ledger month nobody had looked at: August
+  2026, holding $8,430.00 of expense, **no revenue at all**, and eleven lines. The financial sweep
+  is run by hand behind the carrier's VPN and the last run was **2026-08-28 — four days before the
+  month ended**. Nothing distinguished that from a finished month, because the only test anything
+  applied was "does this month have rows" (`getLedgerCoverage`'s `sweptMonth: totals.length > 0` is
+  that rule, verbatim).
+
+  **It was on the screen.** The page opens on the last full calendar month, which on 2026-09-03 is
+  August, so the finance overview said the fleet **earned $0.00, spent $8,430.00 and kept
+  -$8,430.00**, and the twelve-month trend shipped that morning drew a cliff to the axis on its
+  final point. Every figure was computed correctly from the rows that were there. That is the whole
+  problem, and it is not a one-off state: it recurs every month between the 1st and the next sweep.
+
+  **The rule is a comparison the rows already carry.** `period_end` is McLeod's own exclusive bound
+  for the month and `swept_at` the run that staged it, so a month is complete when the sweep is
+  dated strictly after the month ended - no date constant, and it keeps working for a sweep that
+  stops for a fortnight next spring. Strictly after, not on: `swept_at` is UTC and the entries are
+  booked in US local time, so a sweep at 00:30 UTC on the 1st ran the previous evening where the
+  work happened. And the **oldest** sweep behind a month decides it, not the newest -
+  `mcleod_gl_totals` is keyed per company as well as per month, so a month can hold one company
+  swept after it closed and another swept mid-month, and a fleet total built from those is short by
+  one company's books. (This carrier stages one company today, so the two agree; the fixture that
+  discriminates them is deliberate, because no assertion about today's data would.)
+
+  Partial months are excluded from the period **and** from the fiscal year to date, and are reported
+  as their own state - `monthsPartial`, never folded into `monthsMissing`, because "the sweep has
+  not reached August" and "the sweep reached August on the 28th" call for different actions from
+  whoever reads them. The overview prints no money at all rather than zeros; the trend drops the
+  month and names it; the income statement carries the sentence above its sections.
+
+  **Verified in a real browser** in both states - August withheld with the reason and the trend
+  ending at July, and July unchanged. Eight pure tests, six service tests and three component tests;
+  fourteen mutants, every one killed, including the two that survived first: newest-sweep-instead-of-
+  oldest, which no fixture could see until a second company was added to one, and a withheld state
+  that also swallowed a window whose older month WAS finished.
+
+  **Two things this leaves owed.** `getLedgerCoverage`'s `sweptMonth` still means "has rows" - it
+  feeds the Company total tab, which G7 removes, so it is named here rather than patched. And the
+  sweep itself has not run since 2026-08-28: August needs a re-run before it can be reported at all,
+  which is an operational act, not a code change.
