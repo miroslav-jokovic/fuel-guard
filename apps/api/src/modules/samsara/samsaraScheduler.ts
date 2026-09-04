@@ -15,6 +15,7 @@ import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind 
 import { enqueueJob } from "../../queue/enqueue.js";
 import { dispatchJob } from "../../queue/dispatch.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
  *  the OLDEST org only (2026-08 incident: the fallback used to include EVERY org row, so a stray org
@@ -347,6 +348,43 @@ function startIftaTier(env: Env): void {
 }
 
 /**
+ * Tier 3c — ODOMETER READINGS (W3b, D-FLEET9). The fleet's only measured distance.
+ *
+ * Its own tier rather than a line in tier 3 for the reason 3b is: the grain is a DAY and a day is
+ * only finished once, so pacing it with a driver-score refresh that runs every six hours would spend
+ * the vendor's rate limit four times over to learn the same fact. `SAMSARA_ODOMETER_SYNC_HOURS=0`
+ * disables it outright.
+ *
+ * ⚠ THE FIRST DELAY IS FIFTEEN MINUTES, AND THAT NUMBER IS THE DEPLOY WINDOW. Railway serves a merge
+ * about three minutes in and `migrate.yml` applies its schema about twelve minutes in
+ * (docs/MIGRATION-DISCIPLINE.md §the-deploy-window), so a tier that ticked at boot on the release
+ * that ships 0311 would write to a table Postgres does not have yet. Nothing would be lost — the
+ * job fails, the next tick repairs it — but a failed job on every deploy is noise that teaches
+ * people to ignore the ledger. Fifteen minutes puts the first tick after the window closes.
+ */
+function startOdometerTier(env: Env): void {
+  startTier(env, "odometer", 900_000, env.SAMSARA_ODOMETER_SYNC_HOURS * 3_600_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "sync_odometer", async () => {
+        const r = await syncVehicleOdometerReadings(admin, env, orgId);
+        // Coverage goes in the ledger because a per-mile figure computed over part of the fleet
+        // reads low on miles and high on cost and looks entirely plausible (G10's reasoning).
+        return {
+          vehicles: r.vehicles,
+          vehiclesWithData: r.vehiclesWithData,
+          vehiclesWithoutData: r.vehiclesWithoutData,
+          readings: r.readings,
+          obdReadings: r.obdReadings,
+          gpsDistanceReadings: r.gpsDistanceReadings,
+          batches: r.batches,
+          windowDays: r.windowDays,
+        };
+      });
+    }
+  });
+}
+
+/**
  * Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
  * (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
  * the run + its per-table delete counts are visible on Data & Sync.
@@ -389,6 +427,7 @@ export function startSamsaraScheduler(env: Env): void {
   startIdentityTier(env, env.SAMSARA_IDENTITY_SYNC_HOURS * 3_600_000);
   startPerformanceTier(env);
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
+  if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   startRetentionTier(env);
 

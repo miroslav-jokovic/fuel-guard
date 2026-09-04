@@ -369,6 +369,9 @@
   "samsara_ifta_jurisdiction_miles": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
+  "samsara_odometer_readings": [
+    "apps/api/src/modules/samsara/samsaraOdometerSync.ts"
+  ],
   "saved_views": [
     "apps/api/src/modules/org/routes/savedViews.ts"
   ],

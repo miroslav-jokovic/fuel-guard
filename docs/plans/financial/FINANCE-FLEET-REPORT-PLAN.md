@@ -1125,3 +1125,49 @@ the record.
   **W3 is NOT blocked by the stale sandbox.** Samsara is a cloud API and is syncing right now (IFTA
   fetched today; the stats cursor moved at 16:36). W3b collects real data the moment it deploys —
   unlike W1c, which waits on the McLeod VPN.
+- 2026-09-04 · **W3b — the odometer store and its collector, in one merge.** Migration **0311**
+  creates `samsara_odometer_readings`; `samsaraOdometerSync.ts` writes it; the `sync_odometer` job
+  kind, its queue handler and scheduler tier 3c run it daily. Together, because
+  `lint:table-producers` requires a table's writer in the merge that creates it and its waiver list
+  is now empty.
+
+  **The shape is `idleCapabilitySync.ts`'s** — the same `/fleet/vehicles/stats/history` endpoint, the
+  same 20-vehicle batching, the same org-clock day boundary (`organizationTimezone`, borrowed across
+  the existing `samsara -> idle` edge rather than copied). What changed is the `types` list
+  (`obdOdometerMeters,gpsDistanceMeters`, no `decorations` at all) and what a day yields: the LAST
+  reading of each local day, per counter, verbatim in metres at Samsara's own instant.
+
+  **`gpsOdometerMeters` is deliberately not requested.** It is GPS distance plus a value somebody
+  typed into the vendor's console, so its accuracy is a property of that typing; requesting it would
+  spend a third of the three-type budget on the counter the rule is least likely to reach. The column
+  CHECK and `ODOMETER_COUNTERS` both keep `gps_odometer` legal, so collecting it later is a change to
+  the collector and not a migration. (It is also the value that, passed as a `decoration`, 400s the
+  whole request — the bug that once produced 0% telematics coverage. Nothing is decorated here.)
+
+  **Three decisions worth naming, because each is a place a plausible wrong number could have come
+  from:**
+
+  · **A truncated page walk stages NOTHING for that batch.** Truncation is not an even thinning: the
+    collector keeps the last reading of each day, so a capped walk removes precisely the readings it
+    would have kept, and the rows it still wrote would look entirely healthy while reporting an
+    earlier odometer. The batch throws, the job fails visibly, the next tick re-fetches.
+  · **The table is NOT in `RETENTION_RULES`, and that is a decision.** Every other raw telematics
+    table prunes at 400 days on the grounds that a derived rollup holds its history and Samsara can
+    re-backfill. Neither holds here — nothing mirrors these readings, and 400 days is barely two
+    months wider than the twelve-month trend the report already draws, so a year-over-year comparison
+    would silently lose its earlier half. The volume is ~380 rows a day, under 140k a year.
+  · **The tier's first tick is fifteen minutes after boot, and that number is the deploy window.**
+    Railway serves a merge ~3 min in and `migrate.yml` applies its schema ~12 min in, so a tier that
+    ticked at boot on this release would write to a table Postgres does not have yet — recoverable,
+    but a failed job on every deploy is noise that teaches people to ignore the ledger.
+
+  **Measured, not assumed.** Ten pure tests over `lastReadingEachDay` (four mutants killed: first-of-
+  day, negatives admitted, UTC bucketing, offset zeroed), ten service tests over the collector (seven
+  mutants killed: org filter dropped, coverage always counted, truncation ignored, batch size, the
+  conflict target without `source`, UTC days, metres converted to miles), and a 23-assertion PGlite
+  matrix (three mutants killed: `source` out of the identity, the `meters >= 0` CHECK dropped, a
+  SELECT policy added). All 21 CI lint gates, `typecheck`, `lint`, `test` and `build` green.
+
+  **Nothing reads these rows yet** — that is W4, and `distanceByVehicle` (W3a) is already the reader
+  it will use. The collector starts filling the table the moment it deploys; W4 has real history to
+  read as soon as a few days have passed.
