@@ -41,6 +41,16 @@ export const windowShape = z.object({ from: isoDay, to: isoDay });
 export const windowSchema = windowShape.refine(ordered, ORDER_MESSAGE);
 
 /**
+ * A window plus the grain to bucket it at (W2). The grain vocabulary is `SpendGrain`'s, matched
+ * rather than re-invented: the fuel-spend series already offers day/week/month and starts its weeks
+ * on Monday, and a second grain vocabulary in one product is how two figures come to disagree about
+ * which days a week holds.
+ */
+export const activityQuerySchema = windowShape
+  .extend({ grain: z.enum(["day", "week", "month"]).optional() })
+  .refine(ordered, ORDER_MESSAGE);
+
+/**
  * The trend window (G9): a date, and how many whole months of history to end there.
  *
  * `to` alone rather than a range, because the series is a fixed count of whole months back from the

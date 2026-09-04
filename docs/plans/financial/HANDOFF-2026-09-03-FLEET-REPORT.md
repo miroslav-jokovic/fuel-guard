@@ -59,7 +59,8 @@ accepted because a deliberate break made them fail.
 | **G7b** the close's proof | **Built 2026-09-04** — allocation apparatus deleted, tabs rehomed | 0308, `fleetReport.ts` |
 | **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
 | **W1b** daily collector | **Built and MERGED 2026-09-04** — the agent sends the day, the ingest calls 0310's function | PR #530 |
-| **W1c, W2–W4** | Not started — W1c waits on the live connection (§3.5) | — |
+| **W2** weekly activity | **Built 2026-09-04** — the Week by week tab, miles-free and cost-free by design | `billingActivity.ts` ×2 layers, `ActivityTable.vue` |
+| **W1c, W3, W4** | Not started — W1c and W3 wait on the live connection (§3.5) | — |
 
 **Files added this session**
 

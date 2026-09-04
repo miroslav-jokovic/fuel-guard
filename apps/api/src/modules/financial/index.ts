@@ -39,4 +39,5 @@ export { getIncomeStatement, type IncomeStatementResult } from "./incomeStatemen
 export { getMileageCoverage, type MileageCoverageResult } from "./mileageCoverage.js";
 export { getFleetReport, type FleetReportResult } from "./fleetReport.js";
 export { getFleetTrend, type FleetTrendResult } from "./fleetTrend.js";
+export { getBillingActivity, type BillingActivityResult } from "./billingActivity.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";

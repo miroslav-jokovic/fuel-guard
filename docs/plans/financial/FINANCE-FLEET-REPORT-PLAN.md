@@ -500,7 +500,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W1a** | **Daily GL grain — the schema** | **BUILT 2026-09-04.** `mcleod_gl_days` (0309) and `replace_mcleod_gl_days` (0310), which stages the day rows and DERIVES the monthly rollup from them in one transaction. No caller yet — a function's caller ships one merge behind its migration, as 0304's did. | — |
 | **W1b** | **Daily GL grain — the collector** | **BUILT 2026-09-04.** `GL_CONTROL_TOTALS` groups by the day, `toLedgerTotalRows` carries it, `glDayTotalSchema` requires it, and the ingest calls `replace_mcleod_gl_days`. Merges only once 0310 has applied (`pnpm verify:live`). | 0310 applied |
 | **W1c** | **Daily GL grain — the readers** | `readLedgerTotalsRange` reads days and sums; retires `monthsTouching` and the month-aligned-window guard. Ships once a daily sweep has actually landed, so nothing reads an empty table. | W1b + one sweep |
-| **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
+| **W2** | **Weekly revenue and activity** | **BUILT 2026-09-04.** `bucketBillingActivity` (pure), `getBillingActivity`, `GET /api/accounting/billing-activity?from=&to=&grain=`, and the **Week by week** tab. Miles-free by design (§1.8.4 step 2): every rate is per BILLED mile, and there is no cost. | — |
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
@@ -1044,3 +1044,36 @@ the record.
   **`replace_mcleod_gl_month` is left standing**, unused by application code. Its matrix still proves
   the behaviour the new function inherited, and dropping a function while a previous build may still
   be serving it is the deploy window run in reverse. It goes with W1c.
+- 2026-09-04 · **W2 — week by week, and what it refuses to show.** Loads, revenue, billed miles and
+  the rate between them, bucketed on the day each load DELIVERED. A new tab, second in the row,
+  because it answers the question asked BETWEEN closes where every other tab answers one asked at a
+  close.
+
+  **Two refusals are the design, not gaps in it.** There is **no cost and no cost per mile**: 26.2%
+  of a month's expense arrives as ~44 month-end journal entries (lease, insurance, payroll), so a
+  weekly cost figure would show three cheap weeks and one enormous one — arithmetically correct and
+  operationally meaningless, and spreading them would be the allocation D-FLEET8 refuses. And every
+  rate is per **billed** mile, never per mile driven: Samsara's IFTA feed is monthly by design and
+  the stats feed keeps no distance history (§1.8.2), so a weekly driven denominator does not exist.
+  The tab says both things in its own words rather than leaving a reader to notice a missing column
+  — D-FLEET10 is that a weekly view names what it does not contain.
+
+  **The week starts on Monday because `periodBounds` already decided that**, for the fuel-spend
+  series, with the reason recorded there: a Sunday-start series would disagree with every statement
+  on the desk. It is imported, not restated. Two different weeks in one product is a defect nobody
+  finds until two figures fail to add up — and the grain vocabulary (`day|week|month`) is matched to
+  `SpendGrain` for the same reason.
+
+  **Two exclusions are counted out loud** rather than quietly dropped: bills the GL has not booked
+  (the D-MC12 predicate every other revenue figure uses, so the weekly view cannot disagree with the
+  monthly one), and loads whose bill carries no distance — those still count as LOADS, because
+  dropping them would understate activity to protect a rate that is protected anyway.
+
+  Eleven pure tests, five service tests, eight component tests. Ten mutants killed across the three
+  layers, including two that survived a first pass: a distance-less load ceasing to count as a load,
+  and — in the component — a row order assertion that used `tbody tr`, which finds nothing under
+  jsdom's stacked `DataTable` layout and passed whichever way the rows were sorted. It asserts
+  position in the rendered text now.
+
+  `readBillingWindow` now selects `delivery_date`. It was already the window's filter, so no new
+  column and no deploy-window split.

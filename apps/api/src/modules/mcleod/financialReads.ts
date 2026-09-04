@@ -64,6 +64,12 @@ export interface StagedBilling {
   dispatcher_user_id: string | null;
   dispatcher_name: string | null;
   bill_date: string | null;
+  /**
+   * The day the load DELIVERED. Already the window's filter; selected since W2 because the weekly
+   * activity view buckets on it — bills are re-dated to the driving clock, never the invoicing one
+   * (§5: McLeod's mileage is on a settlement clock, median 4.3 days after delivery).
+   */
+  delivery_date: string | null;
   transfer_date: string | null;
   total_charges: number | string;
   other_charge: number | string;
@@ -129,7 +135,7 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, delivery_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
       .eq("org_id", orgId)
       .gte("delivery_date", fromIso)
       .lt("delivery_date", toIso)
