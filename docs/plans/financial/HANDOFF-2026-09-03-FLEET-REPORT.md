@@ -275,8 +275,11 @@ environmental, not a regression from any change.)
 
 **Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11. **Remaining:** G6, G7, W1–W4.
 
-**G6 is measured but unsigned.** The 100 P&L accounts that posted in 2026 are pulled and drafted
-into 14 families that tie to the ledger to the cent on both sides (§5 of the plan's progress log).
-What it needs is one owner sitting on the dozen judgement calls — where contractor pay, recruiting,
-financing fees and the jurisdictional accounts belong. Nothing about that map can be derived: McLeod
-types `40790002 Tolls OO` as `Income Tax Expense` and truncates `descr` to 28 characters.
+**G6 is measured, drafted and unsigned — that signature is the whole remaining step.** All 100 P&L
+accounts that posted Jan–Jul 2026 are assigned to ten expense families and four revenue ones, and
+the families tie to the printed statement to the cent on both sides. The map and the five judgement
+calls are the last dated entry in the plan, and the owner's review copy is
+[Ten Families of Silvicom's Ledger](https://claude.ai/code/artifact/5a3d1625-6693-4a17-8afe-f7f8c8a316bc).
+Nothing is built: shipping an unsigned classification puts a grouping nobody ruled on the page.
+Once it is signed the code is small — a `glFamilies.ts` constant in shared, an aggregation over the
+statement's sections, a block above the income statement, with the tie-out as the acceptance test.

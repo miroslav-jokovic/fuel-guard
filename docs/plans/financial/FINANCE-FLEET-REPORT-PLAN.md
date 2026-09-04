@@ -808,3 +808,58 @@ the record.
   feeds the Company total tab, which G7 removes, so it is named here rather than patched. And the
   sweep itself has not run since 2026-08-28: August needs a re-run before it can be reported at all,
   which is an operational act, not a code change.
+- 2026-09-03 · **G6 — the family map, measured and drafted. Awaiting one signature, and that is the
+  whole remaining step.** Production holds **100 P&L accounts** with a posting between 2026-01-01 and
+  2026-07-31. Every one is assigned below, and the families sum to **28,687,090.14 of revenue and
+  25,126,042.28 of expense — the printed statement's own fiscal year to date, to the cent, on both
+  sides**. Nothing is unassigned, and nothing is assigned twice; a gate is not needed to say so
+  because the tie-out says it.
+
+  Ten families of expense and four of income (the plan's §2 asks for ten rows; revenue is the top
+  line, not a family of cost). Figures are Jan–Jul 2026, signed as the statement signs them —
+  positive is more of that thing, and a negative is a genuine credit balance.
+
+| Family | Jan–Jul $ | Accounts | `glid`s |
+|---|---:|---:|---|
+| **Freight and fuel surcharge** | 28505865.38 | 5 | 30000001 30000002 30000000 30000031 30000032 |
+| **Charged to contractors** | 223982.01 | 3 | 30100010 40100000 30080000 |
+| **Detention and accessorial** | 2242.75 | 5 | 30000011 30100030 30000012 30000010 30100000 |
+| **Gain and loss on sale** | -45000.00 | 1 | 30050000 |
+| **Company driver pay** | 7346088.87 | 5 | 40000001 40000000 40800000 40000031 40000032 |
+| **Fuel and fluids** | 6399386.60 | 4 | 40050000 30220000 30340000 30210000 |
+| **Lease, insurance and interest** | 4647578.35 | 8 | 40140000 40350000 40350040 40500000 40350070 40550000 40350060 40350020 |
+| **Maintenance and tires** | 1383683.90 | 15 | 40160000 30240000 30230000 30350000 30250000 30300000 30270000 30260000 40150000 30290000 30380000 40780000 30330000 30320000 30310000 |
+| **Tolls, scales and unloading** | 426945.91 | 4 | 40790000 40760000 40700000 40790002 |
+| **Permits, IFTA and IRP** | 407616.64 | 12 | 40230000 40310000 40210000 40200000 40190000 40260000 40170000 40320000 40290000 40240000 40220000 40270000 |
+| **Recruiting and screening** | 165064.70 | 7 | 42000000 47750000 40400000 43220000 40420000 40410000 43250000 |
+| **Financing and collection** | 132589.01 | 6 | 40650000 12100000 42500000 40750000 42500001 50000000 |
+| **Contractor pay** | 1363531.43 | 1 | 40000002 |
+| **Office and administration** | 2853556.87 | 24 | 42350000 42200000 42300000 42100000 42200010 40250000 43200000 47000000 42600020 43300000 43000000 47500000 42800000 42400000 42600030 42700000 42600000 47250000 40810000 40820000 42600010 46000000 42900000 43230000 |
+
+  **The five calls the data cannot make, each with a recommendation** — reviewed with the owner as
+  [Ten Families of Silvicom's Ledger](https://claude.ai/code/artifact/5a3d1625-6693-4a17-8afe-f7f8c8a316bc):
+
+  1. **Contractor pay is its own family** (40000002, 1,363,531.43). The overview already reports
+     contractors in their own column; a family mixing them with company drivers cannot answer what
+     our own drivers cost per mile.
+  2. **IRP joins IFTA and the permits** although McLeod files it under `General & Admin Expenses`
+     (40230000, 317,971.96). The class an account is filed under is a bookkeeping decision and the
+     family is a management one; they do not have to agree. This is the single largest instance of
+     the rule that makes this map underivable.
+  3. **Recruiting stands alone** (165,064.70 over seven accounts and two McLeod classes) — it is the
+     overhead the carrier actively turns up and down, and inside office costs nobody can see it.
+  4. **Financing and collection is a family** (132,589.01) — quick pay, bank charges, bad debt,
+     discount log, negative settlements. Each is too small to see alone and they are one thing.
+  5. **Unloading fees ride with tolls and scales** (40700000, 7,562.11) rather than with driver pay:
+     charged per load at a dock, as a toll is charged per trip on a road.
+
+  **Two findings for the accountants, not for the code.** `30050000 Gain on Sale` is classed as
+  revenue and holds a single **debit** of 45,000.00, so the statement reads it as −45,000.00 of
+  income — a loss in an account named for the happier case, or an entry on the wrong side. And July's
+  tolls are 184.40 against ~52,000 a month before it (already §6 of the handoff).
+
+  **Nothing is built.** The map is a classification and shipping an unsigned one puts a grouping
+  nobody ruled on the page — which is the same failure as a per-mile figure over a short
+  denominator, wearing different clothes. The code behind it is small once the map is signed: a
+  `glFamilies.ts` constant in shared, an aggregation over the statement's own sections, and a block
+  above the income statement. The tie-out above is the acceptance test.
