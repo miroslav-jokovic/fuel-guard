@@ -98,3 +98,5 @@ export type {
   TelematicsCoverageMonth,
   TelematicsCoverageSummary,
 } from "./telematicsCoverage.js";
+export { lastReadingEachDay } from "./odometerReadings.js";
+export type { OdometerStatSample, DailyOdometerReading } from "./odometerReadings.js";

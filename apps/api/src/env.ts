@@ -90,6 +90,11 @@ const EnvSchema = z.object({
   // IFTA jurisdiction miles (0255). Daily is generous: the figures are monthly and Samsara restates
   // only the most recent 72 hours, so nothing moves faster than that. 0 disables the tier outright.
   SAMSARA_IFTA_SYNC_HOURS: z.coerce.number().min(0).default(24),
+  // Odometer readings (0311, W3b). Daily, because the collector keeps ONE reading per truck per day
+  // per counter and a day is only finished once. The rolling window is four days
+  // (ODOMETER_SOURCE_WINDOW_DAYS), so a skipped tick is repaired by the next one rather than leaving
+  // a hole a fleet denominator would silently absorb. 0 disables the tier outright.
+  SAMSARA_ODOMETER_SYNC_HOURS: z.coerce.number().min(0).default(24),
   // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
   // Set to "false" to disable.
   NIGHTLY_RECONCILE_ENABLED: z
