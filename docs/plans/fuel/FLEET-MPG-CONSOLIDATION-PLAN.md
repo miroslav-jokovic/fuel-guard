@@ -1,6 +1,8 @@
 # Fleet MPG — one definition, one module
 
-**Status:** ACTIVE — M1 building under the §2 rulings as proposed. **Owner:** Miki. **Written:** 2026-09-04, after
+**Status:** ACTIVE. **Rulings made 2026-09-04** — the owner delegated them explicitly ("make
+rulings on this so we get precision and reliability and enterprise grade best solutions"), so §2 is
+decided, not proposed. **Owner:** Miki.
 the owner observed that fleet MPG reads differently on different pages.
 
 **The observation was right, and it is worse than a rounding difference.** For the week of
@@ -139,13 +141,16 @@ distance with a named source and a stated refusal when it cannot. That is a *mea
 
 ---
 
-## 2. The ruling this plan needs
+## 2. The rulings
 
-**D-MPG1 (proposed) — fleet MPG is `Σ measured miles ÷ Σ tractor gallons`, over the same trucks and
-the same window, and it is computed in exactly one place.**
+Made 2026-09-04 on the owner's explicit delegation. The brief was *precision, reliability,
+enterprise-grade*, and each ruling below is justified against that brief rather than against
+convenience. Where a ruling costs something, the cost is named.
 
-§1.1 establishes that the arithmetic was never the disagreement — all three are already ratios of
-sums. **The disagreement is the numerator**, so that is what D-MPG1 rules on:
+### D-MPG1 — fleet MPG is `Σ miles ÷ Σ gallons that have a mile behind them`, computed in exactly one place
+
+§1.1 establishes that the arithmetic was never the disagreement — all three definitions are already
+ratios of sums. **The disagreement is the numerator**, so that is what this rules on:
 
 1. **The miles must be measured, not reconstructed from the fuel and not spread across days.** A's
    miles are an odometer span weighted by a gallons figure that is not the one the span was divided
@@ -157,28 +162,59 @@ sums. **The disagreement is the numerator**, so that is what D-MPG1 rules on:
 2. **It must be checkable.** Total distance over total fuel ties out against IFTA, against the
    ledger and against the readings themselves, and M5 makes that comparison a shipped check rather
    than something a person notices on a good day.
-3. **It must fail honestly.** The module reports its coverage — how many trucks and how many gallons
-   are behind the figure — and withholds the number when coverage is too thin. That is the
-   G10 / D-FIN10 pattern the finance section already uses, and it is why a fleet report prints a dash
-   rather than a plausible wrong rate.
+3. **It must fail honestly.** The module reports its coverage and withholds the number when coverage
+   is too thin. That is the G10 / D-FIN10 pattern the finance section already uses, and it is why a
+   fleet report prints a dash rather than a plausible wrong rate.
+4. **No surface computes an MPG.** Not a style preference — it is the only form of this ruling that
+   survives contact with the next feature. Four implementations of one definition already landed
+   without anyone being asked, so M6's gate is part of the ruling and not an optional tidy-up.
 
-**D-MPG2 (proposed) — IFTA keeps its own figure, and it is labelled, not reconciled.**
-`assessMpg` answers a *tax* question over *taxable* jurisdiction miles and *purchased* gallons; it is
-not the operating efficiency of the fleet and should not be forced to equal it. It stays where it is,
-its label on the IFTA ledger says what it is, and a new check (M5) compares the two and reports the
-divergence instead of hiding it.
+### D-MPG2 — IFTA keeps its own figure; it is labelled and compared, never reconciled
 
-**D-MPG3 (proposed) — a per-driver or per-truck MPG is a different figure and says so.** Driver
-detail's "Average MPG" is over that driver's fills; it can neither be the fleet number nor be
-compared with it. It moves onto the shared module's per-subject entry point so the band and the
-arithmetic stop being hand-written, and its label gains the scope.
+`assessMpg` answers a *tax* question over *taxable* jurisdiction miles and *purchased* gallons. It is
+not the fleet's operating efficiency and must not be bent into agreeing with it — forcing a tax
+figure to match a dashboard is how a filing becomes wrong. It stays where it is, the IFTA ledger's
+label says what it is, and M5's `assessMileageAgreement` compares the two and **reports** the
+divergence. Comparison is the reliability mechanism; reconciliation would destroy the very
+independence that makes the comparison worth anything.
 
-**M1 is being built under these as the working ruling** (the owner's instruction on 2026-09-04 was
-"only one module for this calculation, and the number precise and real", which is D-MPG1 in
-substance). They are still written as proposals because a different answer to any of them changes
-M1 — and M1 is the cheapest place in the programme to change, which is the reason it is first.
+### D-MPG3 — a per-driver or per-truck MPG is a different figure and says so
+
+Driver detail's "Average MPG" is over that driver's fills. It can neither be the fleet number nor be
+compared with it, and a shared label inviting that comparison is itself the defect. It moves onto the
+same arithmetic — so the band and the division stop being hand-written — and its label gains the
+scope.
+
+### D-MPG4 — ONE coverage floor fleet-wide, `MIN_MEASURED_SHARE = 0.6`, and the coverage is shown wherever the number is
+
+The tempting answer is a stricter bar on a dashboard tile than in a report. It is wrong, and it is
+wrong in this programme's own terms: two floors mean the same period can show a dash on one page and
+a figure on another, which is a NEW instance of exactly the defect being removed. One number, one
+floor, everywhere.
+
+0.6 is kept rather than raised because it is what `spendPeriodTotals` has enforced since migration
+0244 and raising it would silently withhold figures the spend report shows today — a product change
+smuggled inside a refactor. **The cost of keeping it is named:** a 62%-covered period and a
+99%-covered period both print a number, and only the displayed `measuredShare` distinguishes them.
+That is why displaying it is part of the ruling and not a nicety. Once M2 lands and coverage is
+measured near 99%, raising the floor becomes a deliberate one-line change with evidence behind it
+(follow-up, not a silent deferral).
+
+`truckCoverage` is reported and deliberately **not** gated on: a fleet where 40% of the trucks are
+new and barely fuelled is not the same failure as one where 40% of the fuel is unaccounted for, and
+one threshold that cannot tell them apart would withhold good figures and pass bad ones.
+
+### D-MPG5 — fleet MPG is a TRACTOR figure, and reefer and DEF are excluded explicitly
+
+Measured 2026-07: 58 reefer fills, 1,259 gallons, and **every one of them carries a null
+`computed_mpg`** — so today they fall out of definition A by accident and the fleet number is the
+same to two decimal places either way. That is precisely the argument for making it explicit. A
+figure that is right by coincidence is one scoring change away from being wrong silently, and
+"reefer fuel moved the truck" is not a claim anybody would defend if asked. M3 filters on
+`tank_type` rather than relying on the coincidence.
 
 ---
+
 
 ## 3. What we build
 
@@ -228,38 +264,36 @@ Nothing is removed until the thing that replaces it is live.
 
 ---
 
-## 6. Open questions — answer before M1
+## 6. Questions — all five answered 2026-09-04
 
-- **Q1 — the ruling.** Are D-MPG1, D-MPG2 and D-MPG3 (§2) accepted? Candidate answers:
-  (a) as written — ratio of sums, IFTA separate and labelled, per-driver scoped;
-  (b) ratio of sums but IFTA also switched onto the operating miles, which changes tax figures and
-  needs the accountant's sign-off;
-  (c) keep the gallon-weighted mean as the fleet figure and make the spend report use it too —
-  simplest, one module either way, but the number stays unreconcilable against IFTA and the ledger.
-  **Recommendation: (a).**
-- **Q2 — the coverage floor.** M1 needs one. `MIN_MEASURED_SHARE` is 0.6 today, on the spend report.
-  Is 60% of the fleet's gallons behind a measured mile enough to print a fleet MPG on a dashboard
-  tile, or should the dashboard be stricter than the report? **Recommendation: one floor, 0.6, and
-  the coverage stated next to the number wherever it is shown.**
-- **Q3 — the August mileage drift (§1.4), which is not an MPG bug.** `fuel_spend_days.miles` ran
-  3.8% ahead of IFTA in August against 0.08% in July, and the `miles_basis` mix changed in the same
-  week. Candidate answers: (a) investigate now as its own step under FUEL-SPEND-RELIABILITY-PLAN;
-  (b) let M2 obsolete it — the measured odometer miles replace the allocated ones for every figure
-  that matters, and the drift stops mattering; (c) both. **Recommendation: (c)** — (b) is the real
-  fix and (a) is what tells us whether anything ELSE that reads those miles has been wrong since
-  2026-07-28.
-- **Q5 — is the intermediate-gallons weighting what makes A run low?** `computedMpg` divides miles
-  by `gallons + intermediateGallons`; `dashboard.ts` then weights that ratio by `gallons` alone, so
-  the product falls short of the interval's real miles by exactly the intermediate share. That is the
-  leading explanation for §1.4's standing −1.31% / −2.41%, and it is a HYPOTHESIS — it has not been
-  measured against the intermediate-gallons distribution. M1 makes it moot (it never multiplies a
-  ratio back out), so this is worth one query for the record, not a fix of its own.
-- **Q4 — reefer gallons.** Definition A currently includes reefer fills in the fleet mean where a
-  `tank_type` is set (measured July: it makes no difference to two decimal places, 6.90 either way,
-  because reefer fills carry no `computed_mpg`). M1 should exclude them explicitly rather than rely
-  on that. Confirm: fleet MPG is a TRACTOR figure?
+Kept in full rather than deleted: a plan that shows only its conclusions cannot be argued with, and
+three of these are worth re-opening if the evidence changes.
 
----
+- **Q1 — the definition.** **ANSWERED: (a), as D-MPG1/2/3.** Ratio of sums over measured miles, IFTA
+  separate and labelled, per-subject figures scoped. (c) — keeping the gallon-weighted mean and
+  making the spend report use it too — was the cheapest option and is rejected on the brief: §1.4
+  shows that numerator running 1.31% then 2.41% below an independent witness, so standardising on it
+  would have made every page consistently wrong instead of inconsistently wrong. That is worse, not
+  better, because it removes the only signal anybody had.
+- **Q2 — the coverage floor.** **ANSWERED: one floor, 0.6, coverage always displayed (D-MPG4).**
+  Re-open when M2 has measured real coverage; raising it is then evidence-backed rather than a guess.
+- **Q3 — the August mileage drift.** **ANSWERED: (c), both.** M5 ships the cross-source check, which
+  is what makes drift visible the week it starts. Separately, the defect is filed against
+  `fuel_spend_days` in its own plan, because **the drift is not confined to MPG** — the spend report
+  prints those miles as miles, and anything else reading them has been 3.8% high since 2026-07-28.
+  M2 obsoletes them for MPG; it does not obsolete them for everything.
+- **Q4 — reefer gallons.** **ANSWERED: excluded explicitly (D-MPG5).**
+- **Q5 — is the intermediate-gallons weighting what makes A run low?** **ANSWERED: yes,
+  structurally — confirmed by reading the path rather than by inference.**
+  `persist.ts:144` stores `computed_mpg = computedMpg(txn, previousTxn, intermediateGallons)`, and
+  `helpers.ts:70` computes that as `milesSinceLast ÷ (txn.gallons + intermediateGallons)`, where
+  `intermediateGallons` is the fuel bought for the same truck BETWEEN the two odometer readings
+  (`consumptionContext.ts:200`). Every surface then weights that ratio by `txn.gallons` alone, so the
+  product is `miles × gallons ÷ (gallons + intermediate)` — always ≤ the interval's real miles, and
+  short by exactly the intermediate share. The bias is therefore **structurally negative**, which is
+  what §1.4 measures in aggregate (−1.31%, −2.41%). It is not separable per fill without re-running
+  the scorer, and it does not need to be: M1 never multiplies a ratio back out.
+
 
 ## 7. Progress log — append one dated line per step, never edit the §3 table
 
@@ -276,4 +310,16 @@ Nothing is removed until the thing that replaces it is live.
   the one it replaced: **both operating methods miss the independent witness, in opposite
   directions** (−2.41% and +3.78% in August), so what needs fixing is the numerator, not the
   formula. This is FINANCE-FLEET-REPORT-PLAN §4.1's trap — the plan can be wrong about the code —
-  landing on a plan written an hour earlier.
+  landing on a plan written an hour earlier.- 2026-09-04 · **Rulings made, on the owner's explicit delegation.** D-MPG1–D-MPG5 in §2, and all
+  five questions in §6 answered. Two are worth re-reading later because they cost something: the
+  coverage floor stays at 0.6 rather than being raised, so a 62%-covered period and a 99%-covered one
+  both print a number and only the displayed coverage separates them — raising it is a product change
+  and does not belong inside a refactor. And Q3 is answered "both", because the August mileage drift
+  is not an MPG bug: the spend report prints those same miles AS miles, so M2 obsoleting them for
+  efficiency does not obsolete them for everything that reads them.
+
+  Q5 closed by reading the path rather than inferring from the numbers: `persist.ts:144` →
+  `helpers.ts:70` → `consumptionContext.ts:200` shows `computed_mpg` dividing by
+  `gallons + intermediateGallons` while every surface weights by `gallons`, so the per-fill numerator
+  is short by exactly the intermediate share and the bias is structurally negative — which is the
+  mechanism behind §1.4's measured −1.31% / −2.41%.
