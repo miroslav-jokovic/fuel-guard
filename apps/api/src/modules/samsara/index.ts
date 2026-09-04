@@ -48,4 +48,4 @@ export {
   type SamsaraWebhookStatus,
 } from "./fuelEventsWebhook.js";
 export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";
-export { readVehicleMonthlyMiles } from "./samsaraIftaReads.js";
+export { readVehicleMonthlyMiles, readMonthlyMileageByMonth } from "./samsaraIftaReads.js";

@@ -3,16 +3,24 @@ import { planMonthClose, type MonthClosePlan } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { readSweptMonths, readFinancialSyncedAt } from "../mcleod/index.js";
 import { notify } from "../messaging/index.js";
-import { computeCpmForWindow } from "./cpm.js";
+import { getGlIncomeForMonths } from "./glIncome.js";
 import { getLedgerCoverage } from "./ledgerCoverage.js";
 import { officeUserIds } from "./officeRecipients.js";
 
 /**
  * The monthly close (D-FIN14, FINANCE-GO-LIVE-PLAN §1.14): for every (company, month) the GL sweep
- * has landed and that is at least two months old, compute the CPM tie-out and the per-module
- * ledger coverage as of the sweep's stamp, and persist the buckets, the residuals and the verdict
- * on `finance_month_closes`. "Hardened" is `planMonthClose`'s word, given only when every
- * residual reads 0.00; the row carries the reasons when it is not.
+ * has landed and that is at least two months old, read the month's ledger totals and the per-module
+ * ledger coverage as of the sweep's stamp, and persist the money, the residuals and the verdict on
+ * `finance_month_closes`. "Hardened" is `planMonthClose`'s word, given only when every residual
+ * reads 0.00; the row carries the reasons when it is not.
+ *
+ * **Restated at G7b (owner ruling 2026-09-04).** This used to call `computeCpmForWindow` and prove
+ * that the per-truck report's allocation buckets added back to the ledger. Nothing allocates now
+ * (D-FLEET8), and the fleet report asserts its own decomposition on EVERY request — it refuses to
+ * build a report where company + contractors ≠ ledger — so proving it again once a month proved
+ * something already guaranteed, while making this the last live caller of an apparatus the product
+ * had stopped reading. The close now reads the ledger directly and proves the one thing only it
+ * can: whether the sweeps landed the whole month.
  *
  * Recomputed whenever the GL sweep for that month is newer than the close (the first-of-month
  * hardening pass, D-FIN4, re-reads the two previous months whole), and never otherwise — a close
@@ -32,13 +40,6 @@ export interface MonthCloseRow {
   computed_at: string;
   gl_revenue: number;
   gl_expenses: number;
-  anchored: boolean;
-  attributed_direct: number;
-  fixed_charged: number;
-  allocated_overhead: number;
-  unallocated_overhead: number;
-  owner_operator_pool: number;
-  cpm_residual: number | null;
   settlement_drift: number | null;
   billing_drift: number | null;
   fuel_residual: number | null;
@@ -58,27 +59,23 @@ export async function computeMonthClose(
   sweptAt: string | null,
   now: Date,
 ): Promise<MonthCloseRow> {
-  const [{ report, provenance }, coverage] = await Promise.all([
-    computeCpmForWindow(admin, orgId, periodStart, periodEnd),
+  const [glIncome, coverage] = await Promise.all([
+    // The same read the income statement's own totals come from, so a stored close and the page a
+    // reader opens beside it cannot disagree about what the month booked.
+    getGlIncomeForMonths(admin, orgId, [
+      { year: Number(periodStart.slice(0, 4)), month: Number(periodStart.slice(5, 7)) },
+    ]),
     getLedgerCoverage(admin, orgId, periodStart, periodEnd),
   ]);
   const drift = (module: string): number | null => {
-    const m = coverage.modules.find((x) => x.post_module === module);
+    const m = coverage.modules.find((x: { post_module: string }) => x.post_module === module);
     return m && m.drift != null ? round(m.drift) : null;
   };
-  const tie = report.glTieOut;
   const inputs = {
     periodStart,
     now,
-    glRevenue: round(provenance.glCheck.revenue),
-    glExpenses: round(provenance.glCheck.expenses),
-    anchored: tie?.anchored ?? false,
-    attributedDirect: tie?.attributedDirect ?? 0,
-    fixedCharged: tie?.fixedCharged ?? 0,
-    allocatedOverhead: tie?.allocatedOverhead ?? 0,
-    unallocatedOverhead: tie?.unallocatedOverhead ?? 0,
-    ownerOperatorPool: tie?.ownerOperatorSettlement ?? 0,
-    cpmResidual: tie ? round(tie.residual) : null,
+    glRevenue: round(glIncome.revenue),
+    glExpenses: round(glIncome.expenses),
     settlementDrift: drift("SET"),
     billingDrift: drift("BILL"),
     // The FUEL claim's drift is the decomposition's whole-month residual (D-FIN12).
@@ -94,13 +91,6 @@ export async function computeMonthClose(
     computed_at: now.toISOString(),
     gl_revenue: inputs.glRevenue,
     gl_expenses: inputs.glExpenses,
-    anchored: inputs.anchored,
-    attributed_direct: inputs.attributedDirect,
-    fixed_charged: inputs.fixedCharged,
-    allocated_overhead: inputs.allocatedOverhead,
-    unallocated_overhead: inputs.unallocatedOverhead,
-    owner_operator_pool: inputs.ownerOperatorPool,
-    cpm_residual: inputs.cpmResidual,
     settlement_drift: inputs.settlementDrift,
     billing_drift: inputs.billingDrift,
     fuel_residual: inputs.fuelResidual,

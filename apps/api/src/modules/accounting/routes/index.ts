@@ -9,13 +9,14 @@ import {
   summarizeByCategory,
   apSpendByAccount,
   getLedgerCoverage,
-  computeCpmForWindow,
-  getGlMonthlyCosts,
   getMonthCloses,
+  getIncomeStatement,
+  getMileageCoverage,
+  getFleetReport,
+  getFleetTrend,
 } from "../../financial/index.js";
-import { registerCostScheduleRoutes } from "./costSchedules.js";
 
-import { windowSchema, entriesSchema, cpmQuerySchema } from "./schemas.js";
+import { windowSchema, entriesSchema, trendSchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -95,29 +96,9 @@ export function accountingRouter(): Router {
     }),
   );
 
-  // Cost per mile per truck — the report the whole McLeod pipeline exists to produce. The
-  // harness's caveats array is part of the payload ON PURPOSE: a CPM figure whose assumptions
-  // are invisible is worse than none, because it gets quoted (cpmHarness.ts's own doctrine).
-  // Overhead allocation stays off until finance's §6 Q5 ruling; the report says what it excludes.
-  router.get(
-    "/cpm",
-    requireOrg,
-    canView,
-    asyncHandler(async (req, res) => {
-      const parsed = cpmQuerySchema.safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD with from before to (to is exclusive); optional: deadhead=estimate|exclude, includeOwnerOperators=1."));
-        return;
-      }
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const f = parsed.data;
-      const result = await computeCpmForWindow(admin, req.auth!.orgId!, f.from, f.to, {
-        ...(f.deadhead ? { deadhead: f.deadhead } : {}),
-        ...(f.includeOwnerOperators !== undefined ? { includeOwnerOperators: f.includeOwnerOperators } : {}),
-      });
-      res.json({ ok: true, ...result });
-    }),
-  );
+  // `GET /cpm` went at G7b with the per-truck harness behind it. Its two surviving readers — the
+  // truck rows and the contractor rows — are fields on `/fleet-report` now, so every tab of the
+  // page reads one call, which is what §2.5 asked for. Nothing else consumed the route.
 
   // The missing-entries instrument (0269): McLeod's own monthly control totals against what our
   // staging holds, module by module. Coverage is a BREADTH signal — modules are lifecycle views
@@ -155,29 +136,103 @@ export function accountingRouter(): Router {
     }),
   );
 
-  // The month's expense accounts from McLeod's own ledger — what the fixed-cost schedule is meant
-  // to cover. The schedule page used to assert McLeod "cannot attribute" these costs and show an
-  // empty table, which reads as a claim the money is not in McLeod at all; it is (the 2026-08-28
-  // reconciliation reproduces the printed income statement to the cent). Only the per-TRUCK split
-  // is missing. This endpoint puts the GL lines next to the schedule so the gap is a number.
+  /**
+   * The income statement (G3) — the ledger in the shape the owner's own printed P&L takes.
+   *
+   * Windowed like every other finance read, then widened to the calendar months it touches,
+   * because GL totals are month-grained: a request for 14 July to 3 August is answered with July
+   * and August whole, and the response says which months it covered. Prorating a month's journal
+   * entries across days would be an allocation, and this section does not allocate (D-FLEET8).
+   */
   router.get(
-    "/gl-monthly-costs",
+    "/income-statement",
     requireOrg,
     canView,
     asyncHandler(async (req, res) => {
-      const parsed = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse(req.query);
+      const parsed = windowSchema.safeParse(req.query);
       if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?period=YYYY-MM."));
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const costs = await getGlMonthlyCosts(admin, req.auth!.orgId!, parsed.data.period);
-      res.json({ ok: true, ...costs });
+      const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...statement });
     }),
   );
 
-  // Truck fixed-cost schedule CRUD (T1) — its own file; writes audit, reads share the view gate.
-  registerCostScheduleRoutes(router);
+  /**
+   * The fleet report (G1) — one call serving every tab: the ledger's totals, the company and
+   * contractor columns, the per-mile figures or the reason there are none, the income statement,
+   * and the two denominators.
+   *
+   * It subsumes `/income-statement` and `/mileage-coverage`, which stay because they are cheaper
+   * when a page needs only one of them; nothing about the figures differs, because all three call
+   * the same pure builders over the same reads.
+   */
+  router.get(
+    "/fleet-report",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const report = await getFleetReport(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...report });
+    }),
+  );
+
+  /**
+   * The trend behind the overview (G9) — the last twelve whole months of earned, spent and kept per
+   * mile, so the period on screen reads as a point on a line rather than as a verdict.
+   *
+   * Its own call rather than a field on `/fleet-report`: the two cover different windows, and
+   * folding them together would widen every report read to a year for a chart the reader may never
+   * scroll to. Twelve months is the default because that is what the page draws; the parameter
+   * exists so the window is the caller's decision, as every other period on this router is.
+   */
+  router.get(
+    "/fleet-trend",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = trendSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?to=YYYY-MM-DD&months=2..24."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const trend = await getFleetTrend(admin, req.auth!.orgId!, parsed.data.to, parsed.data.months ?? 12);
+      res.json({ ok: true, ...trend });
+    }),
+  );
+
+  /**
+   * Mileage coverage (G4 + G10) — the truck count, and whether the miles behind it are all of them.
+   *
+   * A page asks this before it prints a per-mile figure. Samsara telematics finished rolling out
+   * across this fleet during 2026, so early months measured fewer trucks than delivered loads, and
+   * a cost per mile over a short denominator reads low on miles and high on cost with nothing
+   * saying so. The answer carries either a denominator or a reason, never a smaller number.
+   */
+  router.get(
+    "/mileage-coverage",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const coverage = await getMileageCoverage(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...coverage });
+    }),
+  );
 
   return router;
 }

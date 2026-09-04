@@ -1,0 +1,31 @@
+-- Silvicom 360 — 0307 drop truck_cost_schedules: the table that existed to hold an attribution the
+-- report no longer makes (G7, docs/plans/financial/FINANCE-FLEET-REPORT-PLAN.md §4).
+--
+-- What it was for. 0271 created it to close T1 of the per-truck attribution plan: about $573k a
+-- month of lease, insurance and GPS reaches McLeod as vendor invoices carrying an account code and
+-- nothing else, 0 of 188,179 ledger lines carry a tractor, and no extraction can put a lease
+-- payment on the truck that leases. The office could, from the signed contracts — so this table
+-- stored that knowledge and the CPM harness charged it per truck.
+--
+-- Why it goes. The owner ruled on 2026-09-03 that finance is a FLEET report (D-FLEET1) and that
+-- nothing is allocated (D-FLEET8). A fleet number divided by fleet miles needs no per-unit
+-- schedule, and the ledger already holds every one of those dollars in total. What this table would
+-- have bought — precision per truck — is exactly what the ruling says we cannot have honestly, and
+-- what it would have cost is ~$1.06M/month of contract amounts re-keyed by hand and kept current
+-- forever.
+--
+-- Why dropping is safe. Measured against production on 2026-09-03: **0 rows**, in either
+-- organisation, since the table was created — the schedule was never populated. Nothing is lost
+-- and nothing is archived, because there is nothing in it. It is not an evidence table and is not
+-- pinned in RETENTION_FORBIDDEN; the append-only rules do not reach it.
+--
+-- The deploy window (docs/MIGRATION-DISCIPLINE.md §the-deploy-window). Every reader — the
+-- `costSchedules` service, its CRUD routes, the `fixedCosts` harness term and the Truck fixed costs
+-- page — is deleted in the SAME merge, which is the safe direction for a drop: for the ~9 minutes
+-- between Railway serving the code and migrate.yml applying this file, the new code simply never
+-- touches a table that still exists. The dangerous ordering is the reverse, and it does not apply.
+--
+-- `cascade` is deliberate and its blast radius was checked: the only dependent objects are the
+-- table's own index and its (deny-all) RLS enablement, both created by 0271. No view, function or
+-- foreign key references it.
+drop table if exists truck_cost_schedules cascade;

@@ -399,9 +399,6 @@
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
-  "truck_cost_schedules": [
-    "apps/api/src/modules/financial/costSchedules.ts"
-  ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],

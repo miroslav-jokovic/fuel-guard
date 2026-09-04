@@ -37,6 +37,8 @@ export {
   type StagedOfficeLine,
   type StagedDeduction,
   readLedgerTotals,
+  readLedgerTotalsRange,
+  readBilledMilesByDeliveryMonth,
   readSweptMonths,
   type SweptMonth,
   readGlAccounts,

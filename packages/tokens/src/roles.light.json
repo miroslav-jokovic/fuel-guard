@@ -420,6 +420,21 @@
       "$value": "oklch(48.8% 0.217 264.4)",
       "$description": "refrigerated equipment (blue)"
     },
+    "viz-money-earned": {
+      "$type": "color",
+      "$value": "oklch(48.8% 0.217 264.4)",
+      "$description": "the fleet report's revenue line (blue). Deliberately the cost palette's own three hues (G9): they are already checked for pairwise separation under protan, deutan and tritan simulation, and a trend chart's three lines need that check more than a chart of one does"
+    },
+    "viz-money-spent": {
+      "$type": "color",
+      "$value": "oklch(52% 0.18 33)",
+      "$description": "the fleet report's expense line (burnt orange)"
+    },
+    "viz-money-kept": {
+      "$type": "color",
+      "$value": "oklch(59.6% 0.1282 163.225)",
+      "$description": "the fleet report's net line (emerald)"
+    },
     "viz-grid": {
       "$type": "color",
       "$value": "var(--ramp-neutral-100)"

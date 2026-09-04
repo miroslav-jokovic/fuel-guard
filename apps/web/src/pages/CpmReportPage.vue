@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { DeadheadTreatment } from "@silvicom/shared";
-import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
 import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
-import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
+import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
+import FamilySummaryTable from "@/features/accounting/FamilySummaryTable.vue";
+import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
+import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
+import FleetOverview from "@/features/accounting/FleetOverview.vue";
+import { fleetProvenanceLine } from "@/features/accounting/fleetProvenance";
+import FleetTrendChart from "@/features/accounting/FleetTrendChart.vue";
+import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -26,7 +31,6 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 const defaultWindow = lastFullMonth();
 const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
-const deadhead = ref<DeadheadTreatment>("estimate");
 const includeOwnerOperators = ref(false);
 const unitSearch = ref("");
 // Idle trucks are the report's loudest distortion: a unit that moved 4 miles and carries a whole
@@ -36,29 +40,68 @@ const unitSearch = ref("");
 const minMiles = ref("0");
 
 /**
- * Three views of one period, so each table gets a page to itself (owner ruling, 2026-08-29). They
- * used to be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check,
- * which read as one report with two footnotes rather than three answers to three questions.
+ * Views of one period, so each table gets a page to itself (owner ruling, 2026-08-29). They used to
+ * be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check, which read
+ * as one report with two footnotes rather than answers to separate questions.
+ *
+ * The route is `/fleet-report` since G7; the file keeps its `Cpm` name until the rename lands in
+ * the file tree, which is a move with no behaviour in it.
  */
-type CpmTab = "trucks" | "contractors" | "fleet";
+type CpmTab = "overview" | "trucks" | "contractors" | "statement";
 const TABS: TabItem[] = [
+  { value: "overview", label: "Overview" },
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
-  { value: "fleet", label: "Company total" },
+  { value: "statement", label: "Income statement" },
 ];
-const tab = ref<CpmTab>("trucks");
+// Overview leads (G5). It answers the question a boss actually opens the page with — did we make
+// money this period, and where did it go — and the per-truck table, which used to be first, answers
+// a follow-up. A page that opens on a hundred and seventy rows reads as a database, not a report.
+const tab = ref<CpmTab>("overview");
 
-const filter = computed<CpmFilter>(() => ({
-  from: from.value,
-  to: to.value,
-  deadhead: deadhead.value,
-  includeOwnerOperators: includeOwnerOperators.value,
-}));
-const { data, isLoading, isError, error, refetch, isFetching } = useCpmQuery(filter);
+/**
+ * The income statement (G3) — the same period, read as the owner's printed McLeod P&L.
+ *
+ * Its own query rather than a field on the CPM report: the statement is the whole ledger for the
+ * period and the CPM report is a fleet calculation over part of it, they answer different
+ * questions, and loading ninety-four account rows to render a per-truck table would make every
+ * other tab slower for nothing. `useQuery` fetches it when the tab is opened and caches it after.
+ */
+const statementFilter = computed(() => ({ from: from.value, to: to.value }));
+const {
+  data: statement,
+  isLoading: statementLoading,
+  isError: statementError,
+} = useIncomeStatementQuery(statementFilter);
 
-const report = computed(() => data.value?.report ?? null);
-const provenance = computed(() => data.value?.provenance ?? null);
-const allTrucks = computed(() => report.value?.trucks ?? []);
+/**
+ * How many trucks this period measured, and whether that is all of them (G4 + G10).
+ *
+ * It rides beside every tab rather than inside one, because it is the answer to "can a per-mile
+ * figure be trusted for this period at all". Samsara telematics finished rolling out during 2026,
+ * so an early-2026 period measured fewer trucks than delivered loads and its cost per mile reads
+ * low on miles and high on cost. The banner is how that stops being invisible.
+ */
+const { data: coverage } = useMileageCoverageQuery(statementFilter);
+
+/**
+ * The fleet report (G1/G5) — one call carrying the whole overview.
+ *
+ * Its own query beside the CPM one because they answer different questions over the same period:
+ * this is the ledger for the fleet, that is a per-truck calculation. Loading either to render the
+ * other would make every tab wait for work it does not use.
+ */
+const {
+  data: fleet,
+  isLoading: fleetLoading,
+  isError: fleetError,
+  refetch: fleetRefetch,
+} = useFleetReportQuery(statementFilter);
+
+// Every tab reads ONE call since G7b. The per-truck rows and the contractor rows used to come from
+// a second request over the per-truck harness; they are the fleet report's now, which is what the
+// plan asked for from the start — every figure on every tab out of one call (§2.5).
+const allTrucks = computed(() => fleet.value?.trucks ?? []);
 
 /**
  * The visible rows. Filtering and sorting are deliberately CLIENT-side and view-only: the fleet
@@ -70,26 +113,27 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
 const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
-watch([unitSearch, minMiles, from, to, deadhead, includeOwnerOperators, tab], () => (page.value = 1));
+watch([unitSearch, minMiles, from, to, includeOwnerOperators, tab], () => (page.value = 1));
 
 const trucks = computed(() => {
   const q = unitSearch.value.trim().toLowerCase();
   const floor = Number(minMiles.value) || 0;
   const rows = allTrucks.value.filter(
-    (t) => (!q || t.tractor_unit.toLowerCase().includes(q)) && t.totalMiles >= floor,
+    (t) =>
+      (!q || t.tractor_unit.toLowerCase().includes(q)) &&
+      (t.miles ?? 0) >= floor &&
+      // Contractor tractors are off by default: what they cost is a share of each load, not our
+      // fuel and wages, so their rows answer the contractor tab's question rather than this one.
+      (includeOwnerOperators.value || !t.isOwnerOperator),
   );
   return sortRows(rows, sort.value);
 });
 const truckPage = computed(() => trucks.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const hiddenCount = computed(() => allTrucks.value.length - trucks.value.length);
 
-const deadheadOptions = [
-  { value: "estimate", label: "Include empty miles" },
-  { value: "exclude", label: "Loaded miles only" },
-];
-// A truck that barely moved carries a whole month of fixed cost over a handful of miles, so its
-// $/mi is arithmetically right and analytically useless. These are the thresholds an owner reads
-// the report at; "any" is the default so the table starts by hiding nothing.
+// A truck that barely moved earns a handful of dollars over a handful of miles, so its rate is
+// arithmetically right and analytically useless. These are the thresholds an owner reads the report
+// at; "any" is the default so the table starts by hiding nothing.
 const minMilesOptions = [
   { value: "0", label: "Any mileage" },
   { value: "100", label: "100+ miles" },
@@ -107,7 +151,7 @@ function resetFilters() {
 
 // The contractor side. `dealPct` is derived by the harness from pay ÷ revenue on that payee's own
 // orders — never configured, so it reads back the contract rather than asserting one.
-const ownerOperators = computed(() => report.value?.ownerOperators ?? []);
+const ownerOperators = computed(() => fleet.value?.ownerOperators ?? []);
 const ownerOpRevenue = computed(() => ownerOperators.value.reduce((a, o) => a + o.revenue, 0));
 const ownerOpMargin = computed(() => ownerOperators.value.reduce((a, o) => a + o.netMargin, 0));
 const ownerOpPage = computed(() =>
@@ -115,36 +159,47 @@ const ownerOpPage = computed(() =>
 );
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-const fmtMiles = (n: number) => Math.round(n).toLocaleString();
-// Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
-const fmtCpm = (n: number | null) => (n == null ? "—" : `$${(n / 100).toFixed(2)}`);
+/** The comparative line under a statement headline. Absent when the period has no wider window. */
+const statementToDateSub = (n: number | null) => (n === null ? undefined : `${fmtUsd(n)} year to date`);
 
-// Dollars on trucks the report cannot rate (no miles this window, D-FIN10): still in every total,
-// outside every per-mile figure, and said so on the card rather than only in the explainer.
-const unmeasuredCost = computed(() => {
-  const u = report.value?.fleet.unmeasured;
-  return u ? u.directTotal + u.fixedTotal + u.allocatedTotal : 0;
-});
+const pageDescription = computed(() =>
+  tab.value === "overview"
+    ? "What the fleet earned, spent and kept — and each of those for every mile it ran."
+    : tab.value === "statement"
+      ? "The general ledger, in the shape McLeod prints it."
+      : tab.value === "contractors"
+        ? "What each contractor hauled, what they were paid, and what we kept — with their share read back from what settled."
+        : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
+);
 
-// The McLeod financial sweep's last landing, in the reader's own words. Null is said out loud.
-const figuresAsOf = computed(() => {
-  if (!provenance.value) return "";
-  const at = provenance.value.financialSweptAt;
-  if (!at) return " McLeod figures have never been swept for this organisation.";
-  const d = new Date(at);
-  return ` McLeod figures as of ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.`;
-});
+/**
+ * The provenance line (G8) — which months, swept when, does it tie, over how many trucks and miles.
+ *
+ * It reads the FLEET report rather than the CPM call, so the sentence qualifying the figures comes
+ * from the same request that produced them. Empty until that call lands: a provenance line assembled
+ * from a half-loaded page is worse than none.
+ */
+const provenanceLine = computed(() => (fleet.value ? fleetProvenanceLine(fleet.value) : ""));
 
-const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
 const visibleCount = computed(() => (tab.value === "trucks" ? trucks.value.length : ownerOperators.value.length));
 const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contractors"));
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- "Figures as of" is the sweep's own stamp (D-FIN3), never the page's clock: a report that
-         looks current while its source stopped three weeks ago is the failure the audit found. -->
-    <PageHeader :description="`What each truck costs and earns for every mile it drives.${figuresAsOf}`" />
+    <!-- The description follows the tab, because the page answers different questions on each: what
+         the fleet earned and spent, the ledger in McLeod's own order, or what one truck drove.
+         One sentence describing all of them would describe none.
+
+         Under it, the provenance line (G8). It replaces the Company total TAB, which restated the
+         ledger's revenue, expenses and net beside a tie-out — every figure of which the overview now
+         leads with. What was left is the part that qualifies the whole page: the months, the sweep's
+         own stamp (D-FIN3, never the page's clock — a report that looks current while its source
+         stopped three weeks ago is the failure the 2026-08 audit found), whether the split still
+         ties, and the denominator under the rates. A reader who has to open a tab to learn whether
+         the figures tie will not open it. -->
+    <PageHeader :description="pageDescription" />
+    <p v-if="provenanceLine" class="-mt-4 text-xs text-ink-tertiary">{{ provenanceLine }}</p>
 
     <!--
       The method, one click away. Every sentence here used to sit in the page description or in
@@ -154,69 +209,42 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
     -->
     <ExplainerPanel>
       <p>
-        Every mile the trucks drove in the period, measured by Samsara where it has them, against
-        every cost the ledger can place on a truck: fuel, driver pay, and the fixed monthly charges
-        from the truck fixed-costs page.
+        Money comes from McLeod's general ledger and miles from Samsara. Nothing is estimated and
+        nothing is shared out: the overview and the income statement are the ledger's own totals over
+        the period, and every rate is that total divided by the miles Samsara measured.
       </p>
       <p>
-        Costs that belong to no single truck — office wages, rent, interest — are shared out across
-        the miles, so nothing is left out of the figure. Contractors are not in the per-truck table:
-        they are paid a share of each load rather than costing us fuel and wages, so they have their
-        own tab and the company total covers both.
+        The per-truck tab shows only what is precise for one truck — the miles it drove and what its
+        loads earned. There is no per-truck cost column, because no source at this carrier can put a
+        lease payment, an insurance premium or an office wage on a particular truck, and a column
+        that looks measured but is estimated is worse than one that is missing.
       </p>
-      <ul v-if="report?.caveats.length || provenance?.notes.length" class="space-y-1">
-        <li v-for="c in report?.caveats ?? []" :key="c" class="text-sm text-ink-secondary">• {{ c }}</li>
-        <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">• {{ n }}</li>
-      </ul>
     </ExplainerPanel>
 
-    <!-- The equation reads left to right — earned, cost, what is left — because that is the order
-         the owner asks it in. -->
-    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <StatCard
-        label="Earned per mile"
-        :value="fmtCpm(report.fleet.revenueCpm)"
-        :sub="`${fmtUsd(report.fleet.revenueTotal)} over ${fmtMiles(report.fleet.totalMiles)} miles`"
-      />
-      <StatCard
-        label="Cost per mile"
-        :value="fmtCpm(report.fleet.totalCpm)"
-        :sub="`${fmtCpm(report.fleet.directCpm)} fuel and pay + ${fmtCpm(report.fleet.fixedCpm)} fixed`"
-      />
-      <StatCard
-        label="Left per mile"
-        :value="fmtCpm(report.fleet.netCpm)"
-        :sub="report.fleet.netCpm == null ? 'no truck has miles this window' : report.fleet.netCpm >= 0 ? 'earned minus cost' : 'each mile is losing money'"
-        :sub-tone="report.fleet.netCpm != null && report.fleet.netCpm < 0 ? 'text-danger-700' : undefined"
-      />
-      <StatCard
-        label="Miles driven"
-        :value="fmtMiles(report.fleet.totalMiles)"
-        :sub="samsaraBasis ? 'measured by Samsara, empty miles included' : `${fmtMiles(report.fleet.deadheadMilesEstimated)} empty miles estimated`"
-      />
-      <StatCard
-        label="Total cost"
-        :value="fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal)"
-        :sub="report.fleet.unmeasured.trucks > 0
-          ? `${fmtUsd(unmeasuredCost)} of it sits on ${report.fleet.unmeasured.trucks} ${report.fleet.unmeasured.trucks === 1 ? 'truck' : 'trucks'} without miles, outside the per-mile figures`
-          : `against ${fmtUsd(report.fleet.revenueTotal)} earned on company trucks`"
-        :sub-tone="report.fleet.unmeasured.trucks > 0 ? 'text-warning-700' : undefined"
-      />
-      <!-- This card used to read "Not in these figures" over the money the report declined to
-           place. That was the complaint: a number nobody could act on, holding 38.9% of the fleet's
-           cost. Overhead is now ON the trucks, so the card states what each mile carries of it —
-           and if any is still withheld it says so in red rather than quietly. -->
-      <StatCard
-        label="Shared costs per mile"
-        :value="fmtCpm(report.fleet.allocatedCpm)"
-        :sub="report.excluded.unallocatedOverhead > 0
-          ? `${fmtUsd(report.excluded.unallocatedOverhead)} could not be shared out`
-          : 'office, rent and interest, spread over the miles'"
-        :sub-tone="report.excluded.unallocatedOverhead > 0 ? 'text-danger-600' : undefined"
-      />
-    </div>
+    <!-- The fleet stat strip went at G7 with the allocation apparatus it reported. It carried
+         "cost per mile", "left per mile" and "shared costs per mile" — every one of them a figure
+         built by sharing overhead across trucks, which nothing does any more (D-FLEET8). It is also
+         what put two different "earned per mile" numbers on one screen; the overview's, from the
+         ledger, is now the only one. -->
 
-    <AppTabs v-model="tab" :tabs="TABS" label="Cost per mile views" id-prefix="cpm" />
+    <!-- The coverage banner (G10), now the WARNING only. Its "all measured" form said "172 trucks
+         ran in this period, over 1,552,337 miles" — which the provenance line above states for every
+         tab, and whose empty-mile share the overview already carries on its own card. Three
+         statements of one measurement on one screen is how a reader starts checking whether they
+         agree. What cannot be dropped is the refusal: a period short of trucks carries no per-mile
+         figure at all, and saying so once, at the top, beats a dash on every row. -->
+    <p
+      v-if="coverage?.reason"
+      class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
+    >
+      {{ coverage.reason }}
+    </p>
+
+    <!-- The ledger's own shortfall (G11) is NOT a page-level banner, unlike the mileage one above.
+         It affects only the two tabs that read the ledger — the overview and the income statement —
+         and both say it themselves; a banner as well printed the same sentence twice on one screen.
+         The per-truck tabs come from the CPM harness and are unaffected by it. -->
+    <AppTabs v-model="tab" :tabs="TABS" label="Fleet report views" id-prefix="fleet-report" />
 
     <!-- Contractors get their headline as prose, because the two numbers are a sentence: what they
          hauled, and what of it we kept. -->
@@ -226,17 +254,91 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       >. They are paid a share of each load, so they carry no share of the company's costs.
     </p>
 
-    <CpmFleetTotal
-      v-if="tab === 'fleet' && provenance?.glCheck?.monthsCovered?.length"
-      :gl="provenance.glCheck"
-      :loading="isLoading"
-    />
-    <p v-else-if="tab === 'fleet'" class="text-sm text-ink-secondary">
-      The company total needs the ledger for a whole month. Pick a period that covers one, or run the
-      McLeod sweep for this one.
-    </p>
+    <!-- The overview (G5): earned, spent, kept — for the whole fleet, for our trucks and for
+         contractors — and each of those per mile when the period's mileage covers the fleet. -->
+    <div v-if="tab === 'overview'">
+      <p v-if="fleetError" class="text-sm text-danger-600">
+        The overview could not be loaded. Try the period again in a moment.
+      </p>
+      <FleetOverview v-else-if="fleet" :report="fleet" :loading="fleetLoading" />
+      <p v-else class="text-sm text-ink-secondary">Loading the overview…</p>
 
-    <DataWorkspace v-if="tab !== 'fleet'">
+      <!-- The trend (G9). The overview says what this period did; the trend says whether that is
+           where the fleet has been sitting or where it has just moved to, which is the difference
+           between a figure and a decision. It ends on the period on screen and reads its own
+           twelve months back, so widening the picker does not stretch the chart. -->
+      <FleetTrendChart class="mt-4" :to="to" />
+    </div>
+
+    <!-- The income statement (G3): the period's ledger in the shape the owner's own printed P&L
+         takes. Sections in McLeod's order, accounts by code inside each, and a row opens to show
+         which parts of McLeod posted it. -->
+    <div v-if="tab === 'statement'" class="space-y-4">
+      <p v-if="statementError" class="text-sm text-danger-600">
+        The income statement could not be loaded. Try the period again in a moment.
+      </p>
+
+      <template v-else-if="statement">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Earned" :value="fmtUsd(statement.revenue)" :sub="statementToDateSub(statement.toDateRevenue)" />
+          <StatCard label="Spent" :value="fmtUsd(statement.expenses)" :sub="statementToDateSub(statement.toDateExpenses)" />
+          <StatCard
+            label="Kept"
+            :value="fmtUsd(statement.net)"
+            :sub="statementToDateSub(statement.toDateNet)"
+            :sub-tone="statement.net < 0 ? 'text-danger-600' : undefined"
+          />
+        </div>
+
+        <!-- A month the sweep reached mid-month is not a month the sweep has not reached: its rows
+             are staged and real, and they are left out because part of a month reported as the
+             month is a precise wrong answer (G11). -->
+        <p v-if="statement.ledgerReason" class="text-sm text-warning-700">{{ statement.ledgerReason }}</p>
+        <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
+          The McLeod sweep has not reached
+          {{ statement.monthsMissing.join(", ") }}, so
+          {{ statement.monthsMissing.length === 1 ? "that month is" : "those months are" }}
+          missing from these figures.
+        </p>
+        <p v-if="statement.unrecognisedNet !== 0" class="text-sm text-warning-700">
+          {{ fmtUsd(statement.unrecognisedNet) }} sits in an account group this report does not
+          recognise. It is shown below and counted in neither total.
+        </p>
+
+        <!-- The family summary (G6) leads the statement. Ninety-four rows is the document the
+             owner reconciles; ten rows is the answer a boss acts on, and the second cannot be
+             derived from the first — the grouping is signed (see glFamilies.ts). It reads from the
+             fleet report because that call holds the miles as well as the lines; the statement
+             below is the same money in McLeod's own order. -->
+        <FamilySummaryTable
+          v-if="fleet"
+          :families="fleet.families"
+          :show-to-date="statement.toDateRevenue !== null"
+          :loading="fleetLoading"
+        />
+
+        <IncomeStatementTable
+          v-for="section in statement.sections"
+          :key="section.typeId ?? 'unclassified'"
+          :section="section"
+          :loading="statementLoading"
+          :show-to-date="statement.toDateRevenue !== null"
+        />
+
+        <p class="text-xs text-ink-tertiary">
+          Straight from McLeod's own ledger, grouped and ordered the way McLeod prints it. Money is
+          reported by whole calendar month, because that is the grain the ledger keeps — a period
+          that covers part of a month shows the whole month
+          <template v-if="statement.monthsCovered.length">
+            ({{ statement.monthsCovered.join(", ") }})</template
+          >. Year to date runs from {{ statement.toDateFrom }}.
+        </p>
+      </template>
+
+      <p v-else class="text-sm text-ink-secondary">Loading the income statement…</p>
+    </div>
+
+    <DataWorkspace v-if="tab === 'trucks' || tab === 'contractors'">
       <FilterBar
         v-model:search="unitSearch"
         embedded
@@ -245,11 +347,6 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :count-label="countLabel"
       >
         <template #filters>
-          <!-- Hidden, correctly, when Samsara measured the period: `computeCpm` picks ONE basis
-               fleet-wide (owner ruling 2026-08-27) and ignores the empty-miles rule entirely under
-               `useActual`, so rendering this control there would offer a switch wired to nothing.
-               The basis in force is stated on the Miles driven card and in the explainer. -->
-          <FilterSelect v-if="!samsaraBasis && tab === 'trucks'" v-model="deadhead" label="Which miles" :options="deadheadOptions" />
           <FilterSelect v-if="tab === 'trucks'" v-model="minMiles" label="Least miles" :options="minMilesOptions" />
           <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>
@@ -277,18 +374,17 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <CpmTruckTable
         v-if="tab === 'trucks'"
         :rows="truckPage"
-        :samsara-basis="samsaraBasis"
-        :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-        :retrying="isFetching"
+        :loading="fleetLoading"
+        :error="fleetError ? 'Failed to load' : null"
+        :retrying="fleetLoading"
         :sort="sort"
         :page="page"
         :total="trucks.length"
         :total-unfiltered="allTrucks.length"
-        :pending-sources="provenance?.pendingSources ?? []"
+        :pending-sources="[]"
         :page-size="PAGE_SIZE"
         @sort="onSort"
-        @retry="refetch"
+        @retry="fleetRefetch"
         @update:page="page = $event"
       />
       <CpmOwnerOperatorTable
@@ -297,8 +393,8 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :page="page"
         :total="ownerOperators.length"
         :page-size="PAGE_SIZE"
-        :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :loading="fleetLoading"
+        :error="fleetError ? 'Failed to load' : null"
         @update:page="page = $event"
       />
     </DataWorkspace>

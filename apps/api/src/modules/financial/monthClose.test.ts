@@ -13,7 +13,7 @@ const NOW = new Date("2026-09-03T18:00:00Z");
 
 const cpm = vi.fn();
 const coverage = vi.fn();
-vi.mock("./cpm.js", () => ({ computeCpmForWindow: (...a: unknown[]) => cpm(...a) }));
+vi.mock("./glIncome.js", () => ({ getGlIncomeForMonths: (...a: unknown[]) => cpm(...a) }));
 vi.mock("./ledgerCoverage.js", () => ({ getLedgerCoverage: (...a: unknown[]) => coverage(...a) }));
 const notifyCalls: Array<Record<string, unknown>> = [];
 vi.mock("../messaging/index.js", () => ({
@@ -24,22 +24,11 @@ vi.mock("../messaging/index.js", () => ({
 }));
 import { runMonthClosesOnce } from "./monthClose.js";
 
-const tiedReport = (glExpenses = 3000, residual = 0) => ({
-  report: {
-    glTieOut: {
-      anchored: true,
-      glExpenseTotal: glExpenses,
-      attributedDirect: 1000,
-      fixedCharged: 500,
-      allocatedOverhead: 1400,
-      unallocatedOverhead: 0,
-      ownerOperatorSettlement: 100,
-      fixedCostOnOwnerOperatorTrucks: 0,
-      residual,
-    },
-  },
-  provenance: { glCheck: { revenue: 5000, expenses: glExpenses } },
-});
+/**
+ * The month's ledger totals, which is all the close reads for money since G7b. It used to take them
+ * off the per-truck report's provenance, and the report's allocation buckets along with them.
+ */
+const tiedReport = (glExpenses = 3000) => ({ revenue: 5000, expenses: glExpenses });
 const tiedCoverage = (fuelDrift: number | null = 0) => ({
   modules: [
     { post_module: "SET", drift: 0 },
@@ -79,7 +68,7 @@ describe("runMonthClosesOnce", () => {
       ["2026-08-01", "open"],
     ]);
     const june = rows[0]!;
-    expect(june).toMatchObject({ company_id: "TMS", gl_expenses: 3000, attributed_direct: 1000, fixed_charged: 500, cpm_residual: 0, fuel_residual: 0, open_reasons: [] });
+    expect(june).toMatchObject({ company_id: "TMS", gl_revenue: 5000, gl_expenses: 3000, fuel_residual: 0, open_reasons: [] });
     expect(june.swept_at).toBe("2026-09-02T02:05:00Z"); // the financial sweep's own stamp
     expect(rows[1]!.open_reasons[0]).toContain("1 month(s) old");
     const written = rec.writtenRows("finance_month_closes");
@@ -102,7 +91,7 @@ describe("runMonthClosesOnce", () => {
   });
 
   it("a hardened month whose ledger moved on a later sweep is recomputed, reopened, and reported once", async () => {
-    cpm.mockResolvedValue(tiedReport(3100, -12.5));
+    cpm.mockResolvedValue(tiedReport(3100));
     coverage.mockResolvedValue(tiedCoverage(null));
     const rec = recorder({
       closes: [
@@ -112,7 +101,10 @@ describe("runMonthClosesOnce", () => {
     const rows = await runMonthClosesOnce(rec.client, testEnv(), ORG, NOW);
     const june = rows.find((r) => r.period_start === "2026-06-01")!;
     expect(june.status).toBe("open");
-    expect(june.open_reasons).toEqual(["CPM buckets miss the ledger by $12.50", "fuel (FUEL): no sweep behind this module yet"]);
+    // The month reopens on the SWEEP that is missing, which since G7b is the only thing the close
+    // proves — and the ledger having moved from 3000 to 3100 is what triggered the recompute.
+    expect(june.gl_expenses).toBe(3100);
+    expect(june.open_reasons).toEqual(["fuel (FUEL): no sweep behind this module yet"]);
     expect(notifyCalls).toHaveLength(1);
     expect(notifyCalls[0]).toMatchObject({
       userId: "u-owner",

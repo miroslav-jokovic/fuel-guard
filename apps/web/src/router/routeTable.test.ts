@@ -54,7 +54,9 @@ const PROBES = [
   // for a driver whose id is the word "inquiries".
   "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/ap_1",
   "/driver-performance", "/fuel-log", "/fuel-spend", "/fuel-spend/exceptions", "/ifta",
-  "/accounting", "/cpm", "/cost-schedule", "/books-check", "/billing", "/shop",
+  // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
+  // stays as a redirect, so it is probed here too.
+  "/fleet-report", "/cpm", "/billing", "/shop",
   // The §396.17 register and one report (A7). Written out as a pair for the same reason the
   // loads routes are: a static segment must keep beating a param.
   "/shop/inspections", "/shop/inspections/insp_1", "/shop/inspectors",

@@ -12,7 +12,7 @@ const SRC = new URL("../src", import.meta.url).pathname;
 // Files allowed to contain raw color values, with the reason.
 const ALLOW = new Set([
   "style.css", // defines the tokens themselves
-  "features/dashboard/chartTheme.ts", // jsdom fallbacks for canvas charts
+  "lib/chartTheme.ts", // jsdom fallbacks for canvas charts
 ]);
 
 /**

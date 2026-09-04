@@ -59,7 +59,7 @@ const props = withDefaults(
      * Optional 30-point trend; nulls render as gaps.
      *
      * ⚠ `sparkColor` is effectively required alongside it. The dashboard version defaulted to
-     * `viz.brand` from `features/dashboard/chartTheme`, and importing that here would drag the
+     * `viz.brand` from `lib/chartTheme`, and importing that here would drag the
      * chart layer into every page showing a tile with no chart on it. Both existing spark call
      * sites pass a colour; a caller that forgets one gets `currentColor`, which is legible rather
      * than invisible.

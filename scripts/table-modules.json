@@ -509,10 +509,6 @@
       "module": "roster",
       "layer": "core"
     },
-    "truck_cost_schedules": {
-      "module": "financial",
-      "layer": "core"
-    },
     "user_profiles": {
       "module": "org",
       "layer": "core"

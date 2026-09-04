@@ -17,7 +17,7 @@ import {
 } from "./driverSections";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { viz, areaFill } from "@/features/dashboard/chartTheme";
+import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
