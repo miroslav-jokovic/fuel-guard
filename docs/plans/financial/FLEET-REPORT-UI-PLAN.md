@@ -159,3 +159,18 @@ in order; each depends on the one before only through the shell.
   per-tab date pickers are removed — the rail is the only clock. Pinned: the rail reads "July 2026"
   when the trend says August was swept on the 28th, the note says so, stepping back changes the
   month on every tab, and the per-tab picker is gone.
+- 2026-09-04 · **R3 — the trust chip and the four headlines.** `fleetTrust` (beside
+  `fleetProvenanceLine`: green when the split ties, warning with the residual when it misses,
+  neutral when no month could be reported; the full sentence as its title) rendered with
+  `BADGE_BASE`/`toneClass` in the rail's slot — not `AppBadge`, whose `capitalize` would title-case
+  the sentence. `FleetHeadlines.vue`: Kept, Earned, Spent, Kept per mile as hero `StatCard`s with
+  the change against the previous month (`lib/periodChange.ts`, the `SpendTrendTab` idiom made a
+  lib), the year to date from the report, and an eight-month sparkline from the trend the page
+  already fetches (same query key as the chart, so no second request). `StatCard` gains a `#sub`
+  slot so a change in red can sit beside a year-to-date figure in grey on one line. **A
+  month-on-month change is offered for a month period only** — a quarter or a year to date would
+  need previous-period sums the harness does not expose, so those grains show the year to date and
+  say "no month-on-month change" rather than a number nobody can check. The three cards that led
+  `FleetOverview` moved here. Pinned: kept leads with "−47.7% vs June $1,473,729"; a rise in
+  spending is red and a fall in earnings is red; no previous month says so; a null rate is a dash
+  with the coverage reason, never $0.00; the rate's change is in dollars, not a percentage of a rate.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fleetProvenanceLine, monthName } from "./fleetProvenance";
+import { fleetProvenanceLine, fleetTrust, monthName } from "./fleetProvenance";
 import type { FleetReportResponse } from "./useFleetReport";
 
 /**
@@ -100,6 +100,35 @@ describe("fleetProvenanceLine", () => {
   it("names a multi-month period by its ends", () => {
     const line = fleetProvenanceLine(report({ monthsCovered: ["2026-05", "2026-06", "2026-07"] }));
     expect(line).toContain("May 2026 – July 2026");
+  });
+});
+
+describe("fleetTrust", () => {
+  it("is green and short when the split ties, carrying the full sentence as its title", () => {
+    const chip = fleetTrust(report());
+    expect(chip.tone).toBe("success");
+    expect(chip.label).toContain("Ties to ledger");
+    expect(chip.label).toContain("swept Aug 28, 2026");
+    expect(chip.title).toBe(fleetProvenanceLine(report()));
+  });
+
+  it("turns to warning and names the residual when the split misses the ledger", () => {
+    const chip = fleetTrust(report({ tieOut: { revenue: 12.5, expenses: -2.5 } }));
+    expect(chip.tone).toBe("warning");
+    expect(chip.label).toContain("Off by $15.00");
+  });
+
+  it("warns when the ledger has never been swept", () => {
+    const chip = fleetTrust(report({ sweptAt: null }));
+    expect(chip.tone).toBe("warning");
+    expect(chip.label).toBe("Ledger never swept");
+  });
+
+  it("claims nothing when no month of the period could be reported", () => {
+    const chip = fleetTrust(report({ monthsCovered: [], ledgerReason: "August 2026 was swept before it ended." }));
+    expect(chip.tone).toBe("neutral");
+    expect(chip.label).toContain("No finished month");
+    expect(chip.label).not.toContain("Ties");
   });
 });
 
