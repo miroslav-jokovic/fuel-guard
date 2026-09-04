@@ -80,6 +80,13 @@ jobs:
           MIGRATION_ORDERING_BASE: ${{ github.event.pull_request.base.sha }}
         run: node scripts/check-migration-ordering.mjs
 
+      # Fleet MPG has ONE definition. Four implementations of the same one landed without anyone
+      # being asked, and the pages they drove disagreed by 10.7% on the same week — see
+      # docs/plans/fuel/FLEET-MPG-CONSOLIDATION-PLAN.md. The self-test runs with it so a detector
+      # that stops firing is caught rather than silently passing everything.
+      - name: One fleet-MPG definition
+        run: pnpm lint:mpg
+
       - name: Upsert-as-update guard
         run: pnpm lint:upserts
 
