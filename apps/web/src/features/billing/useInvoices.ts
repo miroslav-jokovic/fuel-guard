@@ -13,7 +13,11 @@ export type LedgerEntry = FinancialEntryDto & { dispatcher_name?: string | null 
 
 export const INVOICES_PAGE_SIZE = 50;
 
-/** Billing data layer — earnings entries + margin per truck, API-only (D-SEP7). */
+/**
+ * Billing data layer — the invoice list, API-only (D-SEP7). The per-truck margin query that lived
+ * beside it was retired at R7 of the fleet report's UI plan: it attributed ledger expenses to
+ * trucks, and no per-truck cost figure at this carrier is precise (D-FLEET1).
+ */
 export function useInvoicesQuery(filter: Ref<{ q: string; from: string; to: string; page: number }>) {
   return useQuery({
     queryKey: ["billing", "invoices", filter] as const,
@@ -29,25 +33,6 @@ export function useInvoicesQuery(filter: Ref<{ q: string; from: string; to: stri
       const r = await apiFetch<{ entries: LedgerEntry[]; total: number }>(`/api/billing/invoices?${params}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load invoices");
       return { entries: r.data.entries, total: r.data.total };
-    },
-  });
-}
-
-export interface TruckMargin {
-  vehicleId: string | null;
-  earnings: number;
-  expenses: number;
-  margin: number;
-  entries: number;
-}
-
-export function useMarginByTruckQuery(from: Ref<string>, to: Ref<string>) {
-  return useQuery({
-    queryKey: ["billing", "margin", from, to] as const,
-    queryFn: async (): Promise<TruckMargin[]> => {
-      const r = await apiFetch<{ trucks: TruckMargin[] }>(`/api/billing/margin-by-truck?from=${from.value}&to=${exclusiveEnd(to.value)}`);
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load margins");
-      return r.data.trucks;
     },
   });
 }

@@ -120,6 +120,10 @@ vi.mock("@/features/accounting/useIncomeStatement", () => ({
       toDateFrom: "2026-01-01",
     }),
 }));
+vi.mock("@/composables/useDispatcherEarnings", () => ({
+  useDispatcherEarningsQuery: () =>
+    q([{ dispatcherUserId: "pete", dispatcherName: "pete", loads: 159, linehaul: 461_199, accessorial: 29_438, revenue: 490_637.33, unpostedLoads: 0, miles: 128_036, loadsWithoutMiles: 0, ratePerMile: 3.83 }]),
+}));
 vi.mock("@/features/accounting/useMileageCoverage", () => ({
   useMileageCoverageQuery: () => q({ months: [], miles: 1_552_337, trucks: 172, reason: state.coverageReason, billedMiles: 1_389_814, loads: 1_415, billedRevenue: 4_994_450.85 }),
 }));
@@ -250,6 +254,18 @@ describe("FleetReportPage — the shell (R1)", () => {
     expect(w.find('[aria-live="polite"]').text()).toBe("June 2026");
     // The per-tab date picker is gone: the toolbar carries the truck filters and nothing else.
     expect(w.text()).not.toContain("Dates");
+    w.unmount();
+  });
+
+  it("reads the dispatchers on the report's own month, against the fleet's rate per billed mile", async () => {
+    const w = await mountPage();
+    await openTab(w, "Per dispatcher");
+    const t = w.text();
+    expect(t).toContain("pete");
+    expect(t).toContain("$3.83");
+    // The fleet's rate per billed mile from the coverage read: $4,994,450.85 over 1,389,814 miles.
+    expect(t).toContain("$3.59");
+    expect(w.find('[aria-live="polite"]').text()).toBe("July 2026");
     w.unmount();
   });
 

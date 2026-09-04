@@ -4,7 +4,7 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { searchEntries, moneyByVehicle, earningsByDispatcher, dispatcherNamesForEntries } from "../../financial/index.js";
+import { searchEntries, earningsByDispatcher, dispatcherNamesForEntries } from "../../financial/index.js";
 
 // `to` is exclusive here as everywhere behind the financial store, so `from` must be strictly
 // before it; without the refinement an inverted window is a valid request that returns nothing and
@@ -72,21 +72,9 @@ export function billingRouter(): Router {
     }),
   );
 
-  router.get(
-    "/margin-by-truck",
-    requireOrg,
-    canView,
-    asyncHandler(async (req, res) => {
-      const parsed = windowSchema.safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
-        return;
-      }
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const trucks = await moneyByVehicle(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
-      res.json({ ok: true, trucks });
-    }),
-  );
+  // `/margin-by-truck` was retired at R7 of the fleet report's UI plan (owner ruling Q2,
+  // 2026-09-04): it attributed ledger expenses to trucks, and no per-truck cost figure at this
+  // carrier is precise (D-FLEET1). Per-truck REVENUE lives on the fleet report's own tab.
 
   // Earnings per dispatcher (owner request, 2026-08-28). Same GL-booked revenue predicate as every
   // other revenue figure, and the unassigned bucket is its own row — never spread, never dropped.

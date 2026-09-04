@@ -210,3 +210,16 @@ in order; each depends on the one before only through the shell.
   tools row and keep each section with its rows. The default comparison is the previous period for
   a month and the year to date for anything longer. Seven tab tests. No "Expand all": the row
   drill-down stays one click per account.
+- 2026-09-04 · **R7 — consolidation.** `FleetDispatchersTab.vue` on the fleet report (Q1): the
+  dispatcher table on the report's own clock, with the fleet's rate per billed mile (billed
+  revenue over billed miles from the coverage read the page already makes) as the reference line
+  of a dot plot — good hue above it, spend hue below, the number beside every dot, no dot without a
+  rate. `/billing` is "Invoices" (surface label, route title): one table, no tabs; the per-truck
+  margin tab, its composable and the `/margin-by-truck` route are retired (Q2, D-FLEET1) —
+  `moneyByVehicle` stays in the financial module's reads for the day another reader has a precise
+  use for it. `/shop`: the header no longer promises FleetPal detail §0 of the fleet plan deleted,
+  the window opens on the last full month rather than ninety days into tomorrow, and a reader who
+  can view accounting is pointed to the maintenance family on the statement. **Q3 deviation:** the
+  monthly maintenance-family total is NOT printed on `/shop`. The page sits behind the maintenance
+  gate, which a technician holds and the accounting gate does not; reading the fleet report there
+  would 403 for the role the page exists for. Recorded rather than routed around.

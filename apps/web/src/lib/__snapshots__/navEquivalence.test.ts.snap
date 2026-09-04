@@ -56,7 +56,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -110,7 +110,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -146,7 +146,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -182,7 +182,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -257,7 +257,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -336,7 +336,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -413,7 +413,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -493,7 +493,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -569,7 +569,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -643,7 +643,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
@@ -724,7 +724,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
-      "Revenue & margin → /billing",
+      "Invoices → /billing",
     ],
   },
   {
