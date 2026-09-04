@@ -47,7 +47,8 @@ accepted because a deliberate break made them fail.
 | **G7** removals + rename | **Built** — except G7b, which §4 did not anticipate | 0307, `/fleet-report` |
 | **G8** provenance line | **Built 2026-09-04** — the Company total tab is retired | `fleetProvenance.ts` |
 | **G7b** the close's proof | **Built 2026-09-04** — allocation apparatus deleted, tabs rehomed | 0308, `fleetReport.ts` |
-| **W1–W4** | Not started | — |
+| **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
+| **W1b, W1c, W2–W4** | Not started | — |
 
 **Files added this session**
 
@@ -278,8 +279,17 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** every G-step — G1 through G11, plus G7b. **§4 is fully executed.** **Remaining:** the
-W-series (W1 can ship any time and removes month-shaped plumbing from three places).
+**Built:** every G-step — G1 through G11, plus G7b — and **W1a**. §4 is fully executed and PR #527
+is merged (main `d2c3b36`).
+
+**The W-series is under way, and its sequencing is set by two different clocks.** W1a (schema) is
+done. **W1b** — the agent grouping by `transaction_date`, the payload carrying it, the ingest
+calling `replace_mcleod_gl_days` — ships as soon as 0310 has applied in production, because a
+function's caller must not be served ahead of its migration (`pnpm verify:live`, or the "Apply
+Supabase migrations" run going green). **W1c** — the readers moving onto the day table, retiring
+`monthsTouching` and the month-aligned-window guard — waits on something else: **the sandbox is
+stale and the McLeod agent cannot run until the live database connection next week**, so switching
+readers before a daily sweep has landed would point the finance section at an empty table.
 
 The page is four tabs now — Overview, Per truck, Contractors, Income statement — which is §2's own
 list, with the provenance line carrying what the retired Company total tab uniquely said.
