@@ -26,6 +26,38 @@ const FUEL_PAYABLE_GLID_PREFIX = "20550000";
 /** Settlement's accrual payable: 20500010 company driver, 20500020 owner-operator. */
 const SETTLEMENT_PAYABLE_GLID_PREFIX = "205000";
 
+/**
+ * The GL control recordset, as the wire carries it — one row per (date, module, account) since W1.
+ *
+ * Extracted from `fetchLedgerControl` so the mapping can be tested without a database, which is the
+ * only part of that function that has a decision in it. Two of those decisions matter:
+ *
+ *  · **The date is passed through as the source's own ISO string**, never re-parsed into a Date and
+ *    re-formatted. `CONVERT(..., 23)` already produced `YYYY-MM-DD`; putting it through a JS Date
+ *    would drag the agent's local timezone into a figure the ledger states without one, which is how
+ *    a day's postings land on the day before in one operator's terminal and not another's.
+ *  · **A row with no date is dropped, not defaulted.** The staging function refuses rows outside the
+ *    month anyway, and a row that reached here without a `transaction_date` would mean the query
+ *    changed under us — better to send fewer rows and have the month's total visibly disagree than
+ *    to invent a date that makes it agree.
+ */
+export function toLedgerTotalRows(recordset) {
+  const rows = [];
+  for (const r of recordset ?? []) {
+    const txnDate = String(r.txn_date ?? "").trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(txnDate)) continue;
+    rows.push({
+      txn_date: txnDate,
+      post_module: String(r.post_module || "").trim(),
+      glid: String(r.glid || "").trim(),
+      lines: Number(r.lines),
+      net_amount: num(r.net_amount),
+      abs_amount: num(r.abs_amount),
+    });
+  }
+  return rows;
+}
+
 export async function fetchLedgerControl({
   server, port, database, user, password, companyId,
   windowStart, windowEnd, encrypt, trustCert, serverName,
@@ -46,13 +78,7 @@ export async function fetchLedgerControl({
     const officeRows = await bind().query(OFFICE_SETTLEMENT_LINES);
 
     return {
-      totals: totalsRows.recordset.map((r) => ({
-        post_module: String(r.post_module || "").trim(),
-        glid: String(r.glid || "").trim(),
-        lines: Number(r.lines),
-        net_amount: num(r.net_amount),
-        abs_amount: num(r.abs_amount),
-      })),
+      totals: toLedgerTotalRows(totalsRows.recordset),
       officeLines: officeRows.recordset.map((r) => ({
         external_id: String(r.external_id || "").trim(),
         company_id: companyId, // the sweep's own company filter, carried onto the row (D-FIN8)

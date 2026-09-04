@@ -629,7 +629,17 @@ export const SETTLEMENT_DEDUCTIONS = `
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * Every ledger line in a window, summarised by posting module and account.
+ * Every ledger line in a window, summarised by DATE, posting module and account.
+ *
+ * **The date is in the GROUP BY since W1 (D-FLEET9).** It was not, and that was the collector making
+ * a reporting decision: `transaction_date` is on every line McLeod holds, so the monthly grain the
+ * report used was ours, not the source's, and every later question about a different period became a
+ * schema change instead of a different SUM. The sweep still fetches a calendar month whole — that is
+ * the unit the carrier's close uses — but what lands is the day rows, and the month is their sum.
+ *
+ * `CAST(... AS date)` before the grouping, not after: `transaction_date` is a datetime in McLeod and
+ * grouping on it raw would mint a row per timestamp rather than per day. The projection is ISO
+ * (`style 23`) so the wire carries `YYYY-MM-DD` and nothing downstream has to parse a locale.
  *
  * This is the ONLY thing FuelGuard reads the general ledger for. Under D-MC12 the GL is a control
  * total, never an input to attribution — the carrier populates `gl_ledger.tractor` on 0 of 188,179
@@ -654,25 +664,26 @@ export const SETTLEMENT_DEDUCTIONS = `
  */
 export const GL_CONTROL_TOTALS = `
     SELECT
+      CONVERT(char(10), combined.transaction_date, 23)   AS txn_date,
       LTRIM(RTRIM(post_module))                          AS post_module,
       LTRIM(RTRIM(glid))                                 AS glid,
       COUNT(*)                                           AS lines,
       SUM(amount)                                        AS net_amount,
       SUM(ABS(amount))                                   AS abs_amount
       FROM (
-        SELECT g.post_module, g.glid, g.amount
+        SELECT g.post_module, g.glid, g.amount, CAST(g.transaction_date AS date) AS transaction_date
           FROM dbo.gl_ledger AS g
          WHERE g.company_id = @companyId
            AND g.transaction_date >= @windowStart
            AND g.transaction_date <  @windowEnd
         UNION ALL
-        SELECT g.post_module, g.glid, g.amount
+        SELECT g.post_module, g.glid, g.amount, CAST(g.transaction_date AS date) AS transaction_date
           FROM dbo.gl_ledger_hist AS g
          WHERE g.company_id = @companyId
            AND g.transaction_date >= @windowStart
            AND g.transaction_date <  @windowEnd
       ) AS combined
-     GROUP BY LTRIM(RTRIM(post_module)), LTRIM(RTRIM(glid))`;
+     GROUP BY combined.transaction_date, LTRIM(RTRIM(post_module)), LTRIM(RTRIM(glid))`;
 
 /**
  * The office-settlement module, which has no subledger at all.

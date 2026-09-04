@@ -498,7 +498,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G8** | **Provenance line and the retained tie-out** | **BUILT 2026-09-04.** `fleetProvenanceLine` under the page title — months, sweep stamp, tie-out residual, trucks and miles — and the Company total tab retired. The close still runs; **G7b, which moves its proof off the allocation tie-out, is what remains.** | — |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
 | **W1a** | **Daily GL grain — the schema** | **BUILT 2026-09-04.** `mcleod_gl_days` (0309) and `replace_mcleod_gl_days` (0310), which stages the day rows and DERIVES the monthly rollup from them in one transaction. No caller yet — a function's caller ships one merge behind its migration, as 0304's did. | — |
-| **W1b** | **Daily GL grain — the collector** | The agent's `GL_CONTROL_TOTALS` groups by `transaction_date`, the payload carries it, and the ingest calls the new RPC. Ships once 0310 has applied in production (`pnpm verify:live`). | W1a applied |
+| **W1b** | **Daily GL grain — the collector** | **BUILT 2026-09-04.** `GL_CONTROL_TOTALS` groups by the day, `toLedgerTotalRows` carries it, `glDayTotalSchema` requires it, and the ingest calls `replace_mcleod_gl_days`. Merges only once 0310 has applied (`pnpm verify:live`). | 0310 applied |
 | **W1c** | **Daily GL grain — the readers** | `readLedgerTotalsRange` reads days and sums; retires `monthsTouching` and the month-aligned-window guard. Ships once a daily sweep has actually landed, so nothing reads an empty table. | W1b + one sweep |
 | **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
@@ -1021,3 +1021,26 @@ the record.
   outside the month accepted, the company dropped from the day identity, the D-FIN6 empty guard
   removed, and the daily stale delete removed. The rollup being the days summed is asserted directly
   — the month's fuel row is its two days, to the cent.
+- 2026-09-04 · **W1b — the collector sends what the source says.** `GL_CONTROL_TOTALS` now groups by
+  `CAST(transaction_date AS date)` and projects it ISO (`style 23`), so the wire carries `YYYY-MM-DD`
+  and nothing downstream parses a locale. The cast happens BEFORE the grouping on purpose:
+  `transaction_date` is a datetime in McLeod, and grouping on it raw would mint a row per posting
+  time rather than per day — the month's rollup would still add up, which is exactly why it is
+  asserted rather than eyeballed.
+
+  **The date is required on the wire, not optional.** An agent that has not been updated sends
+  dateless rows and gets a 400 it can read. The alternative — a fallback to the old RPC — is a second
+  path that keeps writing the old grain while everyone believes the new one is live, and the sweep is
+  idempotent, so a rejected run costs a re-run and nothing else. `glDayTotalSchema` EXTENDS
+  `glModuleTotalSchema` rather than widening it, so the ledger-coverage report is not made to carry a
+  field it has no use for. The payload cap rose 5,000 → 20,000 with the grain.
+
+  **`toLedgerTotalRows` was extracted from `fetchLedgerControl`** so the one part of that function
+  with a decision in it can be tested without a database: the date passes through as the source's own
+  string (a `Date` round-trip is how a posting lands a day early for an operator west of UTC), and a
+  row with no usable date is DROPPED rather than defaulted — better a visibly short month than an
+  invented date that makes it agree. Six tests under `lint:agent-syntax`.
+
+  **`replace_mcleod_gl_month` is left standing**, unused by application code. Its matrix still proves
+  the behaviour the new function inherited, and dropping a function while a previous build may still
+  be serving it is the deploy window run in reverse. It goes with W1c.
