@@ -3,9 +3,13 @@
 **Read this, then `FINANCE-FLEET-REPORT-PLAN.md`.** That plan is the queue; this file is where the
 work stopped, what is proven, and the seven traps that cost time in this session.
 
-**Where the work is now.** PR #527 — the whole G-series — is **MERGED**: main `d2c3b36`, which also
-applied 0307 and 0308 to production. The W-series continues on **`claude/finance-w1-daily-gl`,
-PR #529** (W1a, schema only).
+**Where the work is now — everything below is MERGED.** #527 the whole G-series (main `d2c3b36`,
+applying 0307 and 0308), #529 W1a (`6eb210c`, applying 0309 and 0310), #530 W1b (`b410140`). Live
+schema is **0310**, confirmed by `verify:live` as well as by the migrate runs.
+
+**The only thing left in W1 is W1c, and it waits on the live database connection — see §3.5**, which
+is the order to work in when that arrives. Nothing regresses if it slips: the report reads the
+monthly rollup today exactly as it did before W1.
 
 **Working tree.** The shared checkout at `~/Projects/FuelGuard` belongs to another session; this
 work lives in the worktree `.claude/worktrees/finance-g8`. Check the current branch before every
@@ -54,7 +58,8 @@ accepted because a deliberate break made them fail.
 | **G8** provenance line | **Built 2026-09-04** — the Company total tab is retired | `fleetProvenance.ts` |
 | **G7b** the close's proof | **Built 2026-09-04** — allocation apparatus deleted, tabs rehomed | 0308, `fleetReport.ts` |
 | **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
-| **W1b, W1c, W2–W4** | Not started | — |
+| **W1b** daily collector | **Built and MERGED 2026-09-04** — the agent sends the day, the ingest calls 0310's function | PR #530 |
+| **W1c, W2–W4** | Not started — W1c waits on the live connection (§3.5) | — |
 
 **Files added this session**
 
@@ -151,6 +156,34 @@ in this workspace — import `playwright-core`, and by absolute path if the scri
 repo. Four states have been checked this way: July's figures, a February-shaped response where
 every rate is a dash, seven trend months with January and February as holes in the line, and a
 February-only span where there is no line at all.
+
+### 3.5 Go-live: the order to do things in when the live connection arrives
+
+Confirmed by the owner 2026-09-04. The steps are ordered because each makes the next safe, and doing
+them out of order is how the finance section goes blank or keeps writing the wrong grain.
+
+**1. Update the agent checkout on whichever machine runs it.** W1b makes `txn_date` REQUIRED on the
+wire (`glDayTotalSchema`). An agent from before that merge sends dateless rows and gets a clean 400
+it can read — which is the intended failure. The alternative, a fallback to the old RPC, would keep
+writing the month grain while everyone believed the day grain was live.
+
+**2. Run `--financial`.** This is what first populates `mcleod_gl_days`, and `replace_mcleod_gl_days`
+derives the `mcleod_gl_totals` rollup from the same rows in the same transaction, so the monthly
+figures every current reader uses are refreshed by the same run. It also **re-sweeps August**, which
+is still partial — swept 2026-08-28, four days before the month ended — and is therefore withheld
+from the report today by the G11 guard. Expect August to start reporting only after this run.
+
+Check afterwards, before trusting anything: the day rows for a closed month must sum to that month's
+rollup, and July must still read **4,828,189.24 / 4,058,143.38** — the figures the printed statement
+carries (§5). If they moved, the sweep changed something, and that is the question, not the report.
+
+**3. Then W1c** — the readers move onto the day table, `monthsTouching` and the month-aligned-window
+guard retire, and the now-unused `replace_mcleod_gl_month` (0302 → 0304) is dropped with its matrix.
+W1c deliberately waits for step 2: switching readers to `mcleod_gl_days` before a daily sweep has
+landed would point the whole finance section at an empty table.
+
+**Nothing is gated on any of this.** Every G-step is merged and live, and the report reads the
+monthly rollup today exactly as it did before W1 — so if the connection slips, nothing regresses.
 
 ---
 
@@ -288,14 +321,13 @@ environmental, not a regression from any change.)
 **Built:** every G-step — G1 through G11, plus G7b — and **W1a**. §4 is fully executed and PR #527
 is merged (main `d2c3b36`).
 
-**The W-series is under way, and its sequencing is set by two different clocks.** W1a (schema) is
-done. **W1b** — the agent grouping by `transaction_date`, the payload carrying it, the ingest
-calling `replace_mcleod_gl_days` — ships as soon as 0310 has applied in production, because a
-function's caller must not be served ahead of its migration (`pnpm verify:live`, or the "Apply
-Supabase migrations" run going green). **W1c** — the readers moving onto the day table, retiring
-`monthsTouching` and the month-aligned-window guard — waits on something else: **the sandbox is
-stale and the McLeod agent cannot run until the live database connection next week**, so switching
-readers before a daily sweep has landed would point the finance section at an empty table.
+**W1a and W1b are merged** (PRs #529, #530; main `b410140`). 0310 is applied in production —
+confirmed by the migrate run and by `verify:live` reporting live schema 0310 — which is what let
+W1b's caller ship, since a function's caller must never be served ahead of its migration.
+
+**W1c is the only part of W1 left, and it waits on the live database, not on the deploy window.**
+The sandbox is stale and the agent cannot run until the connection arrives, so `mcleod_gl_days` is
+empty; switching readers onto it now would blank the finance section. §3.5 is the order to work in.
 
 The page is four tabs now — Overview, Per truck, Contractors, Income statement — which is §2's own
 list, with the provenance line carrying what the retired Company total tab uniquely said.
