@@ -422,18 +422,18 @@
     },
     "viz-money-earned": {
       "$type": "color",
-      "$value": "oklch(48.8% 0.217 264.4)",
-      "$description": "the fleet report's revenue line (blue). Deliberately the cost palette's own three hues (G9): they are already checked for pairwise separation under protan, deutan and tritan simulation, and a trend chart's three lines need that check more than a chart of one does"
+      "$value": "oklch(56.9% 0.1814 263.2)",
+      "$description": "the fleet report's revenue line (soft blue). Softened from the cost palette's hues at D-FRUI8 (2026-09-04, the owner asked for gentler charts): each of the three was validated, not judged — lightness band, chroma floor, colour-vision separation (worst pair ΔE 8.4), 3:1 on the surface — and anything softer than this failed one of them, which is why the softness lives in the chart's fills rather than its strokes"
     },
     "viz-money-spent": {
       "$type": "color",
-      "$value": "oklch(52% 0.18 33)",
-      "$description": "the fleet report's expense line (burnt orange)"
+      "$value": "oklch(63.4% 0.1599 36.2)",
+      "$description": "the fleet report's expense line (soft coral); D-FRUI8"
     },
     "viz-money-kept": {
       "$type": "color",
-      "$value": "oklch(59.6% 0.1282 163.225)",
-      "$description": "the fleet report's net line (emerald)"
+      "$value": "oklch(62.5% 0.126 164.7)",
+      "$description": "the fleet report's net line (soft green); D-FRUI8"
     },
     "viz-grid": {
       "$type": "color",
