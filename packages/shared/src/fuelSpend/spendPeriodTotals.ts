@@ -22,15 +22,13 @@ const r2 = (n: number) => unsign(Math.round(n * 100) / 100);
 const r3 = (n: number) => unsign(Math.round(n * 1000) / 1000);
 const ratio = (num: number, den: number): number | null => (den > 0 ? num / den : null);
 
-/** Physically possible fleet MPG for a Class-8 tractor. Outside this, the odometer is wrong, not the truck. */
-export const PLAUSIBLE_FLEET_MPG = { low: 3, high: 12 } as const;
 
-/**
- * How much of a period's fuel must be paired with usable mileage before miles are scaled to cover the
- * rest. Below this the extrapolation is carrying more of the answer than the measurement is, and the
- * miles/efficiency split is withheld instead.
- */
-export const MIN_MEASURED_SHARE = 0.6;
+// Both constants moved to `fleetEfficiency.ts` on 2026-09-04 (M1, D-MPG1): fleet MPG is defined in
+// exactly one file now, and a threshold that decides whether an MPG may be printed belongs beside the
+// function that decides it. Re-exported here so every existing importer keeps its import — the move
+// is about where the definition LIVES, not about making anybody chase it.
+import { MIN_MEASURED_SHARE, PLAUSIBLE_FLEET_MPG } from "./fleetEfficiency.js";
+export { MIN_MEASURED_SHARE, PLAUSIBLE_FLEET_MPG } from "./fleetEfficiency.js";
 
 /**
  * How much of a period's wall-clock the engine feed must have actually watched before an idle figure is
