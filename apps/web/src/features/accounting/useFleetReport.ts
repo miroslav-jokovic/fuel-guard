@@ -83,6 +83,8 @@ export interface FleetReportResponse {
   ledgerReason: string | null;
   /** The statement as ten rows of family (G6) — a signed grouping, not a derived one. */
   families: FamilySummaryResponse;
+  /** When the McLeod financial sweep last landed. Null means it never has (G8). */
+  sweptAt: string | null;
   toDateFrom: string;
   /** Present so a caller can show coverage month by month without a second read. */
   months?: MonthMileage[];

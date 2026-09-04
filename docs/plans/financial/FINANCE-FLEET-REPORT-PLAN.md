@@ -495,7 +495,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G6** | **The family summary** | **BUILT 2026-09-03**, map signed by the owner the same day. Ten families of expense and four of income over the 100 accounts that posted; `GL_FAMILIES` + `buildFamilySummary` (pure), carried on `/fleet-report` because it needs the miles as well as the lines, `FamilySummaryTable.vue` above the income statement. | — |
 | **G7** | **The removals and the rename** | **BUILT 2026-09-03**, except one item §4 did not anticipate — see G7b. Three pages, the schedule table (0307), the per-truck cost columns, the caveat machinery and the deadhead basis are gone; the page is `/fleet-report`, titled "Fleet report". | — |
 | **G7b** | **The month close's proof** | **BLOCKED, and it blocks the last of §4.** `computeMonthClose` derives `anchored` and `cpm_residual` from the per-truck harness's allocation tie-out, so the allocation apparatus cannot be deleted without deciding what the close proves instead. Recommendation: the fleet report's own tie-out (company + contractors = ledger, already asserted every call) plus the module drifts. Needs a migration to drop four `finance_month_closes` columns and a change to `planMonthClose`. Belongs with G8, which already owns the close. | one ruling on D-FIN14 |
-| **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
+| **G8** | **Provenance line and the retained tie-out** | **BUILT 2026-09-04.** `fleetProvenanceLine` under the page title — months, sweep stamp, tie-out residual, trucks and miles — and the Company total tab retired. The close still runs; **G7b, which moves its proof off the allocation tie-out, is what remains.** | — |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
 | **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
 | **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
@@ -504,9 +504,8 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 | **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11, G6 and G7 — done. **Next G8**, which now carries
-G7b: the month close's proof has to move off the allocation tie-out before the last of §4 can go.
-Then the W-series.
+**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11, G6, G7 and G8 — done. **Next G7b** (the month
+close's proof, which unblocks the last of §4), then the W-series.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
 offered — except W1, which can ship any time and is worth shipping early because it removes
@@ -929,3 +928,35 @@ the record.
   Everything green: 2,468 shared, 2,817 API and 1,206 web tests, every gate, and the PGlite RLS
   matrix (468 assertions, 126 tables) executing 0307 before it can reach production. Verified in a
   real browser at the new address.
+- 2026-09-04 · **G8 — the provenance line, and the Company total tab retired.** One line under the
+  page title, on every tab: *"July 2026 · McLeod ledger swept Aug 28, 2026 · our trucks and
+  contractors tie to the ledger, residual $0.00 · 172 trucks, 1,552,337 measured miles."* It reads
+  the fleet report, so the sentence qualifying the figures comes from the same request that produced
+  them, and `sweptAt` now rides on that response rather than on the CPM call.
+
+  **What it replaced.** The Company total TAB restated the ledger's revenue, expenses and net beside
+  a tie-out — every figure of which the overview has led with since G5, from the same call. What was
+  genuinely only there is the part that qualifies the whole page, and that is a sentence, not a tab:
+  a reader who has to click to find out whether the figures tie will not click.
+
+  **Three refusals in nine lines of prose.** The residual is stated **even when it is zero**,
+  because a tie-out that only speaks when it fails cannot be told apart from one nobody runs. A
+  period with no reportable month (G11) claims **no tie-out at all** — there are no figures behind
+  one, and it would be the page's only untrue sentence. And a withheld denominator (G10) drops the
+  clause rather than printing "— trucks" mid-sentence: this line is prose, and a dash in prose reads
+  as a bug rather than as a measurement that was refused.
+
+  **A duplicate went with it.** The coverage banner's "all measured" form said "172 trucks ran in
+  this period, over 1,552,337 miles" — which the provenance line now states for every tab, and whose
+  empty-mile share the overview already carries on a card. Three statements of one measurement on one
+  screen is how a reader starts checking whether they agree. The banner keeps its WARNING form, which
+  is the part that cannot be dropped.
+
+  Nine pure tests on the line builder, five mutants, all killed: the residual stated only on failure,
+  a tie-out claimed with no reportable month, a never-swept ledger left blank, a null denominator
+  printed anyway, and the residual counting only the revenue side. Verified in a real browser.
+
+  **Worktree note.** Built in `.claude/worktrees/finance-g8` — another session had taken the shared
+  checkout onto another branch with uncommitted work in it
+  ([[parallel-chats-share-one-working-tree]]). Nothing was disturbed; checking the current branch
+  before every commit remains the rule.

@@ -58,6 +58,7 @@ const report = (o: Partial<FleetReportResponse> = {}): FleetReportResponse => ({
   monthsPartial: [],
   ledgerReason: null,
   families: { revenue: [], expense: [], tieOut: { revenue: 0, expenses: 0 } },
+  sweptAt: "2026-08-28T21:02:56.551Z",
   toDateFrom: "2026-01-01",
   ...o,
 });

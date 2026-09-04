@@ -11,6 +11,7 @@ import {
   readSettlementsWindow,
   readBillingWindow,
   readOwnerOperatorDeductions,
+  readFinancialSyncedAt,
 } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
 import { readLedgerForPeriod, monthStart, nextMonthStart, monthsBetween } from "./ledgerPeriod.js";
@@ -52,6 +53,15 @@ export interface FleetReportResult extends FleetReport {
   monthsPartial: LedgerMonth[];
   ledgerReason: string | null;
   toDateFrom: string;
+  /**
+   * When the McLeod financial sweep last landed, or null if it never has (G8).
+   *
+   * It rides here because the page's provenance line has to state it beside the figures it
+   * qualifies: every number on this report is as of that moment, and one that is four days old
+   * during a month-end close is a different answer from one taken this morning. Null is printed,
+   * never hidden — "never swept" is the most important thing a finance page can say.
+   */
+  sweptAt: string | null;
   /**
    * The ninety-four-row statement as ten rows of family (G6).
    *
@@ -102,13 +112,14 @@ export async function getFleetReport(
   // Subledger windows use the requested dates; the ledger widens to whole months on its own. That
   // asymmetry is deliberate and it is what the report states: the money is the month's, the
   // contractor split is the window's, and a caller asking for a whole month gets both aligned.
-  const [ledger, coverage, settlements, bills, deductions, samsaraMiles] = await Promise.all([
+  const [ledger, coverage, settlements, bills, deductions, samsaraMiles, sweptAt] = await Promise.all([
     readLedgerForPeriod(admin, orgId, fromIso, toIso),
     getMileageCoverage(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
     readBillingWindow(admin, orgId, fromIso, toIso),
     readOwnerOperatorDeductions(admin, orgId, fromIso, toIso),
     readVehicleMonthlyMiles(admin, orgId, coveredMonths(fromIso, toIso)),
+    readFinancialSyncedAt(admin, orgId),
   ]);
 
   const typeByGlid = new Map(ledger.accounts.map((a) => [a.glid.trim(), a.type_id?.trim() ?? null]));
@@ -163,5 +174,6 @@ export async function getFleetReport(
     monthsPartial: ledger.monthsPartial,
     ledgerReason: ledger.ledgerReason,
     toDateFrom: ledger.toDateFrom,
+    sweptAt,
   };
 }

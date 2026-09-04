@@ -3,12 +3,12 @@ import { computed, ref, watch } from "vue";
 import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
 import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
-import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
 import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
 import FamilySummaryTable from "@/features/accounting/FamilySummaryTable.vue";
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
+import { fleetProvenanceLine } from "@/features/accounting/fleetProvenance";
 import FleetTrendChart from "@/features/accounting/FleetTrendChart.vue";
 import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { lastFullMonth } from "@/lib/dateWindow";
@@ -48,12 +48,11 @@ const minMiles = ref("0");
  * The route is `/fleet-report` since G7; the file keeps its `Cpm` name until the rename lands in
  * the file tree, which is a move with no behaviour in it.
  */
-type CpmTab = "overview" | "trucks" | "contractors" | "fleet" | "statement";
+type CpmTab = "overview" | "trucks" | "contractors" | "statement";
 const TABS: TabItem[] = [
   { value: "overview", label: "Overview" },
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
-  { value: "fleet", label: "Company total" },
   { value: "statement", label: "Income statement" },
 ];
 // Overview leads (G5). It answers the question a boss actually opens the page with — did we make
@@ -171,16 +170,15 @@ const pageDescription = computed(() =>
       ? "The general ledger, in the shape McLeod prints it."
       : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
 );
-const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 
-// The McLeod financial sweep's last landing, in the reader's own words. Null is said out loud.
-const figuresAsOf = computed(() => {
-  if (!provenance.value) return "";
-  const at = provenance.value.financialSweptAt;
-  if (!at) return " McLeod figures have never been swept for this organisation.";
-  const d = new Date(at);
-  return ` McLeod figures as of ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.`;
-});
+/**
+ * The provenance line (G8) — which months, swept when, does it tie, over how many trucks and miles.
+ *
+ * It reads the FLEET report rather than the CPM call, so the sentence qualifying the figures comes
+ * from the same request that produced them. Empty until that call lands: a provenance line assembled
+ * from a half-loaded page is worse than none.
+ */
+const provenanceLine = computed(() => (fleet.value ? fleetProvenanceLine(fleet.value) : ""));
 
 const visibleCount = computed(() => (tab.value === "trucks" ? trucks.value.length : ownerOperators.value.length));
 const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contractors"));
@@ -188,13 +186,19 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
 
 <template>
   <div class="space-y-6">
-    <!-- "Figures as of" is the sweep's own stamp (D-FIN3), never the page's clock: a report that
-         looks current while its source stopped three weeks ago is the failure the audit found. -->
-    <!-- The description follows the tab, because the page now answers two different questions.
-         Overview and the income statement are about the whole fleet from the ledger; the per-truck
-         tabs are about the allocation harness. One sentence describing both would describe
-         neither. -->
-    <PageHeader :description="`${pageDescription}${figuresAsOf}`" />
+    <!-- The description follows the tab, because the page answers different questions on each: what
+         the fleet earned and spent, the ledger in McLeod's own order, or what one truck drove.
+         One sentence describing all of them would describe none.
+
+         Under it, the provenance line (G8). It replaces the Company total TAB, which restated the
+         ledger's revenue, expenses and net beside a tie-out — every figure of which the overview now
+         leads with. What was left is the part that qualifies the whole page: the months, the sweep's
+         own stamp (D-FIN3, never the page's clock — a report that looks current while its source
+         stopped three weeks ago is the failure the 2026-08 audit found), whether the split still
+         ties, and the denominator under the rates. A reader who has to open a tab to learn whether
+         the figures tie will not open it. -->
+    <PageHeader :description="pageDescription" />
+    <p v-if="provenanceLine" class="-mt-4 text-xs text-ink-tertiary">{{ provenanceLine }}</p>
 
     <!--
       The method, one click away. Every sentence here used to sit in the page description or in
@@ -225,23 +229,17 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
          what put two different "earned per mile" numbers on one screen; the overview's, from the
          ledger, is now the only one. -->
 
-    <!-- The coverage banner (G10). A period whose miles are short of its trucks cannot carry a
-         per-mile figure at all, and saying so once, at the top, beats a dash on every row. -->
+    <!-- The coverage banner (G10), now the WARNING only. Its "all measured" form said "172 trucks
+         ran in this period, over 1,552,337 miles" — which the provenance line above states for every
+         tab, and whose empty-mile share the overview already carries on its own card. Three
+         statements of one measurement on one screen is how a reader starts checking whether they
+         agree. What cannot be dropped is the refusal: a period short of trucks carries no per-mile
+         figure at all, and saying so once, at the top, beats a dash on every row. -->
     <p
       v-if="coverage?.reason"
       class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
     >
       {{ coverage.reason }}
-    </p>
-    <p v-else-if="coverage?.trucks" class="text-sm text-ink-secondary">
-      <span class="font-semibold text-ink">{{ coverage.trucks }}</span> trucks ran in this period and
-      Samsara measured every one of them, over
-      <span class="font-semibold text-ink">{{ fmtMiles(coverage.miles ?? 0) }}</span> miles.
-      <template v-if="coverage.months[0]?.emptyPct !== null && coverage.months[0]?.emptyPct !== undefined">
-        <span class="text-ink-tertiary">
-          {{ coverage.months[0].emptyPct }}% of those miles carried no load.
-        </span>
-      </template>
     </p>
 
     <!-- The ledger's own shortfall (G11) is NOT a page-level banner, unlike the mileage one above.
@@ -256,16 +254,6 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       Contractors hauled <span class="font-semibold text-ink">{{ fmtUsd(ownerOpRevenue) }}</span> in this
       period, of which we kept <span class="font-semibold text-ink">{{ fmtUsd(ownerOpMargin) }}</span
       >. They are paid a share of each load, so they carry no share of the company's costs.
-    </p>
-
-    <CpmFleetTotal
-      v-if="tab === 'fleet' && provenance?.glCheck?.monthsCovered?.length"
-      :gl="provenance.glCheck"
-      :loading="isLoading"
-    />
-    <p v-else-if="tab === 'fleet'" class="text-sm text-ink-secondary">
-      The company total needs the ledger for a whole month. Pick a period that covers one, or run the
-      McLeod sweep for this one.
     </p>
 
     <!-- The overview (G5): earned, spent, kept — for the whole fleet, for our trucks and for

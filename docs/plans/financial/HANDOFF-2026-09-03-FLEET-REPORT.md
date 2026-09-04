@@ -45,6 +45,7 @@ accepted because a deliberate break made them fail.
 | **G11** ledger-coverage guard | **Built** — not planned; a live defect found while measuring for G6 | `ledgerMonths.ts`, `ledgerPeriod.ts` |
 | **G6** family summary | **Built** — map signed by the owner 2026-09-03 | `glFamilies.ts`, `FamilySummaryTable.vue` |
 | **G7** removals + rename | **Built** — except G7b, which §4 did not anticipate | 0307, `/fleet-report` |
+| **G8** provenance line | **Built 2026-09-04** — the Company total tab is retired | `fleetProvenance.ts` |
 | **W1–W4** | Not started | — |
 
 **Files added this session**
@@ -276,8 +277,11 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11, G6, G7. **Remaining:** G8 (carrying
-G7b), then W1–W4.
+**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11, G6, G7, G8. **Remaining:** **G7b**, then
+W1–W4.
+
+The page is four tabs now — Overview, Per truck, Contractors, Income statement — which is §2's own
+list, with the provenance line carrying what the retired Company total tab uniquely said.
 
 **The page is `/fleet-report` now** and `CpmReportPage.vue` is down to ~430 lines from 487. Its
 file name still says `Cpm`; renaming the file is a move with no behaviour in it and was left out so
