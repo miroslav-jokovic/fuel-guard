@@ -3,8 +3,14 @@
 **Read this, then `FINANCE-FLEET-REPORT-PLAN.md`.** That plan is the queue; this file is where the
 work stopped, what is proven, and the seven traps that cost time in this session.
 
-**Branch:** `claude/finance-collectors-july-start` · **PR:** #527 (open) · **Base:** `main` at
-`5617963`.
+**Where the work is now.** PR #527 — the whole G-series — is **MERGED**: main `d2c3b36`, which also
+applied 0307 and 0308 to production. The W-series continues on **`claude/finance-w1-daily-gl`,
+PR #529** (W1a, schema only).
+
+**Working tree.** The shared checkout at `~/Projects/FuelGuard` belongs to another session; this
+work lives in the worktree `.claude/worktrees/finance-g8`. Check the current branch before every
+commit — parallel chats share one working tree, and this session found it switched underneath it
+mid-task.
 
 ---
 
