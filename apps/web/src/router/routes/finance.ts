@@ -16,7 +16,7 @@ export const financeRoutes: RouteRecordRaw[] = [
     // had stopped being true.
     path: "/fleet-report",
     name: "fleet-report",
-    component: () => import("@/pages/CpmReportPage.vue"),
+    component: () => import("@/pages/FleetReportPage.vue"),
     meta: { requiresAuth: true, title: "Fleet report" },
   },
   // The old address, kept working. An accountant with /cpm bookmarked should land on the page, not

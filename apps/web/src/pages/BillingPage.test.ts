@@ -32,7 +32,7 @@ vi.mock("@/features/billing/useInvoices", async (orig) => {
     useMarginByTruckQuery: () => q([]),
   };
 });
-vi.mock("@/features/billing/useDispatcherEarnings", () => ({
+vi.mock("@/composables/useDispatcherEarnings", () => ({
   useDispatcherEarningsQuery: () =>
     q(
       dispatcherError

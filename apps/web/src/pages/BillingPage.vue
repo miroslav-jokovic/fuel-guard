@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useInvoicesQuery, useMarginByTruckQuery, INVOICES_PAGE_SIZE } from "@/features/billing/useInvoices";
-import { useDispatcherEarningsQuery } from "@/features/billing/useDispatcherEarnings";
+import { useDispatcherEarningsQuery } from "@/composables/useDispatcherEarnings";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { trailingDays } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
