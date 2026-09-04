@@ -34,12 +34,34 @@ export type GlModuleTotal = z.infer<typeof glModuleTotalSchema>;
  * month is re-swept (and wholly replaced) while McLeod's late manual entry is still landing in it
  * — that lag runs about a month, which is exactly why re-sweeping matters.
  */
+/**
+ * One row as the wire carries it since W1 (D-FLEET9): the module total for ONE DAY.
+ *
+ * `glModuleTotalSchema` stays what it was — the shape the ledger-coverage report reasons about,
+ * which is per module and has no date in it — and this extends it rather than widening it, so the
+ * coverage report is not made to carry a field it has no use for.
+ *
+ * The date is REQUIRED. An agent that has not been updated sends dateless rows and gets a 400 it can
+ * read, which is the failure this wants: the alternative is a fallback path that keeps writing the
+ * old grain while everyone believes the new one is live.
+ */
+export const glDayTotalSchema = glModuleTotalSchema.extend({
+  /** The ledger line's own transaction date, `YYYY-MM-DD`, as McLeod states it. */
+  txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export type GlDayTotal = z.infer<typeof glDayTotalSchema>;
+
 export const tmsLedgerTotalsPayloadSchema = z.object({
   /** First day of the month, YYYY-MM-DD. */
   period_start: z.string().regex(/^\d{4}-\d{2}-01$/),
   /** First day of the NEXT month — half-open, like every window in this integration. */
   period_end: z.string().regex(/^\d{4}-\d{2}-01$/),
-  totals: z.array(glModuleTotalSchema).max(5000),
+  /**
+   * The month's rows at DAILY grain. The cap rose with the grain: a month's day rows land near
+   * 2,000 against the ~140 the monthly grain produced (§1.8.1's measurement), and the ceiling is
+   * there to refuse a runaway payload, not to bound a normal one.
+   */
+  totals: z.array(glDayTotalSchema).max(20000),
   /** The McLeod company the month was swept for (0303, D-FIN8) — the books are per legal entity. */
   company_id: z.string().min(1).max(4).nullish(),
 });
