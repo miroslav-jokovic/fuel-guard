@@ -310,7 +310,8 @@ three of these are worth re-opening if the evidence changes.
   the one it replaced: **both operating methods miss the independent witness, in opposite
   directions** (−2.41% and +3.78% in August), so what needs fixing is the numerator, not the
   formula. This is FINANCE-FLEET-REPORT-PLAN §4.1's trap — the plan can be wrong about the code —
-  landing on a plan written an hour earlier.- 2026-09-04 · **Rulings made, on the owner's explicit delegation.** D-MPG1–D-MPG5 in §2, and all
+  landing on a plan written an hour earlier.
+- 2026-09-04 · **Rulings made, on the owner's explicit delegation.** D-MPG1–D-MPG5 in §2, and all
   five questions in §6 answered. Two are worth re-reading later because they cost something: the
   coverage floor stays at 0.6 rather than being raised, so a 62%-covered period and a 99%-covered one
   both print a number and only the displayed coverage separates them — raising it is a product change
@@ -323,6 +324,37 @@ three of these are worth re-opening if the evidence changes.
   `gallons + intermediateGallons` while every surface weights by `gallons`, so the per-fill numerator
   is short by exactly the intermediate share and the bias is structurally negative — which is the
   mechanism behind §1.4's measured −1.31% / −2.41%.
+- 2026-09-04 · **M1 — `fleetEfficiency.ts`, the one definition.** `computeFleetMpg(inputs)` takes the
+  period's miles, their SOURCE, the period's tractor gallons and the gallons that have a mile behind
+  them, and returns `{ mpg, milesSource, measuredShare, truckCoverage, trucksMeasured,
+  trucksUnmeasured, reason }`. Pure, no I/O, no table.
+
+  **Three things it encodes that no current surface does.** The provenance travels with the number,
+  including when the number is withheld — `milesSource` is part of the answer, because miles spread
+  across days by drive-second weight are not the same claim as two odometer readings the vendor
+  asserted. The denominator is `gallonsWithMiles`, not `gallons`: dividing measured miles by the
+  whole period's fuel understates MPG by exactly the unmeasured share, and a 90%-covered fleet would
+  read 10% low, plausibly. And it refuses in four named ways — no fuel, no measured fuel, no
+  distance, and below the coverage floor — rather than returning a zero that would enter a
+  cost-per-mile as though it were a measurement.
+
+  **`mileageDivergence` ships with it**, unused for now on purpose: it is the comparison M5 makes a
+  shipped check, and its test pins the three figures from §1.4 so the numbers that motivated this
+  plan cannot quietly stop being true.
+
+  **`PLAUSIBLE_FLEET_MPG` and `MIN_MEASURED_SHARE` moved here** from `spendPeriodTotals.ts` and are
+  re-exported from their old home, so no importer moved and no behaviour changed. That is what makes
+  M5 a derivation rather than a second opinion: the thresholds now live beside the function that
+  applies them.
+
+  **Deliberately NOT built here:** an adapter that turns per-fill `computed_mpg` back into miles.
+  That multiplication is the −1.31% / −2.41% bias §1.4 measured, and giving it a home in the shared
+  module would bless the path the plan exists to retire. The four Method-A surfaces get their miles
+  from M3 instead.
+
+  Fourteen tests, seven mutants killed (divide by all gallons; coverage floor removed; plausibility
+  band removed; a zero-distance period reporting a figure; the over-coverage clamp removed; truck
+  coverage hard-zeroed; the divergence made unsigned).
 - 2026-09-04 · **M2 — `readFleetDistance`, the measured-miles reader.** In the samsara module, over
   its own `samsara_odometer_readings` (D-SEP1): reads the readings, hands them to `distanceByVehicle`,
   returns per-truck distance plus the fleet total and the count it could not measure. It does no
