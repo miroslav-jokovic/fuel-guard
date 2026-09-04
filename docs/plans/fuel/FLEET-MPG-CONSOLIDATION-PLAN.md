@@ -453,3 +453,33 @@ three of these are worth re-opening if the evidence changes.
   Nine tests, six mutants killed (dividing by all gallons rather than the paired ones; unmeasured
   trucks uncounted; unattributed fuel dropped from the total; reefer gallons selected; the server's
   clock instead of the fleet's; miles taken from every truck whether paired or not).
+- 2026-09-04 · **M6 — `lint:mpg`, and it ships BEFORE M4/M5 rather than after.** §3 ordered the gate
+  last, on the assumption it could only run once the duplicates were gone. That was wrong in this
+  repo's own terms: `check-file-size.mjs`, `check-table-access.mjs` and `check-table-producers.mjs`
+  all landed with a **shrink-only waiver list** holding the offenders they were built to retire.
+  Waiting would have left a month in which a *sixth* implementation could land unremarked — and four
+  landed that way already. So the gate is live now, with the four Method-A sites waived and each
+  waiver naming the step that removes it.
+
+  **Three detectors, and the tightening is the interesting part.** The first draft flagged *any* line
+  containing an mpg identifier, a gallons identifier and an operator — seven files, of which every
+  one was innocent: an import list, a PDF menu label, `Math.round(x * 100) / 100`. A gate with that
+  signal-to-noise gets switched off, so the rules now match the ARITHMETIC rather than the
+  vocabulary: an mpg accumulator built by multiplication (`mpgWeighted += mpg * gallons`,
+  `sum(computed_mpg * gallons)`), a `miles ÷ gallons` division, and an accumulator division
+  (`mpgW / mpgG`). `impliedMiles = gallons * mpg` — which SPENDS an MPG rather than defining one — is
+  correctly silent, and telling those two apart is the whole of the difference.
+
+  **Four carve-outs, which are not debt and do not shrink**, each naming the different question it
+  answers: `ifta/position.ts` (a tax figure, D-MPG2), `ifta/tieOut.ts` (a plausibility test compared
+  against a threshold, never displayed as efficiency), `anomalyRules/helpers.ts` (one fill's ratio,
+  an anomaly input), and migration 0290 (applied, uneditable; M4 retires its only consumer).
+
+  **The blind spot is named in the script's own header:** `ratio(milesMeasured, mpgGallons)` in
+  `spendPeriodTotals.ts` routes the division through a helper and carries no operator, so the gate
+  cannot see it. That call is M5's target. A gate that pretended to catch it would be worse than one
+  that says where it stops.
+
+  Proven by breaking it three ways: a new duplicate dropped into an innocent file is reported on both
+  its lines; deleting a waiver while its duplicate still exists reports the duplicate; and
+  `--self-test` fires all three detectors while a comment about MPG fires none.
