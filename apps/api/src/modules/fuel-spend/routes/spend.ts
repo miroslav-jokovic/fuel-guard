@@ -7,6 +7,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
+import { getFleetMpg } from "../fleetMpg.js";
 import { type SpendGrain } from "@silvicom/shared";
 
 /**
@@ -74,6 +75,32 @@ export function registerSpendRoutes(router: Router): void {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="fuelguard-fuel-spend-${from}-to-${to}.pdf"`);
       res.send(pdf);
+    }),
+  );
+
+  /**
+   * Fleet MPG for a period — the ONE answer (M3, D-MPG1).
+   *
+   * A read, so it takes the `view` set: the accountant and the fleet manager both ask this question,
+   * and until now they got different answers depending on which page they asked it from.
+   *
+   * It always returns 200 with a body, including when the figure is withheld: `mpg: null` plus a
+   * `reason` a person can act on is the answer to "what is our MPG" when the fleet's fuel is only
+   * half covered. A 404 or an empty body would send the caller looking for a bug instead.
+   */
+  router.get(
+    "/fleet-mpg",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : "";
+      const to = typeof req.query.to === "string" ? req.query.to : "";
+      if (!YMD.test(from) || !YMD.test(to) || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await getFleetMpg(admin, req.auth!.orgId!, from, to) });
     }),
   );
 

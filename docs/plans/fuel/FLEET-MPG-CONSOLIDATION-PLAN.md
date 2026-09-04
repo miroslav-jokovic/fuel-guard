@@ -213,6 +213,34 @@ figure that is right by coincidence is one scoring change away from being wrong 
 "reefer fuel moved the truck" is not a claim anybody would defend if asked. M3 filters on
 `tank_type` rather than relying on the coincidence.
 
+### D-MPG6 — fleet MPG is reported at WEEK grain or coarser, and the daily MPG trend is retired
+
+Added 2026-09-04, after M3's own file had to name the tank boundary and the live collector made it
+measurable for the first time. Fuel is bought in an instant and burned over the following days, so a
+short period's purchases are not its consumption. **Measured, 1–3 September, from odometer miles
+over that day's tractor purchases:**
+
+| Day | Trucks | Measured miles | Gallons bought | Daily MPG |
+|---|---|---|---|---|
+| 2026-09-01 | 118 | 50,151 | 6,721 | **7.46** |
+| 2026-09-02 | 130 | 56,963 | 8,256 | **6.90** |
+| 2026-09-03 | 134 | 56,871 | 8,912 | **6.38** |
+
+A **17% swing in three days** — and the 2nd and 3rd cover almost exactly the same distance (56,963
+against 56,871) while differing 8% in fuel bought. The fleet did not lose 8% of its efficiency
+overnight; it filled more tanks that day. The three days together read 6.68.
+
+**The dashboard's existing daily MPG trend hides this rather than avoiding it.** Its series comes
+from `fuel_spend_days`, where the miles AND the gallons are allocated across the same interval — so
+the day's ratio is the interval's ratio re-displayed, and it looks reassuringly smooth (7.09–7.94
+over the fortnight to 2026-08-30) because both sides were spread together. A stable line that is not
+measuring the day is worse than a jagged one that is.
+
+So: no MPG at day grain, from any source. M4 moves the trend to weekly rather than repointing it,
+and a caller asking this endpoint for a single day gets the figure it asks for with the caveat in the
+service's own header — the API does not refuse a legal question, but no shipped surface asks it.
+
+
 ---
 
 
@@ -225,7 +253,7 @@ Each is one PR, gates green, in order. Steps marked **⛔** wait on something na
 | **M1** | **`fleetEfficiency.ts` — the one definition** | A pure harness module in `packages/shared/src/fuelSpend/`. `computeFleetMpg(inputs)` → `{ mpg, milesSource, miles, gallons, coveredTrucks, uncoveredTrucks, measuredShare, reason }`. **Never a bare number**: `mpg` is null with a `reason` whenever coverage or plausibility fails, so a surface prints a dash and can say why. Takes miles and gallons as INPUTS — it does no I/O and knows no table (D-ARC1). | §2 ruling |
 | **M2** | **The measured-miles reader** | `readFleetDistance(admin, orgId, from, to)` in the samsara module: `samsara_odometer_readings` → `distanceByVehicle` → `fleetDistance`. Returns the miles, the per-truck coverage and the counter each truck was measured on. Readings from BEFORE the window are included, because the period's ends are bounding readings (W3a's own trap). | ⛔ #542 merged + ~7 days of collection |
 | **M3** | **The service and the route** | `getFleetMpg` in `apps/api/src/modules/fuel-spend/`, assembling M2's miles and the period's tractor gallons and calling M1. `GET /api/fuel-spend/fleet-mpg?from=&to=`. One reader, one contract. | M1, M2 |
-| **M4** | **Migrate the four Method-A sites** | Dashboard tile + MPG trend, Fuel log Fills tab, `askData.fleet_mpg`, weekly digest PDF. Each reads M3 (or M1 over data it already holds); the four hand-written weighted means are deleted. Driver detail moves onto M1's per-subject entry point under D-MPG3. | M3 |
+| **M4** | **Migrate the four Method-A sites** | Dashboard tile + MPG trend (which becomes WEEKLY under D-MPG6), Fuel log Fills tab, `askData.fleet_mpg`, weekly digest PDF. Each reads M3 (or M1 over data it already holds); the four hand-written weighted means are deleted. Driver detail moves onto M1's per-subject entry point under D-MPG3. | M3 |
 | **M5** | **Migrate the spend report, and add the cross-source check** | `spendPeriodTotals.mpg` derives from M1 instead of computing its own. A new `assessMileageAgreement` compares the period's measured miles with IFTA's for the same months and surfaces the divergence — the check that would have caught §1.4 on 2026-07-28 rather than five weeks later. | M3 |
 | **M6** | **The gate** | `scripts/check-single-mpg.mjs` + `lint:mpg`, and a line in `ci.yml`: a gallon-weighted MPG mean or a `miles ÷ gallons` division outside `fleetEfficiency.ts` fails the build, with a pinned shrink-only waiver list holding the IFTA and per-fill cases that are legitimately different. **Without this the fifth implementation lands within a month** — four of them already did. | M4, M5 |
 
@@ -381,3 +409,47 @@ three of these are worth re-opening if the evidence changes.
 
   Ten tests, six mutants killed (no lookback; lookback zeroed; upper bound dropped; org filter
   dropped; counter validation dropped; a reversed period accepted).
+- 2026-09-04 · **W3b's collector is LIVE, and the measured miles were checked against the allocated
+  ones before M3 was built on them.** Migration 0311 applied at 19:18Z; the first `sync_odometer` tick
+  ran at 19:20:22Z and finished in 55 seconds — 11 batches, **1,295 readings across 157 of 202
+  trucks**, 45 trucks reporting nothing and counted rather than zeroed.
+
+  The first comparison that matters, over 1–3 September and **restricted to the 122 trucks both
+  sources can speak for**: measured **152,852 miles**, allocated **151,898** — the allocation running
+  **0.62% below** the odometer. On the same trucks and gallons that is 6.68 MPG measured against 6.64
+  allocated. So per-truck over a short window the allocation is close; §1.4's +3.78% August gap is a
+  population-and-edges effect, not a per-truck one, which sharpens Q3 rather than answering it.
+
+  Worth recording because it is the opposite of reassuring on its own: the same three days across the
+  WHOLE fleet read 7.60 MPG from `fuel_spend_days`, against 6.68 on the matched set. **The truck set
+  moves the number more than the method does**, which is precisely why D-MPG1 pairs miles and gallons
+  over the same trucks and why coverage travels with the answer.
+- 2026-09-04 · **M3 — `getFleetMpg`, the service and the route.** `GET /api/fueling/fleet-mpg?from=&to=`
+  in fuel-spend, assembling `readFleetDistance` (M2) with the period's tractor gallons and calling
+  `computeFleetMpg` (M1). One reader for a number eight surfaces print.
+
+  **The pairing is an intersection, and that is the judgement in this step.** Miles and gallons are
+  summed over the same trucks — those with a measured distance AND fuel in the period. A truck with
+  miles and no fuel would add distance to the numerator with nothing behind it (MPG reads high); a
+  truck with fuel and no measured miles would add fuel with no distance (MPG reads low). Both are
+  still COUNTED: the second lands in `trucksUnmeasured` and its gallons stay in the period's total,
+  so `measuredShare` says how much of the fleet's fuel the figure speaks for. Nothing is dropped
+  quietly.
+
+  **The tank boundary is named, not solved.** Fuel is bought in an instant and burned over days, so a
+  period's purchases are not its consumption. Over a month the ends cancel to second order; over a
+  single day they do not. `measuredShare` is a coverage figure and cannot detect it, so the file says
+  so rather than implying a precision it does not have.
+
+  **Both sources are cut on the FLEET's clock.** Odometer readings are instants and spend days are
+  dates; resolving them on the server's timezone would put a night's driving on the wrong side of a
+  month end. `to` is exclusive at the start of the following local day, which is what makes an
+  inclusive `to` mean the whole of that day.
+
+  **A new boundary pair, declared rather than worked around:** `fuel-spend -> samsara` joins
+  `check-feature-boundaries.mjs` with its reason. The alternative was fuel-spend deriving miles from
+  fuel a second time — the 1.31%-low numerator this plan exists to retire.
+
+  Nine tests, six mutants killed (dividing by all gallons rather than the paired ones; unmeasured
+  trucks uncounted; unattributed fuel dropped from the total; reefer gallons selected; the server's
+  clock instead of the fleet's; miles taken from every truck whether paired or not).

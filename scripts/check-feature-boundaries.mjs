@@ -125,6 +125,11 @@ const API_ALLOW = new Set([
   "fuel -> idle",
   // The spend report resolves station names against the canonical station record.
   "fuel-spend -> fuel",
+  // Fleet MPG's numerator is a MEASURED distance, and the only measured distance this system has is
+  // Samsara's odometer readings — read through the collector's own `readFleetDistance`, never off its
+  // staging table (D-SEP1, D-MPG1). The alternative was fuel-spend deriving miles from fuel a second
+  // time, which is the 1.31%-low numerator the MPG plan exists to retire.
+  "fuel-spend -> samsara",
   // The idle rollup finishes by deriving the price days its dollars are priced with.
   "idle -> fuel",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
