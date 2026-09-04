@@ -72,6 +72,10 @@ const CARVE_OUTS = new Map([
     "supabase/migrations/0290_fuel_range_miles_inputs.sql",
     "An APPLIED migration, which may never be edited. Its `sum(computed_mpg * gallons)` returns a measurement for TypeScript to judge (FUEL-T3b); M4 retires its only consumer, and the function outlives it harmlessly.",
   ],
+  [
+    "supabase/migrations/0312_fuel_range_vehicle_lists.sql",
+    "0290's function, re-created to take a truck LIST (FUEL-P1) — a signature change, which Postgres can only express as a drop and a create, so the whole body including that `sum` comes with it. Not a sixth implementation: it is the same measurement, byte for byte, and the division that would make it a fleet MPG still happens in TypeScript. Naming it here rather than letting the gate go quiet is the point of the list.",
+  ],
 ]);
 
 /**

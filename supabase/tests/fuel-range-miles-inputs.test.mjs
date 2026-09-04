@@ -229,6 +229,38 @@ ok("fills attributed to no truck get their own row — dropping them would quiet
 ok("...and that row carries no odometer measurements to mistake for a truck's",
   orphan && Number(orphan.obd_count) === 0 && Number(orphan.entered_count) === 0);
 
+// ── 5b. a SET of trucks (FUEL-P1, migration 0312) ───────────────────────────────────────────────
+// Total miles and Avg MPG sit beside four tiles that 0312 also taught to take a truck list. If this
+// function had been left behind, those two would have kept answering for the whole fleet under a
+// two-truck filter — one card of six describing a different set, which is the shape FUEL-T5 spent a
+// migration making visible.
+const scoped = async (arg) =>
+  all(`select * from fuel_range_miles_inputs(
+         p_mpg_min => $2, p_mpg_max => $3, p_from => '2026-08-01', p_to => '2026-08-31',
+         p_org => $1, p_vehicles => ${arg})`, [ORG, MPG_MIN, MPG_MAX]);
+const pair = await scoped(`array['${idFor[TRUCKS[0].unit]}','${idFor[TRUCKS[1].unit]}']::uuid[]`);
+// ⚠ The null-vehicle group is what makes this filter subtle: fleet MPG counts fills that name no
+// truck, and this function returns them as their own row for exactly that reason. An implementation
+// that kept that row "because MPG needs it" under a truck scope would report gallons from outside the
+// selected set — the tile answering for trucks the list is not showing.
+ok(
+  "a truck list returns only those trucks' rows — and the null-vehicle row is not one of them",
+  pair.length === 2 && !pair.some((r) => r.vehicle_id === null),
+  `${pair.length} rows`,
+);
+const justOne = await scoped(`array['${idFor[TRUCKS[0].unit]}']::uuid[]`);
+ok(
+  "one truck in a list is one truck's row — the same answer the scalar parameter gives",
+  justOne.length === 1 && justOne[0].vehicle_id === idFor[TRUCKS[0].unit],
+  `${justOne.length} rows`,
+);
+const noTrucks = await scoped(`'{}'::uuid[]`);
+ok(
+  "an EMPTY list returns nothing, where an omitted one returns the fleet",
+  noTrucks.length === 0 && rows.length > 0,
+  `${noTrucks.length} rows`,
+);
+
 // ── 6. org scope, including on the call a browser makes ─────────────────────────────────────────
 await db.query(
   `insert into fuel_transactions (org_id, fueled_at, business_date, state, gallons, computed_mpg, odometer, is_canonical)

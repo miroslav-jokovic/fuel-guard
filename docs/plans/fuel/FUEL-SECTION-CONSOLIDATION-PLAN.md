@@ -1313,6 +1313,67 @@ currently unfilterable while their rows still appear (D-FUI16).
 **Done when.** Every fuel list can be scoped to a set of trucks, and no filter list is narrower than the
 data behind it.
 
+#### — MERGE 1 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1-multiselect-facets`). P1 stays OPEN until the reader.
+
+**What shipped.** Three migrations and no reader — the whole step is behind them.
+
+- **0312** gives `fuel_range_totals` and `fuel_range_miles_inputs` a `p_vehicles uuid[]` parameter, so
+  the six tiles above the Fuel Log can answer for the same SET of trucks the list is about to show.
+- **0313 `efs_transaction_facets()`** and **0314 `decline_facets()`** return the DISTINCT values behind
+  the nine filter menus, org-scoped, `security invoker`, `p_org` defaulted (D-FC1).
+
+**The measurement that turned D-FUI16 from a small fix into the step's centre, taken 2026-09-04 against
+production.** The plan says the unit menu is built from `vehicles.unit_number` and misses four EFS
+units. That is true — they are **696 (43 lines), T005 (6), T001 (5), T004 (2)**, 56 lines visible and
+unfilterable. But the menus have a second and larger hole nobody had measured: `useEfsFacets` reads its
+rows under `.limit(10_000)`, and **the hosted PostgREST caps every response at 1,000 rows** — checked
+against the live project rather than inferred (`select=id&limit=5000` on `efs_transactions` returns
+exactly 1,000). So nine menus over 28,638 transaction lines and 3,479 declines were built from the
+first thousand of each:
+
+| menu | offered | exists |
+|---|---|---|
+| units | 133 | 190 |
+| drivers | 133 | 249 |
+| items | 9 | 13 |
+| states | 42 | 47 |
+| decline error codes | 17 | 19 |
+
+A filter list narrower than the data is worse than a missing filter — the rows are on screen, the value
+that isolates them is absent from the menu, and nothing says why. It is also the same defect class as
+A4 (the browser paging loop whose correctness depended on a server constant), which is why the fix is
+0289's: **DISTINCT belongs where the rows are.**
+
+**Why three migrations rather than one.** 0312 touches `fuel` tables only; 0313 reads `efs_transactions`
+(the efs collector's raw table) and 0314 reads `declined_transactions` (fuel's). One migration over both
+would have needed a `cross-module-waiver` and would have put two collectors' consent behind one
+signature; split, each `raw-access-waiver` names exactly one owner (D-SEP1).
+
+**Why a new parameter and not a wider `p_vehicle`.** Changing the type would break the deployed reader
+for the nine minutes the deploy window is open. A defaulted parameter is invisible to a caller that
+does not pass it — the input-side twin of 0297's "an extra returned column is ignored by the old
+reader". `p_vehicle` therefore survives this merge unused and is dropped by **merge 3**: add → switch →
+drop, the shape this repository already requires of a rename.
+
+⚠ **`lint:migration-ordering` cannot see a function's signature** — it reads columns. Nothing mechanical
+holds merge 2 behind this one; the check is `pg_proc` by hand, per
+`hold-a-function-reader-behind-its-migration`.
+
+⚠ **0312 needed a `lint:mpg` carve-out**, and it is worth reading rather than waving through. Adding a
+parameter is a signature change, which Postgres can only express as a drop and a create — so 0290's
+whole body comes with it, including the `sum(computed_mpg * gallons)` that D-MPG1's gate exists to find.
+It is not a sixth implementation: the same measurement, byte for byte, still divided in TypeScript. The
+carve-out says so by name instead of letting the gate go quiet.
+
+**Verified by.** `supabase/tests/fuel-range-totals.test.mjs` (+4 assertions), `fuel-range-miles-inputs`
+(+3), and a new `supabase/tests/efs-facets.test.mjs` (16), whose fixture puts every distinguishing value
+in the LAST hundred of 2,400 rows — a fixture whose rare values sit early passes whether the cap is
+respected or not. Nine mutants killed across the three: the truck predicate deleted; an empty list read
+as an absent one; the list superseding the scalar; the null-vehicle group kept under a truck scope; the
+1,000-row cap reintroduced in SQL; blanks admitted as values; the org filter dropped; the error-code
+label made arrival-dependent. `pnpm test`, `typecheck`, `lint`, `lint:mpg`, `lint:table-access`,
+`lint:table-modules`, `lint:rpc-org-default`, `lint:rls`, `lint:migration-ordering`, schema snapshot.
+
 ---
 
 ### P2 · A scoped export on every list page
