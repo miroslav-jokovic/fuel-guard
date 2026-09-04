@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -25,7 +25,13 @@ const props = defineProps<{
   loading?: boolean;
   /** Hidden when the statement has no comparative period. */
   showToDate: boolean;
+  /**
+   * What the comparative column holds — "Year to date" or the previous period's name (R6). The
+   * harness calls the column `toDate` whatever is in it; the label is what the reader sees.
+   */
+  compareLabel?: string;
 }>();
+const compareLabel = computed(() => props.compareLabel ?? "Year to date");
 
 const expanded = ref(new Set<string>());
 function toggle(row: StatementLine) {
@@ -41,22 +47,25 @@ const fmtUsd = (n: number) =>
 // to divide by, and prints as a dash rather than as 0.0% (D-FIN10).
 const fmtPct = (n: number | null) => (n == null ? "—" : `${n.toFixed(1)}%`);
 
-const columns: DataTableColumn[] = [
+const columns = computed<DataTableColumn[]>(() => [
   { key: "descr", label: "Account" },
   { key: "amount", label: "This period", numeric: true },
   { key: "pctOfRevenue", label: "% of revenue", numeric: true },
   ...(props.showToDate
     ? [
-        { key: "toDateAmount", label: "Year to date", numeric: true },
+        { key: "toDateAmount", label: compareLabel.value, numeric: true },
         { key: "toDatePctOfRevenue", label: "% of revenue", numeric: true },
       ]
     : []),
-];
+]);
 </script>
 
 <template>
   <BaseCard padding="none">
-    <div class="flex items-baseline justify-between gap-4 border-b border-edge px-4 py-3">
+    <!-- The section heading stays in view while its rows scroll under it (R6), so a reader ninety
+         rows into Operating Expenses still knows which section the figure belongs to. Static on
+         paper. -->
+    <div class="print-static sticky top-0 z-sticky flex items-baseline justify-between gap-4 rounded-t-surface border-b border-edge bg-surface px-4 py-3">
       <div>
         <h3 class="text-sm font-semibold text-ink">{{ section.label }}</h3>
         <p v-if="section.isUnrecognised" class="text-xs text-warning-700">
@@ -67,7 +76,7 @@ const columns: DataTableColumn[] = [
       <div class="text-right">
         <p class="text-base font-bold tabular-nums text-ink">{{ fmtUsd(section.total) }}</p>
         <p v-if="showToDate && section.toDateTotal !== null" class="text-2xs text-ink-tertiary tabular-nums">
-          {{ fmtUsd(section.toDateTotal) }} year to date
+          {{ fmtUsd(section.toDateTotal) }} · {{ compareLabel }}
         </p>
       </div>
     </div>
@@ -75,6 +84,7 @@ const columns: DataTableColumn[] = [
     <DataTable
       embedded
       dense
+      :sticky-header="false"
       :columns="columns"
       :rows="section.lines"
       row-key="glid"

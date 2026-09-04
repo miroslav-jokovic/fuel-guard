@@ -41,6 +41,15 @@ export const windowShape = z.object({ from: isoDay, to: isoDay });
 export const windowSchema = windowShape.refine(ordered, ORDER_MESSAGE);
 
 /**
+ * What the income statement's comparative column holds (R6 of the UI plan): the fiscal year to
+ * the period's end (the printed statement's own comparative, and the default), the period of the
+ * same length immediately before, or nothing. Read strictly, like `queryFlag`: a typo'd value is a
+ * 400, not a silent fall-back to a comparison the reader did not ask for.
+ */
+export const compareSchema = z.enum(["ytd", "previous", "none"]).optional().default("ytd");
+export type StatementCompare = z.infer<typeof compareSchema>;
+
+/**
  * A window plus the grain to bucket it at (W2). The grain vocabulary is `SpendGrain`'s, matched
  * rather than re-invented: the fuel-spend series already offers day/week/month and starts its weeks
  * on Monday, and a second grain vocabulary in one product is how two figures come to disagree about

@@ -50,6 +50,12 @@ const toRow = (f: FamilyRow): Row => ({
 const expense = computed(() => props.families.expense.map(toRow));
 const revenue = computed(() => props.families.revenue.map(toRow));
 
+/** A family's share as a bar width, scaled to the largest share on either side of the statement. */
+const widestShare = computed(() =>
+  Math.max(1, ...[...props.families.expense, ...props.families.revenue].map((f) => f.pctOfRevenue ?? 0)),
+);
+const shareWidth = (pct: number | null) => `${Math.max(0, Math.min(100, ((pct ?? 0) / widestShare.value) * 100))}%`;
+
 const columns = computed<DataTableColumn[]>(() => [
   { key: "label", label: "Where it goes" },
   { key: "amountText", label: "This period", numeric: true },
@@ -95,8 +101,15 @@ const drift = computed(() => {
         <template #cell-amountText="{ row }">
           <span class="tabular-nums font-medium text-ink">{{ row.amountText }}</span>
         </template>
+        <!-- The share as a bar first and a number second (R4/R6, D-FRUI4): one hue at 70%, the
+             track the same hue at 9%, scaled to the largest family so the column reads as a shape. -->
         <template #cell-pctText="{ row }">
-          <span class="tabular-nums text-ink-secondary">{{ row.pctText }}</span>
+          <span class="inline-flex items-center justify-end gap-2">
+            <span class="inline-block h-1.5 w-16 overflow-hidden rounded-detail bg-brand-500/10" aria-hidden="true">
+              <span class="block h-full rounded-detail bg-brand-500/70" :style="{ width: shareWidth(row.pctOfRevenue) }" />
+            </span>
+            <span class="tabular-nums text-ink-secondary">{{ row.pctText }}</span>
+          </span>
         </template>
         <template #cell-perMileText="{ row }">
           <span class="tabular-nums text-ink-secondary">{{ row.perMileText }}</span>
@@ -124,8 +137,15 @@ const drift = computed(() => {
         <template #cell-amountText="{ row }">
           <span class="tabular-nums font-medium text-ink">{{ row.amountText }}</span>
         </template>
+        <!-- The share as a bar first and a number second (R4/R6, D-FRUI4): one hue at 70%, the
+             track the same hue at 9%, scaled to the largest family so the column reads as a shape. -->
         <template #cell-pctText="{ row }">
-          <span class="tabular-nums text-ink-secondary">{{ row.pctText }}</span>
+          <span class="inline-flex items-center justify-end gap-2">
+            <span class="inline-block h-1.5 w-16 overflow-hidden rounded-detail bg-brand-500/10" aria-hidden="true">
+              <span class="block h-full rounded-detail bg-brand-500/70" :style="{ width: shareWidth(row.pctOfRevenue) }" />
+            </span>
+            <span class="tabular-nums text-ink-secondary">{{ row.pctText }}</span>
+          </span>
         </template>
         <template #cell-perMileText="{ row }">
           <span class="tabular-nums text-ink-secondary">{{ row.perMileText }}</span>

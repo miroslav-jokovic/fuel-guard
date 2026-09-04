@@ -67,15 +67,33 @@ export interface IncomeStatementResponse {
   /** What to print in place of the excluded months' figures. Null when nothing is short. */
   ledgerReason: string | null;
   toDateFrom: string;
+  /**
+   * What the comparative (`toDate*`) column holds (R6): the fiscal year to date, the period of the
+   * same length before, or nothing. Optional on the wire for the deploy window — an API that does
+   * not yet know `compare` answers with the year to date, and a page reading `comparison` as absent
+   * labels the column so.
+   */
+  comparison?: {
+    kind: StatementCompare;
+    from: string | null;
+    to: string | null;
+    monthsCovered: string[];
+    monthsMissing: string[];
+  };
 }
+
+export type StatementCompare = "ytd" | "previous" | "none";
 
 export interface IncomeStatementFilter {
   from: string;
   to: string;
+  compare?: StatementCompare;
 }
 
 export function useIncomeStatementQuery(filter: Ref<IncomeStatementFilter>, enabled?: Ref<boolean>) {
-  const key = computed(() => ["accounting", "income-statement", filter.value.from, filter.value.to] as const);
+  const key = computed(
+    () => ["accounting", "income-statement", filter.value.from, filter.value.to, filter.value.compare ?? "ytd"] as const,
+  );
   return useQuery({
     queryKey: key,
     // Off until the page has decided which month to open on (D-FRUI1): a request for a period the
@@ -83,6 +101,7 @@ export function useIncomeStatementQuery(filter: Ref<IncomeStatementFilter>, enab
     enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<IncomeStatementResponse> => {
       const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
+      if (filter.value.compare && filter.value.compare !== "ytd") q.set("compare", filter.value.compare);
       const r = await apiFetch<IncomeStatementResponse>(`/api/accounting/income-statement?${q}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the income statement");
       return r.data;

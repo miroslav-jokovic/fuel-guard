@@ -62,6 +62,50 @@ describe("getIncomeStatement", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("compares with the period of the same length immediately before, when asked (R6)", async () => {
+    const rec = recorder();
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31", "previous");
+    // The comparative column holds June, not the year to date.
+    expect(s.comparison.kind).toBe("previous");
+    expect(s.comparison.from).toBe("2026-06-01");
+    expect(s.comparison.to).toBe("2026-07-01");
+    expect(s.toDateRevenue).toBe(4_000_000);
+    expect(s.toDateExpenses).toBe(900_000);
+    expect(s.toDateFrom).toBe("2026-06-01");
+    expect(s.comparison.monthsCovered).toEqual(["2026-06"]);
+    // This period is unchanged by the choice of comparative.
+    expect(s.revenue).toBe(4_491_402.5);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("compares a two-month window with the two months before it, and names the ones the sweep has not reached", async () => {
+    const rec = recorder();
+    const s = await getIncomeStatement(rec.client, ORG, "2026-06-01", "2026-07-31", "previous");
+    expect(s.comparison.from).toBe("2026-04-01");
+    expect(s.comparison.to).toBe("2026-06-01");
+    // Only May is staged; April is a stated absence in the comparison, not a zero.
+    expect(s.comparison.monthsCovered).toEqual(["2026-05"]);
+    expect(s.comparison.monthsMissing).toEqual(["2026-04"]);
+    expect(s.toDateRevenue).toBe(3_000_000);
+  });
+
+  it("carries no comparative column at all when asked for none", async () => {
+    const rec = recorder();
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31", "none");
+    expect(s.comparison.kind).toBe("none");
+    expect(s.toDateRevenue).toBeNull();
+    expect(s.toDateExpenses).toBeNull();
+    expect(s.sections.every((sec) => sec.toDateTotal === null)).toBe(true);
+  });
+
+  it("defaults to the fiscal year to date, and says so", async () => {
+    const rec = recorder();
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31");
+    expect(s.comparison.kind).toBe("ytd");
+    expect(s.comparison.from).toBe("2026-01-01");
+    expect(s.toDateRevenue).toBe(11_491_402.5);
+  });
+
   it("widens a part-month window to the whole month, because GL totals are month-grained", async () => {
     const rec = recorder();
     const s = await getIncomeStatement(rec.client, ORG, "2026-07-14", "2026-07-20");

@@ -17,7 +17,7 @@ import {
   getBillingActivity,
 } from "../../financial/index.js";
 
-import { windowSchema, entriesSchema, trendSchema, activityQuerySchema } from "./schemas.js";
+import { windowSchema, entriesSchema, trendSchema, activityQuerySchema, compareSchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -155,8 +155,14 @@ export function accountingRouter(): Router {
         res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
         return;
       }
+      // Which rows the comparative column holds (R6): the fiscal year to date unless asked otherwise.
+      const compare = compareSchema.safeParse(req.query.compare);
+      if (!compare.success) {
+        res.status(400).json(apiError("bad_request", "?compare must be ytd, previous or none."));
+        return;
+      }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to, compare.data);
       res.json({ ok: true, ...statement });
     }),
   );

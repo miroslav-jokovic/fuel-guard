@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppTabs, type TabItem } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
@@ -14,7 +14,7 @@ import IncomeStatementTab from "@/features/accounting/IncomeStatementTab.vue";
 import { fleetProvenanceLine, fleetTrust, monthName } from "@/features/accounting/fleetProvenance";
 import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { useFleetTrendQuery } from "@/features/accounting/useFleetTrend";
-import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
+import { useIncomeStatementQuery, type StatementCompare } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { lastFullMonth } from "@/lib/dateWindow";
@@ -113,7 +113,26 @@ const { data: trend } = useFleetTrendQuery(to, trendMonths);
  * and loading ninety-four account rows to render the overview would make every other tab slower
  * for nothing. `useQuery` fetches it when the tab is opened and caches it after.
  */
-const { data: statement, isLoading: statementLoading, isError: statementError } = useIncomeStatementQuery(filter, ready);
+/**
+ * What the statement's comparative column holds (R6): the previous period for a month, the year to
+ * date otherwise — a quarter compared with the quarter before is a fair question, but the default
+ * for anything longer than a month is the comparative the printed statement carries. The reader can
+ * change it on the tab; it is part of the request, so it lives beside the period.
+ */
+const compare = ref<StatementCompare>("previous");
+watch(
+  () => period.value?.grain,
+  (grain) => {
+    if (grain) compare.value = grain === "month" ? "previous" : "ytd";
+  },
+  { immediate: true },
+);
+const statementFilter = computed(() => ({ ...filter.value, compare: compare.value }));
+const { data: statement, isLoading: statementLoading, isError: statementError } = useIncomeStatementQuery(statementFilter, ready);
+/** The statement as a printed document (R6): the browser's own print, with everything but the statement hidden. */
+function printStatement() {
+  window.print();
+}
 
 /**
  * How many trucks this period measured, and whether that is all of them (G4 + G10). It rides
@@ -148,7 +167,11 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
 <template>
   <div class="space-y-6">
     <!-- The description follows the tab, because the page answers different questions on each. -->
-    <PageHeader :description="pageDescription" />
+    <PageHeader :description="pageDescription">
+      <template v-if="tab === 'statement' && statement" #actions>
+        <BaseButton variant="secondary" @click="printStatement">Print statement</BaseButton>
+      </template>
+    </PageHeader>
 
     <!-- The method, one click away: a cost-per-mile number whose assumptions are invisible is
          worse than none, because it gets quoted. The provenance sentence leads it. -->
@@ -223,11 +246,13 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
 
     <IncomeStatementTab
         v-if="tab === 'statement'"
+        v-model:compare="compare"
         :statement="statement ?? null"
         :statement-loading="statementLoading"
         :statement-error="statementError"
         :fleet="fleet ?? null"
         :fleet-loading="fleetLoading"
+        :period="period"
       />
 
       <FleetTrucksTab

@@ -198,3 +198,15 @@ in order; each depends on the one before only through the shell.
   the last column. No year-to-date row: its rates would need sums the page must not make; the
   headlines carry the year-to-date money. The web reads `emptyPct` as optional so the deploy window
   — the old API serving the new page for nine minutes — reads a dash, never a zero.
+- 2026-09-04 · **R6 — income statement: compare, find, print.** The API's `income-statement` takes
+  `compare=ytd|previous|none` (strict enum, default `ytd`): `previous` reads the period of the same
+  length immediately before through the same reader, so a comparative month swept mid-month is
+  withheld exactly as a period month would be (G11), and the response says in `comparison` what the
+  column holds. Four service tests. The web labels the column by the RESPONSE, not the request —
+  the deploy window's old API answers `previous` with the year to date, and the page says so. The
+  tab gains the compare control (`AppSegmentedControl`), a find-an-account search that narrows the
+  rows and counts them, share bars on the family summary, sticky section headings, and "Print
+  statement" in the page header — the browser's print with `.print-target` rules that drop the
+  tools row and keep each section with its rows. The default comparison is the previous period for
+  a month and the year to date for anything longer. Seven tab tests. No "Expand all": the row
+  drill-down stays one click per account.
