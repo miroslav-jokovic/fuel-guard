@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TruckCpm } from "@silvicom/shared";
+import type { FleetTruck } from "./useFleetReport";
 import type { SortState } from "@/lib/sort";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -21,7 +21,7 @@ import TablePagination from "@/components/TablePagination.vue";
  */
 defineProps<{
   /** The visible slice — already filtered, sorted and paged by the page. */
-  rows: TruckCpm[];
+  rows: FleetTruck[];
   loading: boolean;
   error: string | null;
   retrying: boolean;
@@ -42,14 +42,16 @@ const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // harness could not compute (no miles this window, D-FIN10) is a dash, never $0.00: the dollars in the
 // row are real, the rate is absent, and $0.00 would read as cheap.
 const NO_RATE = "—";
-const fmtCpm = (n: number | null) => (n == null ? NO_RATE : `$${(n / 100).toFixed(2)}`);
+// Dollars per mile, straight from the harness — no cents-to-dollars conversion since the per-truck
+// rows moved onto the fleet report at G7b and started arriving in the unit the page prints.
+const fmtRate = (n: number | null) => (n == null ? NO_RATE : `$${n.toFixed(2)}`);
 
 const columns: DataTableColumn[] = [
   { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs", sortable: true },
-  { key: "movements", label: "Trips", numeric: true, sortable: true },
-  { key: "totalMiles", label: "Miles driven", numeric: true, sortable: true },
+  { key: "loads", label: "Loads", numeric: true, sortable: true },
+  { key: "miles", label: "Miles driven", numeric: true, sortable: true },
   { key: "revenue", label: "Earned", numeric: true, sortable: true },
-  { key: "revenueCpm", label: "Earned / mile", numeric: true, sortable: true },
+  { key: "revenuePerMile", label: "Earned / mile", numeric: true, sortable: true },
 ];
 
 </script>
@@ -83,10 +85,10 @@ const columns: DataTableColumn[] = [
         <p v-for="s in pendingSources" :key="s" class="text-xs text-ink-tertiary">{{ s }}</p>
       </div>
     </template>
-    <template #cell-totalMiles="{ value }">{{ fmtMiles(value) }}</template>
+    <template #cell-miles="{ value }">{{ value == null ? NO_RATE : fmtMiles(value) }}</template>
     <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-revenueCpm="{ value }">
-      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtCpm(value) }}</span>
+    <template #cell-revenuePerMile="{ value }">
+      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtRate(value) }}</span>
     </template>
     <template #footer>
       <TablePagination

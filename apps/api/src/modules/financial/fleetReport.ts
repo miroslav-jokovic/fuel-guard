@@ -129,6 +129,7 @@ export async function getFleetReport(
   // sees what depends on it.
   const fleetDeductions: FleetDeduction[] = deductions.map((d) => ({
     payee_type: "owner_operator",
+    payee_id: d.payee_id,
     account_type: d.glid ? (typeByGlid.get(d.glid.trim()) ?? null) : null,
     amount: Number(d.amount),
   }));
@@ -148,6 +149,7 @@ export async function getFleetReport(
       .filter((s) => !s.is_void)
       .map((s) => ({
         payee_type: s.payee_type,
+        payee_id: s.payee_id,
         tractor_unit: s.tractor_unit,
         order_external_id: s.order_external_id,
         total_pay: Number(s.total_pay),

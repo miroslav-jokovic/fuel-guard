@@ -1,5 +1,10 @@
 import { buildIncomeStatement, type IncomeStatementInputs, type IncomeStatement } from "./incomeStatement.js";
 import type { MonthMileage } from "./mileageCoverage.js";
+import {
+  summariseOwnerOperators,
+  type OwnerOperatorAccumulator,
+  type OwnerOperatorSummary,
+} from "./ownerOperators.js";
 
 /**
  * The fleet report (G1) — what the company earned, what it spent, what it kept, and each of those
@@ -36,6 +41,8 @@ import type { MonthMileage } from "./mileageCoverage.js";
 /** A settlement, reduced to what the split needs. */
 export interface FleetSettlement {
   payee_type: string;
+  /** Who was paid. The grain the contractor tab reports at — a payee runs one or more tractors. */
+  payee_id: string | null;
   tractor_unit: string | null;
   order_external_id: string | null;
   total_pay: number;
@@ -62,6 +69,8 @@ export interface FleetBill {
  */
 export interface FleetDeduction {
   payee_type: string;
+  /** Who it was deducted from — the same grain the contractor tab reports at. */
+  payee_id: string | null;
   /** McLeod's `gl_account.type_id` for the account this deduction posted to. */
   account_type: string | null;
   amount: number;
@@ -130,10 +139,39 @@ export interface FleetReport {
   mileageReason: string | null;
   statement: IncomeStatement;
   /**
+   * One row per tractor, carrying ONLY what is precise for a single truck (§2 Tab 4).
+   *
+   * Miles are Samsara's measurement for that unit; revenue is what the GL booked against the loads
+   * it hauled. There is deliberately no cost column: no source at this carrier can put a lease
+   * payment, an insurance premium or an office wage on a particular truck, and a column that looks
+   * measured and is estimated is worse than one that is missing (D-FLEET1).
+   */
+  trucks: FleetTruck[];
+  /**
+   * One row per contractor PAYEE — not per truck, because a payee runs one or more tractors and is
+   * paid as a payee. The deal percentage is read back from what settled rather than configured:
+   * three different splits across five payees were measured in June 2026, so a fleet-wide rate
+   * would have been fiction, and a renegotiated split appears without anyone editing a table.
+   */
+  ownerOperators: OwnerOperatorSummary[];
+  /**
    * Company + contractors against the ledger. Zero by construction — the harness refuses to build a
    * report where it is not, so this is here to be asserted rather than to be read.
    */
   tieOut: { revenue: number; expenses: number };
+}
+
+/** A truck, in the only terms that are precise for one truck. */
+export interface FleetTruck {
+  tractor_unit: string;
+  /** Bills the GL booked against this tractor in the period. */
+  loads: number;
+  /** Samsara's measured miles, or null when this period has no measurement for it (D-FIN10). */
+  miles: number | null;
+  revenue: number;
+  revenuePerMile: number | null;
+  /** True when a contractor settled on this tractor — mixed trucks are true as well. */
+  isOwnerOperator: boolean;
 }
 
 const round = (n: number) => Math.round(n * 100) / 100 + 0;
@@ -169,6 +207,10 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
   // ── The contractor side, derived from the subledgers ────────────────────────────────────────
   const ownerOpUnits = new Set<string>();
   const ownerOpOrders = new Set<string>();
+  // Per payee, for the contractor tab. A payee runs one or more tractors and is paid as a payee, so
+  // this is the grain the deal percentage can be read back at — per truck it would be meaningless.
+  const byPayee = new Map<string, OwnerOperatorAccumulator>();
+  const orderPayee = new Map<string, string>();
   let ownerOpPay = 0;
   let ownerOpSettlements = 0;
   for (const s of inputs.settlements) {
@@ -177,16 +219,40 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
     ownerOpPay = round(ownerOpPay + s.total_pay);
     if (s.tractor_unit) ownerOpUnits.add(s.tractor_unit);
     if (s.order_external_id) ownerOpOrders.add(s.order_external_id);
+
+    const payee = s.payee_id?.trim();
+    if (!payee) continue;
+    let acc = byPayee.get(payee);
+    if (!acc) {
+      acc = { payeeId: payee, pay: 0, revenue: 0, settlements: 0, units: new Set<string>() };
+      byPayee.set(payee, acc);
+    }
+    acc.settlements++;
+    acc.pay = round(acc.pay + s.total_pay);
+    if (s.tractor_unit) acc.units.add(s.tractor_unit);
+    if (s.order_external_id) orderPayee.set(s.order_external_id, payee);
   }
 
   // Revenue follows the ORDER, not the truck. Four of this carrier's contractor tractors also ran
   // for a company driver in a measured month, so attributing by unit would move a company driver's
   // earnings into the contractor column along with the truck.
   let ownerOpLoadRevenue = 0;
+  // Per truck, for the truck tab: loads and the revenue the GL booked against that tractor.
+  const byUnitRevenue = new Map<string, { revenue: number; loads: number }>();
   for (const b of inputs.bills) {
     if (b.order_external_id && ownerOpOrders.has(b.order_external_id)) {
       ownerOpLoadRevenue = round(ownerOpLoadRevenue + b.revenue);
+      const payee = orderPayee.get(b.order_external_id);
+      const acc = payee ? byPayee.get(payee) : undefined;
+      if (acc) acc.revenue = round(acc.revenue + b.revenue);
     }
+    const unit = b.tractor_unit?.trim();
+    if (!unit) continue;
+    const u = byUnitRevenue.get(unit);
+    if (u) {
+      u.revenue = round(u.revenue + b.revenue);
+      u.loads++;
+    } else byUnitRevenue.set(unit, { revenue: round(b.revenue), loads: 1 });
   }
 
   // Deduction income: only the ones that posted to a REVENUE account are the carrier earning
@@ -194,6 +260,7 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
   // counting it would overstate what contractors earn the carrier by roughly a quarter.
   let deductionIncome = 0;
   let unruledDeductions = 0;
+  const deductionIncomeByPayee: Record<string, number> = {};
   for (const d of inputs.deductions) {
     if (d.payee_type !== OWNER_OPERATOR) continue;
     const type = d.account_type?.trim();
@@ -203,6 +270,8 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
     }
     if (type === "Revenue" || type === "Other Revenue and Gains") {
       deductionIncome = round(deductionIncome + d.amount);
+      const payee = d.payee_id?.trim();
+      if (payee) deductionIncomeByPayee[payee] = round((deductionIncomeByPayee[payee] ?? 0) + d.amount);
     }
   }
 
@@ -241,12 +310,36 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
     round(statement.expenses - ownerOpPay),
   );
 
+  // ── Per truck (§2 Tab 4) ─────────────────────────────────────────────────────────────────────
+  // Every tractor that earned or moved. A truck with revenue and no measured miles keeps its
+  // revenue and gets no rate — the dollars are real and the denominator is absent (D-FIN10) — and a
+  // truck that ran without billing (repositioning, shop) is here with its miles and no earnings,
+  // which is a fact about the month rather than a gap in it.
+  const truckUnits = new Set<string>([...byUnitRevenue.keys(), ...Object.keys(byUnit ?? {})]);
+  const trucks: FleetTruck[] = [...truckUnits]
+    .map((unit) => {
+      const money = byUnitRevenue.get(unit);
+      const revenue = money?.revenue ?? 0;
+      const miles = byUnit ? (byUnit[unit] ?? 0) : null;
+      return {
+        tractor_unit: unit,
+        loads: money?.loads ?? 0,
+        miles,
+        revenue,
+        revenuePerMile: perMileRate(revenue, miles),
+        isOwnerOperator: ownerOpUnits.has(unit),
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
+
   const emptyMiles = measuredMiles == null ? null : round(measuredMiles - inputs.billedMiles);
   return {
     period: inputs.period,
     total,
     company,
     ownerOperator,
+    trucks,
+    ownerOperators: summariseOwnerOperators(byPayee, deductionIncomeByPayee),
     ownerOperatorBasis: {
       trucks: ownerOpTruckList,
       settlements: ownerOpSettlements,

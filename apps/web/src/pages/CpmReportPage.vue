@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
 import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
 import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
@@ -96,18 +95,13 @@ const {
   data: fleet,
   isLoading: fleetLoading,
   isError: fleetError,
+  refetch: fleetRefetch,
 } = useFleetReportQuery(statementFilter);
 
-const filter = computed<CpmFilter>(() => ({
-  from: from.value,
-  to: to.value,
-  includeOwnerOperators: includeOwnerOperators.value,
-}));
-const { data, isLoading, isError, error, refetch, isFetching } = useCpmQuery(filter);
-
-const report = computed(() => data.value?.report ?? null);
-const provenance = computed(() => data.value?.provenance ?? null);
-const allTrucks = computed(() => report.value?.trucks ?? []);
+// Every tab reads ONE call since G7b. The per-truck rows and the contractor rows used to come from
+// a second request over the per-truck harness; they are the fleet report's now, which is what the
+// plan asked for from the start — every figure on every tab out of one call (§2.5).
+const allTrucks = computed(() => fleet.value?.trucks ?? []);
 
 /**
  * The visible rows. Filtering and sorting are deliberately CLIENT-side and view-only: the fleet
@@ -125,7 +119,12 @@ const trucks = computed(() => {
   const q = unitSearch.value.trim().toLowerCase();
   const floor = Number(minMiles.value) || 0;
   const rows = allTrucks.value.filter(
-    (t) => (!q || t.tractor_unit.toLowerCase().includes(q)) && t.totalMiles >= floor,
+    (t) =>
+      (!q || t.tractor_unit.toLowerCase().includes(q)) &&
+      (t.miles ?? 0) >= floor &&
+      // Contractor tractors are off by default: what they cost is a share of each load, not our
+      // fuel and wages, so their rows answer the contractor tab's question rather than this one.
+      (includeOwnerOperators.value || !t.isOwnerOperator),
   );
   return sortRows(rows, sort.value);
 });
@@ -152,7 +151,7 @@ function resetFilters() {
 
 // The contractor side. `dealPct` is derived by the harness from pay ÷ revenue on that payee's own
 // orders — never configured, so it reads back the contract rather than asserting one.
-const ownerOperators = computed(() => report.value?.ownerOperators ?? []);
+const ownerOperators = computed(() => fleet.value?.ownerOperators ?? []);
 const ownerOpRevenue = computed(() => ownerOperators.value.reduce((a, o) => a + o.revenue, 0));
 const ownerOpMargin = computed(() => ownerOperators.value.reduce((a, o) => a + o.netMargin, 0));
 const ownerOpPage = computed(() =>
@@ -168,7 +167,9 @@ const pageDescription = computed(() =>
     ? "What the fleet earned, spent and kept — and each of those for every mile it ran."
     : tab.value === "statement"
       ? "The general ledger, in the shape McLeod prints it."
-      : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
+      : tab.value === "contractors"
+        ? "What each contractor hauled, what they were paid, and what we kept — with their share read back from what settled."
+        : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
 );
 
 /**
@@ -218,9 +219,6 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         lease payment, an insurance premium or an office wage on a particular truck, and a column
         that looks measured but is estimated is worse than one that is missing.
       </p>
-      <ul v-if="provenance?.notes.length" class="space-y-1">
-        <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">• {{ n }}</li>
-      </ul>
     </ExplainerPanel>
 
     <!-- The fleet stat strip went at G7 with the allocation apparatus it reported. It carried
@@ -376,17 +374,17 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <CpmTruckTable
         v-if="tab === 'trucks'"
         :rows="truckPage"
-        :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-        :retrying="isFetching"
+        :loading="fleetLoading"
+        :error="fleetError ? 'Failed to load' : null"
+        :retrying="fleetLoading"
         :sort="sort"
         :page="page"
         :total="trucks.length"
         :total-unfiltered="allTrucks.length"
-        :pending-sources="provenance?.pendingSources ?? []"
+        :pending-sources="[]"
         :page-size="PAGE_SIZE"
         @sort="onSort"
-        @retry="refetch"
+        @retry="fleetRefetch"
         @update:page="page = $event"
       />
       <CpmOwnerOperatorTable
@@ -395,8 +393,8 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :page="page"
         :total="ownerOperators.length"
         :page-size="PAGE_SIZE"
-        :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :loading="fleetLoading"
+        :error="fleetError ? 'Failed to load' : null"
         @update:page="page = $event"
       />
     </DataWorkspace>

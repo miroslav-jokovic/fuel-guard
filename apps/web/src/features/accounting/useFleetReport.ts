@@ -15,6 +15,28 @@ import type { MonthMileage } from "./useMileageCoverage";
  * `mileageReason` says which months and how many trucks — print that, never a dash on its own.
  */
 
+export interface FleetTruck {
+  tractor_unit: string;
+  loads: number;
+  miles: number | null;
+  revenue: number;
+  revenuePerMile: number | null;
+  isOwnerOperator: boolean;
+}
+
+export interface OwnerOperatorRow {
+  payeeId: string;
+  units: string[];
+  settlements: number;
+  revenue: number;
+  pay: number;
+  grossMargin: number;
+  deductionIncome: number;
+  netMargin: number;
+  /** Read back from pay ÷ revenue on their own orders. Null when their loads carry no revenue. */
+  dealPct: number | null;
+}
+
 export interface FamilyRow {
   key: string;
   label: string;
@@ -85,6 +107,10 @@ export interface FleetReportResponse {
   families: FamilySummaryResponse;
   /** When the McLeod financial sweep last landed. Null means it never has (G8). */
   sweptAt: string | null;
+  /** One row per tractor — only what is precise for one truck (§2 Tab 4). */
+  trucks: FleetTruck[];
+  /** One row per contractor payee, with the deal read back from what settled. */
+  ownerOperators: OwnerOperatorRow[];
   toDateFrom: string;
   /** Present so a caller can show coverage month by month without a second read. */
   months?: MonthMileage[];

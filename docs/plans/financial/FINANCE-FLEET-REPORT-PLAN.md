@@ -494,7 +494,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators, and the twelve-month trend beneath them. | — |
 | **G6** | **The family summary** | **BUILT 2026-09-03**, map signed by the owner the same day. Ten families of expense and four of income over the 100 accounts that posted; `GL_FAMILIES` + `buildFamilySummary` (pure), carried on `/fleet-report` because it needs the miles as well as the lines, `FamilySummaryTable.vue` above the income statement. | — |
 | **G7** | **The removals and the rename** | **BUILT 2026-09-03**, except one item §4 did not anticipate — see G7b. Three pages, the schedule table (0307), the per-truck cost columns, the caveat machinery and the deadhead basis are gone; the page is `/fleet-report`, titled "Fleet report". | — |
-| **G7b** | **The month close's proof** | **BLOCKED, and it blocks the last of §4.** `computeMonthClose` derives `anchored` and `cpm_residual` from the per-truck harness's allocation tie-out, so the allocation apparatus cannot be deleted without deciding what the close proves instead. Recommendation: the fleet report's own tie-out (company + contractors = ledger, already asserted every call) plus the module drifts. Needs a migration to drop four `finance_month_closes` columns and a change to `planMonthClose`. Belongs with G8, which already owns the close. | one ruling on D-FIN14 |
+| **G7b** | **The month close's proof** | **BUILT 2026-09-04** on the owner's ruling: the close proves the sweeps landed the month and nothing else. Migration **0308** drops the seven allocation columns; the whole per-truck harness, its contract, its apportionment and `cpm.ts` are deleted, and the per-truck and contractor rows moved onto the fleet report. | — |
 | **G8** | **Provenance line and the retained tie-out** | **BUILT 2026-09-04.** `fleetProvenanceLine` under the page title — months, sweep stamp, tie-out residual, trucks and miles — and the Company total tab retired. The close still runs; **G7b, which moves its proof off the allocation tie-out, is what remains.** | — |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
 | **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
@@ -504,8 +504,8 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 | **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11, G6, G7 and G8 — done. **Next G7b** (the month
-close's proof, which unblocks the last of §4), then the W-series.
+**Ordering:** every G-step is done — G1–G11 and G7b. **§4 is fully executed.** Next is the
+W-series, and W1 (daily GL grain) can ship any time.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
 offered — except W1, which can ship any time and is worth shipping early because it removes
@@ -960,3 +960,30 @@ the record.
   checkout onto another branch with uncommitted work in it
   ([[parallel-chats-share-one-working-tree]]). Nothing was disturbed; checking the current branch
   before every commit remains the rule.
+- 2026-09-04 · **G7b — the close's proof moved, and the allocation apparatus is gone.** The owner
+  ruled that the monthly close proves **the sweeps landed the month** and nothing else. `planMonthClose`
+  now takes the three module drifts and the month's age; `computeMonthClose` reads the ledger through
+  `getGlIncomeForMonths` instead of calling the per-truck harness; migration **0308** drops
+  `anchored`, `attributed_direct`, `fixed_charged`, `allocated_overhead`, `unallocated_overhead`,
+  `owner_operator_pool` and `cpm_residual`.
+
+  **Why this is not a weaker check.** The identity those columns re-proved monthly — the report's
+  buckets adding back to the ledger — is asserted by `computeFleetReport` on EVERY request, which
+  refuses to build a report where company + contractors ≠ ledger. Proving it again once a month
+  proved something already guaranteed, and it was the only thing keeping ~1,500 lines of allocation
+  machinery alive after the product stopped reading a single figure it produced.
+
+  **What went:** `cpmHarness.ts` (495), `cpmContract.ts` (339), `cpm.ts` (390), `cpmFleet.ts`,
+  `cpmTieOut.ts`, `apportion.ts`, `ownerOperatorIncome.ts`, `useCpm.ts`, `GET /api/accounting/cpm`
+  and `cpmQuerySchema`.
+
+  **What moved, rather than went.** The Per truck and Contractors tabs are real answers and they
+  needed a source, so `computeFleetReport` gained `trucks[]` (unit, loads, measured miles, revenue,
+  revenue per mile, and whether a contractor settled on it) and `ownerOperators[]` (per PAYEE, with
+  the deal read back from what settled). `ownerOperators.ts` survives as the summariser it always
+  was. **Every tab of the page now reads one call** — which is what §2.5 asked for from the start.
+
+  Nine new pure tests over the two row sets, five mutants killed: a missing rate rendered as zero,
+  contractor trucks never marked, truck rows sorted smallest-first, deduction income never credited
+  to a payee, and company drivers landing in the contractor rows. Both tabs verified in a real
+  browser against the rehomed data.

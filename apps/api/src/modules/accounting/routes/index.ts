@@ -9,7 +9,6 @@ import {
   summarizeByCategory,
   apSpendByAccount,
   getLedgerCoverage,
-  computeCpmForWindow,
   getMonthCloses,
   getIncomeStatement,
   getMileageCoverage,
@@ -17,7 +16,7 @@ import {
   getFleetTrend,
 } from "../../financial/index.js";
 
-import { windowSchema, entriesSchema, cpmQuerySchema, trendSchema } from "./schemas.js";
+import { windowSchema, entriesSchema, trendSchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -97,28 +96,9 @@ export function accountingRouter(): Router {
     }),
   );
 
-  // Cost per mile per truck — the report the whole McLeod pipeline exists to produce. The
-  // harness's caveats array is part of the payload ON PURPOSE: a CPM figure whose assumptions
-  // are invisible is worse than none, because it gets quoted (cpmHarness.ts's own doctrine).
-  // Overhead allocation stays off until finance's §6 Q5 ruling; the report says what it excludes.
-  router.get(
-    "/cpm",
-    requireOrg,
-    canView,
-    asyncHandler(async (req, res) => {
-      const parsed = cpmQuerySchema.safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD with from before to (to is exclusive); optional: deadhead=estimate|exclude, includeOwnerOperators=1."));
-        return;
-      }
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const f = parsed.data;
-      const result = await computeCpmForWindow(admin, req.auth!.orgId!, f.from, f.to, {
-        ...(f.includeOwnerOperators !== undefined ? { includeOwnerOperators: f.includeOwnerOperators } : {}),
-      });
-      res.json({ ok: true, ...result });
-    }),
-  );
+  // `GET /cpm` went at G7b with the per-truck harness behind it. Its two surviving readers — the
+  // truck rows and the contractor rows — are fields on `/fleet-report` now, so every tab of the
+  // page reads one call, which is what §2.5 asked for. Nothing else consumed the route.
 
   // The missing-entries instrument (0269): McLeod's own monthly control totals against what our
   // staging holds, module by module. Coverage is a BREADTH signal — modules are lifecycle views

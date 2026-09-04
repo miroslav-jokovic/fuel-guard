@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { queryFlag, windowSchema, entriesSchema, cpmQuerySchema } from "./schemas.js";
+import { queryFlag, windowSchema, entriesSchema } from "./schemas.js";
 
 describe("queryFlag — a query-string flag read strictly, not coerced", () => {
   // The regression. `z.coerce.boolean()` is Boolean("0") === true, so the three spellings a person
@@ -19,29 +19,9 @@ describe("queryFlag — a query-string flag read strictly, not coerced", () => {
   });
 });
 
-describe("cpmQuerySchema — the owner-operator pool cannot be switched on by a value that says off", () => {
-  const base = { from: "2026-06-01", to: "2026-07-01" };
-
-  it("keeps includeOwnerOperators false when the query says false", () => {
-    const parsed = cpmQuerySchema.parse({ ...base, includeOwnerOperators: "false" });
-    expect(parsed.includeOwnerOperators).toBe(false);
-  });
-
-  it("keeps it false when the query says 0", () => {
-    expect(cpmQuerySchema.parse({ ...base, includeOwnerOperators: "0" }).includeOwnerOperators).toBe(false);
-  });
-
-  it("turns it on for 1", () => {
-    expect(cpmQuerySchema.parse({ ...base, includeOwnerOperators: "1" }).includeOwnerOperators).toBe(true);
-  });
-
-  it("leaves it undefined when absent, so the harness default stands", () => {
-    expect(cpmQuerySchema.parse(base).includeOwnerOperators).toBeUndefined();
-  });
-
-  it("accepts a deadhead treatment and rejects an unknown one", () => {
-  });
-});
+// `cpmQuerySchema` went with the per-truck route at G7b. The `queryFlag` rule it was written to
+// pin — a query value that SAYS false must not parse as true — is covered above, on the parser
+// itself, which is where it always belonged.
 
 describe("window ordering — `to` is exclusive, so `from` must be strictly before it", () => {
   it("accepts a normal window", () => {
@@ -64,9 +44,6 @@ describe("window ordering — `to` is exclusive, so `from` must be strictly befo
     expect(windowSchema.safeParse({ from: "06/01/2026", to: "2026-07-01" }).success).toBe(false);
   });
 
-  it("applies the same rule to the CPM query", () => {
-    expect(cpmQuerySchema.safeParse({ from: "2026-07-01", to: "2026-06-01" }).success).toBe(false);
-  });
 });
 
 describe("entriesSchema — the ledger's window is optional, but ordered when both ends are given", () => {

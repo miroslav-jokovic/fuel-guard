@@ -46,6 +46,7 @@ accepted because a deliberate break made them fail.
 | **G6** family summary | **Built** — map signed by the owner 2026-09-03 | `glFamilies.ts`, `FamilySummaryTable.vue` |
 | **G7** removals + rename | **Built** — except G7b, which §4 did not anticipate | 0307, `/fleet-report` |
 | **G8** provenance line | **Built 2026-09-04** — the Company total tab is retired | `fleetProvenance.ts` |
+| **G7b** the close's proof | **Built 2026-09-04** — allocation apparatus deleted, tabs rehomed | 0308, `fleetReport.ts` |
 | **W1–W4** | Not started | — |
 
 **Files added this session**
@@ -277,8 +278,8 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11, G6, G7, G8. **Remaining:** **G7b**, then
-W1–W4.
+**Built:** every G-step — G1 through G11, plus G7b. **§4 is fully executed.** **Remaining:** the
+W-series (W1 can ship any time and removes month-shaped plumbing from three places).
 
 The page is four tabs now — Overview, Per truck, Contractors, Income statement — which is §2's own
 list, with the provenance line carrying what the retired Company total tab uniquely said.

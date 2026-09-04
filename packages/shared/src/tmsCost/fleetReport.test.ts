@@ -40,10 +40,10 @@ const ledger = {
  * check: with o4 present it fails, without o4 it does not.
  */
 const settlements = [
-  { payee_type: "owner_operator", tractor_unit: "601", order_external_id: "o1", total_pay: 112_492.09 },
-  { payee_type: "owner_operator", tractor_unit: "602", order_external_id: "o2", total_pay: 100_000.0 },
-  { payee_type: "company_driver", tractor_unit: "101", order_external_id: "o3", total_pay: 1_000_000.0 },
-  { payee_type: "company_driver", tractor_unit: "601", order_external_id: "o4", total_pay: 44_445.08 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", tractor_unit: "601", order_external_id: "o1", total_pay: 112_492.09 },
+  { payee_type: "owner_operator", payee_id: "IVETJOIL", tractor_unit: "602", order_external_id: "o2", total_pay: 100_000.0 },
+  { payee_type: "company_driver", payee_id: "DRV101", tractor_unit: "101", order_external_id: "o3", total_pay: 1_000_000.0 },
+  { payee_type: "company_driver", payee_id: "DRV601", tractor_unit: "601", order_external_id: "o4", total_pay: 44_445.08 },
 ];
 
 const bills = [
@@ -57,11 +57,11 @@ const bills = [
 
 /** One of each class, at July's measured totals — the derivation R2 replaced a code table with. */
 const deductions = [
-  { payee_type: "owner_operator", account_type: "Revenue", amount: 34_384.28 },
-  { payee_type: "owner_operator", account_type: "Current Assets", amount: 53_917.64 },
-  { payee_type: "owner_operator", account_type: "Current Liabilities", amount: 31_356.61 },
-  { payee_type: "owner_operator", account_type: "Operating Expenses", amount: 11_064.71 },
-  { payee_type: "company_driver", account_type: "Revenue", amount: 9_999.0 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", account_type: "Revenue", amount: 34_384.28 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", account_type: "Current Assets", amount: 53_917.64 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", account_type: "Current Liabilities", amount: 31_356.61 },
+  { payee_type: "owner_operator", payee_id: "SCORELIL", account_type: "Operating Expenses", amount: 11_064.71 },
+  { payee_type: "company_driver", payee_id: "DRV101", account_type: "Revenue", amount: 9_999.0 },
 ];
 
 const july = (o: Partial<FleetReportInputs> = {}): FleetReportInputs => ({
@@ -128,7 +128,12 @@ describe("computeFleetReport", () => {
 
   it("reports a deduction that posted nowhere as unruled instead of guessing its class", () => {
     const r = computeFleetReport(
-      july({ deductions: [...deductions, { payee_type: "owner_operator", account_type: null, amount: 500 }] }),
+      july({
+        deductions: [
+          ...deductions,
+          { payee_type: "owner_operator", payee_id: "SCORELIL", account_type: null, amount: 500 },
+        ],
+      }),
     );
     expect(r.ownerOperatorBasis.unruledDeductions).toBe(500);
     expect(r.ownerOperatorBasis.deductionIncome).toBe(34_384.28);
@@ -208,3 +213,89 @@ describe("computeFleetReport", () => {
     expect(r.statement.sections.map((s) => s.typeId)).toEqual(["Revenue", "Operating Expenses"]);
   });
 });
+
+/**
+ * The per-truck and per-contractor rows moved here at G7b, when the close stopped needing the
+ * per-truck harness and the harness could go. What they carry is what is PRECISE at that grain —
+ * miles and revenue for a truck, pay and revenue for a payee — and nothing that would need a cost
+ * attribution the carrier has no source for.
+ */
+describe("computeFleetReport — the per-truck rows (§2 Tab 4)", () => {
+  const miles = { "601": 40_000, "602": 31_920, "101": 1_480_417 };
+
+  it("gives a truck its measured miles, its booked revenue and the rate between them", () => {
+    const r = computeFleetReport(july({ milesByUnit: miles }));
+    const t = r.trucks.find((x) => x.tractor_unit === "602")!;
+    expect(t.miles).toBe(31_920);
+    expect(t.revenue).toBe(100_000);
+    expect(t.revenuePerMile).toBe(3.13);
+    expect(t.loads).toBe(1);
+  });
+
+  /** Truck 601 is MIXED — a contractor and a company driver both settled on it. */
+  it("marks every truck a contractor settled on, mixed ones included", () => {
+    const r = computeFleetReport(july({ milesByUnit: miles }));
+    expect(r.trucks.find((x) => x.tractor_unit === "601")!.isOwnerOperator).toBe(true);
+    expect(r.trucks.find((x) => x.tractor_unit === "101")!.isOwnerOperator).toBe(false);
+  });
+
+  /**
+   * A truck's revenue is every bill booked against it — the mixed truck's company load included.
+   * The contractor COLUMN splits by order; a truck row is about the truck.
+   */
+  it("counts every load booked against a tractor, whoever settled it", () => {
+    const r = computeFleetReport(july({ milesByUnit: miles }));
+    const mixed = r.trucks.find((x) => x.tractor_unit === "601")!;
+    expect(mixed.loads).toBe(2);
+    expect(mixed.revenue).toBe(303_192.01);
+  });
+
+  it("gives no rate to a truck the period did not measure, and keeps its dollars", () => {
+    const r = computeFleetReport(july({ milesByUnit: { "601": 40_000 } }));
+    const unmeasured = r.trucks.find((x) => x.tractor_unit === "602")!;
+    expect(unmeasured.revenue).toBe(100_000);
+    expect(unmeasured.miles).toBe(0);
+    expect(unmeasured.revenuePerMile).toBeNull();
+  });
+
+  it("sorts by what a truck earned, because that is the column being read", () => {
+    const r = computeFleetReport(july({ milesByUnit: miles }));
+    expect(r.trucks[0]!.tractor_unit).toBe("101");
+  });
+});
+
+describe("computeFleetReport — the contractor rows", () => {
+  it("reports one row per payee, not per truck", () => {
+    const r = computeFleetReport(july());
+    expect(r.ownerOperators.map((o) => o.payeeId).sort()).toEqual(["IVETJOIL", "SCORELIL"]);
+    expect(r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!.units).toEqual(["601"]);
+  });
+
+  /**
+   * Read back from what settled, never configured: three different splits across five payees were
+   * measured in June 2026, so one fleet-wide rate would have been fiction.
+   */
+  it("reads each payee's deal back out of their own pay and revenue", () => {
+    const r = computeFleetReport(july());
+    const scorelil = r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!;
+    expect(scorelil.revenue).toBe(103_192.01);
+    expect(scorelil.pay).toBe(112_492.09);
+    expect(scorelil.dealPct).toBe(109.01);
+    const ivet = r.ownerOperators.find((o) => o.payeeId === "IVETJOIL")!;
+    expect(ivet.dealPct).toBe(100);
+  });
+
+  it("credits deduction income to the payee it was deducted from", () => {
+    const r = computeFleetReport(july());
+    const scorelil = r.ownerOperators.find((o) => o.payeeId === "SCORELIL")!;
+    expect(scorelil.deductionIncome).toBe(34_384.28);
+    expect(scorelil.netMargin).toBe(round2(scorelil.grossMargin + 34_384.28));
+  });
+
+  it("leaves company drivers out of the contractor rows entirely", () => {
+    const r = computeFleetReport(july());
+    expect(r.ownerOperators.some((o) => o.payeeId.startsWith("DRV"))).toBe(false);
+  });
+});
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
