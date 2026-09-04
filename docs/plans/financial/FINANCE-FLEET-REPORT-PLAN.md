@@ -487,13 +487,13 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 
 | # | Step | What it is | Blocked on |
 |---|---|---|---|
-| **G1** | **The fleet harness** | **PURE HARNESS BUILT 2026-09-03** (`fleetReport.ts`). **Owed:** the service that feeds it, its route, and the page reading it — G5. | — |
+| **G1** | **The fleet harness** | **BUILT 2026-09-03** — pure harness, service, route. | — |
 | **G2** | **Dispatcher rate per mile** | **ALREADY BUILT** — verified end to end 2026-09-03 (§1.7). Migration 0275, the reader, the service and the page all use `distance`; the two empty columns are documented rather than deleted, by 0275's own decision. No work. | — |
 | **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
 | **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
-| **G5** | **Overview tab and the trend** | The six headline figures, the three-column split, the twelve-month chart, and the provenance line. | G1, G4 |
+| **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators. **Owed:** the twelve-month trend chart. | — |
 | **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
-| **G7** | **The removals** | §4, as its own PR after G1–G5 are live. | G1–G5 |
+| **G7** | **The removals and the rename** | §4, as its own PR after G1–G5 are live. **Also the rename:** the page is called "Cost per mile" in the nav and now leads with an overview and carries an income statement. The route name, `route.meta.title` and the nav entry move together, with `routeGates` and the section matrix. | G1–G5 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
 | **G9** | **Two denominators and the empty-mile figure** | Miles driven (Samsara) beside miles billed (`mcleod_billing.distance` re-dated to `delivery_date`), and the empty percentage between them, as a trailing three-month average beside the month (§1.5.4). Cost per mile driven and revenue per mile billed are separate columns, each labelled with its denominator. | G1, G2 |
 | **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
@@ -502,7 +502,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 
-**Ordering:** G2, G3, G4 and G10 — done. Next G1, then G9 and G5 as the fleet model proper.
+**Ordering:** G2, G3, G4, G10, G1 and G5 — done. Next G9's trend chart, then G6, then G7.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
@@ -697,4 +697,27 @@ the record.
   MIXED — the same truck ran for a contractor and for a company driver — so the fixture gained one,
   and the mutant then killed four tests. Five of six mutants died on the first run; the sixth is
   the reason the fixture is shaped the way it is.
+- 2026-09-03 · **G1 (service + route) and G5 (Overview tab).** `ledgerPeriod.ts` factors the month
+  widening and the fiscal-year comparative out of the income statement so both services answer
+  "which months did this cover" identically. `getFleetReport` issues six reads in parallel through
+  the owning collectors' interfaces and does no arithmetic: voided settlements out, unposted bills
+  out (the D-MC12 predicate every other revenue figure uses), deduction classes read from the chart
+  of accounts already loaded for the ledger, Samsara miles re-keyed to tractor unit.
+  `GET /api/accounting/fleet-report`. `FleetOverview.vue` leads the tabs — three headline cards, one
+  three-column table (our trucks / contractors / everything) whose rows are the questions rather
+  than the trucks, the contractor split's own arithmetic printed beneath so it can be checked, and
+  the two denominators with what running empty costs.
+
+  **Verified in a real browser**, not only in tests: July renders the printed statement's figures,
+  and a February-shaped response renders every rate as a dash with the coverage reason above the
+  tabs while the money still shows in full. The old per-truck stat strip is hidden on Overview and
+  Income statement — it is the allocation harness's "earned per mile" and the overview's is the
+  ledger's, and two figures under one label on one screen is how a reader stops trusting a page.
+  The page description now follows the tab for the same reason. **Owed:** the twelve-month trend
+  chart (G9), and the page rename, which belongs with G7.
+
+  Seven service tests and eight component tests, all mutation-tested: voided settlements counted,
+  unposted bills counted, every deduction typed as revenue, per-unit miles dropped, an absent rate
+  rendered as $0.00, the empty-mile block always shown, and the contractor column duplicating the
+  company's — every mutant killed.
 

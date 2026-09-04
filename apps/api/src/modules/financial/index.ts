@@ -37,6 +37,7 @@ export { getMonthCloses, runMonthClosesOnce, computeMonthClose, type MonthCloseR
 export { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
 export { getIncomeStatement, type IncomeStatementResult } from "./incomeStatement.js";
 export { getMileageCoverage, type MileageCoverageResult } from "./mileageCoverage.js";
+export { getFleetReport, type FleetReportResult } from "./fleetReport.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
 export {
   getGlMonthlyCosts,

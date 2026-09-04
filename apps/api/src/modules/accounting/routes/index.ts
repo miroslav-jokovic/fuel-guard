@@ -14,6 +14,7 @@ import {
   getMonthCloses,
   getIncomeStatement,
   getMileageCoverage,
+  getFleetReport,
 } from "../../financial/index.js";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
@@ -199,6 +200,31 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const statement = await getIncomeStatement(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, ...statement });
+    }),
+  );
+
+  /**
+   * The fleet report (G1) — one call serving every tab: the ledger's totals, the company and
+   * contractor columns, the per-mile figures or the reason there are none, the income statement,
+   * and the two denominators.
+   *
+   * It subsumes `/income-statement` and `/mileage-coverage`, which stay because they are cheaper
+   * when a page needs only one of them; nothing about the figures differs, because all three call
+   * the same pure builders over the same reads.
+   */
+  router.get(
+    "/fleet-report",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = windowSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const report = await getFleetReport(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
+      res.json({ ok: true, ...report });
     }),
   );
 

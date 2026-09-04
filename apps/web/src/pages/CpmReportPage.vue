@@ -8,6 +8,8 @@ import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
 import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
+import FleetOverview from "@/features/accounting/FleetOverview.vue";
+import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -43,14 +45,18 @@ const minMiles = ref("0");
  * used to be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check,
  * which read as one report with two footnotes rather than three answers to three questions.
  */
-type CpmTab = "trucks" | "contractors" | "fleet" | "statement";
+type CpmTab = "overview" | "trucks" | "contractors" | "fleet" | "statement";
 const TABS: TabItem[] = [
+  { value: "overview", label: "Overview" },
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
   { value: "fleet", label: "Company total" },
   { value: "statement", label: "Income statement" },
 ];
-const tab = ref<CpmTab>("trucks");
+// Overview leads (G5). It answers the question a boss actually opens the page with — did we make
+// money this period, and where did it go — and the per-truck table, which used to be first, answers
+// a follow-up. A page that opens on a hundred and seventy rows reads as a database, not a report.
+const tab = ref<CpmTab>("overview");
 
 /**
  * The income statement (G3) — the same period, read as the owner's printed McLeod P&L.
@@ -76,6 +82,19 @@ const {
  * low on miles and high on cost. The banner is how that stops being invisible.
  */
 const { data: coverage } = useMileageCoverageQuery(statementFilter);
+
+/**
+ * The fleet report (G1/G5) — one call carrying the whole overview.
+ *
+ * Its own query beside the CPM one because they answer different questions over the same period:
+ * this is the ledger for the fleet, that is a per-truck calculation. Loading either to render the
+ * other would make every tab wait for work it does not use.
+ */
+const {
+  data: fleet,
+  isLoading: fleetLoading,
+  isError: fleetError,
+} = useFleetReportQuery(statementFilter);
 
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
@@ -146,6 +165,14 @@ const ownerOpPage = computed(() =>
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 /** The comparative line under a statement headline. Absent when the period has no wider window. */
 const statementToDateSub = (n: number | null) => (n === null ? undefined : `${fmtUsd(n)} year to date`);
+
+const pageDescription = computed(() =>
+  tab.value === "overview"
+    ? "What the fleet earned, spent and kept — and each of those for every mile it ran."
+    : tab.value === "statement"
+      ? "The general ledger, in the shape McLeod prints it."
+      : "What each truck costs and earns for every mile it drives.",
+);
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
 const fmtCpm = (n: number | null) => (n == null ? "—" : `$${(n / 100).toFixed(2)}`);
@@ -175,7 +202,11 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
   <div class="space-y-6">
     <!-- "Figures as of" is the sweep's own stamp (D-FIN3), never the page's clock: a report that
          looks current while its source stopped three weeks ago is the failure the audit found. -->
-    <PageHeader :description="`What each truck costs and earns for every mile it drives.${figuresAsOf}`" />
+    <!-- The description follows the tab, because the page now answers two different questions.
+         Overview and the income statement are about the whole fleet from the ledger; the per-truck
+         tabs are about the allocation harness. One sentence describing both would describe
+         neither. -->
+    <PageHeader :description="`${pageDescription}${figuresAsOf}`" />
 
     <!--
       The method, one click away. Every sentence here used to sit in the page description or in
@@ -202,8 +233,18 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
     </ExplainerPanel>
 
     <!-- The equation reads left to right — earned, cost, what is left — because that is the order
-         the owner asks it in. -->
-    <div v-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+         the owner asks it in.
+
+         Hidden on Overview and Income statement, which carry their own headline figures. Showing
+         both would put two "earned per mile" numbers on one screen: this strip is the per-truck
+         harness's, which SHARES overhead out across trucks, and the overview's is the ledger's,
+         which shares nothing. They are different questions and they will not agree — two figures
+         under one label is how a reader stops trusting a page. The allocation strip goes entirely
+         at G7; until then it stays on the tabs that are actually about it. -->
+    <div
+      v-if="report && (tab === 'trucks' || tab === 'contractors' || tab === 'fleet')"
+      class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+    >
       <StatCard
         label="Earned per mile"
         :value="fmtCpm(report.fleet.revenueCpm)"
@@ -286,6 +327,16 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       McLeod sweep for this one.
     </p>
 
+    <!-- The overview (G5): earned, spent, kept — for the whole fleet, for our trucks and for
+         contractors — and each of those per mile when the period's mileage covers the fleet. -->
+    <div v-if="tab === 'overview'">
+      <p v-if="fleetError" class="text-sm text-danger-600">
+        The overview could not be loaded. Try the period again in a moment.
+      </p>
+      <FleetOverview v-else-if="fleet" :report="fleet" :loading="fleetLoading" />
+      <p v-else class="text-sm text-ink-secondary">Loading the overview…</p>
+    </div>
+
     <!-- The income statement (G3): the period's ledger in the shape the owner's own printed P&L
          takes. Sections in McLeod's order, accounts by code inside each, and a row opens to show
          which parts of McLeod posted it. -->
@@ -338,7 +389,7 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <p v-else class="text-sm text-ink-secondary">Loading the income statement…</p>
     </div>
 
-    <DataWorkspace v-if="tab !== 'fleet' && tab !== 'statement'">
+    <DataWorkspace v-if="tab === 'trucks' || tab === 'contractors'">
       <FilterBar
         v-model:search="unitSearch"
         embedded
