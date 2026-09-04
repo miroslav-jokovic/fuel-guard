@@ -1,6 +1,6 @@
 # Fleet MPG — one definition, one module
 
-**Status:** ACTIVE, awaiting one owner ruling (§2). **Owner:** Miki. **Written:** 2026-09-04, after
+**Status:** ACTIVE — M1 building under the §2 rulings as proposed. **Owner:** Miki. **Written:** 2026-09-04, after
 the owner observed that fleet MPG reads differently on different pages.
 
 **The observation was right, and it is worse than a rounding difference.** For the week of
@@ -26,11 +26,28 @@ the code and reasoning about it.
 
 | | Definition | Arithmetic | Filter | Where the rule lives |
 |---|---|---|---|---|
-| **A** | **Mean of per-fill MPG, gallon-weighted** | `Σ(computed_mpg × gallons) ÷ Σ gallons` — a *mean of ratios* | per FILL: `1 ≤ mpg ≤ 40` (`MPG_PLAUSIBLE_MIN/MAX`) | `packages/shared/src/dashboard.ts:218` |
-| **B** | **Measured miles over the gallons whose miles were measured** | `Σ miles ÷ Σ mpg_gallons` — a *ratio of sums* | per PERIOD: `3 ≤ mpg ≤ 12` (`PLAUSIBLE_FLEET_MPG`) AND `mpg_gallons ÷ gallons_tractor ≥ 0.6` (`MIN_MEASURED_SHARE`) | `packages/shared/src/fuelSpend/spendPeriodTotals.ts:259` |
-| **C** | **IFTA taxable miles over IFTA purchased gallons** | `Σ taxableMiles ÷ Σ purchasedGallons` — a *ratio of sums* | per PERIOD: `4 ≤ mpg ≤ 9.5` (`IFTA_MPG_BAND`) | `packages/shared/src/ifta/position.ts:134` |
+| **A** | **Gallon-weighted mean of per-fill MPG** | `Σ(computed_mpg × gallons) ÷ Σ gallons` | per FILL: `1 ≤ mpg ≤ 40` (`MPG_PLAUSIBLE_MIN/MAX`) | `packages/shared/src/dashboard.ts:218` |
+| **B** | **Allocated miles over the gallons whose miles were measured** | `Σ miles ÷ Σ mpg_gallons` | per PERIOD: `3 ≤ mpg ≤ 12` (`PLAUSIBLE_FLEET_MPG`) AND `mpg_gallons ÷ gallons_tractor ≥ 0.6` (`MIN_MEASURED_SHARE`) | `packages/shared/src/fuelSpend/spendPeriodTotals.ts:259` |
+| **C** | **IFTA taxable miles over IFTA purchased gallons** | `Σ taxableMiles ÷ Σ purchasedGallons` | per PERIOD: `4 ≤ mpg ≤ 9.5` (`IFTA_MPG_BAND`) | `packages/shared/src/ifta/position.ts:134` |
 
-A mean of ratios is not a ratio of sums. They coincide only when every fill has the same MPG.
+**⚠ The obvious reading of A is wrong, and this plan's first draft got it wrong.** "Gallon-weighted
+mean of ratios" sounds like the classic mistake — a mean of ratios where a ratio of sums belongs —
+but the weights make it algebraically a ratio of sums: each fill's `computed_mpg` is
+`miles ÷ gallons`, so `mpg × gallons` IS that fill's miles, and A reduces to
+`Σ fill-interval miles ÷ Σ fill gallons`. **All three definitions are ratios of sums.** What
+separates them is *which miles* and *which gallons* each one sums, and what each excludes:
+
+- **A** sums the odometer span between consecutive fills, weighted by `t.gallons` — but
+  `computedMpg` divides by `gallons + intermediateGallons` (`anomalyRules/helpers.ts:70`). Where a
+  fill has intermediate gallons the two disagree, and the product is **less** than the interval's
+  real miles. It also drops any fill whose implied MPG falls outside `1–40`.
+- **B** sums the SAME fill-interval miles after `rollupDerive.ts`'s `allocate()` has spread each
+  interval across the days it spans and the period has re-summed the days it happens to contain —
+  so a period's edges cut intervals that A counts whole, and vice versa.
+- **C** sums Samsara's own per-jurisdiction taxable metres, which never passed through either.
+
+So this is not "one right formula and two wrong ones". It is three pipelines that answer the same
+question over three different mileage figures, and §1.4 measures how far apart those figures are.
 
 ### 1.2 Five implementations, eight display sites
 
@@ -79,24 +96,33 @@ no-workarounds rule names: **a copy is a workaround with a delay fuse.**
 **Something changed in the week of 2026-07-28 and nothing said so.** A stayed flat at ~6.85 all
 summer. B stepped up ~10% and stayed there.
 
-### 1.4 A third witness says B's miles are the ones that moved
+### 1.4 A third witness, and it convicts both of them
 
 IFTA jurisdiction miles are an independent measurement of the same distance, from the same vendor,
-on a different pipeline. Against `fuel_spend_days.miles`:
+on a pipeline neither A nor B touches. Putting all three mileage figures side by side — A's implied
+miles are `Σ(computed_mpg × gallons)`, which is what its MPG is a ratio of:
 
-| Month | IFTA taxable miles | `fuel_spend_days.miles` | Difference |
-|---|---|---|---|
-| 2026-07 | 1,551,133 | 1,549,942 | **+0.08%** |
-| 2026-08 | 1,634,889 | 1,696,637 | **+3.8%** |
+| Month | A implies | B (`fuel_spend_days.miles`) | C (IFTA taxable) | A vs C | B vs C |
+|---|---|---|---|---|---|
+| 2026-07 | 1,530,801 | 1,549,942 | 1,551,133 | **−1.31%** | −0.08% |
+| 2026-08 | 1,595,483 | 1,696,637 | 1,634,889 | **−2.41%** | **+3.78%** |
 
-In July the two agreed to within a tenth of a percent — which is the good news, because it means
-the pipeline *can* be right. In August the allocated figure ran 61,748 miles ahead of the tax
-figure. Over the same two months the `miles_basis` mix also changed: `drive_time` and `even` and
-`none` in July, only two distinct bases in each August week.
+Read that carefully, because it changes what the fix has to be:
 
-**This is a second, separate defect that this analysis surfaced** (§6, Q3). It is recorded here and
-NOT fixed here — but it is exactly the kind of drift a single module with a cross-source check would
-have made visible on the day it started, instead of five weeks later by accident.
+- **B was very nearly right in July** (−0.08%) and is **3.8% high in August**. Something moved.
+- **A is low in BOTH months**, and got worse — it under-counts the fleet's miles by 1.3% and then
+  2.4%. That is not drift, that is a standing bias, and the intermediate-gallons weighting in §1.1
+  is the leading explanation (unproven — see Q5).
+- The 10.7% weekly spread the owner noticed is these two errors pointing in **opposite directions**
+  and compounding, not one page being wrong and one being right.
+
+Over the same two months the `miles_basis` mix also changed: `drive_time`, `even` and `none` all
+present in each July week; only two distinct bases in each August week.
+
+**The August step is a second, separate defect that this analysis surfaced** (§6, Q3). It is
+recorded here and NOT fixed here — but it is exactly the kind of drift a single module with a
+cross-source check would have made visible on 2026-07-28, instead of five weeks later by accident.
+
 
 ### 1.5 The numerator problem underneath all of it
 
@@ -118,19 +144,23 @@ distance with a named source and a stated refusal when it cannot. That is a *mea
 **D-MPG1 (proposed) — fleet MPG is `Σ measured miles ÷ Σ tractor gallons`, over the same trucks and
 the same window, and it is computed in exactly one place.**
 
-A ratio of sums, not a mean of ratios, for three reasons:
+§1.1 establishes that the arithmetic was never the disagreement — all three are already ratios of
+sums. **The disagreement is the numerator**, so that is what D-MPG1 rules on:
 
-1. **It is the physical quantity.** "How far did this fleet go per gallon it burned" is total
-   distance over total fuel. A gallon-weighted mean of per-fill ratios approximates it and drifts
-   from it whenever a fill's odometer span and its gallons disagree — which is precisely when the
-   number matters.
-2. **It is checkable.** A ratio of sums can be tied out against IFTA, against the ledger, and
-   against the odometer readings themselves. A mean of ratios cannot be reconciled to anything,
-   because its denominator is not a physical total.
-3. **It fails honestly.** A ratio of sums can report its coverage — how many trucks and how many
-   gallons are behind it — and withhold the figure when coverage is too thin. That is the G10 / D-FIN10
-   pattern the finance section already uses, and it is why a fleet report prints a dash rather than a
-   plausible wrong rate.
+1. **The miles must be measured, not reconstructed from the fuel and not spread across days.** A's
+   miles are an odometer span weighted by a gallons figure that is not the one the span was divided
+   by; B's are an interval allocated over days by drive-second weight. §1.4 measures what each costs
+   against an independent witness in the same month: −2.41% and +3.78%. W3b's
+   `samsara_odometer_readings` + `distanceByVehicle` give a distance that is the difference of two
+   readings the vendor asserted, for a named truck, over the exact period asked for — no allocation,
+   no reconstruction, and a stated refusal when it cannot be measured.
+2. **It must be checkable.** Total distance over total fuel ties out against IFTA, against the
+   ledger and against the readings themselves, and M5 makes that comparison a shipped check rather
+   than something a person notices on a good day.
+3. **It must fail honestly.** The module reports its coverage — how many trucks and how many gallons
+   are behind the figure — and withholds the number when coverage is too thin. That is the
+   G10 / D-FIN10 pattern the finance section already uses, and it is why a fleet report prints a dash
+   rather than a plausible wrong rate.
 
 **D-MPG2 (proposed) — IFTA keeps its own figure, and it is labelled, not reconciled.**
 `assessMpg` answers a *tax* question over *taxable* jurisdiction miles and *purchased* gallons; it is
@@ -143,7 +173,10 @@ detail's "Average MPG" is over that driver's fills; it can neither be the fleet 
 compared with it. It moves onto the shared module's per-subject entry point so the band and the
 arithmetic stop being hand-written, and its label gains the scope.
 
-Nothing below is built until these three are ruled on, because M1 encodes them.
+**M1 is being built under these as the working ruling** (the owner's instruction on 2026-09-04 was
+"only one module for this calculation, and the number precise and real", which is D-MPG1 in
+substance). They are still written as proposals because a different answer to any of them changes
+M1 — and M1 is the cheapest place in the programme to change, which is the reason it is first.
 
 ---
 
@@ -215,6 +248,12 @@ Nothing is removed until the thing that replaces it is live.
   that matters, and the drift stops mattering; (c) both. **Recommendation: (c)** — (b) is the real
   fix and (a) is what tells us whether anything ELSE that reads those miles has been wrong since
   2026-07-28.
+- **Q5 — is the intermediate-gallons weighting what makes A run low?** `computedMpg` divides miles
+  by `gallons + intermediateGallons`; `dashboard.ts` then weights that ratio by `gallons` alone, so
+  the product falls short of the interval's real miles by exactly the intermediate share. That is the
+  leading explanation for §1.4's standing −1.31% / −2.41%, and it is a HYPOTHESIS — it has not been
+  measured against the intermediate-gallons distribution. M1 makes it moot (it never multiplies a
+  ratio back out), so this is worth one query for the record, not a fix of its own.
 - **Q4 — reefer gallons.** Definition A currently includes reefer fills in the fleet mean where a
   `tank_type` is set (measured July: it makes no difference to two decimal places, 6.90 either way,
   because reefer fills carry no `computed_mpg`). M1 should exclude them explicitly rather than rely
@@ -229,3 +268,12 @@ Nothing is removed until the thing that replaces it is live.
   cross-check in §1.4 was not planned — it was run to decide WHICH of the two numbers was drifting,
   and it answered that question and raised a second defect. Five implementations and eight display
   sites enumerated by grep, each cited by file and line.
+
+- 2026-09-04 · **This plan's own first draft corrected before anything was built on it.** The draft
+  characterised A as "a mean of ratios" against B's "ratio of sums" — the textbook version of this
+  bug, and wrong here: A's weights make it algebraically a ratio of sums as well (§1.1). Caught by
+  computing A's implied miles and putting all three against IFTA, which is a stronger finding than
+  the one it replaced: **both operating methods miss the independent witness, in opposite
+  directions** (−2.41% and +3.78% in August), so what needs fixing is the numerator, not the
+  formula. This is FINANCE-FLEET-REPORT-PLAN §4.1's trap — the plan can be wrong about the code —
+  landing on a plan written an hour earlier.
