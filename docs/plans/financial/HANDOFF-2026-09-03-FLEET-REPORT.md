@@ -61,7 +61,7 @@ accepted because a deliberate break made them fail.
 | **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
 | **W1b** daily collector | **Built and MERGED 2026-09-04** — the agent sends the day, the ingest calls 0310's function | PR #530 |
 | **W2** weekly activity | **Built 2026-09-04** — the Week by week tab, miles-free and cost-free by design | `billingActivity.ts` ×2 layers, `ActivityTable.vue` |
-| **W3a** distance rule + store | **Built 2026-09-04** — vendor docs read; the §1.8.2 correction is in the plan | `vehicleDistance.ts`, 0311 |
+| **W3a** the distance rule | **Built 2026-09-04** — vendor docs read; the §1.8.2 correction is in the plan | `vehicleDistance.ts` |
 | **W3b** | Next, and **unblocked** — Samsara is a cloud API, syncing today | — |
 | **W1c, W4** | Wait on the live McLeod connection (§3.5) | — |
 
@@ -163,8 +163,15 @@ February-only span where there is no line at all.
 
 ### 3.6 W3b — the odometer collector, the next thing to build
 
-W3a landed the rule and the store; W3b is the fetcher, the sync and the scheduler tier. Everything
-needed to write it is settled, and none of it waits on McLeod.
+W3a landed the RULE; W3b is the table, the fetcher, the sync and the scheduler tier — **together**,
+because `lint:table-producers` requires a table's writer in the merge that creates it, and its
+waiver list has been ratcheted to empty. Everything needed to write it is settled, and none of it
+waits on McLeod.
+
+**The table's design is decided** and its rationale is in the plan's W3a entry: one row per vehicle
+per day per counter, storing `reading_at` (the vendor's own instant), `meters` (the vendor's own
+unit) and `source` — never a distance. Unique on `(org_id, vehicle_id, source, day)`; deny-all RLS;
+`day` is a slot, and every figure is computed from `reading_at` and `meters`.
 
 **What the vendor documentation says** (read 2026-09-04, and the reason §1.8.2 was wrong):
 `GET /fleet/vehicles/stats/history` takes arbitrary `startTime`/`endTime` and returns per-vehicle

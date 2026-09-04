@@ -469,10 +469,6 @@
       "module": "samsara",
       "layer": "infra"
     },
-    "samsara_odometer_readings": {
-      "module": "samsara",
-      "layer": "raw"
-    },
     "samsara_ifta_fetches": {
       "module": "samsara",
       "layer": "raw"
