@@ -213,6 +213,34 @@ figure that is right by coincidence is one scoring change away from being wrong 
 "reefer fuel moved the truck" is not a claim anybody would defend if asked. M3 filters on
 `tank_type` rather than relying on the coincidence.
 
+### D-MPG6 — fleet MPG is reported at WEEK grain or coarser, and the daily MPG trend is retired
+
+Added 2026-09-04, after M3's own file had to name the tank boundary and the live collector made it
+measurable for the first time. Fuel is bought in an instant and burned over the following days, so a
+short period's purchases are not its consumption. **Measured, 1–3 September, from odometer miles
+over that day's tractor purchases:**
+
+| Day | Trucks | Measured miles | Gallons bought | Daily MPG |
+|---|---|---|---|---|
+| 2026-09-01 | 118 | 50,151 | 6,721 | **7.46** |
+| 2026-09-02 | 130 | 56,963 | 8,256 | **6.90** |
+| 2026-09-03 | 134 | 56,871 | 8,912 | **6.38** |
+
+A **17% swing in three days** — and the 2nd and 3rd cover almost exactly the same distance (56,963
+against 56,871) while differing 8% in fuel bought. The fleet did not lose 8% of its efficiency
+overnight; it filled more tanks that day. The three days together read 6.68.
+
+**The dashboard's existing daily MPG trend hides this rather than avoiding it.** Its series comes
+from `fuel_spend_days`, where the miles AND the gallons are allocated across the same interval — so
+the day's ratio is the interval's ratio re-displayed, and it looks reassuringly smooth (7.09–7.94
+over the fortnight to 2026-08-30) because both sides were spread together. A stable line that is not
+measuring the day is worse than a jagged one that is.
+
+So: no MPG at day grain, from any source. M4 moves the trend to weekly rather than repointing it,
+and a caller asking this endpoint for a single day gets the figure it asks for with the caveat in the
+service's own header — the API does not refuse a legal question, but no shipped surface asks it.
+
+
 ---
 
 
@@ -225,7 +253,7 @@ Each is one PR, gates green, in order. Steps marked **⛔** wait on something na
 | **M1** | **`fleetEfficiency.ts` — the one definition** | A pure harness module in `packages/shared/src/fuelSpend/`. `computeFleetMpg(inputs)` → `{ mpg, milesSource, miles, gallons, coveredTrucks, uncoveredTrucks, measuredShare, reason }`. **Never a bare number**: `mpg` is null with a `reason` whenever coverage or plausibility fails, so a surface prints a dash and can say why. Takes miles and gallons as INPUTS — it does no I/O and knows no table (D-ARC1). | §2 ruling |
 | **M2** | **The measured-miles reader** | `readFleetDistance(admin, orgId, from, to)` in the samsara module: `samsara_odometer_readings` → `distanceByVehicle` → `fleetDistance`. Returns the miles, the per-truck coverage and the counter each truck was measured on. Readings from BEFORE the window are included, because the period's ends are bounding readings (W3a's own trap). | ⛔ #542 merged + ~7 days of collection |
 | **M3** | **The service and the route** | `getFleetMpg` in `apps/api/src/modules/fuel-spend/`, assembling M2's miles and the period's tractor gallons and calling M1. `GET /api/fuel-spend/fleet-mpg?from=&to=`. One reader, one contract. | M1, M2 |
-| **M4** | **Migrate the four Method-A sites** | Dashboard tile + MPG trend, Fuel log Fills tab, `askData.fleet_mpg`, weekly digest PDF. Each reads M3 (or M1 over data it already holds); the four hand-written weighted means are deleted. Driver detail moves onto M1's per-subject entry point under D-MPG3. | M3 |
+| **M4** | **Migrate the four Method-A sites** | Dashboard tile + MPG trend (which becomes WEEKLY under D-MPG6), Fuel log Fills tab, `askData.fleet_mpg`, weekly digest PDF. Each reads M3 (or M1 over data it already holds); the four hand-written weighted means are deleted. Driver detail moves onto M1's per-subject entry point under D-MPG3. | M3 |
 | **M5** | **Migrate the spend report, and add the cross-source check** | `spendPeriodTotals.mpg` derives from M1 instead of computing its own. A new `assessMileageAgreement` compares the period's measured miles with IFTA's for the same months and surfaces the divergence — the check that would have caught §1.4 on 2026-07-28 rather than five weeks later. | M3 |
 | **M6** | **The gate** | `scripts/check-single-mpg.mjs` + `lint:mpg`, and a line in `ci.yml`: a gallon-weighted MPG mean or a `miles ÷ gallons` division outside `fleetEfficiency.ts` fails the build, with a pinned shrink-only waiver list holding the IFTA and per-fill cases that are legitimately different. **Without this the fifth implementation lands within a month** — four of them already did. | M4, M5 |
 
