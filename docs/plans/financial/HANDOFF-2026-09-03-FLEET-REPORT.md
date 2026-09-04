@@ -3,8 +3,14 @@
 **Read this, then `FINANCE-FLEET-REPORT-PLAN.md`.** That plan is the queue; this file is where the
 work stopped, what is proven, and the seven traps that cost time in this session.
 
-**Branch:** `claude/finance-collectors-july-start` · **PR:** #527 (open) · **Base:** `main` at
-`5617963`.
+**Where the work is now.** PR #527 — the whole G-series — is **MERGED**: main `d2c3b36`, which also
+applied 0307 and 0308 to production. The W-series continues on **`claude/finance-w1-daily-gl`,
+PR #529** (W1a, schema only).
+
+**Working tree.** The shared checkout at `~/Projects/FuelGuard` belongs to another session; this
+work lives in the worktree `.claude/worktrees/finance-g8`. Check the current branch before every
+commit — parallel chats share one working tree, and this session found it switched underneath it
+mid-task.
 
 ---
 
@@ -47,7 +53,8 @@ accepted because a deliberate break made them fail.
 | **G7** removals + rename | **Built** — except G7b, which §4 did not anticipate | 0307, `/fleet-report` |
 | **G8** provenance line | **Built 2026-09-04** — the Company total tab is retired | `fleetProvenance.ts` |
 | **G7b** the close's proof | **Built 2026-09-04** — allocation apparatus deleted, tabs rehomed | 0308, `fleetReport.ts` |
-| **W1–W4** | Not started | — |
+| **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
+| **W1b, W1c, W2–W4** | Not started | — |
 
 **Files added this session**
 
@@ -278,8 +285,17 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** every G-step — G1 through G11, plus G7b. **§4 is fully executed.** **Remaining:** the
-W-series (W1 can ship any time and removes month-shaped plumbing from three places).
+**Built:** every G-step — G1 through G11, plus G7b — and **W1a**. §4 is fully executed and PR #527
+is merged (main `d2c3b36`).
+
+**The W-series is under way, and its sequencing is set by two different clocks.** W1a (schema) is
+done. **W1b** — the agent grouping by `transaction_date`, the payload carrying it, the ingest
+calling `replace_mcleod_gl_days` — ships as soon as 0310 has applied in production, because a
+function's caller must not be served ahead of its migration (`pnpm verify:live`, or the "Apply
+Supabase migrations" run going green). **W1c** — the readers moving onto the day table, retiring
+`monthsTouching` and the month-aligned-window guard — waits on something else: **the sandbox is
+stale and the McLeod agent cannot run until the live database connection next week**, so switching
+readers before a daily sweep has landed would point the finance section at an empty table.
 
 The page is four tabs now — Overview, Per truck, Contractors, Income statement — which is §2's own
 list, with the provenance line carrying what the retired Company total tab uniquely said.

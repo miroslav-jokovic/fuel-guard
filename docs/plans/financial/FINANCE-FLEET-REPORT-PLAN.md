@@ -497,7 +497,9 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G7b** | **The month close's proof** | **BUILT 2026-09-04** on the owner's ruling: the close proves the sweeps landed the month and nothing else. Migration **0308** drops the seven allocation columns; the whole per-truck harness, its contract, its apportionment and `cpm.ts` are deleted, and the per-truck and contractor rows moved onto the fleet report. | — |
 | **G8** | **Provenance line and the retained tie-out** | **BUILT 2026-09-04.** `fleetProvenanceLine` under the page title — months, sweep stamp, tie-out residual, trucks and miles — and the Company total tab retired. The close still runs; **G7b, which moves its proof off the allocation tie-out, is what remains.** | — |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
-| **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
+| **W1a** | **Daily GL grain — the schema** | **BUILT 2026-09-04.** `mcleod_gl_days` (0309) and `replace_mcleod_gl_days` (0310), which stages the day rows and DERIVES the monthly rollup from them in one transaction. No caller yet — a function's caller ships one merge behind its migration, as 0304's did. | — |
+| **W1b** | **Daily GL grain — the collector** | The agent's `GL_CONTROL_TOTALS` groups by `transaction_date`, the payload carries it, and the ingest calls the new RPC. Ships once 0310 has applied in production (`pnpm verify:live`). | W1a applied |
+| **W1c** | **Daily GL grain — the readers** | `readLedgerTotalsRange` reads days and sums; retires `monthsTouching` and the month-aligned-window guard. Ships once a daily sweep has actually landed, so nothing reads an empty table. | W1b + one sweep |
 | **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
@@ -987,3 +989,35 @@ the record.
   contractor trucks never marked, truck rows sorted smallest-first, deduction income never credited
   to a payee, and company drivers landing in the contractor rows. Both tabs verified in a real
   browser against the rehomed data.
+- 2026-09-04 · **W1a — the daily ledger's schema.** `gl_ledger.transaction_date` is on every line
+  McLeod holds and our collector threw it away: `GL_CONTROL_TOTALS` grouped by `(post_module, glid)`
+  and the agent called it once per calendar month, so **the monthly grain was ours, not the
+  source's** — a collector making a reporting decision, which is what D-FLEET9 forbids.
+
+  **`mcleod_gl_days` is a new table rather than a date column on `mcleod_gl_totals`**, for three
+  reasons in order of weight: a new table is exempt from the deploy window's two-merge rule because
+  its readers are new code paths; a nullable date on the existing table would leave two grains in
+  one table with every reader having to know which it was looking at; and the monthly rows do not
+  become a second sweep — `replace_mcleod_gl_days` **derives** them by summing the day rows it just
+  wrote, in the same transaction under the same stamp. One assertion from the source, one
+  materialisation of it. Two sweeps at two grains are two things that can disagree.
+
+  **One flaw was corrected rather than copied.** The monthly table's identity is
+  `(org, period, module, account)` — the company is not in it, so two legal entities posting the
+  same account in the same module in the same month collide and the second sweep overwrites the
+  first; 0304 scoped the stale DELETE to the company, which stops one entity erasing another's rows
+  but not the overwrite. The day table's key includes the company, and `company_id` is NOT NULL with
+  an empty-string default because Postgres treats NULLs as distinct in a unique index — two
+  "no company" rows for the same day and account would both insert. This carrier stages one company
+  today; the point is that the second one is not a migration.
+
+  **Split into three steps, and the split is the deploy window, not caution.** A function's caller
+  ships one merge behind its migration (`lint:migration-ordering` cannot see a function — 0304's
+  header says the same), so W1a is schema only. W1c waits on something else entirely: **the sandbox
+  is stale and the McLeod agent cannot run until the live connection next week**, so switching the
+  readers now would point the whole finance section at an empty table.
+
+  Fourteen matrix assertions in `mcleod-gl-day-replace.test.mjs`, four mutants killed: rows dated
+  outside the month accepted, the company dropped from the day identity, the D-FIN6 empty guard
+  removed, and the daily stale delete removed. The rollup being the days summed is asserted directly
+  — the month's fuel row is its two days, to the cent.
