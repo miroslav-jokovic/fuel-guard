@@ -248,6 +248,9 @@
   --viz-cost-moving: light-dark(oklch(59.6% 0.1282 163.225), oklch(72% 0.145 163.225)); /* normal fuel movement (emerald) */
   --viz-cost-idle: light-dark(oklch(52% 0.18 33), oklch(72% 0.15 33)); /* avoidable idle cost (burnt orange) */
   --viz-cost-reefer: light-dark(oklch(48.8% 0.217 264.4), oklch(72% 0.1445 264.4)); /* refrigerated equipment (blue) */
+  --viz-money-earned: light-dark(oklch(48.8% 0.217 264.4), oklch(72% 0.1445 264.4)); /* the fleet report's revenue line (blue). Deliberately the cost palette's own three hues (G9): they are already checked for pairwise separation under protan, deutan and tritan simulation, and a trend chart's three lines need that check more than a chart of one does */
+  --viz-money-spent: light-dark(oklch(52% 0.18 33), oklch(72% 0.15 33)); /* the fleet report's expense line (burnt orange) */
+  --viz-money-kept: light-dark(oklch(59.6% 0.1282 163.225), oklch(72% 0.145 163.225)); /* the fleet report's net line (emerald) */
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
 }

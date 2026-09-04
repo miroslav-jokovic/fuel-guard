@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const source = readFileSync(`${root}apps/web/src/features/dashboard/chartTheme.ts`, "utf8");
+const source = readFileSync(`${root}apps/web/src/lib/chartTheme.ts`, "utf8");
 const tokensCss = readFileSync(`${root}packages/ui/src/tokens.generated.css`, "utf8");
 
 /**
@@ -124,6 +124,18 @@ const cost = [
   ["reefer", fallback("--viz-cost-reefer")],
 ];
 
+/**
+ * The fleet report's three trend lines (G9). They reuse the cost palette's hues on purpose, and
+ * validating them under their OWN names is what keeps that reuse honest: if either trio is retuned
+ * later, this palette is checked on its own terms rather than on the assumption that it still
+ * matches something else.
+ */
+const money = [
+  ["earned", fallback("--viz-money-earned")],
+  ["spent", fallback("--viz-money-spent")],
+  ["kept", fallback("--viz-money-kept")],
+];
+
 let failed = false;
 function validatePalette(name, palette) {
   for (const [label, hex] of palette) {
@@ -154,6 +166,7 @@ function validatePalette(name, palette) {
 
 validatePalette("severity", severity);
 validatePalette("cost", cost);
+validatePalette("money", money);
 
 console.log("");
 let drifted = 0;

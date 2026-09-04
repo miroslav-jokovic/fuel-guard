@@ -35,7 +35,7 @@ import ChartCard from "@/features/dashboard/ChartCard.vue";
 import DonutBreakdown from "@/features/dashboard/DonutBreakdown.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, COST_COLORS, areaFill, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, areaFill, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/lib/chartTheme";
 
 const session = useSessionStore();
 // Date range scoping the whole page (YYYY-MM-DD | undefined). Default window: the last 30 days.

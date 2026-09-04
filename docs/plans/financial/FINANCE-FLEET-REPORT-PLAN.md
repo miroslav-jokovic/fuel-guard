@@ -491,18 +491,18 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G2** | **Dispatcher rate per mile** | **ALREADY BUILT** — verified end to end 2026-09-03 (§1.7). Migration 0275, the reader, the service and the page all use `distance`; the two empty columns are documented rather than deleted, by 0275's own decision. No work. | — |
 | **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
 | **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
-| **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators. **Owed:** the twelve-month trend chart. | — |
+| **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators, and the twelve-month trend beneath them. | — |
 | **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
 | **G7** | **The removals and the rename** | §4, as its own PR after G1–G5 are live. **Also the rename:** the page is called "Cost per mile" in the nav and now leads with an overview and carries an income statement. The route name, `route.meta.title` and the nav entry move together, with `routeGates` and the section matrix. | G1–G5 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
-| **G9** | **Two denominators and the empty-mile figure** | Miles driven (Samsara) beside miles billed (`mcleod_billing.distance` re-dated to `delivery_date`), and the empty percentage between them, as a trailing three-month average beside the month (§1.5.4). Cost per mile driven and revenue per mile billed are separate columns, each labelled with its denominator. | G1, G2 |
+| **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
 | **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
 | **W2** | **Weekly revenue and activity** | Bills by `delivery_date`, loads, revenue per billed mile, empty percentage — weekly, before any mileage collector exists | W1, G2 |
 | **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 
-**Ordering:** G2, G3, G4, G10, G1 and G5 — done. Next G9's trend chart, then G6, then G7.
+**Ordering:** G2, G3, G4, G10, G1, G5 and G9 — done. Next G6, then G7.
 G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
@@ -720,4 +720,49 @@ the record.
   unposted bills counted, every deduction typed as revenue, per-unit miles dropped, an absent rate
   rendered as $0.00, the empty-mile block always shown, and the contractor column duplicating the
   company's — every mutant killed.
+- 2026-09-03 · **G9's trend chart — the last of the overview.** Twelve months of earned, spent and
+  kept per mile under the overview: `computeFleetTrend` (pure), `getFleetTrend`,
+  `GET /api/accounting/fleet-trend?to=&months=`, `FleetTrendChart.vue`. Three refusals are the
+  content of it. A month whose mileage coverage was short of its fleet keeps its money and loses its
+  rates, and the line BREAKS over it rather than being drawn through — a rate over a denominator
+  missing eleven per cent of the trucks is the plausible-but-wrong figure this section exists to
+  refuse, and a chart is the fastest way to publish one. A month the McLeod sweep has not reached is
+  named under the chart instead of plotted at zero, because a drop to the axis is the most alarming
+  shape a finance page can draw and it would be an artefact of an unfinished sweep. And the reason a
+  month carries no rate is `periodDenominator` over that single month — the same rule, in the same
+  words, as the banner above the tabs, so one refusal never gets two explanations.
 
+  **Why it is its own endpoint.** The report and the trend cover different windows: the report reads
+  the period the reader picked plus its fiscal year to date, the trend a fixed span of whole months
+  ending at it. Folding them together widens every report read to a year for a chart the reader may
+  never scroll to.
+
+  **`chartTheme.ts` moved from `features/dashboard/` to `lib/`.** A feature may not import a sibling
+  feature's internals (`lint:boundaries`) and finance is the second feature to need the palette; the
+  alternative was a second copy of the colour resolver, which is how a product ends up with two chart
+  looks and no way to change either. Three new tokens — `--viz-money-earned/-spent/-kept` — carry the
+  cost palette's own hues on purpose and are validated under their own names by
+  `check-chart-colors.mjs`, so three lines on one chart stay separable under protan, deutan and
+  tritan simulation. Colour is never the only cue: every line is named in the legend and in the index
+  tooltip that lists all three at once.
+
+  **Verified in a real browser** by the recipe in §3.4, in both states: seven months where January
+  and February are holes in the line with their reasons printed beneath, and a February-only span
+  where there is no line at all and the reasons ARE the answer.
+
+  Ten pure tests, seven service tests and nine component tests, all mutation-tested — eighteen
+  mutants, every one killed: an unswept month plotted at zero, kept-per-mile taken as the difference
+  of two rounded rates (March: 0.37 against the true 0.36), coverage ignored, the series reversed,
+  the refusal reworded, a month's ledger given its neighbours' rows, a month's bucket keeping only
+  its last row, the span counted back one month short, the window read unbounded, unswept months
+  dropped silently instead of named, the coverage read given the exclusive bound, the gaps drawn
+  through, a null rate rendered as zero, one colour for three lines, reasons repeated per month, a
+  chart drawn with nothing to plot, the three lines given one shared name so the legend vanished,
+  and the twelve-month window cut to six.
+
+  **Two of those eighteen survived their first pass, and both were invisible in the output.** A
+  ledger read with no upper bound and a coverage read given the exclusive bound both fetch months
+  that are never plotted, so no assertion about the returned figures can see them; they died once
+  the test asserted the QUERY — the `period_start` bounds the service issued, and the three Samsara
+  month reads it made. A wasted read is not a wrong number, but it is the same class of defect: the
+  service asking for something other than what it means.

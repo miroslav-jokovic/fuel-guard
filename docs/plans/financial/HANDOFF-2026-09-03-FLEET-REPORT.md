@@ -1,7 +1,7 @@
 # Handoff — Finance fleet report, 2026-09-03
 
 **Read this, then `FINANCE-FLEET-REPORT-PLAN.md`.** That plan is the queue; this file is where the
-work stopped, what is proven, and the three traps that cost time in this session.
+work stopped, what is proven, and the six traps that cost time in this session.
 
 **Branch:** `claude/finance-collectors-july-start` · **PR:** #527 (open) · **Base:** `main` at
 `5617963`.
@@ -40,8 +40,8 @@ accepted because a deliberate break made them fail.
 | **G4** active-truck rule | **Built** | `mileageCoverage.ts` (shared + service) |
 | **G10** mileage-coverage guard | **Built** with G4 — one measurement | same |
 | **G1** fleet harness | **Built** — pure harness, service, route | `fleetReport.ts` ×2 layers |
-| **G5** Overview tab | **Built** — trend chart owed | `FleetOverview.vue`, first tab on the CPM page |
-| **G9** two denominators | Mostly inside `FleetReport` already; the twelve-month **trend chart** is what remains | — |
+| **G5** Overview tab | **Built** | `FleetOverview.vue`, first tab on the CPM page |
+| **G9** two denominators + trend | **Built** — the denominators inside `FleetReport`, the twelve-month trend beside it | `fleetTrend.ts` ×2 layers, `FleetTrendChart.vue` |
 | **G6, G7, W1–W4** | Not started | — |
 
 **Files added this session**
@@ -59,12 +59,24 @@ apps/api/src/modules/financial/ledgerPeriod.ts                    (shared by bot
 apps/api/src/modules/financial/fleetReport.ts         + .test.ts   ( 7 tests)
 apps/web/src/features/accounting/useFleetReport.ts
 apps/web/src/features/accounting/FleetOverview.vue    + .test.ts   ( 8 tests)
+packages/shared/src/tmsCost/fleetTrend.ts             + .test.ts   (10 tests)
+apps/api/src/modules/financial/fleetTrend.ts          + .test.ts   ( 7 tests)
+apps/web/src/features/accounting/useFleetTrend.ts
+apps/web/src/features/accounting/FleetTrendChart.vue  + .test.ts   ( 9 tests)
 ```
+
+**Moved:** `chartTheme.ts` (+ its test) from `apps/web/src/features/dashboard/` to
+`apps/web/src/lib/` — a feature may not import a sibling feature's internals (`lint:boundaries`)
+and finance is the second feature to need the palette. Six importers and two lint scripts follow it.
+Three tokens added, `--viz-money-earned/-spent/-kept`, validated as their own palette by
+`check-chart-colors.mjs`; `tokens.generated.css` is regenerated and committed (`lint:codegen`).
 
 **Modified:** `mcleod/financialReads.ts` (+`readLedgerTotalsRange`, `readBilledMilesByDeliveryMonth`),
 `samsara/samsaraIftaReads.ts` (+`readMonthlyMileageByMonth`), both module barrels,
-`accounting/routes/index.ts` (+3 routes), `CpmReportPage.vue` (Overview and Income statement tabs,
-coverage banner, tab-scoped description and stat strip).
+`accounting/routes/index.ts` (+4 routes), `CpmReportPage.vue` (Overview and Income statement tabs,
+coverage banner, tab-scoped description and stat strip, the trend under the overview),
+`chartTheme.ts` (`trendOptions` now serves a multi-line chart: omit `series` and the legend appears
+and each point names its own dataset; `labelFormat` writes month labels).
 
 **No migration.** Nothing in this session touched the schema.
 
@@ -93,16 +105,17 @@ reads it.
 Then `GET /api/accounting/fleet-report?from=&to=` beside the two routes added this session, same
 `canView` gate.
 
-### 3.2 G5 — the Overview tab — **BUILT**, minus the trend
+### 3.2 G5 — the Overview tab — **BUILT**, and G9's trend with it
 
-`FleetOverview.vue`, first tab. What remains of G9 is the **twelve-month trend chart** — three
-lines, earned/spent/kept per mile, over the months whose coverage is complete. `getMileageCoverage`
-already returns per-month rows; a trend needs the same for money, which is a loop over
-`readLedgerForPeriod` or one widened read.
+`FleetOverview.vue` leads the tabs; `FleetTrendChart.vue` sits under it. The trend is its own
+endpoint (`GET /api/accounting/fleet-trend?to=&months=`) because the two cover different windows —
+the report reads the picked period plus its fiscal year to date, the trend a fixed span of whole
+months ending at it. One widened `readLedgerTotalsRange` bucketed by `period_start`, plus
+`getMileageCoverage` for the per-month rows.
 
 ### 3.3 Then, in order
 
-**G9's trend chart** · **G6** (the ~10-family account map; needs one owner sitting) · **G7** (the
+**G6** (the ~10-family account map; needs one owner sitting) · **G7** (the
 removals **and the page rename** — the nav still says "Cost per mile" for a page that opens on an
 overview and carries an income statement; the route name, `route.meta.title`, the nav entry, the
 gate ledger and the section matrix all move together) · then the **W-series** for weekly.
@@ -118,12 +131,17 @@ cd apps/web && VITE_DEV_BYPASS=true npx vite build --mode development && npx vit
 
 then drive it with Playwright `page.route("**/api/accounting/fleet-report*", …)`. Mock the WHOLE
 response shape — a partial one crashes the render, because nothing stands between a malformed
-payload and the component. Both states were checked this way: July's figures, and a
-February-shaped response where every rate is a dash.
+payload and the component. **A catch-all `page.route("**/api/**", …)` returning `{ ok: true, data:
+null }` is exactly such a partial payload and takes the whole page to the error boundary**; leave
+the unmocked calls to fail on their own, which the pages handle. There is no `playwright` package
+in this workspace — import `playwright-core`, and by absolute path if the script lives outside the
+repo. Four states have been checked this way: July's figures, a February-shaped response where
+every rate is a dash, seven trend months with January and February as holes in the line, and a
+February-only span where there is no line at all.
 
 ---
 
-## 4. Four traps this session hit — do not re-learn these
+## 4. Six traps this session hit — do not re-learn these
 
 ### 4.1 The plan can be wrong about the code. Verify before you "fix".
 
@@ -160,6 +178,22 @@ legitimately produce a figure called "earned per mile" and they will never agree
 strip is therefore hidden on Overview and Income statement, and the page description follows the
 tab. G7 removes the allocation apparatus and ends the problem; until then, **never put a harness
 figure and a ledger figure under one label.**
+
+### 4.5 A mutant that changes no output still names a defect.
+
+Two of the trend's eighteen mutants survived their first pass: a ledger read with no upper bound,
+and the coverage read given the exclusive month bound. Both fetch months that are never plotted, so
+nothing about the RETURNED figures can see them. They died once the test asserted the QUERY the
+service issued — the `period_start` bounds, and the three Samsara month reads. **When a mutant
+survives, ask whether the assertion is about the answer where it should be about the question.**
+
+### 4.6 A plain `{ value }` object is truthy in a Vue template.
+
+Mocking a query hook with `{ data: { value: … }, isLoading: { value: false } }` makes
+`v-else-if="isLoading"` permanently TRUE, so the component renders its loading branch and every
+assertion passes or fails for a reason that has nothing to do with the component. Build real refs
+inside the `vi.mock` factory (`await vi.importActual("vue")`); `FleetTrendChart.test.ts` is the
+worked example.
 
 ---
 
@@ -205,12 +239,14 @@ All from `supabase db query --linked` on 2026-09-03, checked against
 ## 7. Running it
 
 ```
-pnpm typecheck && pnpm lint                      # both green at 1cb25bc
-pnpm --filter @silvicom/shared exec vitest run   # 174 files, 2,459 tests
-pnpm --filter @silvicom/api    exec vitest run   # 248 files, 2,820 tests
-pnpm --filter @silvicom/web    exec vitest run   # 129 files, 1,189 tests
+pnpm typecheck && pnpm lint                      # both green
+pnpm --filter @silvicom/shared exec vitest run   # 175 files, 2,469 tests
+pnpm --filter @silvicom/api    exec vitest run   # 249 files, 2,827 tests
+pnpm --filter @silvicom/web    exec vitest run   # 130 files, 1,198 tests
 pnpm --filter web lint:tokens                    # after ANY template change
 pnpm lint:ui-adoption                            # catches a raw <button> in pages/features
+pnpm lint:chart-colors                           # after ANY --viz-* token or chart palette change
+pnpm lint:codegen                                # a token change must COMMIT tokens.generated.css
 ```
 
 To see the pages: §3.4. (`pnpm dev` crashes on this machine inside vite's dependency optimiser —
@@ -218,6 +254,6 @@ environmental, not a regression from any change.)
 
 ---
 
-## 8. Position at `1cb25bc`
+## 8. Position
 
-**Built:** G2 (already was), G3, G4, G10, G1, G5. **Remaining:** G9's trend chart, G6, G7, W1–W4.
+**Built:** G2 (already was), G3, G4, G10, G1, G5, G9. **Remaining:** G6, G7, W1–W4.

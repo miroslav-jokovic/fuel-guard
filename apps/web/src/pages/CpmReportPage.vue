@@ -9,6 +9,7 @@ import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
+import FleetTrendChart from "@/features/accounting/FleetTrendChart.vue";
 import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -335,6 +336,12 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       </p>
       <FleetOverview v-else-if="fleet" :report="fleet" :loading="fleetLoading" />
       <p v-else class="text-sm text-ink-secondary">Loading the overview…</p>
+
+      <!-- The trend (G9). The overview says what this period did; the trend says whether that is
+           where the fleet has been sitting or where it has just moved to, which is the difference
+           between a figure and a decision. It ends on the period on screen and reads its own
+           twelve months back, so widening the picker does not stretch the chart. -->
+      <FleetTrendChart class="mt-4" :to="to" />
     </div>
 
     <!-- The income statement (G3): the period's ledger in the shape the owner's own printed P&L

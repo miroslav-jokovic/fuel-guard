@@ -1,7 +1,7 @@
 import type { ChartOptions, TooltipItem } from "chart.js";
 
 /**
- * Shared chart look for the dashboard, driven by the design tokens in
+ * Shared chart look, driven by the design tokens in
  * src/style.css. Canvas can't read CSS variables, so `resolve()` computes
  * each --viz-* role at first use (cached; charts mount after styles load).
  * Hex fallbacks keep unit tests (jsdom) rendering.
@@ -14,6 +14,12 @@ import type { ChartOptions, TooltipItem } from "chart.js";
  * scripts/check-chart-colors.mjs verifies contrast and pairwise separation
  * under protan, deutan, and tritan simulation. Color is never the only cue:
  * severity values also have direct labels and semantic table fallbacks.
+ *
+ * It lives in `lib/` rather than under `features/dashboard/`, where it was
+ * written, because a feature may not import a sibling feature's internals
+ * (lint:boundaries) and the finance trend (G9) is the second feature to need
+ * this palette. The alternative was a second copy of the resolver, which is
+ * how one product ends up with two chart looks and no way to change either.
  */
 const FALLBACK: Record<string, string> = {
   "--viz-brand": "#955cad",
@@ -26,6 +32,9 @@ const FALLBACK: Record<string, string> = {
   "--viz-cost-moving": "#019669",
   "--viz-cost-idle": "#ba2f12",
   "--viz-cost-reefer": "#1d4ed8",
+  "--viz-money-earned": "#1d4ed8",
+  "--viz-money-spent": "#ba2f12",
+  "--viz-money-kept": "#019669",
   "--viz-grid": "#eef0f3",
   "--viz-tick": "#64636e",
   "--surface": "#ffffff",
@@ -157,6 +166,27 @@ export const COST_COLORS = {
 };
 
 /**
+ * The fleet report's three lines — earned, spent and kept per mile (G9).
+ *
+ * They deliberately carry the cost palette's own hues: that trio is already verified for pairwise
+ * separation under protan, deutan and tritan simulation, and three lines on one chart need that
+ * verification more than a single-series card does. `check-chart-colors.mjs` validates this palette
+ * by name, so the reuse cannot quietly stop being true. Colour is not the only cue — every line is
+ * named in the legend and in the index tooltip, which lists all three at once.
+ */
+export const MONEY_COLORS = {
+  get earned(): string {
+    return resolve("--viz-money-earned");
+  },
+  get spent(): string {
+    return resolve("--viz-money-spent");
+  },
+  get kept(): string {
+    return resolve("--viz-money-kept");
+  },
+};
+
+/**
  * Scriptable Chart.js fill: a vertical gradient from the series color (soft at the top) fading to
  * transparent at the baseline — the modern "area under the line" look. Falls back to a flat wash before
  * the chart area is laid out (and under jsdom, where canvas gradients are unavailable), so it never throws.
@@ -189,6 +219,14 @@ export function fmtDay(iso: string): string {
     : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** "2026-07" → "Jul 2026". Month labels arrive as the ledger's own period keys. */
+export function fmtMonth(key: string): string {
+  const d = new Date(`${key}-01T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? key
+    : d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
 export function fmtMoney(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
@@ -206,10 +244,17 @@ interface TrendOptionArgs {
   format: (value: number) => string;
   /** Axis-tick formatting when it should differ from the tooltip (defaults to `format`). */
   tickFormat?: (value: number) => string;
-  /** Series name shown in the tooltip body. */
-  series: string;
+  /**
+   * Series name shown in the tooltip body — for a chart with ONE line, which the card title names.
+   *
+   * Omit it for a multi-line chart: each point is then named by its own dataset label and the
+   * legend appears, because a reader cannot be asked to tell three lines apart by colour alone.
+   */
+  series?: string;
   /** Bars/spend anchor at zero; rate-like series (MPG) read better zoomed to their range. */
   beginAtZero?: boolean;
+  /** How an x label is written out (defaults to `fmtDay`; monthly series pass `fmtMonth`). */
+  labelFormat?: (raw: string) => string;
 }
 
 /**
@@ -221,13 +266,19 @@ export function trendOptions({
   tickFormat = format,
   series,
   beginAtZero = true,
+  labelFormat = fmtDay,
 }: TrendOptionArgs): ChartOptions<"line" | "bar"> {
   return {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
     plugins: {
-      legend: { display: false }, // single series — the card title names it
+      // A single series is named by the card title; several must name themselves.
+      legend: {
+        display: series === undefined,
+        position: "bottom",
+        labels: { color: viz.tick, font: FONT, boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 16 },
+      },
       tooltip: {
         backgroundColor: resolve("--surface-inverse"),
         titleColor: resolve("--ramp-neutral-50"),
@@ -236,12 +287,14 @@ export function trendOptions({
         bodyFont: { ...FONT, size: 12 },
         padding: 10,
         cornerRadius: 8,
-        displayColors: false,
+        displayColors: series === undefined,
         callbacks: {
           title: (items: TooltipItem<"line" | "bar">[]) =>
-            items.length ? fmtDay(String(items[0]!.label)) : "",
-          label: (item: TooltipItem<"line" | "bar">) =>
-            item.parsed.y == null ? `${series}: no data` : `${series}: ${format(item.parsed.y)}`,
+            items.length ? labelFormat(String(items[0]!.label)) : "",
+          label: (item: TooltipItem<"line" | "bar">) => {
+            const name = series ?? item.dataset.label ?? "";
+            return item.parsed.y == null ? `${name}: no data` : `${name}: ${format(item.parsed.y)}`;
+          },
         },
       },
     },
@@ -257,7 +310,7 @@ export function trendOptions({
           maxTicksLimit: 7,
           callback(value) {
             const label = this.getLabelForValue(Number(value));
-            return fmtDay(label);
+            return labelFormat(label);
           },
         },
       },

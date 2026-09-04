@@ -41,6 +41,19 @@ export const windowShape = z.object({ from: isoDay, to: isoDay });
  */
 export const windowSchema = windowShape.refine(ordered, ORDER_MESSAGE);
 
+/**
+ * The trend window (G9): a date, and how many whole months of history to end there.
+ *
+ * `to` alone rather than a range, because the series is a fixed count of whole months back from the
+ * period on screen — a `from` would be a second way to say the same thing and a first way for the
+ * two to disagree. The ceiling is two years: the ledger is swept from 2025-12 and a chart nobody
+ * can read the labels on is not a longer answer, it is a slower one.
+ */
+export const trendSchema = z.object({
+  to: isoDay,
+  months: z.coerce.number().int().min(2).max(24).optional(),
+});
+
 export const cpmQuerySchema = windowShape
   .extend({
     deadhead: z.enum(DEADHEAD_TREATMENTS).optional(),

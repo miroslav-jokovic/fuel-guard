@@ -15,10 +15,11 @@ import {
   getIncomeStatement,
   getMileageCoverage,
   getFleetReport,
+  getFleetTrend,
 } from "../../financial/index.js";
 import { registerCostScheduleRoutes } from "./costSchedules.js";
 
-import { windowSchema, entriesSchema, cpmQuerySchema } from "./schemas.js";
+import { windowSchema, entriesSchema, cpmQuerySchema, trendSchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -225,6 +226,31 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const report = await getFleetReport(admin, req.auth!.orgId!, parsed.data.from, parsed.data.to);
       res.json({ ok: true, ...report });
+    }),
+  );
+
+  /**
+   * The trend behind the overview (G9) — the last twelve whole months of earned, spent and kept per
+   * mile, so the period on screen reads as a point on a line rather than as a verdict.
+   *
+   * Its own call rather than a field on `/fleet-report`: the two cover different windows, and
+   * folding them together would widen every report read to a year for a chart the reader may never
+   * scroll to. Twelve months is the default because that is what the page draws; the parameter
+   * exists so the window is the caller's decision, as every other period on this router is.
+   */
+  router.get(
+    "/fleet-trend",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = trendSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide ?to=YYYY-MM-DD&months=2..24."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const trend = await getFleetTrend(admin, req.auth!.orgId!, parsed.data.to, parsed.data.months ?? 12);
+      res.json({ ok: true, ...trend });
     }),
   );
 

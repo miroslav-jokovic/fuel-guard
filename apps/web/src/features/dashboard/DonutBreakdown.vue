@@ -2,7 +2,7 @@
 import type { ChartConfiguration, TooltipItem } from "chart.js";
 import { computed } from "vue";
 import BaseChart from "@/components/BaseChart.vue";
-import { resolve } from "./chartTheme";
+import { resolve } from "@/lib/chartTheme";
 
 export interface DonutBreakdownItem {
   key: string;

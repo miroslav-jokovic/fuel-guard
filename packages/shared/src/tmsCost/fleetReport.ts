@@ -137,8 +137,14 @@ export interface FleetReport {
 }
 
 const round = (n: number) => Math.round(n * 100) / 100 + 0;
-/** Dollars per mile to the cent. Null when there is no denominator (D-FIN10). */
-const perMile = (dollars: number, miles: number | null): number | null =>
+/**
+ * Dollars per mile to the cent. Null when there is no denominator (D-FIN10).
+ *
+ * Exported because the trend (G9) computes the same figure over single months and a second copy of
+ * this two-line rule is a second place for "what happens when the denominator is missing" to be
+ * answered differently — which is the one question this section cannot afford two answers to.
+ */
+export const perMileRate = (dollars: number, miles: number | null): number | null =>
   miles == null || miles <= 0 ? null : Math.round((dollars / miles) * 100) / 100;
 
 const OWNER_OPERATOR = "owner_operator";
@@ -151,9 +157,9 @@ function column(trucks: number | null, miles: number | null, revenue: number, ex
     revenue: round(revenue),
     expenses: round(expenses),
     net,
-    revenuePerMile: perMile(revenue, miles),
-    costPerMile: perMile(expenses, miles),
-    netPerMile: perMile(net, miles),
+    revenuePerMile: perMileRate(revenue, miles),
+    costPerMile: perMileRate(expenses, miles),
+    netPerMile: perMileRate(net, miles),
   };
 }
 
@@ -255,7 +261,7 @@ export function computeFleetReport(inputs: FleetReportInputs): FleetReport {
       emptyMiles == null || measuredMiles == null || measuredMiles <= 0
         ? null
         : Math.round((emptyMiles / measuredMiles) * 1000) / 10,
-    revenuePerBilledMile: perMile(statement.revenue, inputs.billedMiles),
+    revenuePerBilledMile: perMileRate(statement.revenue, inputs.billedMiles),
     mileageReason: inputs.mileage.reason,
     statement,
     tieOut: {
