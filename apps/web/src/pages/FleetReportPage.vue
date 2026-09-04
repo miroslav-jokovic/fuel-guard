@@ -243,6 +243,7 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
       <FleetContractorsTab
         v-if="tab === 'contractors'"
         :owner-operators="fleet?.ownerOperators ?? []"
+        :report="fleet ?? null"
         :loading="fleetLoading"
         :error="fleetErrorText"
         :from="from"

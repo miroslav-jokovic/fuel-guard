@@ -174,3 +174,16 @@ in order; each depends on the one before only through the shell.
   `FleetOverview` moved here. Pinned: kept leads with "−47.7% vs June $1,473,729"; a rise in
   spending is red and a fall in earnings is red; no previous month says so; a null rate is a dash
   with the coverage reason, never $0.00; the rate's change is in dollars, not a percentage of a rate.
+- 2026-09-04 · **R4 — where every dollar went, and the miles bar.** `FamilyBridge.vue`: one bar
+  of the ten signed families plus Kept as shares of what was earned, the list beneath with dollars,
+  per mile and share. Colour is one hue at graded opacity, largest darkest (D-FRUI7) — brand-ramp
+  utilities with alpha, because a segment is CSS and the `--viz-*` roles are not Tailwind colours;
+  Kept is the only second hue; an unfiled family wears the warning tone; a period that lost money
+  draws no kept slice and says so. `FleetMilesCard.vue`: driven against billed as one bar with the
+  empty share overlaid in the caution hue, the two rates labelled by their denominators, the
+  coverage reason instead of a bar when there is no empty share (D-FIN10). The company/contractor
+  split moves to the Contractors tab as `FleetSplitCard.vue` — a definition list, not a
+  `DataTable`, so that tab keeps its one table (D-FRUI6). `FleetOverview` is now the withheld
+  callout (`AppCallout`, D-FRUI5), the bridge, the miles card and the source line. Pinned: the
+  segments and Kept sum to 100 of earned; ten rows largest first; one hue plus Kept's; the warning
+  swatch for "Not yet grouped"; no kept slice for a loss; the miles card refuses with the reason.

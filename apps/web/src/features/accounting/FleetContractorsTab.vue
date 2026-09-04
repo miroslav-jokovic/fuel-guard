@@ -3,7 +3,8 @@ import { computed, ref, watch } from "vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import CpmOwnerOperatorTable from "./CpmOwnerOperatorTable.vue";
-import type { OwnerOperatorRow } from "./useFleetReport";
+import FleetSplitCard from "./FleetSplitCard.vue";
+import type { FleetReportResponse, OwnerOperatorRow } from "./useFleetReport";
 
 /**
  * The contractors tab of the fleet report, lifted out of the page at R1 of the UI plan. The rows are
@@ -19,6 +20,8 @@ import type { OwnerOperatorRow } from "./useFleetReport";
 
 const props = defineProps<{
   ownerOperators: OwnerOperatorRow[];
+  /** The whole report, for the company / contractor split that leads this tab since R4 (D-FRUI6). */
+  report: FleetReportResponse | null;
   loading: boolean;
   error: string | null;
   from: string;
@@ -38,6 +41,8 @@ const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", c
 
 <template>
   <div class="space-y-6">
+    <FleetSplitCard v-if="report && report.monthsCovered.length" :report="report" />
+
     <p v-if="ownerOperators.length" class="text-sm text-ink-secondary">
       Contractors hauled <span class="font-semibold text-ink">{{ fmtUsd(revenue) }}</span> in this
       period, of which we kept <span class="font-semibold text-ink">{{ fmtUsd(margin) }}</span
