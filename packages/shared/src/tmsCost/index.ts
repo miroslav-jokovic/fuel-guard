@@ -14,3 +14,4 @@ export * from "./fleetReport.js";
 export * from "./fleetTrend.js";
 export * from "./ledgerMonths.js";
 export * from "./glFamilies.js";
+export * from "./billingActivity.js";

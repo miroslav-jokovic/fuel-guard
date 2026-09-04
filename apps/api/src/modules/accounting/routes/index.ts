@@ -14,9 +14,10 @@ import {
   getMileageCoverage,
   getFleetReport,
   getFleetTrend,
+  getBillingActivity,
 } from "../../financial/index.js";
 
-import { windowSchema, entriesSchema, trendSchema } from "./schemas.js";
+import { windowSchema, entriesSchema, trendSchema, activityQuerySchema } from "./schemas.js";
 
 /**
  * The accounting surface (P5.1) — API-only reads over the financial store (D-SEP7: the finance
@@ -207,6 +208,35 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const trend = await getFleetTrend(admin, req.auth!.orgId!, parsed.data.to, parsed.data.months ?? 12);
       res.json({ ok: true, ...trend });
+    }),
+  );
+
+  /**
+   * Revenue and activity by period (W2) — loads, revenue, billed miles and the rate between them,
+   * bucketed on the day each load DELIVERED rather than the day it was invoiced.
+   *
+   * Weekly is the point of it: the monthly report is the P&L and stays the P&L, and what a
+   * dispatcher watches between closes is how many loads went and what they were priced at. There is
+   * deliberately no cost and no per-DRIVEN-mile figure here — Samsara's IFTA feed is monthly by
+   * design, so a weekly driven denominator does not exist to divide by, and 26.2% of a month's cost
+   * arrives as journal entries that would make three weeks look cheap and one enormous (D-FLEET10).
+   */
+  router.get(
+    "/billing-activity",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = activityQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res
+          .status(400)
+          .json(apiError("bad_request", "Provide ?from=YYYY-MM-DD&to=YYYY-MM-DD with from before to; optional: grain=day|week|month."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const f = parsed.data;
+      const activity = await getBillingActivity(admin, req.auth!.orgId!, f.from, f.to, f.grain ?? "week");
+      res.json({ ok: true, ...activity });
     }),
   );
 

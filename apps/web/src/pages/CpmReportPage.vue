@@ -9,6 +9,7 @@ import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverag
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
 import { fleetProvenanceLine } from "@/features/accounting/fleetProvenance";
 import FleetTrendChart from "@/features/accounting/FleetTrendChart.vue";
+import ActivityTable from "@/features/accounting/ActivityTable.vue";
 import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -47,9 +48,12 @@ const minMiles = ref("0");
  * The route is `/fleet-report` since G7; the file keeps its `Cpm` name until the rename lands in
  * the file tree, which is a move with no behaviour in it.
  */
-type CpmTab = "overview" | "trucks" | "contractors" | "statement";
+type CpmTab = "overview" | "activity" | "trucks" | "contractors" | "statement";
 const TABS: TabItem[] = [
   { value: "overview", label: "Overview" },
+  // Week by week (W2). It sits second because it answers the question asked BETWEEN closes, where
+  // the tabs after it answer the ones asked at one.
+  { value: "activity", label: "Week by week" },
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
   { value: "statement", label: "Income statement" },
@@ -167,6 +171,8 @@ const pageDescription = computed(() =>
     ? "What the fleet earned, spent and kept — and each of those for every mile it ran."
     : tab.value === "statement"
       ? "The general ledger, in the shape McLeod prints it."
+      : tab.value === "activity"
+        ? "What went out and what it earned, week by week. Revenue and activity only — cost is a monthly question."
       : tab.value === "contractors"
         ? "What each contractor hauled, what they were paid, and what we kept — with their share read back from what settled."
         : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
@@ -269,6 +275,10 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
            twelve months back, so widening the picker does not stretch the chart. -->
       <FleetTrendChart class="mt-4" :to="to" />
     </div>
+
+    <!-- Week by week (W2): revenue and activity from billing alone, bucketed on the day each load
+         delivered. No cost and no per-driven-mile figure — see the component's own header. -->
+    <ActivityTable v-if="tab === 'activity'" :from="from" :to="to" />
 
     <!-- The income statement (G3): the period's ledger in the shape the owner's own printed P&L
          takes. Sections in McLeod's order, accounts by code inside each, and a row opens to show
