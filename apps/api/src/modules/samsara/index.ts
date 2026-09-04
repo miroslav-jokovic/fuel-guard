@@ -54,3 +54,8 @@ export {
 } from "./fuelEventsWebhook.js";
 export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";
 export { readVehicleMonthlyMiles, readMonthlyMileageByMonth } from "./samsaraIftaReads.js";
+export {
+  readFleetDistance,
+  ODOMETER_LOOKBACK_DAYS,
+  type FleetDistanceResult,
+} from "./samsaraOdometerReads.js";
