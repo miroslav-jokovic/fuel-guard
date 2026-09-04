@@ -43,7 +43,8 @@ accepted because a deliberate break made them fail.
 | **G5** Overview tab | **Built** | `FleetOverview.vue`, first tab on the CPM page |
 | **G9** two denominators + trend | **Built** — the denominators inside `FleetReport`, the twelve-month trend beside it | `fleetTrend.ts` ×2 layers, `FleetTrendChart.vue` |
 | **G11** ledger-coverage guard | **Built** — not planned; a live defect found while measuring for G6 | `ledgerMonths.ts`, `ledgerPeriod.ts` |
-| **G6, G7, W1–W4** | Not started | — |
+| **G6** family summary | **Built** — map signed by the owner 2026-09-03 | `glFamilies.ts`, `FamilySummaryTable.vue` |
+| **G7, W1–W4** | Not started | — |
 
 **Files added this session**
 
@@ -116,7 +117,7 @@ months ending at it. One widened `readLedgerTotalsRange` bucketed by `period_sta
 
 ### 3.3 Then, in order
 
-**G6** (the ~10-family account map; needs one owner sitting) · **G7** (the
+**G7** (the
 removals **and the page rename** — the nav still says "Cost per mile" for a page that opens on an
 overview and carries an income statement; the route name, `route.meta.title`, the nav entry, the
 gate ledger and the section matrix all move together) · then the **W-series** for weekly.
@@ -273,13 +274,17 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11. **Remaining:** G6, G7, W1–W4.
+**Built:** G2 (already was), G3, G4, G10, G1, G5, G9, G11, G6. **Remaining:** G7, then W1–W4.
 
-**G6 is measured, drafted and unsigned — that signature is the whole remaining step.** All 100 P&L
-accounts that posted Jan–Jul 2026 are assigned to ten expense families and four revenue ones, and
-the families tie to the printed statement to the cent on both sides. The map and the five judgement
-calls are the last dated entry in the plan, and the owner's review copy is
+**G7 is now the only remaining G-step**, and everything it deletes has a live replacement. It is
+§4 of the plan plus the page rename: the nav still says "Cost per mile" for a page that opens on an
+overview, carries an income statement and a ten-family summary. The route name, `route.meta.title`,
+the nav entry, `routeGates` and the section matrix move together. Note `CpmReportPage.vue` is at
+**487 lines against a 500 budget** (`lint:filesize`) — G7 removes more than it adds, so it is the
+step that fixes that rather than the one that has to work around it.
+
+**The signed map lives in `GL_FAMILIES`** (`packages/shared/src/tmsCost/glFamilies.ts`), and the
+owner's review copy — every account, every family, the five calls and the figures behind them — is
 [Ten Families of Silvicom's Ledger](https://claude.ai/code/artifact/5a3d1625-6693-4a17-8afe-f7f8c8a316bc).
-Nothing is built: shipping an unsigned classification puts a grouping nobody ruled on the page.
-Once it is signed the code is small — a `glFamilies.ts` constant in shared, an aggregation over the
-statement's sections, a block above the income statement, with the tie-out as the acceptance test.
+To change a family, change the map and the ruling test together; the tie-out is the acceptance test
+and it is asserted at every layer.

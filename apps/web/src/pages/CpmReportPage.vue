@@ -6,6 +6,7 @@ import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
 import CpmFleetTotal from "@/features/accounting/CpmFleetTotal.vue";
 import IncomeStatementTable from "@/features/accounting/IncomeStatementTable.vue";
+import FamilySummaryTable from "@/features/accounting/FamilySummaryTable.vue";
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
@@ -382,6 +383,18 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
           {{ fmtUsd(statement.unrecognisedNet) }} sits in an account group this report does not
           recognise. It is shown below and counted in neither total.
         </p>
+
+        <!-- The family summary (G6) leads the statement. Ninety-four rows is the document the
+             owner reconciles; ten rows is the answer a boss acts on, and the second cannot be
+             derived from the first — the grouping is signed (see glFamilies.ts). It reads from the
+             fleet report because that call holds the miles as well as the lines; the statement
+             below is the same money in McLeod's own order. -->
+        <FamilySummaryTable
+          v-if="fleet"
+          :families="fleet.families"
+          :show-to-date="statement.toDateRevenue !== null"
+          :loading="fleetLoading"
+        />
 
         <IncomeStatementTable
           v-for="section in statement.sections"

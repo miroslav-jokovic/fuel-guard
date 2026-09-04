@@ -492,7 +492,7 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G3** | **Income statement tab** | **BUILT 2026-09-03.** `buildIncomeStatement` (pure, shared), `getIncomeStatement` (service, month-widening, months-missing), `GET /api/accounting/income-statement`, `IncomeStatementTable.vue`, and a fourth tab on the cost-per-mile page. | — |
 | **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
 | **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators, and the twelve-month trend beneath them. | — |
-| **G6** | **The family summary** | ~10 families over the ~100 active accounts, keyed on `glid`, signed once. Recommended, not required: `type_id` alone reproduces the statement, but it cannot answer "fuel is 20% of revenue". Cannot be derived — McLeod types `40790002 Tolls OO` and `40220002 2290 OO` as `Income Tax Expense`, and `descr` is not unique. | one signing session |
+| **G6** | **The family summary** | **BUILT 2026-09-03**, map signed by the owner the same day. Ten families of expense and four of income over the 100 accounts that posted; `GL_FAMILIES` + `buildFamilySummary` (pure), carried on `/fleet-report` because it needs the miles as well as the lines, `FamilySummaryTable.vue` above the income statement. | — |
 | **G7** | **The removals and the rename** | §4, as its own PR after G1–G5 are live. **Also the rename:** the page is called "Cost per mile" in the nav and now leads with an overview and carries an income statement. The route name, `route.meta.title` and the nav entry move together, with `routeGates` and the section matrix. | G1–G5 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
@@ -503,8 +503,9 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 | **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** G2, G3, G4, G10, G1, G5, G9 and G11 — done. Next G6, then G7.
-G6 in parallel with the owner. G7 last, so nothing is deleted before its replacement is live.
+**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11 and G6 — done. **Next G7**, which is now the only
+remaining G-step: the removals and the page rename. G7 last, so nothing is deleted before its
+replacement is live — and every replacement is now live.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
 offered — except W1, which can ship any time and is worth shipping early because it removes
@@ -863,3 +864,35 @@ the record.
   denominator, wearing different clothes. The code behind it is small once the map is signed: a
   `glFamilies.ts` constant in shared, an aggregation over the statement's own sections, and a block
   above the income statement. The tie-out above is the acceptance test.
+- 2026-09-03 · **G6 built — the map is signed.** The owner ruled all five open calls as recommended:
+  contractors are their own family; IRP joins IFTA and the permits despite McLeod filing it under
+  `General & Admin Expenses`; recruiting stands alone; quick pay, bank charges and bad debt become
+  one "financing and collection" family; unloading fees ride with tolls and scales. `GL_FAMILIES` in
+  `packages/shared/src/tmsCost/glFamilies.ts` is that signature in code, and
+  `glFamilies.test.ts`'s "keeps the owner's five rulings" pins each one — a later reader
+  "correcting" an account back to its McLeod class would be undoing a ruling, and now finds out.
+
+  **Three properties, each a refusal rather than a feature.** An account the map has never seen gets
+  its **own visible family**, counted, sorted last whatever its size — never folded into the nearest
+  plausible group, because a map that absorbs the bookkeeper's next invention stops being true
+  without ever saying so. A line's SIDE is the statement's, never the map's: a revenue account filed
+  under an expense family lands ungrouped on the revenue side rather than moving dollars across the
+  statement. And the summary **ties to the statement it summarises** on both sides, with the
+  difference reported rather than asserted — the page prints "these families do not add up to the
+  statement below; the statement is right" instead of showing two figures that disagree.
+
+  **It rides on `/fleet-report`, not on `/income-statement`**, because the per-mile column needs the
+  period's measured miles and only that service holds them. Rendering "fuel is 64 cents a mile"
+  without a denominator the report trusts is the invented figure this whole section exists to
+  refuse, so `perMile` is `null` wherever G10 withheld the denominator, and prints as a dash.
+
+  Twelve pure tests, one service test and seven component tests. Thirteen mutants, every one killed:
+  unmapped accounts dropped, the map deciding a line's side, ungrouped sorted by size, the ranking
+  reversed, unrecognised classes swept into families, a null rate rendered as $0.00 and as zero
+  per mile, the share taken against expenses instead of revenue, the ungrouped family styled like
+  any other, drift never reported, the year-to-date column always shown, income and expense merged
+  into one table, and a `glid` duplicated across two families.
+
+  **Verified in a real browser** on the income statement tab: ten expense families largest first with
+  their share of revenue and cost per mile, three income families beneath, and an ungrouped row in
+  amber where an account the map does not name would appear.

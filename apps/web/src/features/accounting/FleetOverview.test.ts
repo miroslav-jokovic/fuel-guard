@@ -57,6 +57,7 @@ const report = (o: Partial<FleetReportResponse> = {}): FleetReportResponse => ({
   monthsMissing: [],
   monthsPartial: [],
   ledgerReason: null,
+  families: { revenue: [], expense: [], tieOut: { revenue: 0, expenses: 0 } },
   toDateFrom: "2026-01-01",
   ...o,
 });

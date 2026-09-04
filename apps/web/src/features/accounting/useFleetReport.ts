@@ -15,6 +15,27 @@ import type { MonthMileage } from "./useMileageCoverage";
  * `mileageReason` says which months and how many trucks — print that, never a dash on its own.
  */
 
+export interface FamilyRow {
+  key: string;
+  label: string;
+  isRevenue: boolean;
+  /** True for the catch-all family: an account the signed map does not name yet. */
+  isUnassigned: boolean;
+  amount: number;
+  toDateAmount: number | null;
+  pctOfRevenue: number | null;
+  toDatePctOfRevenue: number | null;
+  perMile: number | null;
+  accounts: number;
+}
+
+export interface FamilySummaryResponse {
+  revenue: FamilyRow[];
+  expense: FamilyRow[];
+  /** Families against the statement's totals. Non-zero means an account is filed on the wrong side. */
+  tieOut: { revenue: number; expenses: number };
+}
+
 export interface FleetColumn {
   trucks: number | null;
   miles: number | null;
@@ -60,6 +81,8 @@ export interface FleetReportResponse {
   /** Months swept mid-month, excluded from every figure above with the reason beside them (G11). */
   monthsPartial: LedgerMonthState[];
   ledgerReason: string | null;
+  /** The statement as ten rows of family (G6) — a signed grouping, not a derived one. */
+  families: FamilySummaryResponse;
   toDateFrom: string;
   /** Present so a caller can show coverage month by month without a second read. */
   months?: MonthMileage[];

@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   computeFleetReport,
+  buildFamilySummary,
   type FleetReport,
   type FleetDeduction,
   type LedgerMonth,
+  type FamilySummary,
 } from "@silvicom/shared";
 import {
   readSettlementsWindow,
@@ -50,6 +52,15 @@ export interface FleetReportResult extends FleetReport {
   monthsPartial: LedgerMonth[];
   ledgerReason: string | null;
   toDateFrom: string;
+  /**
+   * The ninety-four-row statement as ten rows of family (G6).
+   *
+   * It rides on this call rather than on `/income-statement` because it needs BOTH sides of the
+   * question: the statement's own lines, and the period's measured miles. Only this service holds
+   * the second, and computing "fuel is 64 cents a mile" without a denominator it trusts is exactly
+   * the invented figure this section refuses.
+   */
+  families: FamilySummary;
 }
 
 /** Re-key Samsara's per-vehicle miles by tractor unit — the key every McLeod subledger uses. */
@@ -146,6 +157,7 @@ export async function getFleetReport(
 
   return {
     ...report,
+    families: buildFamilySummary(report.statement, coverage.miles),
     monthsCovered: ledger.monthsCovered,
     monthsMissing: ledger.monthsMissing,
     monthsPartial: ledger.monthsPartial,

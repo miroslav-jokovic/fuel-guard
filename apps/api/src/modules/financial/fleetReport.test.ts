@@ -8,6 +8,7 @@ const mi = (miles: number) => miles * 1609.344;
 const ACCOUNTS = [
   { glid: "30000001", descr: "Gross Trucking Income", type_id: "Revenue" },
   { glid: "40000001", descr: "Subcontracted Labor: Driver", type_id: "Operating Expenses" },
+  { glid: "40050000", descr: "Fuel for Hired Vehicles", type_id: "Operating Expenses" },
   // The four classes a contractor deduction can post to. Only the first is income to the carrier.
   { glid: "40100000", descr: "Equipment Rental", type_id: "Revenue" },
   { glid: "17000000", descr: "Fuel Advance", type_id: "Current Assets" },
@@ -17,7 +18,10 @@ const ACCOUNTS = [
 
 const GL_TOTALS = [
   { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "BILL", glid: "30000001", line_count: 1415, net_amount: "-4828189.24", abs_amount: "4828189.24" },
-  { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "SET", glid: "40000001", line_count: 10254, net_amount: "4058143.38", abs_amount: "4058143.38" },
+  // July's expenses, split across two families so the summary has something to group. The two
+  // still sum to the measured 4,058,143.38 every assertion below is written against.
+  { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "SET", glid: "40000001", line_count: 10254, net_amount: "3085322.76", abs_amount: "3085322.76" },
+  { period_start: "2026-07-01", period_end: "2026-08-01", swept_at: "2026-08-03 04:00:00+00", post_module: "FUEL", glid: "40050000", line_count: 5777, net_amount: "972820.62", abs_amount: "972820.62" },
 ];
 
 /**
@@ -171,5 +175,19 @@ describe("getFleetReport", () => {
     expect(r.monthsPartial.map((m) => m.month)).toEqual(["2026-08"]);
     expect(r.ledgerReason).toContain("2026-08-28");
     expect(r.monthsCovered).toEqual([]);
+  });
+
+  /**
+   * The family summary (G6) rides on this call because only it holds both halves: the statement's
+   * own lines, and the miles the period measured. July's fuel — $972,820.62 of it in this fixture —
+   * is 20.15% of revenue and 63 cents of every mile the fleet ran.
+   */
+  it("summarises the statement into signed families, priced against revenue and miles", async () => {
+    const r = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-07-31");
+    const fuel = r.families.expense.find((f) => f.label === "Fuel and fluids")!;
+    expect(fuel.amount).toBe(972_820.62);
+    expect(fuel.pctOfRevenue).toBe(20.1);
+    expect(fuel.perMile).toBe(0.63);
+    expect(r.families.tieOut).toEqual({ revenue: 0, expenses: 0 });
   });
 });
