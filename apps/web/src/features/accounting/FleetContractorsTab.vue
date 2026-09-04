@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import CpmOwnerOperatorTable from "./CpmOwnerOperatorTable.vue";
@@ -14,7 +13,8 @@ import type { OwnerOperatorRow } from "./useFleetReport";
  *
  * The headline is prose rather than two cards, because the two numbers are a sentence: what they
  * hauled, and what of it we kept. The tab owns its page number and is mounted fresh on every tab
- * change, which is what resets paging between tabs.
+ * change, which is what resets paging between tabs. The period is the page's, chosen once on the
+ * rail above the tabs (D-FRUI1); `from`/`to` arrive only so a period change resets the page number.
  */
 
 const props = defineProps<{
@@ -24,7 +24,6 @@ const props = defineProps<{
   from: string;
   to: string;
 }>();
-const emit = defineEmits<{ "update:from": [v: string]; "update:to": [v: string] }>();
 
 const PAGE_SIZE = 20;
 const page = ref(1);
@@ -46,11 +45,7 @@ const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", c
     </p>
 
     <DataWorkspace>
-      <FilterBar embedded :count="ownerOperators.length" count-label="contractors">
-        <template #filters>
-          <DateRangeFilter :from="from" :to="to" @update:from="(v) => emit('update:from', v ?? from)" @update:to="(v) => emit('update:to', v ?? to)" />
-        </template>
-      </FilterBar>
+      <FilterBar embedded :count="ownerOperators.length" count-label="contractors" />
 
       <CpmOwnerOperatorTable
         :rows="pageRows"

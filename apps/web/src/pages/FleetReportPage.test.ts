@@ -123,8 +123,20 @@ vi.mock("@/features/accounting/useIncomeStatement", () => ({
 vi.mock("@/features/accounting/useMileageCoverage", () => ({
   useMileageCoverageQuery: () => q({ months: [], miles: 1_552_337, trucks: 172, reason: state.coverageReason, billedMiles: 1_389_814, loads: 1_415, billedRevenue: 4_994_450.85 }),
 }));
+// The trend decides which month the page opens on (D-FRUI1): August was swept before it ended, so
+// the latest reportable month is July whatever the calendar says.
 vi.mock("@/features/accounting/useFleetTrend", () => ({
-  useFleetTrendQuery: () => q({ points: [], missing: [], rated: 0, monthsRequested: [], monthsPartial: [] }),
+  useFleetTrendQuery: () =>
+    q({
+      points: [
+        { month: "2026-06", revenue: 5_107_789.04, expenses: 3_634_060.11, net: 1_473_728.93, miles: 1_574_109, trucks: 170, revenuePerMile: 3.24, costPerMile: 2.31, netPerMile: 0.94, reason: null },
+        { month: "2026-07", revenue: 4_828_189.24, expenses: 4_058_143.38, net: 770_045.86, miles: 1_552_337, trucks: 172, revenuePerMile: 3.11, costPerMile: 2.61, netPerMile: 0.5, reason: null },
+      ],
+      missing: ["2026-08"],
+      rated: 2,
+      monthsRequested: ["2026-06", "2026-07", "2026-08"],
+      monthsPartial: [{ month: "2026-08", periodEnd: "2026-08-31", sweptAt: "2026-08-28T21:02:56Z", complete: false, shortfall: "partial" }],
+    }),
 }));
 
 type W = VueWrapper<InstanceType<typeof FleetReportPage>>;
@@ -211,6 +223,33 @@ describe("FleetReportPage — the shell (R1)", () => {
     expect(t).toContain("Operating Expenses");
     expect(t).toContain("40050000");
     expect(t).toContain("has not reached 2026-08");
+    w.unmount();
+  });
+
+  it("opens on the latest month the sweep finished, and says why it is not the calendar's month", async () => {
+    const w = await mountPage();
+    const rail = w.find('[aria-live="polite"]');
+    expect(rail.text()).toBe("July 2026");
+    // The calendar's last full month is whatever today makes it; the note names it and says the
+    // report opens on July instead, because the trend said August was swept on the 28th.
+    if (new Date().getMonth() === 8 && new Date().getFullYear() === 2026) {
+      expect(w.text()).toContain("August 2026 was swept on 2026-08-28, before the month ended, so the report opens on July 2026");
+    } else {
+      expect(w.text()).toContain("so the report opens on July 2026");
+    }
+    w.unmount();
+  });
+
+  it("keeps one period for every tab: stepping back on the rail changes the month everywhere", async () => {
+    const w = await mountPage();
+    const prev = w.findAll("button").find((b) => b.attributes("aria-label") === "Previous month")!;
+    await prev.trigger("click");
+    await flushPromises();
+    expect(w.find('[aria-live="polite"]').text()).toBe("June 2026");
+    await openTab(w, "Per truck");
+    expect(w.find('[aria-live="polite"]').text()).toBe("June 2026");
+    // The per-tab date picker is gone: the toolbar carries the truck filters and nothing else.
+    expect(w.text()).not.toContain("Dates");
     w.unmount();
   });
 
