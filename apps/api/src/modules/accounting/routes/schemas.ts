@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
 
 /**
  * Query parsing for the accounting surface, kept out of the router so it can be tested as the
@@ -54,11 +53,12 @@ export const trendSchema = z.object({
   months: z.coerce.number().int().min(2).max(24).optional(),
 });
 
+/**
+ * The per-truck window. `deadhead` left with the estimate basis at G7 (§4): miles are Samsara's
+ * measurement or they are absent, and a request could no longer ask for anything else.
+ */
 export const cpmQuerySchema = windowShape
-  .extend({
-    deadhead: z.enum(DEADHEAD_TREATMENTS).optional(),
-    includeOwnerOperators: queryFlag.optional(),
-  })
+  .extend({ includeOwnerOperators: queryFlag.optional() })
   .refine(ordered, ORDER_MESSAGE);
 
 export const entriesSchema = z

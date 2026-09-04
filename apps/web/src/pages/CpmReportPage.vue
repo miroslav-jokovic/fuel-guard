@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { DeadheadTreatment } from "@silvicom/shared";
 import { useCpmQuery, type CpmFilter } from "@/features/accounting/useCpm";
 import CpmTruckTable from "@/features/accounting/CpmTruckTable.vue";
 import CpmOwnerOperatorTable from "@/features/accounting/CpmOwnerOperatorTable.vue";
@@ -33,7 +32,6 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 const defaultWindow = lastFullMonth();
 const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
-const deadhead = ref<DeadheadTreatment>("estimate");
 const includeOwnerOperators = ref(false);
 const unitSearch = ref("");
 // Idle trucks are the report's loudest distortion: a unit that moved 4 miles and carries a whole
@@ -43,9 +41,12 @@ const unitSearch = ref("");
 const minMiles = ref("0");
 
 /**
- * Three views of one period, so each table gets a page to itself (owner ruling, 2026-08-29). They
- * used to be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check,
- * which read as one report with two footnotes rather than three answers to three questions.
+ * Views of one period, so each table gets a page to itself (owner ruling, 2026-08-29). They used to
+ * be stacked on one scroll: 169 truck rows, then the contractors, then the ledger check, which read
+ * as one report with two footnotes rather than answers to separate questions.
+ *
+ * The route is `/fleet-report` since G7; the file keeps its `Cpm` name until the rename lands in
+ * the file tree, which is a move with no behaviour in it.
  */
 type CpmTab = "overview" | "trucks" | "contractors" | "fleet" | "statement";
 const TABS: TabItem[] = [
@@ -101,7 +102,6 @@ const {
 const filter = computed<CpmFilter>(() => ({
   from: from.value,
   to: to.value,
-  deadhead: deadhead.value,
   includeOwnerOperators: includeOwnerOperators.value,
 }));
 const { data, isLoading, isError, error, refetch, isFetching } = useCpmQuery(filter);
@@ -120,7 +120,7 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
 const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
-watch([unitSearch, minMiles, from, to, deadhead, includeOwnerOperators, tab], () => (page.value = 1));
+watch([unitSearch, minMiles, from, to, includeOwnerOperators, tab], () => (page.value = 1));
 
 const trucks = computed(() => {
   const q = unitSearch.value.trim().toLowerCase();
@@ -133,13 +133,9 @@ const trucks = computed(() => {
 const truckPage = computed(() => trucks.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const hiddenCount = computed(() => allTrucks.value.length - trucks.value.length);
 
-const deadheadOptions = [
-  { value: "estimate", label: "Include empty miles" },
-  { value: "exclude", label: "Loaded miles only" },
-];
-// A truck that barely moved carries a whole month of fixed cost over a handful of miles, so its
-// $/mi is arithmetically right and analytically useless. These are the thresholds an owner reads
-// the report at; "any" is the default so the table starts by hiding nothing.
+// A truck that barely moved earns a handful of dollars over a handful of miles, so its rate is
+// arithmetically right and analytically useless. These are the thresholds an owner reads the report
+// at; "any" is the default so the table starts by hiding nothing.
 const minMilesOptions = [
   { value: "0", label: "Any mileage" },
   { value: "100", label: "100+ miles" },
@@ -173,18 +169,9 @@ const pageDescription = computed(() =>
     ? "What the fleet earned, spent and kept — and each of those for every mile it ran."
     : tab.value === "statement"
       ? "The general ledger, in the shape McLeod prints it."
-      : "What each truck costs and earns for every mile it drives.",
+      : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
 );
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
-// Cents stay the harness's unit; the PAGE speaks dollars per mile — $1.34, not 133.5¢.
-const fmtCpm = (n: number | null) => (n == null ? "—" : `$${(n / 100).toFixed(2)}`);
-
-// Dollars on trucks the report cannot rate (no miles this window, D-FIN10): still in every total,
-// outside every per-mile figure, and said so on the card rather than only in the explainer.
-const unmeasuredCost = computed(() => {
-  const u = report.value?.fleet.unmeasured;
-  return u ? u.directTotal + u.fixedTotal + u.allocatedTotal : 0;
-});
 
 // The McLeod financial sweep's last landing, in the reader's own words. Null is said out loud.
 const figuresAsOf = computed(() => {
@@ -195,7 +182,6 @@ const figuresAsOf = computed(() => {
   return ` McLeod figures as of ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.`;
 });
 
-const samsaraBasis = computed(() => report.value?.milesBasis === "samsara_actual");
 const visibleCount = computed(() => (tab.value === "trucks" ? trucks.value.length : ownerOperators.value.length));
 const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contractors"));
 </script>
@@ -218,77 +204,26 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
     -->
     <ExplainerPanel>
       <p>
-        Every mile the trucks drove in the period, measured by Samsara where it has them, against
-        every cost the ledger can place on a truck: fuel, driver pay, and the fixed monthly charges
-        from the truck fixed-costs page.
+        Money comes from McLeod's general ledger and miles from Samsara. Nothing is estimated and
+        nothing is shared out: the overview and the income statement are the ledger's own totals over
+        the period, and every rate is that total divided by the miles Samsara measured.
       </p>
       <p>
-        Costs that belong to no single truck — office wages, rent, interest — are shared out across
-        the miles, so nothing is left out of the figure. Contractors are not in the per-truck table:
-        they are paid a share of each load rather than costing us fuel and wages, so they have their
-        own tab and the company total covers both.
+        The per-truck tab shows only what is precise for one truck — the miles it drove and what its
+        loads earned. There is no per-truck cost column, because no source at this carrier can put a
+        lease payment, an insurance premium or an office wage on a particular truck, and a column
+        that looks measured but is estimated is worse than one that is missing.
       </p>
-      <ul v-if="report?.caveats.length || provenance?.notes.length" class="space-y-1">
-        <li v-for="c in report?.caveats ?? []" :key="c" class="text-sm text-ink-secondary">• {{ c }}</li>
+      <ul v-if="provenance?.notes.length" class="space-y-1">
         <li v-for="n in provenance?.notes ?? []" :key="n" class="text-xs text-ink-tertiary">• {{ n }}</li>
       </ul>
     </ExplainerPanel>
 
-    <!-- The equation reads left to right — earned, cost, what is left — because that is the order
-         the owner asks it in.
-
-         Hidden on Overview and Income statement, which carry their own headline figures. Showing
-         both would put two "earned per mile" numbers on one screen: this strip is the per-truck
-         harness's, which SHARES overhead out across trucks, and the overview's is the ledger's,
-         which shares nothing. They are different questions and they will not agree — two figures
-         under one label is how a reader stops trusting a page. The allocation strip goes entirely
-         at G7; until then it stays on the tabs that are actually about it. -->
-    <div
-      v-if="report && (tab === 'trucks' || tab === 'contractors' || tab === 'fleet')"
-      class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-    >
-      <StatCard
-        label="Earned per mile"
-        :value="fmtCpm(report.fleet.revenueCpm)"
-        :sub="`${fmtUsd(report.fleet.revenueTotal)} over ${fmtMiles(report.fleet.totalMiles)} miles`"
-      />
-      <StatCard
-        label="Cost per mile"
-        :value="fmtCpm(report.fleet.totalCpm)"
-        :sub="`${fmtCpm(report.fleet.directCpm)} fuel and pay + ${fmtCpm(report.fleet.fixedCpm)} fixed`"
-      />
-      <StatCard
-        label="Left per mile"
-        :value="fmtCpm(report.fleet.netCpm)"
-        :sub="report.fleet.netCpm == null ? 'no truck has miles this window' : report.fleet.netCpm >= 0 ? 'earned minus cost' : 'each mile is losing money'"
-        :sub-tone="report.fleet.netCpm != null && report.fleet.netCpm < 0 ? 'text-danger-700' : undefined"
-      />
-      <StatCard
-        label="Miles driven"
-        :value="fmtMiles(report.fleet.totalMiles)"
-        :sub="samsaraBasis ? 'measured by Samsara, empty miles included' : `${fmtMiles(report.fleet.deadheadMilesEstimated)} empty miles estimated`"
-      />
-      <StatCard
-        label="Total cost"
-        :value="fmtUsd(report.fleet.directTotal + report.fleet.fixedTotal)"
-        :sub="report.fleet.unmeasured.trucks > 0
-          ? `${fmtUsd(unmeasuredCost)} of it sits on ${report.fleet.unmeasured.trucks} ${report.fleet.unmeasured.trucks === 1 ? 'truck' : 'trucks'} without miles, outside the per-mile figures`
-          : `against ${fmtUsd(report.fleet.revenueTotal)} earned on company trucks`"
-        :sub-tone="report.fleet.unmeasured.trucks > 0 ? 'text-warning-700' : undefined"
-      />
-      <!-- This card used to read "Not in these figures" over the money the report declined to
-           place. That was the complaint: a number nobody could act on, holding 38.9% of the fleet's
-           cost. Overhead is now ON the trucks, so the card states what each mile carries of it —
-           and if any is still withheld it says so in red rather than quietly. -->
-      <StatCard
-        label="Shared costs per mile"
-        :value="fmtCpm(report.fleet.allocatedCpm)"
-        :sub="report.excluded.unallocatedOverhead > 0
-          ? `${fmtUsd(report.excluded.unallocatedOverhead)} could not be shared out`
-          : 'office, rent and interest, spread over the miles'"
-        :sub-tone="report.excluded.unallocatedOverhead > 0 ? 'text-danger-600' : undefined"
-      />
-    </div>
+    <!-- The fleet stat strip went at G7 with the allocation apparatus it reported. It carried
+         "cost per mile", "left per mile" and "shared costs per mile" — every one of them a figure
+         built by sharing overhead across trucks, which nothing does any more (D-FLEET8). It is also
+         what put two different "earned per mile" numbers on one screen; the overview's, from the
+         ledger, is now the only one. -->
 
     <!-- The coverage banner (G10). A period whose miles are short of its trucks cannot carry a
          per-mile figure at all, and saying so once, at the top, beats a dash on every row. -->
@@ -313,7 +248,7 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
          It affects only the two tabs that read the ledger — the overview and the income statement —
          and both say it themselves; a banner as well printed the same sentence twice on one screen.
          The per-truck tabs come from the CPM harness and are unaffected by it. -->
-    <AppTabs v-model="tab" :tabs="TABS" label="Cost per mile views" id-prefix="cpm" />
+    <AppTabs v-model="tab" :tabs="TABS" label="Fleet report views" id-prefix="fleet-report" />
 
     <!-- Contractors get their headline as prose, because the two numbers are a sentence: what they
          hauled, and what of it we kept. -->
@@ -426,11 +361,6 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
         :count-label="countLabel"
       >
         <template #filters>
-          <!-- Hidden, correctly, when Samsara measured the period: `computeCpm` picks ONE basis
-               fleet-wide (owner ruling 2026-08-27) and ignores the empty-miles rule entirely under
-               `useActual`, so rendering this control there would offer a switch wired to nothing.
-               The basis in force is stated on the Miles driven card and in the explainer. -->
-          <FilterSelect v-if="!samsaraBasis && tab === 'trucks'" v-model="deadhead" label="Which miles" :options="deadheadOptions" />
           <FilterSelect v-if="tab === 'trucks'" v-model="minMiles" label="Least miles" :options="minMilesOptions" />
           <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>
@@ -458,7 +388,6 @@ const countLabel = computed(() => (tab.value === "trucks" ? "trucks" : "contract
       <CpmTruckTable
         v-if="tab === 'trucks'"
         :rows="truckPage"
-        :samsara-basis="samsaraBasis"
         :loading="isLoading"
         :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
         :retrying="isFetching"

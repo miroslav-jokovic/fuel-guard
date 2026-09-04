@@ -1,7 +1,7 @@
 import type { RouteRecordRaw } from "vue-router";
 
 /**
- * The finance sections (P5, D-SEP7/8): accounting, billing, and the maintenance section that is
+ * The finance sections (P5, D-SEP7/8): the fleet report, billing, and the maintenance section that is
  * NOT the /maintenance downtime page — that URL and route name were taken by system.ts long
  * before this section existed, so the shop lives at /shop (the program plan's §6 Q7 fallback).
  * Routes carry requiresAuth only, per the house rule — the pages self-gate via the section
@@ -9,29 +9,19 @@ import type { RouteRecordRaw } from "vue-router";
  */
 export const financeRoutes: RouteRecordRaw[] = [
   {
-    path: "/accounting",
-    name: "accounting",
-    component: () => import("@/pages/AccountingLedgerPage.vue"),
-    meta: { requiresAuth: true, title: "Money in & out" },
-  },
-  {
-    path: "/cpm",
-    name: "cpm",
+    // Renamed from /cpm at G7. The page opened on a per-truck cost table when it was called "Cost
+    // per mile"; it now opens on what the fleet earned, spent and kept, carries the income
+    // statement and its ten families, and reports per-truck REVENUE only — no per-truck cost
+    // figure is precise (D-FLEET1). A name is a promise about what a page answers, and that one
+    // had stopped being true.
+    path: "/fleet-report",
+    name: "fleet-report",
     component: () => import("@/pages/CpmReportPage.vue"),
-    meta: { requiresAuth: true, title: "Cost per mile" },
+    meta: { requiresAuth: true, title: "Fleet report" },
   },
-  {
-    path: "/cost-schedule",
-    name: "cost-schedule",
-    component: () => import("@/pages/CostSchedulePage.vue"),
-    meta: { requiresAuth: true, title: "Truck fixed costs" },
-  },
-  {
-    path: "/books-check",
-    name: "books-check",
-    component: () => import("@/pages/BooksCheckPage.vue"),
-    meta: { requiresAuth: true, title: "Books check" },
-  },
+  // The old address, kept working. An accountant with /cpm bookmarked should land on the page, not
+  // on a 404 — and the redirect costs one record.
+  { path: "/cpm", redirect: { name: "fleet-report" } },
   {
     path: "/billing",
     name: "billing",

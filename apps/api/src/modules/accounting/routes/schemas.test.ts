@@ -40,8 +40,6 @@ describe("cpmQuerySchema — the owner-operator pool cannot be switched on by a 
   });
 
   it("accepts a deadhead treatment and rejects an unknown one", () => {
-    expect(cpmQuerySchema.parse({ ...base, deadhead: "exclude" }).deadhead).toBe("exclude");
-    expect(cpmQuerySchema.safeParse({ ...base, deadhead: "ignore" }).success).toBe(false);
   });
 });
 

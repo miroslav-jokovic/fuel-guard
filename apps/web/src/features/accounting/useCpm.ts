@@ -2,7 +2,7 @@ import { type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import { exclusiveEnd } from "@/lib/dateWindow";
-import type { CpmReport, DeadheadTreatment } from "@silvicom/shared";
+import type { CpmReport } from "@silvicom/shared";
 
 /**
  * Cost-per-mile data layer — API-only like the rest of accounting (D-SEP7): the harness runs
@@ -17,7 +17,6 @@ export interface CpmProvenance {
   settlements: number;
   vouchers: number;
   samsaraVehicles: number;
-  scheduledUnits: number;
   bookedInvoices: number;
   /** When the McLeod financial sweep last landed — the "figures as of" the header prints; null if never. */
   financialSweptAt: string | null;
@@ -38,7 +37,6 @@ export interface CpmFilter {
   from: string;
   /** The inclusive end day the picker shows — converted to the API's exclusive bound on send. */
   to: string;
-  deadhead: DeadheadTreatment;
   includeOwnerOperators: boolean;
 }
 
@@ -48,7 +46,7 @@ export function useCpmQuery(filter: Ref<CpmFilter>) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<{ report: CpmReport; provenance: CpmProvenance }> => {
       const f = filter.value;
-      const params = new URLSearchParams({ from: f.from, to: exclusiveEnd(f.to), deadhead: f.deadhead });
+      const params = new URLSearchParams({ from: f.from, to: exclusiveEnd(f.to) });
       // Sent only when true, and read as a strict "1"/"true" server-side: `z.coerce.boolean()`
       // treated the STRING "0" as true, so a hand-typed `?includeOwnerOperators=false` used to
       // switch the pool ON. The page never sent that shape; the URL is a supported entry point.

@@ -40,16 +40,4 @@ export { getMileageCoverage, type MileageCoverageResult } from "./mileageCoverag
 export { getFleetReport, type FleetReportResult } from "./fleetReport.js";
 export { getFleetTrend, type FleetTrendResult } from "./fleetTrend.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
-export {
-  getGlMonthlyCosts,
-  type GlMonthlyCosts,
-  type GlMonthlyCostAccount,
-} from "./glMonthlyCosts.js";
 export { computeCpmForWindow, type CpmWindowReport } from "./cpm.js";
-export {
-  listSchedules,
-  createSchedule,
-  updateSchedule,
-  deleteSchedule,
-  readFixedCostsForMonths,
-} from "./costSchedules.js";

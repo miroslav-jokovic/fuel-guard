@@ -239,24 +239,14 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/ifta",
   },
   {
-    "name": "accounting",
+    "name": "fleet-report",
     "params": {},
-    "url": "/accounting",
+    "url": "/fleet-report",
   },
   {
-    "name": "cpm",
+    "name": "",
     "params": {},
     "url": "/cpm",
-  },
-  {
-    "name": "cost-schedule",
-    "params": {},
-    "url": "/cost-schedule",
-  },
-  {
-    "name": "books-check",
-    "params": {},
-    "url": "/books-check",
   },
   {
     "name": "billing",
@@ -469,15 +459,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Money in & out",
-    },
-    "name": "accounting",
-    "path": "/accounting",
-    "redirect": null,
-  },
-  {
-    "meta": {
-      "requiresAuth": true,
       "title": "Alerts",
     },
     "name": "anomalies",
@@ -525,15 +506,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Books check",
-    },
-    "name": "books-check",
-    "path": "/books-check",
-    "redirect": null,
-  },
-  {
-    "meta": {
-      "requiresAuth": true,
       "title": "Driver Qualification",
     },
     "name": "compliance",
@@ -548,15 +520,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
-      "requiresAuth": true,
-      "title": "Truck fixed costs",
-    },
-    "name": "cost-schedule",
-    "path": "/cost-schedule",
-    "redirect": null,
-  },
-  {
-    "meta": {
       "parent": "/settings",
       "requiresAuth": true,
       "title": "Detection Coverage",
@@ -566,13 +529,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Cost per mile",
-    },
-    "name": "cpm",
+    "meta": {},
+    "name": "",
     "path": "/cpm",
-    "redirect": null,
+    "redirect": {
+      "name": "fleet-report",
+    },
   },
   {
     "meta": {},
@@ -631,6 +593,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "server-error",
     "path": "/error",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fleet report",
+    },
+    "name": "fleet-report",
+    "path": "/fleet-report",
     "redirect": null,
   },
   {

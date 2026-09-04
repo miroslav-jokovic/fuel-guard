@@ -17,7 +17,6 @@ import {
   readFinancialSyncedAt,
 } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
-import { readFixedCostsForMonths } from "./costSchedules.js";
 import { FUEL_AP_VENDOR_IDS } from "./projection.js";
 import { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
 import { readOwnerOperatorDeductionIncome } from "./ownerOperatorIncome.js";
@@ -53,7 +52,6 @@ export interface CpmWindowReport {
     /** Vehicles with Samsara measured miles in the window's months. */
     samsaraVehicles: number;
     /** Units the fixed-cost schedule charged in this window. */
-    scheduledUnits: number;
     /** GL-booked invoices joined as revenue (the projection's posting predicate). */
     bookedInvoices: number;
     /**
@@ -115,7 +113,7 @@ export async function computeCpmForWindow(
   toIso: string,
   rules: Partial<CpmRules> = {},
 ): Promise<CpmWindowReport> {
-  const [staged, settlements, vouchers, billing, fuelByUnit, samsaraMiles, fixedCosts] = await Promise.all([
+  const [staged, settlements, vouchers, billing, fuelByUnit, samsaraMiles] = await Promise.all([
     readMovementsWindow(admin, orgId, fromIso, toIso),
     readSettlementsWindow(admin, orgId, fromIso, toIso),
     readApVouchersWindow(admin, orgId, fromIso, toIso),
@@ -125,8 +123,6 @@ export async function computeCpmForWindow(
     // covers. The page defaults to a full month, where this is exact; a partial-month window's
     // mismatch is called out in provenance rather than silently prorated.
     readVehicleMonthlyMiles(admin, orgId, monthsCovered(fromIso, toIso)),
-    // The office schedule is month-grained too — same month set, whole months charged (T1).
-    readFixedCostsForMonths(admin, orgId, monthsCovered(fromIso, toIso)),
   ]);
 
   const actualMilesByUnit = await milesByVehicleToUnit(admin, orgId, samsaraMiles);
@@ -240,7 +236,6 @@ export async function computeCpmForWindow(
       })),
       officeLines: [],
       actualMilesByUnit,
-      fixedCosts,
       revenueByUnit,
       revenueBills,
       ownerOperatorDeductionIncome,
@@ -284,7 +279,6 @@ export async function computeCpmForWindow(
       settlements: settlements.length,
       vouchers: vouchers.length,
       samsaraVehicles: samsaraMiles.size,
-      scheduledUnits: Object.keys(fixedCosts.byUnit).length,
       bookedInvoices,
       financialSweptAt,
       glCheck: {

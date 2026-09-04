@@ -1,5 +1,4 @@
 import type { TmsMovementFact } from "./movementFact.js";
-import type { FixedCostSummary } from "./fixedCosts.js";
 import type { TmsFuelPurchaseFact } from "./fuelFact.js";
 import type { TmsSettlementFact } from "./settlementFact.js";
 import type { TmsApVoucherFact } from "./expenseFact.js";
@@ -105,13 +104,6 @@ export interface CpmInputs {
    * mile rather than one computed on a basis its neighbours didn't use.
    */
   actualMilesByUnit?: Record<string, number>;
-  /**
-   * The office's fixed-cost schedule summed for the window (fixedCosts.ts): lease, insurance,
-   * GPS — the dollars McLeod structurally cannot attribute (T1, TRUCK-COST-ATTRIBUTION-PLAN).
-   * A contract's assertion, not a measurement: charged in its own column, its caveats generated
-   * from what the summary actually contains, never blended into the measured direct figures.
-   */
-  fixedCosts?: FixedCostSummary;
   /**
    * GL-BOOKED revenue per tractor unit, aggregated by the caller under the documented posting
    * predicate (post_key + module BILL — the projection's own rule). The owner's point, verbatim:

@@ -1,5 +1,4 @@
 import { inferDeadheadLegs } from "./movementFact.js";
-import { buildCpmCaveats } from "./cpmCaveats.js";
 import { apportionByWeight } from "./apportion.js";
 import { buildGlTieOut } from "./cpmTieOut.js";
 import { summariseFleet } from "./cpmFleet.js";
@@ -116,7 +115,13 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
 
   // A scheduled truck that ran nothing still costs its lease — it belongs in the report with its
   // fixed cost and zero miles, not silently outside it.
-  const fixedByUnit = inputs.fixedCosts?.byUnit ?? {};
+  // Structurally zero since G7. The per-unit fixed-cost schedule was deleted with the rest of the
+  // allocation apparatus (D-FLEET8) and its table dropped in 0307 — it never held a row in
+  // production, so `fixedCharged` was always 0.00 and still is. The TERM stays in the tie-out
+  // identity below because `finance_month_closes` records it per month and the close's proof is
+  // built on that identity; moving the close onto the fleet report's own tie-out is G8's step, and
+  // it is what removes these two lines.
+  const fixedByUnit: Record<string, number> = {};
   for (const unit of Object.keys(fixedByUnit)) bucketFor(buckets, unit);
 
   let fuelWithoutTruck = 0;
@@ -160,7 +165,6 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   // Revenue: GL-booked dollars per unit, routed AFTER settlements so owner-operator units are
   // known. An owner-op truck's revenue against a cost column whose pay is pooled elsewhere would
   // print a margin no truck earned — it follows the pay into the excluded pool instead.
-  const hasRevenue = inputs.revenueByUnit !== undefined || inputs.revenueBills !== undefined;
   const revenueWithoutTruck = round(inputs.revenueWithoutTruck ?? 0);
   let ownerOperatorRevenue = 0;
   const revenueByUnit: Record<string, number> = {};
@@ -281,7 +285,7 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
   const fixedCharged = round(
     [...buckets.keys()].reduce((sum, unit) => sum + (fixedByUnit[unit] ?? 0), 0),
   );
-  const fixedCostOnOwnerOperatorTrucks = round((inputs.fixedCosts?.total ?? 0) - fixedCharged);
+  const fixedCostOnOwnerOperatorTrucks = round(0 - fixedCharged);
   // The caller supplies `glExpenseTotal` only for a month-aligned window — GL totals are
   // month-grained, and charging a whole month's overhead against part of a month's miles would
   // invent a figure the ledger never asserted. See `computeCpmForWindow`.
@@ -398,38 +402,11 @@ export function computeCpm(inputs: CpmInputs, rules: CpmRules = DEFAULT_CPM_RULE
     fixedCostOnOwnerOperatorTrucks,
   });
 
-  caveats.push(
-    ...buildCpmCaveats({
-      rules,
-      useActual,
-      overheadPool,
-      fleetTotal,
-      fleetLoaded,
-      fleetActual,
-      fleetDeadhead,
-      trucksWithoutMeasuredMiles: unmeasured.trucks,
-      unmeasuredCost: round(unmeasured.directTotal + unmeasured.fixedTotal + unmeasured.allocatedTotal),
-      ownerOperatorSettlement: rules.includeOwnerOperators ? 0 : ownerOperatorSettlement,
-      fuelWithoutTruck,
-      settlementWithoutTruck,
-      movementsWithoutTruck,
-      hasRevenue,
-      revenueWithoutTruck,
-      ownerOperatorRevenue,
-      netExcludedOverhead: unallocatedOverhead,
-      glAnchored: glRemainder !== null,
-      fixedCharged,
-      fixedCostOnOwnerOperatorTrucks,
-      fixedCosts: inputs.fixedCosts,
-      uncoveredActiveTrucks: inputs.fixedCosts
-        ? list.filter(
-            (b) =>
-              (b.movements > 0 || b.fuel > 0 || b.settlement > 0) &&
-              !((fixedByUnit[b.tractor_unit] ?? 0) > 0),
-          ).length
-        : 0,
-    }),
-  );
+  // The caveat machinery went with the allocation apparatus at G7 (§4). It existed to explain a
+  // figure that no longer exists: which overhead basis had been applied, what the estimate basis
+  // did to the denominator, how much cost sat on trucks the report could not rate. The report this
+  // page now leads with states its own limits in the figures themselves — a rate is `null` with a
+  // reason, never a number with a footnote (D-FIN10).
 
   return {
     rules,

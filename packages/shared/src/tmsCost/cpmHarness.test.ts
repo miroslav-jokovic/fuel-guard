@@ -160,15 +160,9 @@ describe("computeCpm — deadhead", () => {
     expect(withDeadhead.trucks[0]!.directCpm).toBeCloseTo(91.1, 1);
   });
 
-  it("warns that excluding deadhead overstates every figure", () => {
-    const r = computeCpm({ movements: twoTrips, fuel: [], settlements: [] }, PLAIN);
-    expect(r.caveats.some((c) => c.includes("EXCLUDED") && c.includes("overstated"))).toBe(true);
-  });
-
-  it("warns that estimated deadhead is inferred, not read from McLeod", () => {
-    const r = computeCpm({ movements: twoTrips, fuel: [], settlements: [] }, DEFAULT_CPM_RULES);
-    expect(r.caveats.some((c) => c.includes("ESTIMATED"))).toBe(true);
-  });
+  // Two tests that asserted the deadhead caveats' wording went with the caveat machinery at G7.
+  // The arithmetic they sat beside is still covered above: the estimate basis lowers the rate,
+  // and excluding it raises the rate, both to the cent.
 });
 
 describe("computeCpm — overhead allocation", () => {
@@ -196,7 +190,6 @@ describe("computeCpm — overhead allocation", () => {
     const r = computeCpm(inputs, { ...PLAIN, overheadBasis: "none" });
     expect(r.trucks.every((t) => t.allocatedOverhead === 0)).toBe(true);
     expect(r.excluded.unallocatedOverhead).toBe(4000);
-    expect(r.caveats.some((c) => c.includes("EXCLUDES") && c.includes("4000.00"))).toBe(true);
   });
 
   it("spreads overhead by miles when the rule says so", () => {
@@ -254,7 +247,6 @@ describe("computeCpm — the honesty ledger", () => {
     );
     expect(r.trucks[0]!.directSettlement).toBe(300);
     expect(r.excluded.ownerOperatorSettlement).toBe(2900);
-    expect(r.caveats.some((c) => c.includes("owner-operator"))).toBe(true);
   });
 
   it("includes owner-operators only when explicitly asked", () => {
@@ -283,7 +275,6 @@ describe("computeCpm — the honesty ledger", () => {
     expect(r.trucks[0]!.directFuel).toBe(100);
     expect(r.excluded.fuelWithoutTruck).toBe(750);
     expect(r.excluded.settlementWithoutTruck).toBe(250);
-    expect(r.caveats.some((c) => c.includes("no ") && c.includes("tractor"))).toBe(true);
   });
 
   it("counts movements with no truck, whose miles are missing from the denominator", () => {
@@ -335,8 +326,6 @@ describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () 
     expect(t.loadedMiles).toBe(900);
     expect(t.deadheadMilesEstimated).toBe(0);
     expect(t.directCpm).toBe(100); // $1,000 over 1,000 measured miles
-    expect(r.caveats.some((c) => c.includes("Samsara GPS actuals"))).toBe(true);
-    expect(r.caveats.some((c) => c.includes("11.1% above loaded"))).toBe(true);
   });
 
   it("a truck with cost but no measured miles gets NO rate, and the report names it — never a mixed basis", () => {
@@ -353,7 +342,6 @@ describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () 
     expect(t202.actualMiles).toBe(0);
     expect(t202.totalMiles).toBe(0);
     expect(t202.directCpm).toBeNull(); // not computed on loaded miles — that would be a second basis
-    expect(r.caveats.some((c) => c.includes("no Samsara miles"))).toBe(true);
     // The fleet denominator is measured miles only; 202's loaded 500 never enters it.
     expect(r.fleet.totalMiles).toBe(1000);
   });
@@ -378,83 +366,6 @@ describe("computeCpm — the Samsara miles basis (owner ruling 2026-08-27)", () 
   });
 });
 
-describe("computeCpm — fixed costs from the office schedule (T1)", () => {
-  const fixedCosts = (byUnit: Record<string, number>, byCategory: Record<string, number>, monthCount = 1) => ({
-    byUnit,
-    byCategory,
-    total: Object.values(byUnit).reduce((a, b) => a + b, 0),
-    monthCount,
-  });
-
-  it("charges the schedule in its own column and adds it to total CPM, never to direct", () => {
-    const r = computeCpm(
-      {
-        movements: [move("M1", "101", 1000)],
-        fuel: [fuel("F1", "101", 300)],
-        settlements: [settle("S1", "101", 500)],
-        fixedCosts: fixedCosts({ "101": 2500 }, { lease: 2500 }),
-      },
-      PLAIN,
-    );
-    const t = r.trucks[0]!;
-    expect(t.fixedCost).toBe(2500);
-    expect(t.directTotal).toBe(800); // fixed never blends into the measured figure
-    expect(t.directCpm).toBe(80);
-    expect(t.fixedCpm).toBe(250);
-    expect(t.totalCpm).toBe(330);
-    expect(r.fleet.fixedTotal).toBe(2500);
-    expect(r.caveats.some((c) => c.includes("contracts, not measurements"))).toBe(true);
-  });
-
-  it("a scheduled truck with no activity appears with its fixed cost and zero miles", () => {
-    const r = computeCpm(
-      {
-        movements: [move("M1", "101", 1000)],
-        fuel: [],
-        settlements: [],
-        fixedCosts: fixedCosts({ "999": 3000 }, { lease: 3000 }),
-      },
-      PLAIN,
-    );
-    const idle = r.trucks.find((t) => t.tractor_unit === "999")!;
-    expect(idle.fixedCost).toBe(3000);
-    expect(idle.totalMiles).toBe(0);
-    expect(idle.totalCpm).toBeNull(); // no denominator — cost shown, rate not fabricated
-  });
-
-  it("names how many active trucks the schedule does not cover", () => {
-    const r = computeCpm(
-      {
-        movements: [move("M1", "101", 1000), move("M2", "202", 500)],
-        fuel: [],
-        settlements: [],
-        fixedCosts: fixedCosts({ "101": 2500 }, { lease: 2500 }),
-      },
-      PLAIN,
-    );
-    expect(r.caveats.some((c) => c.includes("1 truck(s) with activity"))).toBe(true);
-  });
-
-  it("an empty schedule keeps full CPM equal to direct CPM and says so; no schedule input, no caveat", () => {
-    const withEmpty = computeCpm(
-      {
-        movements: [move("M1", "101", 1000)],
-        fuel: [fuel("F1", "101", 300)],
-        settlements: [],
-        fixedCosts: fixedCosts({}, {}),
-      },
-      PLAIN,
-    );
-    expect(withEmpty.trucks[0]!.totalCpm).toBe(withEmpty.trucks[0]!.directCpm);
-    expect(withEmpty.caveats.some((c) => c.includes("NOT in these figures"))).toBe(true);
-    const without = computeCpm(
-      { movements: [move("M1", "101", 1000)], fuel: [], settlements: [] },
-      PLAIN,
-    );
-    expect(without.caveats.some((c) => c.includes("fixed-cost"))).toBe(false);
-  });
-});
-
 describe("computeCpm — revenue and net per mile (the owner's margin requirement)", () => {
   it("joins GL-booked revenue per truck and nets it against every cost in the report", () => {
     const r = computeCpm(
@@ -464,19 +375,19 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
         settlements: [settle("S1", "101", 500)],
         revenueByUnit: { "101": 2000 },
         revenueWithoutTruck: 75,
-        fixedCosts: { byUnit: { "101": 400 }, byCategory: { lease: 400 }, total: 400, monthCount: 1 },
       },
       PLAIN,
     );
     const t = r.trucks[0]!;
     expect(t.revenue).toBe(2000);
     expect(t.revenueCpm).toBe(200);
-    expect(t.netTotal).toBe(800); // 2000 - 300 fuel - 500 pay - 400 fixed
-    expect(t.netCpm).toBe(80);
+    // 2000 earned − 300 fuel − 500 pay. The 400 of scheduled fixed cost that used to sit in this
+    // sum went with the schedule at G7 (§4): nothing is charged per truck from a contract any more.
+    expect(t.netTotal).toBe(1200);
+    expect(t.netCpm).toBe(120);
     expect(r.fleet.revenueTotal).toBe(2000);
-    expect(r.fleet.netTotal).toBe(800);
+    expect(r.fleet.netTotal).toBe(1200);
     expect(r.excluded.revenueWithoutTruck).toBe(75);
-    expect(r.caveats.some((c) => c.includes("$75.00 of booked revenue carries no tractor"))).toBe(true);
   });
 
   it("routes an owner-operator truck's revenue to the excluded pool beside its settlement", () => {
@@ -492,7 +403,6 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
     expect(r.excluded.ownerOperatorRevenue).toBe(4200);
     expect(r.excluded.ownerOperatorSettlement).toBe(2900);
     expect(r.trucks.find((t) => t.tractor_unit === "900")).toBeUndefined();
-    expect(r.caveats.some((c) => c.includes("hauled by owner-operator trucks"))).toBe(true);
     // Including owner-operators flips the routing: the truck appears with revenue AND its pay.
     const inc = computeCpm(
       {
@@ -522,7 +432,6 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
       },
       { ...PLAIN, overheadBasis: "none" },
     );
-    expect(r.caveats.some((c) => c.includes("NET per mile subtracts ONLY") && c.includes("$5000.00"))).toBe(true);
     // Net deliberately does NOT subtract the unallocated pool — the caveat carries the size.
     expect(r.trucks[0]!.netTotal).toBe(3000);
   });
@@ -560,7 +469,6 @@ describe("computeCpm — revenue and net per mile (the owner's margin requiremen
     );
     expect(r.trucks[0]!.revenue).toBe(0);
     expect(r.fleet.revenueTotal).toBe(0);
-    expect(r.caveats.some((c) => c.includes("revenue"))).toBe(false);
   });
 });
 
@@ -774,123 +682,6 @@ describe("computeCpm — deduction income reaches the contractor margin", () => 
   });
 });
 
-describe("computeCpm — the schedule leaves the pool, and the pool adds back to the cent (D-FIN1, D-FIN11)", () => {
-  const fixedCosts = (byUnit: Record<string, number>) => ({
-    byUnit,
-    byCategory: { lease: Object.values(byUnit).reduce((a, b) => a + b, 0) },
-    total: Object.values(byUnit).reduce((a, b) => a + b, 0),
-    monthCount: 1,
-  });
-  const base = {
-    movements: [move("M1", "101", 1000), move("M2", "202", 1000)],
-    fuel: [fuel("F1", "101", 300), fuel("F2", "202", 300)],
-    settlements: [settle("S1", "101", 200), settle("S2", "202", 200)],
-  };
-
-  // The defect the 2026-09-03 audit found while the schedule was still empty: lease, insurance
-  // and GPS are INSIDE the income statement, so a pool computed as "GL minus fuel and pay" still
-  // held them, and the schedule charged them to each truck a second time — ~$573k/month.
-  it("with a GL anchor the schedule is charged once: to its truck, and never again as overhead", () => {
-    const r = computeCpm(
-      { ...base, fixedCosts: fixedCosts({ "101": 500, "202": 500 }), glExpenseTotal: 3000 },
-      PLAIN,
-    );
-    // 3000 − direct 1000 − schedule 1000 = 1000 of overhead, 500 each. Under the old arithmetic
-    // each truck drew 1000 and the table summed to 4000 against a 3000 income statement.
-    for (const t of r.trucks) {
-      expect(t.fixedCost).toBe(500);
-      expect(t.allocatedOverhead).toBe(500);
-      expect(t.directTotal + t.fixedCost + t.allocatedOverhead).toBe(1500);
-    }
-    expect(r.trucks.reduce((a, t) => a + t.directTotal + t.fixedCost + t.allocatedOverhead, 0)).toBe(3000);
-    expect(r.caveats.some((c) => c.includes("taken OUT of shared costs"))).toBe(true);
-  });
-
-  it("every dollar of the income statement lands in exactly one bucket, to the cent", () => {
-    // Odd cents and three unequal trucks so that nothing divides evenly.
-    const r = computeCpm(
-      {
-        movements: [move("M1", "101", 1234.5), move("M2", "202", 987.6), move("M3", "303", 10)],
-        fuel: [fuel("F1", "101", 301.11), fuel("F2", "202", 299.99), fuel("F3", "303", 0.01)],
-        settlements: [settle("S1", "101", 200.07), settle("S2", "999", 913.13, "owner_operator")],
-        fixedCosts: fixedCosts({ "101": 2500.55, "303": 3000.45, "999": 1200 }),
-        glExpenseTotal: 30000.01,
-      },
-      PLAIN,
-    );
-    const tie = r.glTieOut!;
-    expect(tie.anchored).toBe(true);
-    const buckets =
-      tie.attributedDirect +
-      tie.fixedCharged +
-      tie.ownerOperatorSettlement +
-      tie.allocatedOverhead +
-      tie.unallocatedOverhead;
-    expect(Math.round(buckets * 100) / 100).toBe(30000.01);
-    expect(tie.residual).toBe(0);
-    // The per-truck column IS the allocated bucket — not approximately.
-    expect(Math.round(r.trucks.reduce((a, t) => a + t.allocatedOverhead, 0) * 100) / 100).toBe(
-      tie.allocatedOverhead,
-    );
-    // The owner-operator's scheduled lease is charged to no row here; it is named, and it is
-    // still inside the pool rather than lost.
-    expect(tie.fixedCostOnOwnerOperatorTrucks).toBe(1200);
-    expect(tie.fixedCharged).toBe(5501);
-    expect(r.caveats.some((c) => c.includes("belongs to owner-operator trucks"))).toBe(true);
-  });
-
-  it("the tie-out fails the moment a term is dropped — the residual is the proof, not decoration", () => {
-    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 500 }), glExpenseTotal: 3000 }, PLAIN);
-    const tie = r.glTieOut!;
-    const without = tie.attributedDirect + tie.ownerOperatorSettlement + tie.allocatedOverhead + tie.unallocatedOverhead;
-    expect(without).not.toBe(tie.glExpenseTotal); // fixedCharged missing → 2500, not 3000
-    expect(without + tie.fixedCharged).toBe(tie.glExpenseTotal);
-  });
-
-  it("allocations add back to the pool to the cent, by largest remainder", () => {
-    const r = computeCpm(
-      {
-        movements: [move("M1", "101", 1000), move("M2", "202", 1000), move("M3", "303", 1000)],
-        fuel: [],
-        settlements: [],
-        glExpenseTotal: 100,
-      },
-      PLAIN,
-    );
-    const parts = r.trucks.map((t) => t.allocatedOverhead).sort((a, b) => b - a);
-    expect(parts).toEqual([33.34, 33.33, 33.33]);
-    expect(r.excluded.unallocatedOverhead).toBe(0);
-    expect(r.fleet.allocatedCpm).toBe(3.3);
-  });
-
-  it("with a basis but no miles to weigh, the pool is reported unallocated rather than claimed as spread", () => {
-    const r = computeCpm(
-      { movements: [], fuel: [fuel("F1", "101", 100)], settlements: [], glExpenseTotal: 1000 },
-      PLAIN,
-    );
-    expect(r.trucks[0]!.allocatedOverhead).toBe(0);
-    expect(r.excluded.unallocatedOverhead).toBe(900);
-    expect(r.glTieOut!.unallocatedOverhead).toBe(900);
-    expect(r.glTieOut!.residual).toBe(0);
-    expect(r.caveats.some((c) => c.includes("could not be spread"))).toBe(true);
-  });
-
-  it("a refused anchor reports the over-attribution as the residual instead of hiding it", () => {
-    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 2500 }), glExpenseTotal: 3000 }, PLAIN);
-    // 1000 direct + 2500 schedule = 3500 attributed against a 3000 ledger.
-    expect(r.excluded.overheadSource).toBe("ap_vouchers");
-    expect(r.glTieOut!.anchored).toBe(false);
-    expect(r.glTieOut!.residual).toBe(-500);
-  });
-
-  it("without a GL anchor there is no tie-out and the direct figures are unchanged", () => {
-    const r = computeCpm({ ...base, fixedCosts: fixedCosts({ "101": 500 }) }, PLAIN);
-    expect(r.glTieOut).toBeNull();
-    expect(r.trucks.find((t) => t.tractor_unit === "101")!.fixedCost).toBe(500);
-    expect(r.caveats.some((c) => c.includes("taken OUT of shared costs"))).toBe(false);
-  });
-});
-
 describe("computeCpm — a truck without miles has no rate, and the fleet rate is over measured trucks (D-FIN10)", () => {
   it("prints null, never $0.00, for a truck with cost and no miles — and sorts it last", () => {
     const r = computeCpm(
@@ -929,7 +720,6 @@ describe("computeCpm — a truck without miles has no rate, and the fleet rate i
     expect(r.fleet.directTotal).toBe(1800);
     expect(r.fleet.revenueTotal).toBe(2700);
     expect(r.fleet.unmeasured).toEqual({ trucks: 1, directTotal: 1500, fixedTotal: 0, allocatedTotal: 0, revenueTotal: 700 });
-    expect(r.caveats.some((c) => c.includes("1 truck(s) carry $1500.00 of cost but no Samsara miles"))).toBe(true);
   });
 
   it("applies the same rule under the estimate basis, and reads null when no truck has miles at all", () => {
@@ -937,6 +727,5 @@ describe("computeCpm — a truck without miles has no rate, and the fleet rate i
     expect(r.trucks[0]!.directCpm).toBeNull();
     expect(r.fleet.directCpm).toBeNull();
     expect(r.fleet.unmeasured.trucks).toBe(1);
-    expect(r.caveats.some((c) => c.includes("no miles in this window"))).toBe(true);
   });
 });

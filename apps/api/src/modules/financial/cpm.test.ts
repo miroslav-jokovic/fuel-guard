@@ -46,7 +46,7 @@ const MOVEMENTS = [
 ];
 
 describe("computeCpmForWindow", () => {
-  it("divides staged cost by Samsara measured miles per truck and carries the harness caveats", async () => {
+  it("divides staged cost by Samsara measured miles per truck", async () => {
     const rec = createSupabaseRecorder({
       tables: {
         mcleod_movements: MOVEMENTS,
@@ -88,10 +88,6 @@ describe("computeCpmForWindow", () => {
           { id: "b2", external_id: "INV-2", order_external_id: null, tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-20T00:00:00Z", transfer_date: null, total_charges: 1400, other_charge: 0, excise_tax: 0, post_key: "PK2", post_module: "BILL" },
           { id: "b3", external_id: "INV-3", order_external_id: null, tractor_unit: "754", driver_external_id: "D42", bill_date: "2026-06-22T00:00:00Z", transfer_date: null, total_charges: 999, other_charge: 0, excise_tax: 0, post_key: null, post_module: null },
         ],
-        // The office schedule (T1): a lease row covering June. Charged whole-month, own column.
-        truck_cost_schedules: [
-          { id: "cs1", unit_number: "754", category: "lease", label: "VIP Lease 754", monthly_amount: 2500, effective_from: "2026-01-01", effective_to: null, notes: null },
-        ],
       },
     });
 
@@ -112,21 +108,20 @@ describe("computeCpmForWindow", () => {
     expect(truck.directSettlement).toBe(600);
     expect(truck.directTotal).toBe(1600);
     expect(truck.directCpm).toBeCloseTo((1600 / truck.totalMiles) * 100, 1);
-    // The schedule's lease charges its own column; direct stays measured-only.
-    expect(truck.fixedCost).toBe(2500);
+    // The per-unit schedule was deleted at G7 (§4) and its table dropped in 0307, so nothing is
+    // charged to a truck from a contract any more: `fixedCost` is structurally zero.
+    expect(truck.fixedCost).toBe(0);
     // Overhead is ALLOCATED since the 2026-08-28 ruling. 754 is the only company truck here — 801
     // settles to an owner-operator and leaves the table — so it carries the whole $5,000 INSCO
     // voucher. The fuel vendor's $999,999 stays out, which is the D-FS2 exclusion still holding.
     expect(truck.allocatedOverhead).toBe(5000);
-    expect(truck.totalCpm).toBeCloseTo(((1600 + 2500 + 5000) / truck.totalMiles) * 100, 1);
-    expect(provenance.scheduledUnits).toBe(1);
-    expect(report.caveats.some((c) => c.includes("contracts, not measurements"))).toBe(true);
+    expect(truck.totalCpm).toBeCloseTo(((1600 + 5000) / truck.totalMiles) * 100, 1);
     // Revenue: only the two GL-booked invoices join — $4,000 over 1,400 measured miles — and net
-    // subtracts every cost IN the report (direct 1600 + fixed 2500).
+    // subtracts every cost IN the report (direct 1600 + allocated 5000).
     expect(provenance.bookedInvoices).toBe(2);
     expect(truck.revenue).toBe(4000);
     expect(truck.revenueCpm).toBeCloseTo((4000 / 1400) * 100, 1);
-    expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 2500 - 5000, 2);
+    expect(truck.netTotal).toBeCloseTo(4000 - 1600 - 5000, 2);
     // Nothing is withheld any more, so net subtracts every cost in the report and there is no
     // "subtracts ONLY" caveat to emit.
     expect(report.excluded.unallocatedOverhead).toBe(0);
@@ -187,7 +182,6 @@ describe("computeCpmForWindow", () => {
           { id: "b1", external_id: "INV-1", order_external_id: "O-1", tractor_unit: "801", driver_external_id: "D9", bill_date: "2026-06-18T00:00:00Z", transfer_date: null, total_charges: 1000, other_charge: 0, excise_tax: 0, post_key: "PK1", post_module: "BILL" },
           { id: "b2", external_id: "INV-2", order_external_id: "O-2", tractor_unit: "802", driver_external_id: "D8", bill_date: "2026-06-19T00:00:00Z", transfer_date: null, total_charges: 500, other_charge: 0, excise_tax: 0, post_key: "PK2", post_module: "BILL" },
         ],
-        truck_cost_schedules: [],
       },
     });
 
@@ -210,7 +204,7 @@ describe("computeCpmForWindow", () => {
 
   it("an empty window names the sweeps that have not run instead of reporting a $0.00 fleet", async () => {
     const rec = createSupabaseRecorder({
-      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], mcleod_gl_accounts: [], mcleod_gl_totals: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [], truck_cost_schedules: [] },
+      tables: { mcleod_movements: [], mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [], mcleod_gl_accounts: [], mcleod_gl_totals: [], financial_entries: [], vehicles: [], samsara_ifta_jurisdiction_miles: [] },
     });
     const { report, provenance } = await computeCpmForWindow(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(report.trucks).toEqual([]);
@@ -228,7 +222,6 @@ describe("computeCpmForWindow", () => {
         financial_entries: [],
         vehicles: [],
         samsara_ifta_jurisdiction_miles: [],
-        truck_cost_schedules: [],
         mcleod_billing: [],
         mcleod_gl_accounts: [],
         mcleod_gl_totals: [],

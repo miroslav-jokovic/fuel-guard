@@ -61,7 +61,7 @@ export function planFreshnessFindings(
     const days = Math.floor(ageHours / 24);
     findings.push({
       title: `McLeod financial sweep is ${days >= 1 ? `${days} day${days === 1 ? "" : "s"}` : `${Math.floor(ageHours)} hours`} old`,
-      body: `The last financial sweep landed ${lastSweptAt.slice(0, 16).replace("T", " ")} UTC. Money in & out, Revenue & margin and Cost per mile show figures as of that moment; anything McLeod posted since is not in them.`,
+      body: `The last financial sweep landed ${lastSweptAt.slice(0, 16).replace("T", " ")} UTC. The fleet report and Revenue & margin show figures as of that moment; anything McLeod posted since is not in them.`,
       severity: ageHours > 72 ? "critical" : "warning",
       dedupeKey: `finance:stale:${orgId}:${day}`,
       entityType: "integration",

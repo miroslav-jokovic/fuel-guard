@@ -493,7 +493,8 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G4** | **Active-truck rule** | **BUILT 2026-09-03** with G10 — they are one measurement. `assessMileageCoverage` / `periodDenominator` (pure), `getMileageCoverage` (service, both collectors), `GET /api/accounting/mileage-coverage`, and a banner above the tabs. | — |
 | **G5** | **Overview tab** | **BUILT 2026-09-03** — headline figures, the three-column split, the two denominators, and the twelve-month trend beneath them. | — |
 | **G6** | **The family summary** | **BUILT 2026-09-03**, map signed by the owner the same day. Ten families of expense and four of income over the 100 accounts that posted; `GL_FAMILIES` + `buildFamilySummary` (pure), carried on `/fleet-report` because it needs the miles as well as the lines, `FamilySummaryTable.vue` above the income statement. | — |
-| **G7** | **The removals and the rename** | §4, as its own PR after G1–G5 are live. **Also the rename:** the page is called "Cost per mile" in the nav and now leads with an overview and carries an income statement. The route name, `route.meta.title` and the nav entry move together, with `routeGates` and the section matrix. | G1–G5 |
+| **G7** | **The removals and the rename** | **BUILT 2026-09-03**, except one item §4 did not anticipate — see G7b. Three pages, the schedule table (0307), the per-truck cost columns, the caveat machinery and the deadhead basis are gone; the page is `/fleet-report`, titled "Fleet report". | — |
+| **G7b** | **The month close's proof** | **BLOCKED, and it blocks the last of §4.** `computeMonthClose` derives `anchored` and `cpm_residual` from the per-truck harness's allocation tie-out, so the allocation apparatus cannot be deleted without deciding what the close proves instead. Recommendation: the fleet report's own tie-out (company + contractors = ledger, already asserted every call) plus the module drifts. Needs a migration to drop four `finance_month_closes` columns and a change to `planMonthClose`. Belongs with G8, which already owns the close. | one ruling on D-FIN14 |
 | **G8** | **Provenance line and the retained tie-out** | The monthly close keeps running as the internal proof; its verdict prints as one line in `PageHeader` instead of as a page. | G1 |
 | **G9** | **Two denominators and the empty-mile figure** | **BUILT 2026-09-03.** Miles driven beside miles billed and the empty percentage between them (in `FleetReport`), plus the twelve-month trend of earned/spent/kept per mile — `computeFleetTrend`, `getFleetTrend`, `GET /api/accounting/fleet-trend`, `FleetTrendChart.vue`. | G1, G2 |
 | **W1** | **Daily GL grain** | §1.8.1 — the agent groups by transaction date, staging carries it, the replace RPC and its reader follow the deploy-window rule. Retires `monthsTouching` and the month-aligned-window guard. | nothing |
@@ -503,9 +504,9 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 | **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11 and G6 — done. **Next G7**, which is now the only
-remaining G-step: the removals and the page rename. G7 last, so nothing is deleted before its
-replacement is live — and every replacement is now live.
+**Ordering:** G2, G3, G4, G10, G1, G5, G9, G11, G6 and G7 — done. **Next G8**, which now carries
+G7b: the month close's proof has to move off the allocation tie-out before the last of §4 can go.
+Then the W-series.
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
 offered — except W1, which can ship any time and is worth shipping early because it removes
@@ -896,3 +897,35 @@ the record.
   **Verified in a real browser** on the income statement tab: ten expense families largest first with
   their share of revenue and cost per mile, three income families beneath, and an ungrouped row in
   amber where an account the map does not name would appear.
+- 2026-09-03 · **G7 — the removals and the rename.** Deleted: `/accounting` (Money in & out),
+  `/books-check` and `/cost-schedule` with every component behind them; the cost-schedule API stack,
+  `glMonthlyCosts` and the `truck_cost_schedules` table (migration **0307**, dropped with `cascade`
+  after measuring **0 rows** in production, which it has held since 0271 created it); the shared
+  `fixedCosts` contract; the caveat machinery; and the deadhead-estimate basis, so miles are
+  Samsara's measurement or they are absent. The per-truck tab keeps only the columns that are
+  precise for one truck — unit, trips, miles driven, earned, earned per mile — and the fleet stat
+  strip went with the allocation it reported, which is what finally ends the two-"earned per
+  mile"-figures problem recorded as trap §4.4.
+
+  **The rename.** `/cpm` → `/fleet-report`, route name and `meta.title` with it, the surface
+  catalogue entry rekeyed `finance.cpm` → `finance.fleet-report`, and the nav label "Cost per mile"
+  → "Fleet report". The old address stays as a redirect record: an accountant with `/cpm`
+  bookmarked lands on the page, not on a 404. The FINANCE group is now two entries, the fleet report
+  and Revenue & margin.
+
+  **G7b — what §4 did not anticipate, and why the last of the apparatus is still here.**
+  `computeMonthClose` (which G8 keeps, and D-FIN14 requires) computes its verdict from the per-truck
+  harness: `anchored` and `cpm_residual` come from `buildGlTieOut`, and a month hardens only when
+  that residual reads 0.00. **The close's proof IS the allocation tie-out.** Deleting
+  `cpmHarness`/`cpmContract`/`cpmFleet`/`cpmTieOut`/`apportion` therefore changes what
+  `finance_month_closes` records and what hardens a month — a schema change and a rule change, not a
+  deletion. So they stay, with the fixed-cost term left structurally zero and labelled, and the
+  removal moves to G8 with a recommendation: prove the month against the FLEET report's own tie-out
+  (company + contractors = ledger, asserted on every call today) and the SET/BILL/FUEL drifts, and
+  drop the four allocation columns. Recorded rather than routed around: shipping a gutted harness
+  whose numbers nobody reads, or quietly changing what "hardened" means, are both worse than saying
+  the step is bigger than the plan thought.
+
+  Everything green: 2,468 shared, 2,817 API and 1,206 web tests, every gate, and the PGlite RLS
+  matrix (468 assertions, 126 tables) executing 0307 before it can reach production. Verified in a
+  real browser at the new address.

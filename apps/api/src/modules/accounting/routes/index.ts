@@ -10,14 +10,12 @@ import {
   apSpendByAccount,
   getLedgerCoverage,
   computeCpmForWindow,
-  getGlMonthlyCosts,
   getMonthCloses,
   getIncomeStatement,
   getMileageCoverage,
   getFleetReport,
   getFleetTrend,
 } from "../../financial/index.js";
-import { registerCostScheduleRoutes } from "./costSchedules.js";
 
 import { windowSchema, entriesSchema, cpmQuerySchema, trendSchema } from "./schemas.js";
 
@@ -116,7 +114,6 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const f = parsed.data;
       const result = await computeCpmForWindow(admin, req.auth!.orgId!, f.from, f.to, {
-        ...(f.deadhead ? { deadhead: f.deadhead } : {}),
         ...(f.includeOwnerOperators !== undefined ? { includeOwnerOperators: f.includeOwnerOperators } : {}),
       });
       res.json({ ok: true, ...result });
@@ -156,27 +153,6 @@ export function accountingRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const report = await getLedgerCoverage(admin, req.auth!.orgId!, periodStart, `${next}-01`);
       res.json({ ok: true, ...report });
-    }),
-  );
-
-  // The month's expense accounts from McLeod's own ledger — what the fixed-cost schedule is meant
-  // to cover. The schedule page used to assert McLeod "cannot attribute" these costs and show an
-  // empty table, which reads as a claim the money is not in McLeod at all; it is (the 2026-08-28
-  // reconciliation reproduces the printed income statement to the cent). Only the per-TRUCK split
-  // is missing. This endpoint puts the GL lines next to the schedule so the gap is a number.
-  router.get(
-    "/gl-monthly-costs",
-    requireOrg,
-    canView,
-    asyncHandler(async (req, res) => {
-      const parsed = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide ?period=YYYY-MM."));
-        return;
-      }
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const costs = await getGlMonthlyCosts(admin, req.auth!.orgId!, parsed.data.period);
-      res.json({ ok: true, ...costs });
     }),
   );
 
@@ -277,9 +253,6 @@ export function accountingRouter(): Router {
       res.json({ ok: true, ...coverage });
     }),
   );
-
-  // Truck fixed-cost schedule CRUD (T1) — its own file; writes audit, reads share the view gate.
-  registerCostScheduleRoutes(router);
 
   return router;
 }
