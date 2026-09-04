@@ -59,6 +59,13 @@ export interface FleetTrendPoint {
   netPerMile: number | null;
   /** Why this month carries no rate, in the words the overview uses. Null when it carries one. */
   reason: string | null;
+  /**
+   * The month's empty share (G9): miles driven that no load was priced on, as a percentage of
+   * miles driven, from the same coverage row the rates come from. Null whenever the rates are —
+   * an empty share over a denominator missing part of the fleet is the same wrong number as a rate
+   * over one (D-FIN10). Added at R5 of the UI plan for the month-by-month table.
+   */
+  emptyPct: number | null;
 }
 
 export interface FleetTrend {
@@ -100,6 +107,9 @@ export function computeFleetTrend(inputs: FleetTrendInputs): FleetTrend {
       revenuePerMile: perMileRate(statement.revenue, denom.miles),
       costPerMile: perMileRate(statement.expenses, denom.miles),
       netPerMile: perMileRate(net, denom.miles),
+      // Gated on the SAME denominator as the rates: a month whose rates are refused has no empty
+      // share either, whatever the coverage row carries.
+      emptyPct: denom.miles == null ? null : (m.mileage?.emptyPct ?? null),
       reason: denom.reason,
     });
   }

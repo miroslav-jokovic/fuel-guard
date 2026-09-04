@@ -28,6 +28,12 @@ export interface FleetTrendPoint {
   costPerMile: number | null;
   netPerMile: number | null;
   reason: string | null;
+  /**
+   * The month's empty share (G9), null whenever the rates are. Optional on the wire for the
+   * deploy window: the API that returns it and the page that reads it ship in one merge, and for
+   * the minutes the old API serves the new page this field is simply absent — read as null.
+   */
+  emptyPct?: number | null;
 }
 
 export interface FleetTrendResponse {

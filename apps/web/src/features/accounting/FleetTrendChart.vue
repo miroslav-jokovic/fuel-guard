@@ -3,7 +3,8 @@ import { computed } from "vue";
 import type { ChartConfiguration } from "chart.js";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import BaseChart from "@/components/BaseChart.vue";
-import { MONEY_COLORS, trendOptions, fmtMonth, viz } from "@/lib/chartTheme";
+import { MONEY_COLORS, areaFill, trendOptions, fmtMonth, viz } from "@/lib/chartTheme";
+import FleetMonthTable from "./FleetMonthTable.vue";
 import { useFleetTrendQuery, type FleetTrendPoint } from "./useFleetTrend";
 
 /**
@@ -38,36 +39,51 @@ const points = computed<FleetTrendPoint[]>(() => data.value?.points ?? []);
 /** Months carrying a rate. With none, there is no line to draw and the reasons are the answer. */
 const rated = computed(() => data.value?.rated ?? 0);
 
+/**
+ * The soft treatment (R5, D-FRUI7): a 2px stroke with a gradient wash beneath. Kept — the headline
+ * series, the one the page is opened for — washes to the baseline; earned and spent fade out
+ * within the top third so three washes never overlap into a band nobody can read. No points along
+ * the line; one ringed dot on the last month, where the value is.
+ */
 const SERIES = [
-  { label: "Earned per mile", pick: (p: FleetTrendPoint) => p.revenuePerMile, color: () => MONEY_COLORS.earned },
-  { label: "Spent per mile", pick: (p: FleetTrendPoint) => p.costPerMile, color: () => MONEY_COLORS.spent },
-  { label: "Kept per mile", pick: (p: FleetTrendPoint) => p.netPerMile, color: () => MONEY_COLORS.kept },
+  { label: "Earned per mile", pick: (p: FleetTrendPoint) => p.revenuePerMile, token: "--viz-money-earned", color: () => MONEY_COLORS.earned, wash: { top: 0.16, mid: 0.04, midAt: 0.18, fadeAt: 0.34 } },
+  { label: "Spent per mile", pick: (p: FleetTrendPoint) => p.costPerMile, token: "--viz-money-spent", color: () => MONEY_COLORS.spent, wash: { top: 0.14, mid: 0.04, midAt: 0.22, fadeAt: 0.42 } },
+  { label: "Kept per mile", pick: (p: FleetTrendPoint) => p.netPerMile, token: "--viz-money-kept", color: () => MONEY_COLORS.kept, wash: { top: 0.3, mid: 0.08, midAt: 0.55, fadeAt: 1 } },
 ];
 
-const config = computed<ChartConfiguration>(() => ({
-  type: "line",
-  data: {
-    labels: points.value.map((p) => p.month),
-    datasets: SERIES.map((s) => ({
-      label: s.label,
-      data: points.value.map(s.pick),
-      borderColor: s.color(),
-      backgroundColor: s.color(),
-      borderWidth: 2,
-      pointRadius: 2,
-      pointHoverRadius: 4,
-      pointHoverBorderColor: viz.pointHalo,
-      tension: 0.25,
-      // A month without a rate is a hole in the line, not a straight run between its neighbours.
-      spanGaps: false,
-    })),
-  },
+const config = computed<ChartConfiguration>(() => {
+  const last = points.value.length - 1;
+  return {
+    type: "line",
+    data: {
+      labels: points.value.map((p) => p.month),
+      datasets: SERIES.map((s) => ({
+        label: s.label,
+        data: points.value.map(s.pick),
+        borderColor: s.color(),
+        backgroundColor: areaFill(s.token, s.wash),
+        fill: "origin",
+        borderWidth: 2,
+        // Only the last month carries a dot: it is where the value is read, and a dot on every
+        // month is a number on every point. Hover still lands on any month through the index mode.
+        pointRadius: (ctx: { dataIndex: number }) => (ctx.dataIndex === last ? 4 : 0),
+        pointHoverRadius: 5,
+        pointBackgroundColor: s.color(),
+        pointBorderColor: viz.pointHalo,
+        pointBorderWidth: 2,
+        pointHoverBorderColor: viz.pointHalo,
+        tension: 0.35,
+        // A month without a rate is a hole in the line, not a straight run between its neighbours.
+        spanGaps: false,
+      })),
+    },
   // `series` is deliberately omitted: three lines name themselves, in a legend and in the index
   // tooltip that lists all three at once. The axis stays anchored at zero because the lines sit
   // within a dollar or two of each other, and a floating axis would magnify an ordinary month of
   // noise into a cliff — the gap between earned and spent is the height a reader acts on.
-  options: trendOptions({ format: (v) => `$${v.toFixed(2)}`, labelFormat: fmtMonth, beginAtZero: true }),
-}));
+    options: trendOptions({ format: (v) => `$${v.toFixed(2)}`, labelFormat: fmtMonth, beginAtZero: true }),
+  };
+});
 
 /**
  * Why a month has no rate, in the coverage rule's own words, once per distinct reason. The reason
@@ -116,6 +132,11 @@ const span = computed(() => {
       No month in this span has mileage covering the whole fleet, so there is no rate to plot yet.
     </p>
     <BaseChart v-else :config="config" :height="260" class="mt-4" />
+
+    <!-- The same months as rows (R5): money, miles, trucks, the three rates and the empty share,
+         the month on screen highlighted. The chart is the shape; this is the figure a reader
+         quotes, and the two share one query so they can never disagree. -->
+    <FleetMonthTable v-if="points.length" :points="points" :current="props.to.slice(0, 7)" class="mt-4" />
 
     <p v-for="reason in gaps" :key="reason" class="mt-2 text-xs text-ink-tertiary">{{ reason }}</p>
     <p v-if="partialNote" class="mt-2 text-xs text-ink-tertiary">{{ partialNote }}</p>

@@ -191,17 +191,34 @@ export const MONEY_COLORS = {
  * transparent at the baseline — the modern "area under the line" look. Falls back to a flat wash before
  * the chart area is laid out (and under jsdom, where canvas gradients are unavailable), so it never throws.
  */
-export function areaFill(varName: string) {
-  const top = resolveAlpha(varName, 0.3);
-  const mid = resolveAlpha(varName, 0.08);
+export interface AreaFillOptions {
+  /** Opacity at the top of the plot area. */
+  top?: number;
+  /** Opacity at `midAt`. */
+  mid?: number;
+  /** Where (0–1 of the plot height) the fill reaches `mid`. */
+  midAt?: number;
+  /** Where (0–1 of the plot height) the fill has faded to nothing; 1 is the baseline. */
+  fadeAt?: number;
+}
+
+/**
+ * The defaults draw the wash to the baseline. A chart with several lines gives every series but
+ * the headline one an early `fadeAt` — the fleet trend fades earned and spent out within the top
+ * third — so three washes never overlap into a band nobody can read (D-FRUI7).
+ */
+export function areaFill(varName: string, { top = 0.3, mid = 0.08, midAt = 0.55, fadeAt = 1 }: AreaFillOptions = {}) {
+  const topColor = resolveAlpha(varName, top);
+  const midColor = resolveAlpha(varName, mid);
   const bottom = resolveAlpha(varName, 0);
   return (context: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
     const area = context.chart.chartArea;
-    if (!area) return mid;
+    if (!area) return midColor;
     const g = context.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-    g.addColorStop(0, top);
-    g.addColorStop(0.55, mid);
-    g.addColorStop(1, bottom);
+    g.addColorStop(0, topColor);
+    g.addColorStop(Math.min(midAt, fadeAt), midColor);
+    g.addColorStop(fadeAt, bottom);
+    if (fadeAt < 1) g.addColorStop(1, bottom);
     return g;
   };
 }

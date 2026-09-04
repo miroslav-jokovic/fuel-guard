@@ -187,3 +187,14 @@ in order; each depends on the one before only through the shell.
   callout (`AppCallout`, D-FRUI5), the bridge, the miles card and the source line. Pinned: the
   segments and Kept sum to 100 of earned; ten rows largest first; one hue plus Kept's; the warning
   swatch for "Not yet grouped"; no kept slice for a loss; the miles card refuses with the reason.
+- 2026-09-04 · **R5 — month by month, and the chart's soft treatment.** `FleetTrendPoint` gains
+  `emptyPct` (shared harness, gated on the same denominator as the rates — a refused month has no
+  empty share either; one new mutation-minded test). The chart takes D-FRUI7: `areaFill` learns
+  `midAt`/`fadeAt`, Kept washes to the baseline, Earned and Spent fade out within the top third so
+  three washes never overlap, no points along the line and one ringed dot on the last month
+  (`pointRadius` scriptable), tension .35. `FleetMonthTable.vue` sits in the chart's card, reading
+  the same query: newest first, the month on screen highlighted, Kept with an inline bar to the
+  span's widest month, dashes carrying the coverage reason for a refused month, the empty share as
+  the last column. No year-to-date row: its rates would need sums the page must not make; the
+  headlines carry the year-to-date money. The web reads `emptyPct` as optional so the deploy window
+  — the old API serving the new page for nine minutes — reads a dash, never a zero.

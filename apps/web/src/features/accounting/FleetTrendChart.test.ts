@@ -131,6 +131,32 @@ describe("FleetTrendChart", () => {
     expect(options.plugins?.legend?.display).toBe(true);
   });
 
+  it("washes under every line, to the baseline for kept and fading early for the other two", () => {
+    render();
+    const sets = config!.data.datasets as Array<{ label?: string; fill?: unknown; backgroundColor?: unknown }>;
+    expect(sets.every((d) => d.fill === "origin")).toBe(true);
+    expect(sets.every((d) => typeof d.backgroundColor === "function")).toBe(true);
+    // A gradient needs a laid-out chart area; before layout the fill falls back to a flat wash and
+    // never throws — the jsdom path, and the first frame in a browser.
+    const wash = (sets[2]!.backgroundColor as (c: unknown) => string)({ chart: {} });
+    expect(typeof wash).toBe("string");
+  });
+
+  it("marks only the last month with a dot, so the value is read where it ends", () => {
+    render();
+    const radius = (config!.data.datasets[0] as unknown as { pointRadius: (c: { dataIndex: number }) => number }).pointRadius;
+    expect(radius({ dataIndex: 2 })).toBeGreaterThan(0);
+    expect(radius({ dataIndex: 1 })).toBe(0);
+    expect(radius({ dataIndex: 0 })).toBe(0);
+  });
+
+  it("lists the same months as rows beneath the chart, with the month on screen highlighted", () => {
+    const w = render();
+    expect(w.text()).toContain("April 2026");
+    expect(w.text()).toContain("March 2026");
+    expect(w.text()).toContain("$4,000,000");
+  });
+
   it("prints the coverage rule's own reason for a month with no rate", () => {
     const w = render();
     expect(w.text()).toContain("16 that carried loads were not measured");
