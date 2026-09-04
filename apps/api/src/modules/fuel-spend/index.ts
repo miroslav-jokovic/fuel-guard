@@ -18,4 +18,5 @@ export { registerExceptionRoutes } from "./routes/exceptions.js";
 export { registerStatementRoutes } from "./routes/statements.js";
 export { startFuelSpendRollupScheduler } from "./fuelSpendRollupScheduler.js";
 export { runFuelReconciliation } from "./fuelReconRun.js";
+export { getFleetMpg, type FleetMpgResult } from "./fleetMpg.js";
 export { ingestFuelStatement, STATEMENT_BUCKET } from "./fuelStatementIngest.js";

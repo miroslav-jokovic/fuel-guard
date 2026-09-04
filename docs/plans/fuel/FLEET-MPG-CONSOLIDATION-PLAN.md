@@ -381,3 +381,47 @@ three of these are worth re-opening if the evidence changes.
 
   Ten tests, six mutants killed (no lookback; lookback zeroed; upper bound dropped; org filter
   dropped; counter validation dropped; a reversed period accepted).
+- 2026-09-04 · **W3b's collector is LIVE, and the measured miles were checked against the allocated
+  ones before M3 was built on them.** Migration 0311 applied at 19:18Z; the first `sync_odometer` tick
+  ran at 19:20:22Z and finished in 55 seconds — 11 batches, **1,295 readings across 157 of 202
+  trucks**, 45 trucks reporting nothing and counted rather than zeroed.
+
+  The first comparison that matters, over 1–3 September and **restricted to the 122 trucks both
+  sources can speak for**: measured **152,852 miles**, allocated **151,898** — the allocation running
+  **0.62% below** the odometer. On the same trucks and gallons that is 6.68 MPG measured against 6.64
+  allocated. So per-truck over a short window the allocation is close; §1.4's +3.78% August gap is a
+  population-and-edges effect, not a per-truck one, which sharpens Q3 rather than answering it.
+
+  Worth recording because it is the opposite of reassuring on its own: the same three days across the
+  WHOLE fleet read 7.60 MPG from `fuel_spend_days`, against 6.68 on the matched set. **The truck set
+  moves the number more than the method does**, which is precisely why D-MPG1 pairs miles and gallons
+  over the same trucks and why coverage travels with the answer.
+- 2026-09-04 · **M3 — `getFleetMpg`, the service and the route.** `GET /api/fueling/fleet-mpg?from=&to=`
+  in fuel-spend, assembling `readFleetDistance` (M2) with the period's tractor gallons and calling
+  `computeFleetMpg` (M1). One reader for a number eight surfaces print.
+
+  **The pairing is an intersection, and that is the judgement in this step.** Miles and gallons are
+  summed over the same trucks — those with a measured distance AND fuel in the period. A truck with
+  miles and no fuel would add distance to the numerator with nothing behind it (MPG reads high); a
+  truck with fuel and no measured miles would add fuel with no distance (MPG reads low). Both are
+  still COUNTED: the second lands in `trucksUnmeasured` and its gallons stay in the period's total,
+  so `measuredShare` says how much of the fleet's fuel the figure speaks for. Nothing is dropped
+  quietly.
+
+  **The tank boundary is named, not solved.** Fuel is bought in an instant and burned over days, so a
+  period's purchases are not its consumption. Over a month the ends cancel to second order; over a
+  single day they do not. `measuredShare` is a coverage figure and cannot detect it, so the file says
+  so rather than implying a precision it does not have.
+
+  **Both sources are cut on the FLEET's clock.** Odometer readings are instants and spend days are
+  dates; resolving them on the server's timezone would put a night's driving on the wrong side of a
+  month end. `to` is exclusive at the start of the following local day, which is what makes an
+  inclusive `to` mean the whole of that day.
+
+  **A new boundary pair, declared rather than worked around:** `fuel-spend -> samsara` joins
+  `check-feature-boundaries.mjs` with its reason. The alternative was fuel-spend deriving miles from
+  fuel a second time — the 1.31%-low numerator this plan exists to retire.
+
+  Nine tests, six mutants killed (dividing by all gallons rather than the paired ones; unmeasured
+  trucks uncounted; unattributed fuel dropped from the total; reefer gallons selected; the server's
+  clock instead of the fleet's; miles taken from every truck whether paired or not).
