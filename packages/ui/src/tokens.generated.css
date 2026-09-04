@@ -248,9 +248,9 @@
   --viz-cost-moving: light-dark(oklch(59.6% 0.1282 163.225), oklch(72% 0.145 163.225)); /* normal fuel movement (emerald) */
   --viz-cost-idle: light-dark(oklch(52% 0.18 33), oklch(72% 0.15 33)); /* avoidable idle cost (burnt orange) */
   --viz-cost-reefer: light-dark(oklch(48.8% 0.217 264.4), oklch(72% 0.1445 264.4)); /* refrigerated equipment (blue) */
-  --viz-money-earned: light-dark(oklch(48.8% 0.217 264.4), oklch(72% 0.1445 264.4)); /* the fleet report's revenue line (blue). Deliberately the cost palette's own three hues (G9): they are already checked for pairwise separation under protan, deutan and tritan simulation, and a trend chart's three lines need that check more than a chart of one does */
-  --viz-money-spent: light-dark(oklch(52% 0.18 33), oklch(72% 0.15 33)); /* the fleet report's expense line (burnt orange) */
-  --viz-money-kept: light-dark(oklch(59.6% 0.1282 163.225), oklch(72% 0.145 163.225)); /* the fleet report's net line (emerald) */
+  --viz-money-earned: light-dark(oklch(56.9% 0.1814 263.2), oklch(63.5% 0.1412 266.4)); /* the fleet report's revenue line (soft blue). Softened from the cost palette's hues at D-FRUI8 (2026-09-04, the owner asked for gentler charts): each of the three was validated, not judged — lightness band, chroma floor, colour-vision separation (worst pair ΔE 8.4), 3:1 on the surface — and anything softer than this failed one of them, which is why the softness lives in the chart's fills rather than its strokes */
+  --viz-money-spent: light-dark(oklch(63.4% 0.1599 36.2), oklch(66.6% 0.1456 35.7)); /* the fleet report's expense line (soft coral); D-FRUI8 */
+  --viz-money-kept: light-dark(oklch(62.5% 0.126 164.7), oklch(64.3% 0.1212 166.0)); /* the fleet report's net line (soft green); D-FRUI8 */
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
 }

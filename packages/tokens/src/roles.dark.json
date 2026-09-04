@@ -174,15 +174,15 @@
     },
     "viz-money-earned": {
       "$type": "color",
-      "$value": "oklch(72% 0.1445 264.4)"
+      "$value": "oklch(63.5% 0.1412 266.4)"
     },
     "viz-money-spent": {
       "$type": "color",
-      "$value": "oklch(72% 0.15 33)"
+      "$value": "oklch(66.6% 0.1456 35.7)"
     },
     "viz-money-kept": {
       "$type": "color",
-      "$value": "oklch(72% 0.145 163.225)"
+      "$value": "oklch(64.3% 0.1212 166.0)"
     },
     "shadow-tint-1": {
       "$type": "color",
