@@ -4,29 +4,36 @@ import { createPinia, setActivePinia } from "pinia";
 import AcceptInvitePage from "@/pages/auth/AcceptInvitePage.vue";
 
 /**
- * The invite landing page (2026-09-02).
+ * The invite landing page (rewritten 2026-09-04 around the invitation's OWN token).
  *
  * ⚠ THE CENTRAL PROPERTY, and the one to protect above the others: loading this page must spend
- * NOTHING. Production measured three sends whose one-time token was redeemed 15, 47 and 25 seconds
- * after leaving — the recipient's mail security opens the link and executes JavaScript, so a page
- * that redeemed on mount handed the scanner the session and left the human with "expired". Twice
- * over two days, with two different link formats.
+ * NOTHING. Production measured three sends (2026-09-02) whose one-time token was redeemed 15, 47
+ * and 25 seconds after leaving — the recipient's mail security opens the link and executes
+ * JavaScript. With our own token the page may READ on load (the lookup), and the one call that
+ * spends the token needs a password. What is pinned below is exactly that split: which call runs
+ * when, and that GoTrue is never asked to verify anything from this page.
  *
- * What is pinned here is the set of arrivals that used to be indistinguishable. Before this page
- * redeemed its own token, the route was `requiresAuth: true` and supabase-js's `detectSessionInUrl`
- * was the only thing that could produce a session — so a `token_hash` link, a spent link and an
- * expired link all left `isAuthenticated` false, and the router guard turned all three into the same
- * silent redirect to /login. That is why "the invite link goes to the login page" was one report
- * covering several different faults, and why each of them gets its own assertion below.
+ * The other production loss (2026-09-03) was a token that expired in an hour while the email said
+ * seven days. That is now impossible by construction — there is no GoTrue token in the link — so
+ * it is pinned on the API side (`inviteRedemption`), not here.
  *
  * The page is mounted directly rather than through the router: the guard is the thing that used to
  * intercept, and `routeTable.test.ts` ("names every route reachable without a session") is what
  * pins that it no longer can.
  */
-const authCalls: string[] = [];
-const auth = vi.hoisted(() => ({
-  verifyOtpError: null as { message: string } | null,
-  sessionAfter: { user: { id: "u1" } } as unknown,
+const calls = vi.hoisted(() => ({ api: [] as Array<{ path: string; body: unknown }>, auth: [] as string[] }));
+const api = vi.hoisted(() => ({
+  lookup: { ok: true, status: 200, data: { email: "nadia@example.test", orgName: "Silvicom Inc", role: "dispatcher", fullName: "Nadia Named", expiresAt: null } } as { ok: boolean; status: number; data?: unknown; error?: { code: string; message: string } },
+  redeem: { ok: true, status: 200, data: { ok: true, email: "nadia@example.test" } } as { ok: boolean; status: number; data?: unknown; error?: { code: string; message: string } },
+}));
+
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(async (path: string, opts?: { body?: unknown }) => {
+    calls.api.push({ path, body: opts?.body });
+    if (path.endsWith("/lookup")) return api.lookup;
+    if (path.endsWith("/redeem")) return api.redeem;
+    return { ok: false, status: 500 };
+  }),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -34,47 +41,34 @@ vi.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
       verifyOtp: vi.fn(async () => {
-        authCalls.push("verifyOtp");
-        return { error: auth.verifyOtpError };
+        calls.auth.push("verifyOtp");
+        return { error: null };
       }),
       setSession: vi.fn(async () => {
-        authCalls.push("setSession");
+        calls.auth.push("setSession");
         return { error: null };
       }),
-      exchangeCodeForSession: vi.fn(async () => {
-        authCalls.push("exchangeCodeForSession");
-        return { error: null };
-      }),
-      updateUser: vi.fn(async () => ({ error: null })),
     },
   },
 }));
 
-const storeSession = vi.hoisted(() => ({ value: null as unknown }));
-/**
- * `refresh()` ROTATES the refresh token; `syncFromClient()` reads what the client already holds.
- * The store fake keeps them distinct on purpose — collapsing them is exactly the confusion that
- * locked a user out on 2026-09-02, and a fake where both do the same thing could not express it.
- */
-const refreshFails = vi.hoisted(() => ({ value: false }));
+const storeSession = vi.hoisted(() => ({ value: null as unknown, signInFails: false }));
+const push = vi.hoisted(() => vi.fn());
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({
     get session() {
       return storeSession.value;
     },
-    refresh: vi.fn(async () => {
-      // Real `refresh()` swallows its error and leaves the store untouched when the rotation fails.
-      if (refreshFails.value) return;
-      storeSession.value = auth.sessionAfter;
+    signIn: vi.fn(async (email: string, password: string) => {
+      calls.auth.push(`signIn:${email}:${password}`);
+      if (storeSession.signInFails) throw new Error("Invalid login credentials");
+      storeSession.value = { user: { id: "u1" } };
     }),
-    syncFromClient: vi.fn(async () => {
-      storeSession.value = auth.sessionAfter;
-    }),
+    syncFromClient: vi.fn(async () => undefined),
+    refresh: vi.fn(async () => undefined),
   }),
 }));
-
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: {} })) }));
-vi.mock("vue-router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
 
 function mountAt(url: string) {
   window.history.replaceState({}, "", url);
@@ -88,167 +82,152 @@ function mountAt(url: string) {
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  authCalls.length = 0;
-  auth.verifyOtpError = null;
-  auth.sessionAfter = { user: { id: "u1" } };
-  refreshFails.value = false;
+  calls.api.length = 0;
+  calls.auth.length = 0;
+  push.mockClear();
   storeSession.value = null;
+  storeSession.signInFails = false;
+  api.lookup = { ok: true, status: 200, data: { email: "nadia@example.test", orgName: "Silvicom Inc", role: "dispatcher", fullName: "Nadia Named", expiresAt: null } };
+  api.redeem = { ok: true, status: 200, data: { ok: true, email: "nadia@example.test" } };
 });
 
+const LINK = "/accept-invite?token=tok_abcdefghijklmnopqrstuvwxyz";
+
 /** Fill the form and submit — the only thing that may spend a token. */
-async function submitPassword(w: ReturnType<typeof mountAt>, pw = "correcthorse", name = "Nadia Named") {
-  // Name first (0301), then the password twice.
-  await w.findAll("input")[0]!.setValue(name);
+async function submitPassword(w: ReturnType<typeof mountAt>, pw = "correcthorse", name?: string) {
+  if (name !== undefined) await w.findAll("input")[0]!.setValue(name);
   await w.findAll("input")[1]!.setValue(pw);
   await w.findAll("input")[2]!.setValue(pw);
   await w.find("form").trigger("submit");
   await flushPromises();
 }
 
-describe("AcceptInvitePage — loading spends nothing", () => {
+describe("AcceptInvitePage — loading reads and spends nothing", () => {
+  it("looks the invitation up on mount and asks GoTrue for nothing", async () => {
+    const w = mountAt(LINK);
+    await flushPromises();
+    expect(calls.api.map((c) => c.path)).toEqual(["/api/public/invites/lookup"]);
+    expect(calls.api[0]!.body).toEqual({ token: "tok_abcdefghijklmnopqrstuvwxyz" });
+    expect(calls.auth).toEqual([]);
+    expect(w.text()).toContain("Join Silvicom Inc");
+    expect(w.text()).toContain("Dispatcher");
+    expect(w.text()).toContain("nadia@example.test");
+  });
+
+  it("pre-fills the name the admin typed on the invitation", async () => {
+    const w = mountAt(LINK);
+    await flushPromises();
+    expect((w.findAll("input")[0]!.element as HTMLInputElement).value).toBe("Nadia Named");
+  });
+
   /**
-   * The regression that matters. A mail scanner that renders the page gets a form and stops,
-   * because it has no password to submit; the token is spent by the one action a machine will not
-   * take on the recipient's behalf.
+   * The trade the 2026-09-02 page made — "a link's validity is UNKNOWN until submit" — is undone:
+   * a dead link is refused before the person has typed a password, because the lookup is a read.
    */
-  it("does NOT redeem a token_hash link on mount — it only offers the form", async () => {
+  it("says a dead link is dead before anybody types a password", async () => {
+    api.lookup = { ok: false, status: 404, error: { code: "invalid_link", message: "This invitation link is no longer valid." } };
+    const w = mountAt(LINK);
+    await flushPromises();
+    expect(w.text()).toContain("no longer valid");
+    expect(w.text()).toContain("send a new invitation");
+    expect(w.find("form").exists()).toBe(false);
+  });
+
+  it("leaves the token in the URL until it is spent, so a reload can still use it", async () => {
+    mountAt(LINK);
+    await flushPromises();
+    expect(window.location.search).toContain("token=tok_");
+  });
+
+  /**
+   * Links emailed before 2026-09-04 carried a GoTrue credential. They are all dead — spent by a
+   * scanner or an hour past their expiry — and the page must say "earlier kind of invitation" rather
+   * than try `verifyOtp`, which is the call a scanner could race.
+   */
+  it("refuses a GoTrue-shaped link from the old flow without calling Supabase", async () => {
     const w = mountAt("/accept-invite?token_hash=abc&type=invite");
     await flushPromises();
-    expect(authCalls).toEqual([]);
-    expect(w.text()).toContain("Set your password");
+    expect(calls.api).toEqual([]);
+    expect(calls.auth).toEqual([]);
+    expect(w.text()).toContain("earlier kind of invitation");
   });
 
-  it("does NOT redeem an implicit-grant fragment on mount either", async () => {
+  it("refuses an implicit-grant fragment the same way", async () => {
     const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
     await flushPromises();
-    expect(authCalls).toEqual([]);
-    expect(w.text()).toContain("Set your password");
+    expect(calls.auth).toEqual([]);
+    expect(w.text()).toContain("earlier kind of invitation");
   });
 
-  it("leaves the credential in the URL until it is spent, so a reload can still use it", async () => {
-    mountAt("/accept-invite?token_hash=abc&type=invite");
+  it("tells a bare visitor that this is not an invitation link", async () => {
+    const w = mountAt("/accept-invite");
     await flushPromises();
-    expect(window.location.search).toContain("token_hash=abc");
+    expect(calls.api).toEqual([]);
+    expect(w.text()).toContain("doesn’t look like an invitation link");
   });
 });
 
-describe("AcceptInvitePage — submitting redeems", () => {
-  it("redeems the token_hash link on submit", async () => {
-    const w = mountAt("/accept-invite?token_hash=abc&type=invite");
+describe("AcceptInvitePage — submitting redeems, then signs in", () => {
+  it("redeems with the token, password and trimmed name, then signs in with the invited address", async () => {
+    const w = mountAt(LINK);
     await flushPromises();
-    await submitPassword(w);
-    expect(authCalls).toEqual(["verifyOtp"]);
+    await submitPassword(w, "correcthorse", "  Nadia Named ");
+    expect(calls.api.map((c) => c.path)).toEqual(["/api/public/invites/lookup", "/api/public/invites/redeem"]);
+    expect(calls.api[1]!.body).toEqual({
+      token: "tok_abcdefghijklmnopqrstuvwxyz",
+      password: "correcthorse",
+      fullName: "Nadia Named",
+    });
+    expect(calls.auth).toEqual(["signIn:nadia@example.test:correcthorse"]);
+    expect(push).toHaveBeenCalledWith("/");
   });
 
-  it("redeems an implicit-grant fragment on submit", async () => {
-    const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
-    await flushPromises();
-    await submitPassword(w);
-    expect(authCalls).toEqual(["setSession"]);
-  });
-
-  it("clears the credential out of the address bar once it is spent", async () => {
-    const w = mountAt("/accept-invite?token_hash=abc&type=invite");
+  it("clears the token out of the address bar once it is spent", async () => {
+    const w = mountAt(LINK);
     await flushPromises();
     await submitPassword(w);
     expect(window.location.search).toBe("");
   });
 
-  it("says the link is spent when redemption fails, rather than blaming the password", async () => {
-    auth.verifyOtpError = { message: "Token has expired or is invalid" };
-    const w = mountAt("/accept-invite?token_hash=stale&type=invite");
+  it("will not redeem without a name — the token is spent only by a complete form", async () => {
+    api.lookup = { ok: true, status: 200, data: { email: "nadia@example.test", orgName: "Silvicom Inc", role: "dispatcher", fullName: null, expiresAt: null } };
+    const w = mountAt(LINK);
     await flushPromises();
     await submitPassword(w);
-    expect(w.text()).toContain("already been used or has expired");
-    expect(w.text()).not.toContain("Set your password");
-  });
-
-  /**
-   * An error fragment needs no network call to recognise, so this one IS decided on load — GoTrue
-   * redirected with it, the link is already spent, and offering a form would waste the person's time.
-   */
-  it("explains a link that arrived already spent, without calling Supabase to be told so", async () => {
-    const w = mountAt(
-      "/accept-invite#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
-    );
-    await flushPromises();
-    expect(authCalls).toEqual([]);
-    expect(w.text()).toContain("expired or was already used");
-    expect(w.text()).toContain("Ask your admin to resend it");
-    expect(w.text()).not.toContain("Set your password");
-  });
-
-  it("says the right thing when redemption succeeded but no session landed", async () => {
-    auth.sessionAfter = null;
-    const w = mountAt("/accept-invite?token_hash=abc&type=invite");
-    await flushPromises();
-    await submitPassword(w);
-    // A link that redeemed fine is not a spent link, and telling somebody to ask for a resend when
-    // the token worked sends them round a loop that cannot end.
-    expect(w.text()).toContain("couldn't sign you in");
-    expect(w.text()).not.toContain("already been used");
-  });
-
-  /**
-   * THE LOCKOUT (production, 2026-09-02). `verifyOtp` succeeded — the server recorded the sign-in —
-   * and the page still said "this invitation link has expired", because it reached for `refresh()`
-   * to populate the store. That call rotates a refresh token issued seconds earlier; when the
-   * rotation failed the store stayed null and this page read null as "the link was bad".
-   *
-   * The invited user therefore never saw a password form, `/api/invites/accept` was never called,
-   * and no membership was ever created — while their account existed, confirmed, with a password.
-   * Nothing in the flow could tell them that, and re-inviting reproduced it exactly.
-   */
-  it("completes even when a token rotation would have failed", async () => {
-    refreshFails.value = true;
-    const w = mountAt("/accept-invite?token_hash=abc&type=invite");
-    await flushPromises();
-    await submitPassword(w);
-    expect(authCalls).toEqual(["verifyOtp"]);
-    // Not sent to the "this link can't be used" screen, and not told the link expired.
-    expect(w.text()).not.toContain("already been used");
-    expect(w.text()).not.toContain("couldn't sign you in");
-  });
-
-
-
-  /**
-   * supabase-js may consume the fragment itself during `session.init()`, leaving a bare URL and a
-   * signed-in user. Reading that as "not an invitation link" would break the one arrival that
-   * worked before this change.
-   */
-  it("shows the form to an already-signed-in arrival whose URL has been stripped", async () => {
-    storeSession.value = { user: { id: "u1" } };
-    const w = mountAt("/accept-invite");
-    await flushPromises();
-    expect(authCalls).toEqual([]);
-    expect(w.text()).toContain("Set your password");
-  });
-
-  it("tells a bare visitor with no session that this is not an invitation link", async () => {
-    const w = mountAt("/accept-invite");
-    await flushPromises();
-    expect(w.text()).toContain("doesn’t look like an invitation link");
-  });
-});
-
-describe("AcceptInvitePage — the person says who they are (0301)", () => {
-  it("sends the typed name with the acceptance, trimmed, and nothing else in the body", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
-    await flushPromises();
-    await submitPassword(w, "correcthorse", "  Nadia Named ");
-    expect(apiFetch).toHaveBeenCalledWith("/api/invites/accept", { method: "POST", body: { fullName: "Nadia Named" } });
-  });
-
-  it("will not redeem the link without a name — the token is spent only by a complete form", async () => {
-    const w = mountAt("/accept-invite#access_token=at&refresh_token=rt&type=invite");
-    await flushPromises();
-    await w.findAll("input")[1]!.setValue("correcthorse");
-    await w.findAll("input")[2]!.setValue("correcthorse");
-    await w.find("form").trigger("submit");
-    await flushPromises();
-    expect(authCalls).toEqual([]);
+    expect(calls.api.map((c) => c.path)).toEqual(["/api/public/invites/lookup"]);
     expect(w.text()).toContain("Tell us your name.");
+  });
+
+  it("says the link died when redemption answers 404, rather than blaming the password", async () => {
+    api.redeem = { ok: false, status: 404, error: { code: "invalid_link", message: "gone" } };
+    const w = mountAt(LINK);
+    await flushPromises();
+    await submitPassword(w);
+    expect(w.text()).toContain("no longer valid");
+    expect(w.find("form").exists()).toBe(false);
+    expect(calls.auth).toEqual([]);
+  });
+
+  it("shows the project's password policy as a retryable error on the form", async () => {
+    api.redeem = { ok: false, status: 422, error: { code: "weak_password", message: "Password should be at least 12 characters." } };
+    const w = mountAt(LINK);
+    await flushPromises();
+    await submitPassword(w);
+    expect(w.text()).toContain("at least 12 characters");
+    expect(w.find("form").exists()).toBe(true);
+  });
+
+  /**
+   * The membership was written by the redeem call; only the sign-in failed. Sending this person to
+   * "ask for a resend" would loop them through an invitation that is now ACCEPTED and dead.
+   */
+  it("tells a person whose account was created but sign-in failed to use the login page", async () => {
+    storeSession.signInFails = true;
+    const w = mountAt(LINK);
+    await flushPromises();
+    await submitPassword(w);
+    expect(w.text()).toContain("Invalid login credentials");
+    expect(w.text()).not.toContain("send a new invitation");
+    expect(push).not.toHaveBeenCalled();
   });
 });

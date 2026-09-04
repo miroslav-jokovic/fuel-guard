@@ -41,12 +41,14 @@ export const authRoutes: RouteRecordRaw[] = [
    * the client had not redeemed yet — into a silent redirect to /login. The page's own "link
    * expired" branch could never render, because the guard ran first.
    *
-   * Nothing is exposed by making it public. The page renders a password form only after redeeming
-   * the token itself (`verifyOtp`), and `POST /api/invites/accept` independently re-checks that the
-   * caller's email is confirmed before it will create a membership.
+   * Nothing is exposed by making it public. Since 2026-09-04 the page holds no GoTrue credential at
+   * all: the link carries the invitation's own token, the page READS it through
+   * `POST /api/public/invites/lookup` and spends it only with a password through
+   * `POST /api/public/invites/redeem`, and the API creates the login and the membership before the
+   * page signs in. The session that sign-in produces already carries the org and role.
    *
-   * `allowNoOrg` stays: an accepted invite has no membership until the POST lands, so the user is
-   * briefly authenticated with no org while still on this page.
+   * `allowNoOrg` stays for the moment between sign-in and navigation, when the store may still hold
+   * a session whose claims it has not yet read.
    */
   {
     path: "/accept-invite",

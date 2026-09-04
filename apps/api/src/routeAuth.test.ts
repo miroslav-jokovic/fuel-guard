@@ -16,10 +16,13 @@ import { closeTestServer } from "./testing/httpServer.js";
 // it carries its own throttles + uniform errors (routes/auth.ts) instead of requireAuth.
 // /api/version reports the deployed commit and migration version. Public deliberately: a version
 // endpoint that needs a token is one nobody checks, and it publishes nothing tenant-scoped.
+// /api/public/invites redeems an emailed invitation for somebody who has no account yet; the
+// token in the POST body is the credential (routes/publicInvites.ts), rate-limited in app.ts.
 const PUBLIC_PREFIXES = new Set([
   "/api/webhooks",
   "/api/auth",
   "/api/public/hazmat",
+  "/api/public/invites",
   "/api/version",
 ]);
 

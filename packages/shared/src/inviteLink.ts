@@ -22,7 +22,11 @@ export const INVITE_LINK_TYPES = ["invite", "recovery", "magiclink", "signup"] a
 export type InviteLinkType = (typeof INVITE_LINK_TYPES)[number];
 
 export interface InviteLinkParams {
-  /** OUR invites-table token, when the link carries one (the driver deep-link shape). */
+  /**
+   * OUR invitation token — what every office invitation emailed since 2026-09-04 carries, as
+   * `?token=…`, and the only credential the web accept page redeems. Stored hashed on the
+   * `invites` row; presented to `POST /api/public/invites/redeem`.
+   */
   inviteToken: string | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -133,6 +137,9 @@ export function hasSessionMaterial(p: InviteLinkParams): boolean {
  * to guess.
  */
 export function inviteLinkErrorMessage(p: InviteLinkParams): string | null {
+  // Our own token (2026-09-04): the link is whole, and whether it is still live is the API's
+  // answer, not the URL's.
+  if (p.inviteToken) return null;
   if (p.errorDescription)
     return "This invitation link has expired or was already used. Ask your admin to resend it.";
   if (!hasSessionMaterial(p)) return "This doesn’t look like an invitation link.";

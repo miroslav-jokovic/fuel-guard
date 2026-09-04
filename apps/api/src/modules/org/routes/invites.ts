@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { randomUUID } from "node:crypto";
 import {
   inviteAcceptSchema,
   inviteCreateSchema,
@@ -12,6 +11,8 @@ import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { deliverInvite } from "../inviteDelivery.js";
+import { mintLinkToken } from "../../../lib/linkToken.js";
+import { admitInvitedUser, isRedemptionError, type LiveInvite } from "../inviteRedemption.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { sendEmail } from "../../../lib/mailer.js";
 
@@ -89,7 +90,9 @@ export function invitesRouter(): Router {
         return;
       }
 
-      const token = `${randomUUID()}${randomUUID()}`;
+      // The link's credential is minted here and stored as its hash; only the email ever holds the
+      // plaintext (lib/linkToken.ts). `expires_at` is the ONLY expiry on this invitation.
+      const minted = mintLinkToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
       const { data: invite, error } = await admin
@@ -100,7 +103,7 @@ export function invitesRouter(): Router {
           role,
           full_name: fullName ?? null,
           invited_by: req.auth!.userId,
-          token,
+          token: minted.hash,
           expires_at: expiresAt.toISOString(),
         })
         .select(INVITE_COLS)
@@ -112,7 +115,7 @@ export function invitesRouter(): Router {
 
       // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
       // regardless so the admin can copy/share it if email delivery is misconfigured.
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "Silvicom 360", email);
+      const delivery = await deliverInvite(env, (org.name as string) ?? "Silvicom 360", email, minted.token);
       if (!delivery.sent)
         console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
@@ -239,7 +242,10 @@ export function invitesRouter(): Router {
     }),
   );
 
-  // Resend a revoked or expired invite (admin) — resets to pending with a fresh token.
+  // Resend a pending, revoked or expired invite (admin) — resets to pending with a fresh token.
+  // A resend ROTATES the credential: the link in the earlier email stops working the moment this
+  // returns, and the response says so to the admin, because two identical-looking emails with one
+  // dead link is exactly how the 2026-09-03 invitation was lost.
   router.post(
     "/:id/resend",
     requireOrg,
@@ -270,7 +276,7 @@ export function invitesRouter(): Router {
         return;
       }
 
-      const token = `${randomUUID()}${randomUUID()}`;
+      const minted = mintLinkToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -278,7 +284,7 @@ export function invitesRouter(): Router {
         .from("invites")
         .update({
           status: "pending",
-          token,
+          token: minted.hash,
           expires_at: expiresAt.toISOString(),
           invited_by: req.auth!.userId,
         })
@@ -297,10 +303,10 @@ export function invitesRouter(): Router {
         .eq("id", orgId)
         .maybeSingle();
       const delivery = await deliverInvite(
-        admin,
         env,
         (org?.name as string) ?? "Silvicom 360",
         existing.email,
+        minted.token,
       );
       const emailSent = delivery.sent;
       if (!emailSent)
@@ -315,12 +321,19 @@ export function invitesRouter(): Router {
         meta: { email: existing.email, emailSent },
       });
 
-      res.json({ ok: true, emailSent, reason: delivery.reason, link: delivery.link });
+      res.json({ ok: true, emailSent, reason: delivery.reason, link: delivery.link, rotated: true });
     }),
   );
 
   // Accept an invite → create the membership (audit B2). Authenticated invited user only.
   // Authorized by the JWT email matching a pending invite in an allowed domain (audit M2).
+  //
+  // Since 2026-09-04 the web app no longer arrives here: it redeems the emailed link itself through
+  // `POST /api/public/invites/redeem`, which needs no session because the link is the proof. This
+  // route stays for a caller that already HOLDS a confirmed GoTrue session for the invited address
+  // — the driver app's accept screen (`apps/driver/app/(auth)/accept-invite.tsx`), a path
+  // DRIVER-CREDENTIALS-PLAN.md DC9 retires in favour of username + password — and both routes end
+  // in the same `admitInvitedUser`, so what admission MEANS is written once.
   router.post(
     "/accept",
     validateBody(inviteAcceptSchema),
@@ -353,7 +366,7 @@ export function invitesRouter(): Router {
       const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")
-        .select("id, org_id, role, status, driver_id, full_name")
+        .select("id, org_id, role, status, full_name, expires_at")
         .eq("email", email)
         .eq("status", "pending")
         .or(`expires_at.is.null,expires_at.gt.${now}`)
@@ -367,83 +380,35 @@ export function invitesRouter(): Router {
 
       const { data: org } = await admin
         .from("organizations")
-        .select("allowed_domains")
+        .select("name, allowed_domains")
         .eq("id", invite.org_id)
         .single();
-      if (!org || !isEmailDomainAllowed(email, org.allowed_domains as string[])) {
+      if (!org) {
         res.status(422).json(apiError("domain_not_allowed", "Email domain not allowed"));
         return;
       }
 
-      const { error: mErr } = await admin
-        .from("memberships")
-        .upsert(
-          { org_id: invite.org_id, user_id: req.auth!.userId, role: invite.role },
-          { onConflict: "org_id,user_id" },
-        );
-      if (mErr) {
-        res.status(500).json(apiError("db_error", "Could not create membership"));
+      const live: LiveInvite = {
+        id: invite.id as string,
+        org_id: invite.org_id as string,
+        email,
+        role: invite.role as LiveInvite["role"],
+        full_name: (invite.full_name as string | null) ?? null,
+        expires_at: (invite.expires_at as string | null) ?? null,
+      };
+      const admitted = await admitInvitedUser(admin, {
+        invite: live,
+        org: { name: (org.name as string) ?? "Silvicom 360", allowed_domains: (org.allowed_domains ?? []) as string[] },
+        userId: req.auth!.userId,
+        email,
+        typedName: typedName ?? null,
+      });
+      if (isRedemptionError(admitted)) {
+        res.status(admitted.status).json(apiError(admitted.code, admitted.message));
         return;
       }
-
-      // Bind login → roster driver (0102 / plan §3.2). THIS is what makes the driver app work: without
-      // it `drivers.user_id` stays null, `auth_driver_id()` (0083) returns null, and GET /api/me/driver
-      // 404s `no_driver_record`. Runs BEFORE the invite is marked accepted so a failure here leaves the
-      // invite pending and retryable rather than burning it on a half-linked account.
-      // A generic office invite has `driver_id` null and skips this entirely.
-      if (invite.driver_id) {
-        const { data: drv } = await admin
-          .from("drivers")
-          .select("id, user_id")
-          .eq("id", invite.driver_id)
-          .eq("org_id", invite.org_id)
-          .maybeSingle();
-        if (!drv) {
-          res.status(404).json(apiError("no_driver_record", "Invited driver no longer exists"));
-          return;
-        }
-        // Idempotent for the SAME user (a re-accept is harmless); a DIFFERENT user is a hijack attempt
-        // or a mis-sent invite — either way, refuse rather than move the link.
-        if (drv.user_id && drv.user_id !== req.auth!.userId) {
-          res
-            .status(409)
-            .json(apiError("already_linked", "This driver is already linked to another account"));
-          return;
-        }
-        const { error: linkErr } = await admin
-          .from("drivers")
-          .update({ user_id: req.auth!.userId, app_access_enabled: true })
-          .eq("id", invite.driver_id)
-          .eq("org_id", invite.org_id);
-        if (linkErr) {
-          res.status(500).json(apiError("db_error", "Could not link driver"));
-          return;
-        }
-      }
-
-      // The person's name (0301, D-MEM1): what they typed on the accept page, else what the admin typed
-      // on the invitation, else nothing — a profile is never written with a name nobody said. Written
-      // AFTER the membership so a failure here cannot leave a person named but not admitted, and as a
-      // full-row upsert because the row is the whole answer, not a column of it.
-      const name = typedName ?? (invite.full_name as string | null) ?? null;
-      if (name) {
-        const { error: nameErr } = await admin.from("user_profiles").upsert(
-          { user_id: req.auth!.userId, full_name: name, updated_at: new Date().toISOString(), updated_by: req.auth!.userId },
-          { onConflict: "user_id" },
-        );
-        if (nameErr) console.error(`[invites] profile not written for ${req.auth!.userId}: ${nameErr.message}`);
-      }
-
-      await admin.from("invites").update({ status: "accepted" }).eq("id", invite.id);
-      await writeAudit(admin, {
-        orgId: invite.org_id,
-        actorId: req.auth!.userId,
-        action: "invite.accepted",
-        entity: "memberships",
-        meta: { email, driverId: invite.driver_id ?? null },
-      });
-      // The web app must call supabase.auth.refreshSession() after this to pick up the new claims.
-      res.json({ ok: true, orgId: invite.org_id, role: invite.role });
+      // The caller must refresh its session after this to pick up the new claims.
+      res.json({ ok: true, orgId: admitted.orgId, role: admitted.role });
     }),
   );
 
