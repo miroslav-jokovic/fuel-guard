@@ -7,9 +7,10 @@ work stopped, what is proven, and the seven traps that cost time in this session
 applying 0307 and 0308), #529 W1a (`6eb210c`, applying 0309 and 0310), #530 W1b (`b410140`). Live
 schema is **0310**, confirmed by `verify:live` as well as by the migrate runs.
 
-**The only thing left in W1 is W1c, and it waits on the live database connection — see §3.5**, which
-is the order to work in when that arrives. Nothing regresses if it slips: the report reads the
-monthly rollup today exactly as it did before W1.
+**Two different blocks, do not confuse them.** **W1c and W4** wait on the live McLeod connection —
+§3.5 is the order to work in when it arrives, and nothing regresses if it slips. **W3b does not
+wait on anything**: Samsara is a cloud API and is syncing right now, so the odometer collector
+gathers real data the moment it deploys. It is the next thing to build.
 
 **Working tree.** The shared checkout at `~/Projects/FuelGuard` belongs to another session; this
 work lives in the worktree `.claude/worktrees/finance-g8`. Check the current branch before every
@@ -60,7 +61,9 @@ accepted because a deliberate break made them fail.
 | **W1a** daily GL schema | **Built 2026-09-04** — table + function, no caller yet | 0309, 0310 |
 | **W1b** daily collector | **Built and MERGED 2026-09-04** — the agent sends the day, the ingest calls 0310's function | PR #530 |
 | **W2** weekly activity | **Built 2026-09-04** — the Week by week tab, miles-free and cost-free by design | `billingActivity.ts` ×2 layers, `ActivityTable.vue` |
-| **W1c, W3, W4** | Not started — W1c and W3 wait on the live connection (§3.5) | — |
+| **W3a** distance rule + store | **Built 2026-09-04** — vendor docs read; the §1.8.2 correction is in the plan | `vehicleDistance.ts`, 0311 |
+| **W3b** | Next, and **unblocked** — Samsara is a cloud API, syncing today | — |
+| **W1c, W4** | Wait on the live McLeod connection (§3.5) | — |
 
 **Files added this session**
 
@@ -157,6 +160,41 @@ in this workspace — import `playwright-core`, and by absolute path if the scri
 repo. Four states have been checked this way: July's figures, a February-shaped response where
 every rate is a dash, seven trend months with January and February as holes in the line, and a
 February-only span where there is no line at all.
+
+### 3.6 W3b — the odometer collector, the next thing to build
+
+W3a landed the rule and the store; W3b is the fetcher, the sync and the scheduler tier. Everything
+needed to write it is settled, and none of it waits on McLeod.
+
+**What the vendor documentation says** (read 2026-09-04, and the reason §1.8.2 was wrong):
+`GET /fleet/vehicles/stats/history` takes arbitrary `startTime`/`endTime` and returns per-vehicle
+`{time, value}` arrays. Samsara's "calculating distance traveled" guide ranks the counters —
+`obdOdometerMeters` "the most accurate", then `gpsDistanceMeters`, then `gpsOdometerMeters`. All are
+cumulative, in **metres**. **There is no distance-over-range endpoint**; the vendor's own method is
+to difference the odometer, which is what `distanceByVehicle` does.
+
+**The shape to copy is `apps/api/src/modules/idle/idleCapabilitySync.ts`.** It already batches that
+same endpoint 20 vehicles at a time over a rolling window and upserts per-vehicle-per-day rows into
+`vehicle_engine_days` on the org's timezone. W3b is that file with `types=obdOdometerMeters,
+gpsDistanceMeters` and, per vehicle per day, the LAST sample of the day written to
+`samsara_odometer_readings` — one row per counter, verbatim, in metres.
+
+**Constraints already measured, do not rediscover them:**
+
+- `/fleet/vehicles/stats/history` is capped at **10 req/s per token** (`STATS_HISTORY_MAX_RPS = 9`),
+  is **paginated**, and Samsara accepts **at most 3 stat types** per request.
+- ⚠ `gpsOdometerMeters` is a stat TYPE, not a `decorations` value — passing it in `decorations` makes
+  Samsara reject the whole request with HTTP 400 (`lib/samsaraStats.ts`, the bug that once produced
+  0% telematics coverage).
+- History availability degrades at the old edge: **2026-01 is 10.8% `no_data`, 2026-08 is 0.6%**
+  (SAMSARA-COLLECTION-PLAN). A day with no sample must write NO ROW, never a zero.
+- The client layer needs nothing new: `samsaraFetch` already carries per-token rate limiting, 429
+  and 5xx retry with jitter, a 120 s deadline and sealed per-org tokens.
+
+**The trap that is already in the product.** `fuel_spend_days.miles` looks like per-vehicle daily
+distance and is NOT a measurement: `rollupDerive.ts`'s `allocate()` spreads one fill-to-fill odometer
+interval across days by drive-second weight, or evenly. Finance must never read it (D-FLEET8). W3b
+exists precisely so there is a measured alternative.
 
 ### 3.5 Go-live: the order to do things in when the live connection arrives
 
@@ -319,8 +357,7 @@ environmental, not a regression from any change.)
 
 ## 8. Position
 
-**Built:** every G-step — G1 through G11, plus G7b — and **W1a**. §4 is fully executed and PR #527
-is merged (main `d2c3b36`).
+**Built:** every G-step — G1 through G11 and G7b — plus W1a, W1b, W2 and W3a.
 
 **W1a and W1b are merged** (PRs #529, #530; main `b410140`). 0310 is applied in production —
 confirmed by the migrate run and by `verify:live` reporting live schema 0310 — which is what let
