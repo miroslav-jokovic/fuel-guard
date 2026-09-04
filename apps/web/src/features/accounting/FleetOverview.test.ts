@@ -69,13 +69,14 @@ const text = (o: Partial<FleetReportResponse> = {}) =>
   mount(FleetOverview, { props: { report: report(o) } }).text();
 
 describe("FleetOverview", () => {
-  it("leads with earned, spent and kept, each with its per-mile figure", () => {
+  it("prints earned, spent and kept with their per-mile figures in the split table", () => {
     const t = text();
     expect(t).toContain("Earned");
     expect(t).toContain("$4,828,189");
-    expect(t).toContain("$3.11 per mile driven");
-    expect(t).toContain("$2.61 per mile driven");
-    expect(t).toContain("$0.50 per mile driven");
+    expect(t).toContain("Earned per mile");
+    expect(t).toContain("$3.11");
+    expect(t).toContain("$2.61");
+    expect(t).toContain("$0.50");
   });
 
   it("shows contractors in their own column beside the company's", () => {
@@ -103,7 +104,7 @@ describe("FleetOverview", () => {
       mileageReason: "Some trucks were not yet sending mileage in 2026-02",
     };
     const t = text(noRate);
-    expect(t).toContain("per-mile figure not available");
+    expect(t).toContain("—");
     expect(t).not.toContain("$3.11");
     expect(t).not.toContain("$0.00");
     // The money still shows in full — it is complete and it ties.

@@ -70,3 +70,28 @@ export function fleetProvenanceLine(report: FleetReportResponse): string {
 
   return parts.join(" · ");
 }
+
+/**
+ * The trust chip (R3, D-FRUI2): the one claim that makes every other number quotable, as a badge
+ * beside the period rather than a sentence under the title.
+ *
+ * Green when the split ties to the ledger, warning when it misses or the ledger was never swept,
+ * neutral while no month of the period could be reported. The full provenance sentence rides
+ * along as `title`, so the chip is the short form of the same fact and never a second one.
+ */
+export interface FleetTrust {
+  tone: "success" | "warning" | "neutral";
+  label: string;
+  title: string;
+}
+
+export function fleetTrust(report: FleetReportResponse): FleetTrust {
+  const title = fleetProvenanceLine(report);
+  const swept = report.sweptAt ? `swept ${sweepDay(report.sweptAt)}` : "never swept";
+  if (!report.monthsCovered.length) return { tone: "neutral", label: `No finished month · ${swept}`, title };
+  if (!report.sweptAt) return { tone: "warning", label: "Ledger never swept", title };
+  const off = Math.abs(report.tieOut.revenue) + Math.abs(report.tieOut.expenses);
+  return off === 0
+    ? { tone: "success", label: `Ties to ledger · ${swept}`, title }
+    : { tone: "warning", label: `Off by ${usd(off)} · ${swept}`, title };
+}

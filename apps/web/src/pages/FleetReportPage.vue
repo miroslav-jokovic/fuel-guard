@@ -5,16 +5,18 @@ import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
 import FleetContractorsTab from "@/features/accounting/FleetContractorsTab.vue";
+import FleetHeadlines from "@/features/accounting/FleetHeadlines.vue";
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
 import FleetPeriodRail from "@/features/accounting/FleetPeriodRail.vue";
 import FleetTrendChart from "@/features/accounting/FleetTrendChart.vue";
 import FleetTrucksTab from "@/features/accounting/FleetTrucksTab.vue";
 import IncomeStatementTab from "@/features/accounting/IncomeStatementTab.vue";
-import { fleetProvenanceLine, monthName } from "@/features/accounting/fleetProvenance";
+import { fleetProvenanceLine, fleetTrust, monthName } from "@/features/accounting/fleetProvenance";
 import { useFleetReportQuery } from "@/features/accounting/useFleetReport";
 import { useFleetTrendQuery } from "@/features/accounting/useFleetTrend";
 import { useIncomeStatementQuery } from "@/features/accounting/useIncomeStatement";
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { latestReportableMonth, monthKey, periodForMonth, periodLabel, type ReportPeriod } from "@/lib/reportPeriod";
 
@@ -22,11 +24,11 @@ import { latestReportableMonth, monthKey, periodForMonth, periodLabel, type Repo
  * The fleet report (`/fleet-report`, D-FLEET1–8): what the fleet earned, spent and kept over a
  * period, the ledger in McLeod's own shape, and the two per-unit views that are precise.
  *
- * This file is the SHELL — the period, the three queries the period turns into, the tab strip and
- * the provenance line. Each tab is its own component under `features/accounting/` since R1 of the
- * UI plan (docs/plans/financial/FLEET-REPORT-UI-PLAN.md). The file is named for the route it
- * serves; it was `CpmReportPage.vue` until R1, a name that stopped being true at G7 when the
- * per-truck cost table it was named for was retired.
+ * This file is the SHELL — the period, the queries the period turns into, the tab strip and the
+ * trust chip. Each tab is its own component under `features/accounting/` since R1 of the UI plan
+ * (docs/plans/financial/FLEET-REPORT-UI-PLAN.md). The file is named for the route it serves; it
+ * was `CpmReportPage.vue` until R1, a name that stopped being true at G7 when the per-truck cost
+ * table it was named for was retired.
  *
  * ── The period (R2, D-FRUI1) ──────────────────────────────────────────────────────────────────
  * One clock for the whole section: the rail above the tabs holds the period and every tab reads
@@ -98,6 +100,14 @@ const tab = ref<FleetTab>("overview");
 const { data: fleet, isLoading: fleetLoading, isError: fleetError, refetch: fleetRefetch } = useFleetReportQuery(filter, ready);
 
 /**
+ * The trend behind the headlines (R3): the previous month's figures and the sparklines. It is the
+ * same query the chart under the overview issues — same key, same twelve months ending on the
+ * period — so vue-query serves both from one request.
+ */
+const trendMonths = ref(12);
+const { data: trend } = useFleetTrendQuery(to, trendMonths);
+
+/**
  * The income statement (G3) — its own query rather than a field on the fleet report: the statement
  * is the whole ledger for the period and the fleet report is a fleet calculation over part of it,
  * and loading ninety-four account rows to render the overview would make every other tab slower
@@ -125,26 +135,25 @@ const pageDescription = computed(() =>
 );
 
 /**
- * The provenance line (G8) — which months, swept when, does it tie, over how many trucks and miles.
- * It reads the fleet report, so the sentence qualifying the figures comes from the same request
- * that produced them. Empty until that call lands: a provenance line assembled from a half-loaded
- * page is worse than none.
+ * Provenance (G8, D-FRUI2): the chip on the rail is the short form — ties or misses, swept when —
+ * and the full sentence (months, sweep stamp, residual, trucks and miles) sits first in the
+ * explainer, where a reader who wants to check the claim will look. Both come from the fleet
+ * report call itself, so the sentence qualifying the figures is from the request that made them.
  */
+const trust = computed(() => (fleet.value ? fleetTrust(fleet.value) : null));
 const provenanceLine = computed(() => (fleet.value ? fleetProvenanceLine(fleet.value) : ""));
 const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : null));
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- The description follows the tab, because the page answers different questions on each.
-         Under it, the provenance line (G8): the months, the sweep's own stamp (D-FIN3, never the
-         page's clock), whether the split still ties, and the denominator under the rates. -->
+    <!-- The description follows the tab, because the page answers different questions on each. -->
     <PageHeader :description="pageDescription" />
-    <p v-if="provenanceLine" class="-mt-4 text-xs text-ink-tertiary">{{ provenanceLine }}</p>
 
     <!-- The method, one click away: a cost-per-mile number whose assumptions are invisible is
-         worse than none, because it gets quoted. -->
+         worse than none, because it gets quoted. The provenance sentence leads it. -->
     <ExplainerPanel>
+      <p v-if="provenanceLine" class="font-medium text-ink">{{ provenanceLine }}</p>
       <p>
         Money comes from McLeod's general ledger and miles from Samsara. Nothing is estimated and
         nothing is shared out: the overview and the income statement are the ledger's own totals over
@@ -158,9 +167,15 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
       </p>
     </ExplainerPanel>
 
-    <!-- One clock for every tab (D-FRUI1). Until the opening month is known the rail waits with
-         the tabs, rather than flashing the calendar's month and then correcting itself. -->
-    <FleetPeriodRail v-if="period" v-model="period" :cap="calendarCap" />
+    <!-- One clock for every tab (D-FRUI1), with the trust chip beside it (D-FRUI2). Until the
+         opening month is known the rail waits with the tabs, rather than flashing the calendar's
+         month and then correcting itself. -->
+    <FleetPeriodRail v-if="period" v-model="period" :cap="calendarCap">
+      <span v-if="trust" :class="[BADGE_BASE, toneClass(trust.tone)]" :title="trust.title">{{ trust.label }}</span>
+      <span v-if="fleet?.total.trucks != null && fleet?.total.miles != null" class="text-xs text-ink-tertiary">
+        {{ fleet.total.trucks.toLocaleString() }} trucks · {{ Math.round(fleet.total.miles).toLocaleString() }} measured miles
+      </span>
+    </FleetPeriodRail>
     <p v-else class="text-sm text-ink-secondary">Finding the latest month in the ledger…</p>
     <p v-if="openedEarlierNote" class="-mt-3 text-xs text-ink-tertiary">{{ openedEarlierNote }}</p>
 
@@ -178,16 +193,28 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
     <!-- Each tab is mounted fresh (v-if, not v-show) on purpose: a tab owns its page number and its
          filters, and remounting is what resets them on a tab change (owner ruling 2026-08-29). -->
     <template v-if="period">
-      <div v-if="tab === 'overview'">
+      <div v-if="tab === 'overview'" class="space-y-4">
         <p v-if="fleetError" class="text-sm text-danger-600">
           The overview could not be loaded. Try the period again in a moment.
         </p>
-        <FleetOverview v-else-if="fleet" :report="fleet" :loading="fleetLoading" />
+        <template v-else-if="fleet">
+          <!-- The four headlines (R3): kept, earned, spent, kept per mile — each with its
+               neighbour. Hidden with the rest when no month of the period could be reported; the
+               overview says why in full. -->
+          <FleetHeadlines
+            v-if="fleet.monthsCovered.length"
+            :report="fleet"
+            :trend="trend ?? null"
+            :period="period"
+            :loading="fleetLoading"
+          />
+          <FleetOverview :report="fleet" :loading="fleetLoading" />
+        </template>
         <p v-else class="text-sm text-ink-secondary">Loading the overview…</p>
 
         <!-- The trend (G9): whether this period is where the fleet has been sitting or where it has
              just moved to. It ends on the period on screen and reads its own twelve months back. -->
-        <FleetTrendChart class="mt-4" :to="to" />
+        <FleetTrendChart :to="to" />
       </div>
 
       <!-- Week by week (W2): revenue and activity from billing alone, bucketed on the day each load

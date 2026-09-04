@@ -113,31 +113,8 @@ const contractorNote = computed(() => {
     </div>
 
     <template v-else>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <StatCard
-        label="Earned"
-        :value="fmtUsd(report.total.revenue)"
-        :sub="report.total.revenuePerMile === null
-          ? 'per-mile figure not available for this period'
-          : `${fmtRate(report.total.revenuePerMile)} per mile driven`"
-      />
-      <StatCard
-        label="Spent"
-        :value="fmtUsd(report.total.expenses)"
-        :sub="report.total.costPerMile === null
-          ? 'per-mile figure not available for this period'
-          : `${fmtRate(report.total.costPerMile)} per mile driven`"
-      />
-      <StatCard
-        label="Kept"
-        :value="fmtUsd(report.total.net)"
-        :sub="report.total.netPerMile === null
-          ? 'per-mile figure not available for this period'
-          : `${fmtRate(report.total.netPerMile)} per mile driven`"
-        :sub-tone="report.total.net < 0 ? 'text-danger-600' : undefined"
-      />
-    </div>
-
+    <!-- The three headline cards that led this component moved to `FleetHeadlines.vue` at R3,
+         where each figure gained its neighbour (last month, year to date) and a sparkline. -->
     <BaseCard padding="none">
       <DataTable embedded :columns="columns" :rows="rows" row-key="key" :loading="loading">
         <template #cell-label="{ row }">

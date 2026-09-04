@@ -168,8 +168,12 @@ const valueClass = computed(() =>
             <p :class="[valueClass, muted ? 'text-ink-muted' : 'text-ink']" :title="valueTitle">
               {{ value }}
             </p>
-            <p v-if="sub" :class="['mt-0.5 flex items-center gap-1 text-xs', subTone ?? 'text-ink-tertiary']">
-              {{ sub }}
+            <!-- `#sub` lets a caller compose the line from parts in different tones — a change
+                 against last month in red beside a year-to-date figure in grey (D-FRUI3) — where
+                 the `sub` string can only wear one `subTone`. Same slot in the anatomy, so a tile
+                 with a composed line and a tile with a plain one still line up. -->
+            <p v-if="sub || $slots.sub" :class="['mt-0.5 flex items-center gap-1 text-xs', subTone ?? 'text-ink-tertiary']">
+              <slot name="sub">{{ sub }}</slot>
               <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
             </p>
           </template>
