@@ -16,8 +16,8 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  * exactly what regresses silently when someone copies a router.
  *
  * The `fleet` section matrix (packages/shared/src/auth.ts) says: manage = admin | fleet_manager |
- * safety_manager; view adds dispatcher + auditor; driver gets nothing. Enrollment (`/:id/invite`)
- * is narrower still — admin + fleet_manager — because it hands out a login.
+ * safety_manager; view adds dispatcher + auditor; driver gets nothing. (The emailed enrollment
+ * route `/:id/invite` was retired on 2026-09-04 — DC9; logins come from routes/credentials.ts.)
  */
 
 let server: Server;
@@ -197,36 +197,6 @@ describe("PATCH /api/roster/drivers/:id — write gate (fleet ∪ recruitment, m
   it("400 on a field the roster does not own", async () => {
     // `identity_source` is derived, not supplied. Strict rejection beats a silent no-op.
     const res = await call(path, { method: "PATCH", body: JSON.stringify({ identity_source: "manual" }), token: "admin" });
-    expect(res.status).toBe(400);
-  });
-});
-
-describe("POST /api/roster/drivers/:id/invite — enrollment gate (admin + fleet_manager only)", () => {
-  const body = JSON.stringify({ email: "someone@silvicominc.com" });
-  const path = "/11111111-1111-1111-1111-111111111111/invite";
-
-  it("401 unauthenticated", async () => {
-    expect((await call(path, { method: "POST", body })).status).toBe(401);
-  });
-
-  it.each(["safety", "recruiter"])(
-    "403 for %s — may edit master data, may not hand out logins",
-    async (token) => {
-      expect((await call(path, { method: "POST", body, token })).status).toBe(403);
-    },
-  );
-
-  it.each(["driver", "dispatcher", "auditor"])("403 for %s", async (token) => {
-    expect((await call(path, { method: "POST", body, token })).status).toBe(403);
-  });
-
-  it.each(["admin", "fleet"])("passes the gate for %s", async (token) => {
-    const res = await call(path, { method: "POST", body, token });
-    expect([401, 403]).not.toContain(res.status);
-  });
-
-  it("400 on a malformed email", async () => {
-    const res = await call(path, { method: "POST", body: JSON.stringify({ email: "nope" }), token: "admin" });
     expect(res.status).toBe(400);
   });
 });

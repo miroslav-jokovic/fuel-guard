@@ -74,7 +74,6 @@
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/fuel/driverAttribution.ts",
-    "apps/api/src/modules/org/routes/invites.ts",
     "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
@@ -245,8 +244,8 @@
     "apps/api/src/modules/samsara/samsaraScheduler.ts"
   ],
   "invites": [
-    "apps/api/src/modules/org/routes/invites.ts",
-    "apps/api/src/modules/roster/routes/drivers.ts"
+    "apps/api/src/modules/org/inviteRedemption.ts",
+    "apps/api/src/modules/org/routes/invites.ts"
   ],
   "jobs": [
     "apps/api/src/modules/org/jobs.ts"
@@ -295,7 +294,7 @@
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
   "memberships": [
-    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts"
   ],
@@ -407,7 +406,7 @@
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
   "user_profiles": [
-    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
   ],
   "user_section_access": [

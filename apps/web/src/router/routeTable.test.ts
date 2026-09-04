@@ -168,9 +168,9 @@ describe("the route table survives being split by area", () => {
    *
    * `/accept-invite` joined on 2026-09-02. It was `requiresAuth: true`, which meant the guard turned
    * every failed invite link — spent by a mail scanner, expired, or merely not yet redeemed — into a
-   * redirect to /login, so nobody could tell a broken link from a wrong password. The page redeems
-   * its own token and shows a form only once that succeeds; `POST /api/invites/accept` re-checks
-   * email confirmation server-side before it will create a membership.
+   * redirect to /login, so nobody could tell a broken link from a wrong password. Since 2026-09-04
+   * the page holds the invitation's own token and redeems it through the public
+   * `/api/public/invites` surface, which creates the login and the membership; the page then signs in.
    */
   it("names every route reachable without a session", () => {
     const publicPaths = router
@@ -182,7 +182,7 @@ describe("the route table survives being split by area", () => {
       // G1's catch-all and its two dead-end pages. Public by necessity: a 404 or an outage screen
       // that bounces you to /login first tells you nothing about why you are not where you meant to be.
       "/:pathMatch(.*)*",
-      "/accept-invite", // redeems its own invite token; membership still gated server-side
+      "/accept-invite", // redeems the invitation's own token via /api/public/invites; membership written server-side
       "/apply/:token", // H5b — the applicant's form; the token IS the access control
       "/error",
       "/login",

@@ -12,6 +12,7 @@
  * outside: it is the process fabric every module's handlers register into, not one module's own.
  */
 export { invitesRouter } from "./routes/invites.js";
+export { publicInvitesRouter } from "./routes/publicInvites.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
 export { savedViewsRouter } from "./routes/savedViews.js";

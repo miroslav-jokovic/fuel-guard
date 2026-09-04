@@ -1,18 +1,14 @@
 import { Router } from "express";
-import { randomUUID } from "node:crypto";
 import {
   EMPLOYED_DRIVER_STATUSES,
   canWriteDriverLifecycle,
   driverCreateSchema,
-  driverInviteSchema,
   driverUpdateSchema,
   deriveFullName,
   touchesDriverLifecycle,
-  isEmailDomainAllowed,
   resolveDriverUpdate,
   rolesThatManage,
   type DriverCreateRequest,
-  type DriverInviteRequest,
   type DriverUpdateContext,
   type DriverUpdateRequest,
 } from "@silvicom/shared";
@@ -21,7 +17,6 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { deliverInvite } from "../../org/index.js";
 import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
 
 /**
@@ -29,16 +24,18 @@ import { reconcileDrivers, mergeDriverPair } from "../driverReconcile.js";
  *
  * Two things live here and they are not the same thing:
  *   the ROSTER RECORD  — who works here, their CDL, their medical card. Exists with or without a login.
- *   APP ACCESS         — a login bound to that record. `POST /:id/invite` starts it; accepting the
- *                        invite finishes it in routes/invites.ts (0102 / plan §3.2).
+ *   APP ACCESS         — a login bound to that record, issued as a username + password from
+ *                        routes/credentials.ts (DRIVER-CREDENTIALS-PLAN.md DC9). The emailed
+ *                        `POST /:id/invite` that once started it was retired on 2026-09-04.
  *
  * Before this router there was no way to create a driver at all: every row in `drivers` was
  * auto-created by the Samsara sync or the EFS name matcher. Anything created here is marked
  * `identity_source = 'manual'`, which is the flag the sync reads to stop overwriting admin edits.
  *
  * Gating follows the `fleet` section matrix (packages/shared/src/auth.ts) — the single source of
- * truth the RLS policies in 0097–0101 mirror. Enrolling for app access is narrower than editing
- * master data (admin + fleet_manager only): it hands out a login, not a phone number.
+ * truth the RLS policies in 0097–0101 mirror. Issuing app access (routes/credentials.ts) is
+ * narrower than editing master data (admin + fleet_manager only): it hands out a login, not a
+ * phone number.
  *
  * DEACTIVATION IS A STATUS EDIT, not its own endpoint. `PATCH { status: 'terminated' }` is the whole
  * mechanism: `auth_driver_id()` (0083) resolves only 'active' drivers, so a non-active roster row
@@ -278,98 +275,11 @@ export function rosterDriversRouter(): Router {
     }),
   );
 
-  // Enroll an EXISTING roster driver for driver-app access (admin/fleet_manager).
-  // The invite carries `driver_id`; acceptance binds `drivers.user_id` (routes/invites.ts, plan §3.2).
-  // ⚠ Narrower than `rolesThatManage("roster")` on purpose — see rosterCredentialsRouter's header.
-  // An invitation is the first half of issuing a credential, so it carries the same gate.
-  router.post(
-    "/:id/invite",
-    requireOrg,
-    requireRole("admin", "fleet_manager"),
-    validateBody(driverInviteSchema),
-    asyncHandler(async (req, res) => {
-      const env = getAppLocals(req).env;
-      const admin = getSupabaseAdmin(env);
-      const orgId = req.auth!.orgId!;
-      const id = String(req.params.id ?? "");
-      const { email } = res.locals.body as DriverInviteRequest;
-
-      const { data: driver } = await admin
-        .from("drivers")
-        .select("id, user_id, full_name")
-        .eq("id", id)
-        .eq("org_id", orgId)
-        .maybeSingle();
-      if (!driver) {
-        res.status(404).json(apiError("not_found", "Driver not found"));
-        return;
-      }
-      // One login ↔ one driver (idx_drivers_user, 0098). Re-linking is an explicit unlink, not a
-      // silent overwrite — otherwise a typo'd invite could move a driver's app to someone else.
-      if (driver.user_id) {
-        res.status(409).json(apiError("already_linked", "This driver already has app access"));
-        return;
-      }
-
-      const { data: org } = await admin
-        .from("organizations")
-        .select("name, allowed_domains")
-        .eq("id", orgId)
-        .single();
-      if (!org || !isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
-        res
-          .status(422)
-          .json(
-            apiError("domain_not_allowed", "Email domain is not allowed for this organization"),
-          );
-        return;
-      }
-
-      const token = `${randomUUID()}${randomUUID()}`;
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      // Upsert on the table's (org_id, email) unique key: re-inviting the same address re-points and
-      // re-arms the invite instead of 409-ing, which is what an admin means by "send it again".
-      const { error: inviteErr } = await admin.from("invites").upsert(
-        {
-          org_id: orgId,
-          email,
-          role: "driver",
-          driver_id: id,
-          invited_by: req.auth!.userId,
-          token,
-          expires_at: expiresAt.toISOString(),
-          status: "pending",
-        },
-        { onConflict: "org_id,email" },
-      );
-      if (inviteErr) {
-        res.status(500).json(apiError("db_error", "Could not create invite"));
-        return;
-      }
-
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "Silvicom 360", email);
-      if (!delivery.sent)
-        console.error(`[roster] driver invite not sent for ${email} (${delivery.reason})`);
-
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "driver.invited",
-        entity: "drivers",
-        entityId: id,
-        meta: { email, emailSent: delivery.sent, reason: delivery.reason },
-      });
-
-      res.json({
-        ok: true,
-        emailSent: delivery.sent,
-        reason: delivery.reason,
-        link: delivery.link,
-      });
-    }),
-  );
+  // `POST /:id/invite` — emailing a roster driver an invitation — was retired on 2026-09-04, as
+  // DRIVER-CREDENTIALS-PLAN.md DC9 ruled: a driver's login is a username + password issued from
+  // this page (`routes/credentials.ts`), never an email link. No web or driver-app surface called
+  // it, and no `invites` row on production carried a `driver_id`. The column stays (0102); nothing
+  // writes it.
 
   // Reconcile duplicate / name-only drivers: fold each unmatched (no Samsara id) driver into its Samsara
   // twin. DRY RUN by default (returns the exact merge pairs to review); { apply: true } executes them via

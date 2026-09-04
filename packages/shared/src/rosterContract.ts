@@ -408,26 +408,6 @@ export function resolveDriverUpdate(
   return { patch, claimedFromTelematics, stampedTerminationDate, derivedFullName };
 }
 
-// ── enroll for app access ─────────────────────────────────────────────────────
-
-/** `POST /api/roster/drivers/:id/invite` — invite THIS roster row to the driver app (plan §3.1). */
-export const driverInviteSchema = z.object({
-  email: z.email().max(200),
-});
-export type DriverInviteRequest = z.infer<typeof driverInviteSchema>;
-
-/**
- * `link` is always returned when it could be generated, even if the email failed to send — the same
- * contract `/api/invites` uses, so an admin can copy the link when mail is misconfigured.
- */
-export const driverInviteResponseSchema = z.object({
-  ok: z.literal(true),
-  emailSent: z.boolean(),
-  reason: z.string().nullable(),
-  link: z.string().nullable(),
-});
-export type DriverInviteResponse = z.infer<typeof driverInviteResponseSchema>;
-
 // ── name derivation (pure — shared by API create/update and any UI preview) ────
 
 /**
