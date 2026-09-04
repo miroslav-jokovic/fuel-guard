@@ -323,3 +323,29 @@ three of these are worth re-opening if the evidence changes.
   `gallons + intermediateGallons` while every surface weights by `gallons`, so the per-fill numerator
   is short by exactly the intermediate share and the bias is structurally negative — which is the
   mechanism behind §1.4's measured −1.31% / −2.41%.
+- 2026-09-04 · **M2 — `readFleetDistance`, the measured-miles reader.** In the samsara module, over
+  its own `samsara_odometer_readings` (D-SEP1): reads the readings, hands them to `distanceByVehicle`,
+  returns per-truck distance plus the fleet total and the count it could not measure. It does no
+  arithmetic on metres and it decides no period.
+
+  **The lookback is the whole trick.** A period's distance is `odometer(end) − odometer(start)` where
+  each end is the last reading AT OR BEFORE that instant, and the collector writes one reading per
+  truck per day, late in the day — so the readings strictly INSIDE a Monday-to-Monday week run Monday
+  evening to Sunday evening: six days of driving reported as seven, a 14% undercount no total
+  contradicts. The reader therefore fetches from **30 days before** the window. Thirty rather than a
+  handful because the failure is asymmetric: too short and a truck parked for a fortnight loses its
+  opening odometer and drops out of the fleet total; too long costs rows, and rows are ~380 a day.
+
+  **It does not invent a population.** A truck that staged no readings simply does not appear — the
+  CALLER knows which trucks bought fuel, and returning a guessed roster from a reader would put a
+  coverage decision in the wrong layer.
+
+  **A test that proved nothing, caught by mutating it.** `supabaseRecorder` records filters and does
+  not apply them, so with a flat-array fixture the mutation that deleted the lookback outright — the
+  single correctness property of this file — left all ten assertions green. The fixture now honours
+  the window the reader asked for, and that same mutant kills six of the ten. This is
+  [[supabase-recorder-does-not-filter]] landing on the one file where it mattered most; the warning
+  is now in the test's own header.
+
+  Ten tests, six mutants killed (no lookback; lookback zeroed; upper bound dropped; org filter
+  dropped; counter validation dropped; a reversed period accepted).
