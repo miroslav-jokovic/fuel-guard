@@ -501,13 +501,15 @@ Each is one PR, gates green. Nothing here is blocked on a vendor, a credential, 
 | **W1b** | **Daily GL grain — the collector** | **BUILT 2026-09-04.** `GL_CONTROL_TOTALS` groups by the day, `toLedgerTotalRows` carries it, `glDayTotalSchema` requires it, and the ingest calls `replace_mcleod_gl_days`. Merges only once 0310 has applied (`pnpm verify:live`). | 0310 applied |
 | **W1c** | **Daily GL grain — the readers** | `readLedgerTotalsRange` reads days and sums; retires `monthsTouching` and the month-aligned-window guard. Ships once a daily sweep has actually landed, so nothing reads an empty table. | W1b + one sweep |
 | **W2** | **Weekly revenue and activity** | **BUILT 2026-09-04.** `bucketBillingActivity` (pure), `getBillingActivity`, `GET /api/accounting/billing-activity?from=&to=&grain=`, and the **Week by week** tab. Miles-free by design (§1.8.4 step 2): every rate is per BILLED mile, and there is no cost. | — |
-| **W3** | **Daily vehicle-distance collector** | §1.8.2 — **verify the Samsara API surface against vendor documentation first**, then daily odometer snapshots or a distance-over-range read | vendor capability |
+| **W3a** | **Distance from odometer — the rule** | **BUILT 2026-09-04.** Vendor documentation read (§1.8.2 correction): there is NO distance-over-range endpoint, and Samsara's own method is to difference the odometer. `distanceByVehicle`, pure and tested. | — |
+| **W3b** | **Distance from odometer — the store and the collector** | The `samsara_odometer_readings` migration, the fetcher over `/fleet/vehicles/stats/history`, the daily sync and the scheduler tier — **together**, because `lint:table-producers` requires a table's writer in the merge that creates it. Unblocked: Samsara is a cloud API and is syncing today. | — |
 | **W4** | **The weekly tab** | D-FLEET10: weekly revenue, miles, activity and event-dated costs; monthly journals as their own named block, never spread | W1–W3 |
 | **G10** | **The mileage-coverage guard** | **BUILT 2026-09-03** with G4. Computed from two counts, never a date. | — |
 | **G11** | **The ledger-coverage guard** | **BUILT 2026-09-03.** The money-side twin of G10, and found by a live defect rather than designed: a month swept before it ended is not that month. `assessLedgerMonths` (pure), `readLedgerForPeriod` / `getFleetTrend` exclude such months from the period AND the year to date, and the overview withholds its figures instead of printing zeros. | — |
 
-**Ordering:** every G-step is done — G1–G11 and G7b. **§4 is fully executed.** Next is the
-W-series, and W1 (daily GL grain) can ship any time.
+**Ordering:** every G-step is done — G1–G11 and G7b, plus W1a, W1b, W2 and W3a. **§4 is fully
+executed.** Next is **W3b** (the odometer store and its collector, together — unblocked), then
+**W1c** and **W4**, which wait on the live McLeod connection (§3.5 of the handoff).
 
 The **W-series runs after G5** — the monthly report has to be right before a second period is
 offered — except W1, which can ship any time and is worth shipping early because it removes
@@ -1077,3 +1079,49 @@ the record.
 
   `readBillingWindow` now selects `delivery_date`. It was already the window's filter, so no new
   column and no deploy-window split.
+- 2026-09-04 · **W3a — the vendor documentation, read at last, and what it changed.** §1.8.2 said
+  weekly miles needs a new collector because "the stats feed reads odometer and stores only the
+  latest value … so no daily or weekly distance can be differenced out of what we hold". That
+  sentence is **true about what we STORE and false about what Samsara SERVES**, and the difference
+  was worth a day of nobody's time. Read on 2026-09-04:
+
+  · **`GET /fleet/vehicles/stats/history` takes arbitrary `startTime`/`endTime`** and returns
+    per-vehicle arrays of `{time, value}`. We have called it hourly for fuel reconciliation since
+    before this plan was written — 13,785 OBD readings are staged on `fuel_transactions` today.
+  · **Samsara's "calculating distance traveled" guide ranks the counters**: `obdOdometerMeters` from
+    the ECU is "the most accurate", `gpsDistanceMeters` the fallback where the ECU exposes none, and
+    `gpsOdometerMeters` — GPS plus a hand-entered start — the last resort. All cumulative, in metres.
+  · **There is no distance-over-range endpoint.** The vendor's own documented method is to read the
+    history and subtract. So the question §1.8.2 raised is answered: it is odometer snapshots, and it
+    is Samsara's recommendation rather than our workaround.
+
+  **What the collector stores is READINGS, not daily miles** (D-FLEET9). "The counter read
+  663,428,113 metres at 23:50:04" is a fact the source asserts; "412 miles on 3 July" is a
+  subtraction across a boundary somebody chose, and choosing it inside an extraction layer is the
+  exact mistake W1 exists to undo for the general ledger. `samsara_odometer_readings` (0311) keeps
+  one reading per vehicle per day per counter — ~190 rows a day against the ~200k a full-density
+  sample store would need, which is why Q-SAM5 declined one — and `distanceByVehicle` differences
+  them.
+
+  **A bug found and fixed while writing the harness, worth recording because it would have been
+  invisible.** Distance over a week is `odometer(end) − odometer(start)`, and the first version
+  differenced the readings *inside* the period. With one reading late each day, the readings inside a
+  Monday-to-Monday week run Monday evening to Sunday evening — **six days of driving reported as
+  seven days' worth, a 14% undercount that no total would have contradicted**. The period's ends are
+  now BOUNDING readings: the last reading at or before each end, which is what a dashboard odometer
+  would have shown at those moments. Callers must therefore pass readings from before the period.
+
+  **Three refusals, each a way a counter lies:** a backwards counter is a reset or a gateway moved to
+  another truck, never a distance and never `Math.abs`; a delta beyond 2,500 miles a day is a broken
+  counter, on the same reasoning `MAX_INTERVAL_MILES` refuses an implausible fill interval; and one
+  reading is not a period — a truck that reported once is not a truck that did not move (D-FIN10).
+  Counters are never mixed: the ECU starts at the engine's life and GPS distance at the gateway's
+  install, so a subtraction across them means nothing. The best counter that can answer wins, in the
+  vendor's order, and a broken ECU falls back rather than losing the vehicle.
+
+  Fifteen pure tests, five mutants killed — including the bounding fix, which fails twelve of the
+  fifteen when reverted.
+
+  **W3 is NOT blocked by the stale sandbox.** Samsara is a cloud API and is syncing right now (IFTA
+  fetched today; the stats cursor moved at 16:36). W3b collects real data the moment it deploys —
+  unlike W1c, which waits on the McLeod VPN.
