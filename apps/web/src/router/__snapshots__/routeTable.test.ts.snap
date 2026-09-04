@@ -497,7 +497,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Revenue & margin",
+      "title": "Invoices",
     },
     "name": "billing",
     "path": "/billing",

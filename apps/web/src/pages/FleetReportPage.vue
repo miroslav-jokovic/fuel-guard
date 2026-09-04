@@ -5,6 +5,7 @@ import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
 import FleetContractorsTab from "@/features/accounting/FleetContractorsTab.vue";
+import FleetDispatchersTab from "@/features/accounting/FleetDispatchersTab.vue";
 import FleetHeadlines from "@/features/accounting/FleetHeadlines.vue";
 import FleetOverview from "@/features/accounting/FleetOverview.vue";
 import FleetPeriodRail from "@/features/accounting/FleetPeriodRail.vue";
@@ -81,12 +82,15 @@ const to = computed(() => filter.value.to);
  * leads (G5): it answers the question a boss actually opens the page with — did we make money this
  * period, and where did it go — and the per-truck table answers a follow-up.
  */
-type FleetTab = "overview" | "activity" | "trucks" | "contractors" | "statement";
+type FleetTab = "overview" | "activity" | "dispatchers" | "trucks" | "contractors" | "statement";
 const TABS: TabItem[] = [
   { value: "overview", label: "Overview" },
   // Week by week (W2). It sits second because it answers the question asked BETWEEN closes, where
   // the tabs after it answer the ones asked at one.
   { value: "activity", label: "Week by week" },
+  // Per dispatcher (plan §2 Tab 3, R7): it lived on the Revenue & margin page on its own clock,
+  // where the rate per mile could never be read against the month's spent per mile.
+  { value: "dispatchers", label: "Per dispatcher" },
   { value: "trucks", label: "Per truck" },
   { value: "contractors", label: "Contractors" },
   { value: "statement", label: "Income statement" },
@@ -148,6 +152,8 @@ const pageDescription = computed(() =>
       ? "The general ledger, in the shape McLeod prints it."
       : tab.value === "activity"
         ? "What went out and what it earned, week by week. Revenue and activity only — cost is a monthly question."
+      : tab.value === "dispatchers"
+        ? "What each dispatcher booked in this period, and the rate per billed mile they priced it at, against the fleet's own."
       : tab.value === "contractors"
         ? "What each contractor hauled, what they were paid, and what we kept — with their share read back from what settled."
         : "What each truck drove and earned. There is no per-truck cost figure that is precise, so there is none here.",
@@ -253,6 +259,14 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
         :fleet="fleet ?? null"
         :fleet-loading="fleetLoading"
         :period="period"
+      />
+
+      <FleetDispatchersTab
+        v-if="tab === 'dispatchers'"
+        :from="from"
+        :to="to"
+        :report="fleet ?? null"
+        :coverage="coverage ?? null"
       />
 
       <FleetTrucksTab
