@@ -257,7 +257,10 @@ describe("FleetReportPage — the shell (R1)", () => {
     state.fleetError = "fleet report unavailable";
     const w = await mountPage();
     expect(w.text()).toContain("The overview could not be loaded");
-    expect(w.text()).not.toContain("$4,828,189");
+    // No headline strip and no bridge without the report — the month table beneath the chart is
+    // the trend's own call and may still show, which is the point of the two being separate.
+    expect(w.text()).not.toContain("Kept per mile driven");
+    expect(w.text()).not.toContain("Where every dollar went");
     await openTab(w, "Per truck");
     expect(w.text()).toContain("Failed to load");
     w.unmount();

@@ -94,6 +94,18 @@ describe("computeFleetTrend", () => {
     expect(march.netPerMile).toBe(0.36);
   });
 
+  it("carries each month's empty share from its coverage row, and refuses it with the rates", () => {
+    // July: 1,552,337 driven against 1,389,814 billed — 10.5% run empty (plan §1.5.4).
+    expect(at("2026-07").emptyPct).toBeCloseTo(10.5, 1);
+    // February's coverage was short (135 measured, 151 delivering): no rate, so no empty share
+    // either — the coverage row's own figure is not consulted once the denominator is refused.
+    expect(at("2026-02").netPerMile).toBeNull();
+    expect(at("2026-02").emptyPct).toBeNull();
+    // A month with money and no coverage row at all.
+    const bare = trend([{ month: "2026-07", ledger: rows(1, 1), mileage: undefined }]);
+    expect(bare.points[0]!.emptyPct).toBeNull();
+  });
+
   it("keeps a short-coverage month's money and refuses its rates", () => {
     for (const month of ["2026-01", "2026-02"]) {
       const p = at(month);
