@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -23,6 +22,8 @@ import type { FleetTruck } from "./useFleetReport";
  *
  * The tab owns its own page number. It is mounted fresh on every tab change, which is what resets
  * paging between tabs (owner ruling 2026-08-29): page 4 of the trucks is not page 4 of anything else.
+ * The period is the page's, chosen once on the rail above the tabs (D-FRUI1); `from`/`to` arrive
+ * only so a period change resets the page number.
  */
 
 const props = defineProps<{
@@ -32,7 +33,7 @@ const props = defineProps<{
   from: string;
   to: string;
 }>();
-const emit = defineEmits<{ retry: []; "update:from": [v: string]; "update:to": [v: string] }>();
+const emit = defineEmits<{ retry: [] }>();
 
 const PAGE_SIZE = 20;
 const unitSearch = ref("");
@@ -86,7 +87,6 @@ function resetFilters() {
     >
       <template #filters>
         <FilterSelect v-model="minMiles" label="Least miles" :options="minMilesOptions" />
-        <DateRangeFilter :from="from" :to="to" @update:from="(v) => emit('update:from', v ?? from)" @update:to="(v) => emit('update:to', v ?? to)" />
       </template>
       <template #actions>
         <BaseButton

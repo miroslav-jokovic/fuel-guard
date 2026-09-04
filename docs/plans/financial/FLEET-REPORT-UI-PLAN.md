@@ -145,3 +145,17 @@ in order; each depends on the one before only through the shell.
   `useDispatcherEarnings` moves to `@/composables`. Each tab is mounted fresh (`v-if`), which is
   what resets paging on a tab change — the page test pins it by paging to 21–40, leaving, and
   coming back to 1–20. Nothing on screen changed.
+- 2026-09-04 · **R0 — the softer money hues.** `--viz-money-earned/-spent/-kept` to the D-FRUI8
+  values in both theme files, `tokens.generated.css` regenerated, `chartTheme.ts` fallbacks set
+  to the chart-colour gate's own hex for the light halves. Round-trips cleanly: the gate's hex is
+  the validated hex. Money-palette separation under the gate: protan 0.288, deutan 0.161, tritan
+  0.113. No test pinned a hex; the "three distinct colours" test still holds.
+- 2026-09-04 · **R2 — the period rail.** `lib/reportPeriod.ts` (pure: month, quarter, year to
+  date, custom snapped to whole months, stepping, the cap, the label, and the latest reportable
+  month read from the trend) and `FleetPeriodRail.vue` (two icon buttons, `AppSegmentedControl`,
+  the section's own `DateRangeFilter` for a custom run — no new date widget, D-FRUI9). The page
+  opens on the latest month the sweep finished, not the calendar's; the three period queries stay
+  off until that month is known, so the withheld-August request the old default made is gone. The
+  per-tab date pickers are removed — the rail is the only clock. Pinned: the rail reads "July 2026"
+  when the trend says August was swept on the 28th, the note says so, stepping back changes the
+  month on every tab, and the per-tab picker is gone.

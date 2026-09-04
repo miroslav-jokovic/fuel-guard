@@ -116,10 +116,13 @@ export interface FleetReportResponse {
   months?: MonthMileage[];
 }
 
-export function useFleetReportQuery(filter: Ref<{ from: string; to: string }>) {
+export function useFleetReportQuery(filter: Ref<{ from: string; to: string }>, enabled?: Ref<boolean>) {
   const key = computed(() => ["accounting", "fleet-report", filter.value.from, filter.value.to] as const);
   return useQuery({
     queryKey: key,
+    // Off until the page has decided which month to open on (D-FRUI1): a request for a period the
+    // reader never asked for is a wasted read at best and a withheld-month callout at worst.
+    enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<FleetReportResponse> => {
       const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
       const r = await apiFetch<FleetReportResponse>(`/api/accounting/fleet-report?${q}`);

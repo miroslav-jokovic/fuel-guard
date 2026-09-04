@@ -74,10 +74,13 @@ export interface IncomeStatementFilter {
   to: string;
 }
 
-export function useIncomeStatementQuery(filter: Ref<IncomeStatementFilter>) {
+export function useIncomeStatementQuery(filter: Ref<IncomeStatementFilter>, enabled?: Ref<boolean>) {
   const key = computed(() => ["accounting", "income-statement", filter.value.from, filter.value.to] as const);
   return useQuery({
     queryKey: key,
+    // Off until the page has decided which month to open on (D-FRUI1): a request for a period the
+    // reader never asked for is a wasted read at best and a withheld-month callout at worst.
+    enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<IncomeStatementResponse> => {
       const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
       const r = await apiFetch<IncomeStatementResponse>(`/api/accounting/income-statement?${q}`);
