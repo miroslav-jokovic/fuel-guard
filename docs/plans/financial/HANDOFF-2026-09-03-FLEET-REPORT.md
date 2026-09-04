@@ -39,8 +39,10 @@ accepted because a deliberate break made them fail.
 | **G3** income statement | **Built** | `incomeStatement.ts` ×3 layers, `IncomeStatementTable.vue`, tab 4 on the CPM page |
 | **G4** active-truck rule | **Built** | `mileageCoverage.ts` (shared + service) |
 | **G10** mileage-coverage guard | **Built** with G4 — one measurement | same |
-| **G1** fleet harness | **Pure half built.** Service, route and page owed | `fleetReport.ts` |
-| **G5, G6, G7, G9, W1–W4** | Not started | — |
+| **G1** fleet harness | **Built** — pure harness, service, route | `fleetReport.ts` ×2 layers |
+| **G5** Overview tab | **Built** — trend chart owed | `FleetOverview.vue`, first tab on the CPM page |
+| **G9** two denominators | Mostly inside `FleetReport` already; the twelve-month **trend chart** is what remains | — |
+| **G6, G7, W1–W4** | Not started | — |
 
 **Files added this session**
 
@@ -53,22 +55,27 @@ apps/api/src/modules/financial/mileageCoverage.ts     + .test.ts   ( 7 tests)
 apps/web/src/features/accounting/useIncomeStatement.ts
 apps/web/src/features/accounting/useMileageCoverage.ts
 apps/web/src/features/accounting/IncomeStatementTable.vue + .test.ts (8 tests)
+apps/api/src/modules/financial/ledgerPeriod.ts                    (shared by both services)
+apps/api/src/modules/financial/fleetReport.ts         + .test.ts   ( 7 tests)
+apps/web/src/features/accounting/useFleetReport.ts
+apps/web/src/features/accounting/FleetOverview.vue    + .test.ts   ( 8 tests)
 ```
 
 **Modified:** `mcleod/financialReads.ts` (+`readLedgerTotalsRange`, `readBilledMilesByDeliveryMonth`),
 `samsara/samsaraIftaReads.ts` (+`readMonthlyMileageByMonth`), both module barrels,
-`accounting/routes/index.ts` (+2 routes), `CpmReportPage.vue` (4th tab + coverage banner).
+`accounting/routes/index.ts` (+3 routes), `CpmReportPage.vue` (Overview and Income statement tabs,
+coverage banner, tab-scoped description and stat strip).
 
 **No migration.** Nothing in this session touched the schema.
 
 ---
 
-## 3. Next step, precisely — finish G1, then G5
+## 3. Next step, precisely
 
 The pure harness exists and is tested. What it needs is the service that feeds it and the page that
 reads it.
 
-### 3.1 `getFleetReport` — the service (owed)
+### 3.1 `getFleetReport` — **BUILT**. Kept below as the map of what feeds the harness.
 
 `apps/api/src/modules/financial/fleetReport.ts`. It assembles `FleetReportInputs` and calls
 `computeFleetReport`. Every reader it needs already exists:
@@ -86,21 +93,37 @@ reads it.
 Then `GET /api/accounting/fleet-report?from=&to=` beside the two routes added this session, same
 `canView` gate.
 
-### 3.2 G5 — the Overview tab
+### 3.2 G5 — the Overview tab — **BUILT**, minus the trend
 
-A fifth tab on `CpmReportPage.vue`: the six headline figures, the company/contractor/total table,
-and the trend. The coverage banner is already above the tabs and needs no change.
+`FleetOverview.vue`, first tab. What remains of G9 is the **twelve-month trend chart** — three
+lines, earned/spent/kept per mile, over the months whose coverage is complete. `getMileageCoverage`
+already returns per-month rows; a trend needs the same for money, which is a loop over
+`readLedgerForPeriod` or one widened read.
 
 ### 3.3 Then, in order
 
-**G9** (two denominators — most of it is already in `FleetReport`: `billedMiles`, `emptyMiles`,
-`emptyPct`, `revenuePerBilledMile`) · **G6** (the ~10-family account map; needs one owner sitting) ·
-**G7** (the removals — LAST, so nothing is deleted before its replacement is live) · then the
-**W-series** for weekly.
+**G9's trend chart** · **G6** (the ~10-family account map; needs one owner sitting) · **G7** (the
+removals **and the page rename** — the nav still says "Cost per mile" for a page that opens on an
+overview and carries an income statement; the route name, `route.meta.title`, the nav entry, the
+gate ledger and the section matrix all move together) · then the **W-series** for weekly.
+
+### 3.4 How to see it before you trust it
+
+`preview:local` only serves `/__design-system` without a login. For a real page, build with the
+auth bypass and mock the API at the network:
+
+```
+cd apps/web && VITE_DEV_BYPASS=true npx vite build --mode development && npx vite preview --port 4173
+```
+
+then drive it with Playwright `page.route("**/api/accounting/fleet-report*", …)`. Mock the WHOLE
+response shape — a partial one crashes the render, because nothing stands between a malformed
+payload and the component. Both states were checked this way: July's figures, and a
+February-shaped response where every rate is a dash.
 
 ---
 
-## 4. Three traps this session hit — do not re-learn these
+## 4. Four traps this session hit — do not re-learn these
 
 ### 4.1 The plan can be wrong about the code. Verify before you "fix".
 
@@ -127,6 +150,16 @@ contractor truck, so both readings gave the same number and all fifteen tests pa
 contractor tractors at this carrier are MIXED — the same truck runs for a contractor and for a
 company driver — and adding one such truck to the fixture killed the mutant four times over.
 **Mutate every rule you write. A surviving mutant is a defect in the fixture, not a spare test.**
+
+---
+
+### 4.4 Two "earned per mile" figures on one screen is worse than one wrong one.
+
+The per-truck harness shares overhead out across trucks; the fleet report shares nothing. Both
+legitimately produce a figure called "earned per mile" and they will never agree. The old stat
+strip is therefore hidden on Overview and Income statement, and the page description follows the
+tab. G7 removes the allocation apparatus and ends the problem; until then, **never put a harness
+figure and a ledger figure under one label.**
 
 ---
 
@@ -172,13 +205,19 @@ All from `supabase db query --linked` on 2026-09-03, checked against
 ## 7. Running it
 
 ```
-pnpm typecheck && pnpm lint                      # both green at d8db4b2
+pnpm typecheck && pnpm lint                      # both green at 1cb25bc
 pnpm --filter @silvicom/shared exec vitest run   # 174 files, 2,459 tests
-pnpm --filter @silvicom/api    exec vitest run   # 247 files, 2,813 tests
-pnpm --filter @silvicom/web    exec vitest run   # 128 files, 1,181 tests
+pnpm --filter @silvicom/api    exec vitest run   # 248 files, 2,820 tests
+pnpm --filter @silvicom/web    exec vitest run   # 129 files, 1,189 tests
 pnpm --filter web lint:tokens                    # after ANY template change
 pnpm lint:ui-adoption                            # catches a raw <button> in pages/features
 ```
 
-To see the pages: `pnpm --filter @silvicom/web preview:local` (`pnpm dev` crashes on this machine
-inside vite's dependency optimiser — environmental, not a regression).
+To see the pages: §3.4. (`pnpm dev` crashes on this machine inside vite's dependency optimiser —
+environmental, not a regression from any change.)
+
+---
+
+## 8. Position at `1cb25bc`
+
+**Built:** G2 (already was), G3, G4, G10, G1, G5. **Remaining:** G9's trend chart, G6, G7, W1–W4.
