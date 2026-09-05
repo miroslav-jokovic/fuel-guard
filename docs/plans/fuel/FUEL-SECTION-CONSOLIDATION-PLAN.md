@@ -2295,7 +2295,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   > already trusted enough to drive `fuel_while_driver_home` and the WP-ATTR window exclusions, so
   > refusing it here is inconsistent rather than conservative — but it widens an auto-DISMISS path,
   > which is a ruling to make deliberately and not a detail to slip into a bug fix. Nothing is
-  > blocked on the answer; the 30-minute lease is what unblocks the recent cases.
+  > blocked on the answer; 0317's lease is what unblocks the recent cases.
 
 - 2026-09-05 · **The alert queue was re-measured against production, and Q-FUI11's recommended fix is
   aimed at the wrong lever.** The programme's §0.3a reading was that `cumulative_overfuel` false-fires
