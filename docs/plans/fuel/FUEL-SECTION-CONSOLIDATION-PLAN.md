@@ -2218,6 +2218,31 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
 ## 8. Position log — appended, never edited
 
+- 2026-09-05 · **A correction, and the better reason it uncovered.** Building the SAM-S6 enablers I
+  wrote — in two code comments, in the #569 and #570 commit messages, and in their PR bodies — that
+  `nightlyReconcile` "pins the rebuild to `RECENT_REBUILD_DAYS` (14), so every derivation change since
+  a fill left that window has never been applied to it". Both halves were wrong.
+
+  `RECENT_REBUILD_DAYS` is **180**, not 14. Fourteen is `REBUILD_DAYS` in Q-FUI9, a different constant
+  governing `fuel_spend_days`; conflating the two turned a six-month window into a fortnight.
+
+  The second half was wronger, and only measuring found it. History was not going unre-scored — the
+  nightly was re-scoring **~10,400 fills every night**: 9,255s on 09-03, 9,230s on 09-04, 8,982s on
+  09-05. **Two and a half hours a night** to change the verdict on almost nothing, while the only
+  alternative offered for older rows was a manual full-history sweep measured at three hours and
+  cancelled at 14,400 of 15,972.
+
+  So the defect was the opposite of the one claimed: not neglect, waste. The `scoring_version` stamp
+  (0318, #572/#573) is the right fix either way, but for the second reason rather than the first — a
+  quiet night now costs nearly nothing and a `SCORING_VERSION` bump drains the fleet over about eight
+  nights. **Recorded rather than quietly edited**: a wrong premise that happened to produce a right
+  answer is exactly the kind of thing that should be visible twice, because next time it may not.
+
+  ⚠ The #569 and #570 COMMIT MESSAGES still carry the error and cannot be corrected in place — they are
+  merged into `main`, and rewriting them means force-pushing shared history. This entry and the
+  correction notes in `handlers/scoring.ts` and `queue/inprocessDrain.ts` are the durable record; the
+  PR bodies have been edited.
+
 - 2026-09-05 · **The seventeen missing days are back, and the cause was one row.** The entry below
   closes with "Nothing in code can recover data the vendor was never asked for". That was wrong, and
   the correction is worth more than the retraction: the vendor HAD been asked. A job of kind
