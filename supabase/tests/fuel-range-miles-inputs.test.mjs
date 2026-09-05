@@ -19,6 +19,9 @@
 //   4. THE BAND EXCLUDES FROM BOTH SIDES. A fill outside it contributes to neither numerator nor
 //      denominator, or the mean is diluted rather than filtered.
 //   5. ORG SCOPE, on the call a browser makes (p_org omitted).
+//   6. THE WINDOW'S ENDS (0316). A source may only answer for a window whose ends it reaches, and an
+//      extremum cannot say which fill it came from — so `obd_covers_ends`/`entered_covers_ends` are the
+//      measurements that carry it. Still not verdicts: TypeScript decides what to do with them.
 //
 // Run:  node supabase/tests/fuel-range-miles-inputs.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -172,6 +175,9 @@ for (const t of TRUCKS) {
     obdCount: Number(sql.obd_count), obdMin: num(sql.obd_min), obdMax: num(sql.obd_max),
     enteredCount: Number(sql.entered_count), enteredMin: num(sql.entered_min), enteredMax: num(sql.entered_max),
     enteredWorstStep: num(sql.entered_worst_step),
+    // 0316 — where each source sits relative to the window's ENDS. An extremum cannot say which fill
+    // it came from, so these are the only way the aggregate can carry the coverage precondition.
+    obdCoversEnds: sql.obd_covers_ends, enteredCoversEnds: sql.entered_covers_ends,
   };
   if (JSON.stringify(got) !== JSON.stringify(spec)) mismatches.push(`${t.unit}: sql=${JSON.stringify(got)} spec=${JSON.stringify(spec)}`);
 }
@@ -186,6 +192,7 @@ const milesMismatch = [];
 for (const t of TRUCKS) {
   const sql = byVehicle.get(idFor[t.unit]);
   const fromSql = windowMilesFromAggregate({
+    obdCoversEnds: sql.obd_covers_ends, enteredCoversEnds: sql.entered_covers_ends,
     obdCount: Number(sql.obd_count), obdMin: num(sql.obd_min), obdMax: num(sql.obd_max),
     enteredCount: Number(sql.entered_count), enteredMin: num(sql.entered_min), enteredMax: num(sql.entered_max),
     enteredWorstStep: num(sql.entered_worst_step),
@@ -212,6 +219,18 @@ ok("a never-decreasing sequence reports 0, not its largest climb",
   num(clean.entered_worst_step) === 0, `${clean.entered_worst_step}`);
 const single = byVehicle.get(idFor["SINGLE-FILL"]);
 ok("one reading has no step to measure", single.entered_worst_step === null);
+
+// ── 2b. the window's ENDS (0316) ────────────────────────────────────────────────────────────────
+// The defect these close: two OBD readings in the middle of a window measure the middle of the window.
+// On production 2026-09-05 the anomaly engine's version of this read 815 miles where the window's own
+// odometers span 1,552, and that is what its over-fuel queue was made of.
+ok("a truck whose readings all carry OBD covers both ends",
+  byVehicle.get(idFor["OBD-ADVANCES"]).obd_covers_ends === true);
+ok("a truck with no OBD reading at all covers neither end with OBD, and both with entered",
+  byVehicle.get(idFor["ENTERED-CLEAN"]).obd_covers_ends === false &&
+  byVehicle.get(idFor["ENTERED-CLEAN"]).entered_covers_ends === true);
+ok("one readable row is not a covered window — two ends that are the same row span nothing",
+  single.obd_covers_ends === false && single.entered_covers_ends === false);
 
 // ── 3. the step skips nulls rather than breaking on them ────────────────────────────────────────
 const nulls = byVehicle.get(idFor["ENTERED-WITH-NULLS"]);

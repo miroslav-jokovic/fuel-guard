@@ -80,7 +80,11 @@ const CARVE_OUTS = new Map([
   ],
   [
     "supabase/migrations/0315_drop_fuel_range_scalar_vehicle.sql",
-    "0312's function again, minus the scalar `p_vehicle` nothing calls any more — the DROP step of add → switch → drop, which is a third signature change and therefore a third copy of the same unchanged body. Same measurement, same TypeScript division. This is the last of them: the parameter list is now what it should have been, so nothing is scheduled to re-create these functions again.",
+    "0312's function again, minus the scalar `p_vehicle` nothing calls any more — the DROP step of add → switch → drop, which is a third signature change and therefore a third copy of the same unchanged body. Same measurement, same TypeScript division. (Its own header claimed to be the last of them. It was not — see 0316: a RETURN-type change forces a recreation just as an argument change does, and that is the kind of claim a list like this exists to keep honest.)",
+  ],
+  [
+    "supabase/migrations/0316_fuel_range_window_ends.sql",
+    "0315's function once more, gaining `obd_covers_ends`/`entered_covers_ends` — a RETURN-type change, which Postgres can only express as a drop and a create, so the whole body including that `sum` comes with it. Same measurement, and the columns it computes are DEAD as of M4b: nothing reads `mpg_weighted`/`mpg_gallons` any more. They were left in place rather than dropped because removing them is a fifth recreation for no gain and would take two matrix assertions with them; retiring them is a follow-up, and until then this entry is why the list did not shrink.",
   ],
 ]);
 

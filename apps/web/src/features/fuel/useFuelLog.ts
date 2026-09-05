@@ -183,6 +183,13 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         obd_count: number; obd_min: number | string | null; obd_max: number | string | null;
         entered_count: number; entered_min: number | string | null; entered_max: number | string | null;
         entered_worst_step: number | string | null;
+        // 0316, and OPTIONAL for the same reason `fills_with_vehicle` is nullable above: a function's
+        // return shape is invisible to `lint:migration-ordering`, so this reader is served for about
+        // nine minutes by a database that does not have these yet. `undefined` reaches
+        // `windowMilesFromAggregate` as "not taught the ends yet" and it answers exactly as it did
+        // before — where `false` would blank this tile for the whole window.
+        obd_covers_ends?: boolean | null;
+        entered_covers_ends?: boolean | null;
       }[]) {
         if (!v.vehicle_id) continue; // a fill with no truck has no odometer span to contribute
         totalMiles +=
@@ -194,6 +201,11 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
             enteredMin: n(v.entered_min),
             enteredMax: n(v.entered_max),
             enteredWorstStep: n(v.entered_worst_step),
+            // ⚠ `?? undefined`, never `?? false`. A source may only answer for a window whose ends it
+            // reaches (2026-09-05); a null column is the database not having been asked, and reading
+            // that as "the ends are not covered" would withhold every truck's miles until 0316 lands.
+            obdCoversEnds: v.obd_covers_ends ?? undefined,
+            enteredCoversEnds: v.entered_covers_ends ?? undefined,
           }).miles ?? 0; // null (data-quality) → contributes 0, exactly as before
       }
 

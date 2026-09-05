@@ -2175,7 +2175,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
 | **Q-FUI6** | ~~**The Alerts queue measures ~2.9% precision — is the detector wrong, or is the review wrong?**~~ **ANSWERED IN PART 2026-09-01 (owner ruling + §0.3a measurement): reading (a) — the detector over-fires on bad inputs.** Three root causes, measured: wrong entered tank capacity (101 of 145 trucks disagree with the sensor-learned value; 54% of `cumulative_overfuel` fires sit on them), odometer quality (74 fires / 34 false positives across four rules), and card→truck attribution (`card_multi_vehicle`, 50 / 25). The owner is correcting capacity within days. **The unresolved half is the fix order and the missing gate** — see Q-FUI11. Original framing kept for the record: §0.3: 218 cases, all `theft_case`; of 105 reviewed, 3 confirmed / 95 false_positive / 7 benign_explained; 78 still open and unreviewed. Three readings and they need different work: **(a)** the detector is genuinely over-firing and its threshold or gates need raising until what remains is worth a person's time (**recommended first move** — it is measurable and reversible); **(b)** reviewers are marking `false_positive` where they mean `benign_explained`, in which case the label is wrong and precision is understated; **(c)** the rule is sound and the fleet is clean, in which case the queue should be surfaced by exception rather than as a standing list. WP7 (behavioural) was withdrawn, so nothing else is scheduled to move this number. | Miki | **C7 does not ship in any form.** The two inboxes stay separate and Alerts is not promoted into the Fuel section. No owner-facing surface quotes the alert count as a finding. |
 | **Q-FUI7** | ~~**Is statement reconciliation a real workflow for this carrier?**~~ **ANSWERED 2026-09-01: YES, and the documents are already in hand.** The weekly PDF is a **Pilot Receivables LLC invoice** billed to Silvicom Inc — verified by reading `~/Downloads/db139445F.pdf`: invoice 795506105, period 2026-08-17 → 2026-08-23, with Ticket / AUTH / Odometer / Units / Fuel Cost / **Invoice Total** / **Retail Total** columns. That is exactly what `parsePilotStatement` expects and exactly the file `FUEL-SPEND-RELIABILITY-PLAN.md` **F0-bis-upload** names. Five weekly statements are on disk (`db139445F{,1,2,3,5}.pdf`, 2026-07-28 → 2026-08-24) and were parsed successfully in the F0-bis spike. **Nothing is missing but the upload.** This is an onboarding gap, not a product-fit question: C5 keeps both tabs and the ledger keeps all four `recon_*` kinds. ⚠ It is **not** a Samsara report — Samsara is telematics and issues no fuel invoice; its data already arrives through the API collector. Original framing kept for the record: Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
-| **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
+| **Q-FUI11** | ⚠ **RE-MEASURED 2026-09-05 — THE RECOMMENDED ANSWER BELOW IS AIMED AT THE WRONG LEVER. See §8's dated entry.** The capacity gate cannot help `cumulative_overfuel`: where the sensor reads BELOW entered, `resolveCapacity` already returns the ENTERED value, which makes the over-fuel ceiling LARGER and the rule LESS likely to fire. The measured cause is a mileage defect in `robustWindowMiles`. Original question kept for the record: **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
 | **Q-FUI12** | **Four fuel/anomaly reads carry no role gate at all — narrow them to the matrix, or is one of them deliberately open?** Found while building T2 (2026-09-01), pinned in `routeGates.test.ts`' waiver map so they are findable: `GET /api/anomalies/:id/risk-context`, `/:id/pattern-report` and `/:id/history` are `requireOrg` only, so **any authenticated org member — including a `driver`, who holds `safety: "none"` — can read a theft case's history**; and `GET /api/fueling/statements/:id/source` is `requireOrg` only, though it does re-check the caller's org before signing a URL. T2 did not close them because T2 is a **widening** and these are a **narrowing**: gating them removes access somebody may be relying on, which is a decision that should be taken out loud rather than in passing. Candidates: **(a)** gate all four from the matrix — `rolesThatCanView("safety")` for the three anomaly reads, `rolesThatCanView("fuel")` for the statement source (**recommended**: it is what every neighbouring route now does, and the anomaly detail is reachable only from a page already gated on `safety`); **(b)** gate the anomaly reads and leave the statement source, on its org re-check; **(c)** leave all four and record them as accepted. | Miki | They stay as they are, waived with the argument in `routeGates.test.ts` and named here. Nothing is narrowed on an inference. |
 | **Q-FUI13** | **Does the Alerts queue get its own business date, or does it stay on the instant?** T1 gave `fuel_transactions` a stored station-local `business_date` (0287) and moved every fuel surface onto it except one: `useAnomalies` filters `anomalies.fueled_at`, a column on a different table, so a case for a fill displayed as "Aug 31" can still fall outside an August window on the Alerts page. Candidates: **(a)** `anomalies.business_date`, trigger-maintained from the same helper, two merges (**recommended** if Alerts survives Q-FUI11 as a working queue — it is the same shape as 0287 and costs a migration); **(b)** leave it, and label the Alerts date control as filtering the detection instant; **(c)** wait for Q-FUI11 — a queue measured at 2.9% precision may not be worth a migration until it is worth working. | Miki | (b) — Alerts stays on the instant and nothing claims otherwise. A second table gets a derived column when somebody decides the page is worth it. |
 | **Q-FUI14** | ~~**What is the Cards page's third fact?**~~ **ANSWERED 2026-09-02: drop it.** T5 asks four pages to carry "rows in window, share attributed to a vehicle, and last feed poll". The middle one has no meaning on Cards: a card is issued to a driver or a truck as a matter of SETUP, not attributed per row, so there is no denominator to take a share of. Inventing a substitute — "cards seen on the last sync vs cards held" — would have been a different fact wearing the same sentence's clothes, which is how a consistency rule turns into noise. **Cards carries rows-in-window and last-feed-poll only, and T5's Done-when is read as satisfied for that page.** | Miki | ~~open~~ Answered. |
@@ -2213,3 +2213,74 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   already exist in both layers and T1 reuses them — including 0247's widened-window filtering shape and
   its `set search_path` constraint.
 - **It does not pin migration numbers.** Next-numbered at execution.
+
+
+## 8. Position log — appended, never edited
+
+- 2026-09-05 · **The alert queue was re-measured against production, and Q-FUI11's recommended fix is
+  aimed at the wrong lever.** The programme's §0.3a reading was that `cumulative_overfuel` false-fires
+  because it reads an ENTERED tank capacity the sensor learner distrusts, and the recommended first
+  move was a gate suppressing the capacity-ceiling rules on divergent trucks. Re-measuring says
+  otherwise, and the argument is short enough to check: where the sensor reads BELOW entered,
+  `resolveCapacity` **already** returns the entered value, and `cumulative_overfuel` spends capacity as
+  a one-tank ALLOWANCE — `ceiling = burnable + idle + cap + 10`. A larger capacity therefore makes the
+  rule fire LESS. An over-entered capacity cannot be what produces its false positives, and the gate
+  would have suppressed `tank_space_exceeded` (3 false positives in 57 fires) while leaving
+  `cumulative_overfuel` (64 in 77) untouched.
+
+  **The queue as it actually stands, 2026-09-05.** 308 rows, 91 superseded → 217 live. 111 open, 106
+  reviewed: 95 false positive, 8 benign, **3 confirmed — 2.8% precision**, statistically unchanged
+  since 2026-09-01. Per rule, on the live set:
+
+  | rule | fires | unreviewed | false positive | confirmed |
+  |---|---|---|---|---|
+  | `cumulative_overfuel` | 77 | 12 | **64** | 1 |
+  | `tank_space_exceeded` | 57 | 52 | 3 | 1 |
+  | `card_multi_vehicle` | 48 | 16 | **25** | **0** |
+  | `tank_fill_short` | 46 | 42 | 3 | 1 |
+  | `odometer_mismatch` | 19 | 12 | 5 | 1 |
+  | `expected_odometer_band` | 17 | 5 | 12 | 0 |
+  | `odometer_daily_cap` | 12 | 1 | 11 | 0 |
+  | `odometer_regression` | 8 | 2 | 6 | 0 |
+
+  **The real cause, found by reading the evidence rather than the plan.** Every
+  `cumulative_overfuel` message carries the miles it divided by. Across the 64 dismissed cases the rule
+  used **815 miles on average where the same window's odometers span 1,552** — 53% of the distance the
+  truck covered; 59 of the 64 were understated by more than a fifth. `burnable = windowMiles ÷ MPG` is
+  then about half what it should be, the ceiling drops by ~100 gallons, and ordinary two-day fuelling
+  clears it.
+
+  The mechanism is one line of `robustWindowMiles`: it preferred the OBD span as soon as TWO rows
+  carried an OBD reading, whether or not those rows reached the window's ends. One real window,
+  reproduced locally to the decimal — 08-25 entered 217,390 with no OBD; 08-27 and 08-28 with both —
+  returns **790.5 miles**, exactly what the case recorded, for a window the truck covered **1,742**
+  miles in. This is the same trap `distanceByVehicle` documents for the odometer collector: a period's
+  ends are BOUNDING readings, and measuring between the readings that happen to sit inside it is a
+  silent undercount.
+
+  **What the fix does to the queue, measured before it was written.** Recomputing each case's ceiling
+  from the window's own ends: **2 of the 51 testable false positives still fire** (13 carry an older
+  message format with no baseline and cannot be re-tested from evidence alone), and **6 of the 12
+  unreviewed** still fire — so it clears the noise without emptying the queue. No window became
+  unmeasurable.
+
+  **The uncomfortable half, stated rather than buried.** The corrected span also clears the ONE
+  `cumulative_overfuel` case marked confirmed. Its resolution note is the default *"Resolved by
+  reviewer"* — no finding — and on the true distance (2,148 miles) its 386 gallons are ordinary against
+  307 burnable plus a 240-gallon tank. The two substantive confirmations in the whole queue came from
+  other rules and are untouched: a reefer-fuel diversion (`tank_fill_short` + `odometer_mismatch`, note
+  *"This is reefer fuel illegally fueled"*) and 165 gallons billed into 132 gallons of space
+  (`tank_space_exceeded`). So `cumulative_overfuel` has **no substantiated true positive** and 64
+  substantiated false ones. Whether it stays on at all is a product question this does not answer.
+
+  **Two things that were measured and then NOT built**, because a guard with a cost and no benefit is
+  not caution: an "entered must agree with OBD" gate (suppresses 0 cases, costs 5 of 165 trucks their
+  whole month in the Fuel log miles tile), and raising `CUMULATIVE_OVERFUEL_MARGIN_GAL` from 10 — the
+  single confirmed case sat 6.5 gallons over the ceiling, *below* 41 of the 64 false positives, so the
+  overage carries no signal and raising the margin would remove the true positive first.
+
+  **Still not fixed, and now sized.** `card_multi_vehicle`: 48 fires, 25 false positives, **0 confirmed
+  ever** — and 34 of 198 cards have served more than one vehicle since June (1,244 of 6,217 fills), so
+  the signal is describing a routine fleet practice. The odometer cluster
+  (`expected_odometer_band` / `odometer_daily_cap` / `odometer_regression`): 37 fires, 29 false
+  positives, 0 confirmed. Neither is scheduled; both are now measured rather than estimated.
