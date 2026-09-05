@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { apiFetch } from "@/lib/api";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
+import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -315,6 +316,9 @@ const integrity = computed(() => {
         description="Refresh this week's Safety + Efficiency driver scores from Samsara and the idle scorecard. Runs automatically on a schedule."
       />
     </div>
+
+    <!-- Feed freshness: how stale each Samsara tier is against its own stated bound (S5, D-SAM6). -->
+    <FeedFreshnessCard />
 
     <!-- Telematics history: how much of the WHOLE history the collector has corroborated (S4, D-SAM7). -->
     <BaseCard>

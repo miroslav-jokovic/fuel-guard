@@ -100,3 +100,18 @@ export type {
 } from "./telematicsCoverage.js";
 export { lastReadingEachDay } from "./odometerReadings.js";
 export type { OdometerStatSample, DailyOdometerReading } from "./odometerReadings.js";
+export {
+  SAMSARA_FEED_IDS,
+  SAMSARA_RULED_TARGET_HOURS,
+  samsaraFeedSpecs,
+  describeSamsaraFeed,
+  describeSamsaraFeeds,
+  worstSamsaraFeed,
+} from "./feedHealth.js";
+export type {
+  SamsaraFeedId,
+  SamsaraFeedSpec,
+  SamsaraFeedObservation,
+  SamsaraFeedState,
+  SamsaraFeedHealth,
+} from "./feedHealth.js";
