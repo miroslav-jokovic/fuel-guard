@@ -232,6 +232,42 @@ ok(
   Number(perVehicle.fills_with_vehicle) === Number(perVehicle.fills),
   `${perVehicle.fills_with_vehicle} vs ${perVehicle.fills}`,
 );
+// ── 5b. a SET of trucks (FUEL-P1, migration 0312) ───────────────────────────────────────────────
+// The list below these tiles gains multi-select, and a tile that kept answering for the whole fleet
+// while the rows beneath it showed two trucks would be the disagreement FUEL-T3a spent a migration
+// removing, reintroduced by a filter.
+const oneOfList = await call(`, p_vehicles => array['${VEH}']::uuid[]`);
+ok(
+  "a one-element list means exactly what the scalar meant — the same window, the same count",
+  Number(oneOfList.fills) === Number(perVehicle.fills),
+  `${oneOfList.fills} vs ${perVehicle.fills}`,
+);
+const bothTrucks = await call(`, p_vehicles => array['${VEH}','${VEH2}']::uuid[]`);
+ok(
+  "two trucks count both trucks' fills and still exclude the fills that name none",
+  Number(bothTrucks.fills) === N && Number(bothTrucks.fills_with_vehicle) === N,
+  `${bothTrucks.fills}/${bothTrucks.fills_with_vehicle} vs ${N}`,
+);
+// ⚠ The assertion that separates an empty list from an absent one. `p_vehicles => '{}'` is what the
+// browser sends when the trucks named in a forwarded link exist in no fleet, and the true answer is
+// nothing — not everything. A predicate written `coalesce(array_length(p_vehicles,1),0) = 0 or …`
+// would pass every other assertion in this file and fail only here.
+const noSuchTruck = await call(`, p_vehicles => '{}'::uuid[]`);
+ok(
+  "an EMPTY list matches nothing, where an omitted one matches the fleet",
+  Number(noSuchTruck.fills) === 0 && Number(total.fills) > 0,
+  `${noSuchTruck.fills}`,
+);
+// Both filters arriving together is the intersection, which is the only defensible reading of two
+// truck scopes. Disjoint arguments must therefore answer zero; a `p_vehicles` that SUPERSEDED the
+// scalar would answer with VEH2's fills and silently discard an argument somebody sent.
+const disjoint = await call(`, p_vehicle => '${VEH}', p_vehicles => array['${VEH2}']::uuid[]`);
+ok(
+  "the scalar and the list are both applied — disjoint arguments intersect to nothing rather than one winning",
+  Number(disjoint.fills) === 0,
+  `${disjoint.fills}`,
+);
+
 // A fill ON the closing date, so "inclusive" is actually exercised. Every fixture row sits on the
 // 15th, so a `<` bound would have changed nothing and the assertion would have passed either way —
 // the vacuous shape this repo keeps finding.
