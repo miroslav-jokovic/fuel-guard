@@ -16,6 +16,7 @@ export * from "./rollupDerive.js";
 export * from "./feedFreshness.js";
 export * from "./rollupFreshness.js";
 export * from "./rowCoverage.js";
+export * from "./fuelListFilters.js";
 export * from "./spendPeriods.js";
 export * from "./spendWindow.js";
 export * from "./stationMatch.js";

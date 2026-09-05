@@ -1,4 +1,5 @@
 import { computed, type ComputedRef } from "vue";
+import { vehicleIdsForUnits } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useEfsFacets } from "./useEfsData";
 
@@ -82,11 +83,11 @@ export interface ResolvedUnits {
 export function useVehicleIdsForUnits(units: ComputedRef<string[]>): ResolvedUnits {
   const { data: vehicles } = useVehiclesQuery();
   const pending = computed(() => units.value.length > 0 && vehicles.value === undefined);
-  const vehicleIds = computed(() => {
-    if (units.value.length === 0) return undefined;
-    if (pending.value) return [];
-    const wanted = new Set(units.value);
-    return (vehicles.value ?? []).filter((v) => wanted.has(v.unit_number)).map((v) => v.id);
-  });
+  // The rule itself is `vehicleIdsForUnits` in `@silvicom/shared`, because the EXPORT resolves the
+  // same `?unit=` list against the same fleet (FUEL-P2) and two implementations of "which trucks did
+  // they mean" would answer one URL two ways. What is web-only is the pending tick below.
+  const vehicleIds = computed(() =>
+    pending.value ? [] : vehicleIdsForUnits(units.value, vehicles.value ?? []),
+  );
   return { vehicleIds, pending };
 }
