@@ -106,5 +106,6 @@ ok("declined_txn_scores has row level security enabled", r.rows[0]?.relrowsecuri
 const p = await db.query(`select count(*)::int n from pg_policies where tablename='declined_txn_scores'`);
 ok("  and no client policy, so a browser session reads nothing", p.rows[0].n === 0);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

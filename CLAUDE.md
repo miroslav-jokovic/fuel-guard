@@ -25,18 +25,26 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
 - `pnpm verify:live` — answers "why don't I see my changes?": compares git HEAD + highest migration
   against the deployed `GET /api/version`.
 - The full gate list lives in root `package.json` — every `lint:*` script is documented by its
-  sibling `"//lint:*"` comment key. CI runs ~19 of them (`.github/workflows/ci.yml`).
+  sibling `"//lint:*"` comment key. CI runs 24 of them, all in the `gates` job
+  (`.github/workflows/ci.yml`).
+- CI is **six parallel jobs**, not one: `gates`, `typecheck-build`, `test-api`, `test-web`,
+  `test-packages`, `matrices` — plus a do-nothing `build` job that aggregates them, and which must
+  keep that name because main's branch protection requires a check called exactly `build`. A green
+  run is ~3 minutes (measured 2026-09-05; it was 15.7 before the split). Put a new gate in `gates`;
+  put anything needing `apps/web/dist` in `typecheck-build`, which is the only job that builds.
 
 ## Hard rules (each one is machine-enforced; the gate is named)
 
 - Schema changes ONLY as the next-numbered file in `supabase/migrations/` (`lint:migrations`). Never
   edit an applied migration. `migrate.yml` auto-applies to production Supabase on merge to main,
   gated on CI green — a merged migration IS a deployed migration.
-- ...but NOT an immediately deployed one. Railway serves a merge ~3 min in and `migrate.yml` applies
-  the schema ~12 min in, so **every merge must work against the previous schema for ~9 minutes**. A
-  column and its first reader ship in two separate merges (`lint:migration-ordering`); new tables are
-  exempt, renames need the four-step dance. Measured, and the outage it cost, in
-  `docs/MIGRATION-DISCIPLINE.md` §the-deploy-window.
+- ...but NOT an immediately deployed one. Railway serves a merge ~3 min in while `migrate.yml` waits
+  for CI green, so **a merge can be served against the previous schema**. A column and its first
+  reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
+  the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
+  §the-deploy-window. **The window was ~9 minutes and is now roughly a minute** — CI went from 15.7
+  to ~3 minutes on 2026-09-05 — which makes the RULE more important, not less: a gap that short
+  cannot be watched for, and at these timings the two pipelines can even land in either order.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict

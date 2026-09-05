@@ -187,5 +187,6 @@ const idx = await db.query(
   `select count(*)::int n from pg_indexes where tablename='fuel_transactions' and indexname='idx_fuel_txn_org_business_date'`);
 ok("the (org_id, business_date) index exists for the filter that lands next merge", idx.rows[0].n === 1);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

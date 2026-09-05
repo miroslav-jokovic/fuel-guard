@@ -327,9 +327,6 @@ ok("the attributed count reaches the browser's call, and is a strict subset once
     Number(asBrowser.fills_with_vehicle) < Number(asBrowser.fills),
   `${asBrowser?.fills_with_vehicle} vs ${mineBefore.fills_with_vehicle} of ${asBrowser?.fills}`);
 
-// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
-// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
-// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
 await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

@@ -126,5 +126,6 @@ ok(
   ),
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

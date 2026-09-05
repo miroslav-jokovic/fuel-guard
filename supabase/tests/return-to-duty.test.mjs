@@ -211,5 +211,6 @@ const merge = await attempt(`select merge_driver($1,$2,$3)`, [ORG, ADMITTED, CAN
 ok("merging a flagged driver away is refused, so the obligation cannot be lost", merge === "MD010");
 ok("and the flagged driver is still there, still flagged", (await flagged(ADMITTED)) === true);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -61,6 +61,28 @@ Measured on the #430 merge, 2026-09-01:
 already models this as normal: it polls for `schema.state = "current"` for up to fifteen minutes and
 treats "commit matches, schema behind" as a transient state rather than a failure.
 
+### The window narrowed sharply on 2026-09-05 — and that is not a reason to relax
+
+Everything above is still the right shape, but the eight and a half minutes between "Railway is
+serving" and "migrate.yml applies" was mostly **CI queueing behind itself**. Splitting ci.yml into
+six parallel jobs took a green run from 15.7 minutes to 3.0 (measured on run 33951043123: 181s wall
+against 940s before). `migrate.yml` starts within a minute of CI going green, so the gap is now
+roughly a minute rather than nine.
+
+Three things follow, and the second is the one that bites:
+
+1. **The two-merge rule does not change.** A shorter window is still a window.
+2. **You can no longer watch for it.** Nine minutes was long enough to notice a 500 and roll back
+   inside it. A minute is not. The gate (`lint:migration-ordering`) stops being a backstop for
+   human vigilance and becomes the only thing standing there.
+3. **The order is no longer guaranteed.** At 3 minutes for Railway and ~4 for migrate the two
+   pipelines are close enough that queue time can reorder them, so a merge may now find the NEW
+   schema already applied. That is harmless for an added column and is the *safer* direction — but
+   it means "the schema is always behind" is no longer a fact you can lean on, in either direction.
+
+The exact new figure wants re-measuring the first time a migration merges to main; it is stated here
+as ~1 minute from the CI and migrate timings, not from a stopwatch on a real migration merge.
+
 ### What that means for you
 
 **Every merge must work against the schema of the merge before it.** #430 did not: migration 0284

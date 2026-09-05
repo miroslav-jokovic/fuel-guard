@@ -3,9 +3,10 @@
 // This function is the second implementation of something that already exists, and the only thing that
 // makes a second implementation safe is proving it agrees with the first. So this matrix does not
 // restate `aggregateWindowOdo` in JavaScript and compare the restatement — it **imports the real one**
-// from `packages/shared/dist` (CI builds it at step 48, before `pnpm test`) and asserts the SQL against
-// the actual specification. A hand-written expectation here would drift from the TypeScript the day
-// somebody edited it, which is the precise failure D-AG1 exists to prevent.
+// from `packages/shared/dist` — built by `.github/actions/setup`, which is why the matrices job runs
+// that action with `build-shared` left on — and asserts the SQL against the actual specification. A
+// hand-written expectation here would drift from the TypeScript the day somebody edited it, which is
+// the precise failure D-AG1 exists to prevent.
 //
 // What the SQL has to get right, each of which fails quietly:
 //   1. THE MEASUREMENTS, not verdicts. Nothing here may know what ±1 is. `entered_worst_step` is the
@@ -282,9 +283,6 @@ await db.exec("rollback");
 ok("a signed-in user gets their own org's rows with p_org omitted — the only call PostgREST can resolve for a browser",
   asBrowser.length === rows.length, `${asBrowser.length} vs ${rows.length}`);
 
-// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
-// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
-// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
 await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

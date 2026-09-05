@@ -186,5 +186,6 @@ const newTrailer = async (src = "mcleod", unit = "R532159") =>
   ok("editing an already-claimed row is a no-op for provenance", (await sourceOf("vehicles", v2)) === "manual");
 }
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

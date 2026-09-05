@@ -288,9 +288,6 @@ ok("but two carriers may each have their own with the same one",
   (await sqlstate(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint)
                    values ($1,'recon_amount','overbilled','fp-a')`, [OTHER])) === null);
 
-// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
-// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
-// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
 await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

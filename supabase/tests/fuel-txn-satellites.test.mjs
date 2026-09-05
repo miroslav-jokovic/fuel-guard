@@ -163,5 +163,6 @@ for (const t of ["fuel_txn_recon", "fuel_txn_scores", "fuel_txn_dispositions"]) 
   ok(`  and no client policy, so a browser session reads nothing`, p.rows[0].n === 0);
 }
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

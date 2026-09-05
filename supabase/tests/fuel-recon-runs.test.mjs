@@ -212,9 +212,6 @@ const R4 = (await one(
   [ORG, STMT])).id;
 ok("a run set at insert does carry its statement", (await one(`select statement_id from fuel_recon_runs where id=$1`, [R4])).statement_id === STMT);
 
-// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
-// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
-// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
 await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
