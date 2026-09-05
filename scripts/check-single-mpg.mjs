@@ -33,10 +33,12 @@
  *      are finally divided in when neither identifier says "gallons".
  *
  * ── THE BLIND SPOT, NAMED RATHER THAN LEFT TO BE DISCOVERED ─────────────────────────────────────
- * A division routed through a helper — `ratio(milesMeasured, mpgGallons)` in `spendPeriodTotals.ts`
- * — carries no operator and is invisible here. That call is M5's target and disappears when the
- * spend report derives from `computeFleetMpg`; until then the gate does not see it. A gate that
- * pretended to catch it would be worse than one that says where it stops.
+ * A division routed through a HELPER carries no operator on its line and is invisible here. The
+ * instance this gate shipped naming — `ratio(milesMeasured, mpgGallons)` in `spendPeriodTotals.ts`
+ * — is gone: M5 made that file ask `computeFleetMpg` instead of dividing. **The blind spot itself is
+ * not gone**, and saying so is the point of this paragraph: a future `ratio(miles, gallons)`,
+ * `divide(m, g)` or `m.div(g)` would pass, and only a reviewer would catch it. A gate that claimed
+ * otherwise would be worse than one that says where it stops.
  *
  * `--self-test` proves all three detectors fire (a gate that cannot fail is not a gate).
  */

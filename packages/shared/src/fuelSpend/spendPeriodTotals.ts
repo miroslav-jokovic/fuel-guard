@@ -27,7 +27,10 @@ const ratio = (num: number, den: number): number | null => (den > 0 ? num / den 
 // exactly one file now, and a threshold that decides whether an MPG may be printed belongs beside the
 // function that decides it. Re-exported here so every existing importer keeps its import — the move
 // is about where the definition LIVES, not about making anybody chase it.
-import { MIN_MEASURED_SHARE, PLAUSIBLE_FLEET_MPG } from "./fleetEfficiency.js";
+//
+// M5 finished the job: the thresholds are no longer APPLIED here either. `computeFleetMpg` decides,
+// and this file asks it — see `periodTotalsFromSums`.
+import { computeFleetMpg, type FleetMilesSource } from "./fleetEfficiency.js";
 export { MIN_MEASURED_SHARE, PLAUSIBLE_FLEET_MPG } from "./fleetEfficiency.js";
 
 /**
@@ -87,6 +90,15 @@ export interface SpendPeriod {
   totalSpend: number;
   /** Miles the period's gallons imply at the measured MPG — the estimate of distance actually driven. */
   miles: number;
+  /**
+   * Where `milesMeasured` came from — always `allocated` here, and stated rather than assumed.
+   *
+   * `fuel_spend_days.miles` is a fill-to-fill odometer interval spread across the days it spans by
+   * drive-second weight, so no day in it carries a distance anybody observed. That is not the same
+   * claim as two odometer readings the vendor asserted, and a reader who cannot tell them apart
+   * cannot judge either figure (D-MPG1). The field exists so the surfaces can say which they have.
+   */
+  milesSource: FleetMilesSource;
   /** Miles we can prove from gated odometer intervals. `miles` scales this up by `measuredShare`. */
   milesMeasured: number;
   /** Gallons paired with trustworthy miles — the ONLY denominator MPG may use. */
@@ -254,14 +266,41 @@ export function periodTotalsFromSums(
   const milesMeasured = r2(milesRaw);
   const mpgGallons = r3(mpgGallonsRaw);
 
-  const mpg = ratio(milesMeasured, mpgGallons);
-  const measuredShare = ratio(mpgGallons, gallons);
-  const mpgUsable =
-    mpg != null &&
-    mpg >= PLAUSIBLE_FLEET_MPG.low &&
-    mpg <= PLAUSIBLE_FLEET_MPG.high &&
-    measuredShare != null &&
-    measuredShare >= MIN_MEASURED_SHARE;
+  /**
+   * ── FLEET MPG IS ASKED FOR, NOT COMPUTED (M5, D-MPG1) ──────────────────────────────────────────
+   * This was `ratio(milesMeasured, mpgGallons)` with the band and the coverage floor applied beside
+   * it — the fifth implementation of the definition, and the one `lint:mpg`'s header names as its
+   * blind spot: routing the division through a helper leaves no operator on the line, so the gate
+   * cannot see it. It is gone; there is nothing left for the gate to miss here.
+   *
+   * The miles are `allocated`, and saying so is the point of the argument. `fuel_spend_days.miles` is
+   * one fill-to-fill odometer interval spread across the days it spans by drive-second weight, so no
+   * day in that interval carries a distance anybody observed and a period's edges cut intervals
+   * arbitrarily. §1.4 measured what that costs: it agreed with Samsara's IFTA miles to within 0.08%
+   * in July 2026 and ran 3.78% ahead of them in August. This report keeps using them — they are what
+   * the rollup has, and the spend report is a report about the rollup — but the figure now carries
+   * its provenance instead of implying a measurement it is not.
+   *
+   * **Truck counts are not passed, and that is deliberate rather than lazy.** The fold above knows
+   * how many trucks were ACTIVE; it does not know which of them had usable odometer intervals, and
+   * `trucksMeasured: activeTrucks` would assert 100% truck coverage this file cannot support.
+   * Passing neither leaves `truckCoverage` null — "not measured at this grain" — which is the honest
+   * answer and the one D-FIN10 asks for.
+   */
+  const fleet = computeFleetMpg({
+    miles: milesMeasured,
+    milesSource: "allocated",
+    gallons,
+    gallonsWithMiles: mpgGallons,
+    trucksMeasured: 0,
+    trucksUnmeasured: 0,
+  });
+  // The MEASUREMENT, not the verdict — see `FleetMpg.ratio`. The bridge's refusal sentence quotes it
+  // ("85.7 MPG, which is outside what a tractor can do"), and the implied-miles identity below needs
+  // the unrounded division or `gal = miles ÷ MPG` stops holding exactly.
+  const mpg = fleet.ratio;
+  const measuredShare = fleet.measuredShare;
+  const mpgUsable = fleet.mpg != null;
   // gal = miles ÷ MPG by construction, which is what makes the volume split an identity on TOTAL
   // gallons rather than on the measured subset. See the header.
   const impliedMiles = mpg != null ? gallons * mpg : milesMeasured;
@@ -289,6 +328,7 @@ export function periodTotalsFromSums(
     spendDef: sDef,
     totalSpend,
     miles: r2(impliedMiles),
+    milesSource: fleet.milesSource,
     milesMeasured,
     mpgGallons,
     milesRejected: rejected,

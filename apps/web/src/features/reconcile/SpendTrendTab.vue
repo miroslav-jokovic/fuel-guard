@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
-import { comparablePeriods, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
+import { comparablePeriods, FLEET_MILES_SOURCE_LABEL, reportableMpg, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { downloadCsv } from "@/lib/csv";
@@ -93,6 +93,21 @@ const tilePeriod = computed(() => {
   return grain.value === "day" || c.from === c.to ? c.from : `${grainLabel.value} of ${c.from}`;
 });
 
+/** The figure only when the module says it may be shown; the division is for explaining, not printing. */
+const mpgOf = (p: SpendPeriod | null | undefined) => (p ? (reportableMpg(p)?.toFixed(2) ?? undefined) : undefined);
+/**
+ * What the MPG tile's miles ARE, in the space beside it (D-MPG1).
+ *
+ * The spend report divides ALLOCATED miles — a fill-to-fill odometer interval spread across the days
+ * it spans — which is not the same claim as the Dashboard's measured odometer readings, and the two
+ * tiles disagreeing by a few percent is a fact about the sources rather than a bug in either. The
+ * wording comes from `FLEET_MILES_SOURCE_LABEL` so both surfaces say it identically.
+ */
+const milesSourceNote = computed(() => {
+  const src = (comparison.value?.current ?? overall.value)?.milesSource;
+  return src ? FLEET_MILES_SOURCE_LABEL[src] : undefined;
+});
+
 const tiles = computed(() => {
   const c = comparison.value?.current;
   return [
@@ -104,7 +119,17 @@ const tiles = computed(() => {
     // Cost per mile is the figure that survives both a market move and a busier fleet, which is why it
     // sits beside them rather than being left for the reader to divide out.
     { label: "Cost per mile", value: usd2(c?.costPerMile ?? overall.value?.costPerMile ?? null), pick: (p: SpendPeriod) => p.costPerMile, upIsBad: true, note: "includes reefer and DEF" },
-    { label: "Fleet MPG", value: c?.mpg?.toFixed(2) ?? overall.value?.mpg?.toFixed(2) ?? "—", pick: (p: SpendPeriod) => p.mpg, upIsBad: false },
+    // ⚠ `mpgUsable` gates the value AND the sparkline (M5, D-MPG1). `mpg` is the DIVISION — reported
+    // whatever it comes to so a refusal can be explained — and printing it unguarded is how this tile
+    // would show 85.7 MPG for a period whose mileage is contaminated, while the operating bridge
+    // beside it withholds its volume split for exactly that reason.
+    {
+      label: "Fleet MPG",
+      value: mpgOf(c) ?? mpgOf(overall.value) ?? "—",
+      pick: reportableMpg,
+      upIsBad: false,
+      note: milesSourceNote.value,
+    },
     // Idle is NOT a headline tile. Total idle cost is a fact about running trucks, not an accusation,
     // and a tile that reddens when it rises says the opposite. The idle card below carries the number
     // that IS actionable — avoidable idle, on trucks that had an alternative.
@@ -138,7 +163,7 @@ const rows = computed(() =>
     spend: usd(p.spend),
     perGal: usd3(p.pricePerGal),
     miles: gal(p.miles),
-    mpg: p.mpg?.toFixed(2) ?? "—",
+    mpg: mpgOf(p) ?? "—",
     perMile: usd2(p.costPerMile),
     idle: p.idleUsable ? pct1(p.idleShare) : "—",
   })),
@@ -192,7 +217,8 @@ function exportCsv() {
     ["Period start", "Period end", "In progress", "Trucks", "Fills", "Gallons", "Fuel spend", "Paid per gal", "Miles", "MPG", "Cost per mile", "Idle hours", "Idle gallons", "Idle cost", "Idle share", "Engine coverage"],
     series.value.map((p) => [
       p.from, p.to, p.partial ? "yes" : "", p.activeTrucks, p.fills, p.gallons, p.spend,
-      p.pricePerGal, p.miles, p.mpg, p.costPerMile,
+      // Blank, not the raw division, where the module withheld it — a spreadsheet cell gets averaged.
+      p.pricePerGal, p.miles, reportableMpg(p) ?? "", p.costPerMile,
       // Blank, not zero, where coverage cannot support the claim — a zero in a spreadsheet gets summed.
       p.idleUsable ? Math.round(p.idleSec / 36) / 100 : "", p.idleGallons ?? "", p.idleCost ?? "", p.idleShare ?? "",
       p.idleCoverage ?? "",

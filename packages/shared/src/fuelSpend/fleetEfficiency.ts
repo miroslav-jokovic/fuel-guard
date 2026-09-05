@@ -67,6 +67,19 @@
 export const FLEET_MILES_SOURCES = ["fill_interval", "allocated", "measured"] as const;
 export type FleetMilesSource = (typeof FLEET_MILES_SOURCES)[number];
 
+/**
+ * How a surface names each source in the space beside a number.
+ *
+ * Here rather than in the two surfaces that print it, because the whole point of `milesSource` is
+ * that a reader can tell a measured mile from a spread one — and two surfaces wording that
+ * differently is the same defect one layer down. Short enough for a stat tile's scope line.
+ */
+export const FLEET_MILES_SOURCE_LABEL: Record<FleetMilesSource, string> = {
+  fill_interval: "miles between fills",
+  allocated: "allocated miles",
+  measured: "measured miles",
+};
+
 /** Physically possible fleet MPG for a Class-8 tractor. Outside this, the odometer is wrong, not the truck. */
 export const PLAUSIBLE_FLEET_MPG = { low: 3, high: 12 } as const;
 
@@ -105,6 +118,23 @@ export interface FleetMpgInputs {
 export interface FleetMpg {
   /** Miles per gallon, or null when it cannot honestly be stated. Never zero as a stand-in. */
   mpg: number | null;
+  /**
+   * The division ITSELF — `miles ÷ gallonsWithMiles`, unrounded — reported even when `mpg` is
+   * withheld, and null only when there was nothing to divide.
+   *
+   * ── WHY BOTH, WHICH IS NOT BELT AND BRACES (M5) ────────────────────────────────────────────────
+   * `mpg` is a verdict: may this be printed as the fleet's efficiency? `ratio` is a measurement: what
+   * did these two totals divide to? A caller that only ever had the verdict cannot EXPLAIN it — the
+   * spend report's operating bridge withholds its volume split when June 2026's contaminated mileage
+   * reads 85.7 MPG, and the sentence it shows says 85.7, which is the number that makes a reader
+   * believe the refusal. It is also what an implied-miles identity needs: `gallons × mpg` has to use
+   * the unrounded division or the identity is off by the rounding.
+   *
+   * ⚠ **It is a measurement, not a fallback.** Displaying `ratio` where `mpg` is null is precisely
+   * the failure D-MPG1 exists to prevent. It is for explaining a refusal and for arithmetic that must
+   * tie out, never for the headline.
+   */
+  ratio: number | null;
   /** Where the miles came from, always — including when `mpg` is null. */
   milesSource: FleetMilesSource;
   miles: number;
@@ -147,13 +177,21 @@ export function computeFleetMpg(inputs: FleetMpgInputs): FleetMpg {
   const trucksUnmeasured = Math.max(0, Math.trunc(finite(inputs.trucksUnmeasured)));
   const trucks = trucksMeasured + trucksUnmeasured;
 
-  const measuredShare = gallons > 0 ? gallonsWithMiles / gallons : null;
+  // Rounded to three places, and the GATE below uses this same rounded value on purpose: D-MPG4 makes
+  // the coverage part of the answer because a 62%-covered period and a 99%-covered one both print a
+  // figure, so the number a reader sees has to be the number the rule used. An unrounded gate against
+  // a rounded display disagrees in a 0.05%-wide band, which is exactly the kind of gap that produces
+  // "the page says 60% and withheld it anyway".
+  const measuredShare =
+    gallons > 0 ? Math.round((gallonsWithMiles / gallons) * 1000) / 1000 : null;
+  const ratio = gallonsWithMiles > 0 ? miles / gallonsWithMiles : null;
   const base = {
     milesSource: inputs.milesSource,
     miles: round2(miles),
     gallons: round2(gallons),
     gallonsWithMiles: round2(gallonsWithMiles),
-    measuredShare: measuredShare == null ? null : Math.round(measuredShare * 1000) / 1000,
+    ratio,
+    measuredShare,
     truckCoverage: trucks > 0 ? Math.round((trucksMeasured / trucks) * 1000) / 1000 : null,
     trucksMeasured,
     trucksUnmeasured,
@@ -182,7 +220,7 @@ export function computeFleetMpg(inputs: FleetMpgInputs): FleetMpg {
     );
   }
 
-  const mpg = round2(miles / gallonsWithMiles);
+  const mpg = round2(ratio!);
   if (mpg < PLAUSIBLE_FLEET_MPG.low || mpg > PLAUSIBLE_FLEET_MPG.high) {
     return withheld(
       base,
@@ -192,6 +230,23 @@ export function computeFleetMpg(inputs: FleetMpgInputs): FleetMpg {
   }
 
   return { ...base, mpg, reason: null };
+}
+
+/**
+ * The MPG a surface may PRINT, from a figure that also carries the division behind it (M5).
+ *
+ * Thin on purpose, and it earns its name by how often it is needed: six places print the spend
+ * report's MPG — the PDF's stat strip, its per-period rows and its total row, the Spend trend tab's
+ * tile, its table and its CSV — and every one of them used `period.mpg` directly. That field is the
+ * DIVISION (see `FleetMpg.ratio`), reported whatever it comes to so a refusal can be explained, so
+ * printing it unguarded showed 85.7 MPG for June 2026's contaminated mileage while the operating
+ * bridge beside it was withholding its volume split for exactly that reason.
+ *
+ * The mistake is invisible at every call site — `p.mpg` reads like the answer — which is precisely
+ * the shape that wants one named rule instead of six correct-looking lines.
+ */
+export function reportableMpg(period: { mpg: number | null; mpgUsable: boolean }): number | null {
+  return period.mpgUsable ? period.mpg : null;
 }
 
 /**
