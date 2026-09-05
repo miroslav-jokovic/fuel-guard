@@ -288,6 +288,72 @@ ok("but two carriers may each have their own with the same one",
   (await sqlstate(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint)
                    values ($1,'recon_amount','overbilled','fp-a')`, [OTHER])) === null);
 
+// ── 8. the policy producer, which has no reconciliation run (0320) ──────────────────────────────
+//
+// `reconFindings` always has a `fuel_recon_runs` row because a statement was uploaded to make it. The
+// policy producer reads the EFS feed for a calendar month and has none, so it states its own window.
+// Every property below failed before 0320 and failed SILENTLY: findings appeared, and nothing about
+// them ever closed or carried a history.
+const POLICY_KINDS = ["off_network_premium", "avoided_state_premium", "avoided_brand_premium"];
+const policy = (fp, o = {}) => ({
+  fingerprint: fp, kind: "off_network_premium", occurredOn: "2026-08-01",
+  amount: 412.5, amountKind: "premium", transactionId: null,
+  unit: "412", site: null, city: null, state: "CA", brand: "one9",
+  evidence: { month: "2026-08", fills: 2 }, ...o,
+});
+const syncPeriod = async (findings, { from, to, kinds = POLICY_KINDS, run = null } = {}) =>
+  await one(`select * from sync_fuel_exceptions($1,$2,$3::jsonb,$4,$5,$6::date,$7::date)`,
+    [ORG, run, JSON.stringify(findings), USER, kinds, from, to]);
+
+const p1 = await syncPeriod([policy("pol-412"), policy("pol-500", { unit: "500", amount: 88.4 })],
+  { from: "2026-08-01", to: "2026-08-31" });
+ok("a producer with no run files its findings", Number(p1.inserted) === 2, JSON.stringify(p1));
+ok("and each one still opens with an event — the `opened` insert keyed on run_id, which was null",
+  (await all(`select 1 from fuel_exception_events ev join fuel_exceptions e on e.id=ev.exception_id
+              where e.fingerprint in ('pol-412','pol-500') and ev.kind='opened'`)).length === 2);
+ok("the finding is filed against no run, because there is no run to file it against",
+  (await one(`select count(*)::int n from fuel_exceptions where fingerprint like 'pol-%' and run_id is null`)).n === 2);
+ok("and the audit row says how the window was established, so a closure stays traceable",
+  (await one(`select meta->>'periodSource' as s, meta->>'periodStart' as f from audit_logs
+              where action='fuel.exceptions_synced' order by created_at desc limit 1`)).s === "explicit");
+
+// The defect this migration exists for: with a null run the period was unknown, so this closed nothing.
+const p2 = await syncPeriod([policy("pol-412")], { from: "2026-08-01", to: "2026-08-31" });
+ok("a later scan of the same month closes what it no longer finds",
+  Number(p2.closed) === 1 && Number(p2.refreshed) === 1, JSON.stringify(p2));
+ok("as `resolved_by_reingest`, not deleted — nobody decided anything",
+  (await one(`select status from fuel_exceptions where fingerprint='pol-500'`)).status === "resolved_by_reingest");
+ok("and it is found again if it comes back",
+  (await syncPeriod([policy("pol-412"), policy("pol-500", { unit: "500" })], { from: "2026-08-01", to: "2026-08-31" }))
+    && (await one(`select status from fuel_exceptions where fingerprint='pol-500'`)).status === "open");
+
+// Close scope is per producer. Widening either constant would retire the other's money.
+const reconOpen = await one(`select count(*)::int n from fuel_exceptions
+                             where org_id=$1 and kind = any($2) and status in ('open','investigating')`, [ORG, RECON_KINDS]);
+// `pol-412` is passed back so this scan does not close its OWN finding — the property under test is
+// the boundary between the two producers, not a producer's behaviour towards its own kinds.
+await syncPeriod([policy("pol-412")], { from: "2026-07-01", to: "2026-09-30" });
+ok("a policy scan closes no reconciliation finding, however wide its window",
+  (await one(`select count(*)::int n from fuel_exceptions
+              where org_id=$1 and kind = any($2) and status in ('open','investigating')`, [ORG, RECON_KINDS])).n === reconOpen.n,
+  `was ${reconOpen.n}`);
+await sync([], { from: "2026-07-01", to: "2026-09-30" });
+ok("and a reconciliation closes no policy finding",
+  (await one(`select count(*)::int n from fuel_exceptions where fingerprint='pol-412' and status='open'`)).n === 1);
+
+// A run id that resolves to nothing in this org must NOT fall through to the dates the caller supplied.
+const foreignRun = await newRun("2026-08-01", "2026-08-31", OTHER);
+const p3 = await syncPeriod([], { from: "2026-08-01", to: "2026-08-31", run: foreignRun });
+ok("a run belonging to another carrier closes nothing, rather than using the caller's own window",
+  Number(p3.closed) === 0 && (await one(`select status from fuel_exceptions where fingerprint='pol-412'`)).status === "open",
+  JSON.stringify(p3));
+
+ok("a period that ends before it starts is refused, not silently emptied",
+  (await sqlstate(`select * from sync_fuel_exceptions($1,null,'[]'::jsonb,$2,$3,'2026-08-31'::date,'2026-08-01'::date)`,
+    [ORG, USER, POLICY_KINDS])) === "FE012");
+ok("a half-stated period closes nothing — fail closed, as when no kinds are given",
+  Number((await syncPeriod([], { from: "2026-08-01", to: null })).closed) === 0);
+
 await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
