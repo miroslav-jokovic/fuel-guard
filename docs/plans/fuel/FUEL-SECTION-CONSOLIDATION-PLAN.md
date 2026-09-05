@@ -1536,6 +1536,52 @@ accepts `assignedTo` that the page never sends — wire that too, since C7 needs
 **Done when.** `?trucks=` either scopes the ledger or is absent from its URL. Nothing is accepted,
 preserved and ignored.
 
+#### — DONE 2026-09-04 (`claude/fuel-p3-ledger-truck-scope`). **Phase P is complete.**
+
+**What shipped.** A3 closed at both ends, and the ledger's export with it.
+
+- `vehicleIds` and `assignedTo` in `ExceptionQuery`, sent by `qs()`; a validated `vehicles` parameter
+  on `/api/fueling/exceptions` **and** `/totals`; the truck control on the page.
+- The four tiles take the same truck and owner scope as the rows. They did not, and the gap is the one
+  FUEL-T3a spent a migration removing on the Fuel Log: scoping the list to two trucks left
+  "Identified $41,000" sitting above eleven rows worth $600. `status` and `kind` are deliberately NOT
+  passed to the tiles — identified/claimed/recovered are defined ACROSS the statuses, so narrowing by
+  one would make each tile a different question rather than a smaller one.
+- Status and kind moved into the URL, finishing C3 on the one page it missed. The export needed them
+  (a file that ignored the status filter is wider than the list above it) and so does anybody
+  forwarding "the open disputes for these two trucks".
+- `GET /api/fueling/exceptions/export.csv` replaces a button that serialised **the 25 rows on the
+  current page**. A controller assembling a claim got page one of a filtered ledger with nothing
+  saying so, while the tiles above the button reported the whole window's money.
+
+**⚠ The translation this step owns, and why it is not the obvious one.** The section speaks vehicle
+IDS and the ledger stores UNIT NUMBERS. `fuel_exceptions` HAS a `vehicle_id` column — 0250 declared it
+— and **nothing has ever written it**: the producer inserts `unit_number` from the statement line and
+no vehicle at all, and production carries **0 rows with a `vehicle_id`** (measured 2026-09-04, against
+the ledger's single live row: a `recon_missing_on_report` for unit 568, $261.55 unbilled). Filtering on
+that column would have returned nothing, always, and read as a fleet with no findings. So the route
+resolves ids to units against the caller's own roster — which also means a pasted id cannot name
+another org's truck. Giving the producer a `vehicle_id` is C6's work, not a filter's.
+
+**The owner filter is "Assigned to me", and the picker is a recorded blocker (Q-FUI15).** `assignedTo`
+was accepted by the API and sent by nothing — A3's sibling. A full owner picker needs a member
+directory and `/api/members` is `requireRole("admin")`, so building one would have put a control on
+this page that works for one role and reads as broken for the accountant and the dispatcher who live
+in this ledger — the "component placed where the permission check happens to pass" shape CLAUDE.md
+names. `?owner=me` needs no directory: it is the caller's own id.
+
+**A stub that could not fail, found by mutating.** Deleting the truck line from `qs()` passed every
+assertion in `FuelExceptionsPage.test.ts`, because a page test stubs that module. `useExceptions.test.ts`
+now covers the URL itself, which is the one place the page's filters become a request.
+
+**Verified by.** `useExceptions.test.ts` (5 new), `FuelExceptionsPage.test.ts` (+7),
+`fuelExceptions.test.ts` (+5), `fuelExceptionExport.test.ts` (7), `routes/exceptionsScope.test.ts` (8).
+**Eight mutants killed:** the `vehicles` parameter ignored on the list; unresolved ids falling back to
+"every truck"; the totals losing the scope; `qs()` dropping the trucks; the totals composable dropping
+them; the export re-encoding its own parameters; the export's page tiebreaker; the ledger's own filters
+missing from the export. The roster fixture is a FUNCTION, because `supabaseRecorder` records filters
+and does not apply them — a flat array would have answered every id with the whole fleet.
+
 ---
 
 ## Phase C — consolidation
@@ -2113,6 +2159,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI14** | ~~**What is the Cards page's third fact?**~~ **ANSWERED 2026-09-02: drop it.** T5 asks four pages to carry "rows in window, share attributed to a vehicle, and last feed poll". The middle one has no meaning on Cards: a card is issued to a driver or a truck as a matter of SETUP, not attributed per row, so there is no denominator to take a share of. Inventing a substitute — "cards seen on the last sync vs cards held" — would have been a different fact wearing the same sentence's clothes, which is how a consistency rule turns into noise. **Cards carries rows-in-window and last-feed-poll only, and T5's Done-when is read as satisfied for that page.** | Miki | ~~open~~ Answered. |
 | **Q-FUI8** | ~~**Trailer-at-fill: acknowledge the removal, or fund the capability?**~~ **SHIPPED ON THE FALLBACK 2026-09-02.** T4 removed the column; the premise was re-measured first (`duty_equipment_segments` still 0 rows, 157 of 211 trailers carrying a current pairing). ⚠ **This remains an acknowledgement the owner has not given, not a question they answered** — if trailer-at-fill is wanted, it is a new time-ranged pairing table plus a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. The removal is pinned by `FuelLogPage.test.ts`, so restoring it means arguing with this row rather than reversing it quietly. | Miki | ~~T4 removes the column.~~ Done. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
+| **Q-FUI15** | **An owner filter on the ledger needs a member directory the ledger's readers may not read.** P3 wired `assignedTo` and shipped `?owner=me`, which needs nobody's list. A picker — "assigned to Sarah" — needs the org's members, and `GET /api/members` is `requireRole("admin")`: the accountant, the auditor and the dispatcher who live in this ledger would see an empty menu. Candidates: **(a)** a NAMES-ONLY directory read gated on `requireOrg` — id, display name, role, nothing else — which is what `lib/memberLabels` already assembles for the actor names printed all over the product (**recommended**: the names are already on screen; refusing the list while printing its contents is a boundary that protects nothing); **(b)** widen `/api/members` to the section-view set, which also exposes email and invitation state and is a real widening; **(c)** leave it at "mine", and let C7b decide when the inbox needs assignment. ⚠ This is Q-FUI4's operational twin: that one asks WHO owns a finding, this one asks who may be shown the list of candidates. | Miki | `?owner=me` only. No picker is built on an endpoint the page's own readers are refused. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |
 
 ---

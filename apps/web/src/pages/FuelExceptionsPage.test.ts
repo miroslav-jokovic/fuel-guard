@@ -30,6 +30,26 @@ vi.mock("@/features/reconcile/useExceptions", () => ({
   },
   useExceptionQuery: () => asQuery(() => null),
   useMoveException: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
+  // The export's address is built from the LIST's own query builder (FUEL-P3), so the stub keeps that
+  // property rather than inventing a second encoding: a mock that spelled the parameters its own way
+  // could not fail when the page and the file stopped agreeing.
+  exceptionExportQuery: (q: Record<string, unknown>) => {
+    const p = new URLSearchParams({ from: String(q.from), to: String(q.to) });
+    if ((q.status as string[])?.length) p.set("status", (q.status as string[]).join(","));
+    if ((q.vehicleIds as string[])?.length) p.set("vehicles", (q.vehicleIds as string[]).join(","));
+    if (q.assignedTo) p.set("assignedTo", String(q.assignedTo));
+    return p.toString();
+  },
+}));
+// The truck menu is the fleet. Stubbed rather than answered with a query client: this suite is about
+// what the ledger asks for, and a live roster query would make it depend on a network stub instead.
+vi.mock("@/composables/useVehicles", () => ({
+  useVehiclesQuery: () => ({
+    data: ref([
+      { id: "v-701", unit_number: "701", status: "active" },
+      { id: "v-702", unit_number: "702", status: "active" },
+    ]),
+  }),
 }));
 
 import FuelExceptionsPage from "./FuelExceptionsPage.vue";
@@ -103,7 +123,60 @@ describe("FuelExceptionsPage", () => {
     // showing. `useSpendFilters` owns the window for exactly this reason.
     await mountPage("?from=2026-06-01&to=2026-06-30");
     expect(seen.listQuery).toMatchObject({ from: "2026-06-01", to: "2026-06-30" });
-    expect(seen.totalsWindow).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+    expect(seen.totalsWindow).toMatchObject({ from: "2026-06-01", to: "2026-06-30" });
+  });
+
+  /* ── FUEL-P3 · A3 closed at both ends ─────────────────────────────────────────────────────── */
+
+  /**
+   * ⚠ The defect this step exists for. `?trucks=` was written by the filter bar, preserved in the URL
+   * and read by NOTHING: `ExceptionQuery` had no vehicle field, `qs()` never sent one, and the API had
+   * no parameter. A filter that is accepted, preserved and ignored is worse than one that is absent —
+   * the URL says the ledger is scoped and the ledger is not.
+   */
+  it("sends the trucks the URL names, instead of accepting them and ignoring them", async () => {
+    await mountPage("?trucks=v-701,v-702");
+    expect(seen.listQuery?.vehicleIds).toEqual(["v-701", "v-702"]);
+  });
+
+  /**
+   * The tiles take the same scope as the rows. Otherwise "Identified $41,000" sits above eleven rows
+   * worth $600 — the disagreement FUEL-T3a spent a migration removing on the Fuel Log, arriving here
+   * through a filter.
+   */
+  it("gives the four tiles the same truck scope as the list", async () => {
+    await mountPage("?trucks=v-701");
+    expect(seen.totalsWindow?.vehicleIds).toEqual(["v-701"]);
+  });
+
+  it("puts status and finding in the URL, so the view somebody forwards is the view they saw", async () => {
+    await mountPage("?status=credited&kind=recon_amount");
+    expect(seen.listQuery?.status).toEqual(["credited"]);
+    expect(seen.listQuery?.kind).toEqual(["recon_amount"]);
+  });
+
+  it("ignores a status a finding cannot be in, rather than asking the database for it", async () => {
+    await mountPage("?status=nonsense");
+    expect(seen.listQuery?.status).toEqual(["open", "investigating", "disputed"]);
+  });
+
+  it("scopes to the caller's own queue when the URL says so, needing no member directory", async () => {
+    // `/api/members` is admin-only, so an owner PICKER would work for one role and read as broken for
+    // the accountant and the dispatcher who live in this ledger (Q-FUI4). "Mine" needs nobody's list.
+    const { w } = await mountPage("?owner=me");
+    expect(w.text()).toContain("Assigned to me");
+    // The session is empty in this harness, so the id resolves to null — what matters is that the
+    // page ASKS for the caller rather than for everybody.
+    expect(seen.listQuery).toHaveProperty("assignedTo");
+  });
+
+  it("carries the whole filter into the export's address, not just the window", async () => {
+    const { w } = await mountPage("?from=2026-06-01&to=2026-06-30&trucks=v-701&status=credited");
+    const href = w.findAllComponents({ name: "ExportButton" })[0]?.props("href") as string;
+    expect(href).toContain("/api/fueling/exceptions/export.csv?");
+    expect(href).toContain("from=2026-06-01");
+    expect(href).toContain("status=credited");
+    expect(href).toContain("vehicles=v-701");
   });
 
   it("states the empty case as a fact and a next action", async () => {
@@ -126,5 +199,13 @@ describe("FuelExceptionsPage", () => {
     const w = (await mountPage()).w;
     expect(w.findAll("button").some((b) => b.text().includes("Dispute packet"))).toBe(true);
     expect(w.findAll("button").some((b) => b.text().includes("Export CSV"))).toBe(true);
+  });
+
+  it("disables the export when there is nothing to export", async () => {
+    listed.value = [];
+    listed.total = 0;
+    const w = (await mountPage()).w;
+    const csv = w.findAll("button").find((b) => b.text().includes("Export CSV"));
+    expect(csv?.attributes("disabled")).toBeDefined();
   });
 });
