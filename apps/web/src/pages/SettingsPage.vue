@@ -15,6 +15,7 @@ import {
   ReeferTruckIcon,
   ReportChartIcon,
   UsersIcon,
+  TrophyIcon,
 } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
@@ -40,6 +41,10 @@ const configCards = [
   { name: "EFS integration", to: "/settings/efs-soap", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
   { name: "Card control", to: "/settings/card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", show: session.admin },
   { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },
+  // R8 found this page declared, admin-gated and reachable ONLY by typing the URL: ten of the eleven
+  // `/settings/*` routes were listed here and this one was not. `routeReachability.test.ts` is what
+  // stops the next one going unnoticed for as long as this one did.
+  { name: "Driver performance", to: "/settings/driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", show: session.admin },
   { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "Reserves, corridor width, price freshness, brand policy, and the default truck profile.", show: session.admin },
   { name: "Audit log", to: "/settings/audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", show: session.admin || session.readOnly },
 ].filter((c) => c.show);
