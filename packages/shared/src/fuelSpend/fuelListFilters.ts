@@ -91,6 +91,58 @@ export interface FuelLogFilters {
 }
 
 /**
+ * Which of the Fuel log's filters a FLEET MPG can honestly answer for (M4, D-MPG1/D-MPG3).
+ *
+ * ── WHY THIS IS A RULE AND NOT AN `if` IN THE TAB ──────────────────────────────────────────────
+ * Fleet MPG is measured miles over the fuel behind them, and the miles are the difference between
+ * two odometer readings **for a named truck**. So the figure can be narrowed to TRUCKS and to
+ * nothing else. Three of the Fuel log's filters select FILLS instead, and each fails differently:
+ *
+ *  · **a driver** — a driver's fills happen on trucks, but the truck's odometer moved for whoever
+ *    was driving it. Scoping to "the trucks this driver touched" would report those trucks' whole
+ *    distance as the driver's, which is a bigger lie than no number. The driver's own figure exists
+ *    (`computeSubjectMpg`, over their fills) and lives on their page, which is where this points.
+ *  · **a search term** — it matches a location or a card as well as a unit, so the set it selects is
+ *    a set of fills that has no truck-shaped equivalent.
+ *  · **reefer** — reefer fuel runs a refrigeration unit and moves no truck (D-MPG5). There is no
+ *    such thing as reefer MPG, and the tile must say that rather than divide anyway.
+ *
+ * The alternative — showing the unfiltered fleet figure under a filter bar naming two trucks — is
+ * exactly the shape that made the Dashboard and the Spend trend disagree for five weeks: a number
+ * that is correct about something other than what the reader is looking at.
+ *
+ * Returned as a rule rather than decided in the tab because the export, the tile and any later
+ * surface must all decide it the same way; a copy is a workaround with a delay fuse.
+ */
+export interface FleetMpgScope {
+  /** Trucks to narrow the figure to. `undefined` is the whole fleet. */
+  vehicleIds?: string[];
+  /** Null when the figure can be shown; otherwise the sentence explaining why it cannot. */
+  unanswerable: string | null;
+}
+
+export function fleetMpgScope(f: FuelLogFilters): FleetMpgScope {
+  if (f.driverId) {
+    return {
+      unanswerable:
+        "MPG is measured from each truck's odometer, so it cannot be narrowed to one driver here. Open the driver's page for their own figure.",
+    };
+  }
+  if (fuelSearchTerm(f)) {
+    return {
+      unanswerable:
+        "A search matches locations and cards as well as units, so there is no set of trucks to measure. Filter by truck instead.",
+    };
+  }
+  if (f.tankType === "reefer") {
+    return {
+      unanswerable: "Reefer fuel runs a refrigeration unit and moves no truck, so it has no MPG.",
+    };
+  }
+  return { vehicleIds: f.vehicleIds, unanswerable: null };
+}
+
+/**
  * The free-text term, sanitised ONCE, for every caller.
  *
  * `%,()` are stripped because PostgREST's `.or(...)` grammar is comma- and paren-delimited and treats

@@ -23,6 +23,7 @@ import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
+import { useFleetMpgSeries } from "@/features/fuel/useFleetMpg";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
@@ -57,6 +58,35 @@ const fuelRange = computed<FuelFilters>(() => ({
   to: new Date(`${range.value.to}T23:59:59.999`).toISOString(),
 }));
 const { data: fuelTotals, isLoading: fuelLoading } = useFuelRangeTotals(fuelRange);
+
+/**
+ * Fleet MPG and its trend, from the one place that computes them (M4, D-MPG1/D-MPG6).
+ *
+ * This page used to derive both from the fills it had already fetched — one of four copies of a
+ * definition whose numerator ran 1.31–2.41% below Samsara's own IFTA miles, and the reason this tile
+ * and the Spend trend tab disagreed by 10.7% for the same week. The numerator is now the difference
+ * between two odometer readings the vendor asserted, which the browser cannot see.
+ *
+ * WEEKLY, not daily. A day's fuel purchases are not that day's consumption: 1–3 September 2026 read
+ * 7.46, 6.90 and 6.38 over almost identical distances, because the fleet filled more tanks on the
+ * third. The old daily line looked smooth only because its miles and its gallons had been spread
+ * across the same interval together, which hid that swing rather than avoiding it.
+ */
+const { data: fleetMpg } = useFleetMpgSeries(computed(() => ({ ...range.value, grain: "week" as const })));
+/** The window's own figure — NOT the mean of the weeks below it. */
+const mpgTotal = computed(() => fleetMpg.value?.total ?? null);
+const mpgWeeks = computed(() => fleetMpg.value?.periods ?? []);
+/**
+ * What the number is standing on, in the space a tile has. `null` mpg carries the service's own
+ * `reason`, which is a sentence a fleet manager can act on — a bare dash sends them looking for a bug.
+ */
+const mpgSub = computed(() => {
+  const t = mpgTotal.value;
+  if (t == null) return "measured miles ÷ fuel";
+  if (t.mpg == null) return "not enough measured distance";
+  return t.measuredShare == null ? "measured miles ÷ fuel" : `${Math.round(t.measuredShare * 100)}% of fuel measured`;
+});
+const mpgTitle = computed(() => mpgTotal.value?.reason ?? undefined);
 const fmtInt = (nn: number) => Math.round(nn).toLocaleString("en-US");
 const fuelingStats = computed(() => {
   const t = fuelTotals.value; // fill count + robust miles (not carried on the dashboard summary)
@@ -66,7 +96,7 @@ const fuelingStats = computed(() => {
     { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "text-info-600 bg-info-50", to: "/fuel-log" },
     { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
     { label: "Fuel spend", value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
-    { label: "Avg MPG", value: d?.fleetMpg != null ? d.fleetMpg.toFixed(1) : "—", sub: "gallon-weighted", icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+    { label: "Avg MPG", value: mpgTotal.value?.mpg != null ? mpgTotal.value.mpg.toFixed(1) : "—", valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
   ];
 });
 
@@ -95,11 +125,13 @@ const stats = computed(() => {
     },
     {
       label: "Fleet avg MPG",
-      value: s.value?.fleetMpg != null ? String(s.value.fleetMpg) : "—",
-      sub: "gallon-weighted",
+      value: mpgTotal.value?.mpg != null ? String(mpgTotal.value.mpg) : "—",
+      valueTitle: mpgTitle.value,
+      sub: mpgSub.value,
       icon: GaugeIcon,
       tone: "text-brand-600 bg-brand-50",
-      spark: s.value?.mpgTrend.map((p) => p.value),
+      // A weekly spark, because there is no honest daily point to draw (D-MPG6).
+      spark: mpgWeeks.value.map((p) => p.mpg),
       sparkColor: viz.brand,
       to: "/driver-performance",
     },
@@ -156,15 +188,16 @@ const trust = computed(() => [
 ]);
 const metricStrip = computed(() => [...fuelingStats.value, ...trust.value]);
 
-// Trends are zero-filled/org-tz-bucketed upstream; null MPG days render as honest GAPS (spanGaps off).
+// Spend is zero-filled/org-tz-bucketed upstream. A week the endpoint withheld renders as an honest
+// GAP (spanGaps off) rather than as a zero — a fleet does not do 0 MPG.
 const mpgChart = computed<ChartConfiguration>(() => ({
   type: "line",
   data: {
-    labels: s.value?.mpgTrend.map((p) => p.date) ?? [],
+    labels: mpgWeeks.value.map((p) => p.from),
     datasets: [
       {
         label: "Fleet MPG",
-        data: s.value?.mpgTrend.map((p) => p.value) ?? [],
+        data: mpgWeeks.value.map((p) => p.mpg),
         borderColor: viz.brand,
         backgroundColor: areaFill("--viz-brand") as unknown as string,
         fill: true,
@@ -357,18 +390,22 @@ const EXPORTS = [
               </tbody>
             </table>
           </ChartCard>
-          <ChartCard title="Fleet MPG trend" subtitle="Gallon-weighted daily average · gaps mean no valid fills">
+          <ChartCard
+            title="Fleet MPG trend"
+            subtitle="Measured miles ÷ the fuel behind them · week beginning · gaps mean too little measured distance"
+          >
             <BaseChart :config="mpgChart" :height="260" />
             <table class="sr-only">
-              <caption>Fleet MPG by day</caption>
-              <thead><tr><th scope="col">Day</th><th scope="col">MPG</th></tr></thead>
+              <caption>Fleet MPG by week</caption>
+              <thead><tr><th scope="col">Week beginning</th><th scope="col">MPG</th></tr></thead>
               <tbody>
-                <tr v-for="p in s?.mpgTrend ?? []" :key="p.date">
-                  <th scope="row">{{ fmtDay(p.date) }}</th>
-                  <td>{{ p.value ?? "no data" }}</td>
+                <tr v-for="p in mpgWeeks" :key="p.from">
+                  <th scope="row">{{ fmtDay(p.from) }}</th>
+                  <td>{{ p.mpg ?? "no data" }}</td>
                 </tr>
               </tbody>
             </table>
+            <p v-if="mpgTotal?.reason" class="mt-3 text-xs text-ink-tertiary">{{ mpgTotal.reason }}</p>
           </ChartCard>
         </template>
       </div>

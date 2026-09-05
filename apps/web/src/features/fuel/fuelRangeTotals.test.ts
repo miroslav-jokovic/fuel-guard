@@ -128,13 +128,20 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     expect((await totals({}))!.fillsWithVehicle).toBe(0);
   });
 
-  it("still applies the miles and MPG JUDGEMENT in TypeScript — D-AG1", async () => {
+  it("still applies the miles JUDGEMENT in TypeScript — D-AG1", async () => {
     const t = await totals({});
-    // The database returned a span (1000→1100) and banded sums. TypeScript decided that the span is
-    // real and divided the sums; neither verdict came from SQL.
+    // The database returned a span (1000→1100). TypeScript decided that the span is real; the verdict
+    // did not come from SQL.
     expect(t!.totalMiles).toBe(100);
-    expect(t!.fleetMpg).toBe(7);
   });
+
+  // ⚠ THERE IS NO `fleetMpg` HERE ANY MORE, and this is the note that stops it coming back (M4,
+  // D-MPG1). It was `Σ(mpg_weighted) ÷ Σ(mpg_gallons)` over this same RPC — one of four copies of a
+  // definition whose numerator ran 1.31–2.41% below Samsara's own IFTA miles, because
+  // `computed_mpg` divides by `gallons + intermediateGallons` while the weighting used `gallons`.
+  // The Fills tab reads `GET /api/fueling/fleet-mpg`, whose miles are two odometer readings the
+  // vendor asserted. `fuel_range_miles_inputs` still RETURNS those two columns — an applied
+  // migration cannot be edited — and nothing reads them.
 
   // ⚠ NOT ASSERTED HERE, and the reason is worth stating rather than leaving as a gap. A non-advancing
   // span makes `robustWindowMiles` return null rather than 0 — the guard its header calls the most
@@ -153,11 +160,12 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_count: 2, obd_min: 1000, obd_max: 1100, entered_worst_step: 0 };
   });
 
-  it("counts an unattributed fill toward fleet MPG and toward no truck's miles", async () => {
+  it("adds no distance for a fill attributed to no truck", async () => {
+    // An unattributed fill has no odometer span, so it can contribute nothing to the miles tile. Its
+    // GALLONS still count in `fuel_range_totals` — the money and the fuel were real — which is what
+    // the `fillsWithVehicle` coverage line beneath the tiles exists to explain.
     MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 60, mpg_gallons: 10 };
-    const t = await totals({});
-    expect(t!.fleetMpg).toBe((140 + 60) / (20 + 10)); // both fills weigh in
-    expect(t!.totalMiles).toBe(100);                   // …and it adds no distance
+    expect((await totals({}))!.totalMiles).toBe(100);
     MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 0, mpg_gallons: 0 };
   });
 

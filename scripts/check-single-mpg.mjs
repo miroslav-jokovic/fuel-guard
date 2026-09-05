@@ -83,16 +83,18 @@ const CARVE_OUTS = new Map([
 ]);
 
 /**
- * SHRINK-ONLY waivers — the four duplicate implementations the plan's M4 and M5 retire. Each names
- * the step that removes it. Adding to this list needs a justification in the same commit; the
+ * SHRINK-ONLY waivers — the duplicate implementations the plan's M4 and M5 retire. Each names the
+ * step that removes it. Adding to this list needs a justification in the same commit; the
  * check-file-size.mjs convention.
+ *
+ * **M4 emptied the four this gate shipped with (2026-09-04).** `dashboard.ts` no longer has a
+ * `fleetMpg` or an `mpgTrend` at all; `useFuelLog.ts` no longer accumulates `mpg_weighted`;
+ * `askData.ts` reads `getFleetMpg` and ranks subjects with `computeSubjectMpg`; `DriverDetailPage.vue`
+ * takes the band and the arithmetic from the shared module instead of hardcoding `>= 1 && <= 40`.
+ * The list is kept rather than deleted because M5's target is still standing — see the blind spot in
+ * the header — and because an empty ratchet is the record that the ratchet reached zero.
  */
-const WAIVERS = new Map([
-  ["packages/shared/src/dashboard.ts", "M4 — the Dashboard tile and the MPG trend move onto GET /api/fueling/fleet-mpg; the trend becomes weekly under D-MPG6."],
-  ["apps/web/src/features/fuel/useFuelLog.ts", "M4 — the Fuel log's Fills tab reads the endpoint; `fuel_range_miles_inputs` keeps returning the measurements, only the division moves."],
-  ["apps/api/src/modules/insights/askData.ts", "M4 — the assistant's `fleet_mpg` and its daily series read the endpoint (the series at week grain, D-MPG6)."],
-  ["apps/web/src/pages/DriverDetailPage.vue", "M4 — per-driver MPG moves onto the shared arithmetic and its label gains the scope (D-MPG3)."],
-]);
+const WAIVERS = new Map([]);
 
 const RULES = [
   {

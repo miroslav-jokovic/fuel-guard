@@ -130,6 +130,12 @@ const API_ALLOW = new Set([
   // staging table (D-SEP1, D-MPG1). The alternative was fuel-spend deriving miles from fuel a second
   // time, which is the 1.31%-low numerator the MPG plan exists to retire.
   "fuel-spend -> samsara",
+  // The weekly digest PDF prints the fleet's MPG, and there is now exactly one place that computes
+  // it (M4, D-MPG1). insights asks fuel-spend's `getFleetMpg` rather than aggregating the fills it
+  // already holds — which is what four surfaces did, and is why the Dashboard and the Spend trend
+  // disagreed by 10.7% for the same week. A figure in a PDF gets quoted back months later, so a
+  // second implementation here would be the copy with the longest fuse of the four.
+  "insights -> fuel-spend",
   // The idle rollup finishes by deriving the price days its dollars are priced with.
   "idle -> fuel",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.

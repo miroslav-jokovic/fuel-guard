@@ -90,8 +90,18 @@ export interface FuelRangeTotals {
   hasCost: boolean;
   flagged: number;
   clear: number;
-  /** Gallon-weighted mean of plausible per-fill MPG across the range (matches the dashboard's fleetMpg). */
-  fleetMpg: number | null;
+  /**
+   * ⚠ **There is no `fleetMpg` here any more (M4, D-MPG1).**
+   *
+   * It was a gallon-weighted mean of per-fill `computed_mpg`, documented as "matches the dashboard's
+   * fleetMpg" — an assertion about two independent code paths rather than a derivation, and one of
+   * four copies of a definition whose numerator ran 1.31–2.41% below Samsara's own IFTA miles. The
+   * Fills tab reads `GET /api/fueling/fleet-mpg` instead, scoped by `fleetMpgScope` to the filters a
+   * truck-measured figure can honestly answer.
+   *
+   * `fuel_range_miles_inputs` (0290/0315) still returns `mpg_weighted`/`mpg_gallons` — an APPLIED
+   * migration cannot be edited and the function is harmless — but nothing reads them.
+   */
 }
 
 const n = (v: number | string | null): number | null => (v == null ? null : Number(v));
@@ -139,14 +149,17 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         fills_with_vehicle?: number | null;
       } | null;
 
-      // ── The two that are JUDGEMENT — now fed by a measurement, not by a page (FUEL-T3b, 0290) ─────
-      // "THIS SUMS. IT DOES NOT DERIVE." Fleet MPG applies a plausibility band, and `robustWindowMiles`
-      // prefers an OBD span, falls back to the entered span only when it is monotonic within ±1, and
-      // returns null rather than 0 for a non-advancing window. None of that moved into SQL, and none of
-      // it may: T3b's finding is that the database can return the MEASUREMENTS those rules judge —
-      // spans, counts, and the worst backward step — without ever knowing the thresholds. The band
-      // travels the other way, as a required argument, so there is exactly one definition of it and it
-      // lives in `@silvicom/shared`.
+      // ── The one that is JUDGEMENT — fed by a measurement, not by a page (FUEL-T3b, 0290) ─────────
+      // "THIS SUMS. IT DOES NOT DERIVE." `robustWindowMiles` prefers an OBD span, falls back to the
+      // entered span only when it is monotonic within ±1, and returns null rather than 0 for a
+      // non-advancing window. None of that moved into SQL, and none of it may: T3b's finding is that
+      // the database can return the MEASUREMENTS those rules judge — spans, counts, and the worst
+      // backward step — without ever knowing the thresholds.
+      //
+      // The band is still handed in because the function's signature takes it (0315), and it still
+      // gates which fills the function counts. It no longer feeds a fleet MPG: M4 moved that figure
+      // onto `GET /api/fueling/fleet-mpg`, whose miles come from odometer readings rather than from
+      // the fuel. There is exactly one definition of the band and it lives in `@silvicom/shared`.
       //
       // The paging loop this replaces is gone. Every tile on this page is now independent of how many
       // fills there are, which is what FUEL-T3a set out to do and could only half-finish.
@@ -165,20 +178,13 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       if (milesErr) throw new Error(milesErr.message);
 
       let totalMiles = 0;
-      let mpgWeighted = 0;
-      let mpgGallons = 0;
       for (const v of (perVehicle ?? []) as {
         vehicle_id: string | null;
         obd_count: number; obd_min: number | string | null; obd_max: number | string | null;
         entered_count: number; entered_min: number | string | null; entered_max: number | string | null;
         entered_worst_step: number | string | null;
-        mpg_weighted: number | string; mpg_gallons: number | string;
       }[]) {
-        // Fleet MPG counts every fill, INCLUDING those attributed to no truck — the loop this replaced
-        // accumulated MPG before it skipped them, and that behaviour is preserved deliberately.
-        mpgWeighted += Number(v.mpg_weighted);
-        mpgGallons += Number(v.mpg_gallons);
-        if (!v.vehicle_id) continue; // …but a fill with no truck has no odometer span to contribute
+        if (!v.vehicle_id) continue; // a fill with no truck has no odometer span to contribute
         totalMiles +=
           windowMilesFromAggregate({
             obdCount: Number(v.obd_count),
@@ -201,7 +207,6 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         hasCost: t?.has_cost ?? false,
         flagged: Number(t?.flagged ?? 0),
         clear: Number(t?.clear ?? 0),
-        fleetMpg: mpgGallons > 0 ? mpgWeighted / mpgGallons : null,
       };
     },
   });

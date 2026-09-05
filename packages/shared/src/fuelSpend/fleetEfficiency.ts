@@ -195,6 +195,41 @@ export function computeFleetMpg(inputs: FleetMpgInputs): FleetMpg {
 }
 
 /**
+ * ── THE WIRE SHAPE ─────────────────────────────────────────────────────────────────────────────
+ * `GET /api/fueling/fleet-mpg` answers with one of these, and it lives HERE rather than in the
+ * service that assembles it for the reason CLAUDE.md gives: a contract shared by the API and the web
+ * has one home, and a per-app copy is a workaround with a delay fuse. Every field beyond `FleetMpg`
+ * is something a reader needs in order to judge the figure rather than merely display it.
+ */
+export interface FleetMpgPeriod extends FleetMpg {
+  /** The period, echoed back as the caller's own inclusive days. */
+  from: string;
+  to: string;
+  /** The fleet clock the days were resolved on — the boundary both sources were cut at. */
+  timezone: string;
+  /** Trucks that bought fuel in the period. The population `truckCoverage` is a share of. */
+  trucksFuelled: number;
+  /** Tractor gallons on fills attributed to no truck. Part of `gallons`, never of `gallonsWithMiles`. */
+  unattributedGallons: number;
+  /** Odometer readings the window held, lookback included. Zero means the collector has not run yet. */
+  readings: number;
+}
+
+/**
+ * A window and the calendar buckets inside it (D-MPG6 — week grain or coarser).
+ *
+ * `total` is the window measured as ITS OWN period, never the mean of `periods`: bucket edges cut
+ * odometer intervals, a truck measurable across a month need not be measurable in each of its weeks,
+ * and averaging the buckets' ratios would be a mean of ratios. A headline and the trend beneath it
+ * are two honest measurements at two grains, not one reconstructed from the other.
+ */
+export interface FleetMpgSeries {
+  total: FleetMpgPeriod;
+  periods: FleetMpgPeriod[];
+  grain: "week" | "month";
+}
+
+/**
  * How far apart two independent measurements of the same period's distance are, as a fraction of the
  * reference.
  *

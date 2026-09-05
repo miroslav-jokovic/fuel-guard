@@ -533,3 +533,52 @@ three of these are worth re-opening if the evidence changes.
   Sixteen tests added, fifteen mutants killed — including the three that matter most: the batched
   reader without its per-period narrowing, the subject figure computed the Method-A way, and the
   series total replaced by the mean of its buckets.
+- 2026-09-04 · **M4b — all five surfaces move, the four duplicates are deleted, and `lint:mpg`'s
+  waiver list reaches zero.** §1.2's "five implementations, eight display sites" is now one
+  implementation. `dashboard.ts` has no `fleetMpg` and no `mpgTrend` at all; `useFuelLog` no longer
+  accumulates `mpg_weighted`; `askData` calls `getFleetMpg` and ranks subjects with
+  `computeSubjectMpg`; `DriverDetailPage` stopped hardcoding `>= 1 && <= 40`; the digest PDF asks
+  fuel-spend rather than aggregating the fills it already had.
+
+  **The Dashboard trend is weekly and its total is not the mean of its weeks.** `useFleetMpgSeries`
+  asks for `grain=week`, the headline tile shows the window's own figure, and the spark and the chart
+  show the buckets. A withheld week is a GAP, not a zero — a fleet does not do 0 MPG — and the tile
+  carries the service's own `reason` as its sub-line and its title, because "—" with no explanation
+  sends a reader looking for a bug in the page.
+
+  **The Fuel log's tile is the decision that cost the most thought, and it is a deliberate product
+  change.** Fleet MPG is measured per TRUCK, so it can be narrowed to trucks and to nothing else.
+  Three of that page's filters select FILLS — a driver, a search term, reefer — and the tile now shows
+  a dash and a sentence for each rather than the unfiltered fleet figure under a filter bar naming
+  somebody else. That is §5's "it will not print a number it cannot stand behind" applied to a
+  surface that previously did. The rule is `fleetMpgScope` in `@silvicom/shared`, not an `if` in the
+  tab, because the tile, the export and the next surface must decide it identically; the driver case
+  points at the driver's own page, where `computeSubjectMpg` answers it.
+
+  **Two things moved rather than being deleted, and both are worth knowing.** The Fills tab's total
+  COST was the sub-line under Avg MPG; it is now under Gallons, where it belongs — gallons and what
+  they cost, rather than cost under an efficiency figure. And `dashboard.test.ts`'s corrupt-MPG guard
+  did not simply go: the half that still matters is pinned there ("a corrupt-MPG fill is still fuel
+  that was bought"), because dropping a bad fill from SPEND to tidy an MPG would understate a fuel
+  bill. The band half is proved in `fleetEfficiency.test.ts`.
+
+  **`askData` needed a refactor to fit, and the seam was already there.** `runTool` passed the
+  200-line budget, so the three fuel tools moved into `runFuelTool` — they are exactly the three
+  answers that now depend on the fuel-spend module, which the rest do not. Its grandfathered entry is
+  gone from `check-function-size.mjs` (212 → 147). The assistant's daily MPG series went with it:
+  `spend_trend` carries `fleet_mpg` only at week grain and returns a note saying why at day grain,
+  and a withheld fleet figure reaches the model with its reason so it can say "we cannot measure that
+  yet" instead of guessing.
+
+  **A new boundary pair, declared:** `insights -> fuel-spend`, with its reason — a figure in a PDF
+  gets quoted back months later, so a second implementation there would have had the longest fuse of
+  the four.
+
+  Thirteen tests added (seven on `fleetMpgScope`, seven on the route), eight mutants killed. Two are
+  the ones that matter: removing the driver refusal (2 fail) and removing the search refusal (1 fail)
+  — each is a filter under which the tile would show a number about the wrong set of trucks.
+
+  **Not covered by a test, stated rather than left as a gap:** the Fills tab's tile is not mounted in
+  a suite of its own. The rule it derives from is pinned in `fuelListFilters.test.ts` and the tab has
+  exactly one `mpgScope` computed feeding both the query's `enabled` and the note, so there is no
+  second decision to diverge — but a mount test would catch a future edit that reads the scope twice.

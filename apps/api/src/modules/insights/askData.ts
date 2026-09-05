@@ -1,8 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX, odometerAccuracy, type OdoRow } from "@silvicom/shared";
+import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, odometerAccuracy, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
+import { getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
 
 // ── Safe, org-scoped query tools. The AI can ONLY call these (never raw SQL), and every query is
 // pinned to the caller's org on the server — so it can't reach another tenant's data. Grouped:
@@ -41,12 +42,12 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Fuel economics ──
   {
     name: "fuel_economics",
-    description: "Fuel economics for a period: number of fills, total gallons, total spend, average price per gallon, gallon-weighted fleet MPG, and reefer (trailer) fuel spend + gallons.",
+    description: "Fuel economics for a period: number of fills, total gallons, total spend, average price per gallon, fleet MPG (measured odometer miles over the tractor fuel behind them, withheld with a reason when coverage is too thin), and reefer (trailer) fuel spend + gallons.",
     input_schema: { type: "object", properties: { period_days: { type: "integer" } } },
   },
   {
     name: "fuel_ranking",
-    description: "Rank drivers, vehicles, or fuel stations by a fuel metric over the period. metric=spend|gallons|mpg. order=desc (highest first, default) or asc (lowest first — e.g. worst MPG).",
+    description: "Rank drivers, vehicles, or fuel stations by a fuel metric over the period. metric=spend|gallons|mpg. order=desc (highest first, default) or asc (lowest first — e.g. worst MPG). An MPG here is that subject's own figure over its own fills, which is NOT the fleet MPG and must not be compared with it.",
     input_schema: {
       type: "object",
       properties: {
@@ -61,7 +62,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "spend_trend",
-    description: "Fuel spend, gallons and fleet MPG bucketed over time (bucket=day or week) for the period — for trend questions like 'is spend going up?'.",
+    description: "Fuel spend and gallons bucketed over time (bucket=day or week) for the period — for trend questions like 'is spend going up?'. Fleet MPG is included only at bucket=week: a day's fuel purchases are not that day's consumption, so there is no honest daily MPG.",
     input_schema: { type: "object", properties: { bucket: { type: "string", enum: ["day", "week"] }, period_days: { type: "integer" } } },
   },
   // ── Drivers & idling ──
@@ -102,7 +103,20 @@ const TOOLS: Anthropic.Tool[] = [
 ];
 
 const n = (v: unknown): number | null => (v == null ? null : Number(v));
-const plausible = (m: number | null): m is number => m != null && Number.isFinite(m) && m >= MPG_PLAUSIBLE_MIN && m <= MPG_PLAUSIBLE_MAX;
+
+/**
+ * One fill as the per-subject MPG rule needs it (D-MPG3).
+ *
+ * The assistant's rankings are per-DRIVER, per-VEHICLE and per-STATION figures, which are a different
+ * number from the fleet's and say so in the tool description. The arithmetic is `computeSubjectMpg`'s
+ * — it sums the odometer spans and recovers each span's real gallons rather than multiplying a stored
+ * ratio back out, which is the 1.31–2.41%-low numerator M4 retired.
+ */
+const asFill = (r: FuelRow): SubjectFill => ({
+  miles: n(r.miles_since_last),
+  mpg: n(r.computed_mpg),
+  gallons: Number(r.gallons) || 0,
+});
 
 /** Fetch every row of a query by paging in 1000-row windows (PostgREST caps a page at 1000) — so
  *  aggregates are correct for orgs with more than 1000 rows in the window. Bounded to 50 pages. */
@@ -140,13 +154,133 @@ interface FuelRow {
   gallons: number | string | null;
   total_cost: number | string | null;
   computed_mpg?: number | string | null;
+  miles_since_last?: number | string | null;
   tank_type?: string | null;
+}
+
+/**
+ * The three FUEL tools, lifted out of `runTool` when it passed the 200-line function budget (M4).
+ *
+ * The seam is not arbitrary: these are the three answers that now come from the fuel-spend module's
+ * one definition of MPG rather than from an aggregation over the fills this file fetched, so they
+ * share a dependency the rest of the tools do not have. `runTool` keeps the period and the limit,
+ * which are its own vocabulary, and hands them in.
+ */
+async function runFuelTool(
+  admin: SupabaseClient,
+  orgId: string,
+  name: string,
+  input: Record<string, unknown>,
+  ctx: { period: number; since: string; limit: number },
+): Promise<unknown> {
+  const { period, since, limit } = ctx;
+
+  if (name === "fuel_economics") {
+    const [rows, fleet] = await Promise.all([
+      fetchAllPaged<FuelRow>((lo, hi) =>
+        admin.from("fuel_transactions").select("gallons, total_cost, tank_type").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi)),
+      // The ONE definition (M4, D-MPG1). The assistant used to compute a gallon-weighted mean here —
+      // the fourth copy — and it answered a question the Dashboard answered differently, which is how
+      // an assistant loses a user's trust in one exchange.
+      getFleetMpg(admin, orgId, since.slice(0, 10), new Date().toISOString().slice(0, 10)),
+    ]);
+    let gallons = 0, spend = 0, reeferSpend = 0, reeferGal = 0;
+    for (const r of rows) {
+      const g = Number(r.gallons) || 0, c = n(r.total_cost) ?? 0;
+      gallons += g; spend += c;
+      if (r.tank_type === "reefer") { reeferSpend += c; reeferGal += g; }
+    }
+    return {
+      period_days: period, fills: rows.length, gallons: Math.round(gallons), spend: Math.round(spend),
+      avg_price_per_gal: gallons > 0 ? Math.round((spend / gallons) * 1000) / 1000 : null,
+      fleet_mpg: fleet.mpg,
+      // Handed to the model, not dropped: a withheld figure with its reason lets the assistant say
+      // "we cannot measure that yet, because…", where a bare null invites it to guess.
+      fleet_mpg_unavailable_because: fleet.reason,
+      fleet_mpg_measured_share: fleet.measuredShare,
+      reefer_spend: Math.round(reeferSpend), reefer_gallons: Math.round(reeferGal),
+    };
+  }
+
+  if (name === "fuel_ranking") {
+    const by = input.by === "vehicle" ? "vehicle" : input.by === "station" ? "station" : "driver";
+    const metric = input.metric === "gallons" ? "gallons" : input.metric === "mpg" ? "mpg" : "spend";
+    const order = input.order === "asc" ? "asc" : "desc";
+    const rows = await fetchAllPaged<FuelRow>((lo, hi) =>
+      admin.from("fuel_transactions").select("driver_id, vehicle_id, location_text, gallons, total_cost, computed_mpg, miles_since_last").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
+    const maps = await nameMaps(admin, orgId);
+    const agg = new Map<string, { spend: number; gallons: number; fills: SubjectFill[] }>();
+    for (const r of rows) {
+      let key: string;
+      if (by === "station") key = (r.location_text || "Unknown").trim() || "Unknown";
+      else { const id = by === "vehicle" ? r.vehicle_id : r.driver_id; key = id ? ((by === "vehicle" ? maps.unit : maps.driver).get(id) ?? "—") : "Unattributed"; }
+      const a = agg.get(key) ?? { spend: 0, gallons: 0, fills: [] as SubjectFill[] };
+      const g = Number(r.gallons) || 0, c = n(r.total_cost) ?? 0;
+      a.spend += c; a.gallons += g;
+      a.fills.push(asFill(r));
+      agg.set(key, a);
+    }
+    let ranked = [...agg.entries()].map(([nm, a]) => ({ name: nm, spend: Math.round(a.spend), gallons: Math.round(a.gallons), mpg: computeSubjectMpg(a.fills).mpg }));
+    if (metric === "mpg") ranked = ranked.filter((r) => r.mpg != null);
+    ranked.sort((a, b) => {
+      const av = (a as unknown as Record<string, number | null>)[metric] ?? 0;
+      const bv = (b as unknown as Record<string, number | null>)[metric] ?? 0;
+      return order === "asc" ? av - bv : bv - av;
+    });
+    return { by, metric, order, period_days: period, rows: ranked.slice(0, limit) };
+  }
+
+  if (name === "spend_trend") {
+    const bucket = input.bucket === "day" ? "day" : "week";
+    const rows = await fetchAllPaged<FuelRow>((lo, hi) =>
+      admin.from("fuel_transactions").select("fueled_at, gallons, total_cost").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
+    const agg = new Map<string, { spend: number; gallons: number }>();
+    for (const r of rows) {
+      if (!r.fueled_at) continue;
+      const d = new Date(r.fueled_at);
+      let key = d.toISOString().slice(0, 10);
+      if (bucket === "week") { const wd = new Date(d); wd.setUTCDate(wd.getUTCDate() - ((wd.getUTCDay() + 6) % 7)); key = wd.toISOString().slice(0, 10); } // ISO Monday
+      const a = agg.get(key) ?? { spend: 0, gallons: 0 };
+      a.spend += (n(r.total_cost) ?? 0); a.gallons += Number(r.gallons) || 0;
+      agg.set(key, a);
+    }
+    // MPG only at WEEK grain (D-MPG6), and from the one definition. A day's fuel purchases are not
+    // that day's consumption: 1–3 September 2026 read 7.46, 6.90 and 6.38 over almost identical
+    // distances, purely because the fleet filled more tanks on the third. The daily series this
+    // replaced hid that — its miles and its gallons had been spread across the same interval together
+    // — and a smooth line that is not measuring the day is worse than a jagged one that is.
+    const mpgByWeek = new Map<string, number | null>();
+    if (bucket === "week") {
+      const s = await getFleetMpgSeries(admin, orgId, since.slice(0, 10), new Date().toISOString().slice(0, 10), "week");
+      for (const p of s.periods) mpgByWeek.set(p.from, p.mpg);
+    }
+    const series = [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, a]) => ({
+      date,
+      spend: Math.round(a.spend),
+      gallons: Math.round(a.gallons),
+      ...(bucket === "week" ? { fleet_mpg: mpgByWeek.get(date) ?? null } : {}),
+    }));
+    return {
+      bucket,
+      period_days: period,
+      series,
+      ...(bucket === "day"
+        ? { fleet_mpg_note: "MPG is not reported at day grain: a day's fuel purchases are not that day's consumption. Ask with bucket=week." }
+        : {}),
+    };
+  }
+
+  return null;
 }
 
 async function runTool(admin: SupabaseClient, orgId: string, name: string, input: Record<string, unknown>): Promise<unknown> {
   const period = Math.min(Math.max(Number(input.period_days) || 30, 1), 365);
   const since = new Date(Date.now() - period * 86400_000).toISOString();
   const limit = Math.min(Math.max(Number(input.limit) || 5, 1), 25);
+
+  if (name === "fuel_economics" || name === "fuel_ranking" || name === "spend_trend") {
+    return runFuelTool(admin, orgId, name, input, { period, since, limit });
+  }
 
   if (name === "fleet_summary") {
     const [fuel, alerts, siphons, declines] = await Promise.all([
@@ -202,75 +336,6 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
     let count = 0;
     for (const a of data) if ((a.evidence?.signals ?? []).some((s) => s.key === signal)) count += 1;
     return { signal, period_days: period, open_cases_with_signal: count };
-  }
-
-  if (name === "fuel_economics") {
-    const rows = await fetchAllPaged<FuelRow>((lo, hi) =>
-      admin.from("fuel_transactions").select("gallons, total_cost, computed_mpg, tank_type").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
-    let gallons = 0, spend = 0, reeferSpend = 0, reeferGal = 0, mpgW = 0, mpgG = 0;
-    for (const r of rows) {
-      const g = Number(r.gallons) || 0, c = n(r.total_cost) ?? 0;
-      gallons += g; spend += c;
-      if (r.tank_type === "reefer") { reeferSpend += c; reeferGal += g; }
-      const m = n(r.computed_mpg);
-      if (plausible(m) && g > 0) { mpgW += m * g; mpgG += g; }
-    }
-    return {
-      period_days: period, fills: rows.length, gallons: Math.round(gallons), spend: Math.round(spend),
-      avg_price_per_gal: gallons > 0 ? Math.round((spend / gallons) * 1000) / 1000 : null,
-      fleet_mpg: mpgG > 0 ? Math.round((mpgW / mpgG) * 10) / 10 : null,
-      reefer_spend: Math.round(reeferSpend), reefer_gallons: Math.round(reeferGal),
-    };
-  }
-
-  if (name === "fuel_ranking") {
-    const by = input.by === "vehicle" ? "vehicle" : input.by === "station" ? "station" : "driver";
-    const metric = input.metric === "gallons" ? "gallons" : input.metric === "mpg" ? "mpg" : "spend";
-    const order = input.order === "asc" ? "asc" : "desc";
-    const rows = await fetchAllPaged<FuelRow>((lo, hi) =>
-      admin.from("fuel_transactions").select("driver_id, vehicle_id, location_text, gallons, total_cost, computed_mpg").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
-    const maps = await nameMaps(admin, orgId);
-    const agg = new Map<string, { spend: number; gallons: number; mpgW: number; mpgG: number }>();
-    for (const r of rows) {
-      let key: string;
-      if (by === "station") key = (r.location_text || "Unknown").trim() || "Unknown";
-      else { const id = by === "vehicle" ? r.vehicle_id : r.driver_id; key = id ? ((by === "vehicle" ? maps.unit : maps.driver).get(id) ?? "—") : "Unattributed"; }
-      const a = agg.get(key) ?? { spend: 0, gallons: 0, mpgW: 0, mpgG: 0 };
-      const g = Number(r.gallons) || 0, c = n(r.total_cost) ?? 0;
-      a.spend += c; a.gallons += g;
-      const m = n(r.computed_mpg);
-      if (plausible(m) && g > 0) { a.mpgW += m * g; a.mpgG += g; }
-      agg.set(key, a);
-    }
-    let ranked = [...agg.entries()].map(([nm, a]) => ({ name: nm, spend: Math.round(a.spend), gallons: Math.round(a.gallons), mpg: a.mpgG > 0 ? Math.round((a.mpgW / a.mpgG) * 10) / 10 : null }));
-    if (metric === "mpg") ranked = ranked.filter((r) => r.mpg != null);
-    ranked.sort((a, b) => {
-      const av = (a as unknown as Record<string, number | null>)[metric] ?? 0;
-      const bv = (b as unknown as Record<string, number | null>)[metric] ?? 0;
-      return order === "asc" ? av - bv : bv - av;
-    });
-    return { by, metric, order, period_days: period, rows: ranked.slice(0, limit) };
-  }
-
-  if (name === "spend_trend") {
-    const bucket = input.bucket === "day" ? "day" : "week";
-    const rows = await fetchAllPaged<FuelRow>((lo, hi) =>
-      admin.from("fuel_transactions").select("fueled_at, gallons, total_cost, computed_mpg").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi));
-    const agg = new Map<string, { spend: number; gallons: number; mpgW: number; mpgG: number }>();
-    for (const r of rows) {
-      if (!r.fueled_at) continue;
-      const d = new Date(r.fueled_at);
-      let key = d.toISOString().slice(0, 10);
-      if (bucket === "week") { const wd = new Date(d); wd.setUTCDate(wd.getUTCDate() - ((wd.getUTCDay() + 6) % 7)); key = wd.toISOString().slice(0, 10); } // ISO Monday
-      const a = agg.get(key) ?? { spend: 0, gallons: 0, mpgW: 0, mpgG: 0 };
-      const g = Number(r.gallons) || 0, c = n(r.total_cost) ?? 0;
-      a.spend += c; a.gallons += g;
-      const m = n(r.computed_mpg);
-      if (plausible(m) && g > 0) { a.mpgW += m * g; a.mpgG += g; }
-      agg.set(key, a);
-    }
-    const series = [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, a]) => ({ date, spend: Math.round(a.spend), gallons: Math.round(a.gallons), fleet_mpg: a.mpgG > 0 ? Math.round((a.mpgW / a.mpgG) * 10) / 10 : null }));
-    return { bucket, period_days: period, series };
   }
 
   if (name === "driver_performance") {
