@@ -35,6 +35,7 @@ beforeEach(() => {
   fetched.data = {
     posted: feed(),
     rejected: feed({ feed: "rejected", cadenceMinutes: 5, lead: "Declined card attempts last arrived 2 minutes ago." }),
+    gaps: { gaps: [], emptyDays: 0, coveredDays: 0, lead: null },
   };
 });
 
@@ -83,7 +84,10 @@ describe("FeedFreshnessLine", () => {
       // Node surfaces an unhandled rejection after the microtask queue drains, so give it the turn.
       await new Promise((resolve) => setImmediate(resolve));
       expect(escaped).toEqual([]);
-      expect(w.html()).toBe("<!--v-if-->");
+      // Nothing RENDERED, asserted as "no paragraph" rather than as exact markup: the component grew
+      // a second `v-if` for the gap sentence (2026-09-05) and an equality on the whole string would
+      // have failed for a reason that has nothing to do with what this test is about.
+      expect(w.html()).not.toContain("<p");
     } finally {
       process.off("unhandledRejection", onUnhandled);
     }
@@ -101,6 +105,55 @@ describe("FeedFreshnessLine", () => {
   it("asks the API once, for the fuel-section route rather than the admin integration one", async () => {
     await mountFor("posted");
     expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith("/api/fueling/feed-freshness");
+  });
+});
+
+
+/**
+ * The second sentence: a hole in the middle of the record (2026-09-05).
+ *
+ * The line above catches a poller that has stopped. It cannot catch one that stopped and started
+ * again — production carried 17 consecutive days with no fill at all while every assertion above
+ * stayed green for four months, because "last arrived 4 minutes ago" was true the whole time.
+ */
+describe("FeedFreshnessLine — the hole in the middle", () => {
+  const GAP = "No fuel arrived at all for 17 days inside this window (Apr 18 – May 4).";
+
+  it("prints the gap sentence beside the freshness one", async () => {
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    const w = await mountFor("posted");
+    expect(w.text()).toContain(GAP);
+    expect(w.text()).toContain("last arrived 4 minutes ago"); // both, not one instead of the other
+  });
+
+  it("always tones a gap as caution, even beside a perfectly healthy feed", async () => {
+    // A late feed may resolve itself by waiting. A hole never does, so it does not borrow the
+    // freshness line's tone.
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    const w = await mountFor("posted");
+    expect(w.html()).toContain("bg-caution-50");
+  });
+
+  it("says nothing when there is no hole — silence is the pass", async () => {
+    expect((await mountFor("posted")).html()).not.toContain("bg-caution-50");
+  });
+
+  it("shows it on the POSTED feed only, so the Fuel log does not say it twice", async () => {
+    // The hole is in the FILL record. Repeating it above the declines list adds no fact.
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    expect((await mountFor("rejected")).text()).not.toContain("No fuel arrived");
+  });
+
+  it("asks about the window the page is showing, not a default one", async () => {
+    mount(FeedFreshnessLine, { props: { feed: "posted", from: "2026-04-01", to: "2026-04-30" } });
+    await flushPromises();
+    expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining("from=2026-04-01"));
+    expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining("to=2026-04-30"));
+  });
+
+  it("asks without a window when the page has none, rather than sending empty parameters", async () => {
+    await mountFor("posted");
     expect(apiFetch).toHaveBeenCalledWith("/api/fueling/feed-freshness");
   });
 });
