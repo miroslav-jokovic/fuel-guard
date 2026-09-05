@@ -3,7 +3,7 @@ import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import { RETURN_TO_DUTY_BLOCK, type Anomaly, type FuelTransaction } from "@silvicom/shared";
+import { RETURN_TO_DUTY_BLOCK, computeSubjectMpg, plausibleFillMpg, type Anomaly, type FuelTransaction } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
@@ -131,7 +131,9 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabase
       .from("fuel_transactions")
-      .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
+      // `miles_since_last` is selected because this driver's MPG is now a ratio of sums over those
+      // spans (M4, D-MPG3) rather than a gallon-weighted mean of `computed_mpg` — see `driverMpg`.
+      .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
       .eq("driver_id", driverId)
       .eq("is_canonical", true)
       .order("fueled_at", { ascending: true })
@@ -178,7 +180,14 @@ const { data: anomalies } = useQuery({
   },
 });
 
-const mpgPoints = computed(() => (txns.value ?? []).filter((t) => t.computed_mpg != null && Number(t.computed_mpg) >= 1 && Number(t.computed_mpg) <= 40));
+// The band is `MPG_PLAUSIBLE_MIN/MAX` from `@silvicom/shared`, not the `>= 1 && <= 40` this line used
+// to hardcode. One definition of "this odometer reading is corrupt", and it lives beside the
+// arithmetic that applies it (M4, D-MPG1).
+const mpgPoints = computed(() =>
+  (txns.value ?? []).filter(
+    (t) => t.computed_mpg != null && plausibleFillMpg(Number(t.computed_mpg)),
+  ),
+);
 const mpgChart = computed<ChartConfiguration>(() => ({
   type: "line",
   data: {
@@ -203,11 +212,28 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 const recent = computed(() => [...(txns.value ?? [])].reverse().slice(0, 20));
 const openAnomalies = computed(() => (anomalies.value ?? []).filter((a) => a.status === "open" || a.status === "investigating").length);
 const totalGallons = computed(() => (txns.value ?? []).reduce((sum, t) => sum + Number(t.gallons || 0), 0));
-const avgMpg = computed(() => {
-  const valid = mpgPoints.value;
-  const gallons = valid.reduce((sum, t) => sum + Number(t.gallons || 0), 0);
-  return gallons > 0 ? valid.reduce((sum, t) => sum + Number(t.computed_mpg) * Number(t.gallons || 0), 0) / gallons : null;
-});
+/**
+ * This driver's MPG — a DIFFERENT figure from the fleet's, and labelled as one (M4, D-MPG3).
+ *
+ * It answers "what did this driver's fills achieve", over odometer spans between their own fills. The
+ * fleet number answers "how far did the fleet go on the fuel it bought", from two odometer readings
+ * the vendor asserted at the ends of a period. Different miles, different gallons, different edges —
+ * so the label says whose figure this is rather than inviting the two to be compared.
+ *
+ * The arithmetic moved into `computeSubjectMpg`: it sums the spans and recovers each span's real
+ * gallons instead of multiplying a stored ratio back out by `gallons` alone, which is the
+ * intermediate-gallons bias the plan measured at 1.31–2.41% low.
+ */
+const driverMpg = computed(() =>
+  computeSubjectMpg(
+    (txns.value ?? []).map((t) => ({
+      miles: t.miles_since_last == null ? null : Number(t.miles_since_last),
+      mpg: t.computed_mpg == null ? null : Number(t.computed_mpg),
+      gallons: Number(t.gallons || 0),
+    })),
+  ),
+);
+const avgMpg = computed(() => driverMpg.value.mpg);
 const fmt = (iso: string, state: string | null) => stationDate(iso, state);
 const fillColumns: DataTableColumn[] = [
   { key: "fueled_at", label: "Date", cellClass: "text-ink-muted" },
@@ -284,7 +310,11 @@ const fillColumns: DataTableColumn[] = [
       <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><dt class="text-ink-muted">Fills</dt><dd class="font-medium text-ink">{{ txns?.length ?? "—" }}</dd></div>
         <div><dt class="text-ink-muted">Gallons</dt><dd class="font-medium text-ink">{{ Math.round(totalGallons).toLocaleString() }}</dd></div>
-        <div><dt class="text-ink-muted">Average MPG</dt><dd class="font-medium text-ink">{{ avgMpg != null ? avgMpg.toFixed(1) : "—" }}</dd></div>
+        <div>
+          <dt class="text-ink-muted">MPG on this driver's fills</dt>
+          <dd class="font-medium text-ink" :title="driverMpg.reason ?? undefined">{{ avgMpg != null ? avgMpg.toFixed(1) : "—" }}</dd>
+          <dd v-if="driverMpg.reason" class="text-xs text-ink-tertiary">{{ driverMpg.reason }}</dd>
+        </div>
         <div><dt class="text-ink-muted">Open anomalies</dt><dd class="font-medium text-ink">{{ openAnomalies }}</dd></div>
       </dl>
     </BaseCard>

@@ -51,11 +51,19 @@ vi.mock("@/features/fuel/useFuelLog", async (orig) => {
       isFetching: ref(false),
     }),
     useFuelRangeTotals: () => ({
-      data: ref({ flagged: 0, clear: 1, totalGallons: 100, totalCost: 400, hasCost: true, fleetMpg: 6.5 }),
+      data: ref({ flagged: 0, clear: 1, totalGallons: 100, totalCost: 400, hasCost: true }),
     }),
     useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
   };
 });
+
+// Avg MPG comes from `GET /api/fueling/fleet-mpg` since M4, so the tab holds a vue-query call for it.
+// Stubbed for the same reason `useEfsFacets` is: this suite is about a column that is not there, and a
+// live query would make it depend on a network stub with nothing to do with the decision it pins.
+vi.mock("@/features/fuel/useFleetMpg", () => ({
+  useFleetMpg: () => ({ data: ref(undefined) }),
+  useFleetMpgSeries: () => ({ data: ref(undefined) }),
+}));
 
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: ref([{ id: "v1", unit_number: "701", status: "active" }]) }),

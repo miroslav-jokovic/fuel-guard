@@ -4,7 +4,8 @@ import {
   periodBounds,
   zonedWallTimeToUtcIso,
   type FleetMilesSource,
-  type FleetMpg,
+  type FleetMpgPeriod,
+  type FleetMpgSeries,
   type SpendGrain,
 } from "@silvicom/shared";
 import { eachPage } from "../../lib/paging.js";
@@ -47,27 +48,13 @@ import { readFleetDistancePeriods, type FleetDistanceResult } from "../samsara/i
  * difference to two decimal places, which is exactly why it must not be what the exclusion rests on.
  */
 
-export interface FleetMpgResult extends FleetMpg {
-  /** The period, echoed back as the caller's own days. */
-  from: string;
-  to: string;
-  /** The fleet clock the days were resolved on — the boundary both sources were cut at. */
-  timezone: string;
-  /** Trucks that bought fuel in the period. The population `truckCoverage` is a share of. */
-  trucksFuelled: number;
-  /** Tractor gallons on fills we could not attribute to any truck (D-FS2). Part of `gallons`, never of `gallonsWithMiles`. */
-  unattributedGallons: number;
-  /** Odometer readings the window held, lookback included. Zero means the collector has not run yet. */
-  readings: number;
-}
-
-export interface FleetMpgSeries {
-  /** The whole window, as one period. Not the mean of the buckets below — see `getFleetMpgSeries`. */
-  total: FleetMpgResult;
-  /** One entry per bucket, oldest first, each answering for its own days only. */
-  periods: FleetMpgResult[];
-  grain: SpendGrain;
-}
+/**
+ * The wire shape is `FleetMpgPeriod` in `@silvicom/shared` — one home for a contract the API writes
+ * and the web reads (CLAUDE.md, `lint:shared-contracts`). The alias is kept because every caller in
+ * this app already names it, and renaming a type is not what this step is for.
+ */
+export type FleetMpgResult = FleetMpgPeriod;
+export type { FleetMpgSeries } from "@silvicom/shared";
 
 /**
  * Trucks the caller wants the figure for, or `null` for the whole fleet.
@@ -300,17 +287,20 @@ export async function getFleetMpg(
  * So a page showing a headline figure and a trend beneath it shows two honest measurements of the
  * same fleet at two grains, and the headline is not reconstructed from the picture.
  *
- * ── WHY THE GRAIN IS THE CALLER'S AND `day` IS NOT BLOCKED HERE ────────────────────────────────
- * D-MPG6 is a ruling about what surfaces SHOW, not a claim that the subtraction is undefined. The
- * service answers the question it is asked and states the caveat (see `getFleetMpg`); the dashboard
- * asks for weeks, and the route is where a grain a surface has no business asking for is refused.
+ * ── WHY THE GRAIN IS WEEK OR COARSER, IN THE TYPE ─────────────────────────────────────────────
+ * D-MPG6 rules on what a surface may SHOW, and §2 adds that the API does not refuse a legal question
+ * — which is why `getFleetMpg` still answers for a single day, with the caveat in its own header. A
+ * daily SERIES is a different thing: it is not a period somebody asked about, it is the artefact the
+ * ruling removed, and the dashboard's old trend hid the 17% three-day swing rather than avoiding it
+ * because both sides of each day's ratio had been spread across the same interval. So the grain is
+ * `"week" | "month"` in the contract, and a caller that wants a day asks `getFleetMpg` for that day.
  */
 export async function getFleetMpgSeries(
   admin: SupabaseClient,
   orgId: string,
   from: string,
   to: string,
-  grain: SpendGrain,
+  grain: FleetMpgSeries["grain"],
   vehicles: VehicleScope = null,
 ): Promise<FleetMpgSeries> {
   const tz = await readTimezone(admin, orgId);

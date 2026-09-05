@@ -66,10 +66,6 @@ describe("aggregateDashboard", () => {
     expect(s.totalSpend).toBe(600);
     expect(s.totalGallons).toBe(150);
   });
-  it("computes a gallon-weighted fleet MPG", () => {
-    // (6*100 + 8*50) / 150 = 6.67
-    expect(s.fleetMpg).toBeCloseTo(6.67, 1);
-  });
   it("counts only open/investigating anomalies", () => {
     expect(s.openAnomalies).toBe(2);
     expect(s.anomaliesBySeverity.critical).toBe(1);
@@ -81,7 +77,6 @@ describe("aggregateDashboard", () => {
       { date: "2026-06-01", value: 400 },
       { date: "2026-06-02", value: 200 },
     ]);
-    expect(s.mpgTrend.length).toBe(2);
   });
   it("ranks top vehicles by risk (critical first)", () => {
     expect(s.topVehiclesByRisk[0]?.label).toBe("T-101");
@@ -126,7 +121,7 @@ describe("aggregateDashboard — org-timezone bucketing + zero-fill (fix #4)", (
     expect(s.spendTrend).toEqual([{ date: "2026-06-01", value: 100 }]);
   });
 
-  it("zero-fills missing days in the spend trend and null-gaps the MPG trend", () => {
+  it("zero-fills missing days in the spend trend", () => {
     const s = aggregateDashboard(
       [txn("t1", "2026-06-01T12:00:00.000Z", 100), txn("t2", "2026-06-04T12:00:00.000Z", 50)],
       [], [], [],
@@ -137,8 +132,6 @@ describe("aggregateDashboard — org-timezone bucketing + zero-fill (fix #4)", (
       { date: "2026-06-03", value: 0 },
       { date: "2026-06-04", value: 50 },
     ]);
-    expect(s.mpgTrend.map((p) => p.date)).toEqual(["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"]);
-    expect(s.mpgTrend.every((p) => p.value === null)).toBe(true); // no computed_mpg in fixture
   });
 
   it("falls back to UTC slicing for an unknown timezone (deterministic, no throw)", () => {
@@ -147,27 +140,26 @@ describe("aggregateDashboard — org-timezone bucketing + zero-fill (fix #4)", (
   });
 });
 
-describe("aggregateDashboard — corrupt-MPG guard (dashboard fix)", () => {
+/**
+ * The corrupt-MPG guard MOVED, it was not deleted (M4, D-MPG1).
+ *
+ * This file used to prove that a fill with `computed_mpg` 0.5 or 250 could not drag the dashboard's
+ * efficiency figure. It no longer can, because the dashboard no longer HAS one: fleet MPG comes from
+ * `GET /api/fueling/fleet-mpg`, whose numerator is two odometer readings rather than a ratio taken
+ * back out of the fuel, and the band that guarded it is proved in `fleetEfficiency.test.ts`
+ * ("drops a fill whose stored MPG is outside the per-fill band, and says how much fuel that cost").
+ *
+ * What must still be true HERE is the other half of that old guard, and it is the half a refactor
+ * could break silently: a corrupt fill is corrupt for EFFICIENCY only. Its gallons were bought and
+ * its money was spent, and dropping it from spend would understate a fuel bill to tidy an MPG.
+ */
+describe("aggregateDashboard — a corrupt-MPG fill is still fuel that was bought", () => {
   const t = (id: string, day: string, gallons: number, mpg: number | null): FuelTransaction =>
     ({ id, org_id: "o", vehicle_id: "v1", driver_id: "d1", fueled_at: `2026-06-${day}T12:00:00Z`, odometer: null,
        gallons, price_per_gal: null, total_cost: gallons * 4, location_text: null, source: "fuel_card",
        computed_mpg: mpg, has_anomaly: false, max_severity: null, ai_risk_level: null, created_at: `2026-06-${day}T12:00:00Z` } as FuelTransaction);
 
-  it("excludes a nonsense sub-1 MPG from the daily trend (no false dip)", () => {
-    // A bad odometer produced computed_mpg 0.5 on the 30th; the day should read as a gap, not ~0.5.
-    const s = aggregateDashboard([t("t1", "30", 100, 0.5)], [], [], []);
-    expect(s.mpgTrend.at(-1)).toEqual({ date: "2026-06-30", value: null });
-    expect(s.fleetMpg).toBeNull(); // the only fill was corrupt → no fleet MPG
-  });
-
-  it("excludes an absurd high MPG but keeps the real one", () => {
-    const s = aggregateDashboard([t("t1", "01", 100, 6.5), t("t2", "02", 80, 250)], [], [], []);
-    expect(s.mpgTrend[0]).toEqual({ date: "2026-06-01", value: 6.5 });
-    expect(s.mpgTrend[1]).toEqual({ date: "2026-06-02", value: null }); // 250 mpg dropped
-    expect(s.fleetMpg).toBe(6.5); // corrupt value excluded from the weighted average
-  });
-
-  it("still counts corrupt-MPG fills in spend and gallons (only efficiency is guarded)", () => {
+  it("counts corrupt-MPG fills in spend and gallons", () => {
     const s = aggregateDashboard([t("t1", "01", 100, 0.5)], [], [], []);
     expect(s.totalGallons).toBe(100);
     expect(s.totalSpend).toBe(400);
