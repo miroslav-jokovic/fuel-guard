@@ -622,3 +622,48 @@ three of these are worth re-opening if the evidence changes.
   Twelve tests added, four mutants killed: `reportableMpg` returning the figure regardless (2 fail),
   `ratio` rounded (2), the period taking the verdict where the measurement belongs (4), and the miles
   labelled `measured` (1).
+- 2026-09-04 · **M5b — the cross-source check ships, which is the part of this plan that keeps
+  working after everybody has forgotten it.** §1.4's finding was not a duplicated formula: the
+  allocated miles the spend report divides agreed with Samsara's IFTA jurisdiction miles to within
+  **0.08%** in July 2026 and ran **3.78%** ahead of them in August, and the step landed in the week of
+  2026-07-28. **Nothing noticed for five weeks and nothing could have**, because nothing in the
+  product ever put the two numbers side by side — a person found it by accident, running a third
+  source to decide which of two disagreeing pages was wrong. `assessMileageAgreement` is the
+  something that now does it.
+
+  **The threshold is measured, not chosen, and its cost is named.** `MILEAGE_AGREEMENT_TOLERANCE` is
+  1.5%: the two sources agreed to 0.08% in July, the odometer ran 0.62% from the allocation over the
+  122 trucks both could speak for on 1–3 September, and the break was 3.78%. So 1.5% sits above every
+  agreement measured on this fleet and well below the break. **A drift that settles between 1.5% and
+  3.8% is real and is not flagged until it grows** — which is why the per-month figures are reported
+  whatever the verdict, so somebody watching a number climb from 0.4% to 1.2% sees it before the rule
+  speaks.
+
+  **Three refusals, each of which a naive version gets wrong quietly.** An absent feed is
+  `unmeasurable`, never agreement — a check that read silence as a pass would have been quiet through
+  exactly the outage it exists to catch. The WORST month is reported, not the newest, or the check
+  goes silent the moment a drift settles. And only whole CALENDAR MONTHS are compared, because IFTA
+  is published per month and cannot be cut finer: half a month of allocated miles against a whole
+  month of jurisdiction miles reads as a 50% collapse that is an artefact of the window. A one-week
+  report therefore says "too short to check", which is a different statement from "the miles agree"
+  and the surfaces keep them apart.
+
+  **It is fleet-wide even on a filtered screen, and that is the judgement in this step.** The question
+  is whether the two SOURCES agree, not whether three trucks do. A divergence that appeared and
+  disappeared as a reader picked trucks would teach them to ignore it, which is worse than not
+  checking.
+
+  **Two surfaces, and silence is the pass on both.** The spend report PDF prints the sentence directly
+  under the metric strip — beside the miles it is about, for the same reason the freshness line went
+  on the letterhead rather than into a footnote — and the Spend trend tab prints it under the tiles,
+  from `GET /api/fueling/mileage-agreement`. Neither says anything when the months agree: a line
+  reading "the miles agree" on every visit is a line nobody sees on the day it changes.
+
+  Sixteen tests added, eight mutants killed. **One thing this could not pin, stated rather than
+  implied:** the document is a PDF buffer, so no test proves the sentence reaches the page — nulling
+  the concern leaves the report suite green. What the suite does pin is that the check runs at all,
+  fleet-wide, over the right months, and deleting the call kills it; the sentence itself is proved in
+  the shared rule's own suite.
+
+  §1.4's August defect is still NOT fixed here, exactly as §5 promised. It is now *visible* the week
+  it happens, and it remains filed against `fuel_spend_days` in FUEL-SPEND-RELIABILITY-PLAN.
