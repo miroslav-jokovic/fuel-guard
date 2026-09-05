@@ -76,6 +76,10 @@ const CARVE_OUTS = new Map([
     "supabase/migrations/0312_fuel_range_vehicle_lists.sql",
     "0290's function, re-created to take a truck LIST (FUEL-P1) — a signature change, which Postgres can only express as a drop and a create, so the whole body including that `sum` comes with it. Not a sixth implementation: it is the same measurement, byte for byte, and the division that would make it a fleet MPG still happens in TypeScript. Naming it here rather than letting the gate go quiet is the point of the list.",
   ],
+  [
+    "supabase/migrations/0315_drop_fuel_range_scalar_vehicle.sql",
+    "0312's function again, minus the scalar `p_vehicle` nothing calls any more — the DROP step of add → switch → drop, which is a third signature change and therefore a third copy of the same unchanged body. Same measurement, same TypeScript division. This is the last of them: the parameter list is now what it should have been, so nothing is scheduled to re-create these functions again.",
+  ],
 ]);
 
 /**

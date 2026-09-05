@@ -1413,6 +1413,28 @@ empty; the Alerts filter ignoring its list. 1,305 web tests, `pnpm test`, `typec
 `lint:tokens`, `lint:ui-adoption`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
 `lint:capabilities`, `lint:surfaces`, `lint:comment-claims`.
 
+#### — MERGE 3 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1c-drop-scalar-vehicle`). The ratchet closes.
+
+**0315 drops the scalar `p_vehicle` from both functions.** Nothing has called it since merge 2, and two
+ways to say one thing is a state to pass THROUGH, never one to stop in: a defaulted argument no caller
+uses reads to the next person as a supported way to ask the question, and the two would drift the first
+time one of them gained a clause. Add → switch → drop, finished rather than left at two.
+
+**The check was `pg_proc` by hand plus a grep**, because `lint:migration-ordering` reads columns and
+cannot see a signature in either direction.
+
+⚠ **One hazard, named rather than left to be found.** A browser tab opened before merge 2 deployed
+still holds the old bundle, and that bundle passes `p_vehicle`. From the moment this applies, such a
+tab gets "could not find the function" on the Fuel Log's tiles until it is reloaded. That is why this
+is a separate merge behind the reader rather than riding with it: the window is a stale tab's, not a
+deploy's, and it closes on the next page load.
+
+**Verified by.** `fuel-range-totals` now asserts the scalar is GONE — the call must fail rather than
+resolve, because a function that quietly accepted the old name would pass every other line in the file.
+28 assertions there, 16 in `fuel-range-miles-inputs`. 0315 takes a `lint:mpg` carve-out for the same
+reason 0312 did, and its entry says it is the last one: the parameter list is now what it should have
+been, so nothing is scheduled to re-create these functions again.
+
 ---
 
 ### P2 · A scoped export on every list page
