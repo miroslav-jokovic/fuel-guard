@@ -80,6 +80,42 @@ beforeEach(() => {
   ];
 });
 
+describe("a decline code's menu label is the reason, not the vendor's trace", () => {
+  /**
+   * Measured on production 2026-09-04: EFS sends a pipe-delimited trace with the reason in front of
+   * it, so a 40-character truncation offered "18 — ITEM NOT ALLOWED|ADDITIVES IN48808|C" and spent the
+   * space the reason needed on internal context.
+   */
+  it("keeps the first segment and drops the transaction id trailing it", async () => {
+    declineFacetRows.value = [
+      { facet: "error_code", value: "18", label: "ITEM NOT ALLOWED|ADDITIVES IN48808|CheckItems|" },
+      { facet: "error_code", value: "119", label: "NO SECUREFUEL DATA IN0037110997|No Carrier SecureFuel Event|" },
+      { facet: "error_code", value: "55", label: "MAX AMOUNT EXCEEDED|MCodeAuth|" },
+    ];
+    const q = await read(() => useEfsFacets());
+    expect(q.data.value?.rejErrorCodes.map((c) => c.label)).toEqual([
+      "18 — ITEM NOT ALLOWED",
+      "55 — MAX AMOUNT EXCEEDED",
+      "119 — NO SECUREFUEL DATA",
+    ]);
+  });
+
+  // A description with no trace at all is already the reason — the rule must not eat it.
+  it("leaves a plain description alone", async () => {
+    declineFacetRows.value = [{ facet: "error_code", value: "51", label: "INVALID DRIVER ID" }];
+    const q = await read(() => useEfsFacets());
+    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("51 — INVALID DRIVER ID");
+  });
+
+  // ⚠ `IN123` is stripped only when it TRAILS the reason. A code whose reason ends in something that
+  // merely looks like one — and a bare id with nothing in front of it — must still say something.
+  it("never shortens a reason to nothing", async () => {
+    declineFacetRows.value = [{ facet: "error_code", value: "7", label: "IN0415408493|Card Swipe Violation|" }];
+    const q = await read(() => useEfsFacets());
+    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("7 — IN0415408493|Card Swipe Violation|");
+  });
+});
+
 describe("the truck menu is the union of the fleet and the units the feeds printed", () => {
   it("offers a unit the feeds carry that the fleet has no row for — the 56 lines nobody could filter", async () => {
     const options = await read(() => useUnitOptions());
