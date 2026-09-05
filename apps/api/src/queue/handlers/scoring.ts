@@ -1,3 +1,4 @@
+import { SCORING_VERSION } from "@silvicom/shared";
 import { backfillOrg, scoreImportWithCascade } from "../../modules/anomalies/index.js";
 import { runPatternSweep, markPatternSweepOutcome } from "../../modules/anomalies/index.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../../modules/anomalies/index.js";
@@ -11,6 +12,13 @@ import type { JobHandler } from "../types.js";
  * Idempotent (plan Q9): re-scoring is deterministic and overwrites, so a retry re-derives the same rows.
  * The audit write mirrors the original route closure exactly, so behavior is identical in either mode.
  */
+/**
+ * How many stale-stamp fills one nightly pass claims. 2,000 at the ~100 fills/min measured on
+ * 2026-09-05 is roughly twenty minutes of work, so a full-fleet derivation change (≈16,000 fills)
+ * converges in about eight nights while no single pass can run away with the night.
+ */
+export const STALE_RESCORE_BATCH = 2000;
+
 const asStr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 const asNum = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
 
@@ -35,6 +43,10 @@ export const rebuildHandler: JobHandler = async (ctx, job, report) => {
  *    one tick finishes inside its rate budget. This is the shape that runs on a schedule.
  *  - `rebuild` — SAM-S6. RE-SCORE ONLY: relearn each vehicle's capacity and sensor reliability from the
  *    telematics already collected, then re-score against the converged values. Fetches nothing.
+ *  - `rebuild` + `staleOnly` — the NIGHTLY re-score tier (0318). Same work, but claiming only the fills
+ *    whose `scoring_version` is below the current one, oldest first, capped by `limit`. This is the
+ *    shape that should run on a schedule: a derivation change drains over several nights instead of
+ *    the three-hour full-history sweep measured on 2026-09-05.
  *  - neither — "catch up new fills", the manual button, unbounded over never-reconciled rows.
  *
  * Why `rebuild` needed a shape of its own. The rebuild path already existed and was reachable only
@@ -50,12 +62,20 @@ export const rebuildHandler: JobHandler = async (ctx, job, report) => {
 export const backfillHandler: JobHandler = async (ctx, job, report) => {
   const full = job.payload.full === true;
   const rebuild = job.payload.rebuild === true;
+  const staleOnly = job.payload.staleOnly === true;
+  const limit = asNum(job.payload.limit);
   const actorId = asStr(job.payload.actorId);
   const batch = asNum(job.payload.reconBatch);
   const sinceDays = asNum(job.payload.sinceDays);
   const retryAfterHours = asNum(job.payload.reconRetryAfterHours) ?? 24;
   const opts = rebuild
-    ? { skipRecon: true, ...(sinceDays != null ? { sinceDays } : {}) }
+    ? {
+        skipRecon: true,
+        ...(sinceDays != null ? { sinceDays } : {}),
+        // A stale-stamp pass without a limit IS the full-history sweep, which is the thing this shape
+        // exists to avoid — so the cap is defaulted here rather than left to the caller to remember.
+        ...(staleOnly ? { staleScoringVersion: SCORING_VERSION, limit: limit ?? STALE_RESCORE_BATCH } : {}),
+      }
     : full
       ? {}
       : batch != null
@@ -72,9 +92,9 @@ export const backfillHandler: JobHandler = async (ctx, job, report) => {
   // records itself — the audit row is what makes "the collector ran and fetched nothing" visible.
   await writeAudit(ctx.admin, {
     orgId: job.org_id, actorId, action: "transactions.backfill",
-    meta: { count, full, rebuild, canceled, batch: batch ?? null, sinceDays: sinceDays ?? null },
+    meta: { count, full, rebuild, staleOnly, canceled, batch: batch ?? null, sinceDays: sinceDays ?? null },
   });
-  return { count, full, rebuild, canceled, ...(batch != null ? { batch } : {}) };
+  return { count, full, rebuild, staleOnly, canceled, ...(batch != null ? { batch } : {}) };
 };
 
 /** Score just the transactions from one import (referenced by persisted importId). */

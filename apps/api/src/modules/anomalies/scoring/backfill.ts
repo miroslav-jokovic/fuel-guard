@@ -135,7 +135,7 @@ async function runRebuildBackfill(
   env: Env,
   orgId: string,
   scoreOpts: BackfillScoreOpts,
-  filters: { onlyUnreconciled?: boolean; sinceDays?: number },
+  filters: { onlyUnreconciled?: boolean; sinceDays?: number; staleScoringVersion?: number; limit?: number },
   ctxBase: BackfillContext,
   onProgress?: ProgressFn,
   shouldCancel?: () => Promise<boolean>,
@@ -191,7 +191,7 @@ export async function backfillOrg(
   onProgress?: ProgressFn,
   shouldCancel?: () => Promise<boolean>,
 ): Promise<number> {
-  const { onlyUnreconciled, sinceDays, reconClaim, ...scoreOpts } = opts;
+  const { onlyUnreconciled, sinceDays, reconClaim, staleScoringVersion, limit, ...scoreOpts } = opts;
   // Maximize driver attribution before scoring: auto-create driver records for EFS names that have none and
   // link the previously-unattributed fills. Best-effort + idempotent, so a rebuild also repairs attribution.
   try {
@@ -222,7 +222,7 @@ export async function backfillOrg(
       env,
       orgId,
       scoreOpts,
-      { onlyUnreconciled, sinceDays },
+      { onlyUnreconciled, sinceDays, staleScoringVersion, limit },
       ctxBase,
       onProgress,
       shouldCancel,
