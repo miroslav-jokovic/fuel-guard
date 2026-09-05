@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { getFleetMpg } from "./fleetMpg.js";
+import { getFleetMpg, getFleetMpgSeries } from "./fleetMpg.js";
 
 /**
  * The pairing between measured miles and the fuel that moved them (M3).
@@ -28,6 +28,8 @@ interface Reading {
   source: string;
 }
 interface SpendDay {
+  /** The rollup's own business date. Defaulted by `day()` so a test that does not care may omit it. */
+  day?: string;
   vehicle_id: string | null;
   gallons_tractor: number;
 }
@@ -57,7 +59,26 @@ const seed = (readings: Reading[], days: SpendDay[], tz = "America/Chicago") =>
           (r) => (lo === undefined || r.reading_at >= lo) && (hi === undefined || r.reading_at <= hi),
         );
       },
-      fuel_spend_days: days,
+      // A FUNCTION fixture here too, for the same reason as above: a weekly series asks this table
+      // once and folds the rows per bucket, so a flat array would let every week answer with every
+      // other week's fuel and the bucketing would test nothing.
+      fuel_spend_days: (q) => {
+        const at = (method: "gte" | "lte") =>
+          q.ops.find((o) => o.method === method && o.args[0] === "day")?.args[1] as string | undefined;
+        const lo = at("gte");
+        const hi = at("lte");
+        const scope = q.ops.find((o) => o.method === "in" && o.args[0] === "vehicle_id")?.args[1] as
+          | string[]
+          | undefined;
+        return days
+          .map((d) => ({ day: "2026-09-01", ...d }))
+          .filter(
+            (d) =>
+              (lo === undefined || d.day >= lo) &&
+              (hi === undefined || d.day <= hi) &&
+              (scope === undefined || (d.vehicle_id != null && scope.includes(d.vehicle_id))),
+          );
+      },
     },
   });
 
@@ -171,5 +192,116 @@ describe("getFleetMpg", () => {
     expect(r.readings).toBe(0);
     expect(r.mpg).toBeNull();
     expect(r.reason).toMatch(/no fuel in this period has a measured distance/i);
+  });
+});
+
+/**
+ * The truck scope (M4) — the Fuel log's own filter reaching this figure, so a tile and the rows
+ * beneath it answer for the same trucks.
+ */
+describe("getFleetMpg — scoped to named trucks", () => {
+  it("answers for only the trucks named, on both sides of the ratio", async () => {
+    const rec = seed(READINGS, [
+      { vehicle_id: "v1", gallons_tractor: 100 },
+      { vehicle_id: "v2", gallons_tractor: 100 },
+    ]);
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03", ["v1"]);
+    expect(r.trucksFuelled).toBe(1);
+    expect(r.gallons).toBe(100);
+    expect(r.miles).toBe(497.1); // v2 drove, and is not one of the trucks asked about
+    expect(r.mpg).toBe(4.97);
+  });
+
+  it("leaves unattributed fuel out of a scoped figure, because it belongs to no named truck", async () => {
+    // Charging a filtered figure with fuel from outside the filter would make the coverage line
+    // beneath it read as a data problem when it is really a scoping one.
+    const rec = seed(READINGS, [
+      { vehicle_id: "v1", gallons_tractor: 100 },
+      { vehicle_id: null, gallons_tractor: 400 },
+    ]);
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03", ["v1"]);
+    expect(r.unattributedGallons).toBe(0);
+    expect(r.gallons).toBe(100);
+    expect(r.mpg).toBe(4.97);
+  });
+
+  it("treats an EMPTY scope as no trucks, never as the whole fleet", async () => {
+    // "None of the units you named are in this fleet" has a correct answer, and it is not the fleet
+    // average. Collapsing the two would show a filtered screen a figure for trucks it is not showing.
+    const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }]);
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03", []);
+    expect(r.gallons).toBe(0);
+    expect(r.mpg).toBeNull();
+    expect(rec.forTable("fuel_spend_days")).toEqual([]); // nothing to ask for
+  });
+});
+
+/**
+ * The weekly series (M4, D-MPG6) — a trend at week grain, from one read of each source.
+ *
+ * D-MPG6 retired the daily MPG trend on measured evidence: 1–3 September read 7.46, 6.90 and 6.38
+ * over almost identical distances, because the fleet filled more tanks on the third. The series that
+ * replaces it has to hold two properties that a naive implementation loses quietly.
+ */
+describe("getFleetMpgSeries", () => {
+  /** Two Monday-start weeks: 2026-08-31 → 09-06 and 09-07 → 09-13. */
+  const WEEK_READINGS = [
+    reading("v1", "2026-08-30T23:50:00Z", 663_000_000),
+    reading("v1", "2026-09-06T23:50:00Z", 663_800_000), // +497.1 miles in week one
+    reading("v1", "2026-09-13T23:50:00Z", 664_600_000), // +497.1 miles in week two
+  ];
+  const WEEK_DAYS = [
+    { day: "2026-09-02", vehicle_id: "v1", gallons_tractor: 100 },
+    { day: "2026-09-09", vehicle_id: "v1", gallons_tractor: 50 },
+  ];
+
+  it("buckets on Monday-start weeks and folds each bucket's own fuel", async () => {
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    const r = await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+    expect(r.grain).toBe("week");
+    expect(r.periods.map((p) => [p.from, p.to])).toEqual([
+      ["2026-08-31", "2026-09-06"],
+      ["2026-09-07", "2026-09-13"],
+    ]);
+    expect(r.periods[0]!.gallons).toBe(100);
+    expect(r.periods[1]!.gallons).toBe(50);
+    expect(r.periods[0]!.mpg).toBe(4.97); // 497.1 ÷ 100
+    expect(r.periods[1]!.mpg).toBe(9.94); // 497.1 ÷ 50
+  });
+
+  it("computes the total over the WHOLE window, not as the mean of its buckets", async () => {
+    // The two weeks read 4.97 and 9.94; their mean is 7.46 and it is not the fleet's figure for the
+    // fortnight. 994.2 miles over 150 gallons is 6.63, and that is the number the headline shows.
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    const r = await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+    expect(r.total.miles).toBe(994.2);
+    expect(r.total.gallons).toBe(150);
+    expect(r.total.mpg).toBe(6.63);
+    expect(r.total.mpg).not.toBe(Math.round(((4.97 + 9.94) / 2) * 100) / 100);
+  });
+
+  it("clamps the first and last bucket to the window asked about", async () => {
+    // A trend ending 2026-09-09 that prints a bucket labelled "to 2026-09-13" reads as a bug in the
+    // dates, and asks the odometer for days the caller did not ask about.
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    const r = await getFleetMpgSeries(rec.client, ORG, "2026-09-02", "2026-09-09", "week");
+    expect(r.periods.map((p) => [p.from, p.to])).toEqual([
+      ["2026-09-02", "2026-09-06"],
+      ["2026-09-07", "2026-09-09"],
+    ]);
+  });
+
+  it("reads each source once for the whole series", async () => {
+    // A loop over `getFleetMpg` would re-fetch a thirty-day odometer lookback per bucket.
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+    expect(rec.forTable("samsara_odometer_readings").length).toBe(1);
+    expect(rec.forTable("fuel_spend_days").length).toBe(1);
+  });
+
+  it("scopes every tenant query to one organization", async () => {
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+    expectOrgScoped(rec, ORG, { exempt: ORG_LOOKUP });
   });
 });

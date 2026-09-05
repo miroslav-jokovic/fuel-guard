@@ -212,3 +212,144 @@ export function mileageDivergence(miles: number, referenceMiles: number): number
   if (!(a > 0) || !(b > 0)) return null;
   return Math.round(((a - b) / b) * 10_000) / 10_000;
 }
+
+/**
+ * A single FILL's plausible MPG band — a different band from `PLAUSIBLE_FLEET_MPG`, on purpose.
+ *
+ * A fleet's monthly figure cannot honestly be 2 or 15; one fill's can, and often is, without the
+ * truck being unusual: a top-off after barely moving reads high, a fill following a missed one reads
+ * low, and both are real purchases on a working truck. Outside 1–40 the odometer is corrupt (blank,
+ * mistyped, or a prior fill never recorded) rather than the driving unusual, and one such fill can
+ * move a subject's whole figure. The fill itself is still surfaced by the anomaly engine — this band
+ * decides only whether its span may be used as a measurement.
+ *
+ * Moved here from `dashboard.ts` on 2026-09-04 (M4) so that every threshold this plan's arithmetic
+ * applies lives beside the arithmetic. Re-exported from its old home; no importer moved.
+ */
+export const MPG_PLAUSIBLE_MIN = 1;
+export const MPG_PLAUSIBLE_MAX = 40;
+
+/** Whether one fill's stored `computed_mpg` may be used as a measurement at all. */
+export const plausibleFillMpg = (n: number): boolean =>
+  Number.isFinite(n) && n >= MPG_PLAUSIBLE_MIN && n <= MPG_PLAUSIBLE_MAX;
+
+/**
+ * One fill, as a subject's MPG needs to see it. Both fields come straight off `fuel_transactions`.
+ */
+export interface SubjectFill {
+  /** `miles_since_last` — the odometer span from this truck's previous fill. Null when there is none. */
+  miles: number | null;
+  /** `computed_mpg` — the scorer's own ratio for that span. Null when the span could not be taken. */
+  mpg: number | null;
+  /** `gallons` — what was bought. Always real, whether or not a mile can be put behind it. */
+  gallons: number;
+}
+
+export interface SubjectMpg {
+  /** Miles per gallon for this subject, or null with a `reason`. Never zero as a stand-in. */
+  mpg: number | null;
+  /** Always `fill_interval`: a subject's miles are odometer spans between its own fills. */
+  milesSource: FleetMilesSource;
+  miles: number;
+  gallons: number;
+  gallonsWithMiles: number;
+  measuredShare: number | null;
+  fills: number;
+  /** Fills whose span could be used. The rest are counted, never treated as zero-mile fills. */
+  fillsMeasured: number;
+  reason: string | null;
+}
+
+/**
+ * MPG for ONE subject — a driver, a truck, a filtered set of fills (M4, D-MPG3).
+ *
+ * ── THIS IS NOT THE FLEET'S NUMBER AND MUST NOT BE LABELLED AS IT ──────────────────────────────
+ * It answers "what did these fills achieve", over odometer spans between the subject's OWN fills.
+ * The fleet figure answers "how far did the fleet go on the fuel it bought", over two odometer
+ * readings the vendor asserted at the two ends of the period. They cover different miles, different
+ * gallons and different edges, and a label that invites the two to be compared is itself the defect
+ * D-MPG3 names. Every caller of this function is expected to say whose figure it is.
+ *
+ * ── THE NUMERATOR AND THE DENOMINATOR, AND WHY NEITHER IS THE OBVIOUS ONE ──────────────────────
+ * The obvious per-subject figure is the gallon-weighted mean of `computed_mpg`, which is what all
+ * four Method-A sites computed and what §1.4 of the plan measured running 1.31% then 2.41% below an
+ * independent witness. The mechanism (Q5) is exact and is what this avoids: the scorer stores
+ * `computed_mpg = milesSinceLast ÷ (gallons + intermediateGallons)`, where the intermediate gallons
+ * are fuel bought for the same truck BETWEEN the two odometer readings. Weighting that ratio by
+ * `gallons` alone multiplies the miles back out short by the intermediate share.
+ *
+ * So this never multiplies. It sums the spans as the numerator, and for the denominator it recovers
+ * the gallons each span actually burned — `miles ÷ mpg`, which by the scorer's own definition IS
+ * `gallons + intermediateGallons`. The intermediate fill contributes its fuel to the span that
+ * consumed it instead of being dropped (which would read high) or paired with a span it did not
+ * belong to (which is the bias above). The result is a ratio of sums with nothing reconstructed.
+ *
+ * A fill whose span cannot be used — no odometer, or a `computed_mpg` outside `MPG_PLAUSIBLE_MIN/MAX`
+ * — still counts its gallons in `gallons`, so `measuredShare` says how much of the subject's fuel the
+ * figure speaks for. It is gated on the same `MIN_MEASURED_SHARE` the fleet figure uses, because
+ * D-MPG4's argument does not weaken when the subject gets smaller: a driver's MPG over a third of
+ * their fuel reads entirely plausibly and is wrong.
+ */
+export function computeSubjectMpg(fills: readonly SubjectFill[]): SubjectMpg {
+  let miles = 0;
+  let gallons = 0;
+  let gallonsWithMiles = 0;
+  let fillsMeasured = 0;
+
+  for (const f of fills) {
+    const g = Math.max(0, finite(f.gallons));
+    gallons += g;
+    if (f.miles == null || f.mpg == null) continue;
+    const span = finite(f.miles);
+    const ratio = finite(f.mpg);
+    // `plausibleFillMpg` also rejects a zero or negative ratio, which is what keeps the division
+    // below finite: the band starts at 1.
+    if (!(span > 0) || !plausibleFillMpg(ratio)) continue;
+    miles += span;
+    // The gallons this span actually burned, recovered from the scorer's own definition rather than
+    // assumed to be this fill's. See the header.
+    gallonsWithMiles += span / ratio;
+    fillsMeasured += 1;
+  }
+
+  const measuredShare = gallons > 0 ? gallonsWithMiles / gallons : null;
+  const base = {
+    milesSource: "fill_interval" as const,
+    miles: round2(miles),
+    gallons: round2(gallons),
+    gallonsWithMiles: round2(gallonsWithMiles),
+    measuredShare: measuredShare == null ? null : Math.round(measuredShare * 1000) / 1000,
+    fills: fills.length,
+    fillsMeasured,
+  };
+
+  if (gallons <= 0) return { ...base, mpg: null, reason: "No fuel was bought, so there is nothing to divide." };
+  if (gallonsWithMiles <= 0 || miles <= 0) {
+    return {
+      ...base,
+      mpg: null,
+      reason:
+        "None of these fills has an odometer span behind it, so there are no miles to divide by. " +
+        "A fill with no reading is not a fill that covered no distance.",
+    };
+  }
+  if (measuredShare != null && measuredShare < MIN_MEASURED_SHARE) {
+    return {
+      ...base,
+      mpg: null,
+      reason:
+        `Only ${pct(measuredShare)} of this fuel has an odometer span behind it, and ${pct(MIN_MEASURED_SHARE)} is needed. ` +
+        `The rest would have to be guessed at.`,
+    };
+  }
+
+  const mpg = round2(miles / gallonsWithMiles);
+  if (!plausibleFillMpg(mpg)) {
+    return {
+      ...base,
+      mpg: null,
+      reason: `The spans and the fuel imply ${mpg.toFixed(1)} MPG, which is an odometer fault rather than a driving result.`,
+    };
+  }
+  return { ...base, mpg, reason: null };
+}

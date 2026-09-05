@@ -51,13 +51,13 @@ export interface DashboardSummary {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// A fleet vehicle's real MPG is never below ~1 or above ~40. Values outside this band come from a
-// corrupt fill (bad/blank odometer, a missed prior fill, a top-off after barely moving) and would drag
-// the gallon-weighted daily average to a nonsense spike/dip. Exclude them from the efficiency views —
-// the underlying bad fill is still surfaced by the anomaly engine. Kept wide so real economy is untouched.
-export const MPG_PLAUSIBLE_MIN = 1;
-export const MPG_PLAUSIBLE_MAX = 40;
-const plausibleMpg = (n: number) => Number.isFinite(n) && n >= MPG_PLAUSIBLE_MIN && n <= MPG_PLAUSIBLE_MAX;
+// The per-FILL plausibility band moved to `fuelSpend/fleetEfficiency.ts` on 2026-09-04 (M4, D-MPG1),
+// beside the fleet band and the coverage floor it sits next to in every argument about MPG. Nothing
+// about it changed and no importer moved: it is re-exported here, exactly as `spendPeriodTotals` does
+// for the two constants M1 moved.
+import { plausibleFillMpg } from "./fuelSpend/fleetEfficiency.js";
+export { MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX } from "./fuelSpend/fleetEfficiency.js";
+const plausibleMpg = plausibleFillMpg;
 
 /** Options for aggregateDashboard. `tz` buckets trend days in the org's timezone (UTC when absent). */
 export interface DashboardOptions {

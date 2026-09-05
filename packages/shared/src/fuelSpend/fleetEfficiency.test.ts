@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   MIN_MEASURED_SHARE,
+  MPG_PLAUSIBLE_MAX,
   PLAUSIBLE_FLEET_MPG,
   computeFleetMpg,
+  computeSubjectMpg,
   mileageDivergence,
   type FleetMpgInputs,
+  type SubjectFill,
 } from "./fleetEfficiency.js";
 
 /**
@@ -146,5 +149,88 @@ describe("mileageDivergence", () => {
     expect(mileageDivergence(0, 100)).toBeNull();
     expect(mileageDivergence(100, 0)).toBeNull();
     expect(mileageDivergence(Number.NaN, 100)).toBeNull();
+  });
+});
+
+/**
+ * The per-SUBJECT entry point (M4, D-MPG3) — a driver's or a truck's figure, over its own fills.
+ *
+ * The cases below are all versions of one question: can this be got wrong in a way that still looks
+ * right? Three ways it could, and each has a test:
+ *
+ *   • **the −1.31%/−2.41% bias** — weighting `computed_mpg` by `gallons` when the scorer divided by
+ *     `gallons + intermediateGallons`. The first test constructs a subject where the two differ and
+ *     pins the answer the biased arithmetic cannot produce;
+ *   • **dropping the fill that has no span** — which reads HIGH by exactly the fuel dropped, the
+ *     mirror image of the same error;
+ *   • **printing a figure over a third of the subject's fuel** — plausible, and wrong.
+ */
+const fill = (miles: number | null, mpg: number | null, gallons: number): SubjectFill => ({ miles, mpg, gallons });
+
+describe("computeSubjectMpg", () => {
+  it("recovers the gallons each span actually burned rather than multiplying an MPG back out", () => {
+    // Truck fuels 20 gal (no span — first fill of the window), then drives 700 miles and buys
+    // another 100. Between them it topped up 40 gal with no odometer, so the scorer stored
+    // `computed_mpg = 700 ÷ (100 + 40) = 5.0` on the closing fill.
+    //
+    // Truth: 700 miles on the 140 gallons that span consumed = 5.00 MPG. Method A weights that 5.0
+    // by `gallons` alone, so it implies 5.0 × 100 = 500 miles for a span that covered 700 — short by
+    // exactly the intermediate share, which is the −1.31% / −2.41% of §1.4 in miniature.
+    const r = computeSubjectMpg([fill(null, null, 20), fill(700, 5, 100), fill(null, null, 40)]);
+    expect(r.miles).toBe(700);
+    expect(r.gallonsWithMiles).toBe(140); // 700 ÷ 5 — the intermediate 40 gal are in the span
+    expect(r.mpg).toBe(5);
+    expect(r.milesSource).toBe("fill_interval");
+  });
+
+  it("keeps the fuel of a fill it cannot measure in the denominator's denominator, not in the ratio", () => {
+    // The opening fill's 20 gallons have no span behind them: they are real fuel and they are not
+    // measured. Dropping them from `gallons` would claim full coverage over seven eighths of the fuel.
+    const r = computeSubjectMpg([fill(null, null, 20), fill(700, 5, 100), fill(null, null, 40)]);
+    expect(r.gallons).toBe(160);
+    expect(r.fills).toBe(3);
+    expect(r.fillsMeasured).toBe(1);
+    expect(r.measuredShare).toBe(0.875); // 140 ÷ 160
+  });
+
+  it("drops a fill whose stored MPG is outside the per-fill band, and says how much fuel that cost", () => {
+    // 250 MPG is a blank or mistyped odometer, not a driving result. Its span must not enter the
+    // numerator; its gallons stay in the total, so the coverage figure shows what was lost.
+    const r = computeSubjectMpg([fill(1400, 7, 200), fill(2500, MPG_PLAUSIBLE_MAX + 210, 10)]);
+    expect(r.miles).toBe(1400);
+    expect(r.mpg).toBe(7);
+    expect(r.gallons).toBe(210);
+    expect(r.fillsMeasured).toBe(1);
+  });
+
+  it("withholds the figure below the SAME coverage floor the fleet number uses", () => {
+    // D-MPG4's argument does not weaken when the subject gets smaller: a driver's MPG over a third
+    // of their fuel reads entirely plausibly and is wrong.
+    const r = computeSubjectMpg([fill(700, 7, 100), fill(null, null, 400)]);
+    expect(r.measuredShare).toBeLessThan(MIN_MEASURED_SHARE);
+    expect(r.mpg).toBeNull();
+    expect(r.reason).toMatch(/20% of this fuel/);
+  });
+
+  it("says there are no spans rather than reporting a subject that covered no distance", () => {
+    const r = computeSubjectMpg([fill(null, null, 100), fill(null, null, 60)]);
+    expect(r.mpg).toBeNull();
+    expect(r.miles).toBe(0);
+    expect(r.reason).toMatch(/not a fill that covered no distance/);
+  });
+
+  it("has nothing to divide when there are no fills at all", () => {
+    const r = computeSubjectMpg([]);
+    expect(r.mpg).toBeNull();
+    expect(r.measuredShare).toBeNull();
+    expect(r.reason).toMatch(/nothing to divide/);
+  });
+
+  it("uses the per-FILL band on its own result, not the fleet band", () => {
+    // A subject CAN honestly be outside 3–12 (a truck that idled a fortnight, a light run), and
+    // withholding those would delete real figures. Outside 1–40 the odometer is the fault.
+    const r = computeSubjectMpg([fill(280, 14, 20)]);
+    expect(r.mpg).toBe(14);
+    expect(r.mpg).toBeGreaterThan(PLAUSIBLE_FLEET_MPG.high);
   });
 });
