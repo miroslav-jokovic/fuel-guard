@@ -17,7 +17,7 @@ vi.mock("../../messaging/index.js", () => ({ notify: mocks.notify }));
 import { processEfsProcessingRun } from "./efsProcessing.js";
 
 function fakeAdmin() {
-  const updates: { table: string; patch: Record<string, unknown> }[] = [];
+  const updates: { table: string; patch: Record<string, unknown>; filters: [string, unknown][] }[] = [];
   const processing = {
     id: "processing-1",
     org_id: "org-1",
@@ -40,16 +40,20 @@ function fakeAdmin() {
     from(table: string) {
       let mode: "select" | "update" = "select";
       let patch: Record<string, unknown> = {};
+      const filters: [string, unknown][] = [];
       const chain: Record<string, unknown> = {
         select: () => chain,
-        eq: () => chain,
+        eq: (col: string, val: unknown) => {
+          filters.push([col, val]);
+          return chain;
+        },
         in: () => chain,
         order: () => chain,
         limit: () => chain,
         update: (value: Record<string, unknown>) => {
           mode = "update";
           patch = value;
-          updates.push({ table, patch: value });
+          updates.push({ table, patch: value, filters });
           return chain;
         },
         maybeSingle: async () => {
@@ -92,5 +96,60 @@ describe("processEfsProcessingRun", () => {
     expect(mocks.scoreImport).toHaveBeenCalledWith(admin, {}, "org-1", "import-1");
     expect(mocks.notify).toHaveBeenCalledTimes(2);
     expect(updates.some((u) => u.table === "efs_processing_runs" && u.patch.status === "succeeded")).toBe(true);
+  });
+});
+
+/**
+ * The stranded-run lease (0317) reclaims a run that has not WRITTEN for 20 minutes, so a run that is
+ * legitimately working has to keep saying so. These pin that it does — and, just as importantly,
+ * that it stops: a heartbeat still ticking after the run finished would keep a dead row looking
+ * alive forever, which is the exact failure the lease exists to end.
+ */
+describe("processEfsProcessingRun — the liveness heartbeat", () => {
+  /** Updates whose ONLY field is `updated_at` — a touch, not a state change. */
+  const touches = (updates: ReturnType<typeof fakeAdmin>["updates"]) =>
+    updates.filter(
+      (u) => u.table === "efs_processing_runs" && Object.keys(u.patch).length === 1 && "updated_at" in u.patch,
+    );
+
+  it("touches the run while scoring is still in flight, and stops once it finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      let finishScoring: (v: unknown) => void = () => {};
+      mocks.scoreImport.mockReturnValueOnce(new Promise((resolve) => { finishScoring = resolve; }));
+      mocks.notify.mockResolvedValue("notification-id");
+      const { admin, processing, updates } = fakeAdmin();
+
+      const inFlight = processEfsProcessingRun(admin, {} as never, processing.id);
+      await vi.advanceTimersByTimeAsync(5 * 60_000); // two heartbeats at 2 minutes
+      expect(touches(updates).length).toBeGreaterThanOrEqual(2);
+
+      // Guarded on status so a late touch can never resurrect a finished or reclaimed run.
+      expect(touches(updates)[0]!.filters).toContainEqual(["status", "running"]);
+
+      const duringScoring = touches(updates).length;
+      finishScoring({ scored: 1, cascaded: 0, vehicles: 1 });
+      await inFlight;
+
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(touches(updates).length).toBe(duringScoring);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops the heartbeat when scoring throws, so a failed run is not kept alive by its own timer", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.scoreImport.mockRejectedValueOnce(new Error("scoring blew up"));
+      const { admin, processing, updates } = fakeAdmin();
+
+      await expect(processEfsProcessingRun(admin, {} as never, processing.id)).rejects.toThrow("scoring blew up");
+      const after = touches(updates).length;
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(touches(updates).length).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

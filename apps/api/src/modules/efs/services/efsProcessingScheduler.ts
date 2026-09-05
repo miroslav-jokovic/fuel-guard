@@ -6,27 +6,24 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 const INTERVAL_MS = 30_000;
 
 /**
- * How long a run may sit in `running` before we treat its worker as gone. MUST match the interval in
- * `claim_efs_processing_run` (migration 0317) — the scheduler only offers a stranded run, the claim
- * decides whether it is really stranded, so a scheduler that offered rows the claim still refuses
- * would just log conflicts forever. Sized from measurement, not caution: across 4,260 successful
- * production runs scoring took avg 40s, p95 142s, max 519s.
+ * How long a run may go WITHOUT WRITING before we treat its worker as gone. MUST match the interval
+ * in `claim_efs_processing_run` (migration 0317) — the scheduler only offers a stranded run, the
+ * claim decides whether it is really stranded, so a scheduler that offered rows the claim still
+ * refuses would just log conflicts forever.
+ *
+ * Last write, not start time: a working run touches its row every 2 minutes (`startHeartbeat` in
+ * efsProcessing.ts), so 20 minutes is ten missed heartbeats. There is deliberately no ceiling on how
+ * long a run may take — an ordinary ~260-row poll finishes in 40s while the April 2026 historical
+ * re-fetch took ~64 minutes for 1,074 fills, and no single duration is right for both.
  */
-export const STRANDED_AFTER_MS = 30 * 60_000;
+export const STRANDED_AFTER_MS = 20 * 60_000;
 
 /**
  * Runs the claim will accept: `pending`/`failed` that are due, plus a run stranded mid-scoring.
  *
  * Two queries rather than one `.or()`: the two halves test DIFFERENT columns (`next_attempt_at` for
- * the retry ladder, `scoring_started_at` for the lease), and PostgREST's `or=` would need the whole
+ * the retry ladder, `updated_at` for the lease), and PostgREST's `or=` would need the whole
  * predicate as one string — which is how a filter silently stops matching after a column rename.
- *
- * `.lt()` cannot match a NULL `scoring_started_at`, where the SQL coalesces to `updated_at`. That
- * asymmetry is deliberate and harmless in this direction: the claim function stamps
- * `scoring_started_at` on every claim, so a `running` row without one cannot arise from this code
- * path, and the SQL's coalesce is belt-and-braces for a row some future writer sets `running` by
- * hand. The scheduler being the stricter of the two can only ever offer FEWER rows than the claim
- * accepts, which fails toward leaving a run alone — never toward reclaiming a live one.
  */
 export async function dueRunIds(admin: SupabaseClient): Promise<{ id: string; org_id: string }[]> {
   const nowIso = new Date().toISOString();
@@ -43,8 +40,8 @@ export async function dueRunIds(admin: SupabaseClient): Promise<{ id: string; or
     .from("efs_processing_runs")
     .select("id, org_id")
     .eq("status", "running")
-    .lt("scoring_started_at", new Date(Date.now() - STRANDED_AFTER_MS).toISOString())
-    .order("scoring_started_at", { ascending: true })
+    .lt("updated_at", new Date(Date.now() - STRANDED_AFTER_MS).toISOString())
+    .order("updated_at", { ascending: true })
     .limit(25);
   if (strandedError) throw new Error(strandedError.message);
 

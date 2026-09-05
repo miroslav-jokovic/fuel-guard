@@ -12,10 +12,22 @@
 -- explains as one driver changing trucks. A stranded run never reaches it, which is why 5 open
 -- card_multi_vehicle cases satisfy the auto-clear's own condition today and are still open.
 --
--- So: a lease. A `running` run whose scoring started longer ago than the lease is reclaimable. The
--- interval is measured, not guessed — across 4,260 successful runs on production, scoring took avg
--- 40s, p95 142s, max 519s, so 30 minutes is ~3.5x the worst observed run and cannot reclaim a run
--- that is merely slow. Reclaiming counts as an attempt, so the existing backoff ladder applies.
+-- So: a lease, and reclaiming counts as an attempt so the existing backoff ladder applies.
+--
+-- The lease is on LAST WRITE, not on start time, because there is no honest ceiling on how long a
+-- legitimate run takes. Measured 2026-09-05 on the April re-fetch: 1,074 fills scored at ~16 fills a
+-- minute, ~64 minutes end to end — an ordinary poll of ~260 rows finishes in 40s, and across 4,260
+-- successful runs the max was 519s. A bulk historical re-fetch is a different workload from the
+-- polls that produced those numbers, and it is precisely the workload that strands, so any fixed
+-- start-time ceiling is either too tight for the big run or useless for the small one. Instead
+-- `processEfsProcessingRun` touches the row every 2 minutes for as long as it is working, the
+-- `set_updated_at` trigger (0154) stamps `updated_at`, and a run that has not written for 20 minutes
+-- has missed ten consecutive heartbeats. That distinguishes "working" from "dead" by evidence
+-- instead of by guessing a duration.
+--
+-- Erring long is the safe direction and erring short is not: a lease that is too long only delays
+-- retrying a run that is already dead (these sat for a month), while a lease that is too short
+-- reclaims a LIVE run and starts a second scoring pass concurrently with the first.
 --
 -- Ships in one merge with its TS reader by design (the deploy window in CLAUDE.md): both directions
 -- degrade to today's behaviour. New scheduler + old function → the stale id is dispatched, the old
@@ -36,12 +48,10 @@ begin
    where id = p_id
      and (
        (status in ('pending', 'failed') and next_attempt_at <= now())
-       -- Stranded mid-scoring: the worker that held it is gone. `scoring_started_at` is stamped by
-       -- this same function on claim, so it is never null for a `running` row; coalesce to
-       -- updated_at anyway rather than let a null silently make a row unreclaimable forever, which
-       -- is the exact failure this migration exists to end.
-       or (status = 'running'
-           and coalesce(scoring_started_at, updated_at) < now() - interval '30 minutes')
+       -- Stranded mid-scoring: the worker that held it has stopped writing. `updated_at` is
+       -- maintained by trg_efs_processing_runs_updated (0154) on EVERY update, so the heartbeat
+       -- needs no column of its own and any future writer to this row also counts as liveness.
+       or (status = 'running' and updated_at < now() - interval '20 minutes')
      )
    for update skip locked;
 
@@ -65,4 +75,4 @@ revoke all on function public.claim_efs_processing_run(uuid) from public;
 grant execute on function public.claim_efs_processing_run(uuid) to service_role;
 
 comment on function public.claim_efs_processing_run(uuid) is
-  'Atomically claims one due EFS processing run with row locking; also reclaims a run stranded in running for over 30 minutes (its worker is gone). Concurrent workers receive no row.';
+  'Atomically claims one due EFS processing run with row locking; also reclaims a run that has sat in running for 20 minutes without a write, i.e. has missed ten of its 2-minute heartbeats. Concurrent workers receive no row.';

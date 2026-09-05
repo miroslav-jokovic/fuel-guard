@@ -16,7 +16,7 @@ const STRANDED = { id: "run-stranded", org_id: "org-1" };
 
 /** Which of the two queries is this? The retry query filters on status IN, the lease query on `lt`. */
 function isLeaseQuery(q: RecordedQuery): boolean {
-  return q.ops.some((op) => op.method === "lt" && op.args[0] === "scoring_started_at");
+  return q.ops.some((op) => op.method === "lt" && op.args[0] === "updated_at");
 }
 
 function recorderWith(opts: { due: unknown[]; stranded: unknown[] }) {
@@ -39,7 +39,7 @@ describe("dueRunIds — the stranded-run lease", () => {
     expect((await dueRunIds(rec.client)).map((r) => r.id)).toEqual(["run-due"]);
   });
 
-  it("asks for stranded runs by a cutoff one lease in the past, on scoring_started_at", async () => {
+  it("asks for stranded runs by a cutoff one lease in the past, on updated_at", async () => {
     const rec = recorderWith({ due: [], stranded: [STRANDED] });
     const before = Date.now();
     await dueRunIds(rec.client);
