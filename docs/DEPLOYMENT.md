@@ -1,17 +1,43 @@
 # Deployment (Railway) — single source of truth
 
-FuelGuard deploys to Railway as **two web-facing services**, each driven by a committed
-config-as-code file. There is no third "web" service — the app is built **same-origin,
-single-service**: the API process builds the web SPA and serves it (`apps/api/src/app.ts`
-serves `apps/web/dist`), and the browser calls the API at `/api/...` on the same origin
-(`apps/web/src/lib/api.ts`: `VITE_API_URL` defaults to `""`).
+FuelGuard deploys to Railway as **three web-facing services**. Two of them —
+`@fleetguard/api` and `@fleetguard/web` — run the SAME image from the SAME config file
+(`railway.json`) and differ only in their environment. That is the single most confusing thing
+about this deployment, so it is the first thing described here.
 
-| Service | Config file | Builds | Runs / serves | Redeploys when these change |
-|---|---|---|---|---|
-| **app** (a.k.a. "api") | `railway.json` (repo root) | `@silvicom/web` | `@silvicom/api` + the web SPA | `apps/api/**`, `apps/web/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.json` |
-| **admin** | `railway.admin.json` | `@silvicom/admin` | `@silvicom/admin-api` + the admin SPA | `apps/admin/**`, `apps/admin-api/**`, `packages/**`, `package.json`, `pnpm-lock.yaml`, `railway.admin.json` |
+| Service | Config file | Public host | Role |
+|---|---|---|---|
+| **`@fleetguard/api`** | `railway.json` | `fleetguardapi-production.up.railway.app` | The **back end**. WEX-whitelisted, so the EFS pollers can only run here. Owns the background schedulers (`RUN_SCHEDULERS_IN_PROCESS=true`). Holds the EFS/WEX credentials. |
+| **`@fleetguard/web`** | `railway.json` (same file) | `fleetguardweb-production.up.railway.app` | The **front door** — this is what users load. It is the value of `WEB_APP_URL` and the only origin in the API's `ALLOWED_ORIGINS`. Serves the SPA; runs NO schedulers. |
+| **admin** | `railway.admin.json` | platform-console | `@silvicom/admin-api` + the admin SPA. |
 
 `apps/driver` is an Expo app and is **not** a Railway service.
+
+### The two are not same-origin, whatever the code's default says
+
+`apps/web/src/lib/api.ts` defaults `VITE_API_URL` to `""`, which would make the browser call
+`/api/...` on whatever host served the page. **Production does not use that default.**
+`@fleetguard/web` sets `VITE_API_URL` to the api host, so the deployed SPA calls the API
+**cross-origin**, and the API's `ALLOWED_ORIGINS` exists precisely to permit it. Both hosts do
+serve a full API and a copy of the SPA — `apps/api/src/app.ts` serves `apps/web/dist` in both —
+but only `fleetguardweb` is the one users are sent to.
+
+### Do NOT delete `@fleetguard/web`
+
+Until 2026-09-05 this document said the opposite. It described a third "old standalone web
+service" with "no start command" that "served nothing", and told you to delete it. Every part of
+that was false, and acting on it would have deleted the host your users load. What it was
+describing may once have existed; what carries that name today is the front door.
+
+The check that settles it, if you ever doubt which is which:
+
+```
+curl -s https://fleetguardweb-production.up.railway.app/api/version   # a full, live API
+railway variables --service "@fleetguard/api" --environment production --json | grep ALLOWED_ORIGINS
+```
+
+The second command names `fleetguardweb` and nothing else. A host that is the sole permitted
+origin of your own API is not a leftover.
 
 ## Why a push must sometimes redeploy the app service for a *web-only* change
 
@@ -63,6 +89,42 @@ production, because it is the one pipeline that does not wait for CI.
 `vue-tsc &&` shape. It was left alone deliberately: the admin service is on its own watch patterns
 and is not on the merge-to-live path this was measured against. The same reasoning would apply.
 
+## Exactly one service runs the schedulers, and it is enforced by an env var only
+
+`RUN_SCHEDULERS_IN_PROCESS` decides whether a process also runs the ~20 background schedulers.
+`apps/api/src/env.ts` gives it `.default("true")`, so **a service that does not set it runs them.**
+There is no gate for this: nothing in CI can see a Railway variable, and the code cannot tell how
+many copies of itself are running.
+
+That is not hypothetical. On 2026-09-05 both `@fleetguard/api` and `@fleetguard/web` were running
+the full scheduler set simultaneously, because `web` had simply never been given the variable and
+inherited the `true` default. Both services' logs for the same commit showed
+`[digest] weekly digest scheduler enabled`, `[dq-alerts] …`, `[posted-prices] …`,
+`[finance-freshness] …`. `apps/api/src/schedulers.ts` states the rule in its own header — *"Run
+these in EXACTLY ONE process … never both"* — and names the specific casualty: `rebuild-on-boot`
+carries no job-ledger guard, so it ran twice. `reclaimInterruptedJobs` is the other hazard, since
+two booting processes can reclaim each other's in-flight jobs as "interrupted".
+
+**The settled ownership:**
+
+| Service | `RUN_SCHEDULERS_IN_PROCESS` | Why |
+|---|---|---|
+| `@fleetguard/api` | `true` | The only WEX-whitelisted host, and the only one holding EFS credentials. The EFS pollers cannot run anywhere else. |
+| `@fleetguard/web` | **`false`** | Set 2026-09-05 to end the duplication. Serves users; owns no background work. |
+
+**Any new service built from `railway.json` must be given `RUN_SCHEDULERS_IN_PROCESS=false`
+before it is first deployed.** Forgetting is silent — the service comes up healthy, serves
+traffic correctly, and quietly doubles every scheduled job in the system.
+
+To check the live state at any time:
+
+```
+railway variables --service "@fleetguard/web" --environment production --json | grep RUN_SCHEDULERS
+railway logs --service "@fleetguard/web" --environment production | grep -i scheduler
+```
+
+The second should print `in-process schedulers disabled`, and nothing else.
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.
@@ -72,9 +134,8 @@ Set this once per service (Railway → service → Settings):
    deploy branch **`main`**.
 2. **admin service** → Config-as-code → **Config Path = `railway.admin.json`**. Automatic Deploys
    **on**; branch **`main`**.
-3. **Delete the old standalone "web" service** if it still exists. It had no start command, so it
-   served nothing — it only made "web redeployed" look meaningful while the app service (which
-   actually serves users) sat stale.
+3. **Both `@fleetguard/api` and `@fleetguard/web` point at `railway.json`.** They are meant to.
+   See the top of this file for which is which, and do not "tidy up" the second one.
 
 To verify: push a web-only change to `main`. The **app service** should build and its log should
 show `pnpm --filter ./apps/web exec vite build`. If it doesn't, the service isn't reading
