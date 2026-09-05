@@ -29,6 +29,34 @@ risk is the opposite: a shared change that silently does **not** trigger a depen
 leaving a stale deploy. Reliability over micro-optimization. Do not narrow these to per-package
 globs.
 
+## The deploy build does NOT typecheck, on purpose
+
+`railway.json` runs `pnpm --filter ./apps/web exec vite build` rather than the package's own
+`build` script. The difference is that `apps/web`'s `build` is `vue-tsc -p tsconfig.json --noEmit
+&& vite build`, so calling it made **every deploy re-run a full TypeScript check that CI had
+already run on the same commit**. Measured 2026-09-05: `vue-tsc` is 9.4s locally against `vite
+build`'s 1.7s, and Railway's builder ran vite 3.5x slower than a laptop, which puts the check at
+roughly 30 seconds on the critical path of every single deploy.
+
+This is safe because of a fact about `main`, not a fact about the build: branch protection has
+`enforce_admins: true` with `build` as a required check, and CI's `typecheck-build` job runs
+`pnpm typecheck`, which is `pnpm -r typecheck`, which includes that exact `vue-tsc`. Nothing
+reaches `main` without it having passed — not a force-push (disabled), not an admin. The copy
+inside the deploy was a second execution of a check that cannot fail by the time Railway sees the
+commit.
+
+Note what this does NOT change: `vite build` never typechecked anything in the first place, it
+strips types. So the shipped bundle is byte-for-byte the same work; only the redundant gate is
+gone.
+
+**If you ever turn off `enforce_admins`, or drop `build` from the required checks, put the
+typecheck back** — at that point Railway becomes the only thing standing between a bad commit and
+production, because it is the one pipeline that does not wait for CI.
+
+`railway.admin.json` still calls `pnpm --filter @silvicom/admin build`, which has the same
+`vue-tsc &&` shape. It was left alone deliberately: the admin service is on its own watch patterns
+and is not on the merge-to-live path this was measured against. The same reasoning would apply.
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.
@@ -43,8 +71,9 @@ Set this once per service (Railway → service → Settings):
    actually serves users) sat stale.
 
 To verify: push a web-only change to `main`. The **app service** should build and its log should
-show `pnpm --filter @silvicom/web build`. If it doesn't, the service isn't reading `railway.json`
-— re-check step 1.
+show `pnpm --filter ./apps/web exec vite build`. If it doesn't, the service isn't reading
+`railway.json` — re-check step 1. (That line named `@silvicom/web build` until 2026-09-05, which
+was already the wrong filter spelling and is now the wrong command as well; see the section above.)
 
 ## After setup — the contract
 
