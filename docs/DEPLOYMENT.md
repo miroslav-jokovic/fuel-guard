@@ -34,9 +34,15 @@ globs.
 `railway.json` runs `pnpm --filter ./apps/web exec vite build` rather than the package's own
 `build` script. The difference is that `apps/web`'s `build` is `vue-tsc -p tsconfig.json --noEmit
 && vite build`, so calling it made **every deploy re-run a full TypeScript check that CI had
-already run on the same commit**. Measured 2026-09-05: `vue-tsc` is 9.4s locally against `vite
-build`'s 1.7s, and Railway's builder ran vite 3.5x slower than a laptop, which puts the check at
-roughly 30 seconds on the critical path of every single deploy.
+already run on the same commit**. Removing it was worth **20 seconds on every deploy**, measured
+on the change itself: build-to-image went from 99s (`bbb1bf5`, with the typecheck) to 79s
+(`452ba2a`, without), and merge-to-both-hosts-serving from 173s to 150s.
+
+Recorded because the prediction was wrong in a useful direction: the estimate beforehand was ~30s,
+reasoned from `vue-tsc` costing 9.4s locally against `vite build`'s 1.7s and Railway's builder
+running vite 3.5x slower than a laptop. The real figure is two thirds of that, so the builder is
+relatively faster at the typecheck than at bundling. Extrapolating one phase's slowdown ratio onto
+another phase is not a measurement; take the deploy timing from a deploy.
 
 This is safe because of a fact about `main`, not a fact about the build: branch protection has
 `enforce_admins: true` with `build` as a required check, and CI's `typecheck-build` job runs
