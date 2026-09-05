@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
-import type { CardCapabilities, EfsLocation } from "@silvicom/shared";
+import type { CardCapabilities, EfsCardSummary, EfsLocation } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -55,38 +55,13 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
  */
 export type CardCapabilitiesWithScopes = CardCapabilities & { scopes?: string[] };
 
-export interface EfsCardRow {
-  id: string;
-  last4: string;
-  maskedRef: string;
-  status: string;
-  policyNumber: number | null;
-  driverIdPrompt: string | null;
-  unitPrompt: string | null;
-  driverName: string | null;
-  overrideUses: number | null;
-  overrideAllLocations: boolean | null;
-  locationOverrideId: string | null;
-  lastUsedDate: string | null;
-  fuelCardId: string | null;
-  /** Step 7.7 linking evidence. Absent on an older API, which is why every field is optional. */
-  linkStatus?: "linked" | "ambiguous" | "unconfirmed" | "no_candidate" | "unidentifiable" | null;
-  linkMethod?: string | null;
-  linkCandidates?: number;
-  syncedAt: string;
-  /**
-   * The DETAIL pass's clock (Step 7.8). `syncedAt` moves every sweep because the roster pass touches
-   * every row; this moves only when the card's document was re-read, and it is what the override
-   * state hangs off. Null = the roster has seen this card and nothing has ever read it.
-   */
-  detailSyncedAt?: string | null;
-  /** Set when EFS stopped listing the card (audit P2). Optional — an older API sends neither. */
-  absentSince?: string | null;
-  syncError: string | null;
-  /** Which mirror pass failed (Step 7.5 / migration 0198). `roster` and `detail` fail differently. */
-  syncErrorSource?: "roster" | "detail" | null;
-  syncErrorAt?: string | null;
-}
+/**
+ * One card, as the list endpoint sends it — the shape now lives in `@silvicom/shared` (FUEL-P2).
+ *
+ * It was written twice, here and as `toSummary`'s return in the API, and P2's export would have been
+ * the third hand-kept copy of a twenty-field contract. The name stays for this app's importers.
+ */
+export type EfsCardRow = EfsCardSummary;
 
 export interface EfsCardListResponse {
   cards: EfsCardRow[];

@@ -24,8 +24,10 @@ import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } f
 import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 import { useQueryState } from "@/composables/useQueryState";
+import ExportButton from "@/components/ExportButton.vue";
+import { exportHref } from "@/lib/exportTarget";
 import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
-import { EFS_CARD_STATUSES } from "@silvicom/shared";
+import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
 
 const PAGE_SIZE = 20;
 
@@ -142,23 +144,36 @@ const driverOptions = optionsFrom((r) => r.driverName, "Any driver");
 const unitOptions = optionsFrom((r) => r.unitPrompt, "Any unit");
 const policyOptions = optionsFrom((r) => r.policyNumber, "Any policy");
 
-const rows = computed(() =>
-  allRows.value.filter((r) => {
-    if (driver.value && r.driverName !== driver.value) return false;
-    if (unit.value && r.unitPrompt !== unit.value) return false;
-    if (policy.value && String(r.policyNumber ?? "") !== policy.value) return false;
-    // An active exception is the thing an auditor scans this page for — "who can currently buy fuel
-    // outside their limits" is one click, not a sort down a 199-row list.
-    if (override.value === "active" && (r.overrideUses ?? 0) <= 0) return false;
-    if (override.value === "none" && (r.overrideUses ?? 0) > 0) return false;
-    if (linked.value === "linked" && !r.fuelCardId) return false;
-    if (linked.value === "unlinked" && r.fuelCardId) return false;
-    // 140 of this fleet's 199 cards carried a sync error at one point and nothing on screen said so.
-    if (health.value === "errors" && !r.syncError) return false;
-    if (health.value === "ok" && r.syncError) return false;
-    return true;
+/**
+ * The seven facets this page narrows on beyond status and free text, which the endpoint applies in
+ * the database.
+ *
+ * ⚠ The predicate itself is `matchesCardFilters` in `@silvicom/shared` since FUEL-P2, and it is not
+ * a tidy-up: the EXPORT has to honour the same seven, and a second statement of them in the API is
+ * the copy that goes stale — nobody looks at an export when they change a filter. One definition,
+ * applied here to the rows on screen and there to the rows in the file.
+ */
+const cardFilters = computed<EfsCardFilters>(() => ({
+  driver: driver.value, unit: unit.value, policy: policy.value,
+  override: override.value, linked: linked.value, health: health.value,
+}));
+const rows = computed(() => allRows.value.filter((r) => matchesCardFilters(r, cardFilters.value)));
+
+/**
+ * FUEL-P2 — this inventory as a file, at the parameters the address bar holds.
+ *
+ * The server re-reads the cards and applies `matchesCardFilters` to them, so the file is this list
+ * rather than this PAGE of it — and, on a fleet past a thousand cards, rather than the first thousand
+ * the endpoint can return (see the `truncated` note below). `?unit=` here is a card's pump PROMPT, not
+ * a truck, which is why the scope sentence counts CARDS and says nothing about trucks.
+ */
+const exportHrefValue = computed(() =>
+  exportHref("/api/fueling/exports/cards.csv", {
+    search: search.value, status: status.value, driver: driver.value, unit: unit.value,
+    policy: policy.value, override: override.value, linked: linked.value, health: health.value,
   }),
 );
+const exportScope = computed(() => `${rows.value.length} card${rows.value.length === 1 ? "" : "s"}`);
 
 const sorted = computed(() => {
   const { key, dir } = sort.value;
@@ -366,6 +381,14 @@ const mileageOpen = ref(false);
             { value: 'errors', label: 'Reported an error' },
             { value: 'ok', label: 'Clean' },
           ]"
+        />
+      </template>
+      <template #actions>
+        <ExportButton
+          :href="exportHrefValue"
+          :filename="`fuel-cards-${new Date().toISOString().slice(0, 10)}.csv`"
+          :scope="exportScope"
+          :disabled="rows.length === 0"
         />
       </template>
     </FilterBar>
