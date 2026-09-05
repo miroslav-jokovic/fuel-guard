@@ -582,3 +582,43 @@ three of these are worth re-opening if the evidence changes.
   a suite of its own. The rule it derives from is pinned in `fuelListFilters.test.ts` and the tab has
   exactly one `mpgScope` computed feeding both the query's `enabled` and the note, so there is no
   second decision to diverge — but a mount test would catch a future edit that reads the scope twice.
+- 2026-09-04 · **M5a — the spend report stops computing an MPG, and stops printing one it cannot
+  stand behind.** M5 is written in §3 as one step and is being built as two: this half is the
+  derivation, the next is `assessMileageAgreement` and the cross-source check. Split because
+  `fleetEfficiency.ts` reached 445 lines against a 450-line warning and the agreement rule is a
+  different question — cross-source agreement, not efficiency — so it gets its own file rather than
+  a waiver.
+
+  **`periodTotalsFromSums` asks instead of dividing.** `ratio(milesMeasured, mpgGallons)` with the
+  band and the coverage floor applied beside it was the fifth implementation, and the one
+  `lint:mpg`'s own header named as its blind spot: a division routed through a helper carries no
+  operator, so the gate could not see it. There is nothing left there to miss. The blind spot itself
+  is NOT closed — a future `divide(m, g)` would still pass — and the script now says that rather than
+  claiming the hole is gone.
+
+  **`FleetMpg.ratio` is new, and the pair is the point.** `mpg` is a verdict (may this be printed?);
+  `ratio` is a measurement (what did these two totals divide to?). A caller with only the verdict
+  cannot EXPLAIN it — the operating bridge's refusal sentence quotes "85.7 MPG, which is outside what
+  a tractor can do", and that number is what makes the refusal believable — and the implied-miles
+  identity `gallons × mpg` needs the unrounded division or it stops holding. `ratio` is for
+  explaining and for arithmetic that must tie out; displaying it where `mpg` is null is the exact
+  failure D-MPG1 exists to prevent, which is why the next paragraph exists.
+
+  **The defect this surfaced, which was not in the plan.** The spend report printed the raw division
+  whatever it came to. June 2026's contaminated mileage reads **85.7 MPG**, and the PDF's stat strip,
+  its per-period rows, its total row, the Spend trend tab's tile, its table and its CSV would all have
+  shown it — while the operating bridge sitting beside them was withholding its volume split for
+  exactly that reason. Six places, each of which read correctly (`p.mpg` looks like the answer), which
+  is the shape that wants one named rule: `reportableMpg`. All six use it.
+
+  **Two smaller things.** `SpendPeriod` gained `milesSource`, always `allocated`, so the surfaces can
+  say what their miles ARE — §1.4 measured allocated miles at 0.08% from Samsara's IFTA miles in July
+  and 3.78% in August, and a reader who cannot tell them from the Dashboard's odometer readings
+  cannot judge either figure. The wording comes from `FLEET_MILES_SOURCE_LABEL` so the PDF and the
+  tab cannot word it differently. And `computeFleetMpg` now gates the coverage floor on the ROUNDED
+  share it reports: an unrounded gate against a rounded display disagrees in a 0.05%-wide band, which
+  is how "the page says 60% and withheld it anyway" happens.
+
+  Twelve tests added, four mutants killed: `reportableMpg` returning the figure regardless (2 fail),
+  `ratio` rounded (2), the period taking the verdict where the measurement belongs (4), and the miles
+  labelled `measured` (1).

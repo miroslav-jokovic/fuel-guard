@@ -5,6 +5,7 @@ import {
   PLAUSIBLE_FLEET_MPG,
   computeFleetMpg,
   computeSubjectMpg,
+  reportableMpg,
   mileageDivergence,
   type FleetMpgInputs,
   type SubjectFill,
@@ -232,5 +233,52 @@ describe("computeSubjectMpg", () => {
     const r = computeSubjectMpg([fill(280, 14, 20)]);
     expect(r.mpg).toBe(14);
     expect(r.mpg).toBeGreaterThan(PLAUSIBLE_FLEET_MPG.high);
+  });
+});
+
+/**
+ * The measurement beside the verdict (M5).
+ *
+ * `mpg` answers "may this be printed as the fleet's efficiency"; `ratio` answers "what did these two
+ * totals divide to". The spend report needs both — the second to explain the first's refusal, and to
+ * keep `implied miles = gallons × MPG` an identity rather than an approximation.
+ */
+describe("computeFleetMpg — the division beside the verdict", () => {
+  it("reports the division even when the figure is withheld, so a refusal can be explained", () => {
+    // June 2026's contaminated mileage: 4,427,362 miles against 51,678 gallons reads 85.7 MPG. The
+    // bridge's sentence quotes that number, and it is the number that makes the refusal believable.
+    const r = computeFleetMpg(inputs({ miles: 4_427_362, gallons: 51_678, gallonsWithMiles: 51_678 }));
+    expect(r.mpg).toBeNull();
+    expect(r.ratio).toBeCloseTo(85.67, 2);
+    expect(r.reason).toMatch(/85\.7 MPG/);
+  });
+
+  it("leaves the division UNROUNDED, because an implied-miles identity is built on it", () => {
+    // `gallons × mpg` has to reproduce the miles exactly, or the spend report's volume split is off
+    // by the rounding on every period.
+    const r = computeFleetMpg(inputs({ miles: 433_541.2, gallons: 57_695.77, gallonsWithMiles: 56_247.42 }));
+    expect(r.ratio).toBe(433_541.2 / 56_247.42);
+    expect(r.mpg).toBe(7.71); // …and the printable figure is still two places
+  });
+
+  it("has no division to report when there is nothing to divide by", () => {
+    expect(computeFleetMpg(inputs({ gallons: 0, gallonsWithMiles: 0 })).ratio).toBeNull();
+  });
+
+  it("gates the coverage floor on the SAME rounded share it reports", () => {
+    // A share that displays as 60% and is withheld anyway is the gap D-MPG4 exists to close: the
+    // number the reader sees has to be the number the rule used.
+    const edge = computeFleetMpg(inputs({ gallons: 10_000, gallonsWithMiles: 5_998, miles: 42_000 }));
+    expect(edge.measuredShare).toBe(0.6);
+    expect(edge.mpg).not.toBeNull();
+  });
+});
+
+describe("reportableMpg", () => {
+  it("hands back the figure only when the module said it may be shown", () => {
+    expect(reportableMpg({ mpg: 7.5, mpgUsable: true })).toBe(7.5);
+    // The division is still there for explaining; it is not an answer.
+    expect(reportableMpg({ mpg: 85.7, mpgUsable: false })).toBeNull();
+    expect(reportableMpg({ mpg: null, mpgUsable: false })).toBeNull();
   });
 });
