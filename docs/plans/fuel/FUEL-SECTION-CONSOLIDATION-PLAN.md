@@ -446,8 +446,8 @@ before it is built, not during.
 | C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
 | C4 | **BUILT 2026-09-03** | The permission finding held: the drawer carries `can("fuel")`, and the Truck Stops one carries `can("dispatch")` for the same reason. What the shape row missed is that `/import` had **three** capabilities, not two — Repair fuel data is the third, and it gained progress and freshness by landing beside the other repair actions. |
 | C5 | **BUILT 2026-09-03** | No permission question, as the shape row said. What it missed: "kept in the tree, unmounted" needed a NEW file, not just an untouched one — the reports' titles, blurbs and note lived in the tab strip, and `policyReports.ts` is where they went so C6 finds them. Also: no route-table change at all, because the tab is a query parameter. |
-| C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
-| C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
+| C6 | **BUILT 2026-09-05** | Q-FUI3 answered (truck × kind × month) and both merges shipped. §0.3 showed the ledger with 0 rows; this is the producer that fills it from the EFS feed rather than from a statement nobody has uploaded. |
+| C7 | **blocked ×1** | Q-FUI1 answered 2026-09-05 (per-kind section on the row). Q-FUI11 stands: the queue measured 2.8% precision on 2026-09-05, and C7's own text says merging the inbox is the reward for a queue worth working, not the remedy for one that is not. |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
 | C9 | **verified** | Dashboard tiles all point at `/fuel-log`; the ledger figures exist to point at once C6 fires. |
 
@@ -2167,9 +2167,9 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
 | Id | Question | Owner | Fallback the code takes until answered |
 |---|---|---|---|
-| **Q-FUI1** | **Where does a fuel-card theft alert belong in the capability matrix?** `/anomalies` is gated `safety`, but an `accountant` and a `dispatcher` have `fuel: view`, `safety: none`. Merging Alerts into a Fuel-section inbox either shows theft cases to the bookkeeper or hides them from the safety manager. Candidates: **(a)** the inbox lives in Fuel and each finding kind carries its own section — a `safety`-kind row is filtered out for anyone without it (**recommended**: it is the only option that does not move a capability boundary to suit a screen); **(b)** move fuel-card anomalies from `safety` to `fuel` in `SECTION_ACCESS` — defensible, since a card-misuse alert is a fuel fact, but it is a real widening and needs saying out loud; **(c)** two inboxes stay. | Miki | **C7b does not ship.** C7a ships and the two inboxes remain. No page is placed where a permission check happens to pass. |
+| **Q-FUI1** | ~~**Where does a fuel-card theft alert belong in the capability matrix?**~~ **ANSWERED 2026-09-05 (owner ruling): (a) — the inbox lives in Fuel and each finding kind carries its own section.** A `safety`-kind row is filtered out for anyone without `safety`, so the accountant and the dispatcher see policy findings and the safety manager sees theft cases, in one page. It is the only option that does not move a capability boundary to suit a screen: (b) would have widened `SECTION_ACCESS` so the bookkeeper could read theft cases, and (c) leaves the section split. ⚠ **This unblocks C7b's permission half only.** C7 as a whole is still gated on Q-FUI11 — the queue measured 2.8% precision on 2026-09-05 — and merging a 19-in-20-wrong queue into the money ledger is the thing §C7 says not to do. | Miki | ~~open~~ Answered; C7b's other gate stands. |
 | **Q-FUI2** | **Does the merged Fuel Log stay `requiresAuth`?** Fuel Log is ungated today so drivers keep it; Transactions and Rejections need `canViewSection(role,"fuel")`. Per-tab gating is the obvious answer and needs confirming, because it means a driver sees a tab strip with one tab. | Miki | Per-tab gating, driver sees Fills only. Stated in the page header comment. |
-| **Q-FUI3** | **What is the unit of work for a policy finding?** Inherited from `policyFindingsNote` via F6b, which shipped without answering it. Candidates: per truck × kind × month (**recommended** — matches how a fleet manager holds a conversation with a driver); per kind × month fleet-wide; per fill above a dollar threshold. | Miki | **C6 does not ship.** C5 ships and the policy views stay in the tree unmounted, with the gap stated. |
+| **Q-FUI3** | ~~**What is the unit of work for a policy finding?**~~ **ANSWERED 2026-09-05 (owner ruling): per truck × kind × month.** Inherited from `policyFindingsNote` via F6b, which shipped without answering it. The other two candidates were per kind × month fleet-wide — a report wearing a queue's clothes, since nobody can close "the fleet fuelled off-network in August" — and per fill above a dollar threshold, which needs a number nobody has measured and reproduces the 201 rows on a busy month anyway. Built as `packages/shared/src/fuelSpend/policyFindings.ts`; the ruling and its two rejected readings are in that file's header, so somebody arguing with the grouping argues with the reasoning rather than guessing at it. | Miki | ~~open~~ Answered and built. |
 | **Q-FUI4** | Inherits **Q-FX8** from `FUEL-SPEND-RELIABILITY-PLAN.md` §6 — who owns a finding operationally. C7b needs a default assignee; the question is now blocking rather than theoretical. | Miki | `rolesThatManage("fuel")` writes; unassigned by default. No new role invented on a guess. |
 | **Q-FUI5** | Should **Fuel Planning** and **Truck Stops** move from Dispatch into Fuel? They are fuel objects gated on `dispatch`. Moving them means either changing their gate or accepting a nav group whose items ask two different capability questions (Fleet already does this deliberately, and says so). | Miki | They stay in Dispatch. C4 puts the price upload on Truck Stops regardless — the drawer follows the page, wherever the page lives. |
 
@@ -2409,3 +2409,48 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
   **The owner action this leaves.** Re-pull the EFS statements for 2026-04-18 → 2026-05-04 and import
   them. Nothing in code can recover data the vendor was never asked for.
+- 2026-09-05 · **C6, merge 1 of 2 — the grouping is ruled, the producer is written, and the RPC could
+  not have closed anything it filed.** Q-FUI3 was answered (per truck × kind × month) and
+  `policyFindings` built against it. Three things are worth carrying forward, because none of them was
+  in the step's own description:
+
+  **The close scope had no way to exist for this producer.** `sync_fuel_exceptions` learns the window a
+  producer just read by looking `p_run` up in `fuel_recon_runs` (0253). `reconFindings` always has such
+  a run, because a statement was uploaded to make it. The policy producer reads the EFS feed for a
+  calendar month and has none — so called with `p_run => null` it would have filed findings and then:
+  `v_from`/`v_to` stay null so the close block never runs, and a truck-month corrected by a
+  late-posting EFS row sits open on the queue for good — *the exact defect 0253 was written to fix,
+  reappearing through the other door*; and the `opened` event insert keys on `e.run_id = p_run`, where
+  `x = null` is NULL rather than true, so every policy finding would have been created with an empty
+  history. Both are silent. 0320 gives the function `p_period_start` / `p_period_end`, keeps `p_run`
+  authoritative where it is given, and re-keys the `opened` insert onto the batch's own fingerprints —
+  which is correct for both producers and independent of a run existing.
+
+  **Filing a fake `fuel_recon_runs` row was the cheaper route and is rejected in writing.** That table's
+  `source_kind` admits only `weekly_statement` and `monthly_export`, and `tol_gallons`,
+  `tol_amount_abs`, `tol_amount_pct`, `max_day_drift` and `matcher_version` are all NOT NULL. A policy
+  scan has no tolerances and no matcher, so each of those would have been a number invented to satisfy
+  a column — a second answer to "what is a run", which is this repo's own definition of a workaround.
+
+  **The month is the baseline's unit, so the producer refuses a partial one.** `exceptionReport` prices
+  a premium against what the rest of the fleet paid *over the same lines*, deliberately, because diesel
+  moved 32% across the window these reports cover. Hand it the nightly rollup's trailing fortnight and
+  August's finding is priced against two weeks of August — a different number that would silently
+  replace the first one on the next run. `policyFindings` therefore takes a month, filters its input to
+  it, and derives everything inside.
+
+  **C6's Done-when is asserted, not claimed.** "Findings totalling the same money" does not hold on its
+  own: fills with no unit number cannot be placed on a truck, and truck-months that BEAT the baseline
+  are not findings — both are real money in the tab's total. So the producer returns them beside the
+  findings and `policyFindingsReconcile` checks the identity
+  `report.excess == sum(findings) + unattributed + beneficial` per kind, over a seeded 300-fill month as
+  well as the fixture. Six mutations of the producer were run against the suite and each was caught:
+  folding unattributed fills into a group, filing beneficial truck-months, dating the finding to its
+  first fill, dropping the month filter, taking a facet's first value instead of requiring unanimity,
+  and dropping the month from the fingerprint. The matrix was run against the old function too — the
+  `opened`-event property fails on exactly the one assertion that names it.
+
+  **What merge 1 deliberately does NOT do.** Nothing calls the new parameters yet.
+  `lint:migration-ordering` cannot see a function's signature, so the hold that keeps a reader behind
+  its migration is held by hand: the API producer is merge 2, and must not merge until 0320 has been
+  applied.
