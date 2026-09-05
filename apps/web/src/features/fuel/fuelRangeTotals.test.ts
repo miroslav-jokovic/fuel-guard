@@ -177,13 +177,13 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
   it("passes every filter the list uses, so the tiles and the rows describe one set", async () => {
     await totals({
       from: "2026-08-01", to: "2026-08-31",
-      vehicleId: "veh-1", driverId: "drv-1", tankType: "reefer",
+      vehicleIds: ["veh-1", "veh-2"], driverId: "drv-1", tankType: "reefer",
       search: "Pilot", searchVehicleIds: ["veh-9"], searchDriverIds: ["drv-9"],
     });
     expect(rpcCalls.find((c) => c.fn === "fuel_range_totals")!.args).toEqual({
       p_from: "2026-08-01",
       p_to: "2026-08-31",
-      p_vehicle: "veh-1",
+      p_vehicles: ["veh-1", "veh-2"],
       p_driver: "drv-1",
       p_tank_type: "reefer",
       p_search: "Pilot",

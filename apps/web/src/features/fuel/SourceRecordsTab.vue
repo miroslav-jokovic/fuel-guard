@@ -66,7 +66,7 @@ const filters = computed<EfsFilters>(() => ({
   driver: driver.value || undefined,
   sortKey: sortKey.value || undefined,
   sortDir: sortDir.value === "desc" ? "desc" : "asc",
-  unit: props.shared.unit.value,
+  units: props.shared.units.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
 }));
@@ -87,9 +87,9 @@ const { data: facets } = useEfsFacets();
 const { data: coverage } = useEfsRowCoverage("transactions", filters);
 
 /** The shared half, proxied for the controls that write it back to the URL. */
-const unit = computed<string>({
-  get: () => props.shared.unit.value ?? "",
-  set: (v) => props.shared.setUnit(v || undefined),
+const unit = computed<string[]>({
+  get: () => props.shared.units.value,
+  set: (v) => props.shared.setUnits(v),
 });
 const setFrom = (v: string | undefined) => props.shared.setFrom(v);
 const setTo = (v: string | undefined) => props.shared.setTo(v);
@@ -185,7 +185,7 @@ const columns: DataTableColumn[] = [
       @clear-all="clearAll"
     >
       <template #filters>
-        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" multiple />
         <FilterSelect v-model="item" label="Item" :options="itemOptions" />
         <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>

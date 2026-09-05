@@ -166,7 +166,7 @@ describe("the Fuel Log's filters round-trip through the query string", () => {
 
   it("keeps a shared filter and a tab-owned one set in the same tick", async () => {
     const { w, query } = await mountAt("/fuel-log?tab=declines");
-    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Unit")!.vm.$emit("update:modelValue", "654");
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Unit")!.vm.$emit("update:modelValue", ["654"]);
     w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Risk")!.vm.$emit("update:modelValue", "review");
     await settle();
     expect(query()).toMatchObject({ unit: "654", risk: "review" });
@@ -189,7 +189,7 @@ describe("the shared filters cross a tab change and the tab's own do not", () =>
     expect(query()).toMatchObject({ tab: "source", unit: "654", from: "2026-08-01" });
     expect(query().risk).toBeUndefined();
     expect(query().policy).toBeUndefined();
-    expect(seen.txn?.value.unit).toBe("654");
+    expect(seen.txn?.value.units).toEqual(["654"]);
   });
 
   /**

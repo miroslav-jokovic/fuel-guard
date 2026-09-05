@@ -22,7 +22,8 @@ const EFS_COLS =
   "id, line_number, card_num, tran_date, fueled_at, tran_time, invoice, unit, driver_name, odometer, location_name, city, state, fees, item, unit_price, qty, amt, db, currency";
 
 export interface EfsFilters {
-  unit?: string;
+  /** Unit numbers to narrow to. Empty or absent means every unit — never "no units" (FUEL-P1). */
+  units?: string[];
   from?: string; // YYYY-MM-DD
   to?: string;
   search?: string; // free text (driver / location / item or error)
@@ -50,6 +51,7 @@ const ilikeOr = (term: string, cols: string[]) =>
  */
 interface EfsFilterable {
   eq(column: string, value: unknown): EfsFilterable;
+  in(column: string, values: readonly unknown[]): EfsFilterable;
   gte(column: string, value: unknown): EfsFilterable;
   lte(column: string, value: unknown): EfsFilterable;
   lt(column: string, value: unknown): EfsFilterable;
@@ -67,7 +69,11 @@ interface EfsFilterable {
  */
 function applyEfsTxnFilters<Q>(query: Q, f: EfsFilters): Q {
   let q = query as unknown as EfsFilterable;
-  if (f.unit) q = q.eq("unit", f.unit);
+  // FUEL-P1. `.in()` over a LIST, and only when the list has something in it: an empty selection is
+  // "every unit", while `.in("unit", [])` is "no unit at all". PostgREST renders the latter as
+  // `unit=in.()` and returns nothing, which is right for a filter naming units that do not exist and
+  // very wrong for a filter naming none.
+  if (f.units?.length) q = q.in("unit", f.units);
   if (f.item) q = q.eq("item", f.item);
   if (f.state) q = q.eq("state", f.state);
   if (f.driver) q = q.eq("driver_name", f.driver);
@@ -109,7 +115,7 @@ const DECLINED_COLS =
 /** Every `declined_transactions` filter, applied once, for every caller. See `applyEfsTxnFilters`. */
 function applyDeclinedFilters<Q>(query: Q, f: EfsFilters): Q {
   let q = query as unknown as EfsFilterable;
-  if (f.unit) q = q.eq("unit", f.unit);
+  if (f.units?.length) q = q.in("unit", f.units);
   if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
   if (f.errorCode) q = q.eq("error_code", f.errorCode);
   if (f.state) q = q.eq("state", f.state);
@@ -164,24 +170,56 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
   });
 }
 
-/* ── facet values for the filter dropdowns ──────────────────────────────────
-   Distinct values pulled once and cached; fleet-scale row counts make the
-   client-side dedupe cheap, and RLS scopes the scan to the org. */
+/* ── facet values for the filter dropdowns ──────────────────────────────────────────────────────
+   ── WHY THESE COME FROM SQL NOW, AND WHY IT IS A CORRECTNESS FIX (FUEL-P1, D-FUI16) ────────────
+   This selected rows and deduplicated them in the browser, under `.limit(10_000)`. That limit was
+   never in force: **the hosted PostgREST caps every response at 1,000 rows** — measured against the
+   live project on 2026-09-04, `select=id&limit=5000` on `efs_transactions` returns exactly 1,000. So
+   nine menus over 28,638 transaction lines and 3,479 declines were built from the first thousand of
+   each, and offered 133 of 190 units, 133 of 249 drivers, 9 of 13 items, 42 of 47 states and 17 of 19
+   error codes.
+
+   A value missing from a menu while its rows sit in the list is not a cosmetic gap: the reader can see
+   the rows and cannot isolate them, and nothing says why. It is also the same shape as the A4 finding
+   — correctness resting on a server row cap this code does not control — and it gets 0289's answer:
+   DISTINCT belongs where the rows are (migrations 0313/0314).
+
+   The two functions are called in parallel because they read two different collectors' tables
+   (D-SEP1); each is org-scoped by `auth_org_id()` and neither takes an argument from here. */
 
 export interface EfsFacets {
   txnItems: string[];
   txnStates: string[];
   txnDrivers: string[];
+  /** The units the TRANSACTION feed actually printed — not the fleet roster. See `unitFilter.ts`. */
+  txnUnits: string[];
   rejErrorCodes: { code: string; label: string }[];
   rejStates: string[];
   rejDrivers: string[];
   rejPolicies: string[];
+  /** The units the REJECT feed actually printed. */
+  rejUnits: string[];
 }
 
-const uniq = (vals: (string | null | undefined)[]): string[] =>
-  [...new Set(vals.filter((v): v is string => !!v && v.trim() !== ""))].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true }),
-  );
+/** One `(facet, value, label)` row as 0313/0314 return it. */
+interface FacetRow {
+  facet: string;
+  value: string;
+  label: string | null;
+}
+
+/**
+ * The values for one facet, ordered the way a human reads a truck number.
+ *
+ * The sort stays HERE rather than in SQL on purpose: `localeCompare(..., { numeric: true })` puts unit
+ * 9 before unit 10, and no collation available to those functions reproduces that. The functions
+ * return values; the menu decides their order.
+ */
+const valuesFor = (rows: FacetRow[], facet: string): string[] =>
+  rows
+    .filter((r) => r.facet === facet && r.value.trim() !== "")
+    .map((r) => r.value)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
 export function useEfsFacets() {
   return useQuery({
@@ -189,34 +227,30 @@ export function useEfsFacets() {
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<EfsFacets> => {
       const [t, d] = await Promise.all([
-        supabase.from("efs_transactions").select("item, state, driver_name").limit(10_000),
-        supabase
-          .from("declined_transactions")
-          .select("error_code, error_description, state, driver_name, policy_name")
-          .limit(10_000),
+        supabase.rpc("efs_transaction_facets"),
+        supabase.rpc("decline_facets"),
       ]);
       if (t.error) throw new Error(t.error.message);
       if (d.error) throw new Error(d.error.message);
-      const txn = t.data ?? [];
-      const rej = d.data ?? [];
-      // One label per error code — first non-empty description, truncated for the menu.
-      const codeLabels = new Map<string, string>();
-      for (const r of rej) {
-        if (r.error_code && !codeLabels.has(r.error_code)) {
-          const desc = (r.error_description ?? "").trim();
-          codeLabels.set(r.error_code, desc ? `${r.error_code} — ${desc.slice(0, 40)}` : r.error_code);
-        }
-      }
+      const txn = (t.data ?? []) as FacetRow[];
+      const rej = (d.data ?? []) as FacetRow[];
       return {
-        txnItems: uniq(txn.map((r) => r.item)),
-        txnStates: uniq(txn.map((r) => r.state)),
-        txnDrivers: uniq(txn.map((r) => r.driver_name)),
-        rejErrorCodes: [...codeLabels.entries()]
-          .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-          .map(([code, label]) => ({ code, label })),
-        rejStates: uniq(rej.map((r) => r.state)),
-        rejDrivers: uniq(rej.map((r) => r.driver_name)),
-        rejPolicies: uniq(rej.map((r) => r.policy_name)),
+        txnItems: valuesFor(txn, "item"),
+        txnStates: valuesFor(txn, "state"),
+        txnDrivers: valuesFor(txn, "driver"),
+        txnUnits: valuesFor(txn, "unit"),
+        // The code is the value and the description is what makes it readable — "51" means nothing in
+        // a menu and "51 — INVALID DRIVER ID" means something. Truncated here, where the menu's width
+        // lives; 0314 decides WHICH description, deterministically, which "the first row we saw" was
+        // not once the read was capped.
+        rejErrorCodes: rej
+          .filter((r) => r.facet === "error_code")
+          .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }))
+          .map((r) => ({ code: r.value, label: r.label ? `${r.value} — ${r.label.slice(0, 40)}` : r.value })),
+        rejStates: valuesFor(rej, "state"),
+        rejDrivers: valuesFor(rej, "driver"),
+        rejPolicies: valuesFor(rej, "policy"),
+        rejUnits: valuesFor(rej, "unit"),
       };
     },
   });
@@ -269,7 +303,9 @@ function toCoverage(surface: CoverageSurface, all: CountResult, named: CountResu
 
 export function useEfsRowCoverage(surface: CoverageSurface, filters: Ref<EfsFilters>) {
   const { data: vehicles } = useVehiclesQuery();
-  const unitNumbers = computed(() => uniq((vehicles.value ?? []).map((v) => v.unit_number)));
+  const unitNumbers = computed(() =>
+    [...new Set((vehicles.value ?? []).map((v) => v.unit_number).filter((u) => u && u.trim() !== ""))],
+  );
 
   return useQuery({
     queryKey: ["efs_row_coverage", surface, filters, unitNumbers],

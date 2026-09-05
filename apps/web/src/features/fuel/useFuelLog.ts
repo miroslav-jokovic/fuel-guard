@@ -21,7 +21,17 @@ const FUEL_COLS =
 export const FUEL_PAGE_SIZE = 20;
 
 export interface FuelFilters {
-  vehicleId?: string;
+  /**
+   * Vehicle ids to narrow to (FUEL-P1).
+   *
+   * ⚠ Three states, and the middle one is the point: `undefined` is the whole fleet, a non-empty list
+   * is those trucks, and an EMPTY list is "none of them" — which is what a filter naming units this
+   * fleet does not have resolves to. Collapsing empty into undefined would show every truck's fills
+   * under a filter bar naming two, which is the confidently-wrong answer FUEL-T5 exists to remove.
+   * `unitFilter.ts` produces the value; PostgREST renders `[]` as `vehicle_id=in.()` and returns
+   * nothing, and `fuel_range_totals` reads an empty `p_vehicles` the same way (migration 0312).
+   */
+  vehicleIds?: string[];
   driverId?: string;
   /**
    * The window, as CALENDAR DAYS — both ends inclusive, both `YYYY-MM-DD`, and both meaning the
@@ -85,7 +95,7 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
         .eq("is_canonical", true)
         .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
         .range(start, start + FUEL_PAGE_SIZE - 1);
-      if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
+      if (f.vehicleIds) q = q.in("vehicle_id", f.vehicleIds);
       if (f.driverId) q = q.eq("driver_id", f.driverId);
       if (f.tankType) q = q.eq("tank_type", f.tankType);
       // FUEL-T1 / D-FUI11. This filtered `fueled_at` — a UTC INSTANT — while the table beside it
@@ -163,7 +173,9 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       const { data: sums, error: sumErr } = await supabase.rpc("fuel_range_totals", {
         p_from: f.from ?? null,
         p_to: f.to ?? null,
-        p_vehicle: f.vehicleId ?? null,
+        // Migration 0312. A LIST, so the tiles and the rows beneath them answer for the same trucks;
+        // `null` for the whole fleet, and an empty array for "the units named are not in this fleet".
+        p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
         // The SAME sanitised term the list uses — see `searchTerm`. A tile filtering on a different
@@ -198,7 +210,7 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         p_mpg_max: MPG_PLAUSIBLE_MAX,
         p_from: f.from ?? null,
         p_to: f.to ?? null,
-        p_vehicle: f.vehicleId ?? null,
+        p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
         p_search: searchTerm(f),

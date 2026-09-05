@@ -16,7 +16,7 @@ import { useAnomaliesPage } from "./useAnomaliesPage";
 
 const {
   filters, search, reeferOnly, setReeferOnly,
-  status, severity, vehicleId, statusOptions, severityOptions, unitOptions,
+  status, severity, vehicleIds, statusOptions, severityOptions, unitOptions,
   setFrom, setTo, activeFilterCount, resetFilters,
   session,
   unit, pairedTrailer, driverName,
@@ -67,7 +67,7 @@ const {
       <template #filters>
         <FilterSelect v-model="status" label="Status" :options="statusOptions" />
         <FilterSelect v-model="severity" label="Severity" :options="severityOptions" />
-        <FilterSelect v-model="vehicleId" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="vehicleIds" label="Unit" :options="unitOptions" multiple />
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #actions>

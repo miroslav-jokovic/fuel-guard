@@ -21,8 +21,20 @@ interface Chain {
 const chains: Chain[] = [];
 const counts = { all: 1000, attributed: 900 };
 
-/** A chain is the ATTRIBUTED one if it narrowed to rows naming a truck — `in(unit)` or `not(vehicle_id)`. */
-const isAttributed = (c: Chain) => c.ops.some((o) => o.m === "in" || o.m === "not");
+/**
+ * A chain is the ATTRIBUTED one if it narrowed to rows naming a truck.
+ *
+ * ⚠ "has an `in`" was the old test, and FUEL-P1 broke it without failing anything: the truck FILTER is
+ * now `.in("unit", […])` too, so under a unit filter both chains carried an `in` and both were handed
+ * the attributed count. The attributed chain is the one that applies the FLEET's units — the second
+ * `in` on `unit` — or, on rejections, the `not(vehicle_id is null)`. Discriminating on the shape that
+ * actually distinguishes them is what keeps this stub from agreeing with any implementation.
+ */
+const sameSet = (a: unknown, b: string[]) =>
+  Array.isArray(a) && a.length === b.length && b.every((u) => a.includes(u));
+const isAttributed = (c: Chain) =>
+  c.ops.some((o) => o.m === "not") ||
+  c.ops.some((o) => o.m === "in" && o.args[0] === "unit" && sameSet(o.args[1], fleet.value.map((v) => v.unit_number)));
 
 function recorder(chain: Chain): unknown {
   const target = {
@@ -100,10 +112,16 @@ describe("useEfsRowCoverage — the caveat counts the same rows as the list", ()
   // The whole point. If the denominator and the numerator disagree about the window, the sentence is
   // arithmetic about two different lists and reads as a fact about one.
   it("puts every filter on BOTH counts, so the share describes the rows on screen", async () => {
-    const { queries } = await coverage("transactions", { from: "2026-08-01", to: "2026-08-31", unit: "101", item: "ULSD", search: "pilot" });
+    // The filter names ONE of the fleet's two units, so the filter's `in` and the fleet's `in` are
+    // distinguishable — a fixture where they coincide cannot tell a correct implementation from one
+    // that dropped the filter off the attributed count.
+    const { queries } = await coverage("transactions", { from: "2026-08-01", to: "2026-08-31", units: ["101"], item: "ULSD", search: "pilot" });
     expect(queries.map((q) => q.table)).toEqual(["efs_transactions", "efs_transactions"]);
     for (const c of queries) {
-      expect(opsOf(c, "eq")).toEqual(expect.arrayContaining([["unit", "101"], ["item", "ULSD"]]));
+      expect(opsOf(c, "eq")).toEqual(expect.arrayContaining([["item", "ULSD"]]));
+      // FUEL-P1. The truck filter is a LIST on both counts, or the denominator covers trucks the
+      // numerator does not and the sentence describes two different sets.
+      expect(opsOf(c, "in")).toEqual(expect.arrayContaining([["unit", ["101"]]]));
       expect(opsOf(c, "gte")).toEqual([["tran_date", "2026-08-01"]]);
       expect(opsOf(c, "lte")).toEqual([["tran_date", "2026-08-31"]]);
       expect(opsOf(c, "or")).toHaveLength(1);
