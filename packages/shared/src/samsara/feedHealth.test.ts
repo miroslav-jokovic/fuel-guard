@@ -5,6 +5,8 @@ import {
   describeSamsaraFeed,
   describeSamsaraFeeds,
   samsaraFeedSpecs,
+  oldestSamsaraFeed,
+  samsaraFeedPulse,
   worstSamsaraFeed,
   type SamsaraFeedId,
   type SamsaraFeedObservation,
@@ -190,5 +192,117 @@ describe("the whole catalogue", () => {
     const health = describeSamsaraFeeds(specs({ ifta: 0 }), allObs(), NOW);
     expect(health.find((h) => h.id === "ifta")!.state).toBe("disabled");
     expect(worstSamsaraFeed(health)).toBeNull();
+  });
+});
+
+/**
+ * Q-SAM7, answered (a): the ungated page strips read a narrowed record, and the narrowing is a
+ * projection rather than a hand-written literal at the route — so these tests pin the SHAPE, not
+ * just the values. A field added to `SamsaraFeedHealth` after this file was written must stay
+ * behind the settings gate until somebody adds it here on purpose.
+ */
+describe("samsaraFeedPulse — what an ungated page may know", () => {
+  const failing = () =>
+    describeSamsaraFeeds(
+      specs(),
+      allObs({
+        // A real vendor sentence, of the shape that decides this whole question: it carries an
+        // account id. Nothing derived from it may reach a page that a driver can open.
+        ifta: { lastError: "403 Forbidden for org 8f21c4de-group=91827: token lacks ifta:read" },
+        identity: { lastSuccessAt: ago(40 * HOUR) },
+      }),
+      NOW,
+    );
+
+  it("carries exactly the eight fields it declares, and no others", () => {
+    // Not `not.toHaveProperty("lastError")` alone: a spread that kept every future field would pass
+    // that and still leak the next one somebody adds. The whole key set is the assertion.
+    for (const f of samsaraFeedPulse(failing())) {
+      expect(Object.keys(f).sort()).toEqual([
+        "ageMinutes",
+        "id",
+        "label",
+        "lead",
+        "needsAttention",
+        "state",
+        "targetMinutes",
+        "targetSource",
+      ]);
+    }
+  });
+
+  it("withholds the vendor's own words, even when the feed is being refused", () => {
+    const full = failing();
+    const refused = full.find((h) => h.id === "ifta")!;
+    expect(refused.state).toBe("failing");
+    expect(refused.lastError).toContain("8f21c4de"); // the gated record still has it
+    // And the narrow one has it nowhere — not in a field, and not inside the sentence either. The
+    // `lead` is built from the label and the ages, and this is what holds it to that.
+    const json = JSON.stringify(samsaraFeedPulse(full));
+    expect(json).not.toContain("8f21c4de");
+    expect(json).not.toContain("token lacks");
+    expect(json).not.toContain("403");
+  });
+
+  it("still says a refused feed is refused — the strip loses the cause, not the fact", () => {
+    const pulse = samsaraFeedPulse(failing());
+    const refused = pulse.find((f) => f.id === "ifta")!;
+    expect(refused.state).toBe("failing");
+    expect(refused.needsAttention).toBe(true);
+    expect(refused.lead).toContain("refused by Samsara");
+  });
+
+  it("ranks the same as the gated record, so a strip and the settings card cannot disagree", () => {
+    const full = failing();
+    const pulse = samsaraFeedPulse(full);
+    expect(worstSamsaraFeed(pulse)!.id).toBe(worstSamsaraFeed(full)!.id);
+    expect(worstSamsaraFeed(pulse, ["identity"])!.id).toBe(worstSamsaraFeed(full, ["identity"])!.id);
+    // Order is what `worstSamsaraFeed` reads, so the projection must not reorder.
+    expect(pulse.map((f) => f.id)).toEqual(full.map((h) => h.id));
+  });
+
+  it("says nothing about a fleet whose feeds are all fresh", () => {
+    expect(worstSamsaraFeed(samsaraFeedPulse(describeSamsaraFeeds(specs(), allObs(), NOW)))).toBeNull();
+  });
+});
+
+describe("oldestSamsaraFeed — what the strip says when nothing is wrong", () => {
+  it("names the oldest of the feeds the figure above it actually depends on", () => {
+    const health = describeSamsaraFeeds(
+      specs(),
+      allObs({
+        stats: { lastSuccessAt: ago(2 * MIN) },
+        telematics: { lastSuccessAt: ago(30 * MIN) },
+        identity: { lastSuccessAt: ago(8 * HOUR) }, // older still, and irrelevant to a fuel figure
+      }),
+      NOW,
+    );
+    expect(oldestSamsaraFeed(health, ["stats", "telematics"])!.id).toBe("telematics");
+    expect(oldestSamsaraFeed(health)!.id).toBe("identity");
+  });
+
+  it("leaves a late or refused feed to worstSamsaraFeed rather than reporting it as an age", () => {
+    const health = describeSamsaraFeeds(
+      specs(),
+      allObs({ stats: { lastSuccessAt: ago(3 * HOUR) }, telematics: { lastSuccessAt: ago(30 * MIN) } }),
+      NOW,
+    );
+    expect(health.find((h) => h.id === "stats")!.state).toBe("late");
+    // `stats` is older, and it is the other function's to speak about — otherwise the strip would
+    // quote a breach in the tone it uses for ordinary metadata.
+    expect(oldestSamsaraFeed(health, ["stats", "telematics"])!.id).toBe("telematics");
+  });
+
+  it("says nothing at all when the page's only feed is switched off", () => {
+    const health = describeSamsaraFeeds(specs({ ifta: 0 }), allObs(), NOW);
+    expect(oldestSamsaraFeed(health, ["ifta"])).toBeNull();
+    expect(worstSamsaraFeed(health, ["ifta"])).toBeNull();
+  });
+
+  it("reads the same off the narrow projection the strips are given", () => {
+    const health = describeSamsaraFeeds(specs(), allObs({ telematics: { lastSuccessAt: ago(30 * MIN) } }), NOW);
+    expect(oldestSamsaraFeed(samsaraFeedPulse(health), ["stats", "telematics"])!.id).toBe(
+      oldestSamsaraFeed(health, ["stats", "telematics"])!.id,
+    );
   });
 });

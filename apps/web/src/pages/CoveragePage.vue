@@ -8,6 +8,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import TablePagination from "@/components/TablePagination.vue";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
@@ -67,6 +68,10 @@ const columns: DataTableColumn[] = [
       blind coverage means "we didn't flag it" carries less weight. This is the honest bound on how
       much we can catch.
     </PageHeader>
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         The page IS the per-fill corroboration figure — stats and identity change nothing on it. -->
+    <SamsaraFeedLine :feeds="['telematics']" />
 
     <div
       v-if="!isLoading && !isError && data"

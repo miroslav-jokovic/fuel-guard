@@ -107,6 +107,8 @@ export {
   describeSamsaraFeed,
   describeSamsaraFeeds,
   worstSamsaraFeed,
+  oldestSamsaraFeed,
+  samsaraFeedPulse,
 } from "./feedHealth.js";
 export type {
   SamsaraFeedId,
@@ -114,6 +116,7 @@ export type {
   SamsaraFeedObservation,
   SamsaraFeedState,
   SamsaraFeedHealth,
+  SamsaraFeedPulse,
 } from "./feedHealth.js";
 export { decideSamsaraFeedAlerts } from "./feedAlerts.js";
 export type {

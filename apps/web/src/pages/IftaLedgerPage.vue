@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -126,6 +127,10 @@ const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
 <template>
   <div class="space-y-6">
     <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps." />
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         The jurisdiction miles the ledger owes tax on come from one tier and nothing else. -->
+    <SamsaraFeedLine :feeds="['ifta']" />
 
     <FilterBar :count="barCount" count-label="jurisdictions">
       <template #filters>

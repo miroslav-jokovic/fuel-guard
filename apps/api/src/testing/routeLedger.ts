@@ -80,6 +80,12 @@ export const OPEN_ROUTES = new Map<string, string>([
     "a driver's own device retiring its own push token on sign-out, keyed by the caller's user id; refusing it would leave a personal phone receiving load content after the person signed out (D14/D53)",
   ],
 
+  // ── Q-SAM7, answered (a): the gate matches the pages, and the PAYLOAD carries the restraint. ──
+  [
+    "GET /api/integrations/samsara/feed-pulse",
+    "how stale each Samsara tier is, for the one-line strip above the figures built on it (SAM-S5). Deliberately NOT `settings: view` like the card it shares a service with: all six surfaces that mount the strip — /, /coverage, /idling, /odometer, /ifta, /driver-performance — are `requiresAuth` with no section gate, so a gated read would 403 for most of the people the line is written for, and a page cannot be asked for a permission the page itself does not ask for. The restraint is in the payload instead: `samsaraFeedPulse` drops `lastError` — Samsara's own sentence, which routinely carries an account id — along with every job internal, and it drops by omission, so a field added later stays gated until somebody adds it on purpose. What is left is a label, a state, an age and a bound: operational metadata about a collector, which is the reading Q-FUI15 took",
+  ],
+
   // ── Q-FUI12, recorded rather than closed in passing. ───────────────────────────────────────────
   // These four are PRE-EXISTING reads with no role gate, and gating them is a NARROWING — it removes
   // a capability somebody may be using. FUEL-T2 pinned them in `routeGates.test.ts`'s waiver list
