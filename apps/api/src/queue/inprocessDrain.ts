@@ -1,8 +1,8 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./handlers/index.js";
-import { getHandler } from "./registry.js";
 import { pgQueueDriver } from "./pgDriver.js";
+import { executeJob } from "./worker.js";
 import type { JobContext } from "./types.js";
 import type { JobKind } from "../modules/org/index.js";
 
@@ -54,8 +54,9 @@ function drainKinds(env: Env): JobKind[] {
 }
 const TICK_MS = 2 * 60_000;
 const WORKER_ID = "inprocess-drain";
-const RETRY_BACKOFF_S = 120;
 const LEASE_SECONDS = 30 * 60;
+/** Renew at a third of the lease, the same ratio the queue consumer defaults to. */
+const RENEW_EVERY_MS = Math.floor((LEASE_SECONDS / 3) * 1000);
 
 export function startInprocessJobDrain(env: Env): void {
   if (env.JOB_EXECUTION_MODE === "queue") return; // the real consumer owns the table
@@ -82,26 +83,45 @@ export function startInprocessJobDrain(env: Env): void {
   );
 }
 
-/** One drain pass — claim at most one due row via the 0095 RPC, run it, settle it. Exported for its test. */
+/**
+ * One drain pass — claim at most one due row via the 0095 RPC, then hand it to the SAME executor the
+ * queue consumer uses. Exported for its test.
+ *
+ * The execution half used to be hand-rolled here, and the copy had drifted into two defects that only
+ * a long job could show. Measured 2026-09-05 on SAM-S6's full-history rebuild:
+ *
+ *  1. **No lease renewal.** The drain claimed a 30-minute lease and never renewed it, while
+ *     `claim_next_job` reclaims any `running` row whose lease has expired — correct for a dead worker,
+ *     wrong for a live slow one. A rebuild that needs three hours would have been re-claimed at minute
+ *     thirty and a SECOND copy started on top of the first, both writing the same 15,954 rows. The
+ *     lease had to be extended by hand to keep that from happening.
+ *  2. **No progress.** It passed `async () => undefined` as the reporter, so a drained job could never
+ *     write `jobs.progress`/`total` — a three-hour job read `0/None` from start to finish and had to be
+ *     tracked by row timestamps instead.
+ *
+ * `executeJob` already solved both, and more besides: it refuses to COMPLETE a job whose lease it lost
+ * (so a reclaimed job's newer worker is not overwritten by the old one finishing late), and it parks a
+ * missing handler instead of retrying blindly against nothing. Calling it is strictly better than
+ * repairing the copy — one executor, one set of semantics, no second place for them to drift apart.
+ *
+ * The one behaviour that changes: settle-on-failure now uses the consumer's exponential
+ * `backoffSeconds(attempts)` rather than this file's flat 120s. That is the point of sharing it.
+ */
 export async function drainOnce(
   env: Env,
   admin: ReturnType<typeof getSupabaseAdmin>,
 ): Promise<void> {
   const driver = pgQueueDriver(admin);
-  // Long lease: the re-fetch walks multi-week EFS windows and the full projection reads two years.
+  // Long lease: the re-fetch walks multi-week EFS windows, the full projection reads two years, and a
+  // rebuild re-scores the whole fleet. Renewal is what makes the length safe rather than optimistic.
   const job = await driver.claim(WORKER_ID, drainKinds(env), LEASE_SECONDS, {});
   if (!job) return;
 
-  const handler = getHandler(job.kind);
   const ctx: JobContext = { admin, env };
-  try {
-    if (!handler) throw new Error(`no handler registered for kind ${job.kind}`);
-    const stats = await handler(ctx, job, async () => undefined);
-    await driver.complete(job.id, (stats ?? {}) as Record<string, unknown>);
-    console.log(`[job-drain] ${job.kind} ${job.id} done`);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    await driver.fail(job.id, message, true, RETRY_BACKOFF_S);
-    console.error(`[job-drain] ${job.kind} ${job.id} settled via fail_job: ${message}`);
-  }
+  const outcome = await executeJob(driver, ctx, job, {
+    workerId: WORKER_ID,
+    leaseSeconds: LEASE_SECONDS,
+    renewEveryMs: RENEW_EVERY_MS,
+  });
+  console.log(`[job-drain] ${job.kind} ${job.id} ${outcome}`);
 }

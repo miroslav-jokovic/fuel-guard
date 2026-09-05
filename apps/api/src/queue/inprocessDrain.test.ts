@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { testEnv } from "../../src/testing/testEnv.js";
 import { clearHandlers, registerHandler } from "./registry.js";
@@ -97,6 +97,45 @@ describe("drainOnce", () => {
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(noEfs, rec.client);
     expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toContain("backfill");
+  });
+
+  /**
+   * The two defects the hand-rolled executor had, and the reason drainOnce now calls executeJob.
+   * Both only show on a LONG job: SAM-S6's rebuild needed ~3 hours against a 30-minute lease that was
+   * never renewed, and `claim_next_job` reclaims any running row whose lease expired — so a second
+   * copy would have started on top of the first, both writing the same 15,954 rows.
+   */
+  it("renews the lease while a long job runs, so a slow job is never re-claimed as a dead one", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: (v: Record<string, unknown>) => void = () => {};
+      registerHandler("efs_window_refetch", () => new Promise<Record<string, unknown>>((r) => { finish = r; }));
+      const rec = createSupabaseRecorder({
+        rpc: { claim_next_job: [claimedRow], renew_lease: true, complete_job: null, fail_job: "requeued" },
+      });
+      const inFlight = drainOnce(env, rec.client);
+      await vi.advanceTimersByTimeAsync(21 * 60_000); // past two 10-minute renewals
+      const renews = rec.rpcs().filter((r) => r.fn === "renew_lease");
+      expect(renews.length).toBeGreaterThanOrEqual(2);
+      expect(renews[0]!.args).toMatchObject({ p_id: claimedRow.id, p_worker: "inprocess-drain" });
+      finish({ ok: true });
+      await inFlight;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports progress, so a multi-hour drained job is not invisible", async () => {
+    registerHandler("efs_window_refetch", async (_ctx, _job, report) => {
+      await report(120, 15954);
+      return { ok: true };
+    });
+    const rec = createSupabaseRecorder({
+      rpc: { claim_next_job: [claimedRow], complete_job: null, fail_job: "requeued" },
+    });
+    await drainOnce(env, rec.client);
+    // The old drain passed `async () => undefined` here, so this write never happened at all.
+    expect(rec.writtenRows("jobs")[0]).toMatchObject({ progress: 120, total: 15954 });
   });
 
   it("does nothing when the claim returns no row", async () => {
