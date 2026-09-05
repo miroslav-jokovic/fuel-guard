@@ -2182,6 +2182,7 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 | **Q-FUI8** | ~~**Trailer-at-fill: acknowledge the removal, or fund the capability?**~~ **SHIPPED ON THE FALLBACK 2026-09-02.** T4 removed the column; the premise was re-measured first (`duty_equipment_segments` still 0 rows, 157 of 211 trailers carrying a current pairing). ⚠ **This remains an acknowledgement the owner has not given, not a question they answered** — if trailer-at-fill is wanted, it is a new time-ranged pairing table plus a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. The removal is pinned by `FuelLogPage.test.ts`, so restoring it means arguing with this row rather than reversing it quietly. | Miki | ~~T4 removes the column.~~ Done. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
 | **Q-FUI15** | **An owner filter on the ledger needs a member directory the ledger's readers may not read.** P3 wired `assignedTo` and shipped `?owner=me`, which needs nobody's list. A picker — "assigned to Sarah" — needs the org's members, and `GET /api/members` is `requireRole("admin")`: the accountant, the auditor and the dispatcher who live in this ledger would see an empty menu. Candidates: **(a)** a NAMES-ONLY directory read gated on `requireOrg` — id, display name, role, nothing else — which is what `lib/memberLabels` already assembles for the actor names printed all over the product (**recommended**: the names are already on screen; refusing the list while printing its contents is a boundary that protects nothing); **(b)** widen `/api/members` to the section-view set, which also exposes email and invitation state and is a real widening; **(c)** leave it at "mine", and let C7b decide when the inbox needs assignment. ⚠ This is Q-FUI4's operational twin: that one asks WHO owns a finding, this one asks who may be shown the list of candidates. | Miki | `?owner=me` only. No picker is built on an endpoint the page's own readers are refused. |
+| **Q-FUI16** | **Should `reconcileCardMultiForOrg` fall back to the fill's own driver attribution when Samsara holds no assignment for the instant?** Measured 2026-09-05: every `card_multi_vehicle` case resolves to exactly ONE driver, but 10 of the 17 open ones resolve NO Samsara driver for any fill — `driver_vehicle_assignments` history begins 2026-04-14 and the reconcile reads only that source, so the pre-April backlog can never clear. Candidates: **(a)** yes — agreement of `fuel_transactions.driver_id` across the window explains the case, marked with a distinct note so the weaker source is visible (**recommended**: that attribution already drives `fuel_while_driver_home` and the WP-ATTR window exclusions, so refusing it here is inconsistent rather than conservative); **(b)** no — leave them open forever; **(c)** bulk-dismiss the pre-2026-04-14 cases once by hand and leave the code alone. ⚠ It widens an auto-DISMISS path, which is why it is a ruling and not a detail inside a bug fix. | Miki | The reconcile reads Samsara only. 0317's lease unblocks the RECENT cases (5 of 17 clear on their own once runs stop stranding); the pre-April ones stay open and are named here rather than quietly dismissed. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |
 
 ---
@@ -2216,6 +2217,85 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
 
 ## 8. Position log — appended, never edited
+
+- 2026-09-05 · **The seventeen missing days are back, and the cause was one row.** The entry below
+  closes with "Nothing in code can recover data the vendor was never asked for". That was wrong, and
+  the correction is worth more than the retraction: the vendor HAD been asked. A job of kind
+  `efs_window_refetch` was queued on 2026-08-28 with exactly these windows
+  (2026-04-18→05-05, 05-06→05-19, 01-01→02-04). Two of the three succeeded — which is why May and
+  January are whole and only April is not. The third failed with `numeric field overflow`, exhausted
+  its five attempts by 17:25 that day, and sat `failed` for eight days because nothing re-queues a
+  job that has spent its ladder.
+
+  **The row.** With #507's guard deployed the re-fetch was re-queued and completed on the first
+  attempt, and `import_rows` now names what the whole window died on: a single fill carrying
+  `odometer 3003400200`. A driver typed a ten-digit number into the pump keypad on 2026-05-02;
+  `fuel_transactions.odometer` is `numeric(10,1)`, which holds values under 10^9. Before #507 the
+  window was one statement, so Postgres refusing that one advisory field refused all of it. This is
+  the D-FIN2 "Done when" satisfied on real data: the fill landed, the odometer is null, and the row
+  names itself.
+
+  **Recovered.** 1,074 fills, 120,697 gallons, $573,712 across 2026-04-18 → 05-04 — within a few
+  percent of the ~1,050 / ~119,000 / ~$590,000 this plan projected from the neighbouring days. The
+  window was widened one day each side on purpose: 04-17 held 42 fills and 05-05 held 21, against a
+  ~65/day norm, so both were partial rather than absent. They now read 70 and 91. Overlap is safe by
+  file-hash and `external_ref` dedup, and cost nothing.
+
+  **What this changes about the freshness work.** `detectFeedGaps` was the right thing to ship and
+  the diagnosis behind it holds — but the gap was not un-recoverable, it was un-retried. A failed
+  repair job is as invisible as a missing day, and D-FIN3's freshness rule (a finding when an
+  `efs_window_refetch` ends `failed`) is the thing that would have caught this in August rather than
+  September.
+
+- 2026-09-05 · **The two detector rulings, measured rather than argued.** Both questions this plan
+  put to the owner — whether `cumulative_overfuel` stays on, and whether `card_multi_vehicle`
+  describes normal practice — now have measurements. They point in opposite directions.
+
+  **`cumulative_overfuel`: leave it on.** The case for switching it off rested on 64 dismissed
+  false positives, and those came from a defect that is fixed. Per 1,000 fills the rule fired 17.0 in
+  February, 9.5 in March, 5.7 in May — then 0.5 in June, 1.0 in July, 1.4 in August. The 17 recovered
+  April days, scored today under current code, produced **2 cases in 1,074 fills**. That is the
+  observation §8's earlier entry said was still only a projection, and it lands where the projection
+  said it would. Its one lifetime `confirmed` case does not survive contact either: unit 742,
+  386.01 gal against a ceiling built on a baseline of 10.71 MPG. That truck's baseline is 7.48 MPG
+  today, which puts the ceiling at ~435 gal — it would not fire now, and its resolution note is the
+  default "Resolved by reviewer". So the rule has **no substantiated true positive** — but at two to
+  three fires a month fleet-wide it costs almost nothing to keep, and a detector with zero
+  confirmations at n=6 has not been tested, only quiet. Turning it off would be trading a measured
+  cost of ~1/1,000 for an unmeasured risk.
+
+  **`card_multi_vehicle`: it is NOT describing normal practice, and the fix is a defect fix.** The
+  "normal practice" hypothesis was that 34 of 198 cards routinely serve more than one truck. True
+  over three months — and irrelevant, because the rule's window is 48 hours. Inside 48 hours the
+  condition holds for **8 of 6,226 fills since June (0.1%)**. The rule is rare and it is factually
+  right: 48 of its 50 cases still satisfy their own condition against today's corrected data.
+
+  What is wrong is that it is never cleared. Every one of the cases resolves to **exactly one
+  driver** — the "one driver moved trucks" class `reconcileCardMultiForOrg` exists to auto-dismiss.
+  Two things stop it:
+
+  1. **The auto-clear does not run.** It is the LAST statement of `scoreImportWithCascade`, and
+     processing runs strand before reaching it — `claim_efs_processing_run` and the scheduler accept
+     only `pending`/`failed`, so a run interrupted mid-scoring keeps `status='running'` forever with
+     no error. 58 such runs had accumulated since 2026-08-09. Five open cases satisfy the
+     auto-clear's own condition today and are still open. Fixed by the lease in 0317.
+  2. **It cannot explain anything before 2026-04-14**, where Samsara's `driver_vehicle_assignments`
+     history begins — 10 of the 17 open cases resolve NO driver for any fill and are blocked on that
+     alone, even though the fills' own `driver_id` already says one driver. The reconcile reads only
+     the Samsara source.
+
+  Only **2** of the 17 open cases are genuinely two different drivers, i.e. actually worth a human.
+
+  > **Open question Q-FUI16 — should `reconcileCardMultiForOrg` fall back to the fill's own driver
+  > attribution when Samsara holds no assignment for the instant?** Candidates: (a) yes, treat
+  > agreement of `fuel_transactions.driver_id` across the window as explaining the case, marked with
+  > a distinct note so the weaker source is visible on the case; (b) no, leave pre-April cases open
+  > forever and accept that the backlog never clears; (c) bulk-dismiss the pre-2026-04-14 cases once,
+  > by hand, and leave the code alone. **Recommendation: (a).** The fill's driver attribution is
+  > already trusted enough to drive `fuel_while_driver_home` and the WP-ATTR window exclusions, so
+  > refusing it here is inconsistent rather than conservative — but it widens an auto-DISMISS path,
+  > which is a ruling to make deliberately and not a detail to slip into a bug fix. Nothing is
+  > blocked on the answer; the 30-minute lease is what unblocks the recent cases.
 
 - 2026-09-05 · **The alert queue was re-measured against production, and Q-FUI11's recommended fix is
   aimed at the wrong lever.** The programme's §0.3a reading was that `cumulative_overfuel` false-fires
