@@ -102,3 +102,8 @@ So, when the honest fix is out of scope:
   style of `git log` (they read as a narrative, not conventional-commit tags).
 - Background work runs in the worker (`WORKER_ROLE=scheduler|consumer|both`); schedulers must run in
   exactly ONE process fleet-wide — never add one without checking `docs/WORKER-DEPLOYMENT.md`.
+  `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service that is never given it runs them:
+  production is two services from one `railway.json`, and `@fleetguard/web` ran the whole scheduler
+  set alongside `@fleetguard/api` until 2026-09-05 for exactly that reason. `api` owns them (it is
+  the WEX-whitelisted host); every other service from that file gets `false` before its first
+  deploy. No gate can see a Railway variable — `docs/DEPLOYMENT.md` has the log check.
