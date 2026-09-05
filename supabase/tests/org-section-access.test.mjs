@@ -985,5 +985,7 @@ ok(
   !(await wrote(MANAGER, ORG, "fleet_manager", { fuel: "view" }, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

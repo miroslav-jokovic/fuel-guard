@@ -250,5 +250,7 @@ ok(
     (await one(`select count(*)::int n from samsara_odometer_readings where org_id=$1`, [OTHER])).n === 1,
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -150,5 +150,6 @@ const grants = await db.query(
 const grantees = grants.rows.map((r) => r.grantee);
 ok("service_role may execute it; anon and authenticated may not", grantees.includes("service_role") && !grantees.includes("anon") && !grantees.includes("authenticated"), grantees.join(","));
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

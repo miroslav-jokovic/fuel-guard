@@ -327,5 +327,7 @@ ok("the attributed count reaches the browser's call, and is a strict subset once
     Number(asBrowser.fills_with_vehicle) < Number(asBrowser.fills),
   `${asBrowser?.fills_with_vehicle} vs ${mineBefore.fills_with_vehicle} of ${asBrowser?.fills}`);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

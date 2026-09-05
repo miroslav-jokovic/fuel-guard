@@ -288,5 +288,7 @@ ok("but two carriers may each have their own with the same one",
   (await sqlstate(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint)
                    values ($1,'recon_amount','overbilled','fp-a')`, [OTHER])) === null);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

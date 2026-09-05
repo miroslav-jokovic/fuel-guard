@@ -234,5 +234,6 @@ ok(
   (await rows(`select oid from pg_proc where proname='fuel_spend_lines' and pronargs = 3`)).length === 0,
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

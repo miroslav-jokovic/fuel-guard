@@ -227,5 +227,7 @@ const sumCall = await asClient(ORG, "admin",
 ok("and the summary's browser call too — both were broken, and one being fixed proves nothing",
   sumCall.error === null, String(sumCall.error));
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

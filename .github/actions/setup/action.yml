@@ -1,0 +1,44 @@
+name: Set up the workspace
+description: >
+  Corepack, Node 22, a warm pnpm store and an installed workspace — the five steps every CI job
+  needs before it can do anything, in one place.
+
+  WHY THIS EXISTS. ci.yml used to be a single job, so this preamble was written once and the
+  question never came up. Splitting the gates, the four test groups and the build onto separate
+  runners (2026-09-05) would otherwise have copied it six times, and a copy is a workaround with a
+  delay fuse: the day Node moves to 24 or the pnpm pin changes, five of the six get updated and the
+  sixth quietly keeps testing against the old toolchain. Deriving beats restating (CLAUDE.md).
+
+  Checkout is deliberately NOT here. Only the gates job needs full history (the migration-ordering
+  check diffs against the base it will merge into); every other job is faster at depth 1, and a
+  composite action cannot express that difference without an input nobody would remember to set.
+
+inputs:
+  build-shared:
+    description: >
+      Build packages/shared for React Native. apps/driver's vitest config aliases @silvicom/shared
+      to packages/shared/dist, which does not exist until this runs, so its suites fail with
+      "Cannot find package" without it. Costs ~6s; off for jobs that never touch the driver app.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build shared package for React Native
+      if: inputs.build-shared == 'true'
+      shell: bash
+      run: pnpm --filter ./packages/shared build:rn

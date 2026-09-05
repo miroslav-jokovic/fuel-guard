@@ -272,5 +272,7 @@ ok(
   ).n === 0,
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

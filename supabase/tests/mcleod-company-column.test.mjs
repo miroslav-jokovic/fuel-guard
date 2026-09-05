@@ -99,5 +99,6 @@ try { await db.query(`insert into mcleod_movements (org_id, external_id, company
 catch { collided = true; }
 ok("the movement key is still (org_id, external_id) — the company-aware key is a later migration", collided);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

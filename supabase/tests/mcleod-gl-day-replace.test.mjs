@@ -168,5 +168,7 @@ await replace(ORG_A, JUNE, JULY, [
 ]);
 ok("another org's June is untouched by a sweep of this one", (await days(ORG_B)).length === 1);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

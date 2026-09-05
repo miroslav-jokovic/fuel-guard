@@ -214,5 +214,6 @@ const asMember = Number((await db.query(`select count(*)::int as n from applican
 await db.exec("rollback");
 ok("even an admin's browser session reads nothing directly — the API is the only door", asMember === 0);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

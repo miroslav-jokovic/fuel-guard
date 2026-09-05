@@ -21,6 +21,16 @@
 - Auto-discovered by `scripts/run-tests.mjs`; every matrix MUST end with
   `console.log(`\nRESULT: ${pass} passed, ${fail} failed`)` and exit non-zero on failure. No RESULT
   line = build failure, never a silent pass.
+- **`await db.close()` immediately before that RESULT line** (`lint:matrix-exit`). This paragraph
+  used to specify only how to exit on FAILURE, which left the green path to Node — and Node cannot
+  end a process while PGlite's WASM handles are open, so a passing matrix sat idle for ~10 seconds
+  after its last assertion. 21 of 59 did exactly that: ~210s of every CI run, invisible because they
+  passed and printed the right counts (measured 2026-09-05, `fuel-range-totals` 11.33s → 1.32s).
+  A bare `process.exit()` is NOT the alternative — it can truncate the buffered stdout that
+  `run-tests.mjs` parses the RESULT line out of, turning a pass into "did not execute".
+- They run CONCURRENTLY, bounded by cores and by memory (each holds ~1.2 GB of PGlite heap). Matrices
+  are independent by construction — own database, own migrations, shared nothing — and anything that
+  breaks that assumption breaks the suite. Don't reach for shared fixtures or a common temp path.
 - `rls.test.mjs` discovers RLS tables from the live catalog and asserts cross-tenant isolation on
   every one; a table it cannot seed is a FAILURE, not a skip. New tables must be seedable by it.
 - These matrices are the only place a migration is EXECUTED before production — that is why they

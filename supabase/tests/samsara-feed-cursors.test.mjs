@@ -191,5 +191,7 @@ ok(
   (await one(`select count(*)::int n from samsara_feed_cursors where org_id=$1`, [OTHER])).n === 0,
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

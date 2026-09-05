@@ -453,5 +453,7 @@ console.log(
     `(~${Math.ceil((claimBytes * 4) / 3)} bytes base64url in the JWT payload, before the rest of the claims).`,
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -182,5 +182,6 @@ const OTHERORG = (await one(`insert into organizations (id,name) values (gen_ran
 ok("a session id from another org is not found (DG010)",
   (await err(db.query(`select end_duty_session_by_id($1,$2,null,null,'dispatch')`, [OTHERORG, S2])))?.code === 'DG010');
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

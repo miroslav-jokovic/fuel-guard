@@ -205,5 +205,7 @@ ok("...and the same for the declines' menus",
   valuesOf(asBrowserD, "error_code").length === 14 && !asBrowserD.some((r) => r.value.startsWith("OTHER")),
   `${valuesOf(asBrowserD, "error_code").length}`);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

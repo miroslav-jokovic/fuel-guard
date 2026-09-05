@@ -84,5 +84,6 @@ const rls = await db.query(`select relrowsecurity from pg_class where relname='f
 const pol = await db.query(`select count(*)::int n from pg_policies where tablename='finance_month_closes'`);
 ok("RLS enabled with zero client policies — deny-all on purpose", rls.rows[0].relrowsecurity === true && pol.rows[0].n === 0);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

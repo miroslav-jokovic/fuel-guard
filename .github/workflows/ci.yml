@@ -1,30 +1,55 @@
 name: CI
 
+# ── Why this workflow is six jobs and not one ───────────────────────────────────────────────────
+#
+# Until 2026-09-05 every gate, every test and both builds ran as ~30 sequential steps in a single
+# job, and a green run took 15.7 minutes wall clock. Measured on run 33942529999:
+#
+#     Test        704s     <- 75% of the run
+#     Typecheck    71s
+#     Build        62s
+#     Lint         45s
+#     all 20 other gates, together      ~30s
+#
+# The gates were never the problem and parallelising them would have bought seconds. Two things
+# were: the test step did four independent bodies of work back to back, and a four-core runner sat
+# three-quarters idle while it did. Splitting them onto their own runners turns a SUM into a MAX.
+#
+# `build` at the bottom is the aggregator, and its name is load-bearing: main's branch protection
+# requires a check called exactly `build`. It is the only job that must keep that name — the others
+# are free to be renamed.
+#
+# Nothing was dropped in the split. Every gate below is the same gate, in the same order, with the
+# comment that records why it exists; the matrices are still DISCOVERED from disk by
+# scripts/run-tests.mjs rather than listed here, and the non-api/web unit suites are selected by
+# EXCLUSION, so a package added tomorrow is tested by this workflow without anyone editing it.
+
 on:
   push:
     branches: [main]
   pull_request:
 
+# Pushing twice to a PR used to leave both runs racing for the same four-core pool, so the one that
+# mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
+# cancelled, because migrate.yml gates production schema changes on the CI run for that exact SHA
+# (.github/actions/require-ci-green) and a cancelled run reads to it as a failed deploy.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build:
+  # ── Static gates ──────────────────────────────────────────────────────────────────────────────
+  # Every check that reads source and answers in seconds. They share a runner because together they
+  # are ~95s; giving each its own would spend more on runner start-up than the checks themselves
+  # cost, and would turn one red X into twenty.
+  gates:
     runs-on: ubuntu-latest
-    env:
-      VITE_SUPABASE_URL: https://example.supabase.co
-      VITE_SUPABASE_ANON_KEY: ci-test-anon-key
     steps:
       - uses: actions/checkout@v4
         with:
           # The migration-ordering gate diffs this change against the base it will merge into, so it
           # needs history rather than the default single commit. Everything else is unaffected.
           fetch-depth: 0
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
 
       # Audit 2026-08-09 finding 3.7: nothing in this repository would have noticed a committed
       # credential. Runs before install so a leak fails in seconds rather than after a full build.
@@ -38,14 +63,14 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
 
+      # Invoked as plain node, not `pnpm lint:secrets`, so it still runs before the workspace is set
+      # up at all — scripts/scan-secrets.mjs imports nothing but node builtins. Same check, same
+      # script, and the "fails in seconds rather than after a full build" property above survives
+      # the 2026-09-05 split into jobs.
       - name: Secret scan
-        run: pnpm lint:secrets
+        run: node scripts/scan-secrets.mjs
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build shared package for React Native
-        run: pnpm --filter ./packages/shared build:rn
+      - uses: ./.github/actions/setup
 
       - name: Lint
         run: pnpm lint
@@ -94,6 +119,13 @@ jobs:
       # not earned. This repo had shipped that bug three times before anything checked for it.
       - name: Test collection
         run: pnpm lint:tests
+
+      # Added 2026-09-05. The sibling of the gate above: that one catches a test nobody RUNS, this
+      # one catches a matrix that runs and then refuses to end. 21 of 59 held their PGlite open on
+      # the green path and cost ~10s each doing nothing — ~210s of every run, invisible because they
+      # still passed and printed the right counts. The self-test runs with it, per house rule.
+      - name: Matrices release their database
+        run: pnpm lint:matrix-exit
 
       - name: Design tokens
         run: pnpm --filter ./apps/web lint:tokens
@@ -164,11 +196,20 @@ jobs:
       - name: Operator CLI stream discipline
         run: pnpm lint:cli-streams
 
+  # ── Types and the production bundle ───────────────────────────────────────────────────────────
+  # These two stay together because the third step needs the second one's output: lint:light-dark
+  # reads apps/web/dist, which only exists after a build.
+  typecheck-build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_ANON_KEY: ci-test-anon-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
       - name: Typecheck
         run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
 
       - name: Build
         run: pnpm build
@@ -180,3 +221,90 @@ jobs:
       # why this step needs dist to exist (2026-08-23, D-DS2).
       - name: light-dark() survives minification
         run: pnpm lint:light-dark
+
+  # ── Unit suites, three ways ───────────────────────────────────────────────────────────────────
+  # apps/api (259 files) and apps/web (146) are the two big ones, and they are import-bound rather
+  # than assertion-bound: on run 33942529999 api spent 601s importing modules and 105s running
+  # tests. Under the old single job they ran CONCURRENTLY on the same four cores and took 266s and
+  # 260s respectively — each one starving the other. A runner apiece removes the contention.
+  #
+  # `isolate: false` was measured on 2026-09-05 as the obvious alternative and rejected: it hangs
+  # apps/api indefinitely (>5 min against an 18s baseline), because suites here rely on a fresh
+  # module registry per file. Do not reach for it again without fixing that first.
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          build-shared: "false"
+      - name: apps/api unit suites
+        run: pnpm --filter @silvicom/api test
+
+  test-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          build-shared: "false"
+      - name: apps/web unit suites
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-test-anon-key
+        run: pnpm --filter @silvicom/web test
+
+  # Everything else, selected by EXCLUSION rather than by name. A hand-written list of the other
+  # twelve packages would be a second source of truth about what this repo contains, and the day
+  # somebody adds the thirteenth its suites would simply never run — the same shape of bug
+  # `lint:tests` exists to catch one level down, at the file.
+  test-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Every other workspace's unit suites
+        run: pnpm -r --filter '!@silvicom/api' --filter '!@silvicom/web' test
+
+  # ── Behavioural matrices ──────────────────────────────────────────────────────────────────────
+  # Still one process running every matrix it finds on disk, because that discovery is the whole
+  # point of scripts/run-tests.mjs and sharding them across runners would reintroduce exactly the
+  # failure it was written to prevent: a matrix that nobody notices stopped running. They now run
+  # concurrently WITHIN the job instead, bounded by core count.
+  matrices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # build-shared stays ON here, and it is not obvious why: `@silvicom/shared` resolves to src
+      # through its exports map, so nothing in supabase/tests/ appears to need a build. One matrix -
+      # fuel-range-miles-inputs - reaches past the package name and imports
+      # `../../packages/shared/dist/index.js` by relative path, deliberately, to assert the SQL
+      # against the same compiled function the driver app runs. Turning this off failed exactly that
+      # one matrix on the first run of this split (2026-09-05).
+      - uses: ./.github/actions/setup
+      - name: Behavioural matrices (PGlite)
+        run: pnpm test:rls
+
+  # ── The required check ────────────────────────────────────────────────────────────────────────
+  # main's branch protection requires a status check named `build`. Before the split that was the
+  # single job; now it is this one, which does no work and exists only so that one name still means
+  # "all of CI passed". `if: always()` plus the explicit result check is deliberate — without it a
+  # cancelled or skipped dependency would leave this job skipped, and a skipped required check reads
+  # to branch protection as nothing at all rather than as a failure.
+  build:
+    if: always()
+    needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::At least one CI job did not succeed ($RESULTS)."
+              exit 1
+            fi
+          done
+          echo "All CI jobs succeeded."

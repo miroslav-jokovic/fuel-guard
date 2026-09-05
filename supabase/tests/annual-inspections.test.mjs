@@ -311,5 +311,7 @@ ok("a report cannot be walked into another tenant by an update (0161's invariant
   ok("a printer cannot be walked into another tenant (0161's invariant)", typeof r.error === "string");
 }
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

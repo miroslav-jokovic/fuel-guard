@@ -188,5 +188,7 @@ ok(
 ok("recruiter cannot write a vehicle", (await updated("recruiter", SET_VEHICLE, [VEHICLE])) === 0);
 ok("driver cannot write a vehicle", (await updated("driver", SET_VEHICLE, [VEHICLE])) === 0);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
