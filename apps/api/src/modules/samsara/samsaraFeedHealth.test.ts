@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { readSamsaraFeedHealth, samsaraFeedCadences } from "./samsaraFeedHealth.js";
-import type { Env } from "../../env.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * The I/O half of S5. The verdict is `describeSamsaraFeeds`, tested in `packages/shared`; what is only
@@ -14,15 +14,13 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
 const MIN = 60_000;
 const HOUR = 3_600_000;
 
-const ENV = {
-  SAMSARA_STATS_SYNC_MINUTES: 20,
-  SAMSARA_RECON_SYNC_MINUTES: 60,
-  SAMSARA_RECON_BATCH: 250,
-  SAMSARA_IDENTITY_SYNC_HOURS: 12,
-  SAMSARA_DRIVER_SCORE_SYNC_HOURS: 6,
-  SAMSARA_IFTA_SYNC_HOURS: 24,
-  SAMSARA_ODOMETER_SYNC_HOURS: 24,
-} as unknown as Env;
+/**
+ * The schema's own defaults, not an object literal pretending to be one. `envCasts.test.ts` bans the
+ * cast, and it is right to: a cast hands the code under test an `Env` missing every key it did not
+ * mention, which is a shape `loadEnv` can never return — so the values below are asserted to BE the
+ * deployment's defaults rather than a fixture's opinion of them.
+ */
+const ENV = testEnv();
 
 type Job = { status: string; error: string | null; created_at: string; finished_at: string | null; skipped?: boolean };
 
@@ -81,9 +79,9 @@ describe("samsaraFeedCadences", () => {
   it("reports a tier the scheduler will never start as switched off, not as hourly", () => {
     // `startSamsaraScheduler` gates the recon tier on BOTH of these; reporting a cadence it does not
     // have would put a promise on screen that nothing is keeping.
-    expect(samsaraFeedCadences({ ...ENV, SAMSARA_RECON_BATCH: 0 } as Env).telematics).toBe(0);
-    expect(samsaraFeedCadences({ ...ENV, SAMSARA_RECON_SYNC_MINUTES: 0 } as Env).telematics).toBe(0);
-    expect(samsaraFeedCadences({ ...ENV, SAMSARA_IFTA_SYNC_HOURS: 0 } as Env).ifta).toBe(0);
+    expect(samsaraFeedCadences(testEnv({ SAMSARA_RECON_BATCH: 0 })).telematics).toBe(0);
+    expect(samsaraFeedCadences(testEnv({ SAMSARA_RECON_SYNC_MINUTES: 0 })).telematics).toBe(0);
+    expect(samsaraFeedCadences(testEnv({ SAMSARA_IFTA_SYNC_HOURS: 0 })).ifta).toBe(0);
   });
 });
 
@@ -151,7 +149,7 @@ describe("readSamsaraFeedHealth", () => {
   it("does not alert on a bound the configured interval cannot meet", async () => {
     // Stats polled every 90 minutes against the ruled 1-hour bound: breached the moment it succeeds.
     const rec = seed({ ...healthy(), sync_stats: [done(ago(80 * MIN))] });
-    const r = await readSamsaraFeedHealth(rec.client, { ...ENV, SAMSARA_STATS_SYNC_MINUTES: 90 } as Env, ORG, NOW);
+    const r = await readSamsaraFeedHealth(rec.client, testEnv({ SAMSARA_STATS_SYNC_MINUTES: 90 }), ORG, NOW);
     expect(feed(r, "stats").state).toBe("late");
     expect(feed(r, "stats").targetUnreachable).toBe(true);
     expect(r.alerting).toEqual([]);

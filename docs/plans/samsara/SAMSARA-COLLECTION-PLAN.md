@@ -788,3 +788,11 @@ it is now three for three across two steps:
 - *absorbing a refused read* — one fixture failed BOTH job queries, so the second guard hid a missing
   first one. The fixture now fails each read independently.
 - *the recon-batch guard* — a malformed mutation, re-run properly.
+
+**⚠ One CI failure this step earned, and the reason is worth keeping.** `apps/api/src/testing/envCasts.test.ts`
+bans `as unknown as Env` in fixtures — a cast hands the code under test an object missing every key it
+did not mention, a shape `loadEnv` can never return. The fixture here did exactly that and `pnpm test`
+passed locally anyway, because **that gate enumerates its inputs with `git ls-files`** and the new test
+file was still untracked. A full green suite before `git add` is not a full green suite. The fixture is
+now `testEnv()`, which parses the schema as the process does — so the cadence assertions test the
+deployment's real defaults rather than a fixture's opinion of them.
