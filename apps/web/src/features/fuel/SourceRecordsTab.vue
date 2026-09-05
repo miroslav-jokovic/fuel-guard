@@ -179,7 +179,8 @@ const columns: DataTableColumn[] = [
     <!-- A7 / FUEL-T5. These rows are EFS's own, so this tab cannot show a wrong one — only a
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
-    <FeedFreshnessLine feed="posted" />
+    <!-- The window travels with the line: a hole is worth naming where the reader is looking. -->
+    <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
 
     <!-- FUEL-T5. Arrival, then composition: the line above says whether the list is short, this one
          says how much of what is here can be reached by a unit filter or a per-truck total. -->

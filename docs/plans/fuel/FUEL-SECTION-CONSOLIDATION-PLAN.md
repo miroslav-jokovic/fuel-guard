@@ -2284,3 +2284,48 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   the signal is describing a routine fleet practice. The odometer cluster
   (`expected_odometer_band` / `odometer_daily_cap` / `odometer_regression`): 37 fires, 29 false
   positives, 0 confirmed. Neither is scheduled; both are now measured rather than estimated.
+- 2026-09-05 · **Seventeen days of fuel are missing from the record, and nothing in the product could
+  have said so.** Found while re-measuring the alert queue, by putting `fuel_spend_days.miles` beside
+  Samsara's IFTA jurisdiction miles month by month — the comparison M5b had just shipped for the fleet
+  MPG plan. The monthly divergence is not the ±3% drift that plan recorded; it is this:
+
+  | month | spend-day miles | IFTA miles | |
+  |---|---|---|---|
+  | 2026-02 | 931,042 | 1,179,719 | −21.1% |
+  | 2026-03 | 1,297,310 | 1,370,444 | −5.3% |
+  | **2026-04** | **724,944** | **1,492,407** | **−51.4%** |
+  | **2026-05** | **503,714** | **1,563,003** | **−67.8%** |
+  | 2026-06 | 1,526,081 | 1,574,109 | −3.1% |
+  | 2026-07 | 1,549,942 | 1,552,337 | −0.2% |
+  | 2026-08 | 1,696,637 | 1,636,302 | +3.7% |
+
+  April and May are not drifting, they are **half empty**. Chasing it to the fills: **2026-04-18
+  through 2026-05-04 hold ZERO fuel transactions** — seventeen consecutive days. In the 215 days from
+  2026-02-01 to 2026-09-03 those are the ONLY days with no fill at all; every other day, weekends and
+  holidays included, has them, because a working fleet of ~165 tractors buys fuel every day.
+
+  **It is not a processing failure.** `efs_transactions` — the raw vendor rows, before any derivation
+  — is empty for exactly the same seventeen days. Those days were never collected, so re-running
+  `syncFuelEventsFromEfs` cannot recover them; the statements have to come from EFS again.
+
+  **What it is worth.** The fleet drove normally throughout (IFTA says 1,492,407 miles in April alone),
+  and the days either side average ~62 fills and ~7,000 gallons. So roughly **1,050 fills, ~119,000
+  gallons and ~$590,000 of fuel are absent from the system**, and every figure covering that window —
+  spend, gallons, price per gallon, cost per mile, the ledger, MPG — is short by them. It sat there for
+  four months.
+
+  **Why nothing noticed, which is the part worth fixing.** `describeFeedFreshness` answers "when did
+  anything last arrive", and it was correct every single day: purchases had arrived minutes ago. A
+  poller that stops and then STARTS AGAIN leaves a hole with a healthy line above it, and every page is
+  short by exactly the fuel that never came — short looking exactly like quiet, which is the failure
+  FUEL-T5 was written against and did not close.
+
+  So `detectFeedGaps` ships beside it and `GET /api/fueling/feed-freshness` answers both questions for
+  the window the page is showing. **The threshold is one empty day, and that is measured rather than
+  chosen**: 215 days, 17 empty, all contiguous — one empty day is already an event for this fleet. It
+  is a parameter anyway, because a fleet of nine trucks has quiet Sundays. Gaps at the EDGES of a
+  window are never reported: a window ending today, before today's fills arrive, would otherwise raise
+  a warning twice a day, which is how a warning becomes wallpaper.
+
+  **The owner action this leaves.** Re-pull the EFS statements for 2026-04-18 → 2026-05-04 and import
+  them. Nothing in code can recover data the vendor was never asked for.

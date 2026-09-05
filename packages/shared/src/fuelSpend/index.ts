@@ -15,6 +15,7 @@ export * from "./spendPeriodTotals.js";
 export * from "./operatingBridge.js";
 export * from "./rollupDerive.js";
 export * from "./feedFreshness.js";
+export * from "./feedGaps.js";
 export * from "./rollupFreshness.js";
 export * from "./rowCoverage.js";
 export * from "./fuelListFilters.js";

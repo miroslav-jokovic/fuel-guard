@@ -54,14 +54,44 @@ afterAll(async () => {
 });
 
 let rec: SupabaseRecorder;
-async function ask(role: string, row: Record<string, string | null> | null) {
-  rec = createSupabaseRecorder({ tables: { efs_soap_credentials: row ? [row] : [] } });
+/**
+ * ⚠ A FUNCTION fixture for the fills. `supabaseRecorder` records filters and does not apply them, so a
+ * flat array answers a 90-day question with every row it holds — and the gap rule's whole correctness
+ * is which days the window contained.
+ */
+async function ask(
+  role: string,
+  row: Record<string, string | null> | null,
+  fills: { business_date: string }[] = [],
+  query = "",
+) {
+  rec = createSupabaseRecorder({
+    tables: {
+      efs_soap_credentials: row ? [row] : [],
+      fuel_transactions: (q) => {
+        const at = (m: "gte" | "lte") =>
+          q.ops.find((o) => o.method === m && o.args[0] === "business_date")?.args[1] as string | undefined;
+        const lo = at("gte");
+        const hi = at("lte");
+        return fills.filter(
+          (f) => (lo === undefined || f.business_date >= lo) && (hi === undefined || f.business_date <= hi),
+        );
+      },
+    },
+  });
   holder.client = rec.client;
-  const res = await fetch(`${baseUrl}/api/fueling/feed-freshness`, {
+  const res = await fetch(`${baseUrl}/api/fueling/feed-freshness${query}`, {
     headers: { Authorization: `Bearer ${role}` },
   });
-  return { status: res.status, body: (await res.json()) as Record<string, { lead: string; late: boolean; failing: boolean; neverCollected: boolean; lastSuccessAt: string | null }> };
+  return {
+    status: res.status,
+    body: (await res.json()) as Record<string, { lead: string; late: boolean; failing: boolean; neverCollected: boolean; lastSuccessAt: string | null }> &
+      { gaps: { lead: string | null; gaps: { from: string; to: string; days: number }[] } },
+  };
 }
+
+/** `n` fills on `day`, as the route counts them. */
+const on = (day: string, n: number) => Array.from({ length: n }, () => ({ business_date: day }));
 
 const HEALTHY = {
   posted_last_success_at: minsAgo(4), posted_last_polled_at: minsAgo(4), posted_last_error: null,
@@ -150,5 +180,58 @@ describe("GET /api/fueling/feed-freshness", () => {
     });
     expect(body.posted!.late).toBe(false);
     expect(body.rejected!.late).toBe(true);
+  });
+});
+
+
+/**
+ * The hole in the middle (2026-09-05).
+ *
+ * Freshness catches a poller that has stopped. It cannot catch one that stopped and started again, and
+ * production carried **17 consecutive days with no fill at all** — 2026-04-18 to 2026-05-04, roughly
+ * 119,000 gallons — while every one of the assertions above stayed green for four months. What is only
+ * testable HERE is that the route asks for the right window, on the right column, for the right org.
+ */
+describe("GET /api/fueling/feed-freshness — the hole in the middle", () => {
+  const WITH_HOLE = [
+    ...on("2026-04-01", 3), ...on("2026-04-02", 3),
+    // 04-03 and 04-04 delivered nothing at all
+    ...on("2026-04-05", 3), ...on("2026-04-06", 3),
+  ];
+
+  it("reports a gap with data on both sides of it", async () => {
+    const { body } = await ask("accountant", HEALTHY, WITH_HOLE, "?from=2026-04-01&to=2026-04-06");
+    expect(body.gaps.gaps).toHaveLength(1);
+    expect(body.gaps.gaps[0]).toMatchObject({ from: "2026-04-03", to: "2026-04-04", days: 2 });
+    expect(body.gaps.lead).toMatch(/No fuel arrived at all for 2 days/);
+  });
+
+  it("says nothing when the record has no holes — silence is the pass", async () => {
+    const { body } = await ask("accountant", HEALTHY, [...on("2026-04-01", 3), ...on("2026-04-02", 3)], "?from=2026-04-01&to=2026-04-02");
+    expect(body.gaps.gaps).toEqual([]);
+    expect(body.gaps.lead).toBeNull();
+  });
+
+  it("counts the STATION's day, not the instant", async () => {
+    // T1's column (0287). A window of instants asks a different question than the pages this line
+    // appears on, and the two would disagree about the same evening fill.
+    await ask("admin", HEALTHY, WITH_HOLE, "?from=2026-04-01&to=2026-04-06");
+    const q = rec.forTable("fuel_transactions")[0]!;
+    expect(q.ops.some((o) => o.method === "gte" && o.args[0] === "business_date")).toBe(true);
+    expect(q.ops.some((o) => o.args[0] === "fueled_at")).toBe(false);
+  });
+
+  it("scopes the fill count to the caller's org, like everything else the service role reads", async () => {
+    await ask("admin", HEALTHY, WITH_HOLE, "?from=2026-04-01&to=2026-04-06");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("clamps an absurd window instead of refusing, because a sentence rides on four pages", async () => {
+    // A 400 here would take the freshness line off every fuel page because somebody pasted five years
+    // into the address bar.
+    const { status } = await ask("admin", HEALTHY, WITH_HOLE, "?from=2019-01-01&to=2026-04-06");
+    expect(status).toBe(200);
+    const lo = rec.forTable("fuel_transactions")[0]!.ops.find((o) => o.method === "gte")!.args[1] as string;
+    expect(lo >= "2025-01-01").toBe(true); // 400 days back from `to`, not 2019
   });
 });

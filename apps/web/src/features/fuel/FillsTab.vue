@@ -330,7 +330,8 @@ const columns: DataTableColumn[] = [
       2026-09-02), so there is no manual-entry population whose freshness this line would fail to
       describe. If that ever stops being true the line needs a second clause, not a different column.
     -->
-    <FeedFreshnessLine feed="posted" />
+    <!-- The window travels with the line: a hole is worth naming where the reader is looking. -->
+    <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
     <RowCoverageLine :coverage="coverage" />
 
     <FilterBar

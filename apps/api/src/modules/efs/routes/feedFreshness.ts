@@ -1,9 +1,11 @@
 import type { Router } from "express";
-import { describeFeedFreshness, type FeedFreshness } from "@silvicom/shared";
+import { describeFeedFreshness, detectFeedGaps, type FeedFreshness, type FeedGapReport } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
+import { eachPage } from "../../../lib/paging.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * When each EFS feed last delivered (FUEL-T5 / A7).
@@ -24,10 +26,80 @@ import { getAppLocals } from "../../../lib/appLocals.js";
  * ── THE GATE IS DERIVED ────────────────────────────────────────────────────────────────────────
  * `requireSection("fuel", "view")`, not a hand-listed role array (CLAUDE.md; the pattern FUEL-T2
  * generalised across the section).
+ *
+ * ── AND SINCE 2026-09-05 IT ALSO ANSWERS "DID ANYTHING GO MISSING IN THE MIDDLE?" ───────────────
+ * Freshness catches a poller that has stopped. It cannot catch one that stopped and started again:
+ * production carried **17 consecutive days with no fill at all** — 2026-04-18 to 2026-05-04, roughly
+ * 119,000 gallons and $590,000 of fuel — while this endpoint correctly reported that purchases had
+ * last arrived minutes ago, every day, for four months. The hole was found by a person comparing two
+ * unrelated numbers. Same question, same readers, same gate, so it answers here rather than from a
+ * second route nobody would think to open.
  */
 export interface FeedFreshnessResponse {
   posted: FeedFreshness;
   rejected: FeedFreshness;
+  /** Holes in the fill record over the window asked about. `lead` is null when there are none. */
+  gaps: FeedGapReport;
+}
+
+/** The widest window this will count fills across, for the reason every other bounded read has one. */
+const MAX_GAP_WINDOW_DAYS = 400;
+/**
+ * The default when a caller names no window.
+ *
+ * Ninety days rather than the thirty a fuel page usually shows: a gap is worth finding while somebody
+ * still remembers the fortnight it covers, and a month-wide default would have needed the reader to be
+ * looking at April in April. It is also the cost ceiling — ~5,600 dates for this fleet, six pages.
+ */
+const DEFAULT_GAP_WINDOW_DAYS = 90;
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Count canonical fills per BUSINESS DATE over the window, and hand them to the rule.
+ *
+ * `business_date` (0287) rather than `fueled_at`, for the reason T1 gave: a fill's day is the
+ * STATION's, and a window of instants asks a different question than the pages this line appears on.
+ * Only the date column is selected — the rule needs a count per day and nothing else, and this runs on
+ * every fuel page load.
+ */
+async function readFillGaps(
+  admin: SupabaseClient,
+  orgId: string,
+  rawFrom: unknown,
+  rawTo: unknown,
+  now: Date,
+): Promise<FeedGapReport> {
+  const to = typeof rawTo === "string" && YMD.test(rawTo) ? rawTo : ymd(now);
+  const fallbackFrom = ymd(new Date(Date.parse(`${to}T00:00:00Z`) - DEFAULT_GAP_WINDOW_DAYS * 86_400_000));
+  let from = typeof rawFrom === "string" && YMD.test(rawFrom) ? rawFrom : fallbackFrom;
+  if (from > to) from = fallbackFrom;
+  // Clamped rather than refused: this rides along with a freshness line, and a 400 here would take a
+  // sentence off four pages because somebody pasted a five-year range into the address bar.
+  const earliest = ymd(new Date(Date.parse(`${to}T00:00:00Z`) - MAX_GAP_WINDOW_DAYS * 86_400_000));
+  if (from < earliest) from = earliest;
+
+  const counts = new Map<string, number>();
+  await eachPage<{ business_date: string | null }>(
+    (a, b) =>
+      admin
+        .from("fuel_transactions")
+        .select("business_date")
+        // The service role bypasses RLS; this is the only tenant boundary on the read.
+        .eq("org_id", orgId)
+        .eq("is_canonical", true)
+        .gte("business_date", from)
+        .lte("business_date", to)
+        .order("business_date", { ascending: true })
+        .range(a, b),
+    (rows) => {
+      for (const r of rows) {
+        if (r.business_date == null) continue;
+        counts.set(r.business_date, (counts.get(r.business_date) ?? 0) + 1);
+      }
+    },
+  );
+  return detectFeedGaps([...counts].map(([day, fills]) => ({ day, fills })));
 }
 
 export function registerFeedFreshnessRoutes(router: Router): void {
@@ -53,6 +125,7 @@ export function registerFeedFreshnessRoutes(router: Router): void {
 
       const row = (data ?? {}) as Record<string, string | null>;
       const now = new Date();
+      const gaps = await readFillGaps(admin, req.auth!.orgId!, req.query.from, req.query.to, now);
       // The cadences the poller actually promises, from the same env it reads — not a constant copied
       // into a second place that would keep saying "every 15 minutes" after somebody tuned it.
       res.json({
@@ -78,6 +151,7 @@ export function registerFeedFreshnessRoutes(router: Router): void {
           env.EFS_SOAP_REJECTED_POLL_MINUTES,
           now,
         ),
+        gaps,
       } satisfies FeedFreshnessResponse);
     }),
   );
