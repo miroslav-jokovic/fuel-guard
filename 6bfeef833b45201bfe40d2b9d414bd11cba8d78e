@@ -1,0 +1,1 @@
+CORRECTION (2026-09-05): as above — RECENT_REBUILD_DAYS is 180, not 14, and the nightly was already re-scoring ~10,400 fills nightly at ~2.5 hours. The real defect was waste, not neglect. See the plan position log and handlers/scoring.ts.
