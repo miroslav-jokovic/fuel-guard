@@ -31,12 +31,16 @@ interface MilesRow {
   entered_count: number; entered_min: number | null; entered_max: number | null;
   entered_worst_step: number | null;
   mpg_weighted: number; mpg_gallons: number;
+  // 0316 — optional here for the same reason they are optional in the reader: the deploy window is
+  // served by a function that does not return them yet.
+  obd_covers_ends?: boolean;
+  entered_covers_ends?: boolean;
 }
 const MILES_ROWS: MilesRow[] = [
   // A truck with a clean 100-mile OBD span, and MPG sums already banded by the database.
-  { vehicle_id: "v1", obd_count: 2, obd_min: 1000, obd_max: 1100, entered_count: 2, entered_min: 1000, entered_max: 1100, entered_worst_step: 0, mpg_weighted: 140, mpg_gallons: 20 },
+  { vehicle_id: "v1", obd_count: 2, obd_min: 1000, obd_max: 1100, entered_count: 2, entered_min: 1000, entered_max: 1100, entered_worst_step: 0, mpg_weighted: 140, mpg_gallons: 20, obd_covers_ends: true, entered_covers_ends: true },
   // A fill attributed to NO truck: contributes to fleet MPG and to nothing else.
-  { vehicle_id: null, obd_count: 0, obd_min: null, obd_max: null, entered_count: 0, entered_min: null, entered_max: null, entered_worst_step: null, mpg_weighted: 0, mpg_gallons: 0 },
+  { vehicle_id: null, obd_count: 0, obd_min: null, obd_max: null, entered_count: 0, entered_min: null, entered_max: null, entered_worst_step: null, mpg_weighted: 0, mpg_gallons: 0, obd_covers_ends: false, entered_covers_ends: false },
 ];
 
 function recorder(): unknown {
@@ -126,6 +130,26 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
   it("passes a genuine zero through as zero — an org whose fills name no truck is a real answer", async () => {
     rpcRow = { ...RPC_ROW, fills_with_vehicle: 0 };
     expect((await totals({}))!.fillsWithVehicle).toBe(0);
+  });
+
+  /**
+   * ── THE WINDOW'S ENDS (migration 0316) ─────────────────────────────────────────────────────────
+   * A source may only answer for a window whose ends it reaches. The two columns that carry that are
+   * OPTIONAL on the wire, and the difference between `undefined` and `false` is the whole point: for
+   * about nine minutes after this reader deploys, the database it talks to has not got them yet.
+   */
+  it("reads an absent coverage column as 'not asked', never as 'the ends are not covered'", async () => {
+    // The deploy window. `false` here would blank the miles tile for the whole range, which is the
+    // failure `fills_with_vehicle` reporting null rather than 0 exists to prevent one field along.
+    delete (MILES_ROWS[0] as { obd_covers_ends?: boolean }).obd_covers_ends;
+    delete (MILES_ROWS[0] as { entered_covers_ends?: boolean }).entered_covers_ends;
+    expect((await totals({}))!.totalMiles).toBe(100);
+  });
+
+  it("withholds a truck's miles when the database says neither source reaches both ends", async () => {
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_covers_ends: false, entered_covers_ends: false };
+    expect((await totals({}))!.totalMiles).toBe(0);
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_covers_ends: true, entered_covers_ends: true };
   });
 
   it("still applies the miles JUDGEMENT in TypeScript — D-AG1", async () => {
