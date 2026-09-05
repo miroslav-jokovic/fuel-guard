@@ -2454,3 +2454,39 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   `lint:migration-ordering` cannot see a function's signature, so the hold that keeps a reader behind
   its migration is held by hand: the API producer is merge 2, and must not merge until 0320 has been
   applied.
+- 2026-09-05 · **C6, merge 2 of 2 — the scan runs nightly, and `fuel_exceptions` stops waiting for an
+  upload that has not come in eight months.** `runFuelPolicyScan` reads a calendar month of
+  `fuel_spend_lines`, reads the org's own `route_fuel_settings`, and files what `policyFindings`
+  produces through the period-scoped RPC 0320 shipped. Four things decided while building it:
+
+  **It rides the nightly rollup rather than getting a scheduler of its own.** `RUN_SCHEDULERS_IN_PROCESS`
+  defaults to true and this repo's rule is that every scheduler runs in exactly one process
+  fleet-wide, so the cheapest way to honour that rule is not to add another one. It also needs what
+  that sweep has just done: **station resolution runs first, and the ordering is load-bearing.** A fill
+  whose station has not been resolved carries a null brand, and `analyzePolicyExceptions` counts a null
+  brand as off-network — correctly, but prematurely. Scanning first would file an off-network finding
+  against a truck for a Pilot fill nobody had placed yet, and close it again the following night.
+
+  **The rollup's trailing fortnight is translated into the calendar months it touches.** `monthsTouched`
+  does string arithmetic on `YYYY-MM` so no clock can move a boundary, and it is capped at twelve
+  because an unbounded loop here would let a mistyped range scan a decade one month at a time. At 14
+  days that is one month, or two across a boundary.
+
+  **The current month is scanned before it is over, on purpose.** Its findings are month-to-date and
+  grow as fills post — which is what D-FX10's fingerprint exists for: same truck-month, same row,
+  evidence refreshed, a person's status and note untouched. A truck-month that turns beneficial by the
+  30th is closed as `resolved_by_reingest`, which is the honest record of what happened.
+
+  **`readSpendLines` and `readFuelPolicy` moved out of `fuelSpendReport.ts` into `fuelSpendLines.ts`.**
+  They were private to the PDF renderer, and the scan needs exactly the same month of fills and the
+  same policy row. Copying either would have given the product two answers to "what did this fleet
+  buy" that drift the first time one is fixed. The renderer drops 415 → 353 lines as a side effect.
+
+  Eleven API tests, four mutations each caught: filing against a run it does not have, widening the
+  close scope onto the reconciler's kinds, reading a partial month, and narrowing the fleet (which
+  narrows the BASELINE, so every premium changes). `expectOrgScoped` covers the tenant boundary.
+
+  **What C6 does NOT do, and it is worth stating.** Nothing renders these findings yet. The ledger at
+  `/fuel-spend/exceptions` already lists `fuel_exceptions` and will show them, but C7's inbox, C8's
+  targets and C9's dashboard links are still ahead — and C7 remains gated on Q-FUI11 rather than on
+  Q-FUI1, which was answered today.
