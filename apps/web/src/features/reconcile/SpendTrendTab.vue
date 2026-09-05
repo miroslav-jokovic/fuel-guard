@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
-import { comparablePeriods, FLEET_MILES_SOURCE_LABEL, reportableMpg, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
+import { comparablePeriods, FLEET_MILES_SOURCE_LABEL, reportableMpg, type MileageAgreementResult, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { downloadCsv } from "@/lib/csv";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
-import { useQueryClient } from "@tanstack/vue-query";
+import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import OperatingBridgeCard from "./OperatingBridgeCard.vue";
 import IdleCostCard from "./IdleCostCard.vue";
 import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
@@ -92,6 +92,26 @@ const tilePeriod = computed(() => {
   if (!c) return null;
   return grain.value === "day" || c.from === c.to ? c.from : `${grainLabel.value} of ${c.from}`;
 });
+
+/**
+ * Does the distance behind these figures agree with an independent source? (M5, D-MPG1 point 2.)
+ *
+ * Fleet-wide and month-grained whatever this page is filtered to, because the question is whether
+ * the two SOURCES agree — a divergence appearing and disappearing as somebody picks trucks would
+ * teach a reader to ignore it. Silence is the pass.
+ */
+const { data: agreement } = useQuery({
+  queryKey: ["mileage_agreement", computed(() => `${props.filters.from}..${props.filters.to}`)],
+  queryFn: async (): Promise<MileageAgreementResult | null> => {
+    const { from, to } = props.filters;
+    if (!from || !to) return null;
+    const res = await apiFetch<MileageAgreementResult>(
+      `/api/fueling/mileage-agreement?from=${from}&to=${to}`,
+    );
+    return res.ok && res.data ? res.data : null;
+  },
+});
+const mileageConcern = computed(() => agreement.value?.concern ?? null);
 
 /** The figure only when the module says it may be shown; the division is for explaining, not printing. */
 const mpgOf = (p: SpendPeriod | null | undefined) => (p ? (reportableMpg(p)?.toFixed(2) ?? undefined) : undefined);
@@ -283,6 +303,13 @@ const rejected = computed(() => data.value?.rejected ?? 0);
           :loading="isLoading"
         />
         </div>
+        <!-- ── THE CROSS-SOURCE MILEAGE CHECK (M5) ──────────────────────────────────────────────
+             Under the tiles the miles feed, and shown ONLY when it has something to say: a line
+             reading "the miles agree" on every visit is a line nobody sees on the day it changes.
+             The allocated miles behind these figures ran 3.78% ahead of Samsara's own jurisdiction
+             miles from the week of 2026-07-28 and nothing in the product compared them for five
+             weeks. -->
+        <p v-if="mileageConcern" class="mt-3 text-xs text-caution-700">{{ mileageConcern }}</p>
       </div>
 
       <OperatingBridgeCard

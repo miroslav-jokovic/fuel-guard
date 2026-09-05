@@ -8,6 +8,7 @@ import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
 import { getFleetMpg, getFleetMpgSeries } from "../fleetMpg.js";
+import { getMileageAgreement } from "../mileageAgreement.js";
 import { type SpendGrain } from "@silvicom/shared";
 
 /**
@@ -144,6 +145,38 @@ export function registerSpendRoutes(router: Router): void {
             ? await getFleetMpg(admin, orgId, from, to, vehicles)
             : await getFleetMpgSeries(admin, orgId, from, to, grainParam, vehicles),
       });
+    }),
+  );
+
+  /**
+   * Does the distance behind these figures agree with an independent source? (M5, D-MPG1 point 2.)
+   *
+   * A read, so it takes the `view` set. `fuel_spend_days.miles` agreed with Samsara's own IFTA
+   * jurisdiction miles to within 0.08% in July 2026 and ran 3.78% ahead of them in August; the step
+   * landed in the week of 2026-07-28 and nothing noticed for five weeks, because nothing in the
+   * product ever put the two side by side. This endpoint is what puts them there.
+   *
+   * **Not scoped by truck, and that is deliberate.** The question is whether the two SOURCES agree.
+   * A divergence that appeared and disappeared as a reader picked trucks would teach them to ignore
+   * it, which is worse than not checking at all.
+   */
+  router.get(
+    "/mileage-agreement",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : "";
+      const to = typeof req.query.to === "string" ? req.query.to : "";
+      if (!YMD.test(from) || !YMD.test(to) || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+      if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > MAX_WINDOW_DAYS) {
+        res.status(400).json(apiError("bad_request", `The mileage check covers at most ${MAX_WINDOW_DAYS} days at a time.`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await getMileageAgreement(admin, req.auth!.orgId!, from, to) });
     }),
   );
 

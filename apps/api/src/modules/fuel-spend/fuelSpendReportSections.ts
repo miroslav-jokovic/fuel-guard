@@ -7,7 +7,7 @@
  * Every function here takes finished figures and draws them, so none of them can compute anything and
  * quietly disagree with the page.
  */
-import { FLEET_MILES_SOURCE_LABEL, operatingBridge, reportableMpg, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
+import { FLEET_MILES_SOURCE_LABEL, operatingBridge, reportableMpg, type MileageAgreement, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { METRIC_STRIP_HEIGHT, metricStrip, money, waterfall, waterfallHeight, type Metric } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, totalRow, type Column, type Row } from "./fuelSpendReportTable.js";
@@ -80,6 +80,12 @@ export function drawHeadline(
   series: readonly SpendPeriod[],
   cmp: Comparison,
   grain: SpendGrain,
+  /**
+   * The cross-source mileage check (M5). Printed only when it has something to say — silence is the
+   * pass, because a line saying "the miles agree" on every report is a line nobody reads, and this
+   * has to be noticed on the one day it changes.
+   */
+  agreement?: MileageAgreement,
 ): void {
   // Partial buckets are excluded from every trend for the same reason `comparablePeriods` excludes
   // them from the comparison: the newest bucket is normally still filling, and a one-day week plotted
@@ -112,6 +118,21 @@ export function drawHeadline(
     GEOM.margin, doc.y - 8, { width: CONTENT_W },
   );
   doc.y += 12;
+
+  // ── THE CROSS-SOURCE CHECK, DIRECTLY UNDER THE MILES IT IS ABOUT (M5, plan Q3) ─────────────────
+  // `fuel_spend_days.miles` agreed with Samsara's IFTA jurisdiction miles to within 0.08% in July
+  // 2026 and ran 3.78% ahead of them in August; the step landed in the week of 2026-07-28 and
+  // NOTHING NOTICED FOR FIVE WEEKS, because nothing in the product put the two side by side. It goes
+  // here rather than in a footnote for the same reason the freshness line went on the letterhead: a
+  // document is forwarded and quoted back, so a caveat about the miles belongs beside the miles.
+  if (agreement?.concern) {
+    ensure(doc, 26);
+    doc.fillColor(C.warn).font("Helvetica-Bold").fontSize(T.micro).text(
+      winAnsi(`Mileage cross-check: ${agreement.concern}`),
+      GEOM.margin, doc.y, { width: CONTENT_W },
+    );
+    doc.y += 8;
+  }
 }
 
 export function drawBridge(doc: PDFKit.PDFDocument, cmp: Comparison, grain: SpendGrain, n: number): void {

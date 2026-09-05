@@ -29,6 +29,7 @@ import {
   type SpendPeriod,
   spendSeries,
   type SpendDay,
+  type MileageAgreement,
   type SpendGrain,
   type SpendLine,
 } from "@silvicom/shared";
@@ -41,6 +42,7 @@ import { drawBridge, drawHeadline, drawSeries, drawVerdict } from "./fuelSpendRe
 import { drawDiscount, drawExceptions, drawIdle } from "./fuelSpendReportPolicy.js";
 import { plural, usd, windowLabel } from "./fuelSpendReportFormat.js";
 import { readFleetIdleVerdict } from "../idle/index.js";
+import { getMileageAgreement } from "./mileageAgreement.js";
 
 export interface FuelSpendReportInput {
   orgId: string;
@@ -67,7 +69,7 @@ export async function renderFuelSpendReport(
   input: FuelSpendReportInput,
 ): Promise<{ pdf: Buffer; periods: number; carrier: string; pages: number }> {
   const vehicleIds = input.vehicleIds ?? [];
-  const [days, lines, carrier, units, idle, policy, builtAt] = await Promise.all([
+  const [days, lines, carrier, units, idle, policy, builtAt, agreement] = await Promise.all([
     readSpendDays(admin, input.orgId, input.from, input.to, vehicleIds),
     readSpendLines(admin, input.orgId, input.from, input.to, vehicleIds),
     readCarrier(admin, input.orgId),
@@ -78,6 +80,11 @@ export async function renderFuelSpendReport(
     readFleetIdleVerdict(admin, input.orgId, input.from, input.to),
     readFuelPolicy(admin, input.orgId),
     readRollupBuiltAt(admin, input.orgId, input.from, input.to, vehicleIds),
+    // The check that would have caught the 2026-07-28 mileage step the week it happened (M5, Q3).
+    // FLEET-WIDE deliberately, even when the reader has narrowed to three trucks: the question is
+    // whether the two SOURCES agree, and a divergence that appears and disappears as somebody picks
+    // trucks teaches a reader to ignore it.
+    getMileageAgreement(admin, input.orgId, input.from, input.to),
   ]);
   // The same sentence the screen prints, from the same pure function — `readSpendLines` above carries
   // a scar about exactly this: its query drifted from the page's and the document went on saying "no
@@ -110,7 +117,7 @@ export async function renderFuelSpendReport(
   const refused = days.reduce((a: number, d: SpendDay) => a + d.milesRejected, 0);
   const compose = (density: number) =>
     composeDocument({
-      density, carrier, window, refused, idle, series, overall, comparison, exceptions, capture, lines, policy,
+      density, carrier, window, refused, idle, series, overall, comparison, exceptions, capture, lines, policy, agreement,
       grain: input.grain, generatedAt: input.generatedAt,
       meta: [
         { label: "Period", value: window },
@@ -187,6 +194,8 @@ interface ComposeInput {
   policy: FuelPolicy;
   capture: ContractCapture;
   lines: SpendLine[];
+  /** The cross-source mileage check — printed only when it has something to say (M5). */
+  agreement: MileageAgreement;
   grain: SpendGrain;
   generatedAt: string;
 }
@@ -198,7 +207,7 @@ async function composeDocument(c: ComposeInput): Promise<Composed> {
 
   letterhead(doc, c.carrier, "Fuel spend", "What fuel cost, why it moved, and where the fuel policy was not followed.", c.meta);
   drawVerdict(doc, c.overall, c.comparison, c.grain, supportLine(c.exceptions, c.capture));
-  drawHeadline(doc, c.overall, c.series, c.comparison, c.grain);
+  drawHeadline(doc, c.overall, c.series, c.comparison, c.grain, c.agreement);
   drawBridge(doc, c.comparison, c.grain, 1);
   drawSeries(doc, c.series, c.overall, c.grain, 2);
   drawDiscount(doc, c.capture, c.lines, 3);
