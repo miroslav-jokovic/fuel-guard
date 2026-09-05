@@ -115,3 +115,10 @@ export type {
   SamsaraFeedState,
   SamsaraFeedHealth,
 } from "./feedHealth.js";
+export { decideSamsaraFeedAlerts } from "./feedAlerts.js";
+export type {
+  SamsaraAlertState,
+  SamsaraFeedAlertMemory,
+  SamsaraFeedAlertDecision,
+  SamsaraFeedAlertPlan,
+} from "./feedAlerts.js";

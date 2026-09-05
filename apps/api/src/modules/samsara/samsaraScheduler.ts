@@ -12,6 +12,8 @@ import { syncIdleRollup } from "../idle/index.js";
 import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../org/index.js";
+import { runSamsaraFeedAlarm } from "./samsaraFeedAlarm.js";
+import { samsaraFeedCadences } from "./samsaraFeedHealth.js";
 import { enqueueJob } from "../../queue/enqueue.js";
 import { dispatchJob } from "../../queue/dispatch.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
@@ -419,6 +421,47 @@ function startRetentionTier(env: Env): void {
  * hit the same wall with no headroom, which is the argument `mountApiRouters` in app.ts already had
  * to make once.
  */
+/**
+ * Tier 8 — THE FRESHNESS ALARM (SAM-S5, D-SAM6). The only tier that reads rather than collects.
+ *
+ * ── WHY IT IS NOT A `jobs` KIND LIKE THE OTHERS ──────────────────────────────────────────────────
+ * Every collecting tier runs through `runOrgTier` for the (org, kind) mutex and the failure record.
+ * This one collects nothing: it reads the ledgers the others write, decides whether to speak, and
+ * remembers what it said in `samsara_feed_alerts`. Giving it a job kind would put its own rows into
+ * the very ledger it reads and buy nothing — the duplicate-suppression it needs is the memory table,
+ * not a mutex, and `startTier`'s own re-entrancy guard covers the overlap case.
+ *
+ * ── THE INTERVAL IS DERIVED, NOT CHOSEN ──────────────────────────────────────────────────────────
+ * Checking more often than the fastest feed polls cannot find anything new, so the alarm runs on the
+ * SHORTEST configured cadence. Clamped at both ends for reasons that are about the clamp and not
+ * about a preference: below a minute is pointless for bounds measured in hours, and above an hour
+ * would delay a one-hour bound's alert by as much as the bound itself.
+ */
+function startFeedAlarmTier(env: Env): void {
+  const cadences = Object.values(samsaraFeedCadences(env)).filter((ms) => ms > 0);
+  const interval = Math.min(Math.max(Math.min(...cadences), 60_000), 3_600_000);
+  startTier(env, "feed-alarm", 300_000, interval, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      try {
+        const r = await runSamsaraFeedAlarm(admin, env, orgId);
+        if (r.error) {
+          console.error(`[samsara-sched] feed alarm failed for org ${orgId}: ${r.error}`);
+        } else if (r.sent.length > 0) {
+          console.log(
+            `[samsara-sched] org ${orgId}: feed alarm ${r.sent.map((d) => `${d.action} ${d.feed}`).join(", ")}` +
+              (r.muted ? " (muted)" : ""),
+          );
+        }
+      } catch (e) {
+        console.error(
+          `[samsara-sched] feed alarm threw for org ${orgId}:`,
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }
+  });
+}
+
 export function startSamsaraScheduler(env: Env): void {
   if (env.SAMSARA_SYNC_HOURS === 0) return; // legacy kill switch → disable all Samsara scheduling
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
@@ -430,6 +473,8 @@ export function startSamsaraScheduler(env: Env): void {
   if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   startRetentionTier(env);
+  // Reads what the seven tiers above recorded and says so when one of them has stopped delivering.
+  startFeedAlarmTier(env);
 
   console.log(
     `[samsara-sched] tiered sync enabled — stats every ${env.SAMSARA_STATS_SYNC_MINUTES}m, identity every ${env.SAMSARA_IDENTITY_SYNC_HOURS}h` +

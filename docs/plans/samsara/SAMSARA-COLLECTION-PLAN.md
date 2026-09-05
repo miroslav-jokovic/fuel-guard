@@ -689,6 +689,7 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
 | **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | S1 fixes the path on the service already configured and changes no deployment topology. |
 | **Q-SAM6** | **NEW, 2026-09-02, raised by S4's opening measurement.** **How much of the Samsara backfill lane may the recon tier spend?** One tick costs 112–120 s for 250 fills — **3.2% of its hour** — so the 43-hour drain is a `SAMSARA_RECON_BATCH` choice, not a runtime limit. **1,000** costs ~8 min/tick (13% duty) and drains in ~11 h; **2,500** costs ~19 min (32%) and drains in ~4 h. What it trades against is the live lane: the backfill priority gets `1 − SAMSARA_LIVE_RPS_FRACTION` of `SAMSARA_MAX_RPS`, and the measured 2.2 fills/s is well inside it, so the ceiling is a policy about vendor load and shared pacing rather than a technical one. **Recommendation: 1,000.** It clears the hole inside a working day, keeps the tier under one sixth of its window so a slow tick cannot overrun the next, and leaves the live lane the majority share it was given on purpose. | Miki | Stays at 250. The hole still closes — in ~43 hours rather than ~11 — and nothing is at risk, so this is a speed decision and not a correctness one. |
 | **Q-SAM5** | **NEW, 2026-09-01, raised by S2 merge 1.** **Where does an intermediate sample go?** S2's Done-when asks that "a value that changes twice between two polls produces two records rather than one", but the stats tier's only sink is `vehicles.current_odometer` / `samsara_fuel_percent` — one current value per truck, last-sample-wins. **The feed's completeness is real and lands nowhere.** Three candidates: **(a)** file the intermediate *fuel-level drops* into `fuel_events`, whose `fuel_pct_before` / `fuel_pct_after` columns have sat unused since 0021 and were plainly designed for exactly this, gated on the learned-reliable sensor the way `ruleEligible` already gates `tank_fill_short`, and sized against `resolveCapacity` rather than a new blanket threshold; **(b)** a general per-vehicle telematics sample store — honest but expensive, ~195 vehicles at telematics ping rates, and it duplicates what `stats/history` already serves S4; **(c)** accept that the cursor buys *guaranteed delivery of the latest value* and nothing more, and strike the Done-when. **Recommendation: (a).** It is the only one that makes the Done-when literally true, it reuses two learners the product already paid for instead of inventing a threshold, and it is D-SAM2's own words — the cursor feed sitting *underneath* the webhook as the reconciler that makes completeness a property rather than a hope. ⚠ Note `fuel_events` is operator-facing: it renders on `/fuel-events` and is counted as "Siphoning" in the weekly digest, so (a) must **not** reuse the webhook's `notifyFuelDrop` path, and its suppressed-by-gate count must be reported into the `jobs` ledger so S6 can measure what the gate cost. | Miki | ~~open~~ **ANSWERED 2026-09-01: (a).** Merge 2 ships the cursor, the endpoint swap, and the feed-derived `fuel_events` sink under the reliability gate. |
+| **Q-SAM7** | **NEW, 2026-09-05, raised by S5 merge 2.** **The surfaces S5 wants to annotate are ungated; the data it would annotate them with is `settings`-gated.** S5's third and fourth bullets are a one-line freshness strip on the surfaces that depend on a feed, and D-SAM7's all-time denominator on the Dashboard coverage tile. Both are blocked by the same fact, measured rather than assumed: `/` (Dashboard) and `/coverage` carry `meta: { requiresAuth: true }` and **no section gate at all** — any authenticated org member, a `driver` included — while `GET /api/integrations/samsara/feed-freshness` and `/telematics-coverage` are `requireSection("settings", "view")`. The Dashboard also reads Supabase DIRECTLY under RLS and computes `coveragePct` in `aggregateDashboard`; it calls no API for this at all, so adding one introduces a gate where there is none. Candidates: **(a)** a narrow `requireOrg` freshness read carrying only each feed's id, label, state, age and bound — **no `lastError`** (a vendor error string can carry account identifiers) and no job internals — with the full card staying `settings: view` (**recommended**: it is the shape this repo already chose for Q-FUI15, where refusing a list while printing its contents protected nothing, and collector health is operational metadata rather than money or PII); **(b)** widen `/telematics-coverage` and `/feed-freshness` to the Dashboard's audience wholesale, which also exposes vendor error text; **(c)** compute the all-time coverage in the browser from two `count` queries — **rejected**: S4 spent real effort getting the three-state predicate right (*attempted* is the STAMP, not the status, and 124 production rows disagree), and a second implementation of it is a second source of truth with a delay fuse. | Miki | **The strips and D-SAM7 do not ship.** The alarm and the settings card stand on their own, and no figure is placed on a page because a permission check happened to pass. |
 
 ---
 
@@ -796,3 +797,75 @@ passed locally anyway, because **that gate enumerates its inputs with `git ls-fi
 file was still untracked. A full green suite before `git add` is not a full green suite. The fixture is
 now `testEnv()`, which parses the schema as the process does — so the cadence assertions test the
 deployment's real defaults rather than a fixture's opinion of them.
+
+#### — S5 MERGE 2 of 2 SHIPPED 2026-09-05 (`claude/samsara-s5-feed-alarm`). **S5's Done-when is met; two bullets are blocked and recorded as Q-SAM7.**
+
+The second half of the Done-when — *a stalled feed pages somebody instead of quietly degrading every
+number downstream*. Migration `0321`, a pure decision in shared, and a scheduler tier.
+
+**The alarm's hard problem is not detection, it is repetition.** `describeSamsaraFeeds` already says
+which feeds are breached. Mailing that list every evaluation reports a standing outage once per tick
+until somebody fixes it, and a carrier who gets the same email forty times stops reading the
+forty-first — the same failure `targetUnreachable` prevents one level down. So the alarm has a memory,
+and remembering is a table.
+
+**The cooldown is the feed's own target, which is not a number chosen here.** "How often may we speak
+about this feed?" already has an answer in the data: no more often than the bound it is held to. A feed
+allowed to be an hour late may be discussed hourly; one held to 48 hours may not. Q-SAM1's fallback
+applies to the alarm's cadence as much as to its thresholds.
+
+**⚠ A recovery does NOT delete the memory row, and the reason is measured.** Deleting was the first
+design. A `late` feed guards its own flapping — going late again takes a whole target window with no
+delivery — but a `failing` one cannot, because `failing` comes from the most recent run's error. On
+production this org has `sync_idle` at **268 failed runs against 486 done** and `sync_ifta` at **181
+against 400**: a tier that fails, succeeds and fails again would email on every raise if the memory of
+the last one had been thrown away. So a recovery sets `cleared_at` and the row — and therefore
+`notified_at` — survives.
+
+**Two ordering rules, both of which would be silent if broken.** The mail goes out BEFORE the memory
+row is written: recording first and failing to send marks a carrier as notified about an outage they
+were never told about, and because the memory is what suppresses the next evaluation, that silence
+would then be permanent. And a MUTED carrier — notifications off, or no address — is recorded as
+nothing at all, so the outage still reaches them the day they switch notifications back on.
+
+**⚠ `makeSender` RETURNS false; it does not throw.** `sendEmail` catches its own transport errors and
+reports `{ ok: false }`. The first version of this file wrapped the send in `try`/`catch` and would
+have sailed straight past a refused send into writing the memory row — the exact failure the paragraph
+above forbids, introduced by the code meant to honour it. Found by reading `lib/mailer.ts` rather than
+assuming its contract. The boolean is now the guard, and `remembers nothing it could not send` pins it.
+
+**It is a tier, not a job kind.** Every collecting tier runs through `runOrgTier` for the (org, kind)
+mutex and the failure record. This one collects nothing — it reads the ledgers the others write.
+Giving it a job kind would put its own rows into the very ledger it reads and buy nothing: the
+duplicate-suppression it needs is the memory table, not a mutex, and `startTier`'s re-entrancy guard
+covers the overlap. Its interval is the SHORTEST configured cadence, clamped to [1 min, 1 h] —
+checking more often than the fastest feed polls cannot find anything new, and a cap above an hour
+would delay a one-hour bound's alert by as much as the bound itself. **No new scheduler process, so
+`docs/WORKER-DEPLOYMENT.md` is unchanged.**
+
+**⚠ WHAT THIS MERGE DOES NOT SHIP, AND WHY — the S5 bullets 3 and 4 are BLOCKED, not skipped.**
+`worstSamsaraFeed` was built and exported in merge 1 for the strips and is still unused. Measured
+today: `/` (Dashboard) and `/coverage` carry `meta: { requiresAuth: true }` and **no section gate at
+all**, while both freshness routes are `requireSection("settings", "view")` — and the Dashboard reads
+Supabase directly under RLS, computing `coveragePct` in `aggregateDashboard` without calling an API at
+all. Annotating those pages therefore means either widening a route to suit a screen or implementing
+S4's three-state predicate a second time in the browser. Both are the shape this repo calls a
+workaround, so neither was done: the question is **Q-SAM7**, with candidates and a recommendation.
+
+**Verified by.** `feedAlerts` (14, `packages/shared`) — including `says nothing on the next evaluation,
+and the one after that`, `measures that window against THIS feed's bound, not a number chosen for all
+of them`, `holds a raise that follows a recovery too closely — the flap this table exists for`, and
+`does not announce the same recovery twice, even long after the cooldown has passed`.
+`runSamsaraFeedAlarm` (11, `apps/api`) — including `remembers nothing it could not send, so a refused
+mail is retried rather than swallowed`, `stays quiet for a carrier with notifications off — and
+remembers nothing`, `sends ONE message when several feeds break at once, not one each`, and `scopes
+every query it makes to one organization`.
+
+**Proved able to fail by eleven mutations.** ⚠ **Two initially passed and the fixtures were wrong** —
+five for five across S4 and S5 now, which is worth treating as the default expectation rather than a
+surprise:
+- *announcing the same recovery twice* — the cleared row was dated an hour back, so the COOLDOWN held
+  the second mail and `cleared_at` was never read. The fixture is now dated well past the feed's bound.
+- *a muted carrier reported as notified* — the mutation changed only the returned `sent` list, which is
+  what the scheduler LOGS. Harmless to the database and a lie in the one place somebody looks during
+  an incident, so it is now asserted.
