@@ -1356,8 +1356,8 @@ reader". `p_vehicle` therefore survives this merge unused and is dropped by **me
 drop, the shape this repository already requires of a rename.
 
 ⚠ **`lint:migration-ordering` cannot see a function's signature** — it reads columns. Nothing mechanical
-holds merge 2 behind this one; the check is `pg_proc` by hand, per
-`hold-a-function-reader-behind-its-migration`.
+holds merge 2 behind this one; the check is `pg_proc` by hand, or `GET /api/version` reporting
+`"schema":{"state":"current"}`.
 
 ⚠ **0312 needed a `lint:mpg` carve-out**, and it is worth reading rather than waving through. Adding a
 parameter is a signature change, which Postgres can only express as a drop and a create — so 0290's
@@ -1373,6 +1373,45 @@ as an absent one; the list superseding the scalar; the null-vehicle group kept u
 1,000-row cap reintroduced in SQL; blanks admitted as values; the org filter dropped; the error-code
 label made arrival-dependent. `pnpm test`, `typecheck`, `lint`, `lint:mpg`, `lint:table-access`,
 `lint:table-modules`, `lint:rpc-org-default`, `lint:rls`, `lint:migration-ordering`, schema snapshot.
+
+#### — MERGE 2 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1-multiselect-readers`). P1 is DONE; merge 3 is the ratchet.
+
+**What shipped.** The readers, held one merge behind their schema and merged only after
+`GET /api/version` reported `"schema":{"state":"current"}`.
+
+- The shared truck filter is a SET. `?unit=` keeps its singular name and carries a comma-separated
+  list, and `/anomalies?vehicle=` does the same — **a rename would have widened every one of those
+  links in a ticket, an email or a bookmark to the whole fleet, silently**, which is the worst shape
+  this change could take. A one-element list is exactly what a single value already meant, so old links
+  keep working with no legacy branch: `useQueryState.list()` reads both.
+- `FilterSelect multiple` on all three Fuel Log tabs and on Alerts; `.eq()` → `.in()` on four queries;
+  `p_vehicles` on the two RPCs.
+- `useEfsFacets` reads 0313/0314 instead of paging rows, and `useUnitOptions` is now the **union** of
+  the fleet's units and the units the two feeds printed, with a non-fleet unit labelled
+  `696 · not in the fleet`.
+
+**The three states of the fills filter, which is where a bug would have lived.** `undefined` is the
+whole fleet (no predicate at all), a list is those trucks, and an EMPTY list is "none of them" — what a
+filter naming only units this fleet has no row for resolves to. Collapsing empty into undefined shows
+every truck's fills under a filter bar reading "696", and it is one `?? undefined` away at any time, so
+it is pinned by its own assertion in `unitOptions.test.ts` and by a mutant.
+
+**A stub that had stopped discriminating, found by mutating it.** `efsRowCoverage.test.ts` decided which
+of its two counts was the ATTRIBUTED one by "this chain has an `.in()`" — true only while the truck
+filter used `.eq()`. Under P1 both chains carry an `.in("unit", …)`, so both were handed the attributed
+count and the suite would have agreed with an implementation that dropped the filter from the
+numerator. It now discriminates on the fleet's own unit list, and its fixture deliberately selects ONE
+of two fleet units so the two `.in()`s cannot coincide. The standing "prove a test can fail by
+mutating it" rule, landing on a stub rather than on a fixture.
+
+**Verified by.** `unitOptions.test.ts` (12 new assertions over the union, the label, the three-state
+resolution and the facet mapping), plus updates to `FuelLogTabs`, `fuelLogFiltersInUrl`,
+`anomaliesFiltersInUrl`, `fuelRangeTotals`, `efsRowCoverage` and `FuelLogPage`. Seven more mutants
+killed: the union reduced to the fleet; the union reduced to the feeds; the empty list collapsed to
+undefined; the label's caveat removed; the error-code fallback removed; the Alerts parameter kept when
+empty; the Alerts filter ignoring its list. 1,305 web tests, `pnpm test`, `typecheck`, `lint`,
+`lint:tokens`, `lint:ui-adoption`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
+`lint:capabilities`, `lint:surfaces`, `lint:comment-claims`.
 
 ---
 

@@ -81,7 +81,7 @@ const filters = computed<EfsFilters>(() => ({
   policy: policy.value || undefined,
   sortKey: sortKey.value || undefined,
   sortDir: sortDir.value === "desc" ? "desc" : "asc",
-  unit: props.shared.unit.value,
+  units: props.shared.units.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
 }));
@@ -115,9 +115,9 @@ const cardList = computed(() =>
 );
 
 /** The shared half, proxied for the controls that write it back to the URL. */
-const unit = computed<string>({
-  get: () => props.shared.unit.value ?? "",
-  set: (v) => props.shared.setUnit(v || undefined),
+const unit = computed<string[]>({
+  get: () => props.shared.units.value,
+  set: (v) => props.shared.setUnits(v),
 });
 const setFrom = (v: string | undefined) => props.shared.setFrom(v);
 const setTo = (v: string | undefined) => props.shared.setTo(v);
@@ -250,7 +250,7 @@ const columns: DataTableColumn[] = [
     >
       <template #filters>
         <FilterSelect v-model="suspicion" label="Risk" :options="suspicionOptions" />
-        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" multiple />
         <FilterSelect v-model="errorCode" label="Error" :options="errorOptions" />
         <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>

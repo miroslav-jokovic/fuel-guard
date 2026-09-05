@@ -79,7 +79,7 @@ const at = (w: Mounted, label: string) => {
   expect(control, `no "${label}" filter on this page`).toBeTruthy();
   return control!;
 };
-const pick = async (w: Mounted, label: string, value: string) => {
+const pick = async (w: Mounted, label: string, value: string | string[]) => {
   at(w, label).vm.$emit("update:modelValue", value);
   await flushPromises();
 };
@@ -91,9 +91,28 @@ describe("the Alerts page's filters round-trip through the query string", () => 
   it("writes the truck back, which is the half the deep link never had", async () => {
     const { w, query } = await mountAt("/anomalies");
     expect(query().vehicle).toBeUndefined();
-    await pick(w, "Unit", "v-999");
+    await pick(w, "Unit", ["v-999"]);
     expect(query().vehicle).toBe("v-999");
-    expect(seen.filters?.value.vehicleId).toBe("v-999");
+    expect(seen.filters?.value.vehicleIds).toEqual(["v-999"]);
+  });
+
+  /**
+   * FUEL-P1. `?vehicle=` keeps its singular name and carries a list, because `/anomalies?vehicle=<id>`
+   * is a deep link the Fuel Log writes and reviewers forward — renaming it would widen every one of
+   * those to the whole fleet, silently. A one-element list is what a single id already meant.
+   */
+  it("writes several trucks as one comma-separated parameter, and reads them back", async () => {
+    const { w, query } = await mountAt("/anomalies");
+    await pick(w, "Unit", ["v-654", "v-999"]);
+    expect(query().vehicle).toBe("v-654,v-999");
+    expect(seen.filters?.value.vehicleIds).toEqual(["v-654", "v-999"]);
+  });
+
+  it("drops the parameter when the last truck is deselected, so the fleet has one spelling", async () => {
+    const { w, query } = await mountAt("/anomalies?vehicle=v-654");
+    await pick(w, "Unit", []);
+    expect(query().vehicle).toBeUndefined();
+    expect(seen.filters?.value.vehicleIds).toBeUndefined();
   });
 
   it("puts severity in the URL and refuses one that is not a severity", async () => {
@@ -147,7 +166,7 @@ describe("Alerts keeps the deep link's meaning while making the status filter li
 
   it("shows a linked truck's WHOLE history, resolved cases included", async () => {
     await mountAt("/anomalies?vehicle=v-654");
-    expect(seen.filters?.value.vehicleId).toBe("v-654");
+    expect(seen.filters?.value.vehicleIds).toEqual(["v-654"]);
     // Not "open": the case somebody was sent to look at may already have been closed.
     expect(seen.filters?.value.status).toBeUndefined();
   });
