@@ -95,7 +95,7 @@ describe("toCsv", () => {
       [{ a: "x", b: "has, comma" }, { a: 'q"q', b: "ok" }],
       [{ key: "a", header: "A" }, { key: "b", header: "B" }],
     );
-    expect(csv).toBe('A,B\nx,"has, comma"\n"q""q",ok');
+    expect(csv).toBe('A,B\r\nx,"has, comma"\r\n"q""q",ok');
   });
   it("emits just the header for empty input", () => {
     expect(toCsv([], [{ key: "a", header: "A" }])).toBe("A");
@@ -106,7 +106,11 @@ describe("toCsv", () => {
       [{ key: "a", header: "A" }, { key: "b", header: "B" }],
     );
     // Each dangerous leading char (= + - @) gets a defusing apostrophe so Excel/Sheets won't execute it.
-    expect(csv).toBe("A,B\n'=1+1,'+2\n'@SUM,'-3");
+    // ⚠ `+2` and `-3` are NUMBERS and pass through unguarded since FUEL-P2 unified the two cell rules
+    // — a leading sign followed by digits is arithmetic, not an injection vector, and neutralising it
+    // turns every negative dollar figure in a report into text the column cannot sum. `'=1+1` and
+    // `'@SUM` are the cells the S-1 guard exists for and they are still defused.
+    expect(csv).toBe("A,B\r\n'=1+1,+2\r\n'@SUM,-3");
   });
 });
 

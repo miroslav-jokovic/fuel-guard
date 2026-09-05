@@ -38,6 +38,8 @@ import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
 import { useCardAssignments, maskCardRef } from "@/composables/useCardAssignments";
 import { useUnitOptions } from "./unitFilter";
+import ExportButton from "@/components/ExportButton.vue";
+import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -172,6 +174,20 @@ function clearAll() {
   props.shared.clear();
 }
 
+/** FUEL-P2 — this screen as a file, from the parameters the address bar holds. */
+const exportTarget = computed(() =>
+  fuelLogExportTarget({
+    dataset: "declines",
+    from: props.shared.from.value,
+    to: props.shared.to.value,
+    units: props.shared.units.value,
+    facets: {
+      risk: suspicion.value, error: errorCode.value, state: stateF.value,
+      driver: driver.value, policy: policy.value, search: search.value,
+    },
+  }),
+);
+
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 // Show declined times in the station's local timezone (matches the EFS report), not the browser's.
@@ -277,6 +293,12 @@ const columns: DataTableColumn[] = [
         >
           {{ rescoring ? "Rescoring…" : "Rescore" }}
         </BaseButton>
+        <ExportButton
+          :href="exportTarget.href"
+          :filename="exportTarget.filename"
+          :scope="exportTarget.scope"
+          :disabled="total === 0"
+        />
       </template>
     </FilterBar>
 

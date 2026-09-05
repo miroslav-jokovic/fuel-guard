@@ -1432,6 +1432,59 @@ Rejections, Cards and the ledger.
 filters — the property that makes an export quotable months later; `expectOrgScoped`; an audit-row
 assertion per route.
 
+#### — MERGE 1 of 2 SHIPPED 2026-09-04 (`claude/fuel-p2-scoped-exports`). P2 stays OPEN for the Cards list.
+
+**What shipped.** A scoped, server-rendered CSV on all three Fuel Log tabs —
+`GET /api/fueling/exports/{fills,declines,source-records}.csv` — gated on `fuel: view` (the read set,
+`spend-report.pdf`'s gate), audited one row per export, and taking **the page's own query string**:
+`?unit=654,696&from=…&to=…` plus that tab's facets, unrenamed, so the link a reader forwards and the
+file they attach are produced from one set of words.
+
+**Why the server renders it, in one measurement.** Every export in this section was
+`downloadCsv(rows.value)` — the rows the BROWSER was holding, which on these lists is one page of
+twenty out of a filtered set that reaches five figures. "Truck 654's August, as a file" would have
+produced twenty rows and said nothing about the rest. (The ledger's CSV still does exactly that over
+its 25-row page; P3 takes it.)
+
+**What that forced, and it is the useful part of this step.** D-FUI15's sentence — "server-rendered
+from the same pure functions the screen uses" — has exactly one honest reading, so four things moved
+to `@silvicom/shared` rather than being written a second time:
+
+- `applyEfsTxnFilters`, `applyDeclinedFilters` and a new `applyFuelLogFilters`, over a STRUCTURAL
+  PostgREST interface so the package still imports no vendor SDK;
+- `efsRejectDayWindow` and, under it, `exclusiveEndYmd` — the API windows declines on the Central day
+  exactly as the tab does, and "the day after this one" is a rule, not a line of arithmetic to copy;
+- `vehicleIdsForUnits` and `matchSearchIds`, so `?unit=` and `?search=` resolve against the fleet the
+  same way in both layers. **The export resolves them SERVER-side rather than taking pre-resolved
+  UUIDs**: a UUID list on a URL is a thing a hand-edit can point at another org's trucks.
+
+**A second source of truth found on the way, and closed.** There were TWO `toCsv`s — `dashboard.ts`'s
+and the browser's — and they had already drifted on the case that matters most to a finance reader:
+the shared one neutralised `-12.50` into text, which makes the column unsummable, while the web one
+deliberately exempts numbers. P2 would have had to pick one, so instead there is now one `csvCell`,
+and it is the one with the argument. `dashboard.test.ts`' S-1 assertion changed with it, out loud.
+
+**Three refusals worth naming.** A truncated export is the defect, not the fallback: PostgREST answers
+1,000 rows whatever is asked for, so the export PAGES with a unique tiebreaker (`… .order("id")`, the
+tied-sort instability that took down the first full projection) and, past 50,000 rows, refuses with the
+count instead of producing a file that quietly stops. An oversized selection writes **no audit row** —
+nothing left the building. And a non-date parameter is dropped rather than handed to the database.
+
+⚠ **`ReportExportButton` is now a wrapper.** Five list surfaces needed the same control, and five
+near-identical buttons is how a section grows five that look almost but not quite alike
+(`apps/web/CLAUDE.md`, "one primitive per job"). The button, the busy state, the toast and the scope
+line are `components/ExportButton.vue`; what is left in the spend page's wrapper is its address and its
+window-plus-trucks sentence.
+
+**Verified by.** `fuelListExport.test.ts` (19), `routes/exports.test.ts` (13), `fuelLogExport.test.ts`
+(9). **Thirteen mutants killed:** the org filter dropped; `is_canonical` dropped; the page tiebreaker
+dropped; paging stopped after one page; the row ceiling removed; the scope line removed; the gate
+removed; the audit row removed; the `unit` parameter ignored; an audit row written on a refusal; the
+truck list dropped from the export URL; empty facets sent as blanks; a tab forgetting the shared
+window. Two stubs were wrong in the safe direction and said so — a shallow mount stubs `FilterBar` and
+`DataWorkspace` as empty elements and swallows the button, and `Response.text()` strips a BOM, so the
+byte-order mark is asserted over the bytes.
+
 ---
 
 ### P3 · The ledger can be scoped to a truck

@@ -2,6 +2,9 @@ import { computed, type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
   describeRowCoverage,
+  applyEfsTxnFilters,
+  applyDeclinedFilters,
+  type EfsListFilters,
   type CoverageSurface,
   type RowCoverage,
   type EfsTransactionRow,
@@ -9,7 +12,6 @@ import {
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { efsRejectDayWindow } from "@/lib/stationTime";
 
 export const EFS_PAGE_SIZE = 20;
 
@@ -21,67 +23,12 @@ export interface Page<T> {
 const EFS_COLS =
   "id, line_number, card_num, tran_date, fueled_at, tran_time, invoice, unit, driver_name, odometer, location_name, city, state, fees, item, unit_price, qty, amt, db, currency";
 
-export interface EfsFilters {
-  /** Unit numbers to narrow to. Empty or absent means every unit — never "no units" (FUEL-P1). */
-  units?: string[];
-  from?: string; // YYYY-MM-DD
-  to?: string;
-  search?: string; // free text (driver / location / item or error)
-  suspicion?: string; // declined only: clear | review | alert
-  item?: string; // transactions only: product (ULSD, DEF, …)
-  state?: string;
-  driver?: string; // exact driver_name
-  errorCode?: string; // declined only
-  policy?: string; // declined only: policy_name
-  sortKey?: string; // server-side column ordering
-  sortDir?: "asc" | "desc";
-}
-
-const ilikeOr = (term: string, cols: string[]) =>
-  cols.map((c) => `${c}.ilike.%${term.replace(/[%,()]/g, "")}%`).join(",");
-
 /**
- * The five builder methods the filter helpers below reach for.
- *
- * Structural rather than the real `PostgrestFilterBuilder`, because the two callers of each helper
- * select DIFFERENT columns — the list asks for twenty and the coverage count asks for none at all
- * (`head: true`) — so their builders differ in a result type these filters never touch. Naming the
- * five methods is narrower and more honest than `any`, and it fails to compile if PostgREST's
- * chaining ever stops returning a builder.
+ * What narrows these two lists — defined in `@silvicom/shared` since FUEL-P2, because the EXPORT has
+ * to apply the identical set (D-FUI15: "server-rendered from the same pure functions the screen
+ * uses"). Re-exported under the name every caller here already imports.
  */
-interface EfsFilterable {
-  eq(column: string, value: unknown): EfsFilterable;
-  in(column: string, values: readonly unknown[]): EfsFilterable;
-  gte(column: string, value: unknown): EfsFilterable;
-  lte(column: string, value: unknown): EfsFilterable;
-  lt(column: string, value: unknown): EfsFilterable;
-  or(filters: string): EfsFilterable;
-}
-
-/**
- * Every `efs_transactions` filter, applied once, for every caller.
- *
- * FUEL-T5 needs a SECOND read of this table — how many of the matching rows name a truck — and the
- * only way that figure can be wrong is by counting a different set than the list beneath it. The same
- * argument `searchTerm` makes in `useFuelLog` ("one sanitiser, one term, two callers"), one level up:
- * one filter definition, two callers, and no way for a caveat to describe rows the reader is not
- * looking at.
- */
-function applyEfsTxnFilters<Q>(query: Q, f: EfsFilters): Q {
-  let q = query as unknown as EfsFilterable;
-  // FUEL-P1. `.in()` over a LIST, and only when the list has something in it: an empty selection is
-  // "every unit", while `.in("unit", [])` is "no unit at all". PostgREST renders the latter as
-  // `unit=in.()` and returns nothing, which is right for a filter naming units that do not exist and
-  // very wrong for a filter naming none.
-  if (f.units?.length) q = q.in("unit", f.units);
-  if (f.item) q = q.eq("item", f.item);
-  if (f.state) q = q.eq("state", f.state);
-  if (f.driver) q = q.eq("driver_name", f.driver);
-  if (f.from) q = q.gte("tran_date", f.from);
-  if (f.to) q = q.lte("tran_date", f.to);
-  if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_num", "invoice", "location_name", "item", "city"]));
-  return q as unknown as Q;
-}
+export type EfsFilters = EfsListFilters;
 
 /** Faithful EFS transaction rows, newest first, one page (20) with total count for navigation. */
 export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {
@@ -111,41 +58,6 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
 
 const DECLINED_COLS =
   "id, import_id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, driver_name_source, error_code, error_description, policy, policy_name, suspicion_level, suspicion_reasons";
-
-/** Every `declined_transactions` filter, applied once, for every caller. See `applyEfsTxnFilters`. */
-function applyDeclinedFilters<Q>(query: Q, f: EfsFilters): Q {
-  let q = query as unknown as EfsFilterable;
-  if (f.units?.length) q = q.in("unit", f.units);
-  if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
-  if (f.errorCode) q = q.eq("error_code", f.errorCode);
-  if (f.state) q = q.eq("state", f.state);
-  if (f.driver) q = q.eq("driver_name", f.driver);
-  if (f.policy) q = q.eq("policy_name", f.policy);
-  // FUEL-T1 / D-FUI11. `declined_at` is a correct UTC instant, and the page renders it in CENTRAL
-  // because that is the zone EFS prints rejects in whatever the station's own zone is. Filtering
-  // the raw instant against bare date strings therefore asked a UTC question of a Central answer:
-  // a decline at 19:00 CT on 31 August is 2026-09-01T00:00Z and fell outside an August window
-  // while the row above it read "Aug 31". `efsRejectDayWindow` converts the picked DAYS into the
-  // instants that bound them in Central — no column needed, because unlike a fill's station zone,
-  // this one does not vary row to row.
-  if (f.from && f.to) {
-    const w = efsRejectDayWindow(f.from, f.to);
-    q = q.gte("declined_at", w.gte).lt("declined_at", w.lt);
-  } else if (f.from) {
-    q = q.gte("declined_at", efsRejectDayWindow(f.from, f.from).gte);
-  } else if (f.to) {
-    q = q.lt("declined_at", efsRejectDayWindow(f.to, f.to).lt);
-  }
-  if (f.search) {
-    const t = f.search.replace(/[%,()]/g, "");
-    q = q.or(
-      [`unit.ilike.${t}%`, `driver_name.ilike.%${t}%`, `location_text.ilike.%${t}%`, `city.ilike.%${t}%`, `error_description.ilike.%${t}%`].join(
-        ",",
-      ),
-    );
-  }
-  return q as unknown as Q;
-}
 
 /** Faithful declined (Reject Report) rows, newest first, one page (20) with total count. */
 export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {

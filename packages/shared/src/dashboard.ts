@@ -232,21 +232,5 @@ export function aggregateDashboard(
 }
 
 // ── CSV ─────────────────────────────────────────────────────────────────────
-
-/** Serialize rows to CSV given ordered columns. RFC-4180 quoting. */
-export function toCsv<T extends Record<string, unknown>>(
-  rows: T[],
-  columns: { key: keyof T; header: string }[],
-): string {
-  const esc = (v: unknown): string => {
-    let s = v == null ? "" : String(v);
-    // CSV formula-injection guard (S-1): a cell starting with = + - @ (or a leading tab/CR) is interpreted as
-    // a formula by Excel/Sheets. Untrusted EFS text (driver, station, location) is exported verbatim, so
-    // neutralize it with a leading apostrophe before quoting. RFC-4180 quoting still applies below.
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const head = columns.map((c) => esc(c.header)).join(",");
-  const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(",")).join("\n");
-  return body ? `${head}\n${body}` : head;
-}
+// `toCsv` moved to `csv.ts` at FUEL-P2, where it is one rule for every exporter rather than two that
+// had already drifted about negative numbers. Its callers import it from the package barrel, unchanged.

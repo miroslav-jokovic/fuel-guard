@@ -39,6 +39,8 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
+import ExportButton from "@/components/ExportButton.vue";
+import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -180,6 +182,20 @@ function clearAll() {
   props.shared.clear();
 }
 
+/**
+ * FUEL-P2. The file this screen would produce, built from the SAME parameters the address bar holds —
+ * see `fuelLogExport.ts` for why the URL is passed through rather than resolved here.
+ */
+const exportTarget = computed(() =>
+  fuelLogExportTarget({
+    dataset: "fills",
+    from: props.shared.from.value,
+    to: props.shared.to.value,
+    units: props.shared.units.value,
+    facets: { driver: driverFilter.value, tank: tankTypeFilter.value, search: searchBind.value },
+  }),
+);
+
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
@@ -295,6 +311,14 @@ const columns: DataTableColumn[] = [
       </template>
       <template #more>
         <FilterSelect v-model="driverFilter" label="Driver" :options="driverOptions" block />
+      </template>
+      <template #actions>
+        <ExportButton
+          :href="exportTarget.href"
+          :filename="exportTarget.filename"
+          :scope="exportTarget.scope"
+          :disabled="total === 0"
+        />
       </template>
     </FilterBar>
 

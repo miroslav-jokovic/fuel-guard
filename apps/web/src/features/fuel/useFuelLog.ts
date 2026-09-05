@@ -3,9 +3,12 @@ import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tansta
 import {
   derivePricePerGal,
   windowMilesFromAggregate,
+  applyFuelLogFilters,
+  fuelSearchTerm,
   MPG_PLAUSIBLE_MIN,
   MPG_PLAUSIBLE_MAX,
   type FillUpInput,
+  type FuelLogFilters,
   type FuelTransaction,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
@@ -20,61 +23,11 @@ const FUEL_COLS =
 
 export const FUEL_PAGE_SIZE = 20;
 
-export interface FuelFilters {
-  /**
-   * Vehicle ids to narrow to (FUEL-P1).
-   *
-   * ⚠ Three states, and the middle one is the point: `undefined` is the whole fleet, a non-empty list
-   * is those trucks, and an EMPTY list is "none of them" — which is what a filter naming units this
-   * fleet does not have resolves to. Collapsing empty into undefined would show every truck's fills
-   * under a filter bar naming two, which is the confidently-wrong answer FUEL-T5 exists to remove.
-   * `unitFilter.ts` produces the value; PostgREST renders `[]` as `vehicle_id=in.()` and returns
-   * nothing, and `fuel_range_totals` reads an empty `p_vehicles` the same way (migration 0312).
-   */
-  vehicleIds?: string[];
-  driverId?: string;
-  /**
-   * The window, as CALENDAR DAYS — both ends inclusive, both `YYYY-MM-DD`, and both meaning the
-   * STATION-LOCAL business date (D-FUI11, migration 0287). Not an instant, and deliberately not one:
-   * see the note above the filters in `useFuelTransactions`.
-   */
-  from?: string;
-  to?: string;
-  tankType?: "tractor" | "reefer"; // filter tractor vs reefer fills
-  /** Free-text smart search — matched server-side against location & card, plus vehicle/driver via the
-   *  page-resolved id lists below (so a unit number or driver name in the box narrows the log too). */
-  search?: string;
-  searchVehicleIds?: string[]; // vehicle ids whose unit matched `search` (resolved on the page)
-  searchDriverIds?: string[]; // driver ids whose name matched `search` (resolved on the page)
-  sortKey?: string; // column to order by (server-side)
-  sortDir?: "asc" | "desc";
-}
-
 /**
- * The search term, sanitised ONCE, for both the list and the tiles above it.
- *
- * `%,()` are stripped because PostgREST's `.or(...)` grammar is comma- and paren-delimited and treats
- * `%` as a wildcard — an unstripped term is a syntax error or a filter that matches the whole fleet.
- * `fuel_range_totals` does not need the strip (0289 escapes the term server-side), but it must be given
- * the SAME term anyway: the tiles sit directly above the table, and a tile counting a different set
- * than the rows beneath it is precisely the disagreement FUEL-T3a exists to end. One sanitiser, one
- * term, two callers.
+ * What narrows the fill list — defined in `@silvicom/shared` since FUEL-P2, because the EXPORT has to
+ * apply the identical set (D-FUI15). Re-exported under the name every caller here already imports.
  */
-export function searchTerm(f: FuelFilters): string | null {
-  if (!f.search) return null;
-  const t = f.search.replace(/[%,()]/g, "").trim();
-  return t || null;
-}
-
-/** Build the PostgREST `.or(...)` term for the smart search across location/card + resolved vehicle/driver. */
-function searchOr(f: FuelFilters): string | null {
-  const t = searchTerm(f);
-  if (!t) return null;
-  const ors = [`location_text.ilike.%${t}%`, `card_ref.ilike.%${t}%`];
-  if (f.searchVehicleIds?.length) ors.push(`vehicle_id.in.(${f.searchVehicleIds.join(",")})`);
-  if (f.searchDriverIds?.length) ors.push(`driver_id.in.(${f.searchDriverIds.join(",")})`);
-  return ors.join(",");
-}
+export type FuelFilters = FuelLogFilters;
 
 export interface FuelPage {
   rows: FuelTransaction[];
@@ -89,26 +42,18 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
     queryFn: async (): Promise<FuelPage> => {
       const f = toValue(filters);
       const start = (toValue(page) - 1) * FUEL_PAGE_SIZE;
-      let q = supabase
-        .from("fuel_transactions")
-        .select(FUEL_COLS, { count: "exact" })
-        .eq("is_canonical", true)
-        .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
-        .range(start, start + FUEL_PAGE_SIZE - 1);
-      if (f.vehicleIds) q = q.in("vehicle_id", f.vehicleIds);
-      if (f.driverId) q = q.eq("driver_id", f.driverId);
-      if (f.tankType) q = q.eq("tank_type", f.tankType);
-      // FUEL-T1 / D-FUI11. This filtered `fueled_at` — a UTC INSTANT — while the table beside it
-      // rendered that same instant in the STATION's zone. Two derivations of one day, disagreeing
-      // whenever the station's local day differs from the UTC day: measured 2026-09-01, 1,833 of
-      // 14,749 fills (12.4%), of which 57 ($28,430.70) sat in the neighbouring MONTH's total. A
-      // California fill at 18:00 on 31 August displayed as "Aug 31" and fell outside an August
-      // window. `business_date` is the stored station-local day (0287, trigger-maintained), so the
-      // filter and the display now read the SAME derivation instead of agreeing by luck.
-      if (f.from) q = q.gte("business_date", f.from);
-      if (f.to) q = q.lte("business_date", f.to);
-      const or = searchOr(f);
-      if (or) q = q.or(or);
+      // `is_canonical` is stated HERE rather than in the shared filters: it is what makes a row a
+      // fill rather than a duplicate, so it belongs to the query's identity and not to the reader's
+      // narrowing. The export states it in the same breath, for the same reason.
+      const q = applyFuelLogFilters(
+        supabase
+          .from("fuel_transactions")
+          .select(FUEL_COLS, { count: "exact" })
+          .eq("is_canonical", true)
+          .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
+          .range(start, start + FUEL_PAGE_SIZE - 1),
+        f,
+      );
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as FuelTransaction[], total: count ?? 0 };
@@ -178,9 +123,9 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
-        // The SAME sanitised term the list uses — see `searchTerm`. A tile filtering on a different
+        // The SAME sanitised term the list uses — see `fuelSearchTerm`. A tile filtering on a different
         // string than the rows beneath it is the disagreement this step exists to end.
-        p_search: searchTerm(f),
+        p_search: fuelSearchTerm(f),
         p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
         p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
       });
@@ -213,7 +158,7 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
-        p_search: searchTerm(f),
+        p_search: fuelSearchTerm(f),
         p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
         p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
       });
