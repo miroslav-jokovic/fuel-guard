@@ -113,6 +113,33 @@ export interface EfsFacets {
   rejUnits: string[];
 }
 
+/**
+ * The readable half of a decline's description.
+ *
+ * ── MEASURED ON PRODUCTION, 2026-09-04, AFTER 0314 LANDED ───────────────────────────────────────
+ * EFS does not send a reason, it sends a pipe-delimited trace with the reason in front of it:
+ *
+ *     ITEM NOT ALLOWED|ADDITIVES IN48808|CheckItems|
+ *     NO SECUREFUEL DATA IN0037110997|No Carrier SecureFuel Event|
+ *     LIMIT EXCEEDED IN1744180676|CheckItems|ULSR |
+ *
+ * The menu truncated that at 40 characters, so the Error filter offered rows like
+ * "18 — ITEM NOT ALLOWED|ADDITIVES IN48808|C" — the internal context winning the space the reason
+ * needed. Taking the first segment and dropping the trailing `IN<digits>` transaction id gives
+ * "ITEM NOT ALLOWED", "NO SECUREFUEL DATA", "LIMIT EXCEEDED", which is what somebody scanning
+ * seventeen codes is looking for.
+ *
+ * ⚠ Only the MENU is shortened. The Description column on the table still shows the vendor's text in
+ * full, because that trace is what an operator needs when they open the row it belongs to — the rule
+ * here is about a dropdown's width, not about what a decline says.
+ */
+const readableReason = (raw: string): string => {
+  const head = raw.split("|")[0]!.replace(/\s+IN\d+$/, "").trim();
+  // A first segment that is ONLY a transaction id says nothing a person can act on. The whole
+  // description at least has words in it, so that is the honest fallback rather than an id in a menu.
+  return head === "" || /^IN\d+$/.test(head) ? raw : head;
+};
+
 /** One `(facet, value, label)` row as 0313/0314 return it. */
 interface FacetRow {
   facet: string;
@@ -158,7 +185,10 @@ export function useEfsFacets() {
         rejErrorCodes: rej
           .filter((r) => r.facet === "error_code")
           .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }))
-          .map((r) => ({ code: r.value, label: r.label ? `${r.value} — ${r.label.slice(0, 40)}` : r.value })),
+          .map((r) => ({
+            code: r.value,
+            label: r.label ? `${r.value} — ${readableReason(r.label).slice(0, 40)}` : r.value,
+          })),
         rejStates: valuesFor(rej, "state"),
         rejDrivers: valuesFor(rej, "driver"),
         rejPolicies: valuesFor(rej, "policy"),
