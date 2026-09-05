@@ -61,6 +61,31 @@ describe("backfillHandler — the payload decides the sweep", () => {
     expect(optsPassed()).toEqual({ onlyUnreconciled: true });
   });
 
+  /**
+   * SAM-S6's shape. The distinction that matters is COLLECTION vs RE-SCORE: `full` re-fetches
+   * telematics, `rebuild` relearns and re-scores from what S4 already collected and fetches nothing.
+   * Confusing the two spends the vendor rate budget recomputing values already in the database.
+   */
+  it("'rebuild' re-scores from stored telematics and fetches NOTHING", async () => {
+    scoring.backfillOrg.mockResolvedValue(15953);
+    await backfillHandler(ctx, job({ rebuild: true }), vi.fn());
+    expect(optsPassed()).toEqual({ skipRecon: true });
+  });
+
+  it("a rebuild covers ALL history unless a window is asked for", async () => {
+    scoring.backfillOrg.mockResolvedValue(400);
+    await backfillHandler(ctx, job({ rebuild: true, sinceDays: 30 }), vi.fn());
+    expect(optsPassed()).toEqual({ skipRecon: true, sinceDays: 30 });
+  });
+
+  // `rebuild` must win over `full`: the two are opposites (re-score vs re-fetch), and a payload
+  // carrying both should take the one that spends no vendor budget.
+  it("rebuild takes precedence over full when a payload carries both", async () => {
+    scoring.backfillOrg.mockResolvedValue(1);
+    await backfillHandler(ctx, job({ rebuild: true, full: true }), vi.fn());
+    expect(optsPassed()).toEqual({ skipRecon: true });
+  });
+
   // A tier that runs hourly and records nothing is a tier nobody can tell is working.
   it("records what a scheduled tick fetched, actor or no actor", async () => {
     scoring.backfillOrg.mockResolvedValue(42);

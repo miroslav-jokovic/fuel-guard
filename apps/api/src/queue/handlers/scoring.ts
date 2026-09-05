@@ -28,23 +28,39 @@ export const rebuildHandler: JobHandler = async (ctx, job, report) => {
 /**
  * Live Samsara reconciliation backfill — cancel-aware via the ledger's cooperative cancel flag.
  *
- * Three shapes, one handler, decided entirely by the payload (plan A2 — the input is never
+ * Four shapes, one handler, decided entirely by the payload (plan A2 — the input is never
  * closure-captured):
- *  - `full` — every fill, the manual "Re-check all history" button.
+ *  - `full` — every fill, the manual "Re-check all history" button. COLLECTION: it re-fetches Samsara.
  *  - `reconBatch` — the SAM-S3 collector tier: the oldest N fills still missing telematics, bounded so
  *    one tick finishes inside its rate budget. This is the shape that runs on a schedule.
+ *  - `rebuild` — SAM-S6. RE-SCORE ONLY: relearn each vehicle's capacity and sensor reliability from the
+ *    telematics already collected, then re-score against the converged values. Fetches nothing.
  *  - neither — "catch up new fills", the manual button, unbounded over never-reconciled rows.
+ *
+ * Why `rebuild` needed a shape of its own. The rebuild path already existed and was reachable only
+ * through `nightlyReconcile`, which pins it to `RECENT_REBUILD_DAYS` (14) — so every derivation change
+ * since a fill left that window has never been applied to it, which is Q-FUI9's complaint and exactly
+ * what SAM-S6 has to undo. Re-scoring history through `full` instead would work, but it is the wrong
+ * tool twice over: it re-fetches telematics S4 has already collected, and it spends the vendor rate
+ * budget to recompute values that are sitting in the database.
+ *
+ * `sinceDays` is accepted so the same shape can be pointed at a window rather than all of history; left
+ * out, it means all of it.
  */
 export const backfillHandler: JobHandler = async (ctx, job, report) => {
   const full = job.payload.full === true;
+  const rebuild = job.payload.rebuild === true;
   const actorId = asStr(job.payload.actorId);
   const batch = asNum(job.payload.reconBatch);
+  const sinceDays = asNum(job.payload.sinceDays);
   const retryAfterHours = asNum(job.payload.reconRetryAfterHours) ?? 24;
-  const opts = full
-    ? {}
-    : batch != null
-      ? { reconClaim: { limit: batch, retryAfterHours } }
-      : { onlyUnreconciled: true };
+  const opts = rebuild
+    ? { skipRecon: true, ...(sinceDays != null ? { sinceDays } : {}) }
+    : full
+      ? {}
+      : batch != null
+        ? { reconClaim: { limit: batch, retryAfterHours } }
+        : { onlyUnreconciled: true };
   const count = await backfillOrg(
     ctx.admin, ctx.env, job.org_id,
     opts,
@@ -55,9 +71,10 @@ export const backfillHandler: JobHandler = async (ctx, job, report) => {
   // A scheduled tick has no actor, and `writeAudit` with a null actor is how every other scheduled run
   // records itself — the audit row is what makes "the collector ran and fetched nothing" visible.
   await writeAudit(ctx.admin, {
-    orgId: job.org_id, actorId, action: "transactions.backfill", meta: { count, full, canceled, batch: batch ?? null },
+    orgId: job.org_id, actorId, action: "transactions.backfill",
+    meta: { count, full, rebuild, canceled, batch: batch ?? null, sinceDays: sinceDays ?? null },
   });
-  return { count, full, canceled, ...(batch != null ? { batch } : {}) };
+  return { count, full, rebuild, canceled, ...(batch != null ? { batch } : {}) };
 };
 
 /** Score just the transactions from one import (referenced by persisted importId). */
