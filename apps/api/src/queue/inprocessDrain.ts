@@ -39,6 +39,17 @@ import type { JobKind } from "../modules/org/index.js";
 function drainKinds(env: Env): JobKind[] {
   const kinds: JobKind[] = ["financial_projection"];
   if (env.EFS_SOAP_ENABLED) kinds.push("efs_window_refetch");
+  // `backfill` joins the list for the SAME reason the other two are on it: an operator queues one as a
+  // ROW to run a repair that no schedule and no button covers. SAM-S6's full-history rebuild is that
+  // repair — the manual route only offers `full` (a live Samsara re-fetch), and `nightlyReconcile`'s
+  // rebuild is pinned to RECENT_REBUILD_DAYS, so the uncapped re-score is reachable no other way.
+  //
+  // Low-risk in practice BECAUSE of how the kind is normally used: every routine caller
+  // (samsaraScheduler's collector tier, the two manual buttons) goes through `dispatchJob`, which in
+  // inprocess mode executes inline and writes a COMPLETED row. None of them leaves a `queued` row
+  // behind, so this claims nothing that exists today — it only stops an operator's row from being
+  // stranded the way the 2026-08-28 repair dispatch was.
+  kinds.push("backfill");
   return kinds;
 }
 const TICK_MS = 2 * 60_000;

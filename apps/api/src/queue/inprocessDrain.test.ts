@@ -40,7 +40,7 @@ describe("drainOnce", () => {
     expect(ran).toBe(1);
     const rpcs = rec.rpcs();
     expect(rpcs[0]!.fn).toBe("claim_next_job");
-    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "efs_window_refetch"]);
+    expect((rpcs[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "efs_window_refetch", "backfill"]);
     expect(rpcs[1]).toMatchObject({ fn: "complete_job", args: { p_id: claimedRow.id, p_stats: { windows: [{ status: "ingested" }] } } });
   });
 
@@ -63,7 +63,40 @@ describe("drainOnce", () => {
     const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(noEfs, rec.client);
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection"]);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill"]);
+  });
+
+  /**
+   * SAM-S6. The uncapped rebuild is reachable through no button and no schedule — the manual route
+   * offers only `full` (a live re-fetch) and nightlyReconcile's rebuild is pinned to
+   * RECENT_REBUILD_DAYS — so an operator queues it as a ROW, which is the exact shape that sat
+   * stranded on 2026-08-28 and the reason this drain exists.
+   */
+  it("runs an operator-queued backfill row, which no button and no schedule can reach", async () => {
+    let opts: unknown = null;
+    registerHandler("backfill", async (_ctx, job) => {
+      opts = job.payload;
+      return { count: 15953, rebuild: true };
+    });
+    const rec = createSupabaseRecorder({
+      rpc: {
+        claim_next_job: [{ ...claimedRow, kind: "backfill", payload: { rebuild: true } }],
+        complete_job: null,
+        fail_job: "requeued",
+      },
+    });
+    await drainOnce(env, rec.client);
+    expect(opts).toEqual({ rebuild: true });
+    expect(rec.rpcs()[1]).toMatchObject({ fn: "complete_job", args: { p_stats: { count: 15953, rebuild: true } } });
+  });
+
+  // The capability rule the EFS race taught: `backfill` needs no vendor egress of its own (a rebuild
+  // re-scores stored rows), so unlike the EFS kind it is claimable on every instance.
+  it("claims backfill even where EFS is off, because a rebuild fetches nothing", async () => {
+    const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
+    const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
+    await drainOnce(noEfs, rec.client);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toContain("backfill");
   });
 
   it("does nothing when the claim returns no row", async () => {
