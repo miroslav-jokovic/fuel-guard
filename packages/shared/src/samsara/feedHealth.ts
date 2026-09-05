@@ -255,12 +255,95 @@ export function describeSamsaraFeeds(
     .sort((a, b) => rank[a.state] - rank[b.state] || (b.ageMinutes ?? 0) - (a.ageMinutes ?? 0));
 }
 
-/** The one-line answer a strip above a figure needs: the worst thing true of the feeds it depends on. */
-export function worstSamsaraFeed(
-  health: readonly SamsaraFeedHealth[],
+/**
+ * The one-line answer a strip above a figure needs: the worst thing true of the feeds it depends on.
+ *
+ * Generic over the record rather than pinned to `SamsaraFeedHealth`, because the settings card and
+ * the page strips read the SAME ranking off two different projections of it (`SamsaraFeedPulse` is
+ * the narrow one). Two copies of "which feed is worst" is the shape this repo calls a workaround: it
+ * would read correctly until somebody added a state, and then the card and the strip would disagree
+ * about the same fleet on the same screen.
+ *
+ * ⚠ It takes `bad[0]`, so the caller must hand it the list in the order `describeSamsaraFeeds`
+ * produced — worst first. Every projection here is a `map`, which preserves that.
+ */
+export function worstSamsaraFeed<T extends Pick<SamsaraFeedHealth, "id" | "state" | "needsAttention">>(
+  health: readonly T[],
   feeds?: readonly SamsaraFeedId[],
-): SamsaraFeedHealth | null {
+): T | null {
   const scope = feeds ? health.filter((h) => feeds.includes(h.id)) : health;
   const bad = scope.filter((h) => h.needsAttention && h.state !== "disabled");
   return bad[0] ?? null;
+}
+
+/**
+ * The oldest thing a strip is currently looking at, when nothing about it is wrong.
+ *
+ * A DIFFERENT question from `worstSamsaraFeed`, not a softer version of it: that one answers "what
+ * needs attention", this one answers "how old is the freshest picture I have". The strip needs both
+ * because it renders UNCONDITIONALLY, and it renders unconditionally on purpose — a line that appears
+ * only when something is broken is a line whose absence means either "all well" or "the component did
+ * not load", and being unable to tell those apart is the whole failure S5 exists to remove.
+ *
+ * Only `fresh` feeds are considered: every other state is `worstSamsaraFeed`'s to report, and a
+ * switched-off tier has no age worth quoting above a figure. Null when the scope holds no fresh feed,
+ * and a strip then says nothing rather than inventing a reassurance.
+ */
+export function oldestSamsaraFeed<T extends Pick<SamsaraFeedHealth, "id" | "state" | "ageMinutes">>(
+  health: readonly T[],
+  feeds?: readonly SamsaraFeedId[],
+): T | null {
+  const scope = (feeds ? health.filter((h) => feeds.includes(h.id)) : health).filter((h) => h.state === "fresh");
+  return scope.reduce<T | null>((worst, h) => ((h.ageMinutes ?? 0) > (worst?.ageMinutes ?? -1) ? h : worst), null);
+}
+
+/**
+ * What a page that is not the integration settings page may know about a feed (Q-SAM7, answered (a)).
+ *
+ * ── WHY A SECOND, NARROWER SHAPE EXISTS ──────────────────────────────────────────────────────────
+ * S5's third bullet puts a freshness strip above the figures that depend on a feed. Measured
+ * 2026-09-05, every one of those surfaces — `/`, `/coverage`, `/idling`, `/odometer`, `/ifta`,
+ * `/driver-performance` — carries `meta: { requiresAuth: true }` and NO section gate, while the
+ * integration card's route is `requireSection("settings", "view")`. So the strip cannot read the
+ * card's payload, and widening the card's own route to the Dashboard's audience would hand every
+ * authenticated member — a driver included — the vendor error text.
+ *
+ * `lastError` is the field that decides this. It is Samsara's sentence, not ours, and a vendor error
+ * routinely carries an account id, a token fragment or a URL with a group id in it. Nothing else on
+ * the record is a secret: how late a feed is, and against what bound, is operational metadata about a
+ * collector, which is the same reading Q-FUI15 took when it refused a list while printing its
+ * contents and protected nothing.
+ *
+ * So this is a PROJECTION and not a parallel model: one function, one place, and the fields it drops
+ * are dropped by omission rather than by a hand-written literal at a route that would keep whatever
+ * `SamsaraFeedHealth` gains next. `samsaraFeedPulse` names what a page may see; everything else stays
+ * behind the settings gate by default, including any field added after this comment was written.
+ */
+export interface SamsaraFeedPulse {
+  id: SamsaraFeedId;
+  label: string;
+  state: SamsaraFeedState;
+  /** Whole minutes since the last successful collection. Null when there has never been one. */
+  ageMinutes: number | null;
+  /** The bound this feed is held to. Null when the tier is switched off. */
+  targetMinutes: number | null;
+  /** `ruling` — Q-SAM1 set it. `cadence` — arithmetic off the interval. A strip may say which. */
+  targetSource: "ruling" | "cadence";
+  needsAttention: boolean;
+  /** One sentence. Built from the label and the ages only — it never quotes the vendor. */
+  lead: string;
+}
+
+/** Narrow the settings-gated record to what an ungated page may read. Order is preserved. */
+export function samsaraFeedPulse(health: readonly SamsaraFeedHealth[]): SamsaraFeedPulse[] {
+  return health.map((h) => ({
+    id: h.id,
+    label: h.label,
+    state: h.state,
+    ageMinutes: h.ageMinutes,
+    targetMinutes: h.targetMinutes,
+    targetSource: h.targetSource,
+    needsAttention: h.needsAttention,
+    lead: h.lead,
+  }));
 }

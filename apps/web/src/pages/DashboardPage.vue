@@ -31,6 +31,7 @@ import BaseChart from "@/components/BaseChart.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import DonutBreakdown from "@/features/dashboard/DonutBreakdown.vue";
@@ -340,6 +341,12 @@ const EXPORTS = [
       </div>
       </template>
     </PageHeader>
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         The three tiers its tiles are built from — the coverage tile is telematics, idle waste is idle,
+         and the theft figures read the live stats feed. IFTA and the roster tiers annotate their
+         own pages instead; naming them here would report a breach nobody can act on from here. -->
+    <SamsaraFeedLine :feeds="['stats', 'telematics', 'idle']" />
 
     <div class="space-y-6 transition-opacity duration-200" :class="isFetching && !isLoading ? 'opacity-60' : ''" :aria-busy="isFetching">
       <!-- KPI hero -->
