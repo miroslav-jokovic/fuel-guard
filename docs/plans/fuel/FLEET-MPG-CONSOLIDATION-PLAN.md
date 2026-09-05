@@ -483,3 +483,53 @@ three of these are worth re-opening if the evidence changes.
   Proven by breaking it three ways: a new duplicate dropped into an innocent file is reported on both
   its lines; deleting a waiver while its duplicate still exists reports the duplicate; and
   `--self-test` fires all three detectors while a comment about MPG fires none.
+- 2026-09-04 · **M4a — what the four surfaces need before any of them can move.** M4 is written in §3
+  as one step and is being built as two, because three of its five sites need a shape that did not
+  exist yet and the fourth needs an arithmetic that M1 deliberately did not build. This half adds
+  those and changes no surface; the next half migrates all five and takes the four waivers off
+  `lint:mpg`.
+
+  **`readFleetDistancePeriods` — the weekly trend is six questions, not six reads.** D-MPG6 replaced
+  the daily MPG trend with a weekly one, so the dashboard now asks for a total plus five or six
+  buckets over one window. A loop over `readFleetDistance` would fetch a thirty-day lookback per
+  bucket — ~70,000 rows to difference ~11,000 distinct ones — so the rows are fetched once and
+  `distanceByVehicle` (pure, period as a parameter) is applied per bucket. `readFleetDistance` is now
+  literally this function with one period, which is what stops the two drifting.
+
+  **The trap that shape creates, and the line that closes it.** The shared fetch reaches back thirty
+  days before the EARLIEST period, so a later week handed the whole set could find a ninety-day-old
+  opening odometer and measure a truck its own read would have called unmeasured — a series whose
+  weeks were each computed under a different lookback. Each period's readings are therefore narrowed
+  to its own `[lookbackFrom, toIso]` before the rule sees them. Pinned by a test that reads the same
+  truck two ways and requires both to refuse it; the mutation that removes the narrowing kills it.
+
+  **`getFleetMpgSeries`, and the total is not the mean of the buckets.** `total` is computed over the
+  whole window as its own period — one odometer difference per truck across the whole span, over the
+  whole span's fuel. Summing the buckets' miles is a different measurement (every edge cuts an
+  interval, and a truck measurable across a month need not be measurable in each of its weeks), and
+  averaging the buckets' MPGs would be a mean of ratios, which is the error §1.1 spends a paragraph
+  establishing this module does not make. The test constructs two weeks reading 4.97 and 9.94 whose
+  fortnight is 6.63, so the mean-of-buckets implementation cannot pass.
+
+  **A truck scope, because the Fuel log's tile has one.** `vehicles` narrows both sides of the ratio,
+  and an EMPTY list is not `null`: it is "none of the units you named are in this fleet", which has a
+  correct answer and is not the fleet average. A scoped figure also drops the unattributed fuel —
+  charging a filtered figure with fuel from outside the filter would make its coverage line read as a
+  data problem when it is a scoping one.
+
+  **`grain=day` is refused at the ROUTE, not in the service.** D-MPG6 is a ruling about what surfaces
+  show, not a claim that the subtraction is undefined, and §2 says the API does not refuse a legal
+  question. So `getFleetMpg` answers any period with the caveat in its own header, and the route —
+  the boundary a surface actually crosses — is where a daily series is refused.
+
+  **`computeSubjectMpg` in M1's home (D-MPG3), and it does not multiply anything back out.** M1
+  refused to build an adapter turning `computed_mpg` into miles, because that multiplication IS the
+  −1.31% / −2.41% bias. This needs no adapter: it sums `miles_since_last` for the numerator and
+  recovers each span's real gallons as `miles ÷ mpg`, which by the scorer's own definition
+  (`helpers.ts:70`) is `gallons + intermediateGallons`. The intermediate fill's fuel lands on the span
+  that burned it instead of being dropped (reads high) or paired with the wrong span (reads low). The
+  per-FILL band 1–40 moved here from `dashboard.ts` and is re-exported; no importer moved.
+
+  Sixteen tests added, fifteen mutants killed — including the three that matter most: the batched
+  reader without its per-period narrowing, the subject figure computed the Method-A way, and the
+  series total replaced by the mean of its buckets.

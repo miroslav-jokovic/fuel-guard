@@ -56,6 +56,7 @@ export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";
 export { readVehicleMonthlyMiles, readMonthlyMileageByMonth } from "./samsaraIftaReads.js";
 export {
   readFleetDistance,
+  readFleetDistancePeriods,
   ODOMETER_LOOKBACK_DAYS,
   type FleetDistanceResult,
 } from "./samsaraOdometerReads.js";

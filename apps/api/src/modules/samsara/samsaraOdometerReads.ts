@@ -89,17 +89,89 @@ export async function readFleetDistance(
   toIso: string,
   opts: { lookbackDays?: number } = {},
 ): Promise<FleetDistanceResult> {
-  const fromMs = Date.parse(fromIso);
-  const toMs = Date.parse(toIso);
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) {
-    throw new RangeError("readFleetDistance needs two valid ISO instants");
-  }
-  if (toMs < fromMs) {
-    throw new RangeError("readFleetDistance was given a period that ends before it starts");
-  }
-  const lookbackDays = opts.lookbackDays ?? ODOMETER_LOOKBACK_DAYS;
-  const lookbackFrom = new Date(fromMs - lookbackDays * 86_400_000).toISOString();
+  const [only] = await readFleetDistancePeriods(admin, orgId, [{ fromIso, toIso }], opts);
+  return only!;
+}
 
+/**
+ * The same measurement for SEVERAL periods, from ONE read of the staging table (M4).
+ *
+ * ── WHY THIS EXISTS RATHER THAN A LOOP OVER `readFleetDistance` ────────────────────────────────
+ * D-MPG6 retired the daily MPG trend and put a WEEKLY one in its place, so the dashboard now asks
+ * this question five or six times for one thirty-day window. Each of those calls would fetch its own
+ * thirty-day lookback — the fleet stages ~380 readings a day, so five weeks of trend would read
+ * ~70,000 rows to difference ~11,000 distinct ones. The readings are the same readings; only the two
+ * instants each pair is bounded by change.
+ *
+ * So the rows are fetched once, over `[earliest start − lookback, latest end]`, and
+ * `distanceByVehicle` — which is pure and takes the period as a parameter (D-FLEET6) — is applied
+ * per period. **Each period's answer is byte-identical to what a single-period read would have
+ * given**, because that function bounds on its own instants and ignores everything outside them:
+ * `readFleetDistance` above is now literally this function with one period, which is what keeps the
+ * two from drifting apart.
+ *
+ * `readings` is reported PER PERIOD as the rows that period's own window would have held, not as the
+ * shared fetch's total. A caller uses it to tell "the collector has not run" from "the fleet stood
+ * still", and a shared total would answer that question for a different window than the one asked
+ * about.
+ */
+export async function readFleetDistancePeriods(
+  admin: SupabaseClient,
+  orgId: string,
+  periods: readonly { fromIso: string; toIso: string }[],
+  opts: { lookbackDays?: number } = {},
+): Promise<FleetDistanceResult[]> {
+  if (periods.length === 0) return [];
+  const bounds = periods.map(({ fromIso, toIso }) => {
+    const fromMs = Date.parse(fromIso);
+    const toMs = Date.parse(toIso);
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) {
+      throw new RangeError("readFleetDistance needs two valid ISO instants");
+    }
+    if (toMs < fromMs) {
+      throw new RangeError("readFleetDistance was given a period that ends before it starts");
+    }
+    return { fromIso, toIso, fromMs, toMs };
+  });
+
+  const lookbackDays = opts.lookbackDays ?? ODOMETER_LOOKBACK_DAYS;
+  const lookbackMs = lookbackDays * 86_400_000;
+  const earliest = new Date(Math.min(...bounds.map((b) => b.fromMs)) - lookbackMs).toISOString();
+  const latest = new Date(Math.max(...bounds.map((b) => b.toMs))).toISOString();
+
+  const readings = await fetchReadings(admin, orgId, earliest, latest);
+
+  return bounds.map((b) => {
+    const lookbackFrom = new Date(b.fromMs - lookbackMs).toISOString();
+    // NARROWED to this period's own lookback before the rule sees it, and that line is what makes
+    // the identity above true rather than nearly true. The shared fetch reaches back thirty days
+    // before the EARLIEST period, so a later period handed the whole set could find an opening
+    // odometer ninety days old and measure a truck its own read would have reported as unmeasured —
+    // a series whose weeks were each computed under a different lookback, which is precisely the
+    // "same question, two answers" this plan exists to end.
+    const own = readings.filter((r) => r.readingAt >= lookbackFrom && r.readingAt <= b.toIso);
+    const perVehicle = distanceByVehicle(own, b.fromIso, b.toIso);
+    const fleet = fleetDistance(perVehicle);
+    return {
+      miles: fleet.miles,
+      measuredVehicles: fleet.measuredVehicles,
+      unmeasuredVehicles: fleet.unmeasuredVehicles,
+      perVehicle,
+      // What THIS period's own window held. See the header: a shared total would answer "has the
+      // collector run?" for somebody else's window.
+      readings: own.length,
+      lookbackFrom,
+    };
+  });
+}
+
+/** Every staged reading in `[fromIso, toIso]`, paged. The org filter is the only tenant boundary. */
+async function fetchReadings(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<VehicleOdometerReading[]> {
   const readings: VehicleOdometerReading[] = [];
   for (let from = 0; ; from += PAGE) {
     // The service role bypasses RLS, so this `.eq("org_id", …)` is the only tenant boundary between
@@ -108,7 +180,7 @@ export async function readFleetDistance(
       .from("samsara_odometer_readings")
       .select("vehicle_id, reading_at, meters, source")
       .eq("org_id", orgId)
-      .gte("reading_at", lookbackFrom)
+      .gte("reading_at", fromIso)
       .lte("reading_at", toIso)
       // Unordered `.range()` paging repeats and drops rows across pages — the lesson financialReads
       // learned the expensive way. Ordered by the identity's leading columns, which the unique index
@@ -122,7 +194,7 @@ export async function readFleetDistance(
       const meters = Number(r.meters);
       // A row that fails either of these is a row the collector could not have written (0311 checks
       // both). Skipping rather than throwing keeps one corrupt row from costing a fleet its figure;
-      // the count below still reports what the window held.
+      // the count above still reports what the window held.
       if (!Number.isFinite(meters) || !isCounter(r.source)) continue;
       readings.push({
         vehicleId: r.vehicle_id,
@@ -133,15 +205,5 @@ export async function readFleetDistance(
     }
     if (rows.length < PAGE) break;
   }
-
-  const perVehicle = distanceByVehicle(readings, fromIso, toIso);
-  const fleet = fleetDistance(perVehicle);
-  return {
-    miles: fleet.miles,
-    measuredVehicles: fleet.measuredVehicles,
-    unmeasuredVehicles: fleet.unmeasuredVehicles,
-    perVehicle,
-    readings: readings.length,
-    lookbackFrom,
-  };
+  return readings;
 }

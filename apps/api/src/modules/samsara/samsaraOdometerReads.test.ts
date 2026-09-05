@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ODOMETER_LOOKBACK_DAYS, readFleetDistance } from "./samsaraOdometerReads.js";
+import {
+  ODOMETER_LOOKBACK_DAYS,
+  readFleetDistance,
+  readFleetDistancePeriods,
+} from "./samsaraOdometerReads.js";
 
 /**
  * The reader between the staged odometer readings and the distance rule (M2).
@@ -162,5 +166,91 @@ describe("readFleetDistance", () => {
     const r = rec(ONE_WEEK);
     await expect(readFleetDistance(r.client, ORG, TO, FROM)).rejects.toThrow(/ends before it starts/);
     await expect(readFleetDistance(r.client, ORG, "not-a-date", TO)).rejects.toThrow(/valid ISO/);
+  });
+});
+
+/**
+ * The BATCHED form (M4) — the same measurement for several periods from one read of the table.
+ *
+ * The weekly trend D-MPG6 put in place of the daily one asks this question five or six times for one
+ * window, and a loop over `readFleetDistance` would fetch a thirty-day lookback each time. The two
+ * things that can go wrong when the fetch is shared are both tested here, because neither shows up
+ * as an error:
+ *
+ *   • a period could see readings from OUTSIDE its own lookback — the shared fetch reaches back
+ *     thirty days before the EARLIEST period, so a later week handed the whole set could measure a
+ *     truck its own read would have called unmeasured, and the series' weeks would each have been
+ *     computed under a different rule;
+ *   • a period could see readings AFTER its own end — which would count a later week's miles into an
+ *     earlier one.
+ */
+describe("readFleetDistancePeriods", () => {
+  const WEEK2_FROM = "2026-07-13T00:00:00.000Z";
+  const WEEK2_TO = "2026-07-20T00:00:00.000Z";
+
+  it("gives each period exactly what a single-period read would have given it", async () => {
+    const rows = [
+      ...ONE_WEEK,
+      row("v1", "2026-07-19T23:50:00Z", 664_609_344), // +804,672 m on week two = another 500 miles
+    ];
+    const one = await readFleetDistance(rec(rows).client, ORG, FROM, TO);
+    const two = await readFleetDistance(rec(rows).client, ORG, WEEK2_FROM, WEEK2_TO);
+    const batched = await readFleetDistancePeriods(rec(rows).client, ORG, [
+      { fromIso: FROM, toIso: TO },
+      { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
+    ]);
+    expect(batched[0]).toEqual(one);
+    expect(batched[1]).toEqual(two);
+    expect(batched[1]!.miles).toBe(500); // not 1,000 — week one's driving stays in week one
+  });
+
+  it("reads the staging table once for all of them", async () => {
+    const r = rec(ONE_WEEK);
+    await readFleetDistancePeriods(r.client, ORG, [
+      { fromIso: FROM, toIso: TO },
+      { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
+    ]);
+    expect(r.forTable("samsara_odometer_readings").length).toBe(1);
+  });
+
+  it("does not let a later period use an opening odometer older than its OWN lookback", async () => {
+    // v9's only prior reading is 40 days before week two — outside its 30-day lookback, inside the
+    // shared fetch's, because the fetch reaches back from week ONE. Read on its own, week two cannot
+    // measure v9. The batch must agree, or the trend's weeks are not comparable with each other.
+    const rows = [
+      ...ONE_WEEK,
+      row("v9", "2026-06-08T23:50:00Z", 500_000_000),
+      row("v9", "2026-07-19T23:50:00Z", 500_804_672),
+    ];
+    const alone = await readFleetDistance(rec(rows).client, ORG, WEEK2_FROM, WEEK2_TO);
+    const [, batched] = await readFleetDistancePeriods(rec(rows).client, ORG, [
+      { fromIso: FROM, toIso: TO },
+      { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
+    ]);
+    expect(alone.perVehicle.find((v) => v.vehicleId === "v9")!.miles).toBeNull();
+    expect(batched!.perVehicle.find((v) => v.vehicleId === "v9")!.miles).toBeNull();
+  });
+
+  it("counts readings per period, not the shared fetch's total", async () => {
+    // `readings` is what a caller uses to tell "the collector has not run" from "the fleet stood
+    // still". Answering it with another window's row count would answer a different question.
+    const rows = [...ONE_WEEK, row("v1", "2026-07-19T23:50:00Z", 664_609_344)];
+    const [w1, w2] = await readFleetDistancePeriods(rec(rows).client, ORG, [
+      { fromIso: FROM, toIso: TO },
+      { fromIso: WEEK2_FROM, toIso: WEEK2_TO },
+    ]);
+    expect(w1!.readings).toBe(3); // everything up to 12 July
+    expect(w2!.readings).toBe(4); // …and the 19th as well
+  });
+
+  it("refuses a bad period even when the others are fine, and answers nothing for no periods", async () => {
+    const r = rec(ONE_WEEK);
+    await expect(
+      readFleetDistancePeriods(r.client, ORG, [
+        { fromIso: FROM, toIso: TO },
+        { fromIso: TO, toIso: FROM },
+      ]),
+    ).rejects.toThrow(/ends before it starts/);
+    expect(await readFleetDistancePeriods(r.client, ORG, [])).toEqual([]);
   });
 });
