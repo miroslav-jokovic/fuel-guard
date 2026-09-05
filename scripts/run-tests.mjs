@@ -28,6 +28,7 @@
  *      audit found it.
  */
 import { spawn } from "node:child_process";
+import { cpus, totalmem } from "node:os";
 import { appendFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,26 +57,56 @@ function discoverMatrices() {
   return names.map((n) => ({ name: n.replace(/\.test\.mjs$/, ""), path: join(MATRIX_DIR, n) }));
 }
 
-function run(label, cmd, args) {
+function run(label, cmd, args, { stream = true } = {}) {
   return new Promise((resolve) => {
-    console.log(`\n---- ${label} ${"-".repeat(Math.max(0, 60 - label.length))}\n`);
+    if (stream) console.log(`\n---- ${label} ${"-".repeat(Math.max(0, 60 - label.length))}\n`);
     const child = spawn(cmd, args, { cwd: ROOT, shell: process.platform === "win32" });
     let out = "";
-    for (const [stream, sink] of [
+    for (const [src, sink] of [
       [child.stdout, process.stdout],
       [child.stderr, process.stderr],
     ]) {
-      stream.on("data", (chunk) => {
+      src.on("data", (chunk) => {
         out += chunk.toString();
-        sink.write(chunk);
+        if (stream) sink.write(chunk);
       });
     }
-    child.on("close", (code) => resolve({ code: code ?? 1, out }));
+    const done = (code) => {
+      // Buffered mode: emit the whole matrix as one block, so parallel runs stay readable and a
+      // failure is not interleaved line-by-line with three other matrices' passes.
+      if (!stream) {
+        console.log(`\n---- ${label} ${"-".repeat(Math.max(0, 60 - label.length))}\n`);
+        process.stdout.write(out);
+      }
+      resolve({ code, out });
+    };
+    child.on("close", (code) => done(code ?? 1));
     child.on("error", (err) => {
-      console.error(`${label}: failed to start - ${err.message}`);
-      resolve({ code: 1, out });
+      out += `${label}: failed to start - ${err.message}\n`;
+      done(1);
     });
   });
+}
+
+/**
+ * Run `tasks` with at most `limit` in flight, preserving input order in the results.
+ *
+ * The matrices used to run one at a time in a `for` loop, which on a four-core runner left three
+ * cores idle for the whole of the longest step in CI. They are independent by construction - each
+ * one builds its own PGlite from the migration ledger and shares nothing with its neighbours - so
+ * the serialisation bought nothing. Ordering of the REPORT is preserved regardless of finish order.
+ */
+async function pool(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 const rows = [];
@@ -92,8 +123,24 @@ if (!matricesOnly) {
 }
 
 // ---- behavioural matrices, every one, regardless of anything above ---------
-for (const m of discoverMatrices()) {
-  const r = await run(`Matrix: ${m.name}`, "node", [m.path]);
+// Bounded by MEMORY as well as by cores, and the memory bound is the one that binds. Each matrix
+// holds a full in-process Postgres: measured 2026-09-05 with `/usr/bin/time -l`, peak RSS is
+// 1.19-1.26 GB per process, and it barely moves with fixture size (rls 1264 MB against
+// user-profiles 1195 MB) because it is the PGlite WASM heap rather than the rows. Fanning out to
+// core count alone would ask for ~17 GB on a 14-core laptop and swap for the whole run, turning a
+// serial wait into a slower parallel one. Sixty per cent of total RAM is the budget, which leaves
+// the four-core / 16 GB CI runner at 4 — core-bound, as intended.
+const PER_MATRIX_BYTES = 1.3e9;
+const memoryBound = Math.floor((totalmem() * 0.6) / PER_MATRIX_BYTES);
+const CONCURRENCY =
+  Number(process.env.MATRIX_CONCURRENCY) || Math.max(2, Math.min(cpus().length, memoryBound));
+const matrices = discoverMatrices();
+const outcomes = await pool(matrices, CONCURRENCY, (m) =>
+  run(`Matrix: ${m.name}`, "node", [m.path], { stream: false }),
+);
+
+for (const [i, m] of matrices.entries()) {
+  const r = outcomes[i];
   const hit = r.out.match(/RESULT:\s*(\d+)\s*passed,\s*(\d+)\s*failed/);
 
   if (!hit) {

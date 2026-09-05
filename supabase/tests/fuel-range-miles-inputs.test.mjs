@@ -282,5 +282,10 @@ await db.exec("rollback");
 ok("a signed-in user gets their own org's rows with p_org omitted — the only call PostgREST can resolve for a browser",
   asBrowser.length === rows.length, `${asBrowser.length} vs ${rows.length}`);
 
+// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
+// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
+// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -122,5 +122,10 @@ ok("nor we theirs", byDay["2026-08-03"].quoted_sites === 0);
 const nobody = await all(`select * from fuel_price_coverage('2026-08-01'::date,'2026-08-07'::date, null)`);
 ok("no org means no rows — it fails closed, like fuel_spend_lines", nobody.every((r) => r.quoted_sites === 0));
 
+// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
+// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
+// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -253,5 +253,10 @@ ok(
   Number((await one(`select count(*)::int as n from user_profiles where user_id = $1`, [SELF_NAMED])).n) === 0,
 );
 
+// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
+// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
+// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

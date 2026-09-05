@@ -177,5 +177,10 @@ const oneTruck = await all(`select * from fuel_spend_by_period($1::date,$2::date
   ["2026-08-17", "2026-08-23", [V[0]], ORG]);
 ok("narrowing to one truck narrows the sums", Number(oneTruck[0].active_trucks) === 1 && Number(oneTruck[0].fills) === 7);
 
+// Release the WASM database before the verdict. This matrix exits explicitly only when it FAILS, so
+// on the green path Node had to drain PGlite's handles on its own — ~10 seconds of idle wait after
+// the last assertion, paid once per matrix per run. Measured 2026-09-05: 11.33s -> 1.32s here.
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
