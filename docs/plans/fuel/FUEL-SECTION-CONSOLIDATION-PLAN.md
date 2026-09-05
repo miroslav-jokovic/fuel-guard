@@ -438,9 +438,9 @@ before it is built, not during.
 | T3b | **spike — deliberately unresolved** | D-AG1 read; `robustWindowMiles` and the MPG band shown to be judgement, not addition. Whether the seam can be drawn without copying a constant is **not known** and is the spike. |
 | T4 | **verified** | `duty_equipment_segments` = 0 rows; no other time-ranged pairing in the schema. |
 | T5 | **verified** | `fuel_spend_days.updated_at` present; build dates measured; `posted_last_polled_at`/`rejected_last_polled_at` present. |
-| P1 | **verified** | `FilterSelect` supports `multiple`; `useEfsFacets` exists; 4 EFS units with no vehicle row. |
-| P2 | **partly assumption** | The `spend-report.pdf` pattern is verified as the standard. **What the report should SAY is not decided** — Q-FUI10. Row-level CSV is the fallback and is safe. |
-| P3 | **verified** | `ExceptionQuery`/`qs()`/the route all lack a vehicle field; `assignedTo` exists server-side and is unsent. |
+| P1 | **BUILT 2026-09-04** | The shape row was right about all three facts and missed the bigger one: the menus were built in the browser under `.limit(10_000)` while **the hosted PostgREST caps every response at 1,000 rows**, so nine of them were derived from a thousand of 28,638 lines and offered 133 of 190 units. D-FUI16 turned out to be the smaller half of its own finding. Three merges — add the parameter, switch the reader, drop the scalar — because a function's signature cannot change in one. |
+| P2 | **BUILT 2026-09-04** | Row-level CSV, as the fallback said, so Q-FUI10 never blocked it. What the row did not see is what "the same pure functions the screen uses" costs when it is taken literally: the list filters, the reject-day window, the unit and search resolution, the card facets and the CSV cell rule all had to move to `@silvicom/shared`, because each of them existed only inside a page. Two of them existed TWICE and had already drifted. |
+| P3 | **BUILT 2026-09-04** | All three verified facts held. The row missed the translation underneath them: the section speaks vehicle IDS and the ledger stores UNIT NUMBERS, because `fuel_exceptions.vehicle_id` was declared by 0250 and has **never been written by anything** (0 rows in production). A filter on the obvious column would have returned nothing, always. It also missed that the four tiles took a window only, so a scoped list sat under fleet-wide money. |
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
 | C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
 | C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
@@ -1412,6 +1412,28 @@ undefined; the label's caveat removed; the error-code fallback removed; the Aler
 empty; the Alerts filter ignoring its list. 1,305 web tests, `pnpm test`, `typecheck`, `lint`,
 `lint:tokens`, `lint:ui-adoption`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
 `lint:capabilities`, `lint:surfaces`, `lint:comment-claims`.
+
+#### — MERGE 3 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1c-drop-scalar-vehicle`). The ratchet closes.
+
+**0315 drops the scalar `p_vehicle` from both functions.** Nothing has called it since merge 2, and two
+ways to say one thing is a state to pass THROUGH, never one to stop in: a defaulted argument no caller
+uses reads to the next person as a supported way to ask the question, and the two would drift the first
+time one of them gained a clause. Add → switch → drop, finished rather than left at two.
+
+**The check was `pg_proc` by hand plus a grep**, because `lint:migration-ordering` reads columns and
+cannot see a signature in either direction.
+
+⚠ **One hazard, named rather than left to be found.** A browser tab opened before merge 2 deployed
+still holds the old bundle, and that bundle passes `p_vehicle`. From the moment this applies, such a
+tab gets "could not find the function" on the Fuel Log's tiles until it is reloaded. That is why this
+is a separate merge behind the reader rather than riding with it: the window is a stale tab's, not a
+deploy's, and it closes on the next page load.
+
+**Verified by.** `fuel-range-totals` now asserts the scalar is GONE — the call must fail rather than
+resolve, because a function that quietly accepted the old name would pass every other line in the file.
+28 assertions there, 16 in `fuel-range-miles-inputs`. 0315 takes a `lint:mpg` carve-out for the same
+reason 0312 did, and its entry says it is the last one: the parameter list is now what it should have
+been, so nothing is scheduled to re-create these functions again.
 
 ---
 

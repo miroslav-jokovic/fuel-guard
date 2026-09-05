@@ -220,7 +220,7 @@ ok("an org whose fills name no truck reports none attributed, not none at all",
   `${zeroCost.fills_with_vehicle}/${zeroCost.fills}`);
 
 // ── 5. the filters, each one ────────────────────────────────────────────────────────────────────
-const perVehicle = await call(`, p_vehicle => '${VEH}'`);
+const perVehicle = await call(`, p_vehicles => array['${VEH}']::uuid[]`);
 ok("filtering to one truck counts only that truck's fills",
   Number(perVehicle.fills) === N / 2, `${perVehicle.fills} vs ${N / 2}`);
 // ⚠ The assertion that distinguishes "share of the rows on screen" from "share of the fleet". Scoped
@@ -236,12 +236,6 @@ ok(
 // The list below these tiles gains multi-select, and a tile that kept answering for the whole fleet
 // while the rows beneath it showed two trucks would be the disagreement FUEL-T3a spent a migration
 // removing, reintroduced by a filter.
-const oneOfList = await call(`, p_vehicles => array['${VEH}']::uuid[]`);
-ok(
-  "a one-element list means exactly what the scalar meant — the same window, the same count",
-  Number(oneOfList.fills) === Number(perVehicle.fills),
-  `${oneOfList.fills} vs ${perVehicle.fills}`,
-);
 const bothTrucks = await call(`, p_vehicles => array['${VEH}','${VEH2}']::uuid[]`);
 ok(
   "two trucks count both trucks' fills and still exclude the fills that name none",
@@ -258,15 +252,17 @@ ok(
   Number(noSuchTruck.fills) === 0 && Number(total.fills) > 0,
   `${noSuchTruck.fills}`,
 );
-// Both filters arriving together is the intersection, which is the only defensible reading of two
-// truck scopes. Disjoint arguments must therefore answer zero; a `p_vehicles` that SUPERSEDED the
-// scalar would answer with VEH2's fills and silently discard an argument somebody sent.
-const disjoint = await call(`, p_vehicle => '${VEH}', p_vehicles => array['${VEH2}']::uuid[]`);
-ok(
-  "the scalar and the list are both applied — disjoint arguments intersect to nothing rather than one winning",
-  Number(disjoint.fills) === 0,
-  `${disjoint.fills}`,
-);
+// ⚠ The SCALAR `p_vehicle` is gone (migration 0315, FUEL-P1 merge 3). Calling it must now fail rather
+// than resolve to something — a defaulted argument nobody passes is a second way to ask one question,
+// and the drop is what makes "the truck filter is a list" true rather than merely usual. Asserted by
+// the error, because a function that quietly accepted the old name would pass every other line here.
+let scalarGone = false;
+try {
+  await one(`select * from fuel_range_totals(p_vehicle => '${VEH}', p_org => $1)`, [ORG]);
+} catch {
+  scalarGone = true;
+}
+ok("the scalar p_vehicle no longer exists — one way to name a truck, not two", scalarGone);
 
 // A fill ON the closing date, so "inclusive" is actually exercised. Every fixture row sits on the
 // 15th, so a `<` bound would have changed nothing and the assertion would have passed either way —
