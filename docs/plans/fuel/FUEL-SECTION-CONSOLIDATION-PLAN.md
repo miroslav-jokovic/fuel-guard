@@ -1485,6 +1485,44 @@ window. Two stubs were wrong in the safe direction and said so — a shallow mou
 `DataWorkspace` as empty elements and swallows the button, and `Response.text()` strips a BOM, so the
 byte-order mark is asserted over the bytes.
 
+#### — MERGE 2 of 2 SHIPPED 2026-09-04 (`claude/fuel-p2b-cards-export`). **P2 is DONE for the four list pages; the ledger's export rides with P3.**
+
+**What shipped.** `GET /api/fueling/exports/cards.csv`, same gate, same audit, same scope line.
+
+**It is shaped differently from the other three, and the difference is the finding.** The Fuel Log's
+lists page in the browser, so their exports re-run the query. **The Cards page does not** — it loads
+the whole inventory and narrows it in memory, because 199 cards is a list a person scrolls. Seven of
+its facets (driver, unit, policy, exception, vehicle link, sync health) therefore existed ONLY as
+predicates inside a `computed` in the page. Restating them as SQL in the export would have been the
+copy that goes stale, because nobody looks at an export when they change a filter.
+
+So `matchesCardFilters` moved to `@silvicom/shared` and **both** the page and the export apply it — to
+the same summary rows, because the export reads the cards the way the list route does (status and free
+text in the database, where they already are) and maps them with the same `cardRowToSummary`.
+
+**Two duplications this stepped on, both closed rather than routed around.**
+
+1. The list ROW was written twice — `toSummary`'s return in the API and `EfsCardRow` in the browser —
+   the API's answer and the browser's transcription of it, kept in step by hand. The export would have
+   been the third. It is now `EfsCardSummary` in shared, with `cardRowToSummary` extracted from the
+   route so the masking has one implementation.
+2. ⚠ **A wrong contract with no readers.** `efsCardSummarySchema` in `cardControlContract.ts` described
+   a list row with `vehicleId`/`driverId` and *without* `fuelCardId`, the override scope, the linking
+   evidence or the detail clock — a shape the API has not sent for several steps — and **nothing
+   imported it anywhere**. It is deleted, with the reason left in its place. A wrong contract nobody
+   reads is worse than none, because the next person to need the shape finds it and believes it.
+
+**One place the file is deliberately more complete than the screen.** The list endpoint asks for 2,000
+cards and the hosted PostgREST answers at most 1,000, so a fleet past a thousand cards sees a truncated
+page — honestly, since the page compares the count it was given with the rows it received. The export
+PAGES, so it answers the filter rather than the first thousand rows of it.
+
+**Verified by.** `efsCards.test.ts` in shared (13 — the seven facets, and specifically what NULL means
+in each: a card that never had an exception HAS none), `efsCardExport.test.ts` (8), plus two route
+cases. **Five more mutants killed:** the predicate not applied; the org filter dropped; the
+`card_last4` tiebreaker dropped (two cards can end in the same four digits); a null exception read as
+unknown; an empty facet narrowing the list to nothing.
+
 ---
 
 ### P3 · The ledger can be scoped to a truck

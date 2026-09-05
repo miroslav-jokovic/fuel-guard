@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { maskPan, mergeEffectiveConfig, policyNumberSchema } from "@silvicom/shared";
+import { mergeEffectiveConfig, policyNumberSchema } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getPolicyCached } from "../lib/efsPolicyCache.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
@@ -16,6 +16,7 @@ import {
   loadCardNumber,
   refreshCardDetail,
 } from "../services/efsCardMirror.js";
+import { cardRowToSummary as toSummary, type EfsCardListRow as CardRow } from "../services/efsCardSummary.js";
 import { loadCardControlAccess } from "../services/efsCardControlAccess.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
@@ -58,74 +59,6 @@ const locationQuerySchema = z.object({
   country: z.enum(["USA", "CAN", "MXN"]).optional(),
 });
 
-interface CardRow {
-  id: string;
-  card_last4: string;
-  status: string;
-  policy_number: number | null;
-  driver_id_prompt: string | null;
-  unit_prompt: string | null;
-  driver_name: string | null;
-  override_uses: number | null;
-  override_all_locations: boolean | null;
-  location_override_id: string | null;
-  last_used_date: string | null;
-  fuel_card_id: string | null;
-  fuel_card_link: { status?: string; method?: string | null; candidates?: string[] } | null;
-  synced_at: string;
-  /** The DETAIL pass's own clock. Null means this card has never been read past its roster row. */
-  detail_synced_at: string | null;
-  absent_since: string | null;
-  /** Step 7.5 / migration 0198: `{code, source, at}`, never a bare string. */
-  sync_error: { code?: string; source?: string; at?: string } | null;
-}
-
-const toSummary = (row: CardRow) => ({
-  id: row.id,
-  last4: row.card_last4,
-  maskedRef: maskPan(row.card_last4),
-  status: row.status,
-  policyNumber: row.policy_number,
-  driverIdPrompt: row.driver_id_prompt,
-  unitPrompt: row.unit_prompt,
-  driverName: row.driver_name,
-  overrideUses: row.override_uses,
-  // Both halves of an active exception, not just the count: "2 uses left" and "2 uses left at ONE
-  // truck stop" are different facts, and the action drawer has to say which one it is replacing.
-  overrideAllLocations: row.override_all_locations,
-  locationOverrideId: row.location_override_id,
-  lastUsedDate: row.last_used_date,
-  fuelCardId: row.fuel_card_id,
-  /**
-   * WHY a card is not linked (Step 7.7). `candidates` is a count, not a list of ids: the operator
-   * question is "can this be resolved and how", and shipping fuel-card ids to a browser that cannot
-   * do anything with them is payload without a reader.
-   */
-  linkStatus: row.fuel_card_link?.status ?? null,
-  linkMethod: row.fuel_card_link?.method ?? null,
-  linkCandidates: row.fuel_card_link?.candidates?.length ?? 0,
-  syncedAt: row.synced_at,
-  /**
-   * Step 7.8. The override state hangs off THIS clock, not `syncedAt`.
-   *
-   * `synced_at` moves on every sweep because the roster pass touches every row; `detail_synced_at`
-   * moves only when the card's document was actually re-read. `override_all_locations` and
-   * `location_override_id` have no writer but the detail pass, so the override statement as a whole
-   * is only ever as fresh as this — and it is never NEWER than `synced_at`, so reading it is the
-   * conservative direction. Null = the roster has seen this card and nothing has read it.
-   */
-  detailSyncedAt: row.detail_synced_at,
-  /** Set when EFS stopped listing the card (audit P2). The row is kept; the history is the point. */
-  absentSince: row.absent_since,
-  /**
-   * Flattened like `fuel_card_link` above, and for the same reason: three scalars a template can
-   * render beat one object every caller has to destructure. `syncError` stays the bare code so the
-   * list page's health facet and any older client keep working unchanged (Step 7.5).
-   */
-  syncError: row.sync_error?.code ?? null,
-  syncErrorSource: row.sync_error?.source ?? null,
-  syncErrorAt: row.sync_error?.at ?? null,
-});
 
 /**
  * When the browser should start calling this mirror stale.

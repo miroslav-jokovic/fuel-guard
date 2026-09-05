@@ -1,3 +1,5 @@
+import { exportHref, windowScope } from "@/lib/exportTarget";
+
 /**
  * The address, the filename and the scope sentence for a Fuel Log tab's export (FUEL-P2, D-FUI15).
  *
@@ -45,31 +47,16 @@ export interface FuelLogExportTarget {
 
 export function fuelLogExportTarget(input: FuelLogExportInput): FuelLogExportTarget {
   const spec = FUEL_LOG_EXPORTS[input.dataset];
-  const params = new URLSearchParams();
-  if (input.from) params.set("from", input.from);
-  if (input.to) params.set("to", input.to);
-  if (input.units.length) params.set("unit", input.units.join(","));
-  for (const [key, value] of Object.entries(input.facets ?? {})) {
-    if (value) params.set(key, value);
-  }
-  const q = params.toString();
-
-  const window = input.from && input.to
-    ? `${input.from} → ${input.to}`
-    : input.from
-      ? `from ${input.from}`
-      : input.to
-        ? `to ${input.to}`
-        : "all dates";
-  const trucks = input.units.length === 0
-    ? "all trucks"
-    : `${input.units.length} truck${input.units.length === 1 ? "" : "s"}`;
-
   return {
-    href: `/api/fueling/exports/${spec.path}${q ? `?${q}` : ""}`,
+    href: exportHref(`/api/fueling/exports/${spec.path}`, {
+      from: input.from,
+      to: input.to,
+      unit: input.units.length ? input.units.join(",") : undefined,
+      ...(input.facets ?? {}),
+    }),
     // The window is in the NAME as well as on the first line, because the first thing anybody does
     // with a downloaded file is put it in a folder with six others.
     filename: `${spec.stem}-${input.from ?? "all"}-to-${input.to ?? "all"}.csv`,
-    scope: `${window} · ${trucks}`,
+    scope: windowScope(input.from, input.to, input.units.length),
   };
 }

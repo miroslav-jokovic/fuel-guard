@@ -93,6 +93,7 @@ describe("the gate is the fuel section's view set, derived rather than listed", 
     expect((await get("/api/fueling/exports/fills.csv")).status).toBe(403);
     expect((await get("/api/fueling/exports/declines.csv")).status).toBe(403);
     expect((await get("/api/fueling/exports/source-records.csv")).status).toBe(403);
+    expect((await get("/api/fueling/exports/cards.csv")).status).toBe(403);
   });
 
   it("refuses an unauthenticated caller", async () => {
@@ -118,6 +119,20 @@ describe("every export leaves a trace", () => {
     holder.rec = seed({ efs_transactions: [] });
     await get("/api/fueling/exports/source-records.csv");
     expect(holder.rec!.writtenRows("audit_logs")[0]).toMatchObject({ entity: "efs_transactions" });
+    holder.rec = seed({ efs_cards: [] });
+    await get("/api/fueling/exports/cards.csv");
+    expect(holder.rec!.writtenRows("audit_logs")[0]).toMatchObject({ entity: "efs_cards", action: "export.generated" });
+  });
+
+  /**
+   * ⚠ The card inventory is the one export where the audit row is the POINT rather than the record: it
+   * carries every driver name and every masked card in the account, and "who took a copy of the card
+   * list, and when" is a question an auditor asks about this file and no other.
+   */
+  it("records a card export with the filter it was taken under", async () => {
+    holder.rec = seed({ efs_cards: [] });
+    await get("/api/fueling/exports/cards.csv?status=Active");
+    expect(holder.rec!.writtenRows("audit_logs")[0]!.meta).toMatchObject({ report: "cards.csv", status: "Active" });
   });
 });
 
