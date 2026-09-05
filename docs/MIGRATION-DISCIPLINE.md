@@ -80,8 +80,29 @@ Three things follow, and the second is the one that bites:
    schema already applied. That is harmless for an added column and is the *safer* direction — but
    it means "the schema is always behind" is no longer a fact you can lean on, in either direction.
 
-The exact new figure wants re-measuring the first time a migration merges to main; it is stated here
-as ~1 minute from the CI and migrate timings, not from a stopwatch on a real migration merge.
+### Measured on the first migration merge after the split
+
+PR #560 (migration 0316), 2026-09-05 — the stopwatch the paragraph above was waiting for:
+
+```
+07:29:37Z  merge to main
+07:31:53Z  Railway is serving the new API        ← new code, OLD schema   (+2m16s)
+07:34:37Z  migrate.yml applies 0316              ← window closes          (+5m00s)
+```
+
+**Two minutes and forty-four seconds**, against nine minutes and ten on #430. The prediction
+written above it was "~1 minute", and that was wrong by a factor of nearly three, for a reason
+worth keeping: the estimate treated `migrate.yml` as *CI plus a moment*, when the job does real
+work of its own after CI goes green — it polls for the CI conclusion on an interval (so it learns
+late), then installs the Supabase CLI, links the project, and pushes. Merge-to-schema-applied was
+300s while CI itself was ~180s, so roughly two of those five minutes belong to migrate.yml, not to
+CI. Speeding up CI could never have taken the window below that floor.
+
+So the window is **~2.5-3 minutes**, not ~1, and the three consequences listed above are unchanged:
+the two-merge rule still holds, it is still too short to watch for, and Railway at ~2m16s against
+migrate at ~5m still leaves the ordering fixed in practice — the schema is behind, not ahead. That
+last point was over-stated when it was written from the ~1 minute guess; at these measured numbers
+the two pipelines are not close enough to reorder.
 
 ### What that means for you
 

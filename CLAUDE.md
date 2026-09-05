@@ -42,9 +42,10 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   for CI green, so **a merge can be served against the previous schema**. A column and its first
   reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
   the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window. **The window was ~9 minutes and is now roughly a minute** — CI went from 15.7
-  to ~3 minutes on 2026-09-05 — which makes the RULE more important, not less: a gap that short
-  cannot be watched for, and at these timings the two pipelines can even land in either order.
+  §the-deploy-window. **The window was 9m10s and is now 2m44s** — measured on migration 0316,
+  2026-09-05, after CI went from 15.7 to ~3 minutes — which makes the RULE more important, not
+  less: a gap that short cannot be watched for. It will not go much lower by speeding up CI;
+  `migrate.yml` itself accounts for ~2 of the 5 minutes from merge to schema applied.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict
