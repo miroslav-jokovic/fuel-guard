@@ -360,6 +360,9 @@
   "route_geometries": [
     "apps/api/src/modules/routing/routeGeometry.ts"
   ],
+  "samsara_feed_alerts": [
+    "apps/api/src/modules/samsara/samsaraFeedAlarm.ts"
+  ],
   "samsara_feed_cursors": [
     "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
   ],
